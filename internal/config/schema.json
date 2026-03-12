@@ -1,0 +1,553 @@
+{
+  "$schema": "http://json-schema.org/draft-06/schema#",
+  "title": "Hip Configuration Schema",
+  "description": "Schema for the hip.yml configuration file",
+  "type": "object",
+  "additionalProperties": false,
+  "definitions": {
+    "environment_vars": {
+      "type": "object",
+      "description": "Defines environment variables",
+      "additionalProperties": {
+        "type": ["string", "boolean", "number"]
+      },
+      "examples": [
+        { "RAILS_ENV": "development" },
+        { "DATABASE_URL": "postgres://user:password@db:5432/myapp_development" },
+        { "PORT": "${PORT:-3000}" }
+      ]
+    },
+    "env_file": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Path to a single .env file"
+        },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "required": { "type": "boolean", "default": false }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Array of .env file paths (later files override earlier)"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "files": {
+              "oneOf": [
+                { "type": "string" },
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "string" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "required": { "type": "boolean", "default": false }
+                        },
+                        "required": ["path"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "priority": {
+              "type": "string",
+              "enum": ["before_environment", "after_environment"],
+              "default": "before_environment",
+              "description": "Control whether env_file or environment: takes precedence"
+            },
+            "required": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether env files are required to exist"
+            },
+            "interpolate": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable variable interpolation in .env files"
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        }
+      ],
+      "examples": [
+        ".env",
+        [".env.defaults", ".env", ".env.local"],
+        {
+          "files": [".env.defaults", ".env"],
+          "priority": "before_environment",
+          "required": false
+        }
+      ]
+    },
+    "interaction_command": {
+      "type": "object",
+      "description": "Configuration for an interaction command",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Describes the command",
+          "examples": ["Run Rails commands", "Connect to PostgreSQL database"]
+        },
+        "service": {
+          "type": "string",
+          "description": "Specifies the service associated with the command",
+          "examples": ["web", "frontend", "db"]
+        },
+        "command": {
+          "type": "string",
+          "description": "Represents the command to be executed",
+          "examples": ["bundle exec rails", "npm", "psql -h db -U user myapp_development"]
+        },
+        "workdir": {
+          "type": "string",
+          "description": "Specifies the working directory for the command",
+          "examples": ["/workdir", "/app"]
+        },
+        "user": {
+          "type": "string",
+          "description": "Specifies the user to run the command as",
+          "examples": ["root:root", "root", "www-data", "1000:1000"]
+        },
+        "default_args": {
+          "type": "string",
+          "description": "Default arguments for the command",
+          "examples": ["server -p 3000 -b 0.0.0.0"]
+        },
+        "environment": {
+          "$ref": "#/definitions/environment_vars"
+        },
+        "env_file": {
+          "$ref": "#/definitions/env_file"
+        },
+        "compose": {
+          "type": "object",
+          "description": "Allows specifying Docker Compose options",
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "type": "string",
+              "description": "Specifies the Docker Compose method (e.g., up, run)",
+              "examples": ["run", "up", "exec"]
+            },
+            "compose_method": {
+              "type": "string",
+              "description": "Specifies an alternative Docker Compose method to use in compose commands",
+              "examples": ["up"]
+            },
+            "run_options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Options to pass to the 'docker-compose run' command",
+              "examples": [["service-ports", "rm"]]
+            },
+            "profiles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Docker Compose profiles to use",
+              "examples": [["web", "development"], ["frontend"], ["test"]]
+            }
+          }
+        },
+        "shell": {
+          "type": "boolean",
+          "description": "Enables or disables shell interpolation"
+        },
+        "entrypoint": {
+          "type": "string",
+          "description": "Specifies the command entrypoint"
+        },
+        "runner": {
+          "type": "string",
+          "description": "Specifies the runner (e.g., docker_compose, kubectl)"
+        },
+        "pod": {
+          "type": "string",
+          "description": "Specifies the pod for the kubectl runner"
+        },
+        "compose_run_options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "DEPRECATED: Options to pass to the 'docker-compose run' command",
+          "examples": [["service-ports", "rm"]]
+        },
+        "subcommands": {
+          "type": "object",
+          "description": "Contains subcommands with the same structure as main commands",
+          "patternProperties": {
+            "^[\\w\\-.:/\\s]+$": {
+              "$ref": "#/definitions/interaction_command"
+            }
+          },
+          "minProperties": 1,
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Specifies the minimum required version of Hip",
+      "examples": ["8.1.0"]
+    },
+    "compose": {
+      "type": "object",
+      "description": "Contains Docker Compose configuration",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Array of strings representing paths to Docker Compose files",
+          "examples": [["docker-compose.yml", "docker-compose.override.yml"]]
+        },
+        "project_name": {
+          "type": "string",
+          "description": "Specifies the project name for Docker Compose",
+          "examples": ["app"]
+        },
+        "command": {
+          "type": "string",
+          "description": "Specifies an alternative Docker Compose command",
+          "examples": ["docker compose"]
+        },
+        "method": {
+          "type": "string",
+          "description": "Specifies the Docker Compose method to use"
+        },
+        "up_options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Default options for 'hip up' command",
+          "examples": [["-d", "--wait"], ["--build", "-d"]]
+        }
+      }
+    },
+    "interaction": {
+      "type": "object",
+      "description": "Defines the commands and their configurations",
+      "patternProperties": {
+        "^[\\w\\-.:/\\s]+$": {
+          "$ref": "#/definitions/interaction_command"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provision": {
+      "type": "object",
+      "description": "Execute commands within provision section. Keys represent provision profiles (e.g., 'default', 'reset'), each containing an array of commands to execute. Commands can be strings (shell commands), step objects (structured steps with run/note), or legacy structured commands.",
+      "patternProperties": {
+        "^[\\w\\-.:/\\s]+$": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Raw shell command string"
+              },
+              {
+                "type": "object",
+                "description": "Step-based command with name, run commands, and optional notes",
+                "additionalProperties": false,
+                "properties": {
+                  "step": {
+                    "type": "string",
+                    "description": "Name of the step (displayed with progress indicator)"
+                  },
+                  "run": {
+                    "oneOf": [
+                      { "type": "string" },
+                      { "type": "array", "items": { "type": "string" } }
+                    ],
+                    "description": "Command(s) to execute for this step"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "Informational note displayed before/after commands (supports multiline)"
+                  }
+                },
+                "required": ["step"]
+              },
+              {
+                "type": "object",
+                "description": "Legacy structured command with explicit type and arguments",
+                "additionalProperties": false,
+                "properties": {
+                  "echo": {
+                    "type": "string",
+                    "description": "Execute echo command with the given text"
+                  },
+                  "cmd": {
+                    "type": "string",
+                    "description": "Execute a raw shell command"
+                  },
+                  "shell": {
+                    "type": "string",
+                    "description": "Execute a multi-line shell script"
+                  },
+                  "sleep": {
+                    "oneOf": [
+                      { "type": "integer" },
+                      { "type": "number" },
+                      { "type": "string" }
+                    ],
+                    "description": "Sleep for the specified number of seconds"
+                  },
+                  "docker": {
+                    "type": "object",
+                    "description": "Execute docker command",
+                    "additionalProperties": false,
+                    "properties": {
+                      "compose": {
+                        "oneOf": [
+                          {
+                            "type": "string",
+                            "description": "Docker compose command with arguments"
+                          },
+                          {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Docker compose command as array of arguments"
+                          }
+                        ]
+                      }
+                    },
+                    "required": ["compose"]
+                  }
+                },
+                "minProperties": 1,
+                "maxProperties": 1
+              }
+            ]
+          },
+          "description": "Array of commands (strings, step objects, or legacy structured objects) to execute for this provision profile"
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "default": [
+            { "step": "Installing dependencies", "run": "bundle install" },
+            { "step": "Setting up database", "run": ["rails db:create", "rails db:migrate"] },
+            { "step": "Complete", "note": "Run 'rails server' to start" }
+          ],
+          "legacy_string": [
+            "echo 'Setting up...'",
+            "docker compose down --volumes",
+            "sleep 2"
+          ],
+          "legacy_structured": [
+            { "echo": "🚀 Starting..." },
+            { "cmd": "docker compose up -d" },
+            { "sleep": 10 }
+          ]
+        }
+      ]
+    },
+    "environment": {
+      "$ref": "#/definitions/environment_vars"
+    },
+    "env_file": {
+      "$ref": "#/definitions/env_file"
+    },
+    "kubectl": {
+      "type": "object",
+      "description": "Contains Kubernetes configuration",
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Specifies the Kubernetes namespace to use",
+          "examples": ["app"]
+        }
+      }
+    },
+    "modules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Paths to module configuration files",
+      "examples": [["production"]]
+    },
+    "infra": {
+      "type": "object",
+      "description": "Contains infrastructure services configuration",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[\\w\\-.:/\\s]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "git": {
+              "type": "string",
+              "pattern": "^(git@|git://|https?://)[\\w\\d.@:/\\-]+$",
+              "description": "Git repository URL for the infrastructure component",
+              "examples": ["https://github.com/mycompany/redis-config.git"]
+            },
+            "ref": {
+              "type": "string",
+              "description": "Specifies the Git reference (branch, tag, or commit) to use",
+              "examples": ["main"]
+            },
+            "path": {
+              "type": "string",
+              "description": "Local path to the infrastructure component",
+              "examples": ["./infra/elasticsearch"]
+            }
+          },
+          "oneOf": [
+            { "required": ["git"] },
+            { "required": ["path"] }
+          ]
+        }
+      }
+    },
+    "devcontainer": {
+      "type": "object",
+      "description": "DevContainer configuration for VSCode integration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable or disable devcontainer integration",
+          "examples": [true]
+        },
+        "config_path": {
+          "type": "string",
+          "description": "Path to existing devcontainer.json file to sync with",
+          "examples": [".devcontainer/devcontainer.json"]
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name for the devcontainer",
+          "examples": ["My Rails App Development"]
+        },
+        "image": {
+          "type": "string",
+          "description": "Docker image to use (alternative to dockerFile)",
+          "examples": ["mcr.microsoft.com/devcontainers/ruby:3.2"]
+        },
+        "dockerFile": {
+          "type": "string",
+          "description": "Path to Dockerfile (alternative to image)",
+          "examples": ["Dockerfile", ".devcontainer/Dockerfile"]
+        },
+        "service": {
+          "type": "string",
+          "description": "Docker Compose service to use",
+          "examples": ["app", "web"]
+        },
+        "workspaceFolder": {
+          "type": "string",
+          "description": "Path to workspace folder inside container",
+          "examples": ["/workspace", "/app"]
+        },
+        "remoteUser": {
+          "type": "string",
+          "description": "User to run as inside container",
+          "examples": ["vscode", "node", "root"]
+        },
+        "features": {
+          "type": "object",
+          "description": "DevContainer features to install",
+          "additionalProperties": {
+            "type": "object"
+          },
+          "examples": [{
+            "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+            "ghcr.io/devcontainers/features/github-cli:1": {"version": "latest"}
+          }]
+        },
+        "customizations": {
+          "type": "object",
+          "description": "Tool-specific customizations (VSCode, etc.)",
+          "additionalProperties": true,
+          "examples": [{
+            "vscode": {
+              "extensions": ["rebornix.ruby", "castwide.solargraph"],
+              "settings": {"ruby.rubocop.path": "/usr/local/bundle/bin/"}
+            }
+          }]
+        },
+        "forwardPorts": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "Ports to forward from container to host",
+          "examples": [[3000, 5432, 6379]]
+        },
+        "postCreateCommand": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}}
+          ],
+          "description": "Command to run after container is created",
+          "examples": ["bundle install && rails db:setup"]
+        },
+        "postStartCommand": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}}
+          ],
+          "description": "Command to run each time container starts",
+          "examples": ["rails server"]
+        },
+        "postAttachCommand": {
+          "oneOf": [
+            {"type": "string"},
+            {"type": "array", "items": {"type": "string"}}
+          ],
+          "description": "Command to run after attaching to container",
+          "examples": ["echo 'Welcome to development environment'"]
+        },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional volume mounts",
+          "examples": [["source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind"]]
+        },
+        "runArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional arguments for docker run",
+          "examples": [["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"]]
+        }
+      }
+    }
+  },
+  "required": ["version"]
+}

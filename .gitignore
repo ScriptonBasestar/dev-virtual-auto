@@ -1,0 +1,29 @@
+# Build output
+/bin/
+/dist/
+/dva
+*.exe
+
+# Go
+*.test
+*.out
+*.prof
+cover.html
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CI/CD
+.goreleaser.yaml.bak
+
+# Claude/AI
+.claude/
+.serena/
