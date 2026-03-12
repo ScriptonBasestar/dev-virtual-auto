@@ -9,11 +9,22 @@ Whenever you interact with this project environment, you **MUST** use the `dva` 
 
 ## Instructions
 
+0. **Bootstrap (If `dva.yml` is missing)**
+   If `dva.yml` does not exist in the current project, you must scaffold it correctly by running:
+   
+   ```bash
+   dva init --prompt
+   ```
+   
+   Read the output prompt text and follow its instructions to generate the optimal `dva.yml` configuration before performing any other tasks.
+
 1. **Discover**
    To see what customized commands exist for this project, run:
+   
    ```bash
    dva manifest -f json
    ```
+
 
 2. **Run**
    Execute the target using DVA. For example, to run tests:

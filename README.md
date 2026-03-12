@@ -78,30 +78,15 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 | `dva console start/inject` | Shell integration |
 | `dva migrate` | Generate migration guide |
 | `dva version` | Show version |
-| `dva mcp` | Start native MCP JSON-RPC server |
 | `dva completion bash/zsh/fish` | Generate shell completions |
 
-## LLM Integration (Agent Skills & MCP)
+## LLM Integration (Agent Skills & Plugins)
 
 DVA is designed to work seamlessly with LLM environments (Cursor, Claude Desktop, Antigravity) to act as a **tool provider**:
 
-### 1. Native MCP Server (Claude Desktop, Cursor)
-You can directly use DVA as an MCP (Model Context Protocol) server. Add the following to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "dva": {
-      "command": "dva",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-This automatically exposes all your `interaction` commands from `dva.yml` as native tools to the LLM.
-
-### 2. Prompt-based Agent Skills
-When working in agents like **Cursor** or **Antigravity**, you can use our pre-built instruction skills:
+### Prompt-based Agent Skills & Plugins
+When working in agents like **Claude**, **Cursor**, or **Antigravity**, you can use our pre-built instruction skills:
+- **`claude-plugin/`**: We packaged the DVA skill specifically for Anthropic's Claude Code CLI. Developers can mount this via `claude --plugin-dir ./claude-plugin` to let Claude automatically discover the `skills/dva.md` definition.
 - **Cursor**: Copy `.cursor/rules/dva.mdc` to enforce DVA usage.
 - **Antigravity**: Copy `skills/dva/SKILL.md` to your workspace skills directory.
 ## Configuration

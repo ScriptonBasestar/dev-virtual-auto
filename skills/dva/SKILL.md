@@ -19,13 +19,22 @@ DVA provides both **static commands** (built-in Docker/Kubernetes wrappers) and 
 
 ### Essential Workflow
 
+0. **Bootstrap (If `dva.yml` doesn't exist)**
+   If you evaluate the project and there is NO `dva.yml`, do not create one manually. Instead, run:
+   ```bash
+   dva init --prompt
+   ```
+   Read the output text, which contains instructions on how you should craft the `dva.yml` to fit this specific project. Execute the generated instructions.
+
 1. **Discover Available Commands**
    Before guessing how to run tests or build the project, ALWAYS check the available DVA commands by running:
+   
    ```bash
    ./bin/dva manifest -f json
    # or if dva is globally installed:
    dva manifest -f json
    ```
+   
    *Note: Read the `dynamic_commands` section from the JSON output to find the exact commands the user has defined for this project.*
 
 2. **Execute Dynamic Commands**
