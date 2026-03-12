@@ -61,8 +61,8 @@ func TestSpecialVars(t *testing.T) {
 	env := NewEnvironment(nil, "/tmp", "/tmp")
 
 	// DVA_OS should be set
-	hip_os := env.Vars["DVA_OS"]
-	if hip_os == "" {
+	dva_os := env.Vars["DVA_OS"]
+	if dva_os == "" {
 		t.Error("DVA_OS should be set")
 	}
 

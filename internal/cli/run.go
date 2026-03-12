@@ -29,7 +29,7 @@ var runCmd = &cobra.Command{
 		tree := runner.NewInteractionTree(c.Interaction)
 		resolved := tree.Find(cmdName, cmdArgs...)
 		if resolved == nil {
-			return fmt.Errorf("command `%s` not recognized! Run 'hip ls' to see available commands", cmdName)
+			return fmt.Errorf("command `%s` not recognized! Run 'dva ls' to see available commands", cmdName)
 		}
 
 		// Merge interaction-level environment

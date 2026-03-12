@@ -31,7 +31,7 @@ type ComposeOpts struct {
 	RunOptions []string
 }
 
-// InteractionTree resolves hip.yml interaction commands with subcommand support.
+// InteractionTree resolves dva.yml interaction commands with subcommand support.
 type InteractionTree struct {
 	entries map[string]*config.InteractionCommand
 }

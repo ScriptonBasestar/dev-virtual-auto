@@ -45,7 +45,7 @@ func init() {
 }
 
 type Manifest struct {
-	HipVersion      string                    `json:"hip_version" yaml:"hip_version"`
+	DvaVersion      string                    `json:"dva_version" yaml:"dva_version"`
 	SchemaVersion   string                    `json:"schema_version" yaml:"schema_version"`
 	GeneratedAt     string                    `json:"generated_at" yaml:"generated_at"`
 	ConfigFile      string                    `json:"config_file" yaml:"config_file"`
@@ -76,7 +76,7 @@ type ManifestRunner struct {
 
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
-		HipVersion:    config.Version,
+		DvaVersion:    config.Version,
 		SchemaVersion: "1.0",
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ConfigFile:    c.FilePath(),
@@ -100,7 +100,7 @@ func buildManifest(c *config.Config) *Manifest {
 			"validate":  {Description: "Validate dva.yml schema", Type: "config"},
 			"manifest":  {Description: "Output command manifest", Type: "meta"},
 			"ktl":       {Description: "Run kubectl commands", Type: "passthrough"},
-			"version":   {Description: "Show Hip version", Type: "info"},
+			"version":   {Description: "Show DVA version", Type: "info"},
 		},
 		Runners: map[string]ManifestRunner{
 			"docker_compose": {
