@@ -23,7 +23,7 @@ var (
 
 // topLevelCommands lists all built-in command names.
 var topLevelCommands = map[string]bool{
-	"help": true, "version": true, "ls": true, "compose": true,
+	"help": true, "version": true, "ls": true, "compose": true, "mcp": true,
 	"up": true, "stop": true, "down": true, "build": true, "clean": true,
 	"run": true, "provision": true, "validate": true, "manifest": true,
 	"ktl": true, "ssh": true, "infra": true, "console": true, "migrate": true,
@@ -89,6 +89,7 @@ func init() {
 	migrateCmd.GroupID = "advanced"
 	provisionCmd.GroupID = "advanced"
 	validateCmd.GroupID = "advanced"
+	mcpCmd.GroupID = "advanced"
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(lsCmd)
@@ -107,6 +108,7 @@ func init() {
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(mcpCmd)
 	rootCmd.AddCommand(initCmd)
 }
 

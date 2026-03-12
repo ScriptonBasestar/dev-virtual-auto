@@ -62,6 +62,7 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 |---------|-------------|
 | `dva run CMD [ARGS]` | Run configured interaction command |
 | `dva ls [-f json, yaml] [-d]` | List available commands |
+| `dva init [-p, --prompt]` | Scaffold dva.yml or generate LLM prompt |
 | `dva compose ARGS` | Pass-through to docker compose |
 | `dva up [SERVICE]` | Start services (default: -d --wait) |
 | `dva down` | Stop and remove containers |
@@ -77,10 +78,32 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 | `dva console start/inject` | Shell integration |
 | `dva migrate` | Generate migration guide |
 | `dva version` | Show version |
+| `dva mcp` | Start native MCP JSON-RPC server |
 | `dva completion bash/zsh/fish` | Generate shell completions |
 
+## LLM Integration (Agent Skills & MCP)
 
+DVA is designed to work seamlessly with LLM environments (Cursor, Claude Desktop, Antigravity) to act as a **tool provider**:
 
+### 1. Native MCP Server (Claude Desktop, Cursor)
+You can directly use DVA as an MCP (Model Context Protocol) server. Add the following to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "dva": {
+      "command": "dva",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+This automatically exposes all your `interaction` commands from `dva.yml` as native tools to the LLM.
+
+### 2. Prompt-based Agent Skills
+When working in agents like **Cursor** or **Antigravity**, you can use our pre-built instruction skills:
+- **Cursor**: Copy `.cursor/rules/dva.mdc` to enforce DVA usage.
+- **Antigravity**: Copy `skills/dva/SKILL.md` to your workspace skills directory.
 ## Configuration
 
 ### Features
@@ -90,6 +113,19 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 - **Environment interpolation**: `$VAR` / `${VAR}` 지원
 - **Special variables**: `DVA_OS`, `DVA_WORK_DIR_REL_PATH`, `DVA_CURRENT_USER`
 - **env_file**: `.env` 파일 로딩 지원
+
+## AI & LLM Integration (DVA Auto-Config)
+
+다른 외부 프로젝트에서 DVA를 강력하게 활용하고 싶다면, LLM이나 자체 에이전트(Cursor, Claude 등)에게 프로젝트 구조를 분석하게 한 뒤 `dva.yml`을 자동으로 생성하게 할 수 있습니다.
+
+`dva init --prompt` (또는 `-p`) 명령어를 사용하면 현재 디렉토리 구조(Dockerfile, Makefile, package.json 유무 등)를 사전 탐색하여 **LLM에게 전달하기 가장 최적화된 프롬프트**를 클립보드로 복사하거나 터미널에 출력합니다. 
+
+```bash
+# 터미널에서 실행하여 AI에게 전달할 프롬프트 텍스트 확보
+dva init --prompt
+```
+
+출력된 프롬프트를 복사하여 AI 에이전트에게 전달하면, 해당 프로젝트에 완벽하게 호환되는 `dva.yml` 템플릿을 자동으로 작성해 줍니다. 스스로 `dva validate` 까지 거치도록 프롬프트 구조가 설계되어 있어 문법 오류를 최소화합니다.
 
 ## Development
 
