@@ -6,10 +6,15 @@ import (
 	"path/filepath"
 	"strings"
 
+	_ "embed"
+
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
+
+//go:embed prompt_template.txt
+var promptTemplateText string
 
 var initTemplate string
 var initPrompt bool
@@ -331,49 +336,7 @@ func generateAndPrintPrompt() {
 		detectedEnv = "None"
 	}
 
-	prompt := fmt.Sprintf(`# Role & Objective
-당신은 프로젝트 개발 환경을 최적화하는 'DVA(Docker Virtual Auto)' 설정 전문가입니다.
-현재 시스템의 프로젝트 구조를 분석하여, 개발자가 복잡한 Docker Compose나 스크립트 명령어 대신 단순한 `+"`dva [cmd]`"+` 형식으로 작업할 수 있도록 최적의 구조로 `+"`dva.yml`"+` 구성 파일을 작성하는 것이 목표입니다.
-
-# Phase 1: Project Exploration (탐색 및 분석)
-이 프로젝트에서 다음 파일들이 감지되었습니다. 이를 바탕으로 프로젝트의 성격을 파악하세요:
-1. Docker 설정 (감지됨: %s): 이 파일들을 확인하여 메인 서비스 이름(예: app, web, api)을 식별합니다. (이 서비스 이름이 interaction의 타겟이 됩니다.)
-2. 빌드/실행 환경 (감지됨: %s): 이 파일들에서 명령어를 추출합니다. (test, lint, build, dev 등)
-3. 환경 변수 (감지됨: %s): 환경 변수 파일 구성을 확인합니다.
-
-# Phase 2: DVA Schema Constraints (DVA 속성 및 규칙)
-분석된 내용을 바탕으로 `+"`dva.yml`"+`을 생성합니다. 정의된 스키마를 엄격하게 준수해야 하며, 지원하지 않는 속성을 지어내면(Hallucinate) 안 됩니다.
-
-[구조 및 필수 제약사항]
-1. Root Attributes: `+"`version`, `compose`, `interaction`, `provision`"+` 필드 위주로 사용
-2. `+"`version`"+`: 문자열 (예: "%s")
-3. `+"`compose`"+`:
-   - `+"`files`"+`: 사용할 compose 파일의 배열 (예: ["docker-compose.yml"])
-   - `+"`project_name`"+`: (선택) 컴포즈 프로젝트 이름
-   - `+"`up_options`"+`: (선택) up 명령어의 기본 옵션 (예: ["-d", "--wait"])
-4. `+"`interaction`"+`: CLI를 통해 실행될 명령어 매핑.
-   각 명령어는 다음 속성을 가집니다:
-   - `+"`description`"+`: 명령어에 대한 설명
-   - `+"`service`"+`: docker-compose 안에서의 타겟 대상 서비스명 (가장 중요)
-   - `+"`command`"+`: 컨테이너 내부에서 실행할 쉘 명령어 (예: "npm run test", "bundle exec rspec")
-   - `+"`workdir`"+`: (선택) 작업 디렉토리
-   - `+"`environment`"+`: (선택) 주입될 환경변수 Map
-   - `+"`subcommands`"+`: (선택) 중첩 명령어 트리 구성용 객체 (예: db 하위 명령)
-5. `+"`provision`"+`: 초기 셋업 스크립트.
-   - 프로필 이름 (예: `+"`default`"+`) 아래 객체 형태의 배열로 구성. (예: `+"`{\"step\": \"단계 설명\", \"run\": \"실제 쉘 혹은 docker 명령어\"}`"+`)
-
-[표준 Interaction 권장 목록]
-다음 기능은 프로젝트에 맞춰 가능한 한 필수로 포함하세요:
-- `+"`shell`"+` (기본 쉘 환경 접속, 시스템에 따라 bash, sh, zsh 등 선택)
-- `+"`test`"+` (테스트 실행)
-- `+"`lint`, `fmt`"+` (코드 검사 및 포매팅)
-- `+"`start` / `dev`"+` (의존성 설치 및 백그라운드 서버 실행)
-
-# Phase 3: Action & Output
-1. 탐색한 프로젝트의 메인 서비스 이름과 주요 스크립트들을 기반으로 완벽하게 동작하는 `+"`dva.yml`"+` 파일의 전체 내용을 출력하세요.
-2. 매핑 결과에 대한 간단한 설계 근거를 주석이나 본문 설명으로 제시하세요.
-3. [중요] Cursor나 자율 에이전트 환경에서 작업 중이라면, 생성 완료 후 터미널에 `+"`dva validate`"+` 명령어를 실행하여 DVA 스키마 밸리데이션 검증까지 자체적으로 수행하고 에러가 나면 스스로 수정하세요.
-`, detectedCompose, detectedBuild, detectedEnv, config.Version)
+	prompt := fmt.Sprintf(promptTemplateText, detectedCompose, detectedBuild, detectedEnv, config.Version)
 
 	fmt.Println(prompt)
 }
