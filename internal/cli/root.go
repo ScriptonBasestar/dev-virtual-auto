@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -22,7 +23,7 @@ var topLevelCommands = map[string]bool{
 	"up": true, "stop": true, "down": true, "build": true, "clean": true,
 	"run": true, "provision": true, "validate": true, "manifest": true,
 	"ktl": true, "ssh": true, "infra": true, "console": true, "migrate": true,
-	"completion": true, "cmd": true,
+	"completion": true, "cmd": true, "init": true, "status": true, "config": true,
 }
 
 var rootCmd = &cobra.Command{
@@ -61,6 +62,7 @@ func init() {
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(migrateCmd)
+	rootCmd.AddCommand(initCmd)
 }
 
 // Execute is the main entry point for the CLI.
@@ -90,7 +92,23 @@ func Execute() {
 	}
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", err)
+		errMsg := err.Error()
+		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
+
+		// Suggest similar commands if unknown command
+		if len(args) > 0 && !isFlag(args[0]) {
+			if suggestions := suggestCommands(args[0]); len(suggestions) > 0 {
+				fmt.Fprintf(os.Stderr, "\nDid you mean?\n")
+				for _, s := range suggestions {
+					fmt.Fprintf(os.Stderr, "  dva %s\n", s)
+				}
+			}
+
+			// Hint for dva init if no config found
+			if strings.Contains(errMsg, "could not find dva.yml") {
+				fmt.Fprintf(os.Stderr, "\nHint: run 'dva init' to create a dva.yml\n")
+			}
+		}
 		os.Exit(1)
 	}
 }
@@ -127,4 +145,45 @@ func loadEnv(c *config.Config) *config.Environment {
 	wd, _ := os.Getwd()
 	env = config.NewEnvironment(c.Environment, wd, c.FileDir())
 	return env
+}
+
+// suggestCommands returns commands similar to the input using Levenshtein distance.
+func suggestCommands(input string) []string {
+	var suggestions []string
+	for cmd := range topLevelCommands {
+		if levenshtein(input, cmd) <= 2 {
+			suggestions = append(suggestions, cmd)
+		}
+	}
+	return suggestions
+}
+
+// levenshtein calculates the edit distance between two strings.
+func levenshtein(a, b string) int {
+	la, lb := len(a), len(b)
+	d := make([][]int, la+1)
+	for i := range d {
+		d[i] = make([]int, lb+1)
+		d[i][0] = i
+	}
+	for j := 0; j <= lb; j++ {
+		d[0][j] = j
+	}
+	for i := 1; i <= la; i++ {
+		for j := 1; j <= lb; j++ {
+			cost := 0
+			if a[i-1] != b[j-1] {
+				cost = 1
+			}
+			d[i][j] = min(d[i-1][j]+1, min(d[i][j-1]+1, d[i-1][j-1]+cost))
+		}
+	}
+	return d[la][lb]
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
