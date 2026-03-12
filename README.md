@@ -29,7 +29,7 @@ sudo mv dva /usr/local/bin/
 프로젝트 루트에 `dva.yml` (또는 기존 `hip.yml`) 생성:
 
 ```yaml
-version: "10.0.0"
+version: "0.1.0"
 
 compose:
   files:
@@ -61,7 +61,7 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 | Command | Description |
 |---------|-------------|
 | `dva run CMD [ARGS]` | Run configured interaction command |
-| `dva ls [-f json\|yaml] [-d]` | List available commands |
+| `dva ls [-f json, yaml] [-d]` | List available commands |
 | `dva compose ARGS` | Pass-through to docker compose |
 | `dva up [SERVICE]` | Start services (default: -d --wait) |
 | `dva down` | Stop and remove containers |
@@ -70,14 +70,14 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 | `dva clean [-v] [-i]` | Full cleanup |
 | `dva provision [PROFILE]` | Execute provision scripts |
 | `dva validate` | Validate config schema |
-| `dva manifest [-f json\|yaml]` | Output command manifest |
+| `dva manifest [-f json, yaml]` | Output command manifest |
 | `dva ktl ARGS` | Pass-through to kubectl |
-| `dva ssh up\|down\|status` | Manage SSH agent container |
-| `dva infra up\|down\|update SVC` | Manage infra services |
-| `dva console start\|inject` | Shell integration |
+| `dva ssh up/down/status` | Manage SSH agent container |
+| `dva infra up/down/update SVC` | Manage infra services |
+| `dva console start/inject` | Shell integration |
 | `dva migrate` | Generate migration guide |
 | `dva version` | Show version |
-| `dva completion bash\|zsh\|fish` | Generate shell completions |
+| `dva completion bash/zsh/fish` | Generate shell completions |
 
 ### Hip Backward Compatibility
 

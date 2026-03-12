@@ -10,7 +10,7 @@ import (
 )
 
 // Version is the current DVA version.
-const Version = "10.0.0"
+const Version = "0.1.0"
 
 // Config represents the parsed dva.yml (or hip.yml) configuration.
 type Config struct {

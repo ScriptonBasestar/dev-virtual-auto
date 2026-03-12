@@ -15,7 +15,7 @@ func TestFindConfigWalksUp(t *testing.T) {
 
 	// Write dva.yml in project root
 	dvaYml := filepath.Join(projectDir, "dva.yml")
-	os.WriteFile(dvaYml, []byte("version: '10.0.0'\n"), 0644)
+	os.WriteFile(dvaYml, []byte("version: '0.1.0'\n"), 0644)
 
 	// Find from deep subdir
 	found, err := findConfig(subDir)
@@ -38,7 +38,7 @@ func TestFindConfigNotFound(t *testing.T) {
 func TestFindConfigHIPFILE(t *testing.T) {
 	tmpDir := t.TempDir()
 	customFile := filepath.Join(tmpDir, "custom.yml")
-	os.WriteFile(customFile, []byte("version: '10.0.0'\n"), 0644)
+	os.WriteFile(customFile, []byte("version: '0.1.0'\n"), 0644)
 
 	t.Setenv("DVA_FILE", customFile)
 
@@ -55,7 +55,7 @@ func TestLoadConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
-	content := `version: "10.0.0"
+	content := `version: "0.1.0"
 compose:
   files:
     - docker-compose.yml
@@ -82,8 +82,8 @@ interaction:
 		t.Fatalf("Load error: %v", err)
 	}
 
-	if cfg.Version != "10.0.0" {
-		t.Errorf("version = %s, want 10.0.0", cfg.Version)
+	if cfg.Version != "0.1.0" {
+		t.Errorf("version = %s, want 0.1.0", cfg.Version)
 	}
 	if cfg.Compose.ProjectName != "myapp" {
 		t.Errorf("project_name = %s, want myapp", cfg.Compose.ProjectName)
@@ -174,9 +174,9 @@ func TestVersionCompatibility(t *testing.T) {
 		required   string
 		compatible bool
 	}{
-		{"10.0.0", true},
-		{"9.0.0", true},
-		{"99.0.0", false},
+		{"0.1.0", true},
+		{"0.0.9", true},
+		{"1.0.0", false},
 	}
 
 	for _, tt := range tests {

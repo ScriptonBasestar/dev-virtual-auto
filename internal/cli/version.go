@@ -11,7 +11,7 @@ import (
 var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"-v", "--version"},
-	Short:   "Show Hip version",
+	Short:   "Show DVA version",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println(config.Version)
 	},
