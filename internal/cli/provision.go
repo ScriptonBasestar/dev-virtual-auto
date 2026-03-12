@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 var provisionCmd = &cobra.Command{
@@ -55,7 +54,7 @@ var provisionCmd = &cobra.Command{
 
 			// Execute compose-aware commands (inherit compose config)
 			if len(step.ComposeUp) > 0 {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"up", "-d"}, step.ComposeUp...)...)
+				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"up", "-d"}, step.ComposeUp...))
 				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
 				fmt.Printf("    $ %s\n", cmdStr)
 				if err := runShellCommand(cmdStr); err != nil {
@@ -65,7 +64,7 @@ var provisionCmd = &cobra.Command{
 			}
 
 			if step.ComposeExec != "" {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"exec"}, strings.Fields(step.ComposeExec)...)...)
+				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"exec"}, strings.Fields(step.ComposeExec)...))
 				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
 				fmt.Printf("    $ %s\n", cmdStr)
 				if err := runShellCommand(cmdStr); err != nil {
@@ -75,7 +74,7 @@ var provisionCmd = &cobra.Command{
 			}
 
 			if step.ComposeRun != "" {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"run"}, strings.Fields(step.ComposeRun)...)...)
+				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"run"}, strings.Fields(step.ComposeRun)...))
 				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
 				fmt.Printf("    $ %s\n", cmdStr)
 				if err := runShellCommand(cmdStr); err != nil {
@@ -113,7 +112,18 @@ var provisionCmd = &cobra.Command{
 }
 
 func runShellCommand(cmdStr string) error {
-	c := exec.Command("sh", "-c", cmdStr)
+	var c *exec.Cmd
+
+	// Platform-specific shell selection
+	switch runtime.GOOS {
+	case "windows":
+		// Use PowerShell for better compatibility
+		c = exec.Command("powershell", "-Command", cmdStr)
+	default:
+		// Unix-like systems (Linux, macOS, BSD, etc.)
+		c = exec.Command("sh", "-c", cmdStr)
+	}
+
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr

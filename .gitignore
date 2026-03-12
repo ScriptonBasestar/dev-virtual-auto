@@ -28,3 +28,6 @@ Thumbs.db
 .claude/
 .serena/
 .cursor/
+
+# etc
+tmp/
