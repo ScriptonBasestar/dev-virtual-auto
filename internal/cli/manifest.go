@@ -49,6 +49,9 @@ type Manifest struct {
 	SchemaVersion   string                    `json:"schema_version" yaml:"schema_version"`
 	GeneratedAt     string                    `json:"generated_at" yaml:"generated_at"`
 	ConfigFile      string                    `json:"config_file" yaml:"config_file"`
+	ProjectDir      string                    `json:"project_dir" yaml:"project_dir"`
+	ComposeFiles    []string                  `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
+	EnvKeys         []string                  `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
 	StaticCommands  map[string]ManifestCmd    `json:"static_commands" yaml:"static_commands"`
 	DynamicCommands map[string]ManifestDynCmd `json:"dynamic_commands" yaml:"dynamic_commands"`
 	Runners         map[string]ManifestRunner `json:"runners" yaml:"runners"`
@@ -67,6 +70,7 @@ type ManifestDynCmd struct {
 	Service       string `json:"service,omitempty" yaml:"service,omitempty"`
 	Pod           string `json:"pod,omitempty" yaml:"pod,omitempty"`
 	ComposeMethod string `json:"compose_method,omitempty" yaml:"compose_method,omitempty"`
+	UsageExample  string `json:"usage_example" yaml:"usage_example"`
 }
 
 type ManifestRunner struct {
@@ -77,9 +81,11 @@ type ManifestRunner struct {
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
 		DvaVersion:    config.Version,
-		SchemaVersion: "1.0",
+		SchemaVersion: "1.1",
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ConfigFile:    c.FilePath(),
+		ProjectDir:    c.FileDir(),
+		ComposeFiles:  c.Compose.Files,
 		StaticCommands: map[string]ManifestCmd{
 			"run": {
 				Description: "Run configured command (run prefix may be omitted)",
@@ -118,6 +124,14 @@ func buildManifest(c *config.Config) *Manifest {
 		},
 	}
 
+	// Collect environment keys
+	envKeys := make([]string, 0, len(c.Environment))
+	for k := range c.Environment {
+		envKeys = append(envKeys, k)
+	}
+	sort.Strings(envKeys)
+	m.EnvKeys = envKeys
+
 	// Build dynamic commands from interaction tree
 	tree := runner.NewInteractionTree(c.Interaction)
 	commands := tree.List()
@@ -132,9 +146,10 @@ func buildManifest(c *config.Config) *Manifest {
 	for _, k := range keys {
 		cmd := commands[k]
 		dynCmd := ManifestDynCmd{
-			Description: cmd.Description,
-			Command:     cmd.Command,
-			Runner:      detectRunnerType(cmd),
+			Description:  cmd.Description,
+			Command:      cmd.Command,
+			Runner:       detectRunnerType(cmd),
+			UsageExample: fmt.Sprintf("dva %s", k),
 		}
 		if cmd.Service != "" {
 			dynCmd.Service = cmd.Service
