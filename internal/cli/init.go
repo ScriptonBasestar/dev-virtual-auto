@@ -310,7 +310,19 @@ func generateAndPrintPrompt() {
 	composeFiles := detectComposeFiles()
 	detectedCompose := "None"
 	if len(composeFiles) > 0 {
-		detectedCompose = strings.Join(composeFiles, ", ")
+		// Include compose file names + extracted service names
+		var parts []string
+		parts = append(parts, strings.Join(composeFiles, ", "))
+		var allServices []string
+		for _, cf := range composeFiles {
+			if services := extractComposeServices(cf); len(services) > 0 {
+				allServices = append(allServices, services...)
+			}
+		}
+		if len(allServices) > 0 {
+			parts = append(parts, fmt.Sprintf("services: %s", strings.Join(allServices, ", ")))
+		}
+		detectedCompose = strings.Join(parts, " → ")
 	}
 
 	buildFiles := []string{}
@@ -344,68 +356,198 @@ func generateAndPrintPrompt() {
 	fmt.Println(prompt)
 }
 
-// detectSubprojects walks immediate subdirectories to find sub-projects with their own
-// docker-compose.yml or build files, and reports whether they look like independent projects.
+// detectSubprojects recursively searches for sub-projects by finding .git directories
+// (up to maxDepth 3) and extracts rich metadata for each one:
+// - docker-compose services, Dockerfile, build files, scripts, dva.yml status
 func detectSubprojects() string {
-	projectIndicators := []string{
-		"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
-		"go.mod", "package.json", "pyproject.toml", "Gemfile", "Cargo.toml", "pom.xml", "build.gradle",
+	type subProject struct {
+		path            string
+		composeServices []string
+		composeFiles    []string
+		buildFiles      []string
+		hasDockerfile   bool
+		hasDvaYml       bool
+		language        string
 	}
 
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		return "None"
+	skipDirs := map[string]bool{
+		"node_modules": true, "vendor": true, ".venv": true, "venv": true,
+		"dist": true, "target": true, "__pycache__": true, ".mypy_cache": true,
+		"collected_static": true, ".pytest_cache": true, "tmp": true,
 	}
 
-	type subInfo struct {
-		name       string
-		indicators []string
-		hasDvaYml  bool
-	}
+	var subs []subProject
 
-	var subs []subInfo
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
+	// scanDir reads directory entries and finds sub-projects with .git
+	var scanDir func(dir string, depth int)
+	scanDir = func(dir string, depth int) {
+		if depth > 3 {
+			return
 		}
-		name := e.Name()
-		// Skip hidden dirs and common non-project dirs
-		if strings.HasPrefix(name, ".") ||
-			name == "node_modules" || name == "vendor" || name == "dist" ||
-			name == "build" || name == "target" || name == "tmp" || name == "__pycache__" {
-			continue
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
 		}
 
-		var found []string
-		for _, ind := range projectIndicators {
-			if _, err := os.Stat(filepath.Join(name, ind)); err == nil {
-				found = append(found, ind)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
 			}
-		}
+			name := e.Name()
+			// Skip hidden dirs and known non-project dirs
+			if strings.HasPrefix(name, ".") || skipDirs[name] {
+				continue
+			}
 
-		if len(found) == 0 {
-			continue
-		}
+			childPath := filepath.Join(dir, name)
 
-		_, hasDva := os.Stat(filepath.Join(name, "dva.yml"))
-		subs = append(subs, subInfo{
-			name:       name,
-			indicators: found,
-			hasDvaYml:  hasDva == nil,
-		})
+			// Check if this dir has .git → it's a sub-project
+			if _, err := os.Stat(filepath.Join(childPath, ".git")); err == nil {
+				sp := subProject{path: childPath}
+
+				// Detect compose files and extract service names
+				for _, cf := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
+					cfPath := filepath.Join(childPath, cf)
+					if _, err := os.Stat(cfPath); err == nil {
+						sp.composeFiles = append(sp.composeFiles, cf)
+						if services := extractComposeServices(cfPath); len(services) > 0 {
+							sp.composeServices = append(sp.composeServices, services...)
+						}
+					}
+				}
+				// Also detect additional compose files (tools, monitor, etc.)
+				if subEntries, err := os.ReadDir(childPath); err == nil {
+					for _, se := range subEntries {
+						n := se.Name()
+						if strings.HasPrefix(n, "docker-compose.") &&
+							(strings.HasSuffix(n, ".yml") || strings.HasSuffix(n, ".yaml")) &&
+							!contains(sp.composeFiles, n) {
+							sp.composeFiles = append(sp.composeFiles, n)
+						}
+					}
+				}
+
+				// Detect build files and language
+				buildIndicators := []struct {
+					file string
+					lang string
+				}{
+					{"go.mod", "Go"}, {"package.json", "Node.js"}, {"pyproject.toml", "Python"},
+					{"requirements.txt", "Python"}, {"Gemfile", "Ruby"}, {"Cargo.toml", "Rust"},
+					{"pom.xml", "Java"}, {"build.gradle", "Java"}, {"Makefile", ""},
+				}
+				for _, bi := range buildIndicators {
+					if _, err := os.Stat(filepath.Join(childPath, bi.file)); err == nil {
+						sp.buildFiles = append(sp.buildFiles, bi.file)
+						if sp.language == "" && bi.lang != "" {
+							sp.language = bi.lang
+						}
+					}
+				}
+
+				// Detect Dockerfile
+				for _, df := range []string{"Dockerfile", "Dockerfile.dev", "Dockerfile.prod"} {
+					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+						sp.hasDockerfile = true
+						break
+					}
+				}
+
+				// Detect dva.yml
+				if _, err := os.Stat(filepath.Join(childPath, "dva.yml")); err == nil {
+					sp.hasDvaYml = true
+				}
+
+				subs = append(subs, sp)
+				// Don't recurse into sub-project (it's self-contained)
+				continue
+			}
+
+			// Not a sub-project; recurse deeper to find nested sub-projects
+			scanDir(childPath, depth+1)
+		}
 	}
+
+	scanDir(".", 0)
 
 	if len(subs) == 0 {
 		return "None"
 	}
 
-	parts := make([]string, 0, len(subs))
-	for _, s := range subs {
-		dvaStatus := "no dva.yml"
-		if s.hasDvaYml {
-			dvaStatus = "has dva.yml"
+	// Format output: structured multi-line per sub-project
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%d sub-projects detected:\n", len(subs)))
+	for _, sp := range subs {
+		b.WriteString(fmt.Sprintf("  - %s/", sp.path))
+		if sp.language != "" {
+			b.WriteString(fmt.Sprintf(" [%s]", sp.language))
 		}
-		parts = append(parts, fmt.Sprintf("%s/ [%s, %s]", s.name, strings.Join(s.indicators, "+"), dvaStatus))
+		if sp.hasDvaYml {
+			b.WriteString(" (has dva.yml)")
+		}
+		b.WriteString("\n")
+
+		if len(sp.composeFiles) > 0 {
+			b.WriteString(fmt.Sprintf("    compose: %s\n", strings.Join(sp.composeFiles, ", ")))
+		}
+		if len(sp.composeServices) > 0 {
+			b.WriteString(fmt.Sprintf("    services: %s\n", strings.Join(sp.composeServices, ", ")))
+		}
+		if sp.hasDockerfile {
+			b.WriteString("    dockerfile: yes\n")
+		}
+		if len(sp.buildFiles) > 0 {
+			b.WriteString(fmt.Sprintf("    build: %s\n", strings.Join(sp.buildFiles, ", ")))
+		}
 	}
-	return strings.Join(parts, ", ")
+	return b.String()
+}
+
+// extractComposeServices reads a docker-compose file and returns service names.
+// Uses simple YAML line parsing to avoid heavy dependencies.
+func extractComposeServices(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	inServices := false
+	var services []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		// Top-level key detection
+		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
+			if strings.HasPrefix(trimmed, "services:") {
+				inServices = true
+				continue
+			}
+			if inServices {
+				// Hit another top-level key, stop
+				inServices = false
+			}
+			continue
+		}
+
+		if !inServices {
+			continue
+		}
+
+		// Detect service names: exactly 2-space indent (or 1 tab) + name + ":"
+		if (strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ")) ||
+			(strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, "\t\t")) {
+			name := strings.TrimSpace(trimmed)
+			name = strings.TrimSuffix(name, ":")
+			if name != "" && !strings.Contains(name, " ") {
+				services = append(services, name)
+			}
+		}
+	}
+
+	return services
 }
