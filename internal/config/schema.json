@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-06/schema#",
-  "title": "Hip Configuration Schema",
-  "description": "Schema for the hip.yml configuration file",
+  "title": "DVA Configuration Schema",
+  "description": "Schema for the dva.yml configuration file",
   "type": "object",
   "additionalProperties": false,
   "definitions": {
@@ -212,7 +212,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Specifies the minimum required version of Hip",
+      "description": "Specifies the minimum required version of DVA",
       "examples": ["8.1.0"]
     },
     "compose": {
@@ -246,7 +246,7 @@
           "items": {
             "type": "string"
           },
-          "description": "Default options for 'hip up' command",
+          "description": "Default options for 'dva up' command",
           "examples": [["-d", "--wait"], ["--build", "-d"]]
         }
       }
