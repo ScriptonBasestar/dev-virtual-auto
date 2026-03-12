@@ -94,6 +94,18 @@ var statusCmd = &cobra.Command{
 			fmt.Printf("   Commands: %d defined\n", cmdCount)
 		}
 
+		// Show sub-projects
+		if len(c.Subprojects) > 0 {
+			fmt.Printf("   Subprojects: %d\n", len(c.Subprojects))
+			for name, sub := range c.Subprojects {
+				tags := ""
+				if len(sub.ExcludeTags) > 0 {
+					tags = fmt.Sprintf(" (exclude: %s)", strings.Join(sub.ExcludeTags, ", "))
+				}
+				fmt.Printf("     ▸ %s → %s%s\n", name, sub.Path, tags)
+			}
+		}
+
 		fmt.Println()
 
 		// Docker Compose status

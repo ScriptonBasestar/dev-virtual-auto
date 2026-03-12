@@ -336,7 +336,76 @@ func generateAndPrintPrompt() {
 		detectedEnv = "None"
 	}
 
-	prompt := fmt.Sprintf(promptTemplateText, detectedCompose, detectedBuild, detectedEnv, config.Version)
+	// Detect sub-projects: subdirectories containing their own project files
+	detectedSubprojects := detectSubprojects()
+
+	prompt := fmt.Sprintf(promptTemplateText, detectedCompose, detectedBuild, detectedEnv, detectedSubprojects, config.Version)
 
 	fmt.Println(prompt)
+}
+
+// detectSubprojects walks immediate subdirectories to find sub-projects with their own
+// docker-compose.yml or build files, and reports whether they look like independent projects.
+func detectSubprojects() string {
+	projectIndicators := []string{
+		"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml",
+		"go.mod", "package.json", "pyproject.toml", "Gemfile", "Cargo.toml", "pom.xml", "build.gradle",
+	}
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return "None"
+	}
+
+	type subInfo struct {
+		name       string
+		indicators []string
+		hasDvaYml  bool
+	}
+
+	var subs []subInfo
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		// Skip hidden dirs and common non-project dirs
+		if strings.HasPrefix(name, ".") ||
+			name == "node_modules" || name == "vendor" || name == "dist" ||
+			name == "build" || name == "target" || name == "tmp" || name == "__pycache__" {
+			continue
+		}
+
+		var found []string
+		for _, ind := range projectIndicators {
+			if _, err := os.Stat(filepath.Join(name, ind)); err == nil {
+				found = append(found, ind)
+			}
+		}
+
+		if len(found) == 0 {
+			continue
+		}
+
+		_, hasDva := os.Stat(filepath.Join(name, "dva.yml"))
+		subs = append(subs, subInfo{
+			name:       name,
+			indicators: found,
+			hasDvaYml:  hasDva == nil,
+		})
+	}
+
+	if len(subs) == 0 {
+		return "None"
+	}
+
+	parts := make([]string, 0, len(subs))
+	for _, s := range subs {
+		dvaStatus := "no dva.yml"
+		if s.hasDvaYml {
+			dvaStatus = "has dva.yml"
+		}
+		parts = append(parts, fmt.Sprintf("%s/ [%s, %s]", s.name, strings.Join(s.indicators, "+"), dvaStatus))
+	}
+	return strings.Join(parts, ", ")
 }

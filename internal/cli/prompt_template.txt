@@ -7,17 +7,62 @@
 1. Docker 설정 (감지됨: %s): 이 파일들을 확인하여 메인 서비스 이름(예: app, web, api)을 식별합니다. (이 서비스 이름이 interaction의 타겟이 됩니다.)
 2. 빌드/실행 환경 (감지됨: %s): 이 파일들에서 명령어를 추출합니다. (test, lint, build, dev 등)
 3. 환경 변수 (감지됨: %s): 환경 변수 파일 구성을 확인합니다.
+4. 서브프로젝트 (감지됨: %s): 각 서브프로젝트 디렉토리에 자체 `dva.yml` 또는 `docker-compose.yml`이 있는지 확인합니다.
 
-# Phase 2: DVA Schema Constraints (DVA 속성 및 규칙)
+# Phase 2: Sub-Project Detection (서브프로젝트 판단)
+다음 기준으로 현재 프로젝트가 **devbox(부모)** 인지 **서브프로젝트(자식)** 인지 판단하세요:
+
+## devbox(부모) 패턴
+- 여러 개의 하위 디렉토리에 독립적인 프로젝트(각자의 `docker-compose.yml`, build파일 등)가 존재
+- 루트의 `docker-compose.yml`이 여러 서브프로젝트의 서비스를 통합
+- 인프라 서비스(postgres, redis, nginx 등)를 하위 프로젝트들이 공유
+
+→ **devbox라면 `subprojects` 섹션을 정의하세요:**
+```yaml
+compose:
+  tags: [infra]           # devbox 자체는 공유 인프라 역할
+  services:
+    postgres:
+      tags: [infra]
+    redis:
+      tags: [infra]
+
+subprojects:
+  <name>:
+    path: <relative-path>
+    exclude_tags: [infra]  # devbox에서 통합 실행 시 서브프로젝트의 infra를 제외
+```
+
+## 서브프로젝트(자식) 패턴
+- 독립적인 앱 서비스를 가지며 자체 `docker-compose.yml`이 있음
+- 인프라(DB 등)가 선택적으로 포함 (독립 실행 시에는 필요)
+
+→ **서브프로젝트라면 `compose.tags`와 `compose.services`를 정의하세요:**
+```yaml
+compose:
+  tags: [app]            # 기본 태그
+  services:
+    postgres:
+      tags: [infra]      # devbox에서 통합 시 제외될 서비스
+    <main-service>:
+      tags: [app]
+interaction:
+  test:
+    tags: [test]         # interaction에도 태그 가능
+```
+
+# Phase 3: DVA Schema Constraints (DVA 속성 및 규칙)
 분석된 내용을 바탕으로 `dva.yml`을 생성합니다. 정의된 스키마를 엄격하게 준수해야 하며, 지원하지 않는 속성을 지어내면(Hallucinate) 안 됩니다.
 
 [구조 및 필수 제약사항]
-1. Root Attributes: `version`, `compose`, `interaction`, `provision` 필드 위주로 사용
+1. Root Attributes: `version`, `compose`, `interaction`, `provision`, `subprojects` 필드 위주로 사용
 2. `version`: 문자열 (예: "%s")
 3. `compose`:
    - `files`: 사용할 compose 파일의 배열 (예: ["docker-compose.yml"])
    - `project_name`: (선택) 컴포즈 프로젝트 이름
    - `up_options`: (선택) up 명령어의 기본 옵션 (예: ["-d", "--wait"])
+   - `tags`: (선택) 이 compose 전체의 기본 태그 (예: ["infra"] 또는 ["app"])
+   - `services`: (선택) 서비스별 태그 오버라이드 맵
 4. `interaction`: CLI를 통해 실행될 명령어 매핑.
    각 명령어는 다음 속성을 가집니다:
    - `description`: 명령어에 대한 설명
@@ -25,9 +70,13 @@
    - `command`: 컨테이너 내부에서 실행할 쉘 명령어 (예: "npm run test", "bundle exec rspec")
    - `workdir`: (선택) 작업 디렉토리
    - `environment`: (선택) 주입될 환경변수 Map
+   - `tags`: (선택) 커맨드 분류 태그 (예: ["test"], ["quality"])
    - `subcommands`: (선택) 중첩 명령어 트리 구성용 객체 (예: db 하위 명령)
 5. `provision`: 초기 셋업 스크립트.
    - 프로필 이름 (예: `default`) 아래 객체 형태의 배열로 구성. (예: `{"step": "단계 설명", "run": "실제 쉘 혹은 docker 명령어"}`)
+6. `subprojects`: (devbox 루트에서만 사용) 서브프로젝트 정의.
+   - `<name>.path`: 서브프로젝트 경로 (해당 디렉토리에 `dva.yml` 필요)
+   - `<name>.exclude_tags`: devbox에서 통합 실행 시 제외할 서브프로젝트 서비스 태그
 
 [표준 Interaction 권장 목록]
 다음 기능은 프로젝트에 맞춰 가능한 한 필수로 포함하세요:
@@ -36,7 +85,12 @@
 - `lint`, `fmt` (코드 검사 및 포매팅)
 - `start` / `dev` (의존성 설치 및 백그라운드 서버 실행)
 
-# Phase 3: Action & Output
+[서브프로젝트 커맨드 실행]
+- `dva <project>:<command>` 또는 `dva <command> --project <project>` 형식으로 서브프로젝트의 커맨드를 실행할 수 있습니다.
+- 예: `dva engine:test`, `dva test --project engine`
+
+# Phase 4: Action & Output
 1. 탐색한 프로젝트의 메인 서비스 이름과 주요 스크립트들을 기반으로 완벽하게 동작하는 `dva.yml` 파일의 전체 내용을 출력하세요.
-2. 매핑 결과에 대한 간단한 설계 근거를 주석이나 본문 설명으로 제시하세요.
-3. [중요] Cursor나 자율 에이전트 환경에서 작업 중이라면, 생성 완료 후 터미널에 `dva validate` 명령어를 실행하여 DVA 스키마 밸리데이션 검증까지 자체적으로 수행하고 에러가 나면 스스로 수정하세요.
+2. devbox 패턴이 감지된 경우, 각 서브프로젝트에 대한 `dva.yml`도 함께 출력하세요 (각 파일이 저장될 경로를 명시).
+3. 매핑 결과에 대한 간단한 설계 근거를 주석이나 본문 설명으로 제시하세요.
+4. [중요] Cursor나 자율 에이전트 환경에서 작업 중이라면, 생성 완료 후 터미널에 `dva validate` 명령어를 실행하여 DVA 스키마 밸리데이션 검증까지 자체적으로 수행하고 에러가 나면 스스로 수정하세요.

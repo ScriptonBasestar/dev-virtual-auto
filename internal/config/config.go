@@ -24,18 +24,32 @@ type Config struct {
 	Infra        map[string]InfraConfig         `yaml:"infra"`
 	Modules      []string                       `yaml:"modules"`
 	Devcontainer map[string]interface{}         `yaml:"devcontainer"`
+	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 
 	// Internal fields
 	filePath string
 }
 
+// SubprojectConfig defines a sub-project reference.
+type SubprojectConfig struct {
+	Path        string   `yaml:"path"`
+	ExcludeTags []string `yaml:"exclude_tags"`
+}
+
+// ServiceTagConfig defines per-service tag configuration.
+type ServiceTagConfig struct {
+	Tags []string `yaml:"tags"`
+}
+
 // ComposeConfig holds Docker Compose settings.
 type ComposeConfig struct {
-	Files       []string `yaml:"files"`
-	ProjectName string   `yaml:"project_name"`
-	Command     string   `yaml:"command"`
-	Method      string   `yaml:"method"`
-	UpOptions   []string `yaml:"up_options"`
+	Files       []string                    `yaml:"files"`
+	ProjectName string                      `yaml:"project_name"`
+	Command     string                      `yaml:"command"`
+	Method      string                      `yaml:"method"`
+	UpOptions   []string                    `yaml:"up_options"`
+	Tags        []string                    `yaml:"tags"`
+	Services    map[string]ServiceTagConfig `yaml:"services"`
 }
 
 // KubectlConfig holds Kubernetes settings.
@@ -60,6 +74,7 @@ type InteractionCommand struct {
 	Pod               string                         `yaml:"pod"`
 	ComposeRunOptions []string                       `yaml:"compose_run_options"`
 	Subcommands       map[string]*InteractionCommand `yaml:"subcommands"`
+	Tags              []string                       `yaml:"tags"`
 }
 
 // ShellEnabled returns whether shell mode is enabled (default: true).

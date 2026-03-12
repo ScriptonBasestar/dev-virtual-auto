@@ -205,6 +205,12 @@
           },
           "minProperties": 1,
           "additionalProperties": false
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for categorizing this command (e.g., test, quality, infra)",
+          "examples": [["test"], ["quality"], ["infra", "db"]]
         }
       }
     }
@@ -248,6 +254,30 @@
           },
           "description": "Default options for 'dva up' command",
           "examples": [["-d", "--wait"], ["--build", "-d"]]
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Default tags for all compose services (e.g., infra, app)",
+          "examples": [["infra"], ["app"]]
+        },
+        "services": {
+          "type": "object",
+          "description": "Per-service tag configuration to override compose-level defaults",
+          "patternProperties": {
+            "^[\\w\\-.]+$": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "tags": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Tags for this specific service"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -430,6 +460,31 @@
           ]
         }
       }
+    },
+    "subprojects": {
+      "type": "object",
+      "description": "Defines sub-projects that can be integrated when running DVA from a devbox (parent project)",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Relative or absolute path to the sub-project directory (must contain its own dva.yml)",
+              "examples": ["cwrapper-engine-py", "../other-project"]
+            },
+            "exclude_tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tags to exclude when integrating this sub-project from the parent devbox",
+              "examples": [["infra"], ["infra", "monitoring"]]
+            }
+          },
+          "required": ["path"]
+        }
+      },
+      "additionalProperties": false
     },
     "devcontainer": {
       "type": "object",

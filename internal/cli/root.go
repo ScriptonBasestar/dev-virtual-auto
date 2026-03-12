@@ -123,12 +123,26 @@ func Execute() {
 	args := os.Args[1:]
 
 	// Dynamic routing: if first arg is not a top-level command,
-	// check if it's an interaction command and prepend "run"
+	// check if it's an interaction command or namespace:command and prepend "run"
 	if len(args) > 0 {
 		firstArg := args[0]
 		if !topLevelCommands[firstArg] && !isFlag(firstArg) {
+			shouldRoute := false
 			c, err := loadConfig()
-			if err == nil && c.Interaction[firstArg] != nil {
+			if err == nil {
+				// Check direct interaction command
+				if c.Interaction[firstArg] != nil {
+					shouldRoute = true
+				}
+				// Check namespace:command syntax (e.g., "engine:test")
+				if !shouldRoute && strings.Contains(firstArg, ":") {
+					parts := strings.SplitN(firstArg, ":", 2)
+					if _, ok := c.Subprojects[parts[0]]; ok {
+						shouldRoute = true
+					}
+				}
+			}
+			if shouldRoute {
 				// Separate flags and non-flags
 				var flags, nonFlags []string
 				for _, a := range args {
