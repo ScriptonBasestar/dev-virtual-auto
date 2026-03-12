@@ -125,6 +125,18 @@ func init() {
 
 // execComposePassthrough builds and execs a docker compose command using config.
 func execComposePassthrough(e *config.Environment, c *config.Config, args []string) error {
+	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+
+	if dvaexec.Debug {
+		fmt.Fprintf(os.Stderr, "[debug] compose: %s %v\n", composeCmd, composeArgs)
+	}
+
+	return dvaexec.ExecReplace(e, composeCmd, composeArgs, false)
+}
+
+// buildComposeArgs builds docker compose arguments using config settings.
+// Returns the command and args that can be used with exec or shell.
+func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (string, []string) {
 	composeCmd := "docker"
 	composeArgs := []string{"compose"}
 
@@ -152,12 +164,7 @@ func execComposePassthrough(e *config.Environment, c *config.Config, args []stri
 	}
 
 	composeArgs = append(composeArgs, args...)
-
-	if dvaexec.Debug {
-		fmt.Fprintf(os.Stderr, "[debug] compose: %s %v\n", composeCmd, composeArgs)
-	}
-
-	return dvaexec.ExecReplace(e, composeCmd, composeArgs, false)
+	return composeCmd, composeArgs
 }
 
 func isAbsPath(p string) bool {
