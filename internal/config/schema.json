@@ -322,6 +322,22 @@
                   "note": {
                     "type": "string",
                     "description": "Informational note displayed before/after commands (supports multiline)"
+                  },
+                  "compose_up": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Docker Compose services to start (inherits compose.files and compose.project_name)",
+                    "examples": [["postgres", "minio", "redis"]]
+                  },
+                  "compose_exec": {
+                    "type": "string",
+                    "description": "Command to execute in a compose service (inherits compose config)",
+                    "examples": ["postgres pg_isready -U ndstack"]
+                  },
+                  "compose_run": {
+                    "type": "string",
+                    "description": "One-off command in a compose service (inherits compose config)",
+                    "examples": ["migrate python manage.py migrate"]
                   }
                 },
                 "required": ["step"]

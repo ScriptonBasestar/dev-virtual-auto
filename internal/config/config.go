@@ -99,6 +99,11 @@ type ProvisionItem struct {
 	Run  interface{} `yaml:"run"`
 	Note string      `yaml:"note"`
 
+	// Compose-aware commands (inherit compose.files and compose.project_name)
+	ComposeUp   []string `yaml:"compose_up"`   // Services to start: [postgres, minio, redis]
+	ComposeExec string   `yaml:"compose_exec"` // Command in service: "pg_isready -U ndstack"
+	ComposeRun  string   `yaml:"compose_run"`  // One-off command in service
+
 	// Legacy structured format
 	Echo   string      `yaml:"echo"`
 	Cmd    string      `yaml:"cmd"`
