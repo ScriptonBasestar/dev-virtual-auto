@@ -378,7 +378,7 @@ func detectSubprojects() string {
 
 	var subs []subProject
 
-	// scanDir reads directory entries and finds sub-projects with .git
+	// scanDir reads directory entries and finds sub-projects
 	var scanDir func(dir string, depth int)
 	scanDir = func(dir string, depth int) {
 		if depth > 3 {
@@ -401,8 +401,47 @@ func detectSubprojects() string {
 
 			childPath := filepath.Join(dir, name)
 
-			// Check if this dir has .git → it's a sub-project
+			// Determine if childPath is a sub-project root
+			isSubProject := false
+
+			// 1. Check for .git (strongest indicator)
 			if _, err := os.Stat(filepath.Join(childPath, ".git")); err == nil {
+				isSubProject = true
+			}
+
+			// 2. Check for dva.yml or dva.yaml
+			if !isSubProject {
+				for _, df := range []string{"dva.yml", "dva.yaml"} {
+					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+						isSubProject = true
+						break
+					}
+				}
+			}
+
+			// 3. Check for compose files
+			if !isSubProject {
+				childEntries, _ := os.ReadDir(childPath)
+				for _, ce := range childEntries {
+					cn := ce.Name()
+					if !ce.IsDir() && (strings.HasPrefix(cn, "docker-compose.") || strings.HasPrefix(cn, "compose.")) && (strings.HasSuffix(cn, ".yml") || strings.HasSuffix(cn, ".yaml")) {
+						isSubProject = true
+						break
+					}
+				}
+			}
+
+			// 4. Check for strong build files (often used in monorepos without nested .git or compose)
+			if !isSubProject {
+				for _, bf := range []string{"package.json", "go.mod", "pyproject.toml", "Cargo.toml", "build.gradle"} {
+					if _, err := os.Stat(filepath.Join(childPath, bf)); err == nil {
+						isSubProject = true
+						break
+					}
+				}
+			}
+
+			if isSubProject {
 				sp := subProject{path: childPath}
 
 				// Detect compose files and extract service names
@@ -419,7 +458,7 @@ func detectSubprojects() string {
 				if subEntries, err := os.ReadDir(childPath); err == nil {
 					for _, se := range subEntries {
 						n := se.Name()
-						if strings.HasPrefix(n, "docker-compose.") &&
+						if !se.IsDir() && strings.HasPrefix(n, "docker-compose.") &&
 							(strings.HasSuffix(n, ".yml") || strings.HasSuffix(n, ".yaml")) &&
 							!contains(sp.composeFiles, n) {
 							sp.composeFiles = append(sp.composeFiles, n)
@@ -453,9 +492,12 @@ func detectSubprojects() string {
 					}
 				}
 
-				// Detect dva.yml
-				if _, err := os.Stat(filepath.Join(childPath, "dva.yml")); err == nil {
-					sp.hasDvaYml = true
+				// Detect dva.yml / dva.yaml
+				for _, df := range []string{"dva.yml", "dva.yaml"} {
+					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+						sp.hasDvaYml = true
+						break
+					}
 				}
 
 				subs = append(subs, sp)
