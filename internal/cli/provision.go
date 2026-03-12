@@ -11,7 +11,7 @@ import (
 
 var provisionCmd = &cobra.Command{
 	Use:   "provision [PROFILE]",
-	Short: "Execute commands within provision section",
+	Short: "Execute the provisioning steps defined in 'dva.yml'",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 

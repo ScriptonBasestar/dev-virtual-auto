@@ -10,7 +10,7 @@ import (
 
 var sshCmd = &cobra.Command{
 	Use:   "ssh",
-	Short: "Manage SSH agent container",
+	Short: "Manage the workspace SSH agent container",
 }
 
 var sshUpCmd = &cobra.Command{

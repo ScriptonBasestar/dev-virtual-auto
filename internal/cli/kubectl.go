@@ -8,7 +8,7 @@ import (
 
 var ktlCmd = &cobra.Command{
 	Use:                "ktl [ARGS...]",
-	Short:              "Run kubectl commands with configured namespace",
+	Short:              "Execute kubectl commands within the configured namespace",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()

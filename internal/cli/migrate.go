@@ -12,7 +12,7 @@ import (
 
 var migrateCmd = &cobra.Command{
 	Use:   "migrate",
-	Short: "Generate LLM-friendly migration guide for dva.yml version upgrades",
+	Short: "Generate an LLM-friendly migration guide for 'dva.yml' upgrades",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 

@@ -19,7 +19,7 @@ var (
 
 var lsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List available run commands",
+	Short: "List all available interaction scripts and commands",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		tree := runner.NewInteractionTree(c.Interaction)

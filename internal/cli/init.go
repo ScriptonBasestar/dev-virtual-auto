@@ -15,7 +15,7 @@ var initTemplate string
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new dva.yml configuration file",
+	Short: "Initialize a new 'dva.yml' configuration in the current directory",
 	Long:  "Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		target := "dva.yml"

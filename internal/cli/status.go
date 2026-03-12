@@ -14,7 +14,7 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show project status (config, services, containers)",
+	Short: "Display workspace status (config, active services, containers)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Config info
 		c, err := loadConfig()

@@ -15,7 +15,7 @@ var (
 
 var runCmd = &cobra.Command{
 	Use:                "run [OPTIONS] CMD [ARGS...]",
-	Short:              "Run configured command (run prefix may be omitted)",
+	Short:              "Execute a predefined script from 'dva.yml' (prefix 'run' can be omitted)",
 	DisableFlagParsing: false,
 	Args:               cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

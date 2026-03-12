@@ -11,7 +11,7 @@ import (
 
 var infraCmd = &cobra.Command{
 	Use:   "infra",
-	Short: "Manage infrastructure services",
+	Short: "Manage shared background infrastructure services",
 }
 
 var infraUpCmd = &cobra.Command{

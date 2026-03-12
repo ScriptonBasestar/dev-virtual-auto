@@ -17,7 +17,7 @@ var manifestFormat string
 
 var manifestCmd = &cobra.Command{
 	Use:   "manifest",
-	Short: "Output complete command manifest (LLM-optimized)",
+	Short: "Output the structured command manifest in JSON/YAML (for LLMs)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		manifest := buildManifest(c)

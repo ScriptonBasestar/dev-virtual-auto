@@ -12,7 +12,7 @@ import (
 
 var composeCmd = &cobra.Command{
 	Use:                "compose [ARGS...]",
-	Short:              "Run Docker Compose commands",
+	Short:              "Execute raw Docker Compose commands",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -23,7 +23,7 @@ var composeCmd = &cobra.Command{
 
 var upCmd = &cobra.Command{
 	Use:                "up [OPTIONS] [SERVICE...]",
-	Short:              "Run `docker compose up` (default: -d --wait)",
+	Short:              "Create and start containers in the background",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -63,7 +63,7 @@ var upCmd = &cobra.Command{
 
 var downCmd = &cobra.Command{
 	Use:                "down [OPTIONS]",
-	Short:              "Run `docker compose down`",
+	Short:              "Stop and remove containers and network bridges",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -74,7 +74,7 @@ var downCmd = &cobra.Command{
 
 var stopCmd = &cobra.Command{
 	Use:                "stop [OPTIONS] [SERVICE...]",
-	Short:              "Run `docker compose stop`",
+	Short:              "Stop running containers without removing them",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -85,7 +85,7 @@ var stopCmd = &cobra.Command{
 
 var buildCmd = &cobra.Command{
 	Use:                "build [OPTIONS] [SERVICE...]",
-	Short:              "Run `docker compose build`",
+	Short:              "Build or rebuild services via Docker Compose",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -96,7 +96,7 @@ var buildCmd = &cobra.Command{
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Remove all containers, networks, and optionally volumes",
+	Short: "Remove all containers, networks, and isolated volumes",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)

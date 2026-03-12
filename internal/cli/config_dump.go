@@ -10,7 +10,7 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configuration utilities",
+	Short: "View or manage DVA configuration settings",
 }
 
 var configDumpFormat string

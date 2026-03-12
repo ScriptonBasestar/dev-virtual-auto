@@ -8,7 +8,7 @@ import (
 
 var validateCmd = &cobra.Command{
 	Use:   "validate",
-	Short: "Validate dva.yml against the schema",
+	Short: "Validate the syntax and schema of 'dva.yml'",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 

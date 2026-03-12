@@ -10,7 +10,7 @@ import (
 
 var consoleCmd = &cobra.Command{
 	Use:   "console",
-	Short: "Shell integration for DVA",
+	Short: "Launch or inject into a DVA-integrated shell",
 }
 
 var consoleStartCmd = &cobra.Command{

@@ -32,8 +32,13 @@ var topLevelCommands = map[string]bool{
 
 var rootCmd = &cobra.Command{
 	Use:   "dva",
-	Short: "DVA - Docker Virtual Auto CLI wrapper",
-	Long:  "DVA (Docker Virtual Auto) wraps Docker Compose and Kubernetes commands with simple shortcuts defined in dva.yml.",
+	Short: "DVA: Developer Workspace Automator",
+	Long: `DVA (Docker Virtual Auto) is a comprehensive developer workspace automation tool.
+It simplifies complex workflows involving Docker Compose and Kubernetes by providing 
+intuitive shortcuts and uniform environments defined in 'dva.yml'.
+
+DVA ensures robust and reproducible development environments, 
+making it easy to onboard and manage projects.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(debug, jsonOutput)
 		if debug {
@@ -51,6 +56,39 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
 	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Show execution plan without running")
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format (LLM-optimized)")
+
+	coreGroup := &cobra.Group{ID: "core", Title: "Core Commands"}
+	projectGroup := &cobra.Group{ID: "project", Title: "Project Management"}
+	lifecycleGroup := &cobra.Group{ID: "lifecycle", Title: "Lifecycle (Docker Compose)"}
+	integrationGroup := &cobra.Group{ID: "integration", Title: "Integration Tools"}
+	advancedGroup := &cobra.Group{ID: "advanced", Title: "Advanced Utilities"}
+
+	rootCmd.AddGroup(coreGroup, projectGroup, lifecycleGroup, integrationGroup, advancedGroup)
+
+	initCmd.GroupID = "core"
+	runCmd.GroupID = "core"
+	lsCmd.GroupID = "core"
+	versionCmd.GroupID = "core"
+
+	statusCmd.GroupID = "project"
+	configCmd.GroupID = "project"
+
+	upCmd.GroupID = "lifecycle"
+	downCmd.GroupID = "lifecycle"
+	stopCmd.GroupID = "lifecycle"
+	buildCmd.GroupID = "lifecycle"
+	cleanCmd.GroupID = "lifecycle"
+
+	composeCmd.GroupID = "integration"
+	ktlCmd.GroupID = "integration"
+	infraCmd.GroupID = "integration"
+	sshCmd.GroupID = "integration"
+
+	manifestCmd.GroupID = "advanced"
+	consoleCmd.GroupID = "advanced"
+	migrateCmd.GroupID = "advanced"
+	provisionCmd.GroupID = "advanced"
+	validateCmd.GroupID = "advanced"
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(lsCmd)
