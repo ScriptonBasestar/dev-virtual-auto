@@ -35,7 +35,7 @@ func TestFindConfigNotFound(t *testing.T) {
 	}
 }
 
-func TestFindConfigHIPFILE(t *testing.T) {
+func TestFindConfigDVAFILE(t *testing.T) {
 	tmpDir := t.TempDir()
 	customFile := filepath.Join(tmpDir, "custom.yml")
 	os.WriteFile(customFile, []byte("version: '0.1.0'\n"), 0644)
@@ -104,8 +104,8 @@ interaction:
 
 func TestLoadConfigWithModules(t *testing.T) {
 	tmpDir := t.TempDir()
-	hipDir := filepath.Join(tmpDir, ".hip")
-	os.MkdirAll(hipDir, 0755)
+	dvaDir := filepath.Join(tmpDir, ".dva")
+	os.MkdirAll(dvaDir, 0755)
 
 	// Main config with module reference
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
@@ -120,7 +120,7 @@ interaction:
 `), 0644)
 
 	// Module file
-	os.WriteFile(filepath.Join(hipDir, "extra.yml"), []byte(`
+	os.WriteFile(filepath.Join(dvaDir, "extra.yml"), []byte(`
 interaction:
   test:
     description: "Run tests"

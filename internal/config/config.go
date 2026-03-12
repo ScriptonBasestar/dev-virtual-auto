@@ -12,7 +12,7 @@ import (
 // Version is the current DVA version.
 const Version = "0.1.0"
 
-// Config represents the parsed dva.yml (or hip.yml) configuration.
+// Config represents the parsed dva.yml configuration.
 type Config struct {
 	Version      string                         `yaml:"version"`
 	Compose      ComposeConfig                  `yaml:"compose"`
@@ -146,7 +146,7 @@ func (c *Config) FileDir() string {
 	return filepath.Dir(c.filePath)
 }
 
-// Load discovers and loads the dva.yml (or hip.yml) configuration.
+// Load discovers and loads the dva.yml configuration.
 func Load(workDir string) (*Config, error) {
 	filePath, err := findConfig(workDir)
 	if err != nil {
@@ -169,10 +169,6 @@ func Load(workDir string) (*Config, error) {
 	// Load modules
 	if len(cfg.Modules) > 0 {
 		modulesDir := filepath.Join(filepath.Dir(filePath), ".dva")
-		// Fallback to .hip/ for backward compatibility
-		if _, err := os.Stat(modulesDir); os.IsNotExist(err) {
-			modulesDir = filepath.Join(filepath.Dir(filePath), ".hip")
-		}
 		for _, mod := range cfg.Modules {
 			modFile := filepath.Join(modulesDir, mod+".yml")
 			modCfg, err := loadFile(modFile)
@@ -210,18 +206,12 @@ func Load(workDir string) (*Config, error) {
 	return cfg, nil
 }
 
-// findConfig walks up from workDir to find dva.yml (or hip.yml).
+// findConfig walks up from workDir to find dva.yml.
 func findConfig(workDir string) (string, error) {
-	// Check DVA_FILE env var first, then fallback to HIP_FILE
+	// Check DVA_FILE env var first
 	if env := os.Getenv("DVA_FILE"); env != "" {
 		if _, err := os.Stat(env); err != nil {
 			return "", fmt.Errorf("DVA_FILE=%s: %w", env, err)
-		}
-		return env, nil
-	}
-	if env := os.Getenv("HIP_FILE"); env != "" {
-		if _, err := os.Stat(env); err != nil {
-			return "", fmt.Errorf("HIP_FILE=%s: %w", env, err)
 		}
 		return env, nil
 	}
@@ -232,16 +222,13 @@ func findConfig(workDir string) (string, error) {
 	}
 
 	for {
-		// Try dva.yml first, then hip.yml for backward compatibility
-		for _, name := range []string{"dva.yml", "hip.yml"} {
-			candidate := filepath.Join(dir, name)
-			if _, err := os.Stat(candidate); err == nil {
-				return candidate, nil
-			}
+		candidate := filepath.Join(dir, "dva.yml")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find dva.yml (or hip.yml) config (searched from %s to /)", workDir)
+			return "", fmt.Errorf("could not find dva.yml config (searched from %s to /)", workDir)
 		}
 		dir = parent
 	}

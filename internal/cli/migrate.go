@@ -42,7 +42,7 @@ func needsMigration(current, target string) bool {
 func buildMigrationPrompt(c *config.Config, currentVersion, targetVersion string) string {
 	var out []string
 
-	out = append(out, "# Hip Configuration Migration Guide\n")
+	out = append(out, "# DVA Configuration Migration Guide\n")
 	out = append(out, "## Current Configuration")
 	out = append(out, fmt.Sprintf("- **File**: %s", c.FilePath()))
 	out = append(out, fmt.Sprintf("- **Current Version**: %s", currentVersion))

@@ -28,7 +28,7 @@ var topLevelCommands = map[string]bool{
 var rootCmd = &cobra.Command{
 	Use:   "dva",
 	Short: "DVA - Docker Virtual Auto CLI wrapper",
-	Long:  "DVA (Docker Virtual Auto) wraps Docker Compose and Kubernetes commands with simple shortcuts defined in dva.yml (or hip.yml).",
+	Long:  "DVA (Docker Virtual Auto) wraps Docker Compose and Kubernetes commands with simple shortcuts defined in dva.yml.",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if debug {
 			os.Setenv("DVA_DEBUG", "1")

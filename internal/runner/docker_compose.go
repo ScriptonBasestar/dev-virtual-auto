@@ -110,11 +110,11 @@ func (r *DockerComposeRunner) runVars(env *config.Environment) []string {
 	// Gather any runtime vars from environment (ENV=val prefix)
 	var args []string
 	for k, v := range env.Vars {
-		// Only pass through explicitly set vars (not HIP_ special vars)
-		if !strings.HasPrefix(k, "HIP_") && os.Getenv(k) == "" {
+		// Only pass through explicitly set vars (not DVA_ special vars)
+		if !strings.HasPrefix(k, "DVA_") && os.Getenv(k) == "" {
 			continue
 		}
-		if strings.HasPrefix(k, "HIP_") {
+		if strings.HasPrefix(k, "DVA_") {
 			continue
 		}
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))

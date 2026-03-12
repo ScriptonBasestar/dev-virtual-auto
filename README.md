@@ -2,7 +2,7 @@
 
 Docker Compose / Kubernetes CLI wrapper — `dva.yml` 설정 파일로 복잡한 명령어를 간단하게.
 
-> Hip CLI의 Go 재작성 버전 (v10+). Ruby 원본: [ScriptonBasestar/hip](https://github.com/ScriptonBasestar/hip)
+> Hip CLI의 Go 재작성 버전 (v10+).
 
 ## Install
 
@@ -26,7 +26,7 @@ sudo mv dva /usr/local/bin/
 
 ## Quick Start
 
-프로젝트 루트에 `dva.yml` (또는 기존 `hip.yml`) 생성:
+프로젝트 루트에 `dva.yml` 생성:
 
 ```yaml
 version: "0.1.0"
@@ -79,18 +79,14 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 | `dva version` | Show version |
 | `dva completion bash/zsh/fish` | Generate shell completions |
 
-### Hip Backward Compatibility
 
-- **Config files**: `hip.yml` is still supported (dva.yml takes priority)
-- **Env vars**: `HIP_FILE` is supported (DVA_FILE takes priority)
-- **Module dir**: `.hip/` is supported (`.dva/` takes priority)
 
 ## Configuration
 
 ### Features
 
-- **Module system**: `.dva/*.yml` (or `.hip/*.yml`) 파일로 설정 분리
-- **Override**: `dva.override.yml` (or `hip.override.yml`)로 로컬 설정 오버라이드
+- **Module system**: `.dva/*.yml` 파일로 설정 분리
+- **Override**: `dva.override.yml`로 로컬 설정 오버라이드
 - **Environment interpolation**: `$VAR` / `${VAR}` 지원
 - **Special variables**: `DVA_OS`, `DVA_WORK_DIR_REL_PATH`, `DVA_CURRENT_USER`
 - **env_file**: `.env` 파일 로딩 지원

@@ -2,7 +2,7 @@
 
 ## Overview
 
-DVA는 Docker Compose / Kubernetes CLI 래퍼입니다. `dva.yml` (또는 `hip.yml`)에 정의된 명령어를 간단하게 실행합니다.
+DVA는 Docker Compose / Kubernetes CLI 래퍼입니다. `dva.yml`에 정의된 명령어를 간단하게 실행합니다.
 
 ## Architecture
 
@@ -25,9 +25,9 @@ internal/exec/             → Process execution (syscall.Exec, subprocess)
 
 ### Config Loading
 
-1. Walk up from CWD to find `dva.yml` (or `hip.yml`, or use `$DVA_FILE`)
-2. Merge `.dva/*.yml` (or `.hip/*.yml`) modules
-3. Merge `dva.override.yml` (or `hip.override.yml`)
+1. Walk up from CWD to find `dva.yml` (or use `$DVA_FILE`)
+2. Merge `.dva/*.yml` modules
+3. Merge `dva.override.yml`
 4. Validate against embedded `schema.json`
 
 ## File Map
