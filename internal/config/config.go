@@ -328,6 +328,7 @@ func isVersionCompatible(required string) bool {
 
 func parseVersion(v string) [3]int {
 	var parts [3]int
+	v = strings.TrimPrefix(v, "v")
 	fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
 	return parts
 }

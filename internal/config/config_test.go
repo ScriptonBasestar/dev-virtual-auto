@@ -185,3 +185,38 @@ func TestVersionCompatibility(t *testing.T) {
 		}
 	}
 }
+
+func TestParseVersion(t *testing.T) {
+	tests := []struct {
+		input string
+		want  [3]int
+	}{
+		{"1.2.3", [3]int{1, 2, 3}},
+		{"0.1", [3]int{0, 1, 0}},
+		{"v1.0.0", [3]int{1, 0, 0}},
+		{"", [3]int{0, 0, 0}},
+		{"invalid", [3]int{0, 0, 0}},
+	}
+	for _, tt := range tests {
+		got := parseVersion(tt.input)
+		if got != tt.want {
+			t.Errorf("parseVersion(%s) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestEmptyConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	// Empty file
+	os.WriteFile(dvaYml, []byte(""), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Empty config should load without error, got: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("Expected cfg to not be nil")
+	}
+}

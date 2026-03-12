@@ -2,6 +2,7 @@ package exec
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,7 +17,7 @@ func ExecReplace(env *config.Environment, cmd string, args []string, shell bool)
 	cmdLine := buildCommandLine(env, cmd, args, shell)
 
 	if Debug {
-		fmt.Fprintf(os.Stderr, "[debug] exec: %s\n", strings.Join(cmdLine, " "))
+		slog.Debug("exec replacing process", "command", strings.Join(cmdLine, " "))
 	}
 
 	binary, err := exec.LookPath(cmdLine[0])
@@ -34,7 +35,7 @@ func ExecSubprocess(env *config.Environment, cmd string, args []string, shell bo
 	cmdLine := buildCommandLine(env, cmd, args, shell)
 
 	if Debug {
-		fmt.Fprintf(os.Stderr, "[debug] system: %s\n", strings.Join(cmdLine, " "))
+		slog.Debug("exec subprocess", "command", strings.Join(cmdLine, " "))
 	}
 
 	c := exec.Command(cmdLine[0], cmdLine[1:]...)

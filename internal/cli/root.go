@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -9,12 +10,15 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
+	"github.com/ScriptonBasestar/dva/internal/logger"
 )
 
 var (
-	debug bool
-	cfg   *config.Config
-	env   *config.Environment
+	debug      bool
+	dryRun     bool
+	jsonOutput bool
+	cfg        *config.Config
+	env        *config.Environment
 )
 
 // topLevelCommands lists all built-in command names.
@@ -31,10 +35,11 @@ var rootCmd = &cobra.Command{
 	Short: "DVA - Docker Virtual Auto CLI wrapper",
 	Long:  "DVA (Docker Virtual Auto) wraps Docker Compose and Kubernetes commands with simple shortcuts defined in dva.yml.",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		logger.Init(debug, jsonOutput)
 		if debug {
 			os.Setenv("DVA_DEBUG", "1")
 			dvaexec.Debug = true
-			fmt.Fprintln(os.Stderr, "[debug] debug mode enabled")
+			slog.Debug("debug mode enabled", "json", jsonOutput)
 		}
 	},
 	// When unknown command is invoked, treat as dynamic "run" command
@@ -44,6 +49,8 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")
+	rootCmd.PersistentFlags().BoolVar(&dryRun, "dry-run", false, "Show execution plan without running")
+	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format (LLM-optimized)")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(lsCmd)

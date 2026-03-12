@@ -32,6 +32,10 @@ var lsCmd = &cobra.Command{
 		}
 		sort.Strings(keys)
 
+		if jsonOutput {
+			lsFormat = "json"
+		}
+
 		switch lsFormat {
 		case "json":
 			return printJSON(commands, keys)

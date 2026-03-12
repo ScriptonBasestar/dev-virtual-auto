@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,10 +16,61 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show project status (config, services, containers)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Printf("DVA v%s\n\n", config.Version)
-
 		// Config info
 		c, err := loadConfig()
+
+		if jsonOutput {
+			statusData := map[string]interface{}{
+				"dva_version":  config.Version,
+				"config_found": err == nil,
+			}
+			if err == nil {
+				statusData["config_path"] = c.FilePath()
+				statusData["config_version"] = c.Version
+				statusData["project_name"] = c.Compose.ProjectName
+				statusData["compose_files"] = c.Compose.Files
+				statusData["commands_count"] = len(c.Interaction)
+
+				composeCmd := "docker"
+				composeArgs := []string{"compose"}
+				for _, f := range c.Compose.Files {
+					composeArgs = append(composeArgs, "-f", f)
+				}
+				if c.Compose.ProjectName != "" {
+					composeArgs = append(composeArgs, "-p", c.Compose.ProjectName)
+				}
+				composeArgs = append(composeArgs, "ps", "--format", "json")
+				if out, execErr := exec.Command(composeCmd, composeArgs...).Output(); execErr == nil {
+					var psData interface{}
+					// Try parsing as array
+					if jsonErr := json.Unmarshal(out, &psData); jsonErr == nil {
+						statusData["services"] = psData
+					} else {
+						// Or JSON lines
+						lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+						var services []interface{}
+						for _, line := range lines {
+							if line == "" {
+								continue
+							}
+							var s interface{}
+							if jsonErr := json.Unmarshal([]byte(line), &s); jsonErr == nil {
+								services = append(services, s)
+							}
+						}
+						statusData["services"] = services
+					}
+				} else {
+					statusData["services"] = nil
+				}
+			}
+			data, _ := json.MarshalIndent(statusData, "", "  ")
+			fmt.Println(string(data))
+			return nil
+		}
+
+		fmt.Printf("DVA v%s\n\n", config.Version)
+
 		if err != nil {
 			fmt.Println("📄 Config: not found")
 			fmt.Println("   Run 'dva init' to create a dva.yml")

@@ -11,7 +11,6 @@ import (
 
 var (
 	publishPorts []string
-	explainMode  bool
 )
 
 var runCmd = &cobra.Command{
@@ -35,14 +34,14 @@ var runCmd = &cobra.Command{
 		// Merge interaction-level environment
 		e.MergeVars(resolved.Environment)
 
-		if explainMode {
-			runner.Explain(resolved)
+		if dryRun {
+			runner.Explain(resolved, jsonOutput)
 			return nil
 		}
 
 		r := runner.NewRunner(resolved, runner.RunOptions{
 			Publish: publishPorts,
-			Explain: explainMode,
+			Explain: dryRun,
 		})
 
 		if err := r.Execute(e); err != nil {
@@ -55,5 +54,5 @@ var runCmd = &cobra.Command{
 
 func init() {
 	runCmd.Flags().StringArrayVarP(&publishPorts, "publish", "p", nil, "Publish container port(s) to host")
-	runCmd.Flags().BoolVarP(&explainMode, "explain", "e", false, "Show execution plan without running")
+	runCmd.Flags().BoolVarP(&dryRun, "explain", "e", false, "Alias for --dry-run")
 }

@@ -13,6 +13,10 @@ var versionCmd = &cobra.Command{
 	Aliases: []string{"-v", "--version"},
 	Short:   "Show DVA version",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println(config.Version)
+		if jsonOutput {
+			fmt.Printf("{\"dva_version\": \"%s\"}\n", config.Version)
+		} else {
+			fmt.Println(config.Version)
+		}
 	},
 }

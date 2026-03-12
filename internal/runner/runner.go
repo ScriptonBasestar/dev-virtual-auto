@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -46,12 +47,7 @@ type RunOptions struct {
 }
 
 // Explain prints the execution plan without running anything.
-func Explain(cmd *ResolvedCommand) {
-	fmt.Println("=== Command Execution Plan ===")
-	fmt.Printf("Command: %s\n", cmd.Command)
-	if cmd.Description != "" {
-		fmt.Printf("Description: %s\n", cmd.Description)
-	}
+func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 	runner := "LocalRunner"
 	if cmd.Service != "" {
 		runner = "DockerComposeRunner"
@@ -60,6 +56,31 @@ func Explain(cmd *ResolvedCommand) {
 	}
 	if cmd.RunnerName != "" {
 		runner = cmd.RunnerName
+	}
+
+	if jsonOutput {
+		plan := map[string]interface{}{
+			"command":     cmd.Command,
+			"description": cmd.Description,
+			"runner":      runner,
+			"service":     cmd.Service,
+			"pod":         cmd.Pod,
+			"shell_mode":  cmd.Shell,
+			"environment": cmd.Environment,
+			"arguments":   cmd.Argv,
+		}
+		if cmd.Service != "" {
+			plan["compose_method"] = cmd.Compose.Method
+		}
+		data, _ := json.MarshalIndent(plan, "", "  ")
+		fmt.Println(string(data))
+		return
+	}
+
+	fmt.Println("=== Command Execution Plan ===")
+	fmt.Printf("Command: %s\n", cmd.Command)
+	if cmd.Description != "" {
+		fmt.Printf("Description: %s\n", cmd.Description)
 	}
 	fmt.Printf("Runner: %s\n", runner)
 	if cmd.Service != "" {
