@@ -67,6 +67,38 @@ func buildMigrationPrompt(c *config.Config, currentVersion, targetVersion string
 		out = append(out, "---\n")
 	}
 
+	// Detect legacy provision formatting
+	var legacyIssues []string
+	for profileName, items := range c.Provision {
+		legacyDetected := false
+		for _, item := range items {
+			if item.Raw != "" {
+				// Purely raw strings in provision block are considered legacy vs step syntax
+				legacyDetected = true
+			} else if item.Echo != "" || item.Cmd != "" || item.ShellC != "" || item.Sleep != nil || item.Docker != nil {
+				legacyDetected = true
+			}
+		}
+		if legacyDetected {
+			legacyIssues = append(legacyIssues, fmt.Sprintf(
+				"### Provision Legacy Format\n"+
+					"**Location**: `provision.%s`\n"+
+					"**Migrate to step/run/note syntax**:\n"+
+					"```yaml\n"+
+					"provision:\n"+
+					"  %s:\n"+
+					"    - step: Example step\n"+
+					"      run: command here\n"+
+					"```\n", profileName, profileName))
+		}
+	}
+
+	if len(legacyIssues) > 0 {
+		out = append(out, "## Legacy Formats\n")
+		out = append(out, legacyIssues...)
+		out = append(out, "---\n")
+	}
+
 	// New features
 	out = append(out, "## New Features Available\n")
 	out = append(out, "### env_file Support")

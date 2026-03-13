@@ -1,0 +1,58 @@
+# SAST (Static Application Security Testing) Module
+# This module provides static analysis and security scanning tools
+#
+# Provided commands:
+# - dva rubocop       # Ruby style checker
+# - dva brakeman      # Rails security scanner
+# - dva bundle-audit  # Check for vulnerable dependencies
+# - dva reek          # Code smell detector
+
+version: '8.1.0'
+
+interaction:
+  # RuboCop - Ruby style checker
+  rubocop:
+    description: Run RuboCop static code analyzer
+    service: web
+    command: bundle exec rubocop
+    compose:
+      run_options:
+        - rm
+    subcommands:
+      autocorrect:
+        description: Auto-correct offenses
+        command: bundle exec rubocop -A
+
+  # Brakeman - Rails security scanner
+  brakeman:
+    description: Run Brakeman security scanner
+    service: web
+    command: bundle exec brakeman
+    compose:
+      run_options:
+        - rm
+
+  # Bundle Audit - Check for vulnerable dependencies
+  bundle-audit:
+    description: Check for vulnerable gem dependencies
+    service: web
+    command: bundle exec bundle-audit check --update
+    compose:
+      run_options:
+        - rm
+
+  # Reek - Code smell detector
+  reek:
+    description: Run Reek code smell detector
+    service: web
+    command: bundle exec reek
+    compose:
+      run_options:
+        - rm
+
+provision:
+  # Security audit - run all security checks
+  security-audit:
+    - dva bundle-audit
+    - dva brakeman
+    - echo "✅ Security audit complete"

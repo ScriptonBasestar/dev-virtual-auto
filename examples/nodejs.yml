@@ -1,0 +1,170 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+#
+# Example: Node.js DVA Configuration
+# Use Case: Node.js/Express application with MongoDB and Redis
+# Features: npm/yarn commands, multiple services, development/production modes
+#
+# Usage:
+#   dva provision              # Setup project
+#   dva npm install            # Install dependencies
+#   dva npm run dev            # Start development server
+#   dva npm run build          # Build for production
+#   dva yarn add lodash        # Add a package
+#   dva mongo                  # Connect to MongoDB shell
+#
+# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+
+version: '8.1.0'
+
+environment:
+  NODE_ENV: development
+  MONGODB_URL: mongodb://mongo:27017/myapp_development
+  REDIS_URL: redis://redis:6379/0
+  PORT: ${PORT:-3000}
+
+compose:
+  files:
+    - docker-compose.yml
+  project_name: myapp_node
+
+interaction:
+  # Node.js shell
+  shell:
+    description: Start a shell in the node container
+    service: node
+    command: /bin/bash
+
+  # npm commands
+  npm:
+    description: Run npm commands
+    service: node
+    command: npm
+    compose:
+      run_options:
+        - rm
+    subcommands:
+      install:
+        description: Install dependencies
+        command: install
+      run:
+        description: Run npm scripts
+        command: run
+        subcommands:
+          dev:
+            description: Start development server
+            command: run dev
+          build:
+            description: Build for production
+            command: run build
+          test:
+            description: Run tests
+            command: run test
+      audit:
+        description: Check for vulnerabilities
+        command: audit
+
+  # yarn commands
+  yarn:
+    description: Run yarn commands
+    service: node
+    command: yarn
+    compose:
+      run_options:
+        - rm
+
+  # Node.js REPL
+  node:
+    description: Start Node.js REPL
+    service: node
+    command: node
+
+  # MongoDB shell
+  mongo:
+    description: Connect to MongoDB shell
+    service: mongo
+    command: mongosh myapp_development
+
+  # Redis CLI
+  redis:
+    description: Connect to Redis CLI
+    service: redis
+    command: redis-cli
+
+  # Run tests
+  test:
+    description: Run tests with Jest
+    service: node
+    command: npm test
+    environment:
+      NODE_ENV: test
+    compose:
+      run_options:
+        - rm
+
+  # Linting
+  lint:
+    description: Run ESLint
+    service: node
+    command: npm run lint
+
+  # Type checking (for TypeScript projects)
+  typecheck:
+    description: Run TypeScript type checking
+    service: node
+    command: npm run typecheck
+
+provision:
+  # Note: Containers will auto-start if needed (since v9.1.3)
+  # Default setup
+  default:
+    - step: Installing dependencies
+      run: dva npm install
+
+    - step: Building project
+      run: dva npm run build
+
+    - step: Setup complete
+      note: |
+        ✅ Setup complete!
+        Run 'dva npm run dev' to start
+
+  # Clean install
+  reset:
+    - step: Cleaning dependencies
+      run: rm -rf node_modules package-lock.json
+
+    - step: Reinstalling dependencies
+      run: dva npm install
+
+    - step: Rebuilding project
+      run: dva npm run build
+
+  # Update dependencies
+  update:
+    - step: Updating dependencies
+      run: dva npm update
+
+    - step: Fixing vulnerabilities
+      run: dva npm audit fix
+
+    - step: Rebuilding project
+      run: dva npm run build
+
+  # Production build
+  production:
+    - step: Installing production dependencies
+      run: dva npm ci
+
+    - step: Building for production
+      run: dva npm run build
+
+    - step: Pruning dev dependencies
+      run: dva npm prune --production
+
+  # Test setup
+  test:
+    - step: Installing test dependencies
+      run: NODE_ENV=test dva npm install
+
+    - step: Building test environment
+      run: NODE_ENV=test dva npm run build

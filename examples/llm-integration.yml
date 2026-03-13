@@ -1,0 +1,423 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+#
+# Example: LLM-Friendly DVA Configuration
+# Use Case: Demonstrate LLM/AI integration features from DVA v9.1+
+# Features: Command discovery, execution planning, structured output, token efficiency
+#
+# 🤖 LLM/AI Integration Features:
+#
+# 1. Command Discovery - Find available commands without reading source code
+#    $ dva manifest              # Get complete command registry (JSON)
+#    $ dva manifest -f yaml      # Same in YAML format
+#    $ dva ls --format json      # List dynamic commands with metadata
+#
+# 2. Execution Planning - Understand what will run before executing
+#    $ dva shell --explain       # Show execution plan without running
+#    $ dva rake db:migrate -e    # Short form with -e flag
+#
+# 3. Structured Output - Machine-readable data for programmatic access
+#    $ dva ls --format json | jq '.shell.runner'  # Query command metadata
+#    $ dva manifest | jq '.runners'                # Inspect runner types
+#
+# 4. Detailed Information - Get comprehensive command details
+#    $ dva ls --detailed         # Show runner type, target, actual command
+#    $ dva ls -d -f yaml         # Detailed output in YAML
+#
+# 🎯 Token Efficiency Benefits:
+#
+# Before (traditional approach):
+#   - Read lib/dva/cli.rb (~156 lines)
+#   - Read lib/dva/commands/run.rb (~53 lines)
+#   - Read lib/dva/interaction_tree.rb (~95 lines)
+#   - Total: ~304 lines ≈ 2000 tokens
+#
+# After (LLM-friendly approach):
+#   - Run: dva manifest
+#   - Total: ~80 lines ≈ 600 tokens
+#   - Token savings: ~70%
+#
+# 📚 Documentation Discovery:
+#
+# DVA provides structured documentation for LLM navigation:
+#   - CONTEXT_MAP.md - File navigation by task type
+#   - CLAUDE.md - Architecture overview and patterns
+#   - lib/dva/*/AGENTS.md - Component-specific guides
+#   - Code headers (@file, @purpose, @flow) on all core files
+#
+# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+
+version: '8.1.0'
+
+# Environment variables
+environment:
+  APP_ENV: development
+  DATABASE_URL: postgres://user:password@db:5432/app_dev
+
+# Docker Compose configuration
+compose:
+  files:
+    - docker-compose.yml
+
+# Interactive commands - These show up in `dva manifest` and `dva ls`
+interaction:
+  # Shell access
+  shell:
+    description: Open bash shell in app container
+    service: app
+    command: /bin/bash
+    # 💡 LLM Tip: Use `dva shell --explain` to see how this executes
+
+  # Application server
+  server:
+    description: Start development server
+    service: app
+    command: npm run dev
+    # 💡 LLM Tip: Check runner type with `dva ls --detailed`
+
+  # Database commands
+  db:
+    description: Database operations
+    service: app
+    command: npm run db
+    subcommands:
+      migrate:
+        description: Run database migrations
+        command: npm run db:migrate
+      seed:
+        description: Seed database with sample data
+        command: npm run db:seed
+      reset:
+        description: Reset database (drop, create, migrate, seed)
+        command: npm run db:reset
+    # 💡 LLM Tip: Subcommands appear in manifest under dynamic_commands
+
+  # Testing
+  test:
+    description: Run test suite
+    service: app
+    command: npm test
+    compose:
+      run_options:
+        - rm  # Clean up container after tests
+    # 💡 LLM Tip: run_options affect docker compose run behavior
+
+  # Linting and formatting
+  lint:
+    description: Run ESLint
+    service: app
+    command: npm run lint
+    subcommands:
+      fix:
+        description: Auto-fix linting issues
+        command: npm run lint:fix
+
+  # Package management
+  npm:
+    description: Run npm commands
+    service: app
+    command: npm
+    # 💡 LLM Tip: This creates a pass-through command for any npm operation
+
+  # Database console (different runner - uses db service directly)
+  psql:
+    description: PostgreSQL interactive console
+    service: db
+    command: psql -U user app_dev
+    environment:
+      PGPASSWORD: password
+    # 💡 LLM Tip: This uses DockerCompose runner with db service
+
+# Provision profiles for different setup scenarios
+provision:
+  # Note: Run 'dva up' first to start containers
+  # Default: Full setup for new developers
+  default:
+    - echo "🚀 Setting up development environment..."
+    - echo "⏳ Waiting for database..."
+    - sleep 5
+    - dva npm install
+    - dva db migrate
+    - dva db seed
+    - echo "✅ Setup complete! Run 'dva server' to start"
+    # 💡 LLM Tip: Provision scripts can call dva commands
+
+  # CI: Minimal setup for continuous integration
+  ci:
+    - sleep 3
+    - dva npm ci  # Use npm ci for faster, deterministic installs
+    - dva db migrate
+    # 💡 LLM Tip: Different profiles for different environments
+
+  # Test: Setup for running tests
+  test:
+    - sleep 3
+    - dva npm install
+    - dva db migrate
+    - dva test
+    # 💡 LLM Tip: Provision can include actual test execution
+
+# 🤖 Programmatic Usage Examples:
+#
+# Python example - Discover and execute commands:
+#   import subprocess, json
+#
+#   # Get all available commands
+#   manifest = json.loads(subprocess.check_output(['dva', 'manifest']))
+#   commands = manifest['dynamic_commands']
+#
+#   # Check what a command will do before running
+#   plan = subprocess.check_output(['dva', 'db', 'migrate', '--explain'])
+#   print(plan.decode())
+#
+#   # Execute if plan looks good
+#   subprocess.run(['dva', 'db', 'migrate'])
+#
+# Shell script example - Validate before deploy:
+#   #!/bin/bash
+#
+#   # Ensure all required commands exist
+#   required_commands="test lint db"
+#   available=$(dva ls --format json | jq -r 'keys[]')
+#
+#   for cmd in $required_commands; do
+#     if ! echo "$available" | grep -q "^${cmd}$"; then
+#       echo "Error: Required command '$cmd' not found"
+#       exit 1
+#     fi
+#   done
+#
+#   # Run validation pipeline
+#   dva lint || exit 1
+#   dva test || exit 1
+#   dva db migrate --explain  # Show what will run
+#   read -p "Proceed with migration? " -n 1 -r
+#   [[ $REPLY =~ ^[Yy]$ ]] && dva db migrate
+#
+# CI/CD Integration example (GitHub Actions):
+#   - name: Discover DVA commands
+#     run: |
+#       dva manifest > manifest.json
+#       cat manifest.json | jq '.dynamic_commands | keys'
+#
+#   - name: Validate setup
+#     run: |
+#       dva provision ci
+#
+#   - name: Run tests
+#     run: |
+#       dva test --explain  # Log what will run
+#       dva test            # Actually run tests
+#
+# Makefile Integration:
+#   .PHONY: setup test deploy
+#
+#   setup:
+#   	dva provision default
+#
+#   test:
+#   	dva test --explain
+#   	dva test
+#
+#   deploy:
+#   	@echo "Available commands:"
+#   	@dva ls --detailed
+#   	dva db migrate
+#   	# ... deployment steps
+
+# 📊 Monitoring and Observability:
+#
+# Use structured output for monitoring:
+#   # Get command execution stats
+#   $ dva manifest | jq '{
+#       total_commands: (.dynamic_commands | length),
+#       runners: (.runners | keys),
+#       subcommand_groups: (.subcommand_groups | length)
+#     }'
+#
+#   # Validate configuration
+#   $ dva validate && echo "✅ Config valid" || echo "❌ Config invalid"
+#
+#   # Export command documentation
+#   $ dva manifest -f yaml > docs/dva-commands.yml
+#   $ dva ls -d -f json > docs/command-reference.json
+
+# 🧠 Advanced LLM Patterns:
+#
+# Pattern 1: Command Composition with --explain
+#   Use --explain to validate complex command chains:
+#
+#   $ dva db migrate --explain  # Verify what will run
+#   $ dva db migrate            # Execute after validation
+#
+#   Benefits:
+#   - LLM can suggest commands without risk
+#   - User reviews plan before execution
+#   - No trial-and-error needed
+#
+# Pattern 2: Dynamic Command Discovery
+#   Discover available commands based on context:
+#
+#   $ dva manifest | jq -r '.dynamic_commands | to_entries[] |
+#       select(.value.runner == "DockerCompose") | .key'
+#   # Output: shell, bundle, rails, rake, db
+#
+#   $ dva manifest | jq -r '.dynamic_commands["rails"].subcommands | keys[]'
+#   # Output: console, server, generate, db
+#
+# Pattern 3: Multi-Stage Workflow Validation
+#   Validate entire workflows before execution:
+#
+#   workflow_plan.sh:
+#   #!/bin/bash
+#   echo "=== Workflow Plan ==="
+#   dva provision default --explain
+#   dva db migrate --explain
+#   dva test --explain
+#   echo "=== Execute? (y/n) ==="
+#   read confirm
+#   [[ "$confirm" == "y" ]] && {
+#     dva provision default
+#     dva db migrate
+#     dva test
+#   }
+#
+# Pattern 4: Command Metadata for Context
+#   Extract command metadata for decision-making:
+#
+#   $ dva ls --format json | jq -r '
+#       to_entries[] |
+#       select(.value.shell == true) |
+#       "\(.key): \(.value.description)"'
+#   # Output: shell: Open development environment shell
+#
+#   $ dva manifest | jq -r '.runners | to_entries[] |
+#       "\(.key): \(.value.trigger)"'
+#   # Output:
+#   #   docker_compose: service key present
+#   #   kubectl: pod key present
+#   #   local: no service/pod key
+#
+# Pattern 5: Configuration Validation Pipeline
+#   Validate before deployment:
+#
+#   $ dva validate || exit 1  # Schema validation
+#   $ dva manifest > /dev/null || exit 1  # Manifest generation
+#   $ dva ls --format json > /dev/null || exit 1  # Command listing
+#   $ echo "✅ Configuration valid for deployment"
+#
+# Pattern 6: LLM-Friendly Error Handling
+#   Structure error handling for LLM consumption:
+#
+#   run_with_fallback.sh:
+#   #!/bin/bash
+#   if ! dva db migrate 2>&1 | tee migration.log; then
+#     echo "❌ Migration failed"
+#     dva manifest | jq -r '.dynamic_commands.db'
+#     cat migration.log
+#     exit 1
+#   fi
+#
+# Pattern 7: Token-Efficient Context Building
+#   Build minimal context for LLM operations:
+#
+#   # Instead of reading all code (~2000 tokens):
+#   $ dva manifest | jq '{
+#       version: .dva_version,
+#       commands: (.dynamic_commands | keys),
+#       runners: (.runners | keys)
+#     }'
+#   # Returns ~100 tokens with complete command context
+#
+# Pattern 8: Programmatic Command Construction
+#   Use manifest to build commands dynamically:
+#
+#   discover_and_run.py:
+#   import json, subprocess
+#
+#   # Get available commands
+#   manifest = json.loads(subprocess.check_output(['dva', 'manifest']))
+#
+#   # Find database commands
+#   db_commands = [k for k in manifest['dynamic_commands']
+#                  if k.startswith('db')]
+#
+#   # Execute with validation
+#   for cmd in db_commands:
+#       plan = subprocess.run(['dva', cmd, '--explain'],
+#                           capture_output=True, text=True)
+#       print(f"Plan for {cmd}:\n{plan.stdout}")
+#       # Decide whether to execute based on plan
+#
+# Pattern 9: CI/CD Integration with Manifest
+#   Use manifest for CI/CD pipeline generation:
+#
+#   generate_ci.sh:
+#   #!/bin/bash
+#   dva manifest | jq -r '.dynamic_commands | to_entries[] |
+#     select(.value.description | contains("test")) |
+#     "    - name: \(.value.description)\n      run: dva \(.key)"'
+#
+# Pattern 10: Interactive Command Selection
+#   Build interactive menus from manifest:
+#
+#   interactive_menu.sh:
+#   #!/bin/bash
+#   commands=$(dva ls --format json | jq -r 'keys[]')
+#   select cmd in $commands; do
+#       dva "$cmd" --explain
+#       read -p "Execute? (y/n) " confirm
+#       [[ "$confirm" == "y" ]] && dva "$cmd"
+#       break
+#   done
+#
+# 🎓 Best Practices for LLM Integration:
+#
+# 1. Always use --explain before suggesting commands
+#    - Prevents accidental execution of destructive operations
+#    - Builds user trust through transparency
+#
+# 2. Prefer structured output (JSON/YAML) over table format
+#    - Easier for LLM to parse and reason about
+#    - Enables programmatic command composition
+#
+# 3. Use manifest caching for performance
+#    - Shell completions cache for 60 minutes
+#    - Your tools can implement similar caching
+#
+# 4. Combine manifest with --explain for complete context
+#    - manifest: What commands exist
+#    - --explain: What a specific command will do
+#
+# 5. Validate configurations in CI/CD pipelines
+#    - dva validate: Schema validation
+#    - dva manifest: Ensures parseable config
+#
+# 6. Document command patterns in dva.yml comments
+#    - LLMs can read these comments via manifest
+#    - Provides usage examples inline
+#
+# 7. Use environment variable interpolation
+#    - $DVA_OS, $DVA_WORK_DIR_REL_PATH, $DVA_CURRENT_USER
+#    - Makes commands portable across environments
+#
+# 8. Structure provision scripts for clarity
+#    - Each step with clear echo messages
+#    - Enables LLM to understand workflow stages
+#
+# 9. Leverage subcommands for discoverability
+#    - rails: [console, server, generate, db]
+#    - Makes command hierarchies clear to LLMs
+#
+# 10. Export manifest as documentation
+#     - Generate markdown from manifest
+#     - Publish to docs/ for reference
+#
+# 📖 Additional Resources:
+#
+# - Shell Completions: completions/README.md
+# - Manifest Schema: Check `dva manifest | jq '.schema_version'`
+# - Examples Directory: examples/README.md
+# - Project Documentation: CONTEXT_MAP.md, CLAUDE.md
+#
+# For questions or contributions:
+# https://github.com/ScriptonBasestar/dev-virtual-auto

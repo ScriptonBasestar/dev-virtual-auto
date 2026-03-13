@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+#
+# Example: env_file with Priority Control
+# Use Case: Control whether YAML or .env files take precedence
+# Features: Multiple env files, configurable priority, per-file required flag
+#
+# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+
+version: '8.1.0'
+
+# Advanced env_file configuration
+env_file:
+  files:
+    - path: .env.defaults
+      required: true   # Must exist (error if missing)
+    - path: .env
+      required: false  # Optional (no error if missing)
+    - path: .env.local
+      required: false  # Optional (no error if missing)
+  priority: before_environment  # env_file loaded first, YAML can override
+  interpolate: true              # Enable variable interpolation in .env
+
+# Public configuration - these override .env files
+environment:
+  RAILS_ENV: development
+  LOG_LEVEL: info        # This overrides any LOG_LEVEL in .env files
+  DATABASE_HOST: postgres
+
+compose:
+  files:
+    - docker-compose.yml
+
+interaction:
+  rails:
+    description: Run Rails commands
+    service: web
+    command: bundle exec rails
+    # Command-specific env_file (overrides top-level)
+    env_file: .env.rails
+    environment:
+      RAILS_LOG_TO_STDOUT: "true"
+
+  rspec:
+    description: Run tests
+    service: web
+    command: bundle exec rspec
+    # Test-specific env_file
+    env_file:
+      - .env.test
+      - .env.test.local
+    environment:
+      RAILS_ENV: test
+
+provision:
+  default:
+    - step: Setting up database
+      run:
+        - dva rails db:create
+        - dva rails db:migrate
+
+# Example file structure:
+# ---------------------------------------------------
+# .env.defaults (committed - team defaults)
+# ENABLE_CACHE=true
+# LOG_LEVEL=warn
+# WORKER_CONCURRENCY=4
+#
+# .env (git-ignored - general secrets)
+# DATABASE_PASSWORD=secret123
+# LOG_LEVEL=info
+#
+# .env.local (git-ignored - developer overrides)
+# LOG_LEVEL=debug
+# ENABLE_CACHE=false
+# WORKER_CONCURRENCY=1
+#
+# .env.rails (git-ignored - Rails-specific)
+# RAILS_MAX_THREADS=5
+#
+# .env.test (git-ignored - test environment)
+# DATABASE_NAME=myapp_test
+# RAILS_LOG_LEVEL=error
+# ---------------------------------------------------
+#
+# Priority order with "before_environment":
+# 1. .env.defaults: ENABLE_CACHE=true, LOG_LEVEL=warn
+# 2. .env: LOG_LEVEL=info (overrides warn)
+# 3. .env.local: LOG_LEVEL=debug, ENABLE_CACHE=false (overrides all)
+# 4. environment: LOG_LEVEL=info (OVERRIDES all .env files!)
+# 5. System ENV: LOG_LEVEL=trace (if set, overrides everything)
+#
+# Final result:
+#   ENABLE_CACHE=false (from .env.local)
+#   LOG_LEVEL=info (from environment:, not .env.local!)
+#   DATABASE_PASSWORD=secret123 (from .env)
+#
+# To let .env.local override environment:, use:
+#   priority: after_environment

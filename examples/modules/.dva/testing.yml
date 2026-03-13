@@ -1,0 +1,81 @@
+# Testing Module
+# This module provides comprehensive testing tools
+#
+# Provided commands:
+# - dva rspec         # Run RSpec tests
+# - dva minitest      # Run Minitest tests
+# - dva coverage      # Generate coverage report
+# - dva ci            # Run full CI test suite
+
+version: '8.1.0'
+
+interaction:
+  # RSpec - Behavior-driven testing framework
+  rspec:
+    description: Run RSpec tests
+    service: web
+    command: bundle exec rspec
+    environment:
+      RAILS_ENV: test
+      COVERAGE: "true"
+    compose:
+      run_options:
+        - rm
+    subcommands:
+      fast:
+        description: Run tests without coverage
+        command: bundle exec rspec
+        environment:
+          RAILS_ENV: test
+          COVERAGE: "false"
+      unit:
+        description: Run unit tests only
+        command: bundle exec rspec spec/models spec/lib
+      integration:
+        description: Run integration tests only
+        command: bundle exec rspec spec/requests spec/features
+
+  # Minitest - Alternative testing framework
+  minitest:
+    description: Run Minitest tests
+    service: web
+    command: bundle exec rake test
+    environment:
+      RAILS_ENV: test
+    compose:
+      run_options:
+        - rm
+
+  # SimpleCov - Coverage report
+  coverage:
+    description: Generate and open coverage report
+    service: web
+    command: bundle exec rspec && open coverage/index.html
+    environment:
+      RAILS_ENV: test
+      COVERAGE: "true"
+
+  # Parallel tests for faster CI
+  parallel-tests:
+    description: Run tests in parallel
+    service: web
+    command: bundle exec parallel_rspec spec/
+    environment:
+      RAILS_ENV: test
+
+provision:
+  # Setup test environment
+  test-setup:
+    - RAILS_ENV=test dva bundle install
+    - RAILS_ENV=test dva rails db:create db:schema:load
+    - echo "✅ Test environment ready"
+
+  # Run full CI test suite
+  ci:
+    - dva provision test-setup
+    - dva rspec
+    - echo "✅ CI tests complete"
+
+  # Reset test database
+  test-reset:
+    - RAILS_ENV=test dva rails db:drop db:create db:schema:load

@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+#
+# Example: Basic DVA Configuration for Rails
+# Use Case: Simple Rails project with PostgreSQL - perfect for getting started
+# Features: Essential commands (shell, rails, bundle, rake), simple provision
+#
+# Usage:
+#   dva provision          # Set up the project for the first time
+#   dva shell              # Start a bash shell in the container
+#   dva rails console      # Start Rails console
+#   dva rake db:migrate    # Run database migrations
+#   dva bundle install     # Install gems
+#
+# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+
+version: '8.1.0'
+
+# Environment variables available to all services
+environment:
+  RAILS_ENV: development
+  DATABASE_URL: postgres://user:password@db:5432/myapp_development
+
+# Docker Compose configuration
+compose:
+  files:
+    - docker-compose.yml
+
+# Interactive commands
+interaction:
+  # Start a bash shell
+  shell:
+    description: Start a shell in the web container
+    service: web
+    command: /bin/bash
+
+  # Rails commands
+  rails:
+    description: Run Rails commands
+    service: web
+    command: bundle exec rails
+    compose:
+      run_options:
+        - rm  # Remove container after exit
+
+  # Bundle commands
+  bundle:
+    description: Run bundle commands
+    service: web
+    command: bundle
+
+  # Rake tasks
+  rake:
+    description: Run Rake tasks
+    service: web
+    command: bundle exec rake
+
+  # Database console
+  psql:
+    description: Connect to PostgreSQL database
+    service: db
+    command: psql -h db -U user myapp_development
+    environment:
+      PGPASSWORD: password
+
+# Provision scripts for project setup
+# Note: Containers will auto-start if needed (since v9.1.3)
+provision:
+  # Default setup - run this for first-time setup
+  default:
+    - step: Installing dependencies
+      run: dva bundle install
+
+    - step: Setting up database
+      run:
+        - dva rails db:create
+        - dva rails db:migrate
+        - dva rails db:seed
+
+    - step: Setup complete
+      note: |
+        ✅ Development environment ready!
+        Run: dva rails server

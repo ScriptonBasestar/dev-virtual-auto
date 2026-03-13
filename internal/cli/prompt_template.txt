@@ -67,8 +67,11 @@ compose:
       tags: [app]
 interaction:
   test:
-    tags: [test]         # interaction에도 태그 가능
-```
+## 개발 vs 운영(프로덕션) Compose 환경 구분
+- `docker-compose.yml`이 개발 환경인지, 단순 배포/실행 환경인지 구별하세요.
+- 프로덕션 컨테이너 이미지(예: 릴리즈된 이미지 등)에서는 컴파일러(rustc, gcc 등)나 빌드 툴체인이 존재하지 않아 `command: "cargo build"`가 절대 동작하지 않습니다.
+- 따라서, 여러 compose 파일 중 앱 개발용 오버레이가 있다면 (예: `compose.dev-full.yaml`), 개발 환경 명령어는 해당 파일을 참조하도록 `compose.files`에 추가하거나 기본 덮어쓰고,
+- 빌드/컴파일은 로컬 호스트 환경의 `runner: local`로 처리하는 것이 안전합니다.
 
 # Phase 3: DVA Schema Constraints (DVA 속성 및 규칙)
 분석된 내용을 바탕으로 `dva.yml`을 생성합니다. 정의된 스키마를 엄격하게 준수해야 하며, 지원하지 않는 속성을 지어내면(Hallucinate) 안 됩니다.
@@ -83,16 +86,26 @@ interaction:
    - `tags`: (선택) 이 compose 전체의 기본 태그 (예: ["infra"] 또는 ["app"])
    - `services`: (선택) 서비스별 태그 오버라이드 맵
 4. `interaction`: CLI를 통해 실행될 명령어 매핑.
-   각 명령어는 다음 속성을 가집니다:
-   - `description`: 명령어에 대한 설명
-   - `service`: docker-compose 안에서의 타겟 대상 서비스명 (가장 중요)
-   - `command`: 컨테이너 내부에서 실행할 쉘 명령어 (예: "npm run test", "bundle exec rspec")
-   - `workdir`: (선택) 작업 디렉토리
-   - `environment`: (선택) 주입될 환경변수 Map
-   - `tags`: (선택) 커맨드 분류 태그 (예: ["test"], ["quality"])
-   - `subcommands`: (선택) 중첩 명령어 트리 구성용 객체 (예: db 하위 명령)
+   - 각 명령어는 다음 속성을 가집니다:
+     - `description`: 명령어에 대한 설명
+     - `service`: 컨테이너 내부 실행일 경우 타겟 대상 서비스명 (가장 중요)
+     - `runner`: (선택) `local`, `docker_compose`, `kubectl`. (호스트 실행은 반드시 `local` 지정. `local`인 경우 `service` 제외)
+     - `command`: 쉘 명령어 (예: "npm run test", "cargo build")
+     - `workdir`: (선택) 작업 디렉토리
+     - `environment`: (선택) 주입될 환경변수 Map
+     - `tags`: (선택) 커맨드 분류 태그 (예: ["test"], ["quality"])
+     - `subcommands`: (선택) 중첩 명령어 트리 구성용 객체 (예: db 하위 명령)
 5. `provision`: 초기 셋업 스크립트.
-   - 프로필 이름 (예: `default`) 아래 객체 형태의 배열로 구성. (예: `{"step": "단계 설명", "run": "실제 쉘 혹은 docker 명령어"}`)
+   - 프로필 이름 (예: `default`) 아래 객체 형태의 배열로 구성. (예: `{"step": "단계 설명", "run": "실제 쉘 명령어"}`)
+   - **매우 중요 (dva 전용 키워드 사용)**: `run: "docker compose up -d"` 와 같은 Raw Shell 명령어를 직접 사용하지 마세요. 대신 다음과 같이 `compose_up`, `compose_exec` 등의 DVA 전용 키워드를 사용하세요.
+     ```yaml
+     provision:
+       default:
+         - step: "Start infra services"
+           compose_up: ["postgres", "redis"]  # DVA가 compose.files를 사용해 알아서 제어함
+         - step: "Fetch dependencies"
+           run: "dva <your-dependency-command>" # DVA interaction 명령어를 호출하여 재사용
+     ```
 6. `subprojects`: (devbox 루트에서만 사용) 서브프로젝트 정의.
    - `<name>.path`: 서브프로젝트 경로 (해당 디렉토리에 `dva.yml` 필요)
    - `<name>.exclude_tags`: devbox에서 통합 실행 시 제외할 서브프로젝트 서비스 태그
@@ -103,6 +116,35 @@ interaction:
 - `test` (테스트 실행)
 - `lint`, `fmt` (코드 검사 및 포매팅)
 - `start` / `dev` (의존성 설치 및 백그라운드 서버 실행)
+
+[명령어 실행 환경(Runner) 설계 가이드]
+매우 중요: 모든 명령어가 Docker 컨테이너 내부에서 실행되는 것은 아닙니다. `Makefile`, `package.json` 등을 분석하여 실행 주체가 호스트인지, 컨테이너인지 정확하게 판단해야 합니다.
+
+1. Docker/Compose 기반 (기본값):
+   - `service: <target_service>`를 명시. (앱 컨테이너 안에서 실행해야 하는 명령어)
+
+2. 호스트 기반 실행 (로컬 환경 명령어):
+   - Rust 빌드, 로컬 스크립트 실행, Docker 이미지 빌드 등 호스트 환경에서 동작하는 경우.
+   - `runner: local`을 **반드시** 지정하고, `service` 속성은 생략하세요.
+   - 예시:
+     ```yaml
+     build:
+       description: "Build project via cargo"
+       command: "cargo build"
+       runner: local
+     ```
+
+3. Docker 인프라 관리 (Compose Up/Down 등):
+   - `compose.method` 옵션을 통해 제어하세요.
+   - `command` 속성에 직접 `docker compose`를 쓰는 것은 피해야 합니다.
+   - 예시:
+     ```yaml
+     infra-up:
+       description: "Start infra services"
+       compose:
+         method: up
+         files: ["infra/compose.yaml"]  # 필요한 경우 오버라이드 가능
+     ```
 
 [서브프로젝트 커맨드 실행]
 - `dva <project>:<command>` 또는 `dva <command> --project <project>` 형식으로 서브프로젝트의 커맨드를 실행할 수 있습니다.

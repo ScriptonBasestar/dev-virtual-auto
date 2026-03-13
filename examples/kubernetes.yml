@@ -1,0 +1,112 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+#
+# Example: Kubernetes DVA Configuration
+# Use Case: Development against Kubernetes cluster using kubectl runner
+# Features: kubectl runner, namespace configuration, pod targeting
+#
+# Prerequisites:
+#   - kubectl configured and authenticated
+#   - Active Kubernetes context set
+#   - Pods running in the target namespace
+#
+# Usage:
+#   dva k8s get pods                 # List all pods
+#   dva rails console                # Start Rails console in the web pod
+#   dva logs                         # Stream logs from web pod
+#   dva bash                         # Open bash shell in web pod
+#   dva port-forward                 # Forward local port 3000 to pod
+#
+# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+
+version: '8.1.0'
+
+# Kubernetes configuration
+kubectl:
+  namespace: myapp-development
+
+interaction:
+  # Direct kubectl commands
+  k8s:
+    description: Run kubectl commands
+    command: kubectl
+    runner: kubectl
+    shell: false
+
+  # Rails console in Kubernetes
+  rails:
+    description: Run Rails commands in the web pod
+    command: bundle exec rails
+    runner: kubectl
+    pod: web
+    subcommands:
+      console:
+        description: Start Rails console
+        command: console
+
+  # Bash shell in pod
+  bash:
+    description: Start bash shell in the web pod
+    command: /bin/bash
+    runner: kubectl
+    pod: web
+
+  # Stream logs
+  logs:
+    description: Stream logs from the web pod
+    command: kubectl logs -f
+    runner: kubectl
+    pod: web
+
+  # Port forwarding
+  port-forward:
+    description: Forward local port 3000 to the web pod
+    command: kubectl port-forward pod/web 3000:3000
+    runner: kubectl
+
+  # Database operations
+  psql:
+    description: Connect to PostgreSQL in the database pod
+    command: psql -U user myapp_development
+    runner: kubectl
+    pod: postgres
+    environment:
+      PGPASSWORD: password
+
+  # Worker pod commands
+  worker:
+    description: Run commands in the worker pod
+    command: bundle exec
+    runner: kubectl
+    pod: worker
+    subcommands:
+      sidekiq:
+        description: Check Sidekiq status
+        command: bundle exec sidekiqctl status
+
+provision:
+  # Deploy new version
+  deploy:
+    - step: Updating container image
+      run: kubectl set image deployment/web web=myapp:latest
+
+    - step: Waiting for rollout
+      run: kubectl rollout status deployment/web
+
+    - step: Running migrations
+      run: dva rails db:migrate
+
+  # Rollback deployment
+  rollback:
+    - step: Rolling back deployment
+      run: kubectl rollout undo deployment/web
+
+    - step: Waiting for rollback
+      run: kubectl rollout status deployment/web
+
+  # Check status
+  status:
+    - step: Checking cluster status
+      run:
+        - kubectl get pods
+        - kubectl get services
+        - kubectl get deployments

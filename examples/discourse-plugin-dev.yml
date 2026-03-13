@@ -1,0 +1,139 @@
+# dva.yml for Discourse Plugin Development
+# Based on standard Discourse development environment
+
+version: '8.1.0'
+
+environment:
+  RUBY_VERSION: "3.2"
+  RAILS_ENV: development
+  DISCOURSE_HOSTNAME: localhost
+
+compose:
+  files:
+    - docker-compose.yml
+  project_name: gorisa-discourse
+
+interaction:
+  # Rails commands
+  rails:
+    description: Run Rails commands
+    service: discourse
+    command: bundle exec rails
+    subcommands:
+      console:
+        description: Open Rails console
+        command: bundle exec rails console
+
+      server:
+        description: Start Rails server
+        service: discourse
+        compose:
+          run_options: [service-ports, use-aliases]
+        command: bundle exec rails server -b 0.0.0.0
+
+      db:create:
+        description: Create database
+        command: bundle exec rails db:create
+
+      db:migrate:
+        description: Run migrations
+        command: bundle exec rails db:migrate
+
+      db:seed:
+        description: Seed database
+        command: bundle exec rails db:seed
+
+      db:reset:
+        description: Reset database
+        command: bundle exec rails db:reset
+
+  # Bundle commands
+  bundle:
+    description: Run Bundler commands
+    service: discourse
+    command: bundle
+    subcommands:
+      install:
+        description: Install gems
+        command: bundle install
+
+      update:
+        description: Update gems
+        command: bundle update
+
+  # Testing
+  rspec:
+    description: Run RSpec tests
+    service: discourse
+    environment:
+      RAILS_ENV: test
+    command: bundle exec rspec
+
+  # Shell access
+  bash:
+    description: Open bash shell
+    service: discourse
+    command: bash
+
+  shell:
+    description: Open bash shell (alias)
+    service: discourse
+    command: bash
+
+  # PostgreSQL console
+  psql:
+    description: Open PostgreSQL console
+    service: discourse
+    command: psql -h postgres -U discourse discourse_development
+
+  # Redis CLI
+  redis-cli:
+    description: Open Redis CLI
+    service: discourse
+    command: redis-cli -h redis
+
+  # Discourse specific
+  discourse:
+    description: Discourse admin commands
+    service: discourse
+    command: bundle exec rails
+    subcommands:
+      admin:create:
+        description: Create admin user
+        command: bundle exec rails admin:create
+
+      precompile:
+        description: Precompile assets
+        command: bundle exec rails assets:precompile
+
+  # Plugin development
+  plugin:
+    description: Plugin development commands
+    service: discourse
+    command: bundle exec rails
+    subcommands:
+      test:
+        description: Run plugin tests
+        environment:
+          RAILS_ENV: test
+        command: bundle exec rails plugin:spec
+
+      install:
+        description: Install plugin dependencies
+        command: bundle exec rails plugin:install_all_gems
+
+# Provisioning for fresh setup
+provision:
+  # Note: Run 'dva up' first to start containers
+  - echo "🚀 Setting up Discourse development environment..."
+  - echo "⏳ Waiting for services to be ready..."
+  - sleep 5
+  - dva bundle install
+  - dva rails db:create
+  - dva rails db:migrate
+  - echo "✓ Discourse environment ready!"
+  - echo ""
+  - echo "📝 Next steps:"
+  - echo "  1. dva rails console    - Open Rails console"
+  - echo "  2. dva rails server     - Start Rails server"
+  - echo "  3. dva bash             - Open shell"
