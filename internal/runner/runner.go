@@ -70,6 +70,7 @@ func DetectRunnerType(cmd *ResolvedCommand) string {
 type RunOptions struct {
 	Publish []string
 	Explain bool
+	Config  *config.Config
 }
 
 // Explain prints the execution plan without running anything.

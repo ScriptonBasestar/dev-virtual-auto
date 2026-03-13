@@ -59,6 +59,7 @@ var runCmd = &cobra.Command{
 		r := runner.NewRunner(resolved, runner.RunOptions{
 			Publish: publishPorts,
 			Explain: dryRun,
+			Config:  c,
 		})
 
 		if err := r.Execute(e); err != nil {
@@ -105,6 +106,7 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	r := runner.NewRunner(resolved, runner.RunOptions{
 		Publish: publishPorts,
 		Explain: dryRun,
+		Config:  subCfg,
 	})
 
 	if err := r.Execute(subEnv); err != nil {

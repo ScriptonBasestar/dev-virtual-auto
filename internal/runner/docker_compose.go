@@ -38,7 +38,7 @@ func (r *DockerComposeRunner) Execute(env *config.Environment) error {
 	// Arguments
 	args = append(args, r.composeArguments(env)...)
 
-	return execCompose(env, args, r.Cmd.Shell)
+	return execCompose(env, r.Opts.Config, args)
 }
 
 func (r *DockerComposeRunner) composeProfiles() []string {

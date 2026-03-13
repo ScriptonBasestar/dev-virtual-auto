@@ -131,27 +131,31 @@ func normalizeCompose(entry *config.InteractionCommand) ComposeOpts {
 			opts.Method = entry.Compose.Method
 		}
 		opts.Profiles = entry.Compose.Profiles
-		for _, o := range entry.Compose.RunOptions {
-			if strings.HasPrefix(o, "-") {
-				opts.RunOptions = append(opts.RunOptions, o)
-			} else {
-				opts.RunOptions = append(opts.RunOptions, "--"+o)
-			}
-		}
+		opts.RunOptions = normalizeRunOptions(entry.Compose.RunOptions)
 	}
 
 	// Legacy compose_run_options
 	if len(entry.ComposeRunOptions) > 0 && len(opts.RunOptions) == 0 {
-		for _, o := range entry.ComposeRunOptions {
-			if strings.HasPrefix(o, "-") {
-				opts.RunOptions = append(opts.RunOptions, o)
-			} else {
-				opts.RunOptions = append(opts.RunOptions, "--"+o)
-			}
-		}
+		opts.RunOptions = normalizeRunOptions(entry.ComposeRunOptions)
 	}
 
 	return opts
+}
+
+// normalizeRunOptions ensures each option has a dash prefix.
+func normalizeRunOptions(options []string) []string {
+	if len(options) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(options))
+	for _, o := range options {
+		if strings.HasPrefix(o, "-") {
+			result = append(result, o)
+		} else {
+			result = append(result, "--"+o)
+		}
+	}
+	return result
 }
 
 // mergeInteraction merges a parent interaction with a subcommand entry.

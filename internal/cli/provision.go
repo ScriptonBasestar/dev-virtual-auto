@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 var provisionCmd = &cobra.Command{
@@ -54,31 +56,22 @@ var provisionCmd = &cobra.Command{
 
 			// Execute compose-aware commands (inherit compose config)
 			if len(step.ComposeUp) > 0 {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"up", "-d"}, step.ComposeUp...))
-				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
-				fmt.Printf("    $ %s\n", cmdStr)
-				if err := runShellCommand(cmdStr); err != nil {
-					return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
+				if err := runProvisionCompose(e, c, step.Step, append([]string{"up", "-d"}, step.ComposeUp...)); err != nil {
+					return err
 				}
 				continue
 			}
 
 			if step.ComposeExec != "" {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"exec"}, strings.Fields(step.ComposeExec)...))
-				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
-				fmt.Printf("    $ %s\n", cmdStr)
-				if err := runShellCommand(cmdStr); err != nil {
-					return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
+				if err := runProvisionCompose(e, c, step.Step, append([]string{"exec"}, strings.Fields(step.ComposeExec)...)); err != nil {
+					return err
 				}
 				continue
 			}
 
 			if step.ComposeRun != "" {
-				composeCmd, composeArgs := buildComposeArgs(e, c, append([]string{"run"}, strings.Fields(step.ComposeRun)...))
-				cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
-				fmt.Printf("    $ %s\n", cmdStr)
-				if err := runShellCommand(cmdStr); err != nil {
-					return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
+				if err := runProvisionCompose(e, c, step.Step, append([]string{"run"}, strings.Fields(step.ComposeRun)...)); err != nil {
+					return err
 				}
 				continue
 			}
@@ -109,6 +102,17 @@ var provisionCmd = &cobra.Command{
 		fmt.Println("\n✅ Provision complete!")
 		return nil
 	},
+}
+
+// runProvisionCompose builds and runs a compose command for a provision step.
+func runProvisionCompose(e *config.Environment, c *config.Config, stepName string, args []string) error {
+	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+	cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
+	fmt.Printf("    $ %s\n", cmdStr)
+	if err := runShellCommand(cmdStr); err != nil {
+		return fmt.Errorf("provision step '%s' failed: %w", stepName, err)
+	}
+	return nil
 }
 
 func runShellCommand(cmdStr string) error {
