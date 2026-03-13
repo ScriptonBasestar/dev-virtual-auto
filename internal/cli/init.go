@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -18,12 +19,16 @@ var promptTemplateText string
 
 var initTemplate string
 var initPrompt bool
+var initAI bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new 'dva.yml' configuration in the current directory",
 	Long:  "Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if initAI {
+			return runAIInit()
+		}
 		if initPrompt {
 			generateAndPrintPrompt()
 			return nil
@@ -57,6 +62,131 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
+	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
+}
+
+// runAIInit generates the LLM prompt and executes it via Claude Code CLI.
+func runAIInit() error {
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		return fmt.Errorf("claude CLI not found in PATH.\n  Install: https://docs.anthropic.com/en/docs/claude-code\n  Or use 'dva init -p' to output the prompt manually")
+	}
+
+	prompt := buildPrompt()
+
+	fmt.Println("🤖 Generating dva.yml via Claude Code...")
+	fmt.Println()
+
+	cmd := exec.Command(claudePath, "-p",
+		"--allowedTools", "Edit,Write,Bash",
+	)
+	cmd.Stdin = strings.NewReader(prompt)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// Clear CLAUDECODE env var to allow spawning from within a Claude Code session
+	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("claude CLI failed: %w", err)
+	}
+
+	fmt.Println()
+	fmt.Println("✅ Claude Code finished. Validating...")
+
+	// Auto-validate
+	validateCmd := exec.Command("dva", "validate")
+	validateCmd.Stdout = os.Stdout
+	validateCmd.Stderr = os.Stderr
+	if err := validateCmd.Run(); err != nil {
+		fmt.Println("⚠️  Validation failed — review the generated dva.yml")
+	}
+
+	return nil
+}
+
+// filterEnv returns a copy of env with entries matching key removed.
+func filterEnv(env []string, key string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+// buildPrompt generates the LLM prompt string (shared by -p and --ai).
+func buildPrompt() string {
+	composeFiles := detectComposeFiles()
+	detectedCompose := "None"
+	if len(composeFiles) > 0 {
+		var parts []string
+		parts = append(parts, strings.Join(composeFiles, ", "))
+		var allServices []string
+		for _, cf := range composeFiles {
+			if services := extractComposeServices(cf); len(services) > 0 {
+				allServices = append(allServices, services...)
+			}
+		}
+		if len(allServices) > 0 {
+			parts = append(parts, fmt.Sprintf("services: %s", strings.Join(allServices, ", ")))
+		}
+		detectedCompose = strings.Join(parts, " → ")
+	}
+
+	infraComposeFiles := detectInfraComposeFiles()
+	detectedInfraCompose := "None"
+	if len(infraComposeFiles) > 0 {
+		var infraParts []string
+		for _, icf := range infraComposeFiles {
+			entry := icf
+			if services := extractComposeServices(icf); len(services) > 0 {
+				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
+			}
+			infraParts = append(infraParts, entry)
+		}
+		detectedInfraCompose = strings.Join(infraParts, "\n")
+	}
+
+	buildFiles := []string{}
+	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
+		if _, err := os.Stat(f); err == nil {
+			buildFiles = append(buildFiles, f)
+		}
+	}
+	detectedBuild := "None"
+	if len(buildFiles) > 0 {
+		detectedBuild = strings.Join(buildFiles, ", ")
+	}
+
+	detectedMakeTargets := "None"
+	if makeTargets := extractMakefileTargets(); makeTargets != "" {
+		detectedMakeTargets = makeTargets
+	}
+
+	envFiles := []string{}
+	for _, f := range []string{".env.example", ".env"} {
+		if _, err := os.Stat(f); err == nil {
+			envFiles = append(envFiles, f)
+		}
+	}
+	detectedEnv := "None"
+	if len(envFiles) > 0 {
+		detectedEnv = strings.Join(envFiles, ", ")
+	}
+
+	detectedSubprojects := detectSubprojects()
+
+	return fmt.Sprintf(promptTemplateText,
+		detectedCompose,
+		detectedInfraCompose,
+		detectedBuild,
+		detectedMakeTargets,
+		detectedEnv,
+		detectedSubprojects,
+		config.Version,
+	)
 }
 
 // detectTemplate inspects the current directory to auto-detect project type.
@@ -304,85 +434,9 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// generateAndPrintPrompt inspects the current directory and outputs an LLM prompt tailored to the project.
+// generateAndPrintPrompt outputs the LLM prompt to stdout.
 func generateAndPrintPrompt() {
-	var detectedEnv string
-	composeFiles := detectComposeFiles()
-	detectedCompose := "None"
-	if len(composeFiles) > 0 {
-		// Include compose file names + extracted service names
-		var parts []string
-		parts = append(parts, strings.Join(composeFiles, ", "))
-		var allServices []string
-		for _, cf := range composeFiles {
-			if services := extractComposeServices(cf); len(services) > 0 {
-				allServices = append(allServices, services...)
-			}
-		}
-		if len(allServices) > 0 {
-			parts = append(parts, fmt.Sprintf("services: %s", strings.Join(allServices, ", ")))
-		}
-		detectedCompose = strings.Join(parts, " → ")
-	}
-
-	// Detect infra/subdirectory compose files
-	infraComposeFiles := detectInfraComposeFiles()
-	detectedInfraCompose := "None"
-	if len(infraComposeFiles) > 0 {
-		var infraParts []string
-		for _, icf := range infraComposeFiles {
-			entry := icf
-			if services := extractComposeServices(icf); len(services) > 0 {
-				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
-			}
-			infraParts = append(infraParts, entry)
-		}
-		detectedInfraCompose = strings.Join(infraParts, "\n")
-	}
-
-	buildFiles := []string{}
-	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
-		if _, err := os.Stat(f); err == nil {
-			buildFiles = append(buildFiles, f)
-		}
-	}
-	detectedBuild := "None"
-	if len(buildFiles) > 0 {
-		detectedBuild = strings.Join(buildFiles, ", ")
-	}
-
-	// Extract Makefile targets
-	detectedMakeTargets := "None"
-	if makeTargets := extractMakefileTargets(); makeTargets != "" {
-		detectedMakeTargets = makeTargets
-	}
-
-	envFiles := []string{}
-	for _, f := range []string{".env.example", ".env"} {
-		if _, err := os.Stat(f); err == nil {
-			envFiles = append(envFiles, f)
-		}
-	}
-	if len(envFiles) > 0 {
-		detectedEnv = strings.Join(envFiles, ", ")
-	} else {
-		detectedEnv = "None"
-	}
-
-	// Detect sub-projects: subdirectories containing their own project files
-	detectedSubprojects := detectSubprojects()
-
-	prompt := fmt.Sprintf(promptTemplateText,
-		detectedCompose,      // %s 1 - root compose
-		detectedInfraCompose, // %s 2 - infra compose
-		detectedBuild,        // %s 3 - build files
-		detectedMakeTargets,  // %s 4 - Makefile targets
-		detectedEnv,          // %s 5 - env files
-		detectedSubprojects,  // %s 6 - subprojects
-		config.Version,       // %s 7 - dva version
-	)
-
-	fmt.Println(prompt)
+	fmt.Println(buildPrompt())
 }
 
 // detectInfraComposeFiles finds compose files in common infrastructure subdirectories.
