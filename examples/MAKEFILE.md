@@ -7,9 +7,8 @@ This guide shows how to integrate DVA commands into your project's Makefile for 
 ### 1. Install DVA
 
 ```bash
-# See INSTALL.md for installation methods
-gem install specific_install
-gem specific_install https://github.com/ScriptonBasestar/dev-virtual-auto.git
+# See README.md for installation methods
+go install github.com/ScriptonBasestar/dva/cmd/dva@latest
 ```
 
 ### 2. Create dva.yml
@@ -17,7 +16,7 @@ gem specific_install https://github.com/ScriptonBasestar/dev-virtual-auto.git
 Create a `dva.yml` file in your project root. See [makefile-integration.yml](makefile-integration.yml) for a complete example.
 
 ```yaml
-version: '9.1'
+version: '0.1.0'
 
 compose:
   files:
@@ -156,8 +155,7 @@ test-env:
 dva --version
 
 # If not, install it
-gem install specific_install
-gem specific_install https://github.com/ScriptonBasestar/dev-virtual-auto.git
+go install github.com/ScriptonBasestar/dva/cmd/dva@latest
 ```
 
 ### dva.yml not found
@@ -191,5 +189,5 @@ See [makefile-integration.yml](makefile-integration.yml) for a complete dva.yml 
 
 - [DVA README](../README.md) - Main documentation
 - [DVA Examples](README.md) - All configuration examples
-- [DVA Installation](../INSTALL.md) - Installation guide
+- [DVA Installation](../README.md#install) - Installation guide
 - [DVA Development Makefile](../Makefile.dev.mk) - Source of example targets

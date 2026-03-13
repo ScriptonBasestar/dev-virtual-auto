@@ -22,7 +22,7 @@ The `dva migrate` command helps you upgrade your `dva.yml` configuration by:
 - Generating AI-friendly prompts
 
 **When to use:**
-- Upgrading DVA from older versions (7.x → 8.x → 9.x)
+- Upgrading from hip v8.x to dva v0.1.x
 - Adopting new features (env_file, step/run/note syntax)
 - Fixing deprecated warnings
 - Preparing for breaking changes
@@ -31,9 +31,9 @@ The `dva migrate` command helps you upgrade your `dva.yml` configuration by:
 
 ## Common Migration Scenarios
 
-### Scenario 1: Upgrading from v8.x to v9.2.0
+### Scenario 1: Upgrading from hip v8.x to dva v0.1.0
 
-**Your current `dva.yml` (v8.1.0):**
+**Your current `hip.yml` (v8.1.0):**
 ```yaml
 version: '8.1.0'
 
@@ -68,7 +68,7 @@ $ dva migrate
 ## Current Configuration
 - File: /path/to/dva.yml
 - Current Version: 8.1.0
-- Latest Version: 9.2.0
+- Latest Version: 0.1.0
 - Migration Required: YES
 
 ## Breaking Changes & Deprecations
@@ -96,9 +96,9 @@ provision:
 ```
 ```
 
-**Migrated `dva.yml` (v9.2.0):**
+**Migrated `dva.yml` (v0.1.0):**
 ```yaml
-version: '8.1.0'
+version: '0.1.0'
 
 compose:
   files:
@@ -150,7 +150,7 @@ $ dva migrate
 
 ## New Features Available
 
-### env_file Support (v9.1.3+)
+### env_file Support (v0.1.0+)
 Load environment variables from .env files
 
 **Usage**:
@@ -168,7 +168,7 @@ env_file:
 
 **Migrated configuration:**
 ```yaml
-version: '8.1.0'
+version: '0.1.0'
 
 # Move secrets to .env files (git-ignored)
 env_file:
@@ -200,7 +200,7 @@ SECRET_KEY_BASE=your_secret_key_here
 
 ### Scenario 3: Complex Multi-Service Migration
 
-**Before (v7.x with old patterns):**
+**Before (hip v7.x with old patterns):**
 ```yaml
 version: '7.0.0'
 
@@ -232,9 +232,9 @@ provision:
     - dva npm install
 ```
 
-**Fully migrated (v9.2.0):**
+**Fully migrated (v0.1.0):**
 ```yaml
-version: '8.1.0'
+version: '0.1.0'
 
 compose:
   files:
@@ -256,7 +256,7 @@ interaction:
       run_options: [rm]  # ✅ UPDATED
 
 provision:
-  # Note: Containers auto-start since v9.1.3!
+  # Note: Containers auto-start since v0.1.0!
   default:
     - step: Installing backend dependencies
       run: dva rails bundle install
@@ -347,7 +347,7 @@ $ dva provision
 ```bash
 $ rm migration-guide.md dva.yml.backup
 $ git add dva.yml
-$ git commit -m "chore(config): upgrade dva.yml to v9.2.0"
+$ git commit -m "chore(config): upgrade from hip to dva v0.1.0"
 ```
 
 ---
@@ -421,8 +421,8 @@ $ git commit -m "chore(config): upgrade dva.yml to v9.2.0"
 ```bash
 $ dva migrate
 
-✅ Your dva.yml is already at version 9.2.0
-   Target version: 9.2.0
+✅ Your dva.yml is already at version 0.1.0
+   Target version: 0.1.0
 
 # Your config is valid but you can still improve it by adopting:
 # - env_file for better secret management
@@ -454,7 +454,7 @@ diff dva.yml examples/basic.yml
 
 **Problem:** Provision scripts work differently after migration.
 
-**Since v9.1.3:** Containers auto-start before provision runs!
+**Since v0.1.0:** Containers auto-start before provision runs!
 
 **Before:**
 ```bash
@@ -462,7 +462,7 @@ $ dva up        # Start containers first
 $ dva provision # Then run provision
 ```
 
-**After v9.1.3:**
+**After v0.1.0:**
 ```bash
 $ dva provision # Auto-starts containers if needed, then provisions
 ```
@@ -529,5 +529,5 @@ $ dva validate
 
 ---
 
-**Last updated:** 2025-12-02
-**Applies to:** DVA v9.2.0+
+**Last updated:** 2026-03-13
+**Applies to:** DVA v0.1.0+

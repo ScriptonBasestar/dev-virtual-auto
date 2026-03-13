@@ -126,7 +126,6 @@ func runAIInit() error {
 			fmt.Fprintf(os.Stderr, "⚠️  Could not generate AI docs: %v\n", err)
 		} else {
 			fmt.Printf("📄 Generated %s\n", guidePath)
-			fmt.Println("   CLAUDE.md / AGENTS.md updated with DVA reference (if they exist)")
 		}
 	}
 
@@ -147,7 +146,6 @@ func runAIDocsOnly() error {
 	}
 
 	fmt.Printf("✅ Generated %s\n", guidePath)
-	fmt.Println("   CLAUDE.md / AGENTS.md updated with DVA reference (if they exist)")
 	return nil
 }
 

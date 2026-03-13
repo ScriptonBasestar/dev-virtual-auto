@@ -66,7 +66,7 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
   - Demonstrates best practices for project automation
   - Use when: You need different setup scenarios (development, testing, CI/CD)
 
-- **[provision-step-syntax.yml](provision-step-syntax.yml)** - New step/run/note syntax (v9.2.0+)
+- **[provision-step-syntax.yml](provision-step-syntax.yml)** - New step/run/note syntax (v0.1.0+)
   - Cleaner provision scripts without repetitive echo commands
   - Automatic step numbering with progress indicators (📦 [1/4])
   - Multi-command steps with `run:` arrays
@@ -85,7 +85,7 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
 ### 🔄 Configuration Migration
 
 - **[MIGRATE.md](MIGRATE.md)** - DVA configuration upgrade guide
-  - Step-by-step migration walkthrough (v8.x → v9.x)
+  - Step-by-step migration walkthrough (hip v8.x → dva v0.1.x)
   - Common migration scenarios with before/after examples
   - AI-assisted migration with Claude/ChatGPT
   - Troubleshooting deprecated features
@@ -149,7 +149,7 @@ dva validate -c examples/basic.yml
 All examples follow this general structure:
 
 ```yaml
-version: '9.1.0'              # Minimum required dva version
+version: '0.1.0'              # Minimum required dva version
 
 environment:                  # Environment variables
   VAR_NAME: value
@@ -217,7 +217,7 @@ interaction:
 
 ### Provision Profiles
 
-**Note**: As of v9.1.3, `dva provision` automatically starts containers if needed.
+**Note**: As of v0.1.0, `dva provision` automatically starts containers if needed.
 
 ```yaml
 provision:
@@ -231,7 +231,7 @@ provision:
     - dva bundle install
 ```
 
-### Step Syntax (v9.2.0+)
+### Step Syntax (v0.1.0+)
 
 New structured syntax for cleaner provision scripts:
 
@@ -286,7 +286,7 @@ for file in examples/*.yml; do
 done
 ```
 
-## LLM-Friendly Features (v9.1+)
+## LLM-Friendly Features (v0.1.0+)
 
 DVA includes several features designed for AI/LLM integration:
 
@@ -325,7 +325,7 @@ See [llm-integration.yml](llm-integration.yml) for comprehensive examples.
 
 1. **Start Simple**: Begin with `basic.yml` and add features as needed
 2. **Use Provision Profiles**: Create profiles for different scenarios (development, testing, deployment)
-3. **Separate Concerns**: Use `dva up` for containers, `dva provision` for initialization (v9.1+)
+3. **Separate Concerns**: Use `dva up` for containers, `dva provision` for initialization (v0.1.0+)
 4. **Document Your Commands**: Use `description` fields to help team members and LLMs
 5. **Leverage Subcommands**: Organize related commands hierarchically
 6. **Version Control**: Commit your `dva.yml` to share with your team
@@ -346,5 +346,5 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 
 ---
 
-**Version**: 9.2.0
-**Last Updated**: December 2025
+**Version**: 0.1.0
+**Last Updated**: March 2026

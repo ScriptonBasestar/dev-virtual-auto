@@ -118,7 +118,7 @@ gorisa-plugins/
 Minimal version for quick setup:
 
 ```yaml
-version: '8.2'
+version: '0.1.0'
 
 compose:
   files:

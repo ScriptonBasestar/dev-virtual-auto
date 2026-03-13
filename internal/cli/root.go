@@ -21,13 +21,10 @@ var (
 	env        *config.Environment
 )
 
-// topLevelCommands lists all built-in command names.
-var topLevelCommands = map[string]bool{
-	"help": true, "version": true, "ls": true, "compose": true,
-	"up": true, "stop": true, "down": true, "build": true, "clean": true,
-	"run": true, "provision": true, "validate": true, "manifest": true,
-	"ktl": true, "ssh": true, "infra": true, "console": true,
-	"completion": true, "cmd": true, "init": true, "status": true, "config": true,
+// isTopLevelCommand reports whether name is a built-in DVA command.
+// Delegates to config.IsReservedCommand for single-source-of-truth.
+func isTopLevelCommand(name string) bool {
+	return config.IsReservedCommand(name)
 }
 
 var rootCmd = &cobra.Command{
@@ -124,7 +121,7 @@ func Execute() {
 	// check if it's an interaction command or namespace:command and prepend "run"
 	if len(args) > 0 {
 		firstArg := args[0]
-		if !topLevelCommands[firstArg] && !isFlag(firstArg) {
+		if !isTopLevelCommand(firstArg) && !isFlag(firstArg) {
 			shouldRoute := false
 			c, err := loadConfig()
 			if err == nil {
@@ -215,7 +212,7 @@ func loadEnv(c *config.Config) *config.Environment {
 // suggestCommands returns commands similar to the input using Levenshtein distance.
 func suggestCommands(input string) []string {
 	var suggestions []string
-	for cmd := range topLevelCommands {
+	for cmd := range config.ReservedCommands() {
 		if levenshtein(input, cmd) <= 2 {
 			suggestions = append(suggestions, cmd)
 		}
