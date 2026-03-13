@@ -13,15 +13,35 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
+// parseComposePS parses docker compose ps JSON output (handles both array and JSON lines).
+func parseComposePS(out []byte) any {
+	var psData any
+	if err := json.Unmarshal(out, &psData); err == nil {
+		return psData
+	}
+	// Fallback: JSON lines format
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	var services []any
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		var s any
+		if err := json.Unmarshal([]byte(line), &s); err == nil {
+			services = append(services, s)
+		}
+	}
+	return services
+}
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Display workspace status (config, active services, containers)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Config info
 		c, err := loadConfig()
 
 		if jsonOutput {
-			statusData := map[string]interface{}{
+			statusData := map[string]any{
 				"dva_version":  config.Version,
 				"config_found": err == nil,
 			}
@@ -32,35 +52,10 @@ var statusCmd = &cobra.Command{
 				statusData["compose_files"] = c.Compose.Files
 				statusData["commands_count"] = len(c.Interaction)
 
-				composeCmd := "docker"
-				composeArgs := []string{"compose"}
-				for _, f := range c.Compose.Files {
-					composeArgs = append(composeArgs, "-f", f)
-				}
-				if c.Compose.ProjectName != "" {
-					composeArgs = append(composeArgs, "-p", c.Compose.ProjectName)
-				}
-				composeArgs = append(composeArgs, "ps", "--format", "json")
+				e := loadEnv(c)
+				composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "json"})
 				if out, execErr := exec.Command(composeCmd, composeArgs...).Output(); execErr == nil {
-					var psData interface{}
-					// Try parsing as array
-					if jsonErr := json.Unmarshal(out, &psData); jsonErr == nil {
-						statusData["services"] = psData
-					} else {
-						// Or JSON lines
-						lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-						var services []interface{}
-						for _, line := range lines {
-							if line == "" {
-								continue
-							}
-							var s interface{}
-							if jsonErr := json.Unmarshal([]byte(line), &s); jsonErr == nil {
-								services = append(services, s)
-							}
-						}
-						statusData["services"] = services
-					}
+					statusData["services"] = parseComposePS(out)
 				} else {
 					statusData["services"] = nil
 				}
@@ -87,13 +82,11 @@ var statusCmd = &cobra.Command{
 			fmt.Printf("   Compose files: %s\n", strings.Join(c.Compose.Files, ", "))
 		}
 
-		// Count interaction commands
 		cmdCount := len(c.Interaction)
 		if cmdCount > 0 {
 			fmt.Printf("   Commands: %d defined\n", cmdCount)
 		}
 
-		// Show sub-projects
 		if len(c.Subprojects) > 0 {
 			fmt.Printf("   Subprojects: %d\n", len(c.Subprojects))
 			for name, sub := range c.Subprojects {
@@ -107,19 +100,9 @@ var statusCmd = &cobra.Command{
 
 		fmt.Println()
 
-		// Docker Compose status
 		fmt.Println("🐳 Services:")
-		composeCmd := "docker"
-		composeArgs := []string{"compose"}
-
-		for _, f := range c.Compose.Files {
-			composeArgs = append(composeArgs, "-f", f)
-		}
-		if c.Compose.ProjectName != "" {
-			composeArgs = append(composeArgs, "-p", c.Compose.ProjectName)
-		}
-		composeArgs = append(composeArgs, "ps", "--format", "table")
-
+		e := loadEnv(c)
+		composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "table"})
 		ps := exec.Command(composeCmd, composeArgs...)
 		ps.Stdout = os.Stdout
 		ps.Stderr = os.Stderr
