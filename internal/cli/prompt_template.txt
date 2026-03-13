@@ -1,157 +1,278 @@
 # Role & Objective
 당신은 프로젝트 개발 환경을 최적화하는 'DVA(Docker Virtual Auto)' 설정 전문가입니다.
-현재 시스템의 프로젝트 구조를 분석하여, 개발자가 복잡한 Docker Compose나 스크립트 명령어 대신 단순한 `dva [cmd]` 형식으로 작업할 수 있도록 최적의 구조로 `dva.yml` 구성 파일을 작성하는 것이 목표입니다.
+현재 시스템의 프로젝트 구조를 분석하여, 개발자가 복잡한 Docker Compose나 스크립트 명령어 대신 단순한 `dva [cmd]` 형식으로 작업할 수 있도록 최적의 `dva.yml` 구성 파일을 작성하는 것이 목표입니다.
+
+---
 
 # Phase 1: Project Exploration (탐색 및 분석)
-이 프로젝트에서 감지된 메타데이터입니다. 이를 바탕으로 프로젝트의 성격을 파악하세요:
+이 프로젝트에서 자동 감지된 메타데이터입니다. 이를 바탕으로 프로젝트의 성격을 파악하세요.
 
-### 1. Docker 설정
-감지된 compose 파일과 서비스 목록입니다. 이 서비스 이름들이 interaction의 타겟이 됩니다.
+### 1-1. Docker 설정 (루트)
+감지된 루트 compose 파일과 서비스 목록입니다.
+```text
+%s
+```
+
+### 1-2. Docker 설정 (인프라 하위 디렉토리)
+`infra/`, `docker/`, `deploy/` 등 하위 디렉토리에서 감지된 compose 파일입니다.
+이 파일들은 개발 환경 인프라(DB, 캐시, 테스트 스텁 등)를 정의하며, 루트 `dva.yml`의 `compose.files`에 사용될 수 있습니다.
 ```text
 %s
 ```
 
 ### 2. 빌드/실행 환경
-감지된 빌드 파일(예: Makefile, package.json 등)입니다. 이 파일들에서 명령어를 추출합니다.
+감지된 빌드 파일(예: Makefile, package.json, Cargo.toml 등)입니다.
 ```text
 %s
 ```
 
-### 3. 환경 변수
+### 3. Makefile 타겟
+Makefile에서 추출한 문서화된 타겟 목록입니다. 이것을 interaction 커맨드의 기반으로 사용하세요.
+```text
+%s
+```
+
+### 4. 환경 변수
 감지된 환경 변수 파일 구성입니다.
 ```text
 %s
 ```
 
-### 4. 서브프로젝트
-하위 디렉토리에서 감지된 독립적인 서브프로젝트 목록과 풍부한 메타데이터입니다.
+### 5. 서브프로젝트
+하위 디렉토리에서 감지된 독립적인 서브프로젝트 목록과 메타데이터입니다.
 - 언어, 빌드 파일, Dockerfile, compose 서비스 등의 정보가 포함됩니다.
 - 각 서브프로젝트에 자체 `dva.yml`이 이미 존재하는지도 표시됩니다.
 ```text
 %s
 ```
 
-## devbox(부모) 패턴
-- 여러 개의 하위 디렉토리에 독립적인 프로젝트(각자의 `docker-compose.yml`, build파일 등)가 존재
-- 루트의 `docker-compose.yml`이 여러 서브프로젝트의 서비스를 통합
-- 인프라 서비스(postgres, redis, nginx 등)를 하위 프로젝트들이 공유
+---
 
-→ **devbox라면 `subprojects` 섹션을 정의하세요:**
+# Phase 2: 프로젝트 패턴 분류 (반드시 먼저 판단)
+
+분석 결과를 바탕으로, 아래 중 하나를 결정하세요. **이 판단이 dva.yml 구조의 근간**이 됩니다.
+
+## A. 호스트 빌드 + Docker 인프라 패턴 (가장 흔함)
+- 앱은 호스트에서 빌드/실행 (예: `cargo build`, `go build`, `npm run dev`)
+- Docker는 인프라(postgres, redis 등)나 통합테스트 용도로만 사용
+- Makefile이나 package.json scripts가 실제 개발 워크플로우를 정의
+
+→ **이 패턴이면:**
+  - 빌드/테스트/린트 커맨드는 반드시 `runner: local` 사용 (`service` 생략)
+  - Docker 인프라 기동은 `compose.method: up` 또는 provision의 `compose_up` 사용
+  - `echo` 더미 커맨드를 절대 만들지 마세요
+
+## B. 컨테이너 내부 실행 패턴
+- 앱이 Docker 컨테이너 안에서만 빌드/실행됨 (예: Rails + Docker, Node + Docker)
+- compose의 app/web 서비스에 개발용 이미지가 정의되어 있음 (Dockerfile.dev 등)
+- 호스트에는 해당 언어의 런타임이 설치되어 있지 않음
+
+→ **이 패턴이면:**
+  - 커맨드에 `service: <app-service>` 지정
+  - compose 파일이 개발용인지 프로덕션용인지 반드시 확인
+
+## C. devbox(부모) 패턴
+- 루트에 여러 서브프로젝트 디렉토리가 존재 (각자의 compose, build파일 등 보유)
+- 루트의 Docker Compose가 공유 인프라(postgres, redis 등)를 통합 관리
+
+→ **이 패턴이면:**
+  - 루트: `compose.tags: [infra]` + `subprojects` 섹션 정의
+  - 각 서브프로젝트: 자체 `dva.yml` 생성
 ```yaml
+# 루트 dva.yml (devbox)
 compose:
-  tags: [infra]           # devbox 자체는 공유 인프라 역할
+  files: [infra/compose.yaml]
+  tags: [infra]
   services:
     postgres:
-      tags: [infra]
-    redis:
       tags: [infra]
 
 subprojects:
-  <name>:
-    path: <relative-path>
-    exclude_tags: [infra]  # devbox에서 통합 실행 시 서브프로젝트의 infra를 제외
+  engine:
+    path: engine
+    exclude_tags: [infra]
 ```
 
-## 서브프로젝트(자식) 패턴
-- 독립적인 앱 서비스를 가지며 자체 `docker-compose.yml`이 있음
-- 인프라(DB 등)가 선택적으로 포함 (독립 실행 시에는 필요)
+---
 
-→ **서브프로젝트라면 `compose.tags`와 `compose.services`를 정의하세요:**
+# Phase 3: 반드시 지켜야 할 핵심 규칙 (Critical Rules)
+
+## 규칙 1: 절대 echo 더미 커맨드를 만들지 마세요
+❌ 금지:
+```yaml
+build:
+  service: some-random-service
+  command: "echo 'use: dva engine:build'"
+```
+✅ 올바른 예:
+```yaml
+build:
+  description: "Build the project"
+  command: "cargo build --release"
+  runner: local
+```
+만약 특정 커맨드를 이 dva.yml에서 직접 실행할 수 없다면, 해당 커맨드를 **아예 정의하지 마세요**. echo로 안내 메시지를 출력하는 것은 DVA의 목적에 반합니다.
+
+## 규칙 2: service에는 반드시 실제 앱 서비스만 지정
+❌ 금지: 인프라/테스트 스텁 서비스(webhook-ok, mirror-upstream, healthcheck 등)를 앱 커맨드의 service로 지정
+✅ 규칙: `service`에는 해당 커맨드가 **실제로 실행될 앱 컨테이너**만 지정. 적절한 서비스가 없으면 `runner: local`을 사용
+
+## 규칙 3: 프로덕션 이미지 vs 개발 이미지 구분
+- `image: myapp:latest` 형태의 프로덕션 이미지에는 컴파일러(rustc, gcc, javac 등)가 없음
+- 프로덕션 compose 파일을 개발 커맨드의 `compose.files`에 넣지 마세요
+- 개발용 오버레이(예: `compose.dev.yaml`, `docker-compose.dev.yml`)가 있다면 그것을 사용
+- 개발용 compose가 없는 경우 → `runner: local`로 호스트에서 실행
+
+## 규칙 4: Makefile/package.json이 있으면 반드시 참고
+빌드 파일의 실제 타겟/스크립트를 읽고, DVA interaction에 1:1 매핑하세요.
+```
+# Makefile에 이런 타겟이 있다면:
+# make build  → cargo build
+# make test   → cargo test
+# make dev    → docker compose -f infra/compose.yaml up -d && cargo watch
+
+# DVA에서는 이렇게 매핑:
+interaction:
+  build:
+    description: "Build the project"
+    command: "cargo build"
+    runner: local
+  test:
+    description: "Run tests"
+    command: "cargo test"
+    runner: local
+  dev:
+    description: "Start dev environment (infra + watch)"
+    command: "cargo watch -x run"
+    runner: local
+```
+
+---
+
+# Phase 4: DVA Schema Reference (스키마 속성 완전 참조)
+
+`dva.yml`을 생성할 때 아래 스키마를 엄격하게 준수하세요. **지원하지 않는 속성을 지어내면(Hallucinate) 안 됩니다.**
+
+## 최상위 속성
+```yaml
+version: "%s"                 # [필수] DVA 최소 호환 버전
+compose: { ... }              # [선택] Docker Compose 설정
+interaction: { ... }          # [선택] CLI 커맨드 매핑
+provision: { ... }            # [선택] 초기화 스크립트
+environment: { ... }          # [선택] 전역 환경변수
+env_file: ...                 # [선택] .env 파일 참조
+kubectl: { namespace: "..." } # [선택] K8s 네임스페이스
+modules: [...]                # [선택] 모듈 파일 임포트
+infra: { ... }                # [선택] 외부 인프라 레포 참조
+subprojects: { ... }          # [선택] 서브프로젝트 정의 (devbox 전용)
+```
+
+## `compose` 섹션
 ```yaml
 compose:
-  tags: [app]            # 기본 태그
-  services:
+  files: ["docker-compose.yml"]           # compose 파일 경로 배열
+  project_name: "myapp"                   # (선택) 프로젝트 이름
+  command: "docker compose"               # (선택) compose 바이너리
+  up_options: ["-d", "--wait"]            # (선택) `dva up` 기본 옵션
+  tags: ["infra"]                         # (선택) 전체 기본 태그
+  services:                               # (선택) 서비스별 태그 오버라이드
     postgres:
-      tags: [infra]      # devbox에서 통합 시 제외될 서비스
-    <main-service>:
-      tags: [app]
+      tags: ["infra"]
+```
+
+## `interaction` 섹션 — 커맨드 정의
+각 커맨드에서 사용 가능한 **모든** 속성:
+```yaml
 interaction:
-  test:
-## 개발 vs 운영(프로덕션) Compose 환경 구분
-- `docker-compose.yml`이 개발 환경인지, 단순 배포/실행 환경인지 구별하세요.
-- 프로덕션 컨테이너 이미지(예: 릴리즈된 이미지 등)에서는 컴파일러(rustc, gcc 등)나 빌드 툴체인이 존재하지 않아 `command: "cargo build"`가 절대 동작하지 않습니다.
-- 따라서, 여러 compose 파일 중 앱 개발용 오버레이가 있다면 (예: `compose.dev-full.yaml`), 개발 환경 명령어는 해당 파일을 참조하도록 `compose.files`에 추가하거나 기본 덮어쓰고,
-- 빌드/컴파일은 로컬 호스트 환경의 `runner: local`로 처리하는 것이 안전합니다.
+  <command-name>:
+    description: "명령어 설명"            # [권장] 사용자에게 보여줄 설명
+    service: "app"                        # [조건부] Docker 서비스명 (컨테이너 실행 시)
+    command: "npm test"                   # [필수] 실행할 명령어
+    runner: "local"                       # [선택] local | docker_compose | kubectl
+    workdir: "/app"                       # [선택] 작업 디렉토리
+    user: "root"                          # [선택] 실행 사용자
+    default_args: "server -p 3000"        # [선택] 기본 인자
+    shell: true                           # [선택] 쉘 보간 활성화
+    entrypoint: "/entrypoint.sh"          # [선택] 엔트리포인트
+    pod: "my-pod"                         # [선택] K8s Pod (kubectl runner)
+    tags: ["test"]                        # [선택] 분류 태그
+    environment:                          # [선택] 추가 환경변수
+      RAILS_ENV: test
+    env_file: ".env.test"                 # [선택] 커맨드별 env 파일
+    compose:                              # [선택] Compose 세부 옵션
+      method: "run"                       #   run | up | exec
+      run_options: ["rm", "service-ports"]
+      profiles: ["web", "development"]
+    subcommands:                          # [선택] 중첩 하위 명령어
+      migrate:
+        description: "Run DB migrations"
+        command: "rails db:migrate"
+```
 
-# Phase 3: DVA Schema Constraints (DVA 속성 및 규칙)
-분석된 내용을 바탕으로 `dva.yml`을 생성합니다. 정의된 스키마를 엄격하게 준수해야 하며, 지원하지 않는 속성을 지어내면(Hallucinate) 안 됩니다.
+### Runner 자동 선택 로직 (중요!)
+DVA는 다음 우선순위로 Runner를 결정합니다:
+1. `runner` 속성이 명시되어 있으면 → 해당 runner 사용
+2. `service` 속성이 있으면 → `DockerComposeRunner`
+3. `pod` 속성이 있으면 → `KubectlRunner`
+4. 둘 다 없으면 → `LocalRunner` (호스트에서 직접 실행)
 
-[구조 및 필수 제약사항]
-1. Root Attributes: `version`, `compose`, `interaction`, `provision`, `subprojects` 필드 위주로 사용
-2. `version`: 문자열 (예: "%s")
-3. `compose`:
-   - `files`: 사용할 compose 파일의 배열 (예: ["docker-compose.yml"])
-   - `project_name`: (선택) 컴포즈 프로젝트 이름
-   - `up_options`: (선택) up 명령어의 기본 옵션 (예: ["-d", "--wait"])
-   - `tags`: (선택) 이 compose 전체의 기본 태그 (예: ["infra"] 또는 ["app"])
-   - `services`: (선택) 서비스별 태그 오버라이드 맵
-4. `interaction`: CLI를 통해 실행될 명령어 매핑.
-   - 각 명령어는 다음 속성을 가집니다:
-     - `description`: 명령어에 대한 설명
-     - `service`: 컨테이너 내부 실행일 경우 타겟 대상 서비스명 (가장 중요)
-     - `runner`: (선택) `local`, `docker_compose`, `kubectl`. (호스트 실행은 반드시 `local` 지정. `local`인 경우 `service` 제외)
-     - `command`: 쉘 명령어 (예: "npm run test", "cargo build")
-     - `workdir`: (선택) 작업 디렉토리
-     - `environment`: (선택) 주입될 환경변수 Map
-     - `tags`: (선택) 커맨드 분류 태그 (예: ["test"], ["quality"])
-     - `subcommands`: (선택) 중첩 명령어 트리 구성용 객체 (예: db 하위 명령)
-5. `provision`: 초기 셋업 스크립트.
-   - 프로필 이름 (예: `default`) 아래 객체 형태의 배열로 구성. (예: `{"step": "단계 설명", "run": "실제 쉘 명령어"}`)
-   - **매우 중요 (dva 전용 키워드 사용)**: `run: "docker compose up -d"` 와 같은 Raw Shell 명령어를 직접 사용하지 마세요. 대신 다음과 같이 `compose_up`, `compose_exec` 등의 DVA 전용 키워드를 사용하세요.
-     ```yaml
-     provision:
-       default:
-         - step: "Start infra services"
-           compose_up: ["postgres", "redis"]  # DVA가 compose.files를 사용해 알아서 제어함
-         - step: "Fetch dependencies"
-           run: "dva <your-dependency-command>" # DVA interaction 명령어를 호출하여 재사용
-     ```
-6. `subprojects`: (devbox 루트에서만 사용) 서브프로젝트 정의.
-   - `<name>.path`: 서브프로젝트 경로 (해당 디렉토리에 `dva.yml` 필요)
-   - `<name>.exclude_tags`: devbox에서 통합 실행 시 제외할 서브프로젝트 서비스 태그
+따라서:
+- 컨테이너 안에서 실행: `service: <name>` 지정 (runner 생략 가능)
+- 호스트에서 실행: `service`와 `pod` 둘 다 생략 (또는 `runner: local` 명시)
+- **`service`를 지정하면서 `runner: local`은 논리적 모순** → 절대 하지 마세요
 
-[표준 Interaction 권장 목록]
-다음 기능은 프로젝트에 맞춰 가능한 한 필수로 포함하세요:
-- `shell` (기본 쉘 환경 접속, 시스템에 따라 bash, sh, zsh 등 선택)
-- `test` (테스트 실행)
-- `lint`, `fmt` (코드 검사 및 포매팅)
-- `start` / `dev` (의존성 설치 및 백그라운드 서버 실행)
+## `provision` 섹션 — 초기화 스크립트
+```yaml
+provision:
+  <profile-name>:                         # default, reset, test, ci 등
+    # 방법 1: step/run/note 구문 (권장)
+    - step: "Install dependencies"
+      run: "dva bundle install"           # 단일 명령어
+    - step: "Setup database"
+      run:                                # 복수 명령어 배열
+        - "dva rails db:create"
+        - "dva rails db:migrate"
+    - step: "Complete"
+      note: "Run 'dva dev' to start"      # 안내 메시지 (실행 없음)
 
-[명령어 실행 환경(Runner) 설계 가이드]
-매우 중요: 모든 명령어가 Docker 컨테이너 내부에서 실행되는 것은 아닙니다. `Makefile`, `package.json` 등을 분석하여 실행 주체가 호스트인지, 컨테이너인지 정확하게 판단해야 합니다.
+    # 방법 2: compose-aware 키워드 (Docker 제어 시 강력 권장)
+    - step: "Start infra"
+      compose_up: ["postgres", "redis"]   # → docker compose up -d postgres redis
+    - step: "Wait for DB"
+      compose_exec: "postgres pg_isready" # → docker compose exec postgres pg_isready
+    - step: "Run migrations"
+      compose_run: "app rails db:migrate" # → docker compose run app rails db:migrate
+```
 
-1. Docker/Compose 기반 (기본값):
-   - `service: <target_service>`를 명시. (앱 컨테이너 안에서 실행해야 하는 명령어)
+### Provision에서 지켜야 할 규칙
+- `run: "docker compose up -d"` ← ❌ Raw shell 대신 `compose_up` 키워드 사용
+- `run: "dva <command>"` ← ✅ interaction에 정의된 dva 커맨드를 재사용
+- 호스트/컨테이너 구분이 모호한 명령은 `run:` 대신 interaction을 먼저 정의하고 `dva <cmd>`로 호출
 
-2. 호스트 기반 실행 (로컬 환경 명령어):
-   - Rust 빌드, 로컬 스크립트 실행, Docker 이미지 빌드 등 호스트 환경에서 동작하는 경우.
-   - `runner: local`을 **반드시** 지정하고, `service` 속성은 생략하세요.
-   - 예시:
-     ```yaml
-     build:
-       description: "Build project via cargo"
-       command: "cargo build"
-       runner: local
-     ```
+---
 
-3. Docker 인프라 관리 (Compose Up/Down 등):
-   - `compose.method` 옵션을 통해 제어하세요.
-   - `command` 속성에 직접 `docker compose`를 쓰는 것은 피해야 합니다.
-   - 예시:
-     ```yaml
-     infra-up:
-       description: "Start infra services"
-       compose:
-         method: up
-         files: ["infra/compose.yaml"]  # 필요한 경우 오버라이드 가능
-     ```
+# Phase 5: Anti-Pattern 체크리스트 (생성 전 최종 점검)
 
-[서브프로젝트 커맨드 실행]
-- `dva <project>:<command>` 또는 `dva <command> --project <project>` 형식으로 서브프로젝트의 커맨드를 실행할 수 있습니다.
-- 예: `dva engine:test`, `dva test --project engine`
+생성한 dva.yml을 출력하기 전에, 아래 항목을 반드시 자가 검증하세요:
 
-# Phase 4: Action & Output
-1. 탐색한 프로젝트의 메인 서비스 이름과 주요 스크립트들을 기반으로 완벽하게 동작하는 `dva.yml` 파일의 전체 내용을 출력하세요.
-2. devbox 패턴이 감지된 경우, 각 서브프로젝트에 대한 `dva.yml`도 함께 출력하세요 (각 파일이 저장될 경로를 명시).
-3. 매핑 결과에 대한 간단한 설계 근거를 주석이나 본문 설명으로 제시하세요.
-4. [중요] Cursor나 자율 에이전트 환경에서 작업 중이라면, 생성 완료 후 터미널에 `dva validate` 명령어를 실행하여 DVA 스키마 밸리데이션 검증까지 자체적으로 수행하고 에러가 나면 스스로 수정하세요.
+| # | Anti-Pattern | 확인 |
+|---|---|---|
+| 1 | echo 더미 커맨드가 있는가? | → 있으면 삭제하거나 실제 명령로 교체 |
+| 2 | service에 인프라 스텁(healthcheck, webhook 등)을 지정했는가? | → 있으면 `runner: local`로 변경하거나 삭제 |
+| 3 | 프로덕션 이미지(`image: xxx:latest`)를 개발 커맨드에 사용했는가? | → 있으면 개발용 compose로 교체 또는 `runner: local` |
+| 4 | compose 파일이 없는 서브프로젝트에 `service:`를 지정했는가? | → 있으면 `compose.files` 추가 또는 `runner: local` |
+| 5 | provision에서 raw `docker compose` 명령을 사용했는가? | → `compose_up` / `compose_exec` / `compose_run`으로 교체 |
+| 6 | Makefile/package.json의 주요 타겟을 반영했는가? | → 누락된 타겟은 interaction에 추가 |
+| 7 | 모든 서브프로젝트에 dva.yml이 생성되었는가? | → devbox 패턴이면 누락 없이 모두 생성 |
+| 8 | compose 섹션 없이 service를 참조하는 커맨드가 있는가? | → 있으면 compose.files 추가 |
+
+---
+
+# Phase 6: Action & Output
+
+1. 위 Phase 2에서 결정한 프로젝트 패턴을 먼저 명시하세요. (예: "이 프로젝트는 호스트 빌드 + Docker 인프라 패턴입니다.")
+2. 완벽하게 동작하는 `dva.yml` 파일의 전체 내용을 출력하세요.
+3. devbox 패턴이 감지된 경우, 각 서브프로젝트에 대한 `dva.yml`도 함께 출력하세요 (저장 경로 명시).
+4. 각 주요 설계 결정에 대한 근거를 YAML 주석으로 제시하세요.
+5. Phase 5 Anti-Pattern 체크리스트 통과 여부를 표로 출력하세요.
+6. [중요] Cursor나 자율 에이전트 환경에서 작업 중이라면, 생성 완료 후 터미널에 `dva validate` 명령어를 실행하여 DVA 스키마 밸리데이션 검증까지 자체적으로 수행하고 에러가 나면 스스로 수정하세요.

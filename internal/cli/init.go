@@ -325,8 +325,23 @@ func generateAndPrintPrompt() {
 		detectedCompose = strings.Join(parts, " → ")
 	}
 
+	// Detect infra/subdirectory compose files
+	infraComposeFiles := detectInfraComposeFiles()
+	detectedInfraCompose := "None"
+	if len(infraComposeFiles) > 0 {
+		var infraParts []string
+		for _, icf := range infraComposeFiles {
+			entry := icf
+			if services := extractComposeServices(icf); len(services) > 0 {
+				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
+			}
+			infraParts = append(infraParts, entry)
+		}
+		detectedInfraCompose = strings.Join(infraParts, "\n")
+	}
+
 	buildFiles := []string{}
-	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod"} {
+	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
 		if _, err := os.Stat(f); err == nil {
 			buildFiles = append(buildFiles, f)
 		}
@@ -334,6 +349,12 @@ func generateAndPrintPrompt() {
 	detectedBuild := "None"
 	if len(buildFiles) > 0 {
 		detectedBuild = strings.Join(buildFiles, ", ")
+	}
+
+	// Extract Makefile targets
+	detectedMakeTargets := "None"
+	if makeTargets := extractMakefileTargets(); makeTargets != "" {
+		detectedMakeTargets = makeTargets
 	}
 
 	envFiles := []string{}
@@ -351,9 +372,70 @@ func generateAndPrintPrompt() {
 	// Detect sub-projects: subdirectories containing their own project files
 	detectedSubprojects := detectSubprojects()
 
-	prompt := fmt.Sprintf(promptTemplateText, detectedCompose, detectedBuild, detectedEnv, detectedSubprojects, config.Version)
+	prompt := fmt.Sprintf(promptTemplateText,
+		detectedCompose,      // %s 1 - root compose
+		detectedInfraCompose, // %s 2 - infra compose
+		detectedBuild,        // %s 3 - build files
+		detectedMakeTargets,  // %s 4 - Makefile targets
+		detectedEnv,          // %s 5 - env files
+		detectedSubprojects,  // %s 6 - subprojects
+		config.Version,       // %s 7 - dva version
+	)
 
 	fmt.Println(prompt)
+}
+
+// detectInfraComposeFiles finds compose files in common infrastructure subdirectories.
+func detectInfraComposeFiles() []string {
+	dirs := []string{"infra", "docker", "deploy"}
+	var found []string
+	for _, dir := range dirs {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			name := e.Name()
+			if !e.IsDir() &&
+				(strings.HasPrefix(name, "compose") || strings.HasPrefix(name, "docker-compose")) &&
+				(strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")) {
+				found = append(found, filepath.Join(dir, name))
+			}
+		}
+	}
+	return found
+}
+
+// extractMakefileTargets reads documented Makefile targets (target: ## description).
+func extractMakefileTargets() string {
+	data, err := os.ReadFile("Makefile")
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	var targets []string
+	for _, line := range lines {
+		if strings.Contains(line, "##") && !strings.HasPrefix(line, "#") &&
+			!strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 && !strings.HasPrefix(parts[0], ".") {
+				target := strings.TrimSpace(parts[0])
+				desc := ""
+				if idx := strings.Index(parts[1], "##"); idx >= 0 {
+					desc = strings.TrimSpace(parts[1][idx+2:])
+				}
+				if desc != "" {
+					targets = append(targets, fmt.Sprintf("  make %-18s # %s", target, desc))
+				} else {
+					targets = append(targets, fmt.Sprintf("  make %s", target))
+				}
+			}
+		}
+	}
+	if len(targets) == 0 {
+		return ""
+	}
+	return strings.Join(targets, "\n")
 }
 
 // detectSubprojects recursively searches for sub-projects by finding .git directories
