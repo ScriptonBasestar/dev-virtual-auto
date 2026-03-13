@@ -36,7 +36,7 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("reading config: %w", err)
 	}
 
-	var yamlData interface{}
+	var yamlData any
 	if err := yaml.Unmarshal(yamlBytes, &yamlData); err != nil {
 		return fmt.Errorf("invalid YAML syntax: %w", err)
 	}
@@ -63,27 +63,39 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("schema validation failed in dva.yml:\n%s", strings.Join(errs, "\n"))
 	}
 
+	// Check for reserved command conflicts in interaction section
+	if conflicts := ValidateReservedCommands(c.Interaction); len(conflicts) > 0 {
+		var errs []string
+		for _, conflict := range conflicts {
+			errs = append(errs, fmt.Sprintf(
+				"  - interaction.%s: '%s' is a reserved DVA command and will be shadowed",
+				conflict.Name, conflict.Name,
+			))
+		}
+		return fmt.Errorf("reserved command conflict in dva.yml:\n%s", strings.Join(errs, "\n"))
+	}
+
 	return nil
 }
 
 // convertYAMLToJSON recursively converts YAML-decoded data to JSON-compatible types.
-// YAML maps decode to map[string]interface{} but sometimes keys are non-string.
-func convertYAMLToJSON(v interface{}) interface{} {
+// YAML maps decode to map[string]any but sometimes keys are non-string.
+func convertYAMLToJSON(v any) any {
 	switch val := v.(type) {
-	case map[string]interface{}:
-		result := make(map[string]interface{}, len(val))
+	case map[string]any:
+		result := make(map[string]any, len(val))
 		for k, v := range val {
 			result[k] = convertYAMLToJSON(v)
 		}
 		return result
-	case map[interface{}]interface{}:
-		result := make(map[string]interface{}, len(val))
+	case map[any]any:
+		result := make(map[string]any, len(val))
 		for k, v := range val {
 			result[fmt.Sprintf("%v", k)] = convertYAMLToJSON(v)
 		}
 		return result
-	case []interface{}:
-		result := make([]interface{}, len(val))
+	case []any:
+		result := make([]any, len(val))
 		for i, v := range val {
 			result[i] = convertYAMLToJSON(v)
 		}

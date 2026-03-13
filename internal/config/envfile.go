@@ -18,8 +18,8 @@ type EnvFileConfig struct {
 }
 
 // LoadEnvFile loads environment variables from .env file(s).
-// The config can be: string, []interface{}, or map with files/priority/interpolate keys.
-func LoadEnvFile(envFileConfig interface{}, basePath string, env *Environment) error {
+// The config can be: string, []any, or map with files/priority/interpolate keys.
+func LoadEnvFile(envFileConfig any, basePath string, env *Environment) error {
 	files := normalizeEnvFileConfig(envFileConfig)
 
 	for _, f := range files {
@@ -57,24 +57,24 @@ func LoadEnvFile(envFileConfig interface{}, basePath string, env *Environment) e
 	return nil
 }
 
-func normalizeEnvFileConfig(config interface{}) []EnvFileConfig {
+func normalizeEnvFileConfig(config any) []EnvFileConfig {
 	switch v := config.(type) {
 	case string:
 		return []EnvFileConfig{{Path: v, Required: false}}
-	case []interface{}:
+	case []any:
 		var result []EnvFileConfig
 		for _, item := range v {
 			switch it := item.(type) {
 			case string:
 				result = append(result, EnvFileConfig{Path: it, Required: false})
-			case map[string]interface{}:
+			case map[string]any:
 				path, _ := it["path"].(string)
 				required, _ := it["required"].(bool)
 				result = append(result, EnvFileConfig{Path: path, Required: required})
 			}
 		}
 		return result
-	case map[string]interface{}:
+	case map[string]any:
 		files, _ := v["files"]
 		required, _ := v["required"].(bool)
 		configs := normalizeEnvFileConfig(files)

@@ -16,12 +16,12 @@ type Config struct {
 	Compose      ComposeConfig                  `yaml:"compose"`
 	Kubectl      KubectlConfig                  `yaml:"kubectl"`
 	Environment  map[string]string              `yaml:"environment"`
-	EnvFile      interface{}                    `yaml:"env_file"`
+	EnvFile      any                    `yaml:"env_file"`
 	Interaction  map[string]*InteractionCommand `yaml:"interaction"`
 	Provision    map[string][]ProvisionItem     `yaml:"provision"`
 	Infra        map[string]InfraConfig         `yaml:"infra"`
 	Modules      []string                       `yaml:"modules"`
-	Devcontainer map[string]interface{}         `yaml:"devcontainer"`
+	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 
 	// Internal fields
@@ -64,7 +64,7 @@ type InteractionCommand struct {
 	User              string                         `yaml:"user"`
 	DefaultArgs       string                         `yaml:"default_args"`
 	Environment       map[string]string              `yaml:"environment"`
-	EnvFile           interface{}                    `yaml:"env_file"`
+	EnvFile           any                    `yaml:"env_file"`
 	Compose           *ComposeOptions                `yaml:"compose"`
 	Shell             *bool                          `yaml:"shell"`
 	Entrypoint        string                         `yaml:"entrypoint"`
@@ -94,7 +94,7 @@ type ComposeOptions struct {
 type ProvisionItem struct {
 	// Step-based format
 	Step string      `yaml:"step"`
-	Run  interface{} `yaml:"run"`
+	Run  any `yaml:"run"`
 	Note string      `yaml:"note"`
 
 	// Compose-aware commands (inherit compose.files and compose.project_name)
@@ -106,8 +106,8 @@ type ProvisionItem struct {
 	Echo   string      `yaml:"echo"`
 	Cmd    string      `yaml:"cmd"`
 	ShellC string      `yaml:"shell"`
-	Sleep  interface{} `yaml:"sleep"`
-	Docker interface{} `yaml:"docker"`
+	Sleep  any `yaml:"sleep"`
+	Docker any `yaml:"docker"`
 
 	// Raw string format (set during custom unmarshal)
 	Raw string `yaml:"-"`
@@ -135,7 +135,7 @@ func (p *ProvisionItem) RunCommands() []string {
 	switch v := p.Run.(type) {
 	case string:
 		return []string{v}
-	case []interface{}:
+	case []any:
 		cmds := make([]string, 0, len(v))
 		for _, item := range v {
 			if s, ok := item.(string); ok {
@@ -216,6 +216,9 @@ func Load(workDir string) (*Config, error) {
 	if cfg.Provision == nil {
 		cfg.Provision = make(map[string][]ProvisionItem)
 	}
+
+	// Warn if interaction commands shadow reserved built-in commands
+	WarnReservedCommandConflicts(cfg.Interaction)
 
 	return cfg, nil
 }
