@@ -1,14 +1,13 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
+	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
@@ -64,7 +63,7 @@ func printTable(commands map[string]*runner.ResolvedCommand, keys []string) erro
 	for _, k := range keys {
 		cmd := commands[k]
 		if lsDetailed {
-			runnerType := detectRunnerType(cmd)
+			runnerType := runner.DetectRunnerType(cmd)
 			detail := ""
 			if cmd.Service != "" {
 				detail = fmt.Sprintf("service:%s", cmd.Service)
@@ -86,13 +85,13 @@ func printTable(commands map[string]*runner.ResolvedCommand, keys []string) erro
 	return nil
 }
 
-func printJSON(commands map[string]*runner.ResolvedCommand, keys []string) error {
-	output := make(map[string]interface{})
+func buildCommandEntries(commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
+	entries := make(map[string]any, len(keys))
 	for _, k := range keys {
 		cmd := commands[k]
-		entry := map[string]interface{}{
+		entry := map[string]any{
 			"command": cmd.Command,
-			"runner":  detectRunnerType(cmd),
+			"runner":  runner.DetectRunnerType(cmd),
 			"shell":   cmd.Shell,
 		}
 		if cmd.Description != "" {
@@ -105,50 +104,16 @@ func printJSON(commands map[string]*runner.ResolvedCommand, keys []string) error
 		if cmd.Pod != "" {
 			entry["pod"] = cmd.Pod
 		}
-		output[k] = entry
+		entries[k] = entry
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(data))
-	return nil
+	return entries
+}
+
+func printJSON(commands map[string]*runner.ResolvedCommand, keys []string) error {
+	return output.PrintJSON(buildCommandEntries(commands, keys))
 }
 
 func printYAML(commands map[string]*runner.ResolvedCommand, keys []string) error {
-	output := make(map[string]interface{})
-	for _, k := range keys {
-		cmd := commands[k]
-		entry := map[string]interface{}{
-			"command": cmd.Command,
-			"runner":  detectRunnerType(cmd),
-			"shell":   cmd.Shell,
-		}
-		if cmd.Description != "" {
-			entry["description"] = cmd.Description
-		}
-		if cmd.Service != "" {
-			entry["service"] = cmd.Service
-		}
-		output[k] = entry
-	}
-	data, err := yaml.Marshal(output)
-	if err != nil {
-		return err
-	}
-	fmt.Print(string(data))
-	return nil
+	return output.PrintYAML(buildCommandEntries(commands, keys))
 }
 
-func detectRunnerType(cmd *runner.ResolvedCommand) string {
-	if cmd.RunnerName != "" {
-		return cmd.RunnerName
-	}
-	if cmd.Service != "" {
-		return "DockerCompose"
-	}
-	if cmd.Pod != "" {
-		return "Kubectl"
-	}
-	return "Local"
-}

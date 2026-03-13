@@ -78,34 +78,23 @@ func (e *Environment) Interpolate(value string) string {
 }
 
 // EnvSlice returns environment variables as KEY=VALUE slice for exec.
+// Config vars override OS environment variables with the same key.
 func (e *Environment) EnvSlice() []string {
-	// Start with current OS environment
-	result := os.Environ()
-	seen := make(map[string]bool)
+	osEnv := os.Environ()
+	result := make([]string, 0, len(osEnv)+len(e.Vars))
 
-	// Collect our vars
-	for k, v := range e.Vars {
-		result = append(result, fmt.Sprintf("%s=%s", k, v))
-		seen[k] = true
-	}
-
-	// Deduplicate: our vars override OS env
-	deduped := make([]string, 0, len(result))
-	seenKeys := make(map[string]bool)
-	// Process in reverse so our vars (appended last) take priority
-	for i := len(result) - 1; i >= 0; i-- {
-		parts := strings.SplitN(result[i], "=", 2)
-		key := parts[0]
-		if !seenKeys[key] {
-			seenKeys[key] = true
-			deduped = append(deduped, result[i])
+	// Pass through OS env vars, skipping keys that config will override
+	for _, kv := range osEnv {
+		key, _, _ := strings.Cut(kv, "=")
+		if _, overridden := e.Vars[key]; !overridden {
+			result = append(result, kv)
 		}
 	}
 
-	// Reverse to maintain order
-	for i, j := 0, len(deduped)-1; i < j; i, j = i+1, j-1 {
-		deduped[i], deduped[j] = deduped[j], deduped[i]
+	// Append config vars (these take priority)
+	for k, v := range e.Vars {
+		result = append(result, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	return deduped
+	return result
 }

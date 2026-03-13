@@ -1,15 +1,14 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
@@ -24,19 +23,10 @@ var manifestCmd = &cobra.Command{
 
 		switch manifestFormat {
 		case "yaml":
-			data, err := yaml.Marshal(manifest)
-			if err != nil {
-				return err
-			}
-			fmt.Print(string(data))
+			return output.PrintYAML(manifest)
 		default:
-			data, err := json.MarshalIndent(manifest, "", "  ")
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(data))
+			return output.PrintJSON(manifest)
 		}
-		return nil
 	},
 }
 
@@ -116,15 +106,15 @@ func buildManifest(c *config.Config) *Manifest {
 			"version":   {Description: "Show DVA version", Type: "info"},
 		},
 		Runners: map[string]ManifestRunner{
-			"docker_compose": {
+			runner.RunnerDockerCompose: {
 				Trigger:     "service key present in command config",
 				Description: "Executes commands in Docker Compose services",
 			},
-			"kubectl": {
+			runner.RunnerKubectl: {
 				Trigger:     "pod key present in command config",
 				Description: "Executes commands in Kubernetes pods via kubectl exec",
 			},
-			"local": {
+			runner.RunnerLocal: {
 				Trigger:     "no service or pod key defined",
 				Description: "Executes commands directly on the host",
 			},
@@ -155,7 +145,7 @@ func buildManifest(c *config.Config) *Manifest {
 		dynCmd := ManifestDynCmd{
 			Description:  cmd.Description,
 			Command:      cmd.Command,
-			Runner:       detectRunnerType(cmd),
+			Runner:       runner.DetectRunnerType(cmd),
 			UsageExample: fmt.Sprintf("dva %s", k),
 		}
 		if cmd.Service != "" {
@@ -186,7 +176,7 @@ func buildManifest(c *config.Config) *Manifest {
 					dynCmd := ManifestDynCmd{
 						Description:  cmd.Description,
 						Command:      cmd.Command,
-						Runner:       detectRunnerType(cmd),
+						Runner:       runner.DetectRunnerType(cmd),
 						UsageExample: fmt.Sprintf("dva %s:%s", name, k),
 					}
 					if cmd.Service != "" {

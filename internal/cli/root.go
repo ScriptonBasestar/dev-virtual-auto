@@ -246,13 +246,6 @@ func levenshtein(a, b string) int {
 	return d[la][lb]
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func isTerminal(file *os.File) bool {
 	stat, err := file.Stat()
 	if err != nil {

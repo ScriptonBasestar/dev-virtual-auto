@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 var statusCmd = &cobra.Command{
@@ -64,9 +65,7 @@ var statusCmd = &cobra.Command{
 					statusData["services"] = nil
 				}
 			}
-			data, _ := json.MarshalIndent(statusData, "", "  ")
-			fmt.Println(string(data))
-			return nil
+			return output.PrintJSON(statusData)
 		}
 
 		fmt.Printf("DVA v%s\n\n", config.Version)

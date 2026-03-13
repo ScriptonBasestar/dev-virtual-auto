@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+
+	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 var configCmd = &cobra.Command{
@@ -24,19 +22,10 @@ var configDumpCmd = &cobra.Command{
 
 		switch configDumpFormat {
 		case "yaml":
-			data, err := yaml.Marshal(c)
-			if err != nil {
-				return err
-			}
-			fmt.Print(string(data))
+			return output.PrintYAML(c)
 		default:
-			data, err := json.MarshalIndent(c, "", "  ")
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(data))
+			return output.PrintJSON(c)
 		}
-		return nil
 	},
 }
 

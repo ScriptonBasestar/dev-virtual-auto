@@ -9,6 +9,20 @@ import (
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 )
 
+// Runner type constants.
+const (
+	RunnerDockerCompose = "docker_compose"
+	RunnerKubectl       = "kubectl"
+	RunnerLocal         = "local"
+)
+
+// Runner type display names.
+const (
+	RunnerNameDockerCompose = "DockerCompose"
+	RunnerNameKubectl       = "Kubectl"
+	RunnerNameLocal         = "Local"
+)
+
 // Runner is the interface for command execution strategies.
 type Runner interface {
 	Execute(env *config.Environment) error
@@ -17,16 +31,14 @@ type Runner interface {
 // NewRunner creates the appropriate runner based on the resolved command.
 func NewRunner(cmd *ResolvedCommand, opts RunOptions) Runner {
 	if cmd.RunnerName != "" {
-		// Explicit runner specified
 		switch strings.ToLower(cmd.RunnerName) {
-		case "docker_compose":
+		case RunnerDockerCompose:
 			return &DockerComposeRunner{Cmd: cmd, Opts: opts}
-		case "kubectl":
+		case RunnerKubectl:
 			return &KubectlRunner{Cmd: cmd, Opts: opts}
-		case "local":
+		case RunnerLocal:
 			return &LocalRunner{Cmd: cmd, Opts: opts}
 		default:
-			// Try camelCase to snake_case matching
 			return &DockerComposeRunner{Cmd: cmd, Opts: opts}
 		}
 	}
@@ -40,6 +52,20 @@ func NewRunner(cmd *ResolvedCommand, opts RunOptions) Runner {
 	return &LocalRunner{Cmd: cmd, Opts: opts}
 }
 
+// DetectRunnerType returns the display name for the runner that would handle this command.
+func DetectRunnerType(cmd *ResolvedCommand) string {
+	if cmd.RunnerName != "" {
+		return cmd.RunnerName
+	}
+	if cmd.Service != "" {
+		return RunnerNameDockerCompose
+	}
+	if cmd.Pod != "" {
+		return RunnerNameKubectl
+	}
+	return RunnerNameLocal
+}
+
 // RunOptions holds runtime options for command execution.
 type RunOptions struct {
 	Publish []string
@@ -48,15 +74,7 @@ type RunOptions struct {
 
 // Explain prints the execution plan without running anything.
 func Explain(cmd *ResolvedCommand, jsonOutput bool) {
-	runner := "LocalRunner"
-	if cmd.Service != "" {
-		runner = "DockerComposeRunner"
-	} else if cmd.Pod != "" {
-		runner = "KubectlRunner"
-	}
-	if cmd.RunnerName != "" {
-		runner = cmd.RunnerName
-	}
+	runner := DetectRunnerType(cmd)
 
 	if jsonOutput {
 		plan := map[string]interface{}{
