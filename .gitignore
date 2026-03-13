@@ -29,5 +29,6 @@ Thumbs.db
 .serena/
 .cursor/
 
-# etc
+# Work files
 tmp/
+docs/plans/

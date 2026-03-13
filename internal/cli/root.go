@@ -26,7 +26,7 @@ var topLevelCommands = map[string]bool{
 	"help": true, "version": true, "ls": true, "compose": true,
 	"up": true, "stop": true, "down": true, "build": true, "clean": true,
 	"run": true, "provision": true, "validate": true, "manifest": true,
-	"ktl": true, "ssh": true, "infra": true, "console": true, "migrate": true,
+	"ktl": true, "ssh": true, "infra": true, "console": true,
 	"completion": true, "cmd": true, "init": true, "status": true, "config": true,
 }
 
@@ -86,7 +86,6 @@ func init() {
 
 	manifestCmd.GroupID = "advanced"
 	consoleCmd.GroupID = "advanced"
-	migrateCmd.GroupID = "advanced"
 	provisionCmd.GroupID = "advanced"
 	validateCmd.GroupID = "advanced"
 
@@ -106,7 +105,6 @@ func init() {
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
-	rootCmd.AddCommand(migrateCmd)
 	rootCmd.AddCommand(initCmd)
 
 	cobra.AddTemplateFunc("colorTitle", func(s string) string {
