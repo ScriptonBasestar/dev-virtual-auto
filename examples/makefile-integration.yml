@@ -1,7 +1,7 @@
 # dva.yml - Example configuration for Makefile integration
 # This demonstrates DVA commands used in Makefile.dev.mk examples
 
-version: '8.1.0'
+version: '0.1.0'
 
 environment:
   COMPOSE_EXT: development
@@ -59,9 +59,10 @@ interaction:
 
 # Provisioning - used by 'make dva-provision'
 provision:
-  # Note: Run 'dva up' first to start containers
-  - dva bundle install
-  - dva rails db:create
-  - dva rails db:migrate
-  - dva rails db:seed
-  - echo "✓ Provisioning complete"
+  default:
+    # Note: Run 'dva up' first to start containers
+    - dva bundle install
+    - dva rails db:create
+    - dva rails db:migrate
+    - dva rails db:seed
+    - echo "✓ Provisioning complete"

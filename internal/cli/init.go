@@ -20,6 +20,8 @@ var promptTemplateText string
 var initTemplate string
 var initPrompt bool
 var initAI bool
+var initAIDocs bool
+var initNoAIDocs bool
 var initVerbose bool
 
 var initCmd = &cobra.Command{
@@ -27,6 +29,9 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new 'dva.yml' configuration in the current directory",
 	Long:  "Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if initAIDocs {
+			return runAIDocsOnly()
+		}
 		if initAI {
 			return runAIInit()
 		}
@@ -64,6 +69,8 @@ func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
 	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
+	initCmd.Flags().BoolVar(&initAIDocs, "ai-docs", false, "Generate DVA guide and update CLAUDE.md/AGENTS.md (without regenerating dva.yml)")
+	initCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
 	initCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
 }
 
@@ -111,6 +118,36 @@ func runAIInit() error {
 		fmt.Println("⚠️  Validation failed — review the generated dva.yml")
 	}
 
+	// Generate AI docs unless --no-ai-docs is set
+	if !initNoAIDocs {
+		fmt.Println()
+		guidePath, err := generateAIDocs()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Could not generate AI docs: %v\n", err)
+		} else {
+			fmt.Printf("📄 Generated %s\n", guidePath)
+			fmt.Println("   CLAUDE.md / AGENTS.md updated with DVA reference (if they exist)")
+		}
+	}
+
+	return nil
+}
+
+// runAIDocsOnly generates DVA guide and updates agent configs without regenerating dva.yml.
+func runAIDocsOnly() error {
+	if _, err := os.Stat("dva.yml"); os.IsNotExist(err) {
+		if _, err := os.Stat("dva.yaml"); os.IsNotExist(err) {
+			return fmt.Errorf("dva.yml not found. Run 'dva init --ai' first to generate it")
+		}
+	}
+
+	guidePath, err := generateAIDocs()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("✅ Generated %s\n", guidePath)
+	fmt.Println("   CLAUDE.md / AGENTS.md updated with DVA reference (if they exist)")
 	return nil
 }
 

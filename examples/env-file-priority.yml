@@ -6,7 +6,7 @@
 #
 # Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '8.1.0'
+version: '0.1.0'
 
 # Advanced env_file configuration
 env_file:

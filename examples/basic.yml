@@ -13,7 +13,7 @@
 #
 # Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '8.1.0'
+version: '0.1.0'
 
 # Environment variables available to all services
 environment:

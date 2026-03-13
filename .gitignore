@@ -32,3 +32,4 @@ Thumbs.db
 # Work files
 tmp/
 docs/plans/
+.last_built_commit

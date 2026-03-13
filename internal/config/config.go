@@ -9,8 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Version is the current DVA version.
-const Version = "0.1.0"
 
 // Config represents the parsed dva.yml configuration.
 type Config struct {
@@ -202,13 +200,9 @@ func Load(workDir string) (*Config, error) {
 		}
 	}
 
-	// Load override
+	// Load override (if exists)
 	overrideFile := strings.TrimSuffix(filePath, ".yml") + ".override.yml"
-	if _, err := os.Stat(overrideFile); err == nil {
-		overCfg, err := loadFile(overrideFile)
-		if err != nil {
-			return nil, fmt.Errorf("loading override %s: %w", overrideFile, err)
-		}
+	if overCfg, err := loadFile(overrideFile); err == nil {
 		cfg.mergeFrom(overCfg)
 	}
 

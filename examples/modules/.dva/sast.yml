@@ -7,7 +7,7 @@
 # - dva bundle-audit  # Check for vulnerable dependencies
 # - dva reek          # Code smell detector
 
-version: '8.1.0'
+version: '0.1.0'
 
 interaction:
   # RuboCop - Ruby style checker

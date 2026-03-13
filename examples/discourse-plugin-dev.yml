@@ -1,7 +1,7 @@
 # dva.yml for Discourse Plugin Development
 # Based on standard Discourse development environment
 
-version: '8.1.0'
+version: '0.1.0'
 
 environment:
   RUBY_VERSION: "3.2"
@@ -124,16 +124,17 @@ interaction:
 
 # Provisioning for fresh setup
 provision:
-  # Note: Run 'dva up' first to start containers
-  - echo "🚀 Setting up Discourse development environment..."
-  - echo "⏳ Waiting for services to be ready..."
-  - sleep 5
-  - dva bundle install
-  - dva rails db:create
-  - dva rails db:migrate
-  - echo "✓ Discourse environment ready!"
-  - echo ""
-  - echo "📝 Next steps:"
-  - echo "  1. dva rails console    - Open Rails console"
-  - echo "  2. dva rails server     - Start Rails server"
-  - echo "  3. dva bash             - Open shell"
+  default:
+    # Note: Run 'dva up' first to start containers
+    - echo "🚀 Setting up Discourse development environment..."
+    - echo "⏳ Waiting for services to be ready..."
+    - sleep 5
+    - dva bundle install
+    - dva rails db:create
+    - dva rails db:migrate
+    - echo "✓ Discourse environment ready!"
+    - echo ""
+    - echo "📝 Next steps:"
+    - echo "  1. dva rails console    - Open Rails console"
+    - echo "  2. dva rails server     - Start Rails server"
+    - echo "  3. dva bash             - Open shell"
