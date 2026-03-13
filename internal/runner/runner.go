@@ -1,12 +1,12 @@
 package runner
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
+	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 // Runner type constants.
@@ -77,7 +77,7 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 	runner := DetectRunnerType(cmd)
 
 	if jsonOutput {
-		plan := map[string]interface{}{
+		plan := map[string]any{
 			"command":     cmd.Command,
 			"description": cmd.Description,
 			"runner":      runner,
@@ -90,8 +90,7 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 		if cmd.Service != "" {
 			plan["compose_method"] = cmd.Compose.Method
 		}
-		data, _ := json.MarshalIndent(plan, "", "  ")
-		fmt.Println(string(data))
+		_ = output.PrintJSON(plan)
 		return
 	}
 
