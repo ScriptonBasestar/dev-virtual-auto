@@ -20,6 +20,7 @@ var promptTemplateText string
 var initTemplate string
 var initPrompt bool
 var initAI bool
+var initVerbose bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -63,23 +64,32 @@ func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
 	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
+	initCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
 }
 
 // runAIInit generates the LLM prompt and executes it via Claude Code CLI.
 func runAIInit() error {
+	prog := newProgress(initVerbose)
+
+	prog.Start("Checking claude CLI...")
 	claudePath, err := exec.LookPath("claude")
 	if err != nil {
+		prog.Stop()
 		return fmt.Errorf("claude CLI not found in PATH.\n  Install: https://docs.anthropic.com/en/docs/claude-code\n  Or use 'dva init -p' to output the prompt manually")
 	}
 
-	prompt := buildPrompt()
+	prog.Update("Scanning project files...")
+	prompt := buildPromptWithProgress(prog)
 
-	fmt.Println("🤖 Generating dva.yml via Claude Code...")
+	prog.StopWithMessage("🤖 Generating dva.yml via Claude Code...")
 	fmt.Println()
 
-	cmd := exec.Command(claudePath, "-p",
-		"--allowedTools", "Edit,Write,Bash",
-	)
+	claudeArgs := []string{"-p", "--allowedTools", "Edit,Write,Bash"}
+	if initVerbose {
+		claudeArgs = append(claudeArgs, "--verbose")
+	}
+
+	cmd := exec.Command(claudePath, claudeArgs...)
 	cmd.Stdin = strings.NewReader(prompt)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -118,6 +128,14 @@ func filterEnv(env []string, key string) []string {
 
 // buildPrompt generates the LLM prompt string (shared by -p and --ai).
 func buildPrompt() string {
+	return buildPromptWithProgress(nil)
+}
+
+// buildPromptWithProgress generates the LLM prompt, reporting each detection step to prog.
+func buildPromptWithProgress(prog *progress) string {
+	if prog != nil {
+		prog.Update("Detecting compose files...")
+	}
 	composeFiles := detectComposeFiles()
 	detectedCompose := "None"
 	if len(composeFiles) > 0 {
@@ -135,6 +153,9 @@ func buildPrompt() string {
 		detectedCompose = strings.Join(parts, " → ")
 	}
 
+	if prog != nil {
+		prog.Update("Detecting infra compose files...")
+	}
 	infraComposeFiles := detectInfraComposeFiles()
 	detectedInfraCompose := "None"
 	if len(infraComposeFiles) > 0 {
@@ -149,6 +170,9 @@ func buildPrompt() string {
 		detectedInfraCompose = strings.Join(infraParts, "\n")
 	}
 
+	if prog != nil {
+		prog.Update("Detecting build files...")
+	}
 	buildFiles := []string{}
 	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
 		if _, err := os.Stat(f); err == nil {
@@ -160,11 +184,17 @@ func buildPrompt() string {
 		detectedBuild = strings.Join(buildFiles, ", ")
 	}
 
+	if prog != nil {
+		prog.Update("Extracting Makefile targets...")
+	}
 	detectedMakeTargets := "None"
 	if makeTargets := extractMakefileTargets(); makeTargets != "" {
 		detectedMakeTargets = makeTargets
 	}
 
+	if prog != nil {
+		prog.Update("Detecting environment files...")
+	}
 	envFiles := []string{}
 	for _, f := range []string{".env.example", ".env"} {
 		if _, err := os.Stat(f); err == nil {
@@ -176,7 +206,14 @@ func buildPrompt() string {
 		detectedEnv = strings.Join(envFiles, ", ")
 	}
 
-	detectedSubprojects := detectSubprojects()
+	if prog != nil {
+		prog.Update("Scanning sub-projects...")
+	}
+	detectedSubprojects := detectSubprojects(prog)
+
+	if prog != nil {
+		prog.Update("Building prompt...")
+	}
 
 	return fmt.Sprintf(promptTemplateText,
 		detectedCompose,
@@ -495,7 +532,7 @@ func extractMakefileTargets() string {
 // detectSubprojects recursively searches for sub-projects by finding .git directories
 // (up to maxDepth 3) and extracts rich metadata for each one:
 // - docker-compose services, Dockerfile, build files, scripts, dva.yml status
-func detectSubprojects() string {
+func detectSubprojects(prog *progress) string {
 	type subProject struct {
 		path            string
 		composeServices []string
@@ -519,6 +556,9 @@ func detectSubprojects() string {
 	scanDir = func(dir string, depth int) {
 		if depth > 3 {
 			return
+		}
+		if prog != nil {
+			prog.Update(fmt.Sprintf("Scanning sub-projects: %s/", dir))
 		}
 		entries, err := os.ReadDir(dir)
 		if err != nil {
@@ -578,6 +618,9 @@ func detectSubprojects() string {
 			}
 
 			if isSubProject {
+				if prog != nil {
+					prog.Update(fmt.Sprintf("Found sub-project: %s/", childPath))
+				}
 				sp := subProject{path: childPath}
 
 				// Detect compose files and extract service names
