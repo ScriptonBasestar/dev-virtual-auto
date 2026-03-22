@@ -23,6 +23,7 @@ type Config struct {
 	Modules      []string                       `yaml:"modules"`
 	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
+	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
 
 	// Internal fields
 	filePath string
@@ -32,6 +33,16 @@ type Config struct {
 type SubprojectConfig struct {
 	Path        string   `yaml:"path"`
 	ExcludeTags []string `yaml:"exclude_tags"`
+}
+
+// HealthCheckConfig defines a health check for a non-compose service.
+type HealthCheckConfig struct {
+	Type      string `yaml:"type"`       // http, tcp, command
+	URL       string `yaml:"url"`        // for http type
+	Address   string `yaml:"address"`    // for tcp type
+	Command   string `yaml:"command"`    // for command type
+	StartHint string `yaml:"start_hint"` // how to start this service
+	Timeout   int    `yaml:"timeout"`    // seconds (default: 2)
 }
 
 // ServiceTagConfig defines per-service tag configuration.
@@ -315,6 +326,16 @@ func (c *Config) mergeFrom(other *Config) {
 	// Merge kubectl
 	if other.Kubectl.Namespace != "" {
 		c.Kubectl.Namespace = other.Kubectl.Namespace
+	}
+
+	// Merge health checks
+	if other.HealthChecks != nil {
+		if c.HealthChecks == nil {
+			c.HealthChecks = make(map[string]HealthCheckConfig)
+		}
+		for k, v := range other.HealthChecks {
+			c.HealthChecks[k] = v
+		}
 	}
 
 	// Merge infra

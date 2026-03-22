@@ -82,10 +82,12 @@ DVA-specific flags (not passed to docker compose):
 				requestedServices := extractServiceNames(filteredArgs)
 				if allServicesHealthy(services, requestedServices) {
 					projectName := c.Compose.ProjectName
+					hcResults := runHealthChecks(c.HealthChecks)
 					if jsonOutput {
-						return printServiceJSON(services, projectName, true)
+						return printServiceJSON(services, projectName, true, hcResults)
 					}
 					printServiceTable(services, projectName, true)
+					printHealthCheckResults(hcResults)
 					return nil
 				}
 			}
@@ -103,10 +105,12 @@ DVA-specific flags (not passed to docker compose):
 			return nil
 		}
 		projectName := c.Compose.ProjectName
+		hcResults := runHealthChecks(c.HealthChecks)
 		if jsonOutput {
-			return printServiceJSON(services, projectName, false)
+			return printServiceJSON(services, projectName, false, hcResults)
 		}
 		printServiceTable(services, projectName, false)
+		printHealthCheckResults(hcResults)
 		return nil
 	},
 }

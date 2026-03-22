@@ -1,0 +1,34 @@
+# setup-dva Workflow Toolkit
+
+사용자 프로젝트에 DVA를 도입하고, 기존 인프라를 DVA 표준으로 마이그레이션하는 5단계 파이프라인.
+
+## Stages
+
+| # | Stage | File | Description |
+|---|-------|------|-------------|
+| 00 | Analyze | stages/00-analyze.md | 대상 프로젝트 탐색, compose/구조 패턴 분석 |
+| 10 | Verify | stages/10-verify.md | 분석 기반 DVA 구조 제안, 사용자 확인 대기 |
+| 20 | Transform | stages/20-transform.md | 디렉토리/파일을 표준 구조로 변환 |
+| 30 | Configure | stages/30-configure.md | compose.yml + dva.yml 생성 |
+| 40 | Execute | stages/40-execute.md | dva up, 헬스 확인 |
+
+## Entry Points
+
+- `entry.md` — step mode (단계별 확인, 첫 도입 권장)
+- `auto.md` — auto mode (전체 파이프라인 자동 실행)
+
+## Usage
+
+```
+# Step mode (recommended for first run)
+Read and execute: ai-docs/workflow/setup-dva/entry.md
+
+# Auto mode
+Read and execute: ai-docs/workflow/setup-dva/auto.md
+```
+
+## References
+
+- `library/dva-schema.md` — dva.yml 스키마 레퍼런스
+- `verify/checklist.md` — 파이프라인 완료 후 검증 체크리스트
+- `templates/state.template.yaml` — 파이프라인 상태 추적 템플릿

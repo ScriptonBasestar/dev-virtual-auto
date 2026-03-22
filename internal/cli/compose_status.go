@@ -223,11 +223,14 @@ func printServiceTable(services []ServiceInfo, projectName string, alreadyRunnin
 }
 
 // printServiceJSON outputs services in JSON format.
-func printServiceJSON(services []ServiceInfo, projectName string, alreadyRunning bool) error {
+func printServiceJSON(services []ServiceInfo, projectName string, alreadyRunning bool, healthChecks []HealthCheckResult) error {
 	data := map[string]any{
 		"project":         projectName,
 		"already_running": alreadyRunning,
 		"services":        services,
+	}
+	if len(healthChecks) > 0 {
+		data["health_checks"] = healthChecks
 	}
 	return output.PrintJSON(data)
 }

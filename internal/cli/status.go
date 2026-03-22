@@ -59,6 +59,10 @@ var statusCmd = &cobra.Command{
 				} else {
 					statusData["services"] = nil
 				}
+
+				if len(c.HealthChecks) > 0 {
+					statusData["health_checks"] = runHealthChecks(c.HealthChecks)
+				}
 			}
 			return output.PrintJSON(statusData)
 		}
@@ -119,6 +123,12 @@ var statusCmd = &cobra.Command{
 			}
 			tw.Flush()
 			fmt.Print(buf.String())
+		}
+
+		if len(c.HealthChecks) > 0 {
+			fmt.Println()
+			results := runHealthChecks(c.HealthChecks)
+			printHealthCheckResults(results)
 		}
 
 		return nil

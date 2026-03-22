@@ -1,0 +1,58 @@
+## setup-dva state template
+## Path: tmp/setup-dva/state.yaml
+
+pipeline: setup-dva
+target_project: ""
+target_path: ""
+status: in_progress  # in_progress | complete | blocked | rejected
+created_at: ""
+updated_at: ""
+
+stages:
+  stage_00:
+    name: analyze
+    status: pending  # pending | running | completed | failed | skipped
+    gate: null       # PASS | FAIL
+    artifacts:
+      - path: ""
+    started_at: null
+    completed_at: null
+
+  stage_10:
+    name: verify
+    status: pending
+    gate: null
+    approval: null   # approved | rejected | modified
+    artifacts:
+      - path: ""
+    started_at: null
+    completed_at: null
+
+  stage_20:
+    name: transform
+    status: pending
+    gate: null
+    backup_path: ""
+    artifacts:
+      - path: ""
+    started_at: null
+    completed_at: null
+
+  stage_30:
+    name: configure
+    status: pending
+    gate: null
+    artifacts:
+      - path: ""
+    started_at: null
+    completed_at: null
+
+  stage_40:
+    name: execute
+    status: pending
+    gate: null
+    launch_method: ""  # dva | dva-source | docker-compose
+    artifacts:
+      - path: ""
+    started_at: null
+    completed_at: null
