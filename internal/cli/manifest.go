@@ -45,7 +45,18 @@ type Manifest struct {
 	StaticCommands  map[string]ManifestCmd        `json:"static_commands" yaml:"static_commands"`
 	DynamicCommands map[string]ManifestDynCmd     `json:"dynamic_commands" yaml:"dynamic_commands"`
 	Runners         map[string]ManifestRunner     `json:"runners" yaml:"runners"`
-	Subprojects     map[string]ManifestSubproject `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
+	Subprojects     map[string]ManifestSubproject     `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
+	HealthChecks    map[string]ManifestHealthCheck    `json:"health_checks,omitempty" yaml:"health_checks,omitempty"`
+}
+
+// ManifestHealthCheck describes a health check in the manifest.
+type ManifestHealthCheck struct {
+	Type      string `json:"type" yaml:"type"`
+	URL       string `json:"url,omitempty" yaml:"url,omitempty"`
+	Address   string `json:"address,omitempty" yaml:"address,omitempty"`
+	Command   string `json:"command,omitempty" yaml:"command,omitempty"`
+	Start     string `json:"start,omitempty" yaml:"start,omitempty"`
+	StartHint string `json:"start_hint,omitempty" yaml:"start_hint,omitempty"`
 }
 
 type ManifestSubproject struct {
@@ -187,6 +198,21 @@ func buildManifest(c *config.Config) *Manifest {
 				}
 
 				m.Subprojects[name] = subManifest
+			}
+		}
+	}
+
+	// Build health checks section
+	if len(c.HealthChecks) > 0 {
+		m.HealthChecks = make(map[string]ManifestHealthCheck, len(c.HealthChecks))
+		for name, hc := range c.HealthChecks {
+			m.HealthChecks[name] = ManifestHealthCheck{
+				Type:      hc.Type,
+				URL:       hc.URL,
+				Address:   hc.Address,
+				Command:   hc.Command,
+				Start:     hc.Start,
+				StartHint: hc.StartHint,
 			}
 		}
 	}

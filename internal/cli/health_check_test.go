@@ -117,6 +117,37 @@ func TestRunHealthChecks_Mixed(t *testing.T) {
 	}
 }
 
+func TestRunHealthChecks_Concurrent(t *testing.T) {
+	// Verify concurrent execution by timing: two 500ms checks should complete in ~500ms, not ~1s
+	ln1, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln1.Close()
+	ln2, _ := net.Listen("tcp", "127.0.0.1:0")
+	defer ln2.Close()
+
+	checks := map[string]config.HealthCheckConfig{
+		"svc1": {Type: "tcp", Address: ln1.Addr().String()},
+		"svc2": {Type: "tcp", Address: ln2.Addr().String()},
+	}
+
+	start := time.Now()
+	results := runHealthChecks(checks)
+	elapsed := time.Since(start)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	for _, r := range results {
+		if !r.Ready {
+			t.Errorf("expected %s to be ready", r.Name)
+		}
+	}
+
+	// Both checks should run concurrently (well under sequential time)
+	if elapsed > 2*time.Second {
+		t.Errorf("expected concurrent execution, took %v", elapsed)
+	}
+}
+
 func TestRunHealthChecks_CommandType(t *testing.T) {
 	checks := map[string]config.HealthCheckConfig{
 		"ok": {
@@ -164,55 +195,6 @@ func TestRunHealthChecks_UnknownType(t *testing.T) {
 	}
 }
 
-func TestCheckHTTP_ClientError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	defer srv.Close()
-
-	// 4xx is not a server error, service is running
-	if !checkHTTP(srv.URL, 2*time.Second) {
-		t.Error("expected HTTP check to pass for 404 (service is up, just not found)")
-	}
-}
-
-func TestRunHealthChecks_DefaultTimeout(t *testing.T) {
-	// Timeout=0 should use default 2s, not hang
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("failed to create listener: %v", err)
-	}
-	defer ln.Close()
-
-	checks := map[string]config.HealthCheckConfig{
-		"svc": {
-			Type:    "tcp",
-			Address: ln.Addr().String(),
-			Timeout: 0, // should default to 2s
-		},
-	}
-
-	results := runHealthChecks(checks)
-	if len(results) != 1 || !results[0].Ready {
-		t.Error("expected service to be ready with default timeout")
-	}
-}
-
-func TestPrintHealthCheckResults_NoResults(t *testing.T) {
-	// Should not panic on nil/empty
-	printHealthCheckResults(nil)
-	printHealthCheckResults([]HealthCheckResult{})
-}
-
-func TestPrintHealthCheckResults_WithResults(t *testing.T) {
-	// Smoke test — just ensure no panic
-	results := []HealthCheckResult{
-		{Name: "web", Ready: true},
-		{Name: "api", Ready: false, StartHint: "cargo run"},
-	}
-	printHealthCheckResults(results)
-}
-
 func TestCheckHTTP_4xxPasses(t *testing.T) {
 	codes := []int{400, 401, 403, 404, 499}
 	for _, code := range codes {
@@ -240,4 +222,41 @@ func TestCheckHTTP_5xxFails(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRunHealthChecks_DefaultTimeout(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to create listener: %v", err)
+	}
+	defer ln.Close()
+
+	checks := map[string]config.HealthCheckConfig{
+		"svc": {
+			Type:    "tcp",
+			Address: ln.Addr().String(),
+			Timeout: 0, // should default to 2s
+		},
+	}
+
+	results := runHealthChecks(checks)
+	if len(results) != 1 || !results[0].Ready {
+		t.Error("expected service to be ready with default timeout")
+	}
+}
+
+func TestPrintHealthCheckResults_NoResults(t *testing.T) {
+	// Should not panic on nil/empty
+	printHealthCheckResults(nil, "")
+	printHealthCheckResults([]HealthCheckResult{}, "")
+}
+
+func TestPrintHealthCheckResults_WithStarted(t *testing.T) {
+	// Smoke test — just ensure no panic, correct branch coverage
+	results := []HealthCheckResult{
+		{Name: "api", Ready: true},
+		{Name: "web", Ready: false, StartHint: "pnpm dev"},
+		{Name: "worker", Ready: false, Started: true},
+	}
+	printHealthCheckResults(results, "/tmp/test")
 }

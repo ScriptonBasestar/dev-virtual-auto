@@ -27,10 +27,12 @@ var upCmd = &cobra.Command{
 	Long: `Create and start containers in detached mode by default.
 
 If all services are already running and healthy, skips restart and shows status.
+Local services with "start" in health_checks are auto-started and monitored.
 
 DVA-specific flags (not passed to docker compose):
   --foreground, -f   Run in foreground (attached) mode
-  --force            Bypass health check and force restart`,
+  --force            Bypass health check and force restart
+  --no-wait          Start services and return immediately without waiting`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -39,6 +41,7 @@ DVA-specific flags (not passed to docker compose):
 		// Parse custom flags from args
 		foreground := false
 		force := false
+		noWait := false
 		var filteredArgs []string
 		for _, a := range args {
 			switch a {
@@ -46,6 +49,8 @@ DVA-specific flags (not passed to docker compose):
 				foreground = true
 			case "--force":
 				force = true
+			case "--no-wait":
+				noWait = true
 			default:
 				filteredArgs = append(filteredArgs, a)
 			}
@@ -55,6 +60,19 @@ DVA-specific flags (not passed to docker compose):
 			defaults := c.Compose.UpOptions
 			if len(defaults) == 0 {
 				defaults = []string{"-d", "--wait"}
+			}
+			if noWait {
+				// Remove --wait from defaults for immediate return
+				var filtered []string
+				for _, d := range defaults {
+					if d != "--wait" {
+						filtered = append(filtered, d)
+					}
+				}
+				defaults = filtered
+				if len(defaults) == 0 {
+					defaults = []string{"-d"}
+				}
 			}
 			// Prepend defaults if not already present
 			existing := make(map[string]bool)
@@ -82,12 +100,12 @@ DVA-specific flags (not passed to docker compose):
 				requestedServices := extractServiceNames(filteredArgs)
 				if allServicesHealthy(services, requestedServices) {
 					projectName := c.Compose.ProjectName
-					hcResults := runHealthChecks(c.HealthChecks)
+					hcResults := runHealthChecksWithAutoStart(c.HealthChecks, c.FileDir(), !noWait)
 					if jsonOutput {
 						return printServiceJSON(services, projectName, true, hcResults)
 					}
 					printServiceTable(services, projectName, true)
-					printHealthCheckResults(hcResults)
+					printHealthCheckResults(hcResults, c.FileDir())
 					return nil
 				}
 			}
@@ -105,12 +123,12 @@ DVA-specific flags (not passed to docker compose):
 			return nil
 		}
 		projectName := c.Compose.ProjectName
-		hcResults := runHealthChecks(c.HealthChecks)
+		hcResults := runHealthChecksWithAutoStart(c.HealthChecks, c.FileDir(), !noWait)
 		if jsonOutput {
 			return printServiceJSON(services, projectName, false, hcResults)
 		}
 		printServiceTable(services, projectName, false)
-		printHealthCheckResults(hcResults)
+		printHealthCheckResults(hcResults, c.FileDir())
 		return nil
 	},
 }
@@ -122,6 +140,7 @@ var downCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+		stopLocalServices(c.FileDir())
 		return execComposePassthrough(e, c, append([]string{"down", "--remove-orphans"}, args...))
 	},
 }
@@ -167,6 +186,7 @@ var cleanCmd = &cobra.Command{
 			cleanArgs = append(cleanArgs, "--rmi", "local")
 		}
 
+		stopLocalServices(c.FileDir())
 		return execComposePassthrough(e, c, cleanArgs)
 	},
 }

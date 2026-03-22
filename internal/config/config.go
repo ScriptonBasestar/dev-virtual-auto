@@ -41,7 +41,8 @@ type HealthCheckConfig struct {
 	URL       string `yaml:"url"`        // for http type
 	Address   string `yaml:"address"`    // for tcp type
 	Command   string `yaml:"command"`    // for command type
-	StartHint string `yaml:"start_hint"` // how to start this service
+	Start     string `yaml:"start"`      // command to auto-start (background)
+	StartHint string `yaml:"start_hint"` // human-readable start instructions
 	Timeout   int    `yaml:"timeout"`    // seconds (default: 2)
 }
 

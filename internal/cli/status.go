@@ -128,7 +128,7 @@ var statusCmd = &cobra.Command{
 		if len(c.HealthChecks) > 0 {
 			fmt.Println()
 			results := runHealthChecks(c.HealthChecks)
-			printHealthCheckResults(results)
+			printHealthCheckResults(results, c.FileDir())
 		}
 
 		return nil

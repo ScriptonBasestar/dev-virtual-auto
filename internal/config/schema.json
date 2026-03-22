@@ -618,6 +618,56 @@
           "examples": [["--cap-add=SYS_PTRACE", "--security-opt", "seccomp=unconfined"]]
         }
       }
+    },
+    "health_checks": {
+      "type": "object",
+      "description": "Health checks for non-compose services (e.g., local processes, external dependencies)",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": ["http", "tcp", "command"],
+              "description": "Health check type"
+            },
+            "url": {
+              "type": "string",
+              "description": "URL for http type health check",
+              "examples": ["http://localhost:8080/health"]
+            },
+            "address": {
+              "type": "string",
+              "description": "Host:port for tcp type health check",
+              "examples": ["localhost:5432"]
+            },
+            "command": {
+              "type": "string",
+              "description": "Shell command for command type health check",
+              "examples": ["pg_isready -U dev"]
+            },
+            "start": {
+              "type": "string",
+              "description": "Shell command to auto-start this service in the background",
+              "examples": ["redis-server --daemonize yes", "postgres -D /usr/local/var/postgresql@14"]
+            },
+            "start_hint": {
+              "type": "string",
+              "description": "Human-readable hint shown when service is not ready (no auto-start)",
+              "examples": ["brew services start postgresql"]
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Timeout in seconds (default: 2)",
+              "default": 2,
+              "examples": [5]
+            }
+          },
+          "required": ["type"]
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": ["version"]
