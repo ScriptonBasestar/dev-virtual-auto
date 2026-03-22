@@ -22,8 +22,15 @@ var composeCmd = &cobra.Command{
 }
 
 var upCmd = &cobra.Command{
-	Use:                "up [OPTIONS] [SERVICE...]",
-	Short:              "Create and start containers in the background",
+	Use:   "up [OPTIONS] [SERVICE...]",
+	Short: "Create and start containers in the background",
+	Long: `Create and start containers in detached mode by default.
+
+If all services are already running and healthy, skips restart and shows status.
+
+DVA-specific flags (not passed to docker compose):
+  --foreground, -f   Run in foreground (attached) mode
+  --force            Bypass health check and force restart`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()

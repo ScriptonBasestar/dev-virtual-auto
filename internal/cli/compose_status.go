@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/output"
@@ -31,7 +33,9 @@ type Publisher struct {
 // queryComposeServices runs docker compose ps --format json and parses the result.
 func queryComposeServices(e *config.Environment, c *config.Config) ([]ServiceInfo, error) {
 	composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "json"})
-	out, err := exec.Command(composeCmd, composeArgs...).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, composeCmd, composeArgs...).Output()
 	if err != nil {
 		return nil, err
 	}
@@ -54,14 +58,14 @@ func parseServiceInfo(data []byte) ([]ServiceInfo, error) {
 
 	// Fallback: JSON lines format
 	lines := strings.Split(trimmed, "\n")
-	for _, line := range lines {
+	for i, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		var svc ServiceInfo
 		if err := json.Unmarshal([]byte(line), &svc); err != nil {
-			return nil, fmt.Errorf("failed to parse service info: %w", err)
+			return nil, fmt.Errorf("line %d: failed to parse service info: %w", i+1, err)
 		}
 		services = append(services, svc)
 	}
@@ -138,9 +142,9 @@ func formatPorts(publishers []Publisher) string {
 // printServiceTable prints a formatted table of services with ports.
 func printServiceTable(services []ServiceInfo, projectName string, alreadyRunning bool) {
 	if alreadyRunning {
-		fmt.Printf("\n✅ Services already running (project: %s)\n\n", projectName)
+		fmt.Printf("\n[ok] Services already running (project: %s)\n\n", projectName)
 	} else {
-		fmt.Printf("\n🚀 Services started (project: %s)\n\n", projectName)
+		fmt.Printf("\n[+] Services started (project: %s)\n\n", projectName)
 	}
 
 	if len(services) == 0 {
