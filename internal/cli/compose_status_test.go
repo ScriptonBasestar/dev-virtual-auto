@@ -168,6 +168,53 @@ func TestExtractServiceNames(t *testing.T) {
 	}
 }
 
+func TestFormatPortURLs(t *testing.T) {
+	tests := []struct {
+		name     string
+		pubs     []Publisher
+		expected string
+	}{
+		{
+			name:     "empty",
+			pubs:     nil,
+			expected: "",
+		},
+		{
+			name: "single port",
+			pubs: []Publisher{
+				{PublishedPort: 11300, TargetPort: 11300, Protocol: "tcp"},
+			},
+			expected: "http://localhost:11300",
+		},
+		{
+			name: "multiple ports",
+			pubs: []Publisher{
+				{PublishedPort: 11350, TargetPort: 1025, Protocol: "tcp"},
+				{PublishedPort: 11351, TargetPort: 8025, Protocol: "tcp"},
+			},
+			expected: "http://localhost:11350  http://localhost:11351",
+		},
+		{
+			name: "skip zero and deduplicate",
+			pubs: []Publisher{
+				{PublishedPort: 0, TargetPort: 5432, Protocol: "tcp"},
+				{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
+				{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
+			},
+			expected: "http://localhost:11310",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatPortURLs(tt.pubs)
+			if got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestFormatPorts(t *testing.T) {
 	tests := []struct {
 		name     string

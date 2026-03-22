@@ -3,9 +3,9 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
@@ -100,14 +100,25 @@ var statusCmd = &cobra.Command{
 
 		fmt.Println()
 
-		fmt.Println("🐳 Services:")
+		fmt.Println("Services:")
 		e := loadEnv(c)
-		composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "table"})
-		ps := exec.Command(composeCmd, composeArgs...)
-		ps.Stdout = os.Stdout
-		ps.Stderr = os.Stderr
-		if err := ps.Run(); err != nil {
+		services, svcErr := queryComposeServices(e, c)
+		if svcErr != nil || len(services) == 0 {
 			fmt.Println("   (no containers running or docker not available)")
+		} else {
+			var buf strings.Builder
+			tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
+			fmt.Fprintf(tw, "  SERVICE\tSTATUS\tURL\n")
+			for _, s := range services {
+				status := s.State
+				if s.Health != "" {
+					status = s.Health
+				}
+				urls := formatPortURLs(s.Publishers)
+				fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Service, status, urls)
+			}
+			tw.Flush()
+			fmt.Print(buf.String())
 		}
 
 		return nil

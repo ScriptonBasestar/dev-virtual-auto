@@ -139,6 +139,23 @@ func formatPorts(publishers []Publisher) string {
 	return strings.Join(parts, ", ")
 }
 
+// formatPortURLs formats publisher list as clickable http://localhost URLs.
+func formatPortURLs(publishers []Publisher) string {
+	if len(publishers) == 0 {
+		return ""
+	}
+	seen := make(map[int]bool)
+	var parts []string
+	for _, p := range publishers {
+		if p.PublishedPort == 0 || seen[p.PublishedPort] {
+			continue
+		}
+		seen[p.PublishedPort] = true
+		parts = append(parts, fmt.Sprintf("http://localhost:%d", p.PublishedPort))
+	}
+	return strings.Join(parts, "  ")
+}
+
 // printServiceTable prints a formatted table of services with ports.
 func printServiceTable(services []ServiceInfo, projectName string, alreadyRunning bool) {
 	if alreadyRunning {
@@ -159,7 +176,7 @@ func printServiceTable(services []ServiceInfo, projectName string, alreadyRunnin
 		if s.Health != "" {
 			status = s.Health
 		}
-		ports := formatPorts(s.Publishers)
+		ports := formatPortURLs(s.Publishers)
 		fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Service, status, ports)
 	}
 	tw.Flush()
