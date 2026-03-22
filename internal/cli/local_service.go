@@ -78,6 +78,7 @@ func startLocalService(name, command, configDir string) error {
 	// Save PID
 	pidPath := filepath.Join(pidDir, name+".pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		logFile.Close()
 		return fmt.Errorf("save pid: %w", err)
 	}
@@ -155,20 +156,29 @@ func runHealthChecksWithAutoStart(checks map[string]config.HealthCheckConfig, co
 	}
 
 	if wait {
+		// Collect names of services we're waiting for
+		var pending []string
+		for name := range startedNames {
+			pending = append(pending, name)
+		}
+		fmt.Fprintf(os.Stderr, "  waiting for %s to be ready (timeout %ds)...\n", strings.Join(pending, ", "), int(defaultReadyTimeout.Seconds()))
+
 		// Poll until all started services are ready or timeout
-		deadline := time.Now().Add(defaultReadyTimeout)
+		start := time.Now()
+		deadline := start.Add(defaultReadyTimeout)
 		for time.Now().Before(deadline) {
 			time.Sleep(2 * time.Second)
 			results = runHealthChecks(checks)
 
-			allStartedReady := true
+			var notReady []string
 			for _, r := range results {
 				if startedNames[r.Name] && !r.Ready {
-					allStartedReady = false
-					break
+					notReady = append(notReady, r.Name)
 				}
 			}
-			if allStartedReady {
+			if len(notReady) == 0 {
+				elapsed := time.Since(start).Truncate(time.Second)
+				fmt.Fprintf(os.Stderr, "  all services ready (%s)\n", elapsed)
 				break
 			}
 		}
