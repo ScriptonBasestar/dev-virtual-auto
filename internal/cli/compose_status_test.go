@@ -180,19 +180,33 @@ func TestFormatPortURLs(t *testing.T) {
 			expected: "",
 		},
 		{
-			name: "single port",
+			name: "unknown target port shows http URL",
 			pubs: []Publisher{
 				{PublishedPort: 11300, TargetPort: 11300, Protocol: "tcp"},
 			},
 			expected: "http://localhost:11300",
 		},
 		{
-			name: "multiple ports",
+			name: "well-known HTTP port with label",
+			pubs: []Publisher{
+				{PublishedPort: 11330, TargetPort: 8200, Protocol: "tcp"},
+			},
+			expected: "http://localhost:11330 (API)",
+		},
+		{
+			name: "well-known non-HTTP port without http scheme",
+			pubs: []Publisher{
+				{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
+			},
+			expected: "localhost:11310 (PostgreSQL)",
+		},
+		{
+			name: "mixed SMTP and Web UI",
 			pubs: []Publisher{
 				{PublishedPort: 11350, TargetPort: 1025, Protocol: "tcp"},
 				{PublishedPort: 11351, TargetPort: 8025, Protocol: "tcp"},
 			},
-			expected: "http://localhost:11350  http://localhost:11351",
+			expected: "localhost:11350 (SMTP)  http://localhost:11351 (Web UI)",
 		},
 		{
 			name: "skip zero and deduplicate",
@@ -201,7 +215,7 @@ func TestFormatPortURLs(t *testing.T) {
 				{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
 				{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
 			},
-			expected: "http://localhost:11310",
+			expected: "localhost:11310 (PostgreSQL)",
 		},
 	}
 

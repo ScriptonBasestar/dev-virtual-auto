@@ -139,7 +139,36 @@ func formatPorts(publishers []Publisher) string {
 	return strings.Join(parts, ", ")
 }
 
-// formatPortURLs formats publisher list as clickable http://localhost URLs.
+// portHint describes a well-known container port.
+type portHint struct {
+	Label string // human-readable role, e.g. "Web UI", "SMTP"
+	HTTP  bool   // true if the port speaks HTTP(S)
+}
+
+// wellKnownPorts maps container-internal (target) ports to their hints.
+// Treat as read-only; Go does not support const maps.
+var wellKnownPorts = map[int]portHint{
+	80:    {"HTTP", true},
+	443:   {"HTTPS", true},
+	1025:  {"SMTP", false},
+	2222:  {"SSH", false},
+	3000:  {"HTTP", true},
+	3306:  {"MySQL", false},
+	4222:  {"NATS", false},
+	5432:  {"PostgreSQL", false},
+	5672:  {"AMQP", false},
+	6379:  {"Redis", false},
+	8025:  {"Web UI", true},
+	8080:  {"HTTP", true},
+	8200:  {"API", true},
+	8222:  {"Monitor", true},
+	9090:  {"HTTP", true},
+	9092:  {"Kafka", false},
+	15672: {"Management", true},
+	27017: {"MongoDB", false},
+}
+
+// formatPortURLs formats publisher list as clickable URLs with role labels.
 func formatPortURLs(publishers []Publisher) string {
 	if len(publishers) == 0 {
 		return ""
@@ -151,7 +180,16 @@ func formatPortURLs(publishers []Publisher) string {
 			continue
 		}
 		seen[p.PublishedPort] = true
-		parts = append(parts, fmt.Sprintf("http://localhost:%d", p.PublishedPort))
+
+		hint, known := wellKnownPorts[p.TargetPort]
+		switch {
+		case known && hint.HTTP:
+			parts = append(parts, fmt.Sprintf("http://localhost:%d (%s)", p.PublishedPort, hint.Label))
+		case known:
+			parts = append(parts, fmt.Sprintf("localhost:%d (%s)", p.PublishedPort, hint.Label))
+		default:
+			parts = append(parts, fmt.Sprintf("http://localhost:%d", p.PublishedPort))
+		}
 	}
 	return strings.Join(parts, "  ")
 }
@@ -170,7 +208,7 @@ func printServiceTable(services []ServiceInfo, projectName string, alreadyRunnin
 
 	var buf strings.Builder
 	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "  SERVICE\tSTATUS\tPORTS\n")
+	fmt.Fprintf(tw, "  SERVICE\tSTATUS\tURL\n")
 	for _, s := range services {
 		status := s.State
 		if s.Health != "" {
