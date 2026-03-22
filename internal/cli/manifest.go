@@ -51,12 +51,13 @@ type Manifest struct {
 
 // ManifestHealthCheck describes a health check in the manifest.
 type ManifestHealthCheck struct {
-	Type      string `json:"type" yaml:"type"`
-	URL       string `json:"url,omitempty" yaml:"url,omitempty"`
-	Address   string `json:"address,omitempty" yaml:"address,omitempty"`
-	Command   string `json:"command,omitempty" yaml:"command,omitempty"`
-	Start     string `json:"start,omitempty" yaml:"start,omitempty"`
-	StartHint string `json:"start_hint,omitempty" yaml:"start_hint,omitempty"`
+	Type         string `json:"type" yaml:"type"`
+	URL          string `json:"url,omitempty" yaml:"url,omitempty"`
+	Address      string `json:"address,omitempty" yaml:"address,omitempty"`
+	Command      string `json:"command,omitempty" yaml:"command,omitempty"`
+	Start        string `json:"start,omitempty" yaml:"start,omitempty"`
+	StartHint    string `json:"start_hint,omitempty" yaml:"start_hint,omitempty"`
+	ReadyTimeout int    `json:"ready_timeout,omitempty" yaml:"ready_timeout,omitempty"`
 }
 
 type ManifestSubproject struct {
@@ -105,7 +106,7 @@ func buildManifest(c *config.Config) *Manifest {
 			},
 			"ls":        {Description: "List available run commands", Type: "query"},
 			"compose":   {Description: "Run Docker Compose commands", Type: "passthrough"},
-			"up":        {Description: "Start services (docker compose up -d --wait)", Type: "compose_shortcut"},
+			"up":        {Description: "Start compose + local services (--no-wait for immediate return)", Type: "compose_shortcut"},
 			"down":      {Description: "Stop and remove containers", Type: "compose_shortcut"},
 			"stop":      {Description: "Stop services", Type: "compose_shortcut"},
 			"build":     {Description: "Build service images", Type: "compose_shortcut"},
@@ -212,7 +213,8 @@ func buildManifest(c *config.Config) *Manifest {
 				Address:   hc.Address,
 				Command:   hc.Command,
 				Start:     hc.Start,
-				StartHint: hc.StartHint,
+				StartHint:    hc.StartHint,
+				ReadyTimeout: hc.ReadyTimeout,
 			}
 		}
 	}

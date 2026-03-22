@@ -142,10 +142,24 @@ func isProcessRunning(pid int) bool {
 
 const defaultReadyTimeout = 30 * time.Second
 
+// maxReadyTimeout returns the maximum ready_timeout across started services.
+func maxReadyTimeout(checks map[string]config.HealthCheckConfig, startedNames map[string]bool) time.Duration {
+	maxT := defaultReadyTimeout
+	for name := range startedNames {
+		if hc, ok := checks[name]; ok && hc.ReadyTimeout > 0 {
+			t := time.Duration(hc.ReadyTimeout) * time.Second
+			if t > maxT {
+				maxT = t
+			}
+		}
+	}
+	return maxT
+}
+
 // runHealthChecksWithAutoStart runs health checks, auto-starts services with start commands,
 // and optionally polls until all started services are ready.
 //
-// When wait is true: polls every 2s until all started services pass health checks or 30s timeout.
+// When wait is true: polls every 2s until all started services pass health checks or timeout.
 // When wait is false: starts services and returns immediately with current status.
 func runHealthChecksWithAutoStart(checks map[string]config.HealthCheckConfig, configDir string, wait bool) []HealthCheckResult {
 	results := runHealthChecks(checks)
@@ -156,16 +170,18 @@ func runHealthChecksWithAutoStart(checks map[string]config.HealthCheckConfig, co
 	}
 
 	if wait {
+		timeout := maxReadyTimeout(checks, startedNames)
+
 		// Collect names of services we're waiting for
 		var pending []string
 		for name := range startedNames {
 			pending = append(pending, name)
 		}
-		fmt.Fprintf(os.Stderr, "  waiting for %s to be ready (timeout %ds)...\n", strings.Join(pending, ", "), int(defaultReadyTimeout.Seconds()))
+		fmt.Fprintf(os.Stderr, "  waiting for %s to be ready (timeout %ds)...\n", strings.Join(pending, ", "), int(timeout.Seconds()))
 
 		// Poll until all started services are ready or timeout
 		start := time.Now()
-		deadline := start.Add(defaultReadyTimeout)
+		deadline := start.Add(timeout)
 		for time.Now().Before(deadline) {
 			time.Sleep(2 * time.Second)
 			results = runHealthChecks(checks)

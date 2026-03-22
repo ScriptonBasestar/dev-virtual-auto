@@ -1,7 +1,8 @@
 <!-- v:2026-03-23 -->
+<!-- track: full — compose가 없는 프로젝트용 -->
 
 <constants>
-SELF = ai-docs/workflow/setup-dva/stages/30-configure.md
+SELF = ai-docs/workflow/setup-dva/stages/30-configure-full.md
 DVA_ROOT = {DVA project root}
 WORKFLOW_ROOT = ai-docs/workflow/setup-dva
 SCHEMA_REF = internal/config/schema.json
@@ -12,7 +13,7 @@ PORT_REGISTRY = {optional — global-port-mappings.yaml path if available}
 
 [EXECUTE IMMEDIATELY - NO QUESTIONS]
 
-<role>DVA configuration generator — produce compose.yml + dva.yml from analysis and proposal</role>
+<role>DVA full configuration generator — compose.yml + .env.example + dva.yml 신규 생성</role>
 
 <input>
 | Source | Description |
@@ -25,8 +26,14 @@ PORT_REGISTRY = {optional — global-port-mappings.yaml path if available}
 | Port registry | PORT_REGISTRY (optional) |
 </input>
 
+<precondition>
+This stage is for projects where **no compose.yml exists**.
+Analysis report must contain `setup_track: full`.
+If `setup_track: adopt`, use `30-configure-adopt.md` instead.
+</precondition>
+
 <objective>
-Generate production-ready compose.yml and dva.yml for the target project.
+Generate compose.yml, .env.example, and dva.yml from scratch for the target project.
 Use DVA's own examples as reference and validate against DVA schema.
 </objective>
 
@@ -130,8 +137,6 @@ Write generated files to target project:
 - `$TARGET/.env.example`
 - `$TARGET/dva.yml`
 
-If files already exist, create `.new` suffixed versions and note in log.
-
 ## Phase 6: Validation
 
 ```bash
@@ -145,7 +150,7 @@ DVA_FILE=$TARGET/dva.yml dva validate 2>/dev/null
 <constraints>
 - Generated dva.yml must conform to DVA schema (SCHEMA_REF)
 - Never use common default ports as host ports
-- If compose.yml already exists and is functional, create compose.yml.new instead
+- compose.yml is always newly created — if a file somehow exists, halt and re-evaluate track
 - dva.yml interactions must reference actual compose services
 - Reference DVA examples for idiomatic configuration patterns
 </constraints>
@@ -168,4 +173,4 @@ DVA_FILE=$TARGET/dva.yml dva validate 2>/dev/null
 | Config log | `tmp/setup-dva/30-config-log-{project-name}.md` |
 </output>
 
-<trigger>Load context → generate compose.yml → generate dva.yml → validate syntax.</trigger>
+<trigger>Load context → generate compose.yml → generate .env.example → generate dva.yml → validate syntax.</trigger>

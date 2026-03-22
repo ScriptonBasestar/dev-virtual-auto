@@ -73,7 +73,20 @@ Collect:
 - Existing healthchecks
 - Build tooling (Make, scripts, etc.)
 
-## Phase 3: Gap Analysis
+## Phase 3: Track Detection
+
+Determine setup track based on compose file presence:
+
+```
+IF compose.yml or docker-compose.yml exists AND contains valid service definitions:
+  → setup_track: adopt (기존 compose 기반, dva.yml만 생성)
+ELSE:
+  → setup_track: full (compose.yml + dva.yml 전부 신규 생성)
+```
+
+Record `setup_track` in analysis report — this determines which stage 30 variant runs.
+
+## Phase 4: Gap Analysis
 
 Compare target against DVA best practices:
 - Missing standard files (compose.yml, .env.example, Makefile)
@@ -83,7 +96,7 @@ Compare target against DVA best practices:
 - Missing DVA config (dva.yml)
 - Missing Compose Specification compliance (no `version:` key)
 
-## Phase 4: DVA Pattern Matching
+## Phase 5: DVA Pattern Matching
 
 Based on project type, recommend DVA example as template:
 | Project Type | Recommended Example |
@@ -95,12 +108,16 @@ Based on project type, recommend DVA example as template:
 | Multi-env | examples/env-file-multi-env.yml |
 | LLM/AI tools | examples/llm-integration.yml |
 
-## Phase 5: Report Generation
+## Phase 6: Report Generation
 
 Generate analysis report to `tmp/setup-dva/00-analysis-{project-name}.md`:
 
 ```markdown
 # DVA Analysis: {project-name}
+
+## Setup Track
+- **Track: {full|adopt}**
+- Reason: {compose not found → full | compose exists with valid services → adopt}
 
 ## Project Profile
 - Language/Framework: {detected}
@@ -135,6 +152,7 @@ Generate analysis report to `tmp/setup-dva/00-analysis-{project-name}.md`:
 - [ ] Report contains project profile section
 - [ ] Report contains current state section
 - [ ] Report contains gap analysis table
+- [ ] Report contains setup_track determination (full or adopt)
 - [ ] Report contains recommended DVA template
 - [ ] No files were modified
 </gate>

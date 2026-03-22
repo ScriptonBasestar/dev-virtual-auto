@@ -152,6 +152,7 @@ var stopCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+		stopLocalServices(c.FileDir())
 		return execComposePassthrough(e, c, append([]string{"stop"}, args...))
 	},
 }

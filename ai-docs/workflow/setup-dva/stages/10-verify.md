@@ -37,6 +37,15 @@ Adapt the template to match the target project's services and structure.
 
 ## Phase 3: Build Proposal
 
+### Track-Aware Actions
+
+The proposal must reflect the `setup_track` from analysis:
+
+| Track | Stage 30 File | compose.yml | dva.yml |
+|-------|---------------|-------------|---------|
+| **full** | `30-configure-full.md` | 신규 생성 | 신규 생성 |
+| **adopt** | `30-configure-adopt.md` | 기존 유지 (수정 안 함) | 신규 생성 |
+
 For each gap item, determine specific action:
 
 | Action Type | Description |
@@ -44,7 +53,7 @@ For each gap item, determine specific action:
 | RENAME | File rename (e.g., docker-compose.yml → compose.yml) |
 | MOVE | Directory relocation |
 | CREATE | New file generation (e.g., dva.yml, .env.example) |
-| MODIFY | Content update (e.g., add healthcheck to compose service) |
+| MODIFY | Content update — **adopt track에서 compose.yml MODIFY 금지** |
 | DELETE | Remove obsolete file |
 
 ## Phase 4: Generate Proposal Document
@@ -71,6 +80,10 @@ Create proposal at `tmp/setup-dva/10-proposal-{project-name}.md`:
 
 | Service | Image | Host Port | Container Port | Healthcheck |
 |---------|-------|-----------|----------------|-------------|
+
+## Setup Track
+- **Track: {full|adopt}**
+- Stage 30: {30-configure-full.md|30-configure-adopt.md}
 
 ## DVA Configuration Preview
 

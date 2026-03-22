@@ -37,13 +37,14 @@ type SubprojectConfig struct {
 
 // HealthCheckConfig defines a health check for a non-compose service.
 type HealthCheckConfig struct {
-	Type      string `yaml:"type"`       // http, tcp, command
-	URL       string `yaml:"url"`        // for http type
-	Address   string `yaml:"address"`    // for tcp type
-	Command   string `yaml:"command"`    // for command type
-	Start     string `yaml:"start"`      // command to auto-start (background)
-	StartHint string `yaml:"start_hint"` // human-readable start instructions
-	Timeout   int    `yaml:"timeout"`    // seconds (default: 2)
+	Type         string `yaml:"type"`          // http, tcp, command
+	URL          string `yaml:"url"`           // for http type
+	Address      string `yaml:"address"`       // for tcp type
+	Command      string `yaml:"command"`       // for command type
+	Start        string `yaml:"start"`         // command to auto-start (background)
+	StartHint    string `yaml:"start_hint"`    // human-readable start instructions
+	Timeout      int    `yaml:"timeout"`       // health check timeout in seconds (default: 2)
+	ReadyTimeout int    `yaml:"ready_timeout"` // max wait after start in seconds (default: 30)
 }
 
 // ServiceTagConfig defines per-service tag configuration.
