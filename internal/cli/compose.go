@@ -29,13 +29,17 @@ var upCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		// Check for --foreground / -f flag
+		// Parse custom flags from args
 		foreground := false
+		force := false
 		var filteredArgs []string
 		for _, a := range args {
-			if a == "--foreground" || a == "-f" {
+			switch a {
+			case "--foreground", "-f":
 				foreground = true
-			} else {
+			case "--force":
+				force = true
+			default:
 				filteredArgs = append(filteredArgs, a)
 			}
 		}
@@ -57,7 +61,46 @@ var upCmd = &cobra.Command{
 			}
 		}
 
-		return execComposePassthrough(e, c, append([]string{"up"}, filteredArgs...))
+		upArgs := append([]string{"up"}, filteredArgs...)
+
+		// Foreground mode: replace process (existing behavior)
+		if foreground {
+			return execComposePassthrough(e, c, upArgs)
+		}
+
+		// Detached mode: check if services are already running
+		if !force {
+			services, err := queryComposeServices(e, c)
+			if err == nil && len(services) > 0 {
+				requestedServices := extractServiceNames(filteredArgs)
+				if allServicesHealthy(services, requestedServices) {
+					projectName := c.Compose.ProjectName
+					if jsonOutput {
+						return printServiceJSON(services, projectName, true)
+					}
+					printServiceTable(services, projectName, true)
+					return nil
+				}
+			}
+		}
+
+		// Run up as subprocess (not exec replace) so we can show status after
+		if err := execComposeSubprocess(e, c, upArgs); err != nil {
+			return err
+		}
+
+		// Show service status after successful up
+		services, err := queryComposeServices(e, c)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "[warn] could not query service status")
+			return nil
+		}
+		projectName := c.Compose.ProjectName
+		if jsonOutput {
+			return printServiceJSON(services, projectName, false)
+		}
+		printServiceTable(services, projectName, false)
+		return nil
 	},
 }
 
@@ -121,6 +164,18 @@ func init() {
 	cleanCmd.Flags().BoolP("volumes", "v", false, "Also remove volumes (WARNING: data loss)")
 	cleanCmd.Flags().BoolP("images", "i", false, "Also remove images built by docker compose")
 	cleanCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
+}
+
+// execComposeSubprocess runs a docker compose command as a subprocess,
+// returning control to the caller after completion.
+func execComposeSubprocess(e *config.Environment, c *config.Config, args []string) error {
+	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+
+	if dvaexec.Debug {
+		fmt.Fprintf(os.Stderr, "[debug] compose subprocess: %s %v\n", composeCmd, composeArgs)
+	}
+
+	return dvaexec.ExecSubprocess(e, composeCmd, composeArgs, false)
 }
 
 // execComposePassthrough builds and execs a docker compose command using config.
