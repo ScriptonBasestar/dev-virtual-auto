@@ -1,20 +1,16 @@
 BINARY     := dva
 MODULE     := github.com/ScriptonBasestar/dva
-VERSION    := $(shell grep 'Version =' internal/config/version.go | cut -d'"' -f2)
-COMMIT     := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
-BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S)
 BUILD_DIR  := ./bin
 GOFLAGS    := -trimpath
-LDFLAGS    := -s -w \
-              -X $(MODULE)/internal/config.Version=$(VERSION) \
-              -X $(MODULE)/internal/config.Commit=$(COMMIT) \
-              -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)
 
 .PHONY: build install test lint clean fmt vet help bump-version
 
 ## build: Build the dva binary
 build:
-	go build $(GOFLAGS) -ldflags '$(LDFLAGS)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
+	$(eval VERSION := $(shell grep 'Version =' internal/config/version.go | cut -d'"' -f2))
+	$(eval COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none"))
+	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
+	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
 
 ## bump-version: Bump micro version if there are changes or new commit
 bump-version:

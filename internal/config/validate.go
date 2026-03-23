@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -97,7 +98,7 @@ func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
 	cfgDir := c.FileDir()
 	f := c.Compose.Files[0]
 	filePath := f
-	if !isAbsPath(filePath) {
+	if !filepath.IsAbs(filePath) {
 		filePath = cfgDir + "/" + f
 	}
 
@@ -137,10 +138,6 @@ func readComposeNameKey(path string) (string, error) {
 		return "", err
 	}
 	return top.Name, nil
-}
-
-func isAbsPath(p string) bool {
-	return len(p) > 0 && p[0] == '/'
 }
 
 // convertYAMLToJSON recursively converts YAML-decoded data to JSON-compatible types.

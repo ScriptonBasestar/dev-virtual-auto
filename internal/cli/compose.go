@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -242,7 +243,7 @@ func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (s
 	cfgDir := c.FileDir()
 	for _, f := range c.Compose.Files {
 		f = e.Interpolate(f)
-		if !isAbsPath(f) {
+		if !filepath.IsAbs(f) {
 			f = cfgDir + "/" + f
 		}
 		composeArgs = append(composeArgs, "-f", f)
@@ -255,8 +256,4 @@ func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (s
 
 	composeArgs = append(composeArgs, args...)
 	return composeCmd, composeArgs
-}
-
-func isAbsPath(p string) bool {
-	return len(p) > 0 && p[0] == '/'
 }
