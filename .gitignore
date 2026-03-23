@@ -33,3 +33,5 @@ Thumbs.db
 tmp/
 docs/plans/
 .last_built_commit
+
+reports/
