@@ -134,3 +134,75 @@ func TestValidateComposeProjectNames_FileNotFound(t *testing.T) {
 		t.Errorf("expected no warnings for missing file, got %d", len(warnings))
 	}
 }
+
+func TestFixComposeProjectName_InsertMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	composeFile := filepath.Join(tmpDir, "compose.yml")
+	os.WriteFile(composeFile, []byte("services:\n  app:\n    image: nginx\n"), 0644)
+
+	cfg := &Config{
+		filePath: filepath.Join(tmpDir, "dva.yml"),
+		Compose: ComposeConfig{
+			Files:       []string{"compose.yml"},
+			ProjectName: "myproject",
+		},
+	}
+
+	w := ComposeNameWarning{File: "compose.yml", DvaName: "myproject"}
+	if err := cfg.FixComposeProjectName(w); err != nil {
+		t.Fatalf("FixComposeProjectName error: %v", err)
+	}
+
+	// Verify the fix
+	name, err := readComposeNameKey(composeFile)
+	if err != nil {
+		t.Fatalf("readComposeNameKey error: %v", err)
+	}
+	if name != "myproject" {
+		t.Errorf("expected name=myproject after fix, got %q", name)
+	}
+
+	// Verify original content is preserved
+	data, _ := os.ReadFile(composeFile)
+	content := string(data)
+	if !contains(content, "services:") {
+		t.Error("original services: section lost after fix")
+	}
+}
+
+func TestFixComposeProjectName_ReplaceMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	composeFile := filepath.Join(tmpDir, "compose.yml")
+	os.WriteFile(composeFile, []byte("name: old-name\n\nservices:\n  app:\n    image: nginx\n"), 0644)
+
+	cfg := &Config{
+		filePath: filepath.Join(tmpDir, "dva.yml"),
+		Compose: ComposeConfig{
+			Files:       []string{"compose.yml"},
+			ProjectName: "myproject",
+		},
+	}
+
+	w := ComposeNameWarning{File: "compose.yml", ComposeName: "old-name", DvaName: "myproject"}
+	if err := cfg.FixComposeProjectName(w); err != nil {
+		t.Fatalf("FixComposeProjectName error: %v", err)
+	}
+
+	name, err := readComposeNameKey(composeFile)
+	if err != nil {
+		t.Fatalf("readComposeNameKey error: %v", err)
+	}
+	if name != "myproject" {
+		t.Errorf("expected name=myproject after fix, got %q", name)
+	}
+
+	// Verify old name is gone
+	data, _ := os.ReadFile(composeFile)
+	if contains(string(data), "old-name") {
+		t.Error("old name still present after fix")
+	}
+}
+
+// contains is defined in reserved_test.go

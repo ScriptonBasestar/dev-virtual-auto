@@ -99,7 +99,7 @@ func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
 	f := c.Compose.Files[0]
 	filePath := f
 	if !filepath.IsAbs(filePath) {
-		filePath = cfgDir + "/" + f
+		filePath = filepath.Join(cfgDir, f)
 	}
 
 	composeName, err := readComposeNameKey(filePath)
@@ -122,6 +122,42 @@ func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
 		})
 	}
 	return warnings
+}
+
+// FixComposeProjectName fixes the compose file's top-level `name:` to match dva.yml's project_name.
+// For missing name: inserts at the top. For mismatched name: replaces the existing value.
+func (c *Config) FixComposeProjectName(w ComposeNameWarning) error {
+	cfgDir := c.FileDir()
+	filePath := w.File
+	if !filepath.IsAbs(filePath) {
+		filePath = filepath.Join(cfgDir, w.File)
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", w.File, err)
+	}
+
+	content := string(data)
+	var updated string
+
+	if w.ComposeName == "" {
+		// Insert "name: <project>" at the top
+		updated = fmt.Sprintf("name: %s\n\n%s", w.DvaName, content)
+	} else {
+		// Replace existing name line
+		lines := strings.Split(content, "\n")
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "name:") {
+				lines[i] = fmt.Sprintf("name: %s", w.DvaName)
+				break
+			}
+		}
+		updated = strings.Join(lines, "\n")
+	}
+
+	return os.WriteFile(filePath, []byte(updated), 0644)
 }
 
 // readComposeNameKey reads just the top-level `name:` key from a compose file.

@@ -20,11 +20,22 @@ var validateCmd = &cobra.Command{
 		}
 
 		// Check compose file project name alignment
-		printComposeNameWarnings(c.ValidateComposeProjectNames())
+		warnings := c.ValidateComposeProjectNames()
+		fix, _ := cmd.Flags().GetBool("fix")
+
+		if fix {
+			fixComposeNameWarnings(c, warnings)
+		} else {
+			printComposeNameWarnings(warnings)
+		}
 
 		fmt.Println("✅ dva.yml is valid")
 		return nil
 	},
+}
+
+func init() {
+	validateCmd.Flags().Bool("fix", false, "Auto-fix compose file project name mismatches")
 }
 
 // printComposeNameWarnings prints warnings about compose file name mismatches to stderr.
@@ -37,6 +48,17 @@ func printComposeNameWarnings(warnings []config.ComposeNameWarning) {
 		} else {
 			fmt.Fprintf(os.Stderr, "[warn] %s: name '%s' differs from dva.yml project_name '%s'\n", w.File, w.ComposeName, w.DvaName)
 			fmt.Fprintf(os.Stderr, "       Fix: change 'name: %s' to 'name: %s' in %s\n", w.ComposeName, w.DvaName, w.File)
+		}
+	}
+}
+
+// fixComposeNameWarnings auto-fixes compose file name mismatches.
+func fixComposeNameWarnings(c *config.Config, warnings []config.ComposeNameWarning) {
+	for _, w := range warnings {
+		if err := c.FixComposeProjectName(w); err != nil {
+			fmt.Fprintf(os.Stderr, "[error] failed to fix %s: %v\n", w.File, err)
+		} else {
+			fmt.Fprintf(os.Stderr, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
 		}
 	}
 }
