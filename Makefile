@@ -29,14 +29,15 @@ bump-version:
 		PATCH=$$(echo $$CURRENT_VERSION | cut -d. -f3); \
 		NEW_PATCH=$$(($$PATCH + 1)); \
 		NEW_VERSION="$$MAJOR.$$MINOR.$$NEW_PATCH"; \
-		sed -i '' "s/Version = \"$$CURRENT_VERSION\"/Version = \"$$NEW_VERSION\"/" internal/config/version.go; \
+		sed -i.bak "s/Version = \"$$CURRENT_VERSION\"/Version = \"$$NEW_VERSION\"/" internal/config/version.go && rm -f internal/config/version.go.bak; \
 		echo "$$CURRENT_COMMIT" > .last_built_commit; \
 		echo "Version bumped to $$NEW_VERSION"; \
 	fi
 
-## install: Install dva to $GOPATH/bin (bumps version if changes detected)
-install: bump-version
-	go install $(GOFLAGS) -ldflags '$(LDFLAGS)' ./cmd/dva
+## install: Install dva to ~/.local/bin (bumps version if changes detected)
+install: bump-version build
+	@mkdir -p $(HOME)/.local/bin
+	cp $(BUILD_DIR)/$(BINARY) $(HOME)/.local/bin/$(BINARY)
 
 ## test: Run all tests
 test:

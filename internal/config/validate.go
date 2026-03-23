@@ -78,6 +78,71 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// ComposeNameWarning holds details about a compose file project name mismatch.
+type ComposeNameWarning struct {
+	File        string // compose file path
+	ComposeName string // name found in compose file ("" if absent)
+	DvaName     string // project_name from dva.yml
+}
+
+// ValidateComposeProjectNames checks that the primary compose file has a top-level
+// `name:` matching dva.yml's project_name. Only the first compose file is checked
+// because Docker Compose uses the first file's name when merging multiple files.
+// Returns warnings for missing or mismatched names.
+func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
+	if c.Compose.ProjectName == "" || len(c.Compose.Files) == 0 {
+		return nil
+	}
+
+	cfgDir := c.FileDir()
+	f := c.Compose.Files[0]
+	filePath := f
+	if !isAbsPath(filePath) {
+		filePath = cfgDir + "/" + f
+	}
+
+	composeName, err := readComposeNameKey(filePath)
+	if err != nil {
+		// file unreadable — skip, docker compose will catch it
+		return nil
+	}
+
+	var warnings []ComposeNameWarning
+	if composeName == "" {
+		warnings = append(warnings, ComposeNameWarning{
+			File:    f,
+			DvaName: c.Compose.ProjectName,
+		})
+	} else if composeName != c.Compose.ProjectName {
+		warnings = append(warnings, ComposeNameWarning{
+			File:        f,
+			ComposeName: composeName,
+			DvaName:     c.Compose.ProjectName,
+		})
+	}
+	return warnings
+}
+
+// readComposeNameKey reads just the top-level `name:` key from a compose file.
+func readComposeNameKey(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	var top struct {
+		Name string `yaml:"name"`
+	}
+	if err := yaml.Unmarshal(data, &top); err != nil {
+		return "", err
+	}
+	return top.Name, nil
+}
+
+func isAbsPath(p string) bool {
+	return len(p) > 0 && p[0] == '/'
+}
+
 // convertYAMLToJSON recursively converts YAML-decoded data to JSON-compatible types.
 // YAML maps decode to map[string]any but sometimes keys are non-string.
 func convertYAMLToJSON(v any) any {

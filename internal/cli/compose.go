@@ -38,6 +38,9 @@ DVA-specific flags (not passed to docker compose):
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
+		// Warn about compose file project name mismatches
+		printComposeNameWarnings(c.ValidateComposeProjectNames())
+
 		// Parse custom flags from args
 		foreground := false
 		force := false
