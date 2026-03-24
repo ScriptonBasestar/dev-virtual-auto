@@ -67,6 +67,7 @@ func init() {
 	lsCmd.GroupID = "core"
 	versionCmd.GroupID = "core"
 
+	showCmd.GroupID = "project"
 	statusCmd.GroupID = "project"
 	configCmd.GroupID = "project"
 
@@ -88,6 +89,7 @@ func init() {
 	provisionCmd.GroupID = "advanced"
 	validateCmd.GroupID = "advanced"
 
+	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(lsCmd)
 	rootCmd.AddCommand(runCmd)

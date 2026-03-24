@@ -38,9 +38,64 @@ provision:                      # Setup automation
 modules:                        # Module imports (.dva/*.yml)
   - module-name
 
+profiles:                       # Operational modes (--mode/-M flag)
+  {mode-name}:
+    description: "{human-readable description}"
+    compose_profiles: [profile1]  # Maps to docker compose --profile
+    compose_services: [svc1]      # nil=all, []=skip compose, [svcs]=only those
+    health_checks: [check1]       # Health checks to run in this mode
+    environment:                  # Extra env vars for this mode
+      VAR: value
+
+environments:                   # Environment configs (--env/-E flag)
+  {env-name}:
+    description: "{human-readable description}"
+    environment:                  # Env var overrides
+      VAR: value
+
+health_checks:                  # Non-compose service health checks
+  {name}:
+    type: http|tcp|command
+    url: http://localhost:PORT   # for http
+    address: localhost:PORT      # for tcp
+    command: "check command"     # for command
+    start: "start command"       # auto-start if not ready
+    start_hint: "manual start instructions"
+
 kubectl:                        # Kubernetes config (optional)
   namespace: myapp-dev
 ```
+
+## Profiles & Environments — CLI Flag Reference
+
+### --mode/-M (Profiles)
+Selects a named profile from `profiles:` section. Determines HOW to run infrastructure.
+
+```bash
+dva up --mode native     # Skip compose, health checks only
+dva up -M docker         # Full docker with compose_profiles
+dva up -M hybrid         # Partial compose + health checks
+```
+
+**Profile resolution logic:**
+1. If `compose_services: []` (empty list) → skip compose entirely, run health_checks only
+2. If `compose_services: [svc1, svc2]` → start only listed services
+3. If `compose_profiles: [prof1]` → pass `--profile prof1` to docker compose
+4. If `environment:` present → merge into compose environment
+
+### --env/-E (Environments)
+Selects a named environment from `environments:` section. Determines WHAT settings to use.
+
+```bash
+dva up --env dev         # Development settings
+dva up -E stg            # Staging settings
+dva up -M native -E stg  # Combined: native mode + staging env
+```
+
+**Environment resolution logic:**
+1. Lookup name in `environments:` map
+2. Merge `environment:` vars into compose context
+3. Can combine with `--mode` (both flags applied independently)
 
 ## Interaction Patterns by Project Type
 

@@ -74,7 +74,12 @@ For each stage (00 → 10 → 20 → 30 → 40):
 
 ## Pipeline Completion
 - After stage 40 PASS: set pipeline status to COMPLETE
-- Emit final summary: stages completed, dva.yml path, running containers
+- Stage 40 PASS requires ALL CLI verifications to pass (see stage 40 Phase 5)
+- If any CLI verification fails (e.g., --mode flag error, --env flag error):
+  - Set stage 40 gate to FAIL
+  - Include failing command and error output in execution report
+  - Halt pipeline — do NOT mark as COMPLETE
+- Emit final summary: stages completed, dva.yml path, running containers, CLI verification results
 </execution>
 
 <flags>
