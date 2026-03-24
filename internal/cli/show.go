@@ -108,6 +108,18 @@ func showText(c *config.Config) error {
 		fmt.Printf("Health Checks: %s\n", strings.Join(sortedKeys(c.HealthChecks), ", "))
 	}
 
+	// Endpoints
+	if len(c.Endpoints) > 0 {
+		fmt.Println()
+		fmt.Printf("Endpoints:\n")
+		names := sortedKeys(c.Endpoints)
+		maxLen := maxKeyLen(names)
+		for _, name := range names {
+			ep := c.Endpoints[name]
+			fmt.Printf("  %-*s  %s  %s\n", maxLen, name, ep.Label, ep.URL)
+		}
+	}
+
 	// Subprojects
 	if len(c.Subprojects) > 0 {
 		fmt.Println()
@@ -195,6 +207,14 @@ func showJSON(c *config.Config) error {
 
 	if len(c.HealthChecks) > 0 {
 		data["health_checks"] = sortedKeys(c.HealthChecks)
+	}
+
+	if len(c.Endpoints) > 0 {
+		eps := make(map[string]any, len(c.Endpoints))
+		for k, v := range c.Endpoints {
+			eps[k] = map[string]any{"label": v.Label, "url": v.URL}
+		}
+		data["endpoints"] = eps
 	}
 
 	if len(c.Subprojects) > 0 {

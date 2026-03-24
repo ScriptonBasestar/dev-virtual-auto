@@ -59,6 +59,29 @@ compose:
           label: "Web UI"
           http: true
 
+# Endpoints — user-facing URLs for the project
+# Compose service ports (above) are shown automatically.
+# Use endpoints for non-compose services (local processes, external services).
+# Keys matching health_check names are auto-linked for status display.
+endpoints:
+  api:
+    url: http://localhost:8080
+    label: "API Server"
+    tags: [app]
+    paths:
+      /health: "Health check"
+      /api/v1/databases: "Database management"
+  worker:
+    url: http://localhost:8081
+    label: "Worker Metrics"
+    tags: [app]
+    paths:
+      /metrics: "Prometheus metrics"
+  frontend-dev:
+    url: http://localhost:3001
+    label: "Frontend Dev Server"
+    tags: [ui]
+
 # Environment checks — run with `dva doctor`
 checks:
   - name: Docker daemon accessible
@@ -101,6 +124,7 @@ modes:
     description: "Infra in Docker, app runs natively"
     compose_services: [postgres, kafka]
     health_checks: [api, worker]
+    endpoint_tags: [app]
     environment:
       DATABASE_URL: postgresql://db_orchestrator:password@localhost:5432/db_orchestrator
       KAFKA_BROKERS: localhost:9092

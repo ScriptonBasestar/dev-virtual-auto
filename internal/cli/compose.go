@@ -109,6 +109,7 @@ DVA-specific flags (not passed to docker compose):
 				return printServiceJSON(nil, c.Compose.ProjectName, false, hcResults)
 			}
 			printHealthCheckResults(hcResults, c.FileDir())
+			printEndpointTable(c.Endpoints, rm.EndpointTags, hcResults)
 			return nil
 		}
 
@@ -168,6 +169,7 @@ DVA-specific flags (not passed to docker compose):
 					printRelatedServiceHints(services, c.Compose.Services)
 					fmt.Fprintf(os.Stderr, "  Hint: use 'dva up --force' to force restart\n\n")
 					printHealthCheckResults(hcResults, c.FileDir())
+					printEndpointTable(c.Endpoints, rm.EndpointTags, hcResults)
 					return nil
 				}
 			}
@@ -192,6 +194,7 @@ DVA-specific flags (not passed to docker compose):
 		printServiceTable(services, projectName, false, c.Compose.Services)
 		printRelatedServiceHints(services, c.Compose.Services)
 		printHealthCheckResults(hcResults, c.FileDir())
+		printEndpointTable(c.Endpoints, rm.EndpointTags, hcResults)
 		return nil
 	},
 }
@@ -444,6 +447,7 @@ var restartCmd = &cobra.Command{
 		}
 		printServiceTable(services, c.Compose.ProjectName, false, c.Compose.Services)
 		printHealthCheckResults(hcResults, c.FileDir())
+		printEndpointTable(c.Endpoints, rm.EndpointTags, hcResults)
 		return nil
 	},
 }
@@ -534,6 +538,7 @@ type resolvedMode struct {
 	SkipCompose  bool
 	ServiceArgs  []string // specific services to target
 	HealthChecks map[string]config.HealthCheckConfig
+	EndpointTags []string // filter endpoints by these tags (empty=show all)
 }
 
 // resolveMode looks up a mode name in config modes and returns resolved settings.
@@ -579,6 +584,8 @@ func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 			}
 		}
 	}
+
+	rm.EndpointTags = m.EndpointTags
 
 	return rm, nil
 }

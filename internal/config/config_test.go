@@ -392,6 +392,125 @@ provision:
 	}
 }
 
+func TestEndpointsParsing(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `endpoints:
+  api:
+    url: http://localhost:8080
+    label: "API Server"
+    tags: [app]
+    paths:
+      /health: "Health check"
+      /api/v1: "REST API"
+  git-ssh:
+    url: ssh://git@localhost:2222
+    label: "Git SSH"
+    tags: [app, scm]
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	if len(cfg.Endpoints) != 2 {
+		t.Fatalf("expected 2 endpoints, got %d", len(cfg.Endpoints))
+	}
+
+	api := cfg.Endpoints["api"]
+	if api.URL != "http://localhost:8080" {
+		t.Errorf("api.URL = %q", api.URL)
+	}
+	if api.Label != "API Server" {
+		t.Errorf("api.Label = %q", api.Label)
+	}
+	if len(api.Tags) != 1 || api.Tags[0] != "app" {
+		t.Errorf("api.Tags = %v", api.Tags)
+	}
+	if len(api.Paths) != 2 {
+		t.Errorf("api.Paths count = %d, want 2", len(api.Paths))
+	}
+	if api.Paths["/health"] != "Health check" {
+		t.Errorf("api.Paths[/health] = %q", api.Paths["/health"])
+	}
+
+	ssh := cfg.Endpoints["git-ssh"]
+	if ssh.URL != "ssh://git@localhost:2222" {
+		t.Errorf("ssh.URL = %q", ssh.URL)
+	}
+	if len(ssh.Tags) != 2 {
+		t.Errorf("ssh.Tags = %v", ssh.Tags)
+	}
+}
+
+func TestEndpointsMergeOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`endpoints:
+  api:
+    url: http://localhost:8080
+    label: "API"
+  db:
+    url: localhost:5432
+    label: "DB"
+`), 0644)
+
+	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`endpoints:
+  api:
+    url: http://localhost:9090
+    label: "API Override"
+  admin:
+    url: http://localhost:3000
+    label: "Admin"
+`), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	if len(cfg.Endpoints) != 3 {
+		t.Fatalf("expected 3 endpoints after merge, got %d", len(cfg.Endpoints))
+	}
+	if cfg.Endpoints["api"].URL != "http://localhost:9090" {
+		t.Errorf("api.URL = %q, want override", cfg.Endpoints["api"].URL)
+	}
+	if cfg.Endpoints["db"].URL != "localhost:5432" {
+		t.Errorf("db should be preserved from base")
+	}
+	if cfg.Endpoints["admin"].URL != "http://localhost:3000" {
+		t.Errorf("admin should be added from override")
+	}
+}
+
+func TestModeEndpointTags(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `modes:
+  dev:
+    description: "Dev mode"
+    endpoint_tags: [app, monitoring]
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	m := cfg.Modes["dev"]
+	if len(m.EndpointTags) != 2 {
+		t.Fatalf("expected 2 endpoint_tags, got %d", len(m.EndpointTags))
+	}
+	if m.EndpointTags[0] != "app" || m.EndpointTags[1] != "monitoring" {
+		t.Errorf("endpoint_tags = %v", m.EndpointTags)
+	}
+}
+
 func TestEmptyConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")

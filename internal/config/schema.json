@@ -685,6 +685,12 @@
               "description": "Health check names to activate (from health_checks section). Omit = use all.",
               "examples": [["app", "worker"]]
             },
+            "endpoint_tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Show only endpoints matching these tags. Omit = show all endpoints.",
+              "examples": [["app"], ["app", "monitoring"]]
+            },
             "environment": {
               "$ref": "#/definitions/environment_vars"
             },
@@ -706,6 +712,7 @@
           "description": "Infra in containers, app locally",
           "compose_services": ["postgres", "redis"],
           "health_checks": ["app"],
+          "endpoint_tags": ["app"],
           "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb" }
         },
         "native": {
@@ -775,6 +782,12 @@
               "description": "Health check names to activate (from health_checks section). Omit = use all.",
               "examples": [["app", "worker"]]
             },
+            "endpoint_tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Show only endpoints matching these tags. Omit = show all endpoints.",
+              "examples": [["app"], ["app", "monitoring"]]
+            },
             "environment": {
               "$ref": "#/definitions/environment_vars"
             },
@@ -815,6 +828,55 @@
           "examples": ["whilp/ssh-agent", "my-registry/ssh-agent:latest"]
         }
       }
+    },
+    "endpoints": {
+      "type": "object",
+      "description": "Declares user-facing endpoint URLs for the project. Compose service ports are shown automatically; use this for non-compose endpoints (local processes, external services). Keys matching health_check names are auto-linked for status display.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "User-facing access URL",
+              "examples": ["http://localhost:8080", "ssh://git@localhost:2222", "grpc://localhost:50051"]
+            },
+            "label": {
+              "type": "string",
+              "description": "Human-readable display name",
+              "examples": ["API Server", "Git SSH", "Admin Panel"]
+            },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tags for filtering (used by modes.endpoint_tags)",
+              "examples": [["app"], ["infra", "monitoring"]]
+            },
+            "paths": {
+              "type": "object",
+              "description": "Sub-paths with descriptions (key: path, value: description)",
+              "additionalProperties": { "type": "string" },
+              "examples": [{ "/api/v1": "REST API", "/metrics": "Prometheus metrics" }]
+            }
+          },
+          "required": ["url", "label"]
+        }
+      },
+      "additionalProperties": false,
+      "examples": [{
+        "app-http": {
+          "url": "http://localhost:8080",
+          "label": "App HTTP",
+          "tags": ["app"],
+          "paths": { "/health": "Health check", "/api/v1": "REST API" }
+        },
+        "app-ssh": {
+          "url": "ssh://git@localhost:2222",
+          "label": "Git SSH",
+          "tags": ["app"]
+        }
+      }]
     },
     "health_checks": {
       "type": "object",

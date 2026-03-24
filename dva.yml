@@ -1,13 +1,70 @@
-version: "0.1.0"
-compose:
-  files:
-    - docker-compose.yml
+# dva.yml — DVA CLI (Go)
+# Pattern: Host Build (no Docker infrastructure)
+# All commands run locally via Makefile targets
+version: "0.1.26"
+
 interaction:
-  shell:
-    description: "Open shell in app container"
-    service: app
-    command: /bin/bash
+  # 'build' and 'clean' are reserved DVA commands — use replace hooks
+  build:
+    replace:
+      - step: "Build dva binary"
+        run: "make build"
+
+  clean:
+    replace:
+      - step: "Remove build artifacts"
+        run: "make clean"
+
+  install:
+    description: "Install dva to ~/.local/bin (auto version bump)"
+    command: "make install"
+    runner: local
+
   test:
-    description: "Run tests"
-    service: app
-    command: bundle exec rspec
+    description: "Run all tests"
+    command: "make test"
+    runner: local
+
+  test-integration:
+    description: "Run integration tests"
+    command: "make test-integration"
+    runner: local
+
+  lint:
+    description: "Run linters (golangci-lint)"
+    command: "make lint"
+    runner: local
+
+  fmt:
+    description: "Format code"
+    command: "make fmt"
+    runner: local
+
+  vet:
+    description: "Run go vet"
+    command: "make vet"
+    runner: local
+
+  bump-version:
+    description: "Bump micro version if changes detected"
+    command: "make bump-version"
+    runner: local
+
+provision:
+  default:
+    - step: "Build binary"
+      run: "dva build"
+    - step: "Run tests"
+      run: "dva test"
+    - step: "Ready"
+      note: "Run 'dva install' to install to ~/.local/bin"
+
+checks:
+  - name: "Go toolchain available"
+    type: command
+    command: "go version > /dev/null 2>&1"
+    fix_hint: "Install Go: https://go.dev/dl/"
+  - name: "golangci-lint available"
+    type: command
+    command: "golangci-lint version > /dev/null 2>&1"
+    fix_hint: "Install: https://golangci-lint.run/usage/install/"

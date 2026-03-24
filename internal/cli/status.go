@@ -110,10 +110,15 @@ var statusCmd = &cobra.Command{
 			printServiceTable(services, c.Compose.ProjectName, false, c.Compose.Services)
 		}
 
+		var hcResults []HealthCheckResult
 		if len(c.HealthChecks) > 0 {
 			fmt.Println()
-			results := runHealthChecks(c.HealthChecks)
-			printHealthCheckResults(results, c.FileDir())
+			hcResults = runHealthChecks(c.HealthChecks)
+			printHealthCheckResults(hcResults, c.FileDir())
+		}
+
+		if len(c.Endpoints) > 0 {
+			printEndpointTable(c.Endpoints, nil, hcResults)
 		}
 
 		return nil

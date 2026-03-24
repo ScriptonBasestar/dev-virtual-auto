@@ -24,6 +24,7 @@ type Config struct {
 	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
+	Endpoints    map[string]EndpointConfig        `yaml:"endpoints"`
 	Modes        map[string]ModeConfig            `yaml:"modes"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
@@ -57,6 +58,7 @@ type ModeConfig struct {
 	ComposeProfiles []string          `yaml:"compose_profiles"`
 	ComposeServices *[]string         `yaml:"compose_services"` // nil=all, empty=none, items=only those
 	HealthChecks    []string          `yaml:"health_checks"`
+	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
 	Provision       string            `yaml:"provision"` // provision profile to suggest on first run
 }
@@ -70,6 +72,14 @@ type EnvironmentProfile struct {
 // SshConfig holds SSH agent configuration.
 type SshConfig struct {
 	AgentImage string `yaml:"agent_image"`
+}
+
+// EndpointConfig defines a user-facing endpoint URL for the project.
+type EndpointConfig struct {
+	URL   string            `yaml:"url"`
+	Label string            `yaml:"label"`
+	Tags  []string          `yaml:"tags"`
+	Paths map[string]string `yaml:"paths"` // sub-path -> description
 }
 
 // HealthCheckConfig defines a health check for a non-compose service.
@@ -462,6 +472,16 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 		for k, v := range other.HealthChecks {
 			c.HealthChecks[k] = v
+		}
+	}
+
+	// Merge endpoints
+	if other.Endpoints != nil {
+		if c.Endpoints == nil {
+			c.Endpoints = make(map[string]EndpointConfig)
+		}
+		for k, v := range other.Endpoints {
+			c.Endpoints[k] = v
 		}
 	}
 
