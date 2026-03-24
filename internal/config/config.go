@@ -18,7 +18,7 @@ type Config struct {
 	Environment  map[string]string              `yaml:"environment"`
 	EnvFile      any                    `yaml:"env_file"`
 	Interaction  map[string]*InteractionCommand `yaml:"interaction"`
-	Provision    map[string][]ProvisionItem     `yaml:"provision"`
+	Provision    ProvisionConfig                 `yaml:"provision"`
 	Infra        map[string]InfraConfig         `yaml:"infra"`
 	Modules      []string                       `yaml:"modules"`
 	Devcontainer map[string]any         `yaml:"devcontainer"`
@@ -132,6 +132,40 @@ type ComposeOptions struct {
 	Method     string   `yaml:"method"`
 	Profiles   []string `yaml:"profiles"`
 	RunOptions []string `yaml:"run_options"`
+}
+
+// ProvisionConfig holds provision profiles with an optional default_profile alias.
+type ProvisionConfig struct {
+	DefaultProfile string                     `yaml:"-"`
+	Profiles       map[string][]ProvisionItem `yaml:"-"`
+}
+
+// UnmarshalYAML handles the mixed-type provision mapping:
+// "default_profile" key is extracted as a string; all other keys are profiles.
+func (pc *ProvisionConfig) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("provision: expected mapping, got kind %d", node.Kind)
+	}
+
+	pc.Profiles = make(map[string][]ProvisionItem)
+
+	for i := 0; i < len(node.Content)-1; i += 2 {
+		key := node.Content[i].Value
+		val := node.Content[i+1]
+
+		if key == "default_profile" {
+			pc.DefaultProfile = val.Value
+			continue
+		}
+
+		var items []ProvisionItem
+		if err := val.Decode(&items); err != nil {
+			return fmt.Errorf("provision profile '%s': %w", key, err)
+		}
+		pc.Profiles[key] = items
+	}
+
+	return nil
 }
 
 // ProvisionItem represents a single item in a provision profile.
@@ -257,8 +291,8 @@ func Load(workDir string) (*Config, error) {
 	if cfg.Interaction == nil {
 		cfg.Interaction = make(map[string]*InteractionCommand)
 	}
-	if cfg.Provision == nil {
-		cfg.Provision = make(map[string][]ProvisionItem)
+	if cfg.Provision.Profiles == nil {
+		cfg.Provision.Profiles = make(map[string][]ProvisionItem)
 	}
 
 	// Warn if interaction commands shadow reserved built-in commands
@@ -334,12 +368,15 @@ func (c *Config) mergeFrom(other *Config) {
 	}
 
 	// Merge provision
-	if other.Provision != nil {
-		if c.Provision == nil {
-			c.Provision = make(map[string][]ProvisionItem)
+	if other.Provision.DefaultProfile != "" {
+		c.Provision.DefaultProfile = other.Provision.DefaultProfile
+	}
+	if len(other.Provision.Profiles) > 0 {
+		if c.Provision.Profiles == nil {
+			c.Provision.Profiles = make(map[string][]ProvisionItem)
 		}
-		for k, v := range other.Provision {
-			c.Provision[k] = v
+		for k, v := range other.Provision.Profiles {
+			c.Provision.Profiles[k] = v
 		}
 	}
 
