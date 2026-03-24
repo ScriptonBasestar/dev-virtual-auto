@@ -1,0 +1,47 @@
+---
+description: Always use DVA (Docker Virtual Auto) for interacting with the project environment (running tests, building, starting services)
+globs: *
+---
+
+# Cursor Rule: Use DVA (Docker Virtual Auto)
+
+Whenever you are asked to run tests, build the project, or start background services in this repository, you **MUST** use the `dva` CLI instead of raw `docker`, `docker compose`, or `npm/yarn/cargo/go` commands.
+
+## Instructions
+
+0. **Bootstrap (If `dva.yml` doesn't exist)**
+   If you land in this project and `dva.yml` does not exist, do not guess how to build the project. First, run:
+   
+   ```bash
+   dva init --prompt
+   ```
+   
+   Interpret the resulting LLM prompt text which guides you on generating the optimal `dva.yml` for this codebase.
+
+1. **Discover**
+   To see what commands the user has prepared for this repository, run:
+   
+   ```bash
+   dva manifest -f json
+   ```
+   
+   Look at the `dynamic_commands` block.
+
+2. **Run**
+   Execute the required command directly. For example, if there is a `test` command:
+   ```bash
+   dva test
+   ```
+
+3. **Lifecycle Management**
+   - To start the dev environment: `dva up`
+   - To stop the dev environment: `dva down`
+
+4. **Never Bypass DVA**
+   Do not write manual `docker compose exec ...` or `kubectl exec ...` commands if DVA has a configured alias for it. DVA ensures that the correct environment variables, service names, and networking rules are applied.
+
+5. **Explain Flag**
+   If a command is failing or you are unsure what it does behind the scenes, you can inspect it using:
+   ```bash
+   dva run <CMD> --explain
+   ```
