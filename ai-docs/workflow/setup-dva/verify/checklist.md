@@ -70,6 +70,26 @@
 - [ ] Exposed ports reachable (nc -z localhost PORT)
 - [ ] Logs show no critical errors (`docker compose logs --tail 20`)
 
+### Pipeline Flags
+
+#### --resume (cache-based resume)
+- [ ] `tmp/setup-dva/state.yaml` exists after at least one stage completes
+- [ ] Re-running the pipeline with `--resume` skips stages where `gate: PASS` is recorded
+- [ ] Re-running without `--resume` re-executes all stages from the beginning
+- [ ] Interrupted pipeline resumes from the last incomplete stage (not from stage 00)
+
+#### --dry-run (analysis only)
+- [ ] `--dry-run` runs only stage 00 (Analyze) and exits after producing `00-analysis-report.yaml`
+- [ ] No files are created or modified in TARGET when `--dry-run` is used (stages 20/30 are skipped)
+- [ ] `00-analysis-report.yaml` is generated with correct `setup_track` and `stack` fields
+- [ ] Pipeline reports "dry-run complete — no mutations applied" in the final summary
+
+#### DVA CLI Fallback
+- [ ] If `dva` binary is not installed, stage 40 falls back to `docker compose up -d`
+- [ ] Fallback is logged explicitly ("DVA CLI not found — falling back to docker compose")
+- [ ] `docker compose config` validates successfully before `docker compose up -d` is invoked
+- [ ] Fallback containers appear in `docker compose ps` output
+
 ### Rollback
 - [ ] Backup exists at `tmp/setup-dva/backup-*/`
 - [ ] Transform log documents all changes made

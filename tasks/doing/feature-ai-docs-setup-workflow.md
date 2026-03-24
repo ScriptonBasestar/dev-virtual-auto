@@ -21,8 +21,8 @@ AI 서브에이전트를 활용하여 DVA 설정 및 구동 파이프라인을 �
    - [x] `stages/30-configure-adopt.md`
    - [x] `stages/40-execute.md`
 2. **파이프라인 상태/플래그 동작 검증**
-   - [ ] 캐시 기반 `--resume` 및 `--dry-run` 동작 확인
-   - [ ] DVA CLI 부재 시 `docker compose up -d` Fallback 작동 확인
+   - [x] 캐시 기반 `--resume` 및 `--dry-run` 동작 확인
+   - [x] DVA CLI 부재 시 `docker compose up -d` Fallback 작동 확인
 
 ## Expected Value
 기존에 컨테이너 환경을 수동 구성하던 사용자들도 AI 분석을 통해 손쉽고 정확하게 DVA 연동 및 구조 마이그레이션을 자동 수행할 수 있어 DVA 도입 허들을 크게 낮춥니다.

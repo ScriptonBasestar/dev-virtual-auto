@@ -7,21 +7,31 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 </objective>
 
 <steps>
-1. Launch the environment config check via `dva validate` down in the TARGET. This will assert that `dva.yml` syntax parses under built-in strictness.
-2. If DVA CLI check succeeds but `--skip-execute` was absent, fallback to executing a normal dry-run or syntax ping: `docker compose config` against the files named in the config.
-3. Assert that the validation mechanisms pass without yielding fatal syntax crashes.
-4. Extract execution metrics and CLI validation logs, appending them into a final report. 
-5. Ensure if the user utilized `--mode` or `--env` flags during pipeline run, the environment applies these parameters successfully.
+1. Check DVA CLI availability: run `which dva || command -v dva` to determine if the binary is installed.
+2. **If DVA CLI is available:**
+   a. Run `dva validate` in TARGET to assert `dva.yml` syntax parses correctly.
+   b. Unless `--skip-execute` was passed, run `dva up --no-wait` (or `dva up --mode {mode} --no-wait` if `--mode` was provided).
+   c. Run `dva status` to confirm containers reached healthy/running state.
+3. **If DVA CLI is NOT available (fallback):**
+   a. Log: "DVA CLI not found — falling back to docker compose"
+   b. Run `docker compose config` to validate compose syntax.
+   c. Unless `--skip-execute` was passed, run `docker compose up -d`.
+   d. Run `docker compose ps` to confirm containers started.
+4. If `--mode` or `--env` flags were provided during the pipeline run, verify the environment parameters are applied:
+   - `--mode`: confirm the mode-specific services/profiles are active
+   - `--env`: confirm environment vars from the named environment are in effect
+5. Collect all CLI output into `tmp/setup-dva/40-execution-report.txt`.
 </steps>
 
 <output>
-- `tmp/setup-dva/40-execution-report.txt` (Output snippet of CLI logs and verification processes checks)
+- `tmp/setup-dva/40-execution-report.txt` — CLI logs from validation and startup (dva or docker compose)
 </output>
 
 <gate>
-- [ ] `dva validate` completed properly without throwing parsing anomalies.
-- [ ] Environment syntax tests passed (i.e., `docker compose config`).
-- [ ] The CLI validation outputs exist in the execution report.
+- [ ] DVA CLI availability was checked and the correct execution path taken.
+- [ ] Configuration validation passed (`dva validate` or `docker compose config`).
+- [ ] Containers started successfully (unless `--skip-execute` was passed).
+- [ ] Execution report artifact exists with CLI output.
 </gate>
 
 <return>
