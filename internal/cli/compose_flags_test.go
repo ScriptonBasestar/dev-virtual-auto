@@ -7,12 +7,15 @@ import (
 )
 
 func TestParseDvaFlags_ModeOnly(t *testing.T) {
-	mode, env, filtered := parseDvaFlags([]string{"--mode", "native", "postgres"})
+	mode, env, excludeTags, filtered := parseDvaFlags([]string{"--mode", "native", "postgres"})
 	if mode != "native" {
 		t.Errorf("mode = %q, want %q", mode, "native")
 	}
 	if env != "" {
 		t.Errorf("env = %q, want empty", env)
+	}
+	if len(excludeTags) != 0 {
+		t.Errorf("excludeTags = %v, want empty", excludeTags)
 	}
 	if len(filtered) != 1 || filtered[0] != "postgres" {
 		t.Errorf("filtered = %v, want [postgres]", filtered)
@@ -20,7 +23,7 @@ func TestParseDvaFlags_ModeOnly(t *testing.T) {
 }
 
 func TestParseDvaFlags_EnvOnly(t *testing.T) {
-	mode, env, filtered := parseDvaFlags([]string{"--env", "stg", "-d"})
+	mode, env, _, filtered := parseDvaFlags([]string{"--env", "stg", "-d"})
 	if mode != "" {
 		t.Errorf("mode = %q, want empty", mode)
 	}
@@ -33,7 +36,7 @@ func TestParseDvaFlags_EnvOnly(t *testing.T) {
 }
 
 func TestParseDvaFlags_BothFlags(t *testing.T) {
-	mode, env, filtered := parseDvaFlags([]string{"-M", "docker", "-E", "prd", "--wait"})
+	mode, env, _, filtered := parseDvaFlags([]string{"-M", "docker", "-E", "prd", "--wait"})
 	if mode != "docker" {
 		t.Errorf("mode = %q, want %q", mode, "docker")
 	}
@@ -46,7 +49,7 @@ func TestParseDvaFlags_BothFlags(t *testing.T) {
 }
 
 func TestParseDvaFlags_EqualsSyntax(t *testing.T) {
-	mode, env, filtered := parseDvaFlags([]string{"--mode=hybrid", "--env=stg"})
+	mode, env, _, filtered := parseDvaFlags([]string{"--mode=hybrid", "--env=stg"})
 	if mode != "hybrid" {
 		t.Errorf("mode = %q, want %q", mode, "hybrid")
 	}
@@ -59,7 +62,7 @@ func TestParseDvaFlags_EqualsSyntax(t *testing.T) {
 }
 
 func TestParseDvaFlags_ShortEqualsSyntax(t *testing.T) {
-	mode, env, _ := parseDvaFlags([]string{"-M=native", "-E=prd"})
+	mode, env, _, _ := parseDvaFlags([]string{"-M=native", "-E=prd"})
 	if mode != "native" {
 		t.Errorf("mode = %q, want %q", mode, "native")
 	}
@@ -69,9 +72,12 @@ func TestParseDvaFlags_ShortEqualsSyntax(t *testing.T) {
 }
 
 func TestParseDvaFlags_Empty(t *testing.T) {
-	mode, env, filtered := parseDvaFlags(nil)
+	mode, env, excludeTags, filtered := parseDvaFlags(nil)
 	if mode != "" || env != "" {
 		t.Errorf("got mode=%q env=%q, want both empty", mode, env)
+	}
+	if excludeTags != nil {
+		t.Errorf("excludeTags = %v, want nil", excludeTags)
 	}
 	if filtered != nil {
 		t.Errorf("filtered = %v, want nil", filtered)
@@ -80,12 +86,32 @@ func TestParseDvaFlags_Empty(t *testing.T) {
 
 func TestParseDvaFlags_MissingValue(t *testing.T) {
 	// --mode at end with no value — should not panic
-	mode, _, filtered := parseDvaFlags([]string{"--mode"})
+	mode, _, _, filtered := parseDvaFlags([]string{"--mode"})
 	if mode != "" {
 		t.Errorf("mode = %q, want empty (no value provided)", mode)
 	}
 	if len(filtered) != 0 {
 		t.Errorf("filtered = %v, want empty", filtered)
+	}
+}
+
+func TestParseDvaFlags_ExcludeTags(t *testing.T) {
+	_, _, excludeTags, filtered := parseDvaFlags([]string{"--exclude-tags", "infra", "-d"})
+	if len(excludeTags) != 1 || excludeTags[0] != "infra" {
+		t.Errorf("excludeTags = %v, want [infra]", excludeTags)
+	}
+	if len(filtered) != 1 || filtered[0] != "-d" {
+		t.Errorf("filtered = %v, want [-d]", filtered)
+	}
+}
+
+func TestParseDvaFlags_ExcludeTagsCommaSeparated(t *testing.T) {
+	_, _, excludeTags, _ := parseDvaFlags([]string{"--exclude-tags=infra,dev"})
+	if len(excludeTags) != 2 {
+		t.Fatalf("excludeTags = %v, want 2 items", excludeTags)
+	}
+	if excludeTags[0] != "infra" || excludeTags[1] != "dev" {
+		t.Errorf("excludeTags = %v, want [infra dev]", excludeTags)
 	}
 }
 
