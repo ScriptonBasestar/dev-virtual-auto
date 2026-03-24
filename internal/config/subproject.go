@@ -95,6 +95,28 @@ func (c *Config) GetComposeServicesExcluding(excludeTags []string) []string {
 	return included
 }
 
+// GetComposeServicesIncluding returns compose service names that HAVE ANY of the included tags.
+// Services without explicit tags inherit the compose-level default tags.
+func (c *Config) GetComposeServicesIncluding(includeTags []string) []string {
+	if len(includeTags) == 0 || len(c.Compose.Services) == 0 {
+		return nil
+	}
+	include := toSet(includeTags)
+	defaults := c.Compose.Tags
+
+	var included []string
+	for svcName, svcCfg := range c.Compose.Services {
+		tags := svcCfg.Tags
+		if len(tags) == 0 {
+			tags = defaults
+		}
+		if hasAnyTag(tags, include) {
+			included = append(included, svcName)
+		}
+	}
+	return included
+}
+
 // GetExcludedComposeServices returns compose service names that HAVE any of the excluded tags.
 func (c *Config) GetExcludedComposeServices(excludeTags []string) []string {
 	if len(excludeTags) == 0 || len(c.Compose.Services) == 0 {

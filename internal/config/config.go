@@ -24,10 +24,13 @@ type Config struct {
 	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
-	Profiles     map[string]ProfileConfig        `yaml:"profiles"`
+	Modes        map[string]ModeConfig            `yaml:"modes"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
+
+	// Deprecated: use Modes instead. Kept for backwards compatibility with existing dva.yml files.
+	DeprecatedProfiles map[string]ModeConfig `yaml:"profiles"`
 
 	// Internal fields
 	filePath string
@@ -48,8 +51,8 @@ type SubprojectConfig struct {
 	ExcludeTags []string `yaml:"exclude_tags"`
 }
 
-// ProfileConfig defines a named operational mode for dva up.
-type ProfileConfig struct {
+// ModeConfig defines a named operational mode for dva up (--mode/-M flag).
+type ModeConfig struct {
 	Description     string            `yaml:"description"`
 	ComposeProfiles []string          `yaml:"compose_profiles"`
 	ComposeServices *[]string         `yaml:"compose_services"` // nil=all, empty=none, items=only those
@@ -307,6 +310,9 @@ func Load(workDir string) (*Config, error) {
 		cfg.mergeFrom(overCfg)
 	}
 
+	// Migrate deprecated 'profiles:' → 'modes:'
+	migrateDeprecatedProfiles(cfg)
+
 	// Apply defaults
 	if cfg.Environment == nil {
 		cfg.Environment = make(map[string]string)
@@ -367,9 +373,27 @@ func loadFile(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// migrateDeprecatedProfiles moves entries from the deprecated 'profiles:' key
+// into 'modes:', printing a warning. Both keys in the same file is an error.
+func migrateDeprecatedProfiles(cfg *Config) {
+	if len(cfg.DeprecatedProfiles) == 0 {
+		return
+	}
+	if len(cfg.Modes) > 0 {
+		fmt.Fprintf(os.Stderr, "[warn] dva.yml has both 'profiles:' and 'modes:'. 'profiles:' is ignored — please remove it.\n")
+		cfg.DeprecatedProfiles = nil
+		return
+	}
+	fmt.Fprintf(os.Stderr, "[warn] 'profiles:' is deprecated in dva.yml. Rename to 'modes:'.\n")
+	cfg.Modes = cfg.DeprecatedProfiles
+	cfg.DeprecatedProfiles = nil
+}
+
 // mergeFrom merges another config into this one (other values take precedence
 // for top-level scalars; maps are deep-merged).
 func (c *Config) mergeFrom(other *Config) {
+	// Migrate deprecated profiles in the source before merging
+	migrateDeprecatedProfiles(other)
 	// Merge environment
 	if other.Environment != nil {
 		if c.Environment == nil {
@@ -450,13 +474,13 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge profiles
-	if other.Profiles != nil {
-		if c.Profiles == nil {
-			c.Profiles = make(map[string]ProfileConfig)
+	// Merge modes
+	if other.Modes != nil {
+		if c.Modes == nil {
+			c.Modes = make(map[string]ModeConfig)
 		}
-		for k, v := range other.Profiles {
-			c.Profiles[k] = v
+		for k, v := range other.Modes {
+			c.Modes[k] = v
 		}
 	}
 

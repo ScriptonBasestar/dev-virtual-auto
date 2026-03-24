@@ -184,15 +184,15 @@ provision:
     - step: Precompiling assets
       run: dva rails assets:precompile
 
-# Profiles: runtime strategy (--mode/-M) — HOW to run infrastructure
-profiles:
+# Modes: runtime strategy (--mode/-M) — HOW to run infrastructure
+modes:
   native:
     description: Run without Docker (native services only)
     compose_services: []
     health_checks: [postgres, redis, web_server]
 
   docker:
-    description: Full Docker mode with all profiles activated
+    description: Full Docker mode with all compose profiles activated
     compose_profiles: [web, development, frontend]
 
   hybrid:

@@ -7,6 +7,9 @@ effort: S
 category: docs
 tags: [docs, changelog]
 source: "프로젝트 루트에 CHANGELOG 없음, 49개 커밋 존재"
+verified-at: "2026-03-24T16:17:17+09:00"
+archived-at: "2026-03-24T16:17:17+09:00"
+verification-summary: "CHANGELOG.md 생성 확인. 릴리스별 변경사항 기록 검증 완료."
 ---
 
 ## Description

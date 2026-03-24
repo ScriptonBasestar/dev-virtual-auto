@@ -38,7 +38,7 @@ provision:                      # Setup automation
 modules:                        # Module imports (.dva/*.yml)
   - module-name
 
-profiles:                       # Operational modes (--mode/-M flag)
+modes:                          # Operational modes (--mode/-M flag)
   {mode-name}:
     description: "{human-readable description}"
     compose_profiles: [profile1]  # Maps to docker compose --profile
@@ -66,10 +66,10 @@ kubectl:                        # Kubernetes config (optional)
   namespace: myapp-dev
 ```
 
-## Profiles & Environments — CLI Flag Reference
+## Modes & Environments — CLI Flag Reference
 
-### --mode/-M (Profiles)
-Selects a named profile from `profiles:` section. Determines HOW to run infrastructure.
+### --mode/-M (Modes)
+Selects a named mode from `modes:` section. Determines HOW to run infrastructure.
 
 ```bash
 dva up --mode native     # Skip compose, health checks only
@@ -77,7 +77,7 @@ dva up -M docker         # Full docker with compose_profiles
 dva up -M hybrid         # Partial compose + health checks
 ```
 
-**Profile resolution logic:**
+**Mode resolution logic:**
 1. If `compose_services: []` (empty list) → skip compose entirely, run health_checks only
 2. If `compose_services: [svc1, svc2]` → start only listed services
 3. If `compose_profiles: [prof1]` → pass `--profile prof1` to docker compose

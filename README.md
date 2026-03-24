@@ -62,7 +62,8 @@ dva manifest    # LLM용 전체 커맨드 매니페스트 출력
 dva ls              # 사용 가능한 커맨드 목록
 dva shell           # = dva run shell (run 생략 가능)
 dva up              # 서비스 시작 (-d --wait)
-dva up -M backend   # 프로필 모드 적용
+dva up -M backend   # 모드 적용
+dva up -T backend   # 특정 태그 그룹만 실행
 dva down            # 서비스 중지 및 제거
 dva status          # 워크스페이스 상태 확인
 dva show            # 설정 요약
@@ -75,8 +76,9 @@ dva init --ai       # AI로 dva.yml 자동 생성
 
 ## Configuration
 
-- **Profiles** (`--mode/-M`): 운영 모드별 compose profiles + 서비스 필터 + 환경변수
+- **Modes** (`--mode/-M`): 운영 모드별 compose profiles + 서비스 필터 + 환경변수
 - **Environments** (`--env/-E`): 환경변수 프리셋
+- **Tags** (`--tags/-T`): 태그 기반 특정 서비스 그룹 필터링 (`--tag` 별칭 지원)
 - **Health Checks**: 비-compose 서비스 상태 확인 및 자동 시작
 - **Subprojects**: 모노레포 서브프로젝트 참조 (`dva api:test`)
 - **Modules**: `.dva/*.yml` 파일로 설정 분리

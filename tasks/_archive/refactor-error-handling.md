@@ -7,6 +7,9 @@ effort: M
 category: quality
 tags: [refactor, error-handling]
 source: "run.go:67 os.Exit vs compose.go:119 return err 혼재"
+verified-at: "2026-03-24T16:17:17+09:00"
+archived-at: "2026-03-24T16:17:17+09:00"
+verification-summary: "전체 CLI 커맨드에서 cobra RunE 패턴 단일화 및 중앙집중 처리, make test 오류 없음 확인."
 ---
 
 ## Description

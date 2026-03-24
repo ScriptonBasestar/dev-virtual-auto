@@ -13,9 +13,9 @@ import (
 
 var showCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show registered configuration summary (profiles, environments, commands)",
+	Short: "Show registered configuration summary (modes, environments, commands)",
 	Long: `Display a human-readable summary of the current dva.yml configuration.
-Shows all registered profiles (--mode), environments (--env), interaction commands,
+Shows all registered modes (--mode), environments (--env), interaction commands,
 provision profiles, health checks, and subprojects at a glance.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -47,15 +47,15 @@ func showText(c *config.Config) error {
 		}
 	}
 
-	// Profiles (--mode)
-	if len(c.Profiles) > 0 {
+	// Modes (--mode)
+	if len(c.Modes) > 0 {
 		fmt.Println()
-		fmt.Println("Profiles (--mode/-M):")
-		names := sortedKeys(c.Profiles)
+		fmt.Println("Modes (--mode/-M):")
+		names := sortedKeys(c.Modes)
 		maxLen := maxKeyLen(names)
 		for _, name := range names {
-			p := c.Profiles[name]
-			fmt.Printf("  %-*s  %s\n", maxLen, name, p.Description)
+			m := c.Modes[name]
+			fmt.Printf("  %-*s  %s\n", maxLen, name, m.Description)
 		}
 	}
 
@@ -155,12 +155,12 @@ func showJSON(c *config.Config) error {
 		data["compose"] = compose
 	}
 
-	if len(c.Profiles) > 0 {
-		profiles := make(map[string]string, len(c.Profiles))
-		for k, v := range c.Profiles {
-			profiles[k] = v.Description
+	if len(c.Modes) > 0 {
+		modes := make(map[string]string, len(c.Modes))
+		for k, v := range c.Modes {
+			modes[k] = v.Description
 		}
-		data["profiles"] = profiles
+		data["modes"] = modes
 	}
 
 	if len(c.Environments) > 0 {

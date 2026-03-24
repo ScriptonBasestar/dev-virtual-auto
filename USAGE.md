@@ -35,6 +35,8 @@ dva init --ai             # Claude Code CLI로 dva.yml 자동 생성
 dva init --ai-docs        # AI agent 문서만 생성 (dva.yml 건드리지 않음)
 dva init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
 dva init -v               # AI 생성 시 상세 진행 표시
+dva init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
+dva init --all            # 자동 감지 시 가능한 모든 기능 통합 활성화
 ```
 
 #### run
@@ -61,7 +63,8 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 
 | Command | Description |
 |---------|-------------|
-| `dva show` | 설정 요약 (profiles, environments, commands 등) |
+| `dva add [FEATURE]` | 특정 통합 기능 추가 연동 (e.g., `devcontainer`) |
+| `dva show` | 설정 요약 (modes, environments, commands 등) |
 | `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
 | `dva config dump` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 
@@ -94,8 +97,10 @@ dva up postgres redis     # 특정 서비스만
 dva up -f                 # foreground 모드 (attached)
 dva up --force            # 헬스체크 무시, 강제 재시작
 dva up --no-wait          # 즉시 리턴 (wait 하지 않음)
-dva up -M backend         # 프로필 모드 적용
+dva up -M backend         # 모드 적용
 dva up -E staging         # 환경 프리셋 적용
+dva up -T backend,ui      # 특정 태그 그룹만 실행 (--tag 별칭 허용)
+dva up --exclude-tags db  # 특정 태그 그룹 제외 (--exclude-tag 별칭 허용)
 dva up -M backend -E staging  # 모드 + 환경 조합
 ```
 
@@ -111,12 +116,14 @@ dva clean -i              # + 로컬 빌드 이미지 제거
 dva clean -f              # 확인 프롬프트 스킵
 ```
 
-#### --mode / --env 플래그
+#### --mode / --env / --tags 플래그
 
-`--mode`(`-M`)와 `--env`(`-E`)는 `up`, `down`, `stop`, `restart`에서 사용 가능합니다.
+`--mode`(`-M`), `--env`(`-E`), `--tags`(`-T`), `--exclude-tags`는 `up`, `down`, `stop`, `restart`에서 사용 가능합니다.
 
-- `--mode`: `profiles` 섹션에 정의된 운영 모드 적용 (compose profiles, 서비스 필터, 환경변수)
+- `--mode`: `modes` 섹션에 정의된 운영 모드 적용 (compose profiles, 서비스 필터, 환경변수)
 - `--env`: `environments` 섹션에 정의된 환경변수 프리셋 적용
+- `--tags`: `tags` 속성 기반으로 특정 컨테이너 그룹만 선택 실행 (별칭: `--tag`)
+- `--exclude-tags`: 특정 태그 그룹 배제 (별칭: `--exclude-tag`)
 
 ### Integration Tools
 
@@ -183,7 +190,7 @@ interaction:
 | `env_file` | .env 파일 로딩 |
 | `interaction` | 커맨드 정의 (service, command, subcommands 등) |
 | `provision` | 프로비저닝 프로필 및 스텝 정의 |
-| `profiles` | 운영 모드 (`--mode` 플래그용) |
+| `modes` | 운영 모드 (`--mode` 플래그용) |
 | `environments` | 환경 프리셋 (`--env` 플래그용) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
 | `subprojects` | 서브프로젝트 참조 (모노레포) |
@@ -192,12 +199,12 @@ interaction:
 | `ssh` | SSH agent 설정 |
 | `devcontainer` | devcontainer 통합 (실험적) |
 
-### profiles (--mode)
+### modes (--mode)
 
 `dva up -M <name>`으로 활성화. Compose profiles, 서비스 필터, 환경변수를 묶어서 관리합니다.
 
 ```yaml
-profiles:
+modes:
   backend:
     description: "Backend services only"
     compose_profiles: [backend]

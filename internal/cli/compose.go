@@ -35,9 +35,10 @@ DVA-specific flags (not passed to docker compose):
   --foreground, -f          Run in foreground (attached) mode
   --force                   Bypass health check and force restart
   --no-wait                 Start services and return immediately without waiting
-  --mode, -M MODE           Use a named profile from dva.yml profiles section
+  --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
-  --exclude-tags TAG[,TAG]  Exclude compose services matching any of the given tags`,
+  --tag, -T TAG[,TAG]       Include only compose services matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude compose services matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -46,12 +47,21 @@ DVA-specific flags (not passed to docker compose):
 		// Warn about compose file project name mismatches
 		printComposeNameWarnings(c.ValidateComposeProjectNames())
 
-		// Parse DVA-specific flags (--mode, --env, --exclude-tags extracted first)
-		mode, envName, excludeTags, args := parseDvaFlags(args)
+		// Parse DVA-specific flags (--mode, --env, --tag, --exclude-tag extracted first)
+		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
 
 		// Apply tag-based service filtering
-		if excluded := c.GetComposeServicesExcluding(excludeTags); len(excluded) > 0 {
-			args = append(args, excluded...)
+		if len(includeTags) > 0 {
+			included := c.GetComposeServicesIncluding(includeTags)
+			if len(included) == 0 {
+				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
+				return nil
+			}
+			args = append(args, included...)
+		} else if len(excludeTags) > 0 {
+			if excluded := c.GetComposeServicesExcluding(excludeTags); len(excluded) > 0 {
+				args = append(args, excluded...)
+			}
 		}
 
 		foreground := false
@@ -71,15 +81,15 @@ DVA-specific flags (not passed to docker compose):
 			}
 		}
 
-		// Resolve profile/mode
+		// Resolve mode
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
-		if rm.Profile != nil {
-			fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Profile.Description)
-			if len(rm.Profile.Environment) > 0 {
-				e.MergeVars(rm.Profile.Environment)
+		if rm.Mode != nil {
+			fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+			if len(rm.Mode.Environment) > 0 {
+				e.MergeVars(rm.Mode.Environment)
 			}
 		}
 		if err := applyEnv(e, c, envName); err != nil {
@@ -87,9 +97,9 @@ DVA-specific flags (not passed to docker compose):
 		}
 		filteredArgs = append(filteredArgs, rm.ServiceArgs...)
 
-		// Suggest provision if profile defines one and marker doesn't exist
-		if rm.Profile != nil && rm.Profile.Provision != "" {
-			suggestProvision(c, rm.Profile.Provision)
+		// Suggest provision if mode defines one and marker doesn't exist
+		if rm.Mode != nil && rm.Mode.Provision != "" {
+			suggestProvision(c, rm.Mode.Provision)
 		}
 
 		// Native mode: skip compose, only run health checks
@@ -194,12 +204,12 @@ var downCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, excludeTags, filteredArgs := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
-		if rm.Profile != nil {
+		if rm.Mode != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
 		}
 		if err := applyEnv(e, c, envName); err != nil {
@@ -207,8 +217,17 @@ var downCmd = &cobra.Command{
 		}
 
 		// Apply tag-based service filtering (down specific tagged services)
-		if included := c.GetComposeServicesExcluding(excludeTags); len(included) > 0 {
+		if len(includeTags) > 0 {
+			included := c.GetComposeServicesIncluding(includeTags)
+			if len(included) == 0 {
+				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
+				return nil
+			}
 			filteredArgs = append(filteredArgs, included...)
+		} else if len(excludeTags) > 0 {
+			if included := c.GetComposeServicesExcluding(excludeTags); len(included) > 0 {
+				filteredArgs = append(filteredArgs, included...)
+			}
 		}
 
 		stopLocalServices(c.FileDir())
@@ -233,16 +252,30 @@ var stopCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, _, filteredArgs := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
-		if rm.Profile != nil {
+		if rm.Mode != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
 		}
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
+		}
+
+		// Apply tag-based service filtering (stop specific tagged services)
+		if len(includeTags) > 0 {
+			included := c.GetComposeServicesIncluding(includeTags)
+			if len(included) == 0 {
+				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
+				return nil
+			}
+			filteredArgs = append(filteredArgs, included...)
+		} else if len(excludeTags) > 0 {
+			if included := c.GetComposeServicesExcluding(excludeTags); len(included) > 0 {
+				filteredArgs = append(filteredArgs, included...)
+			}
 		}
 
 		stopLocalServices(c.FileDir())
@@ -339,19 +372,33 @@ var restartCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, _, filteredArgs := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
-		if rm.Profile != nil {
+		if rm.Mode != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
-			if len(rm.Profile.Environment) > 0 {
-				e.MergeVars(rm.Profile.Environment)
+			if len(rm.Mode.Environment) > 0 {
+				e.MergeVars(rm.Mode.Environment)
 			}
 		}
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
+		}
+
+		// Apply tag-based service filtering
+		if len(includeTags) > 0 {
+			included := c.GetComposeServicesIncluding(includeTags)
+			if len(included) == 0 {
+				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
+				return nil
+			}
+			filteredArgs = append(filteredArgs, included...)
+		} else if len(excludeTags) > 0 {
+			if included := c.GetComposeServicesExcluding(excludeTags); len(included) > 0 {
+				filteredArgs = append(filteredArgs, included...)
+			}
 		}
 
 		stopLocalServices(c.FileDir())
@@ -401,9 +448,9 @@ var restartCmd = &cobra.Command{
 	},
 }
 
-// parseDvaFlags extracts --mode/-M, --env/-E, and --exclude-tags from args.
-// excludeTags is a slice of tag names to exclude from compose services.
-func parseDvaFlags(args []string) (mode, env string, excludeTags []string, filtered []string) {
+// parseDvaFlags extracts --mode/-M, --env/-E, --tags/-T, and --exclude-tags from args.
+// excludeTags or includeTags is a slice of tag names.
+func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -425,11 +472,28 @@ func parseDvaFlags(args []string) (mode, env string, excludeTags []string, filte
 			env = strings.TrimPrefix(a, "--env=")
 		case strings.HasPrefix(a, "-E="):
 			env = strings.TrimPrefix(a, "-E=")
-		case a == "--exclude-tags":
+		case a == "--tag" || a == "--tags" || a == "-T":
+			if i+1 < len(args) {
+				i++
+				includeTags = append(includeTags, strings.Split(args[i], ",")...)
+			}
+		case strings.HasPrefix(a, "--tag="):
+			val := strings.TrimPrefix(a, "--tag=")
+			includeTags = append(includeTags, strings.Split(val, ",")...)
+		case strings.HasPrefix(a, "--tags="):
+			val := strings.TrimPrefix(a, "--tags=")
+			includeTags = append(includeTags, strings.Split(val, ",")...)
+		case strings.HasPrefix(a, "-T="):
+			val := strings.TrimPrefix(a, "-T=")
+			includeTags = append(includeTags, strings.Split(val, ",")...)
+		case a == "--exclude-tag" || a == "--exclude-tags":
 			if i+1 < len(args) {
 				i++
 				excludeTags = append(excludeTags, strings.Split(args[i], ",")...)
 			}
+		case strings.HasPrefix(a, "--exclude-tag="):
+			val := strings.TrimPrefix(a, "--exclude-tag=")
+			excludeTags = append(excludeTags, strings.Split(val, ",")...)
 		case strings.HasPrefix(a, "--exclude-tags="):
 			val := strings.TrimPrefix(a, "--exclude-tags=")
 			excludeTags = append(excludeTags, strings.Split(val, ",")...)
@@ -463,53 +527,53 @@ func applyEnv(e *config.Environment, c *config.Config, envName string) error {
 	return nil
 }
 
-// resolvedMode holds the result of resolving a --mode flag against config profiles.
+// resolvedMode holds the result of resolving a --mode flag against config modes.
 type resolvedMode struct {
-	Profile      *config.ProfileConfig
+	Mode         *config.ModeConfig
 	ComposeArgs  []string // --profile flags for docker compose (global position)
 	SkipCompose  bool
 	ServiceArgs  []string // specific services to target
 	HealthChecks map[string]config.HealthCheckConfig
 }
 
-// resolveMode looks up a mode name in config profiles and returns resolved settings.
+// resolveMode looks up a mode name in config modes and returns resolved settings.
 func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 	if mode == "" {
 		return &resolvedMode{HealthChecks: c.HealthChecks}, nil
 	}
 
-	p, ok := c.Profiles[mode]
+	m, ok := c.Modes[mode]
 	if !ok {
-		available := make([]string, 0, len(c.Profiles))
-		for k := range c.Profiles {
+		available := make([]string, 0, len(c.Modes))
+		for k := range c.Modes {
 			available = append(available, k)
 		}
 		if len(available) == 0 {
-			return nil, fmt.Errorf("mode '%s' not found. No profiles defined in dva.yml under 'profiles:'", mode)
+			return nil, fmt.Errorf("mode '%s' not found. No modes defined in dva.yml under 'modes:'", mode)
 		}
 		return nil, fmt.Errorf("mode '%s' not found. Available: %s", mode, strings.Join(available, ", "))
 	}
 
 	rm := &resolvedMode{
-		Profile:      &p,
+		Mode:         &m,
 		HealthChecks: c.HealthChecks,
 	}
 
-	for _, cp := range p.ComposeProfiles {
+	for _, cp := range m.ComposeProfiles {
 		rm.ComposeArgs = append(rm.ComposeArgs, "--profile", cp)
 	}
 
-	if p.ComposeServices != nil {
-		if len(*p.ComposeServices) == 0 {
+	if m.ComposeServices != nil {
+		if len(*m.ComposeServices) == 0 {
 			rm.SkipCompose = true
 		} else {
-			rm.ServiceArgs = *p.ComposeServices
+			rm.ServiceArgs = *m.ComposeServices
 		}
 	}
 
-	if len(p.HealthChecks) > 0 {
+	if len(m.HealthChecks) > 0 {
 		rm.HealthChecks = make(map[string]config.HealthCheckConfig)
-		for _, name := range p.HealthChecks {
+		for _, name := range m.HealthChecks {
 			if hc, ok := c.HealthChecks[name]; ok {
 				rm.HealthChecks[name] = hc
 			}

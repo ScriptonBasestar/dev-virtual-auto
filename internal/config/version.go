@@ -2,7 +2,7 @@ package config
 
 var (
 	// Version is the current DVA version.
-	Version = "0.1.22"
+	Version = "0.1.23"
 	// Commit is the git commit hash at build time.
 	Commit = "none"
 	// BuildDate is the date and time of the build.

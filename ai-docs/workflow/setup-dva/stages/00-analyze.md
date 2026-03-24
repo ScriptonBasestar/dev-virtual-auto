@@ -12,7 +12,7 @@ Scan the user's TARGET project to identify existing configurations, docker usage
 3. Determine track:
    - If the project has an extensive, well-maintained docker compose setup: set `setup_track: adopt`.
    - If no valid docker compose file exists, or the user requests a fresh robust environment: set `setup_track: full`.
-4. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `profiles` later.
+4. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
 5. Compile findings into `00-analysis-report.yaml`.
 </steps>
 

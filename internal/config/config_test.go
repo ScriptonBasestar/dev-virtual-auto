@@ -363,11 +363,11 @@ func TestDoctorChecksParsing(t *testing.T) {
 	}
 }
 
-func TestProfileProvisionField(t *testing.T) {
+func TestModeProvisionField(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
-	content := `profiles:
+	content := `modes:
   full-stack:
     description: "Everything"
     provision: setup
@@ -383,12 +383,12 @@ provision:
 		t.Fatalf("Load error: %v", err)
 	}
 
-	p, ok := cfg.Profiles["full-stack"]
+	m, ok := cfg.Modes["full-stack"]
 	if !ok {
-		t.Fatal("profile full-stack not found")
+		t.Fatal("mode full-stack not found")
 	}
-	if p.Provision != "setup" {
-		t.Errorf("provision = %q, want setup", p.Provision)
+	if m.Provision != "setup" {
+		t.Errorf("provision = %q, want setup", m.Provision)
 	}
 }
 

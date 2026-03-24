@@ -19,7 +19,7 @@
 - [ ] `dva.yml` version field present
 - [ ] `compose.files` lists correct compose files
 - [ ] `interaction` entries match running services
-- [ ] If `profiles:` defined, each profile references valid compose_profiles/compose_services/health_checks
+- [ ] If `modes:` defined, each mode references valid compose_profiles/compose_services/health_checks
 - [ ] If `environments:` defined, each environment has description and environment map
 - [ ] If `provision:` defined, each profile has valid step entries
 
@@ -38,8 +38,8 @@
 - [ ] `dva up --no-wait` succeeds (immediate return)
 
 ### DVA CLI — Mode Flag (--mode/-M)
-- [ ] For each profile in `profiles:`: `dva up --mode {name} --no-wait` runs without error
-- [ ] For each profile: `dva down -M {name}` tears down correctly
+- [ ] For each mode in `modes:`: `dva up --mode {name} --no-wait` runs without error
+- [ ] For each mode: `dva down -M {name}` tears down correctly
 - [ ] Native mode (`compose_services: []`): compose is skipped, health_checks run
 - [ ] Docker mode (`compose_profiles: [...]`): correct `--profile` flags passed to compose
 - [ ] Hybrid mode (`compose_services: [svc1, svc2]`): only listed services start
@@ -48,7 +48,7 @@
 ### DVA CLI — Env Flag (--env/-E)
 - [ ] For each environment in `environments:`: `dva up --env {name} --no-wait` runs without error
 - [ ] For each environment: `dva up -E {name} --no-wait` (short flag) runs without error
-- [ ] Environment vars from profile are merged into compose context
+- [ ] Environment vars from mode are merged into compose context
 - [ ] Invalid env name: exits non-zero with "not found" and available list
 
 ### DVA CLI — Combined Flags
