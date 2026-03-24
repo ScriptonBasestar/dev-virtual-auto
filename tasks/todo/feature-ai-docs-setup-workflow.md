@@ -14,12 +14,12 @@ AI 서브에이전트를 활용하여 DVA 설정 및 구동 파이프라인을 �
 
 ### 진행해야 할 세부 작업 (Sub-tasks)
 1. **Subagent 스테이지 파일 작성**
-   - [ ] `stages/00-analyze.md`
-   - [ ] `stages/10-verify.md` (사용자 승인 분기 포함)
-   - [ ] `stages/20-transform.md`
-   - [ ] `stages/30-configure-full.md`
-   - [ ] `stages/30-configure-adopt.md`
-   - [ ] `stages/40-execute.md`
+   - [x] `stages/00-analyze.md`
+   - [x] `stages/10-verify.md` (사용자 승인 분기 포함)
+   - [x] `stages/20-transform.md`
+   - [x] `stages/30-configure-full.md`
+   - [x] `stages/30-configure-adopt.md`
+   - [x] `stages/40-execute.md`
 2. **파이프라인 상태/플래그 동작 검증**
    - [ ] 캐시 기반 `--resume` 및 `--dry-run` 동작 확인
    - [ ] DVA CLI 부재 시 `docker compose up -d` Fallback 작동 확인

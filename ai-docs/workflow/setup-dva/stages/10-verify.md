@@ -1,149 +1,32 @@
-<!-- v:2026-03-23 -->
+# Stage 10: Verify
 
-<constants>
-SELF = ai-docs/workflow/setup-dva/stages/10-verify.md
-DVA_ROOT = {DVA project root}
-WORKFLOW_ROOT = ai-docs/workflow/setup-dva
-EXAMPLES_DIR = examples/
-</constants>
-
-[PRESENT TO USER — WAIT FOR APPROVAL]
-
-<role>DVA structure proposal agent — refine analysis into actionable proposal, present for user confirmation</role>
-
-<input>
-| Source | Description |
-|--------|-------------|
-| Analysis report | `tmp/setup-dva/00-analysis-{project-name}.md` from stage 00 |
-| DVA examples | Reference configurations from EXAMPLES_DIR |
-</input>
+<role>User interaction handler and proposal auditor</role>
 
 <objective>
-Transform the analysis report into a concrete, reviewable DVA structure proposal.
-Present to user with clear before/after comparison.
-**This stage requires explicit user approval before pipeline continues.**
+Present the proposed changes and structure (based on the analysis) to the user for explicit approval before any modifications are made. THIS IS THE ONLY USER GATE.
 </objective>
 
 <steps>
-## Phase 1: Load Analysis
-
-Read `tmp/setup-dva/00-analysis-*.md` from stage 00.
-Extract: gap analysis items, current structure, detected patterns, recommended DVA template.
-
-## Phase 2: Load DVA Template
-
-Read the recommended DVA example from EXAMPLES_DIR.
-Adapt the template to match the target project's services and structure.
-
-## Phase 3: Build Proposal
-
-### Track-Aware Actions
-
-The proposal must reflect the `setup_track` from analysis:
-
-| Track | Stage 30 File | compose.yml | dva.yml |
-|-------|---------------|-------------|---------|
-| **full** | `30-configure-full.md` | 신규 생성 | 신규 생성 |
-| **adopt** | `30-configure-adopt.md` | 기존 유지 (수정 안 함) | 신규 생성 |
-
-For each gap item, determine specific action:
-
-| Action Type | Description |
-|-------------|-------------|
-| RENAME | File rename (e.g., docker-compose.yml → compose.yml) |
-| MOVE | Directory relocation |
-| CREATE | New file generation (e.g., dva.yml, .env.example) |
-| MODIFY | Content update — **adopt track에서 compose.yml MODIFY 금지** |
-| DELETE | Remove obsolete file |
-
-## Phase 4: Generate Proposal Document
-
-Create proposal at `tmp/setup-dva/10-proposal-{project-name}.md`:
-
-```markdown
-# DVA Structure Proposal: {project-name}
-
-## Directory Layout (Before → After)
-
-### Before
-{tree of current structure}
-
-### After
-{tree of proposed structure}
-
-## Change Plan
-
-| # | Action | Source | Target | Reason |
-|---|--------|--------|--------|--------|
-
-## Compose Services Plan
-
-| Service | Image | Host Port | Container Port | Healthcheck |
-|---------|-------|-----------|----------------|-------------|
-
-## Setup Track
-- **Track: {full|adopt}**
-- Stage 30: {30-configure-full.md|30-configure-adopt.md}
-
-## DVA Configuration Preview
-
-```yaml
-version: "0.1.0"
-compose:
-  files:
-    - compose.yml
-interaction:
-  ...
-```
-
-## Risk Assessment
-- [ ] Data loss risk: {none|low|medium}
-- [ ] Downtime required: {yes|no}
-- [ ] Rollback plan: {description}
-```
-
-## Phase 5: Present to User
-
-Display the proposal and ask:
-
-```text
-[setup-dva] DVA Structure Proposal for {project-name}
-
-{proposal summary — key changes only}
-
-Options:
-  [approve]  — Proceed with transformation (stage 20)
-  [modify]   — Request changes to the proposal
-  [reject]   — Cancel DVA setup
-
-Your choice:
-```
-
-**WAIT for user response. Do NOT proceed without explicit approval.**
+1. Read `tmp/setup-dva/00-analysis-report.yaml`.
+2. Generate a clear markdown proposal outlining what files will be created or modified, the structure of the DVA configuration, the setup track, and infra services.
+   - **Crucial:** Highlight how services will be categorized into distinct working groups (e.g., frontend, backend, workers) using `tags` and `related` fields.
+3. Present the generated proposal directly to the user.
+4. **CRITICAL:** Prompt the user with "Do you approve these changes? (Yes/No/Modify)".
+5. **WAIT** for the user to explicitly approve or reject. Do not proceed independently.
+6. If the user provides modifications, adapt the proposal and ask again.
+7. Upon approval, save the finalized blueprint to `10-proposal-approved.yaml`.
 </steps>
 
-<constraints>
-- This is a USER GATE stage — never auto-approve
-- Proposal must show before/after for every change
-- If analysis report is missing, halt with error (requires stage 00)
-- Risk assessment is mandatory — highlight any data loss potential
-- Preserve existing functionality — never propose removing working features
-- DVA configuration preview must be valid against DVA schema
-</constraints>
-
-<gate>
-- [ ] Proposal document generated at tmp/setup-dva/
-- [ ] Before/after directory comparison included
-- [ ] Change plan table is complete (all gaps addressed)
-- [ ] DVA config preview is valid YAML
-- [ ] User explicitly approved (APPROVAL status recorded)
-</gate>
-
 <output>
-| Artifact | Path |
-|----------|------|
-| Proposal Document | `tmp/setup-dva/10-proposal-{project-name}.md` |
-| User Approval | Recorded in state.yaml as `stage_10.approval: approved` |
+- `tmp/setup-dva/10-proposal-approved.yaml` containing the approved blueprint.
 </output>
 
-<trigger>Load analysis → load DVA template → build proposal → present to user → wait for approval.</trigger>
+<gate>
+- [ ] User was explicitly asked for permission before proceeding.
+- [ ] User gave clear approval for the final provided proposal.
+- [ ] The completed proposal document is saved.
+</gate>
+
+<return>
+{ "artifacts": ["tmp/setup-dva/10-proposal-approved.yaml"], "gate": "PASS|FAIL", "summary": "..." }
+</return>
