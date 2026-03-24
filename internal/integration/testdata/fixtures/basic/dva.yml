@@ -1,0 +1,17 @@
+version: "0.1.22"
+
+environment:
+  APP_ENV: development
+
+compose:
+  files: [compose.yml]
+  project_name: basic-test
+
+interaction:
+  shell:
+    description: Start a shell
+    service: web
+    command: /bin/bash
+  test:
+    description: Run tests
+    command: make test

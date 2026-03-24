@@ -1,0 +1,64 @@
+version: "0.1.22"
+
+environment:
+  RAILS_ENV: development
+  DATABASE_URL: postgres://user:pass@db:5432/app
+
+compose:
+  files: [compose.yml]
+  project_name: fullstack-test
+
+modes:
+  docker:
+    description: Full Docker mode
+    compose_profiles: [web, worker]
+  native:
+    description: Native services only
+    compose_services: []
+    health_checks: [db, redis]
+
+environments:
+  dev:
+    description: Development
+    environment:
+      RAILS_ENV: development
+  stg:
+    description: Staging
+    environment:
+      RAILS_ENV: staging
+      DB_HOST: stg-db.internal
+
+interaction:
+  shell:
+    description: Start a shell
+    service: web
+    command: /bin/bash
+  rails:
+    description: Run Rails commands
+    service: web
+    command: bundle exec rails
+    subcommands:
+      console:
+        description: Rails console
+        command: bundle exec rails console
+
+health_checks:
+  db:
+    type: tcp
+    address: localhost:5432
+  redis:
+    type: tcp
+    address: localhost:6379
+
+provision:
+  default_profile: setup
+  setup:
+    - step: Install deps
+      run: echo "installing"
+    - step: Migrate DB
+      run:
+        - echo "creating db"
+        - echo "migrating"
+  reset:
+    - step: Drop and recreate
+      run: echo "resetting"

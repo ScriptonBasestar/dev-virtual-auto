@@ -426,15 +426,14 @@
     },
     "provision": {
       "type": "object",
-      "description": "Execute commands within provision section. Keys represent provision profiles (e.g., 'default', 'reset'), each containing an array of commands to execute. Commands can be strings (shell commands), step objects (structured steps with run/note), or legacy structured commands.",
-      "patternProperties": {
-        "^[\\w\\-.:/\\s]+$": {
-          "type": "array",
-          "items": { "$ref": "#/definitions/provision_item" },
-          "description": "Array of commands (strings, step objects, or legacy structured objects) to execute for this provision profile"
+      "description": "Execute commands within provision section. Keys represent provision profiles (e.g., 'default', 'reset'), each containing an array of commands to execute. Use 'default_profile' to set the default profile name.",
+      "properties": {
+        "default_profile": {
+          "type": "string",
+          "description": "Name of the default provision profile to use when none is specified",
+          "examples": ["setup", "default"]
         }
       },
-      "additionalProperties": false,
       "examples": [
         {
           "default": [

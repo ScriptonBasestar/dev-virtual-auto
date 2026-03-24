@@ -3,7 +3,7 @@ MODULE     := github.com/ScriptonBasestar/dva
 BUILD_DIR  := ./bin
 GOFLAGS    := -trimpath
 
-.PHONY: build install test lint clean fmt vet help bump-version
+.PHONY: build install test test-integration lint clean fmt vet help bump-version
 
 ## build: Build the dva binary
 build:
@@ -39,6 +39,10 @@ install: bump-version build
 ## test: Run all tests
 test:
 	go test -race -cover ./...
+
+## test-integration: Run integration tests (requires build tag)
+test-integration:
+	go test -tags=integration -race ./internal/integration/...
 
 ## lint: Run linters
 lint: vet

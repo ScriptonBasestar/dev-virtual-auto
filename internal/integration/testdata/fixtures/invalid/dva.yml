@@ -1,0 +1,4 @@
+version: "0.1.22"
+
+# Invalid: interaction value is a string, not a map
+interaction: "not-a-map"

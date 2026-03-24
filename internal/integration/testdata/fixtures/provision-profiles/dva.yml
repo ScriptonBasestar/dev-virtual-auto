@@ -1,0 +1,29 @@
+version: "0.1.22"
+
+compose:
+  files: [compose.yml]
+
+provision:
+  default_profile: setup
+  setup:
+    - step: Install dependencies
+      run: echo "bundle install"
+    - step: Setup database
+      run:
+        - echo "db:create"
+        - echo "db:migrate"
+        - echo "db:seed"
+  reset:
+    - step: Clean
+      run: echo "cleaning"
+    - step: Rebuild
+      run: echo "rebuilding"
+  parallel-demo:
+    - step: Start infra (parallel)
+      parallel: true
+      compose_up: [postgres, redis]
+    - step: Start cache (parallel)
+      parallel: true
+      compose_up: [memcached]
+    - step: Migrate
+      run: echo "migrating"
