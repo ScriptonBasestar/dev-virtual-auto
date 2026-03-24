@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -279,6 +280,81 @@ func TestGroupParallelBatches_BarrierAfterParallel(t *testing.T) {
 	}
 	if len(batches[1]) != 1 || batches[1][0].Step != "barrier" {
 		t.Errorf("batch[1] should be barrier step")
+	}
+}
+
+func TestPrintProvisionTable(t *testing.T) {
+	provision := map[string][]config.ProvisionItem{
+		"setup": {{Step: "Install deps"}, {Step: "Migrate DB"}},
+		"reset": {{Step: "Drop DB"}},
+	}
+	keys := []string{"reset", "setup"}
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printProvisionTable(provision, "setup", keys)
+
+	w.Close()
+	os.Stdout = old
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	output := string(buf[:n])
+
+	if !strings.Contains(output, "PROFILE") {
+		t.Errorf("output should contain header, got: %s", output)
+	}
+	if !strings.Contains(output, "setup *") {
+		t.Errorf("output should mark default profile, got: %s", output)
+	}
+	if !strings.Contains(output, "Install deps") {
+		t.Errorf("output should show first step description, got: %s", output)
+	}
+}
+
+func TestPrintProvisionJSON(t *testing.T) {
+	provision := map[string][]config.ProvisionItem{
+		"setup": {{Step: "Install"}},
+	}
+	keys := []string{"setup"}
+
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	printProvisionJSON(provision, "setup", keys)
+
+	w.Close()
+	os.Stdout = old
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	output := string(buf[:n])
+
+	if !strings.Contains(output, "profiles") {
+		t.Errorf("JSON output should contain profiles key, got: %s", output)
+	}
+	if !strings.Contains(output, "default_profile") {
+		t.Errorf("JSON output should contain default_profile key, got: %s", output)
+	}
+}
+
+func TestWriteAndClearProvisionMarker(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	writeProvisionMarker(tmpDir, "setup")
+
+	markerFile := tmpDir + "/.dva/provisioned-setup"
+	if _, err := os.Stat(markerFile); os.IsNotExist(err) {
+		t.Error("marker file should exist after writeProvisionMarker")
+	}
+
+	clearProvisionMarkers(tmpDir)
+
+	if _, err := os.Stat(markerFile); !os.IsNotExist(err) {
+		t.Error("marker file should be removed after clearProvisionMarkers")
 	}
 }
 

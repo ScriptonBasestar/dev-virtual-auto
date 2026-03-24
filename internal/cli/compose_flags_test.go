@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -294,5 +297,150 @@ func TestApplyEnv_MergesVars(t *testing.T) {
 	}
 	if e.Vars["DB_HOST"] != "stg-db" {
 		t.Errorf("DB_HOST = %q, want %q", e.Vars["DB_HOST"], "stg-db")
+	}
+}
+
+// --- buildComposeArgs tests ---
+
+func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
+	t.Helper()
+	tmpDir := t.TempDir()
+	dvaFile := filepath.Join(tmpDir, "dva.yml")
+	if err := os.WriteFile(dvaFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestBuildComposeArgs_Default(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+compose:
+  files: [compose.yml]
+`)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	cmd, args := buildComposeArgs(e, c, []string{"up", "-d"})
+	if cmd != "docker" {
+		t.Errorf("cmd = %q, want %q", cmd, "docker")
+	}
+	if args[0] != "compose" {
+		t.Errorf("args[0] = %q, want 'compose'", args[0])
+	}
+	if !strings.Contains(strings.Join(args, " "), "-f") {
+		t.Error("args should contain -f flag for compose file")
+	}
+	if args[len(args)-2] != "up" || args[len(args)-1] != "-d" {
+		t.Errorf("args should end with 'up -d', got %v", args)
+	}
+}
+
+func TestBuildComposeArgs_WithProjectName(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+compose:
+  project_name: myproject
+`)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	_, args := buildComposeArgs(e, c, []string{"ps"})
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--project-name") {
+		t.Error("args should contain --project-name")
+	}
+	if !strings.Contains(joined, "myproject") {
+		t.Errorf("args should contain project name, got: %s", joined)
+	}
+}
+
+func TestBuildComposeArgs_MultipleFiles(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+compose:
+  files: [compose.yml, compose.override.yml]
+`)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	_, args := buildComposeArgs(e, c, nil)
+	fCount := 0
+	for _, a := range args {
+		if a == "-f" {
+			fCount++
+		}
+	}
+	if fCount != 2 {
+		t.Errorf("-f count = %d, want 2", fCount)
+	}
+}
+
+// --- suggestProvision tests ---
+
+func TestSuggestProvision_AlreadyProvisioned(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+provision:
+  setup:
+    - step: test
+      run: echo ok
+`)
+	// Create marker file
+	markerDir := filepath.Join(c.FileDir(), ".dva")
+	os.MkdirAll(markerDir, 0755)
+	os.WriteFile(filepath.Join(markerDir, "provisioned-setup"), []byte(""), 0644)
+
+	// Should not print anything (already provisioned)
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	suggestProvision(c, "setup")
+	w.Close()
+	os.Stderr = old
+
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	if n > 0 {
+		t.Errorf("expected no output for already-provisioned, got: %s", string(buf[:n]))
+	}
+}
+
+func TestSuggestProvision_NotProvisioned(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+provision:
+  setup:
+    - step: test
+      run: echo ok
+`)
+
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	suggestProvision(c, "setup")
+	w.Close()
+	os.Stderr = old
+
+	buf := make([]byte, 4096)
+	n, _ := r.Read(buf)
+	output := string(buf[:n])
+	if !strings.Contains(output, "hint") {
+		t.Errorf("expected hint message, got: %s", output)
+	}
+}
+
+func TestSuggestProvision_ProfileNotExists(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+`)
+
+	// Should not print anything (profile doesn't exist)
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+	suggestProvision(c, "nonexistent")
+	w.Close()
+	os.Stderr = old
+
+	buf := make([]byte, 1024)
+	n, _ := r.Read(buf)
+	if n > 0 {
+		t.Errorf("expected no output for non-existent profile, got: %s", string(buf[:n]))
 	}
 }
