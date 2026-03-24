@@ -45,10 +45,8 @@ func LoadEnvFile(envFileConfig any, basePath string, env *Environment) error {
 			return fmt.Errorf("parsing env file %s: %w", path, err)
 		}
 
-		// Merge into environment
-		for k, v := range vars {
-			env.Vars[k] = v
-		}
+		// Merge into environment respecting OS priority (env_file < OS env)
+		env.MergeVars(vars)
 	}
 
 	// Interpolate loaded vars
