@@ -27,9 +27,19 @@ type Config struct {
 	Profiles     map[string]ProfileConfig        `yaml:"profiles"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
+	DoctorChecks []DoctorCheck                  `yaml:"checks"`
 
 	// Internal fields
 	filePath string
+}
+
+// DoctorCheck defines a single environment check for `dva doctor`.
+type DoctorCheck struct {
+	Name    string `yaml:"name"`     // human-readable check name
+	Type    string `yaml:"type"`     // file_exists, command, docker_socket
+	Path    string `yaml:"path"`     // for file_exists type
+	Command string `yaml:"command"`  // for command type
+	FixHint string `yaml:"fix_hint"` // suggestion shown when check fails
 }
 
 // SubprojectConfig defines a sub-project reference.
@@ -45,6 +55,7 @@ type ProfileConfig struct {
 	ComposeServices *[]string         `yaml:"compose_services"` // nil=all, empty=none, items=only those
 	HealthChecks    []string          `yaml:"health_checks"`
 	Environment     map[string]string `yaml:"environment"`
+	Provision       string            `yaml:"provision"` // provision profile to suggest on first run
 }
 
 // EnvironmentProfile defines a named environment configuration for --env flag.
@@ -79,8 +90,10 @@ type PortConfig struct {
 
 // ServiceTagConfig defines per-service tag configuration.
 type ServiceTagConfig struct {
-	Tags  []string           `yaml:"tags"`
-	Ports map[int]PortConfig `yaml:"ports"` // published (host) port -> config
+	Tags    []string           `yaml:"tags"`
+	Ports   map[int]PortConfig `yaml:"ports"`   // published (host) port -> config
+	Related []string           `yaml:"related"` // related service names (shown as hints when not running)
+	Hint    string             `yaml:"hint"`    // human-readable hint shown when related services are missing
 }
 
 // ComposeConfig holds Docker Compose settings.
@@ -465,6 +478,11 @@ func (c *Config) mergeFrom(other *Config) {
 		for k, v := range other.Subprojects {
 			c.Subprojects[k] = v
 		}
+	}
+
+	// Merge doctor checks
+	if len(other.DoctorChecks) > 0 {
+		c.DoctorChecks = append(c.DoctorChecks, other.DoctorChecks...)
 	}
 
 	// Merge devcontainer (override takes precedence as a whole)

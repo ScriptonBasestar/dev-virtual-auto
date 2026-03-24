@@ -87,6 +87,11 @@ DVA-specific flags (not passed to docker compose):
 		}
 		filteredArgs = append(filteredArgs, rm.ServiceArgs...)
 
+		// Suggest provision if profile defines one and marker doesn't exist
+		if rm.Profile != nil && rm.Profile.Provision != "" {
+			suggestProvision(c, rm.Profile.Provision)
+		}
+
 		// Native mode: skip compose, only run health checks
 		if rm.SkipCompose {
 			hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), !noWait)
@@ -150,6 +155,7 @@ DVA-specific flags (not passed to docker compose):
 						return printServiceJSON(services, projectName, true, hcResults)
 					}
 					printServiceTable(services, projectName, true, c.Compose.Services)
+					printRelatedServiceHints(services, c.Compose.Services)
 					fmt.Fprintf(os.Stderr, "  Hint: use 'dva up --force' to force restart\n\n")
 					printHealthCheckResults(hcResults, c.FileDir())
 					return nil
@@ -174,6 +180,7 @@ DVA-specific flags (not passed to docker compose):
 			return printServiceJSON(services, projectName, false, hcResults)
 		}
 		printServiceTable(services, projectName, false, c.Compose.Services)
+		printRelatedServiceHints(services, c.Compose.Services)
 		printHealthCheckResults(hcResults, c.FileDir())
 		return nil
 	},
@@ -504,6 +511,25 @@ func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 	}
 
 	return rm, nil
+}
+
+// suggestProvision checks if a provision profile has been run before
+// (via marker file in .dva/) and prints a suggestion if not.
+func suggestProvision(c *config.Config, provisionProfile string) {
+	markerDir := filepath.Join(c.FileDir(), ".dva")
+	markerFile := filepath.Join(markerDir, "provisioned-"+provisionProfile)
+
+	if _, err := os.Stat(markerFile); err == nil {
+		return // already provisioned
+	}
+
+	// Verify the provision profile exists
+	if _, ok := c.Provision.Profiles[provisionProfile]; !ok {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "\n[hint] Provision profile '%s' has not been run yet.\n", provisionProfile)
+	fmt.Fprintf(os.Stderr, "       Run: dva provision %s\n\n", provisionProfile)
 }
 
 func init() {

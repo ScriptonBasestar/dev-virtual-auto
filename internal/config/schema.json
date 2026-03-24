@@ -299,6 +299,17 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                "related": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Related service names that should typically run alongside this service",
+                  "examples": [["worker", "scheduler"]]
+                },
+                "hint": {
+                  "type": "string",
+                  "description": "Human-readable hint shown when related services are not running",
+                  "examples": ["Worker is required for async job processing"]
                 }
               }
             }
@@ -677,6 +688,11 @@
             },
             "environment": {
               "$ref": "#/definitions/environment_vars"
+            },
+            "provision": {
+              "type": "string",
+              "description": "Provision profile to suggest when services start for the first time",
+              "examples": ["setup", "reset"]
             }
           }
         }
@@ -766,6 +782,49 @@
         }
       },
       "additionalProperties": false
+    },
+    "checks": {
+      "type": "array",
+      "description": "Environment checks for 'dva doctor'. Validates prerequisites before running services.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable name of the check",
+            "examples": ["Docker socket accessible"]
+          },
+          "type": {
+            "type": "string",
+            "enum": ["file_exists", "command", "docker_socket"],
+            "description": "Type of check to perform"
+          },
+          "path": {
+            "type": "string",
+            "description": "File path to check (for file_exists type)",
+            "examples": [".env", "docker-compose.yml"]
+          },
+          "command": {
+            "type": "string",
+            "description": "Shell command to run (for command type, exit 0 = pass)",
+            "examples": ["docker info > /dev/null 2>&1"]
+          },
+          "fix_hint": {
+            "type": "string",
+            "description": "Suggestion shown when the check fails",
+            "examples": ["cp .env.example .env", "dva provision setup"]
+          }
+        },
+        "required": ["name", "type"]
+      },
+      "examples": [
+        [
+          { "name": "Docker socket accessible", "type": "docker_socket", "fix_hint": "Start Docker Desktop" },
+          { "name": ".env file exists", "type": "file_exists", "path": ".env", "fix_hint": "cp .env.example .env" },
+          { "name": "DB migrations applied", "type": "command", "command": "make migrate-status 2>&1 | grep -qv pending", "fix_hint": "dva provision setup" }
+        ]
+      ]
     }
   },
   "required": ["version"]

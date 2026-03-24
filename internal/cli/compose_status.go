@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -288,6 +289,50 @@ func printServiceJSON(services []ServiceInfo, projectName string, alreadyRunning
 		data["health_checks"] = healthChecks
 	}
 	return output.PrintJSON(data)
+}
+
+// printRelatedServiceHints checks running services against their "related" config
+// and prints warnings for related services that are not currently running.
+func printRelatedServiceHints(services []ServiceInfo, svcConfigs map[string]config.ServiceTagConfig) {
+	if len(svcConfigs) == 0 {
+		return
+	}
+
+	// Build set of running service names
+	running := make(map[string]bool, len(services))
+	for _, s := range services {
+		running[s.Service] = true
+	}
+
+	// Check each running service for missing related services
+	var hints []string
+	seen := make(map[string]bool)
+	for _, s := range services {
+		sc, ok := svcConfigs[s.Service]
+		if !ok || len(sc.Related) == 0 {
+			continue
+		}
+		for _, rel := range sc.Related {
+			if running[rel] || seen[rel] {
+				continue
+			}
+			seen[rel] = true
+			hint := fmt.Sprintf("  %s -> related service '%s' is not running", s.Service, rel)
+			if sc.Hint != "" {
+				hint += fmt.Sprintf("\n    Hint: %s", sc.Hint)
+			}
+			hint += fmt.Sprintf("\n    Run:  dva up %s", rel)
+			hints = append(hints, hint)
+		}
+	}
+
+	if len(hints) > 0 {
+		fmt.Fprintf(os.Stderr, "Related Services:\n")
+		for _, h := range hints {
+			fmt.Fprintln(os.Stderr, h)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
 }
 
 // extractServiceNames extracts positional service names from args,
