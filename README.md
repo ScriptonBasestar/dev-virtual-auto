@@ -91,6 +91,7 @@ dva init --ai       # AI로 dva.yml 자동 생성
 ```bash
 dva init --ai         # Claude Code CLI로 dva.yml 자동 생성
 dva init -p           # LLM용 프롬프트 출력
+dva init --improve-prompt  # 기존 dva.yml 개선용 프롬프트 출력
 dva manifest          # 구조화된 커맨드 매니페스트
 dva config dump       # 병합된 최종 설정 출력
 ```

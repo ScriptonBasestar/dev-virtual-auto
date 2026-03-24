@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 	_ "embed"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -17,8 +19,12 @@ import (
 //go:embed prompt_template.txt
 var promptTemplateText string
 
+//go:embed improve_prompt_template.txt
+var improvePromptTemplateText string
+
 var initTemplate string
 var initPrompt bool
+var initImprovePrompt bool
 var initAI bool
 var initAIDocs bool
 var initNoAIDocs bool
@@ -40,6 +46,9 @@ var initCmd = &cobra.Command{
 		if initPrompt {
 			generateAndPrintPrompt()
 			return nil
+		}
+		if initImprovePrompt {
+			return generateAndPrintImprovePrompt()
 		}
 
 		target := "dva.yml"
@@ -98,6 +107,7 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
+	initCmd.Flags().BoolVar(&initImprovePrompt, "improve-prompt", false, "Output an LLM prompt to review and improve the current dva.yml")
 	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
 	initCmd.Flags().BoolVar(&initAIDocs, "ai-docs", false, "Generate DVA guide and update CLAUDE.md/AGENTS.md (without regenerating dva.yml)")
 	initCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
@@ -541,6 +551,147 @@ func contains(slice []string, item string) bool {
 // generateAndPrintPrompt outputs the LLM prompt to stdout.
 func generateAndPrintPrompt() {
 	fmt.Println(buildPrompt())
+}
+
+// generateAndPrintImprovePrompt outputs the LLM prompt for iterative dva.yml improvement.
+func generateAndPrintImprovePrompt() error {
+	prompt, err := buildImprovePrompt()
+	if err != nil {
+		return err
+	}
+	fmt.Println(prompt)
+	return nil
+}
+
+func buildImprovePrompt() (string, error) {
+	c, err := config.Load(".")
+	if err != nil {
+		return "", fmt.Errorf("could not load current dva.yml: %w", err)
+	}
+
+	rawConfig, err := os.ReadFile(c.FilePath())
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", c.FilePath(), err)
+	}
+
+	manifestJSON, err := json.MarshalIndent(buildManifest(c), "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to build manifest: %w", err)
+	}
+
+	resolvedConfigYAML, err := yaml.Marshal(c)
+	if err != nil {
+		return "", fmt.Errorf("failed to render merged config: %w", err)
+	}
+
+	validationStatus := "PASS"
+	if err := c.Validate(); err != nil {
+		validationStatus = "FAIL: " + err.Error()
+	}
+
+	composeWarnings := formatComposeWarnings(c.ValidateComposeProjectNames())
+	if composeWarnings == "" {
+		composeWarnings = "None"
+	}
+
+	return fmt.Sprintf(improvePromptTemplateText,
+		c.FilePath(),
+		string(rawConfig),
+		string(manifestJSON),
+		string(resolvedConfigYAML),
+		validationStatus,
+		composeWarnings,
+		buildProjectSnapshot(),
+		config.Version,
+	), nil
+}
+
+func buildProjectSnapshot() string {
+	composeFiles := detectComposeFiles()
+	composeSummary := "None"
+	if len(composeFiles) > 0 {
+		var parts []string
+		for _, cf := range composeFiles {
+			entry := cf
+			if services := extractComposeServices(cf); len(services) > 0 {
+				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
+			}
+			parts = append(parts, entry)
+		}
+		composeSummary = strings.Join(parts, "\n")
+	}
+
+	infraFiles := detectInfraComposeFiles()
+	infraSummary := "None"
+	if len(infraFiles) > 0 {
+		var parts []string
+		for _, cf := range infraFiles {
+			entry := cf
+			if services := extractComposeServices(cf); len(services) > 0 {
+				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
+			}
+			parts = append(parts, entry)
+		}
+		infraSummary = strings.Join(parts, "\n")
+	}
+
+	buildFiles := []string{}
+	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
+		if _, err := os.Stat(f); err == nil {
+			buildFiles = append(buildFiles, f)
+		}
+	}
+	buildSummary := "None"
+	if len(buildFiles) > 0 {
+		buildSummary = strings.Join(buildFiles, ", ")
+	}
+
+	makeTargets := extractMakefileTargets()
+	if makeTargets == "" {
+		makeTargets = "None"
+	}
+
+	envFiles := []string{}
+	for _, f := range []string{".env.example", ".env"} {
+		if _, err := os.Stat(f); err == nil {
+			envFiles = append(envFiles, f)
+		}
+	}
+	envSummary := "None"
+	if len(envFiles) > 0 {
+		envSummary = strings.Join(envFiles, ", ")
+	}
+
+	subprojects := detectSubprojects(nil)
+	if subprojects == "" {
+		subprojects = "None"
+	}
+
+	return fmt.Sprintf(
+		"Root compose files:\n%s\n\nInfra compose files:\n%s\n\nBuild files:\n%s\n\nMakefile targets:\n%s\n\nEnvironment files:\n%s\n\nSubprojects:\n%s",
+		composeSummary,
+		infraSummary,
+		buildSummary,
+		makeTargets,
+		envSummary,
+		subprojects,
+	)
+}
+
+func formatComposeWarnings(warnings []config.ComposeNameWarning) string {
+	if len(warnings) == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, len(warnings))
+	for _, w := range warnings {
+		if w.ComposeName == "" {
+			lines = append(lines, fmt.Sprintf("%s: missing top-level name; expected %q", w.File, w.DvaName))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("%s: compose name %q differs from dva project_name %q", w.File, w.ComposeName, w.DvaName))
+	}
+	return strings.Join(lines, "\n")
 }
 
 // detectInfraComposeFiles finds compose files in common infrastructure subdirectories.

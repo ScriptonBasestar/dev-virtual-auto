@@ -1,14 +1,20 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/runner"
 )
+
+var validateStrict bool
 
 var validateCmd = &cobra.Command{
 	Use:   "validate",
@@ -28,6 +34,14 @@ var validateCmd = &cobra.Command{
 			fixComposeNameWarnings(c, warnings)
 		} else {
 			printComposeNameWarnings(warnings)
+		}
+
+		driftWarnings := detectConfigDriftWarnings(c)
+		printConfigDriftWarnings(driftWarnings)
+		printConfigSuggestionWarnings(detectConfigSuggestionWarnings(c))
+
+		if validateStrict && len(driftWarnings) > 0 {
+			return fmt.Errorf("config drift detected; review warnings above or run 'dva init --improve-prompt'")
 		}
 
 		// Check devcontainer sync
@@ -54,6 +68,7 @@ var validateCmd = &cobra.Command{
 
 func init() {
 	validateCmd.Flags().Bool("fix", false, "Auto-fix compose file project name mismatches")
+	validateCmd.Flags().BoolVar(&validateStrict, "strict", false, "Fail validation when config drift warnings are detected")
 }
 
 // printComposeNameWarnings prints warnings about compose file name mismatches to stderr.
@@ -78,5 +93,256 @@ func fixComposeNameWarnings(c *config.Config, warnings []config.ComposeNameWarni
 		} else {
 			fmt.Fprintf(os.Stderr, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
 		}
+	}
+}
+
+func printConfigDriftWarnings(warnings []string) {
+	for _, warning := range warnings {
+		fmt.Fprintf(os.Stderr, "[warn] config drift: %s\n", warning)
+	}
+}
+
+func detectConfigDriftWarnings(c *config.Config) []string {
+	var warnings []string
+
+	detectedCompose := detectComposeFilesInDir(c.FileDir())
+	if len(detectedCompose) > 0 {
+		configured := normalizeRelativePaths(c.Compose.Files)
+		if !sameStringSlice(configured, detectedCompose) {
+			warnings = append(warnings,
+				fmt.Sprintf("compose.files is %s but detected root compose files are %s; review whether dva.yml is tracking the current project layout",
+					formatList(configured), formatList(detectedCompose)))
+		}
+	}
+
+	availableServices := configuredComposeServices(c)
+	if len(availableServices) == 0 {
+		return warnings
+	}
+
+	tree := runner.NewInteractionTree(c.Interaction)
+	for name, cmd := range tree.List() {
+		if cmd.Service == "" {
+			continue
+		}
+		if !availableServices[cmd.Service] {
+			warnings = append(warnings,
+				fmt.Sprintf("interaction %q references compose service %q, but configured compose files expose %s",
+					name, cmd.Service, formatList(sortedSetKeys(availableServices))))
+		}
+	}
+
+	return warnings
+}
+
+func printConfigSuggestionWarnings(warnings []string) {
+	for _, warning := range warnings {
+		fmt.Fprintf(os.Stderr, "[warn] config suggestion: %s\n", warning)
+	}
+}
+
+func detectConfigSuggestionWarnings(c *config.Config) []string {
+	commandSet := map[string]bool{}
+	for name := range runner.NewInteractionTree(c.Interaction).List() {
+		commandSet[name] = true
+	}
+
+	candidates := map[string]string{}
+	for _, target := range extractDocumentedMakefileTargetNamesInDir(c.FileDir()) {
+		candidates[target] = "Makefile"
+	}
+	for _, script := range extractPackageScriptNamesInDir(c.FileDir()) {
+		if _, exists := candidates[script]; !exists {
+			candidates[script] = "package.json"
+		}
+	}
+
+	var names []string
+	for name := range candidates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var warnings []string
+	for _, name := range names {
+		if commandSet[name] {
+			continue
+		}
+		warnings = append(warnings,
+			fmt.Sprintf("%s defines %q but no DVA interaction with the same name exists; consider adding a direct mapping if it is part of the developer workflow",
+				candidates[name], name))
+	}
+
+	return warnings
+}
+
+func detectComposeFilesInDir(dir string) []string {
+	candidates := []string{
+		"docker-compose.yml",
+		"docker-compose.yaml",
+		"compose.yml",
+		"compose.yaml",
+	}
+
+	var found []string
+	for _, name := range candidates {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			found = append(found, name)
+		}
+	}
+
+	for _, name := range []string{"docker-compose.override.yml", "docker-compose.override.yaml"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			found = append(found, name)
+		}
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return found
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if strings.HasPrefix(name, "docker-compose.") &&
+			(strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")) &&
+			!contains(found, name) {
+			found = append(found, name)
+		}
+	}
+
+	if len(found) > 1 {
+		primary := []string{}
+		rest := []string{}
+		for _, file := range found {
+			switch filepath.Base(file) {
+			case "docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml":
+				primary = append(primary, file)
+			default:
+				rest = append(rest, file)
+			}
+		}
+		found = append(primary, rest...)
+	}
+
+	return found
+}
+
+func configuredComposeServices(c *config.Config) map[string]bool {
+	services := map[string]bool{}
+	for _, file := range c.Compose.Files {
+		path := file
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(c.FileDir(), file)
+		}
+		for _, service := range extractComposeServices(path) {
+			services[service] = true
+		}
+	}
+	return services
+}
+
+func sameStringSlice(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func normalizeRelativePaths(paths []string) []string {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		out = append(out, filepath.ToSlash(path))
+	}
+	return out
+}
+
+func sortedSetKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func formatList(items []string) string {
+	if len(items) == 0 {
+		return "(none)"
+	}
+	return strings.Join(items, ", ")
+}
+
+func extractDocumentedMakefileTargetNamesInDir(dir string) []string {
+	data, err := os.ReadFile(filepath.Join(dir, "Makefile"))
+	if err != nil {
+		return nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var targets []string
+	for _, line := range lines {
+		if strings.Contains(line, "##") && !strings.HasPrefix(line, "#") &&
+			!strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) != 2 || strings.HasPrefix(parts[0], ".") {
+				continue
+			}
+			target := strings.TrimSpace(parts[0])
+			if target != "" {
+				targets = append(targets, target)
+			}
+		}
+	}
+	sort.Strings(targets)
+	return targets
+}
+
+func extractPackageScriptNamesInDir(dir string) []string {
+	data, err := os.ReadFile(filepath.Join(dir, "package.json"))
+	if err != nil {
+		return nil
+	}
+
+	var pkg struct {
+		Scripts map[string]string `json:"scripts"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return nil
+	}
+
+	var scripts []string
+	for name := range pkg.Scripts {
+		if shouldIgnorePackageScript(name) {
+			continue
+		}
+		scripts = append(scripts, name)
+	}
+	sort.Strings(scripts)
+	return scripts
+}
+
+func shouldIgnorePackageScript(name string) bool {
+	if name == "" {
+		return true
+	}
+	if strings.HasPrefix(name, "pre") && len(name) > 3 {
+		return true
+	}
+	if strings.HasPrefix(name, "post") && len(name) > 4 {
+		return true
+	}
+	switch name {
+	case "prepare":
+		return true
+	default:
+		return false
 	}
 }

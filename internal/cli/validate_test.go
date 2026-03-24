@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -77,5 +78,164 @@ func TestPrintComposeNameWarnings_Empty(t *testing.T) {
 	buf.ReadFrom(r)
 	if buf.Len() > 0 {
 		t.Errorf("expected no output for empty warnings, got: %s", buf.String())
+	}
+}
+
+func TestDetectConfigDriftWarnings_ComposeFilesMismatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  app:\n    image: nginx\n"), 0644); err != nil {
+		t.Fatalf("write compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.override.yml"), []byte("services:\n  app:\n    environment:\n      FOO: bar\n"), 0644); err != nil {
+		t.Fatalf("write override: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\ncompose:\n  files:\n    - docker-compose.yml\n"), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) == 0 {
+		t.Fatal("expected drift warning for compose.files mismatch")
+	}
+	if !strings.Contains(warnings[0], "compose.files") {
+		t.Fatalf("unexpected warning: %s", warnings[0])
+	}
+}
+
+func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
+		t.Fatalf("write compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\ncompose:\n  files:\n    - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) == 0 {
+		t.Fatal("expected service drift warning")
+	}
+
+	found := false
+	for _, warning := range warnings {
+		if strings.Contains(warning, `references compose service "app"`) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected missing-service warning, got: %v", warnings)
+	}
+}
+
+func TestPrintConfigDriftWarnings(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
+		t.Fatalf("write compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\ncompose:\n  files:\n    - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	printConfigDriftWarnings(detectConfigDriftWarnings(c))
+
+	w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+	if !strings.Contains(output, "[warn] config drift:") {
+		t.Fatalf("expected config drift warning prefix, got: %s", output)
+	}
+}
+
+func TestDetectConfigSuggestionWarnings_FromMakefileAndPackageJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	makefile := "build: ## Build project\nlint: ## Run lint\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte(makefile), 0644); err != nil {
+		t.Fatalf("write Makefile: %v", err)
+	}
+	packageJSON := `{"scripts":{"dev":"vite","test":"vitest","pretest":"echo pre"}}`
+	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(packageJSON), 0644); err != nil {
+		t.Fatalf("write package.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\ninteraction:\n  build:\n    runner: local\n    command: make build\n"), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	warnings := detectConfigSuggestionWarnings(c)
+	if len(warnings) == 0 {
+		t.Fatal("expected suggestion warnings")
+	}
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, `Makefile defines "lint"`) {
+		t.Fatalf("expected Makefile suggestion, got: %s", joined)
+	}
+	if !strings.Contains(joined, `package.json defines "dev"`) || !strings.Contains(joined, `package.json defines "test"`) {
+		t.Fatalf("expected package.json suggestions, got: %s", joined)
+	}
+	if strings.Contains(joined, "pretest") {
+		t.Fatalf("pre/post scripts should be ignored, got: %s", joined)
+	}
+}
+
+func TestShouldIgnorePackageScript(t *testing.T) {
+	for _, name := range []string{"pretest", "postinstall", "prepare"} {
+		if !shouldIgnorePackageScript(name) {
+			t.Fatalf("expected %q to be ignored", name)
+		}
+	}
+	for _, name := range []string{"test", "dev", "build"} {
+		if shouldIgnorePackageScript(name) {
+			t.Fatalf("expected %q to be kept", name)
+		}
 	}
 }

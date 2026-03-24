@@ -31,6 +31,7 @@
 dva init                  # 자동 감지 기반 dva.yml 생성
 dva init -t node          # 템플릿 지정 (minimal, rails, node, python, go)
 dva init -p               # LLM용 프롬프트 출력
+dva init --improve-prompt # 기존 dva.yml 개선용 프롬프트 출력
 dva init --ai             # Claude Code CLI로 dva.yml 자동 생성
 dva init --ai-docs        # AI agent 문서만 생성 (dva.yml 건드리지 않음)
 dva init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
