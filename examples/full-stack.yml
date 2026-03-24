@@ -9,6 +9,7 @@
 #   dva up                     # Start all services (default)
 #   dva up -M native           # Native mode: health checks only, no Docker
 #   dva up -M hybrid           # Databases in Docker, app natively
+#   dva up -M native -E stg   # Native mode with staging config
 #   dva down -M native         # Stop native services only
 #   dva provision              # Run default setup
 #   dva provision reset        # Reset and rebuild
@@ -183,16 +184,12 @@ provision:
     - step: Precompiling assets
       run: dva rails assets:precompile
 
-# Profiles define named operational modes for `dva up/down/stop/restart --mode NAME`
-# See: compose_services (nil=all, []=skip compose, [items]=specific services)
+# Profiles: runtime strategy (--mode/-M) — HOW to run infrastructure
 profiles:
   native:
     description: Run without Docker (native services only)
     compose_services: []
     health_checks: [postgres, redis, web_server]
-    environment:
-      DATABASE_URL: postgres://user:password@localhost:5432/myapp_development
-      REDIS_URL: redis://localhost:6379/0
 
   docker:
     description: Full Docker mode with all profiles activated
@@ -202,8 +199,29 @@ profiles:
     description: Databases in Docker, app runs natively
     compose_services: [db, redis]
     health_checks: [web_server]
+
+# Environments: env configuration (--env/-E) — WHAT settings to use
+environments:
+  dev:
+    description: Development settings (default)
     environment:
-      DATABASE_URL: postgres://user:password@localhost:5432/myapp_development
+      RAILS_ENV: development
+      DATABASE_URL: postgres://user:password@db:5432/myapp_development
+      REDIS_URL: redis://redis:6379/0
+
+  stg:
+    description: Staging settings for local testing
+    environment:
+      RAILS_ENV: staging
+      DATABASE_URL: postgres://user:password@stg-db:5432/myapp_staging
+      REDIS_URL: redis://stg-redis:6379/0
+
+  prd:
+    description: Production-like settings for local testing
+    environment:
+      RAILS_ENV: production
+      DATABASE_URL: postgres://user:password@prd-db:5432/myapp_production
+      REDIS_URL: redis://prd-redis:6379/0
 
 kubectl:
   namespace: myapp-development

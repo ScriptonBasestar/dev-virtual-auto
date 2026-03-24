@@ -24,7 +24,8 @@ type Config struct {
 	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
-	Profiles     map[string]ProfileConfig       `yaml:"profiles"`
+	Profiles     map[string]ProfileConfig        `yaml:"profiles"`
+	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 
 	// Internal fields
@@ -44,6 +45,13 @@ type ProfileConfig struct {
 	ComposeServices *[]string         `yaml:"compose_services"` // nil=all, empty=none, items=only those
 	HealthChecks    []string          `yaml:"health_checks"`
 	Environment     map[string]string `yaml:"environment"`
+}
+
+// EnvironmentProfile defines a named environment configuration for --env flag.
+type EnvironmentProfile struct {
+	Description string            `yaml:"description"`
+	Environment map[string]string `yaml:"environment"`
+	EnvFile     any               `yaml:"env_file"`
 }
 
 // SshConfig holds SSH agent configuration.
@@ -390,6 +398,16 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 		for k, v := range other.Profiles {
 			c.Profiles[k] = v
+		}
+	}
+
+	// Merge environments
+	if other.Environments != nil {
+		if c.Environments == nil {
+			c.Environments = make(map[string]EnvironmentProfile)
+		}
+		for k, v := range other.Environments {
+			c.Environments[k] = v
 		}
 	}
 

@@ -35,7 +35,8 @@ DVA-specific flags (not passed to docker compose):
   --foreground, -f   Run in foreground (attached) mode
   --force            Bypass health check and force restart
   --no-wait          Start services and return immediately without waiting
-  --mode, -M MODE    Use a named profile from dva.yml profiles section`,
+  --mode, -M MODE    Use a named profile from dva.yml profiles section
+  --env, -E ENV      Use a named environment from dva.yml environments section`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -44,10 +45,9 @@ DVA-specific flags (not passed to docker compose):
 		// Warn about compose file project name mismatches
 		printComposeNameWarnings(c.ValidateComposeProjectNames())
 
-		// Parse --mode flag first
-		mode, args := parseModeFlag(args)
+		// Parse DVA-specific flags (--mode, --env extracted first)
+		mode, envName, args := parseDvaFlags(args)
 
-		// Parse remaining DVA-specific flags
 		foreground := false
 		force := false
 		noWait := false
@@ -75,6 +75,9 @@ DVA-specific flags (not passed to docker compose):
 			if len(rm.Profile.Environment) > 0 {
 				e.MergeVars(rm.Profile.Environment)
 			}
+		}
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
 		}
 		filteredArgs = append(filteredArgs, rm.ServiceArgs...)
 
@@ -178,13 +181,16 @@ var downCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, filteredArgs := parseModeFlag(args)
+		mode, envName, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
 		if rm.Profile != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+		}
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
 		}
 
 		stopLocalServices(c.FileDir())
@@ -209,13 +215,16 @@ var stopCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, filteredArgs := parseModeFlag(args)
+		mode, envName, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
 		if rm.Profile != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+		}
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
 		}
 
 		stopLocalServices(c.FileDir())
@@ -306,7 +315,7 @@ var restartCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, filteredArgs := parseModeFlag(args)
+		mode, envName, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
@@ -316,6 +325,9 @@ var restartCmd = &cobra.Command{
 			if len(rm.Profile.Environment) > 0 {
 				e.MergeVars(rm.Profile.Environment)
 			}
+		}
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
 		}
 
 		stopLocalServices(c.FileDir())
@@ -365,10 +377,8 @@ var restartCmd = &cobra.Command{
 	},
 }
 
-// parseModeFlag extracts --mode/-M from args, returning the mode name and remaining args.
-func parseModeFlag(args []string) (string, []string) {
-	var mode string
-	var filtered []string
+// parseDvaFlags extracts --mode/-M and --env/-E from args.
+func parseDvaFlags(args []string) (mode, env string, filtered []string) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -381,11 +391,43 @@ func parseModeFlag(args []string) (string, []string) {
 			mode = strings.TrimPrefix(a, "--mode=")
 		case strings.HasPrefix(a, "-M="):
 			mode = strings.TrimPrefix(a, "-M=")
+		case a == "--env" || a == "-E":
+			if i+1 < len(args) {
+				i++
+				env = args[i]
+			}
+		case strings.HasPrefix(a, "--env="):
+			env = strings.TrimPrefix(a, "--env=")
+		case strings.HasPrefix(a, "-E="):
+			env = strings.TrimPrefix(a, "-E=")
 		default:
 			filtered = append(filtered, a)
 		}
 	}
-	return mode, filtered
+	return
+}
+
+// applyEnv resolves and applies environment configuration from --env flag.
+func applyEnv(e *config.Environment, c *config.Config, envName string) error {
+	if envName == "" {
+		return nil
+	}
+	ec, ok := c.Environments[envName]
+	if !ok {
+		available := make([]string, 0, len(c.Environments))
+		for k := range c.Environments {
+			available = append(available, k)
+		}
+		if len(available) == 0 {
+			return fmt.Errorf("env '%s' not found. No environments defined in dva.yml under 'environments:'", envName)
+		}
+		return fmt.Errorf("env '%s' not found. Available: %s", envName, strings.Join(available, ", "))
+	}
+	fmt.Fprintf(os.Stderr, "[env: %s] %s\n", envName, ec.Description)
+	if len(ec.Environment) > 0 {
+		e.MergeVars(ec.Environment)
+	}
+	return nil
 }
 
 // resolvedMode holds the result of resolving a --mode flag against config profiles.
