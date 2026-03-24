@@ -51,7 +51,6 @@ type ProfileConfig struct {
 type EnvironmentProfile struct {
 	Description string            `yaml:"description"`
 	Environment map[string]string `yaml:"environment"`
-	EnvFile     any               `yaml:"env_file"`
 }
 
 // SshConfig holds SSH agent configuration.

@@ -213,15 +213,15 @@ environments:
     description: Staging settings for local testing
     environment:
       RAILS_ENV: staging
-      DATABASE_URL: postgres://user:password@stg-db:5432/myapp_staging
-      REDIS_URL: redis://stg-redis:6379/0
+      DATABASE_URL: postgres://user:password@localhost:5433/myapp_staging
+      REDIS_URL: redis://localhost:6380/0
 
   prd:
     description: Production-like settings for local testing
     environment:
       RAILS_ENV: production
-      DATABASE_URL: postgres://user:password@prd-db:5432/myapp_production
-      REDIS_URL: redis://prd-redis:6379/0
+      DATABASE_URL: postgres://user:password@localhost:5434/myapp_production
+      REDIS_URL: redis://localhost:6381/0
 
 kubectl:
   namespace: myapp-development
