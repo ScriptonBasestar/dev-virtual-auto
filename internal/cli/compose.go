@@ -32,11 +32,12 @@ If all services are already running and healthy, skips restart and shows status.
 Local services with "start" in health_checks are auto-started and monitored.
 
 DVA-specific flags (not passed to docker compose):
-  --foreground, -f   Run in foreground (attached) mode
-  --force            Bypass health check and force restart
-  --no-wait          Start services and return immediately without waiting
-  --mode, -M MODE    Use a named profile from dva.yml profiles section
-  --env, -E ENV      Use a named environment from dva.yml environments section`,
+  --foreground, -f          Run in foreground (attached) mode
+  --force                   Bypass health check and force restart
+  --no-wait                 Start services and return immediately without waiting
+  --mode, -M MODE           Use a named profile from dva.yml profiles section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --exclude-tags TAG[,TAG]  Exclude compose services matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -45,8 +46,13 @@ DVA-specific flags (not passed to docker compose):
 		// Warn about compose file project name mismatches
 		printComposeNameWarnings(c.ValidateComposeProjectNames())
 
-		// Parse DVA-specific flags (--mode, --env extracted first)
-		mode, envName, args := parseDvaFlags(args)
+		// Parse DVA-specific flags (--mode, --env, --exclude-tags extracted first)
+		mode, envName, excludeTags, args := parseDvaFlags(args)
+
+		// Apply tag-based service filtering
+		if excluded := c.GetComposeServicesExcluding(excludeTags); len(excluded) > 0 {
+			args = append(args, excluded...)
+		}
 
 		foreground := false
 		force := false
@@ -181,7 +187,7 @@ var downCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, filteredArgs := parseDvaFlags(args)
+		mode, envName, excludeTags, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
@@ -191,6 +197,11 @@ var downCmd = &cobra.Command{
 		}
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
+		}
+
+		// Apply tag-based service filtering (down specific tagged services)
+		if included := c.GetComposeServicesExcluding(excludeTags); len(included) > 0 {
+			filteredArgs = append(filteredArgs, included...)
 		}
 
 		stopLocalServices(c.FileDir())
@@ -215,7 +226,7 @@ var stopCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, filteredArgs := parseDvaFlags(args)
+		mode, envName, _, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
@@ -315,7 +326,7 @@ var restartCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, filteredArgs := parseDvaFlags(args)
+		mode, envName, _, filteredArgs := parseDvaFlags(args)
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
@@ -377,8 +388,9 @@ var restartCmd = &cobra.Command{
 	},
 }
 
-// parseDvaFlags extracts --mode/-M and --env/-E from args.
-func parseDvaFlags(args []string) (mode, env string, filtered []string) {
+// parseDvaFlags extracts --mode/-M, --env/-E, and --exclude-tags from args.
+// excludeTags is a slice of tag names to exclude from compose services.
+func parseDvaFlags(args []string) (mode, env string, excludeTags []string, filtered []string) {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -400,6 +412,14 @@ func parseDvaFlags(args []string) (mode, env string, filtered []string) {
 			env = strings.TrimPrefix(a, "--env=")
 		case strings.HasPrefix(a, "-E="):
 			env = strings.TrimPrefix(a, "-E=")
+		case a == "--exclude-tags":
+			if i+1 < len(args) {
+				i++
+				excludeTags = append(excludeTags, strings.Split(args[i], ",")...)
+			}
+		case strings.HasPrefix(a, "--exclude-tags="):
+			val := strings.TrimPrefix(a, "--exclude-tags=")
+			excludeTags = append(excludeTags, strings.Split(val, ",")...)
 		default:
 			filtered = append(filtered, a)
 		}

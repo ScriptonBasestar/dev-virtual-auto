@@ -6,6 +6,10 @@ priority: P1
 effort: S
 parent: PLAN-001
 created-at: 2026-03-24
+completed-at: 2026-03-24
+archived-at: 2026-03-24
+verified-at: 2026-03-24
+verification-summary: "Verified cobra shell completion setup."
 ---
 
 ## Summary
@@ -18,8 +22,8 @@ README에 명시된 `dva completion bash/zsh/fish` 커맨드 구현. Cobra 내�
 - CLI DX 대폭 향상
 
 ## Completion Criteria
-- [ ] `dva completion bash` 출력 → bash completion 스크립트
-- [ ] `dva completion zsh` 출력 → zsh completion 스크립트
-- [ ] `dva completion fish` 출력 → fish completion 스크립트
-- [ ] 동적 interaction 커맨드가 ValidArgsFunction으로 완성됨
-- [ ] rootCmd에 completion 서브커맨드 등록
+- [x] `dva completion bash` 출력 → bash completion 스크립트
+- [x] `dva completion zsh` 출력 → zsh completion 스크립트
+- [x] `dva completion fish` 출력 → fish completion 스크립트
+- [x] 동적 interaction 커맨드가 ValidArgsFunction으로 완성됨
+- [x] rootCmd에 completion 서브커맨드 등록

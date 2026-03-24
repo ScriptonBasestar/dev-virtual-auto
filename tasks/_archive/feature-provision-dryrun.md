@@ -7,6 +7,9 @@ effort: S
 parent: PLAN-001
 created-at: 2026-03-24
 completed-at: 2026-03-24
+archived-at: 2026-03-24
+verified-at: 2026-03-24
+verification-summary: "Verified --dry-run flag added and plan printing via code review and git log."
 ---
 
 ## Summary

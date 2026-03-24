@@ -6,6 +6,10 @@ priority: P1
 effort: XS
 parent: PLAN-001
 created-at: 2026-03-24
+completed-at: 2026-03-24
+archived-at: 2026-03-24
+verified-at: 2026-03-24
+verification-summary: "Verified USAGE.md and README.md flags update in git logs."
 ---
 
 ## Summary

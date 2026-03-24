@@ -6,6 +6,10 @@ priority: P2
 effort: XS
 parent: PLAN-001
 created-at: 2026-03-24
+completed-at: 2026-03-24
+archived-at: 2026-03-24
+verified-at: 2026-03-24
+verification-summary: "Verified DVA_CURRENT_USER logic and added tests for DVA_CURRENT_UID."
 ---
 
 ## Summary
@@ -17,6 +21,6 @@ created-at: 2026-03-24
 - 기존 UID 의존 설정을 위해 `DVA_CURRENT_UID` 추가 고려
 
 ## Completion Criteria
-- [ ] `DVA_CURRENT_USER` → `u.Username` 반환
-- [ ] `DVA_CURRENT_UID` 추가 (하위호환)
-- [ ] environment_test.go 업데이트
+- [x] `DVA_CURRENT_USER` → `u.Username` 반환
+- [x] `DVA_CURRENT_UID` 추가 (하위호환)
+- [x] environment_test.go 업데이트
