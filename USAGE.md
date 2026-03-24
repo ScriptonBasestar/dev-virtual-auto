@@ -17,7 +17,7 @@
 
 | Command | Description |
 |---------|-------------|
-| `dva init` | 현재 디렉토리에 `dva.yml` 생성 |
+| `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 사용 가능한 interaction 커맨드 목록 |
 | `dva version` | 버전 표시 |
@@ -25,19 +25,25 @@
 `dva run`은 생략 가능합니다. `dva shell`은 `dva run shell`과 동일합니다.
 `namespace:command` 문법도 지원합니다 (예: `dva engine:test`).
 
-#### init
+#### init (config init)
 
 ```bash
-dva init                  # 자동 감지 기반 dva.yml 생성
-dva init -t node          # 템플릿 지정 (minimal, rails, node, python, go)
-dva init -p               # LLM용 프롬프트 출력
-dva init --improve-prompt # 기존 dva.yml 개선용 프롬프트 출력
-dva init --ai             # Claude Code CLI로 dva.yml 자동 생성
-dva init --ai-docs        # AI agent 문서만 생성 (dva.yml 건드리지 않음)
-dva init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
-dva init -v               # AI 생성 시 상세 진행 표시
-dva init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
-dva init --all            # 자동 감지 시 가능한 모든 기능 통합 활성화
+dva config init              # 자동 감지 기반 dva.yml 생성
+dva init                     # 위와 동일 (backward compat alias)
+dva config init -t node      # 템플릿 지정 (minimal, rails, node, python, go)
+dva config init -p           # LLM용 프롬프트 출력
+dva config init --ai         # Claude Code CLI로 dva.yml 자동 생성
+dva config init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
+dva config init -v           # AI 생성 시 상세 진행 표시
+dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
+dva config init --all        # 자동 감지 시 가능한 모든 기능 통합 활성화
+
+#### config improve
+
+```bash
+dva config improve           # Claude Code CLI로 개선 실행 (기본)
+dva config improve --print   # 프롬프트만 stdout 출력 (수동 빧여넣기용)
+dva config improve --docs-only  # CLAUDE.md/AGENTS.md만 갱신 (dva.yml 미변경)
 ```
 
 #### run
@@ -67,15 +73,16 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 | `dva add [FEATURE]` | 특정 통합 기능 추가 연동 (e.g., `devcontainer`) |
 | `dva show` | 설정 요약 (modes, environments, commands 등) |
 | `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
-| `dva config dump` | 최종 병합된 설정 출력 (modules + override 적용 후) |
+| `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
+| `dva config dump` | (deprecated) `dva config show` 사용 |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
 dva show --json           # JSON 출력
 dva status                # docker compose ps + 헬스체크 상태
 dva status --json         # JSON 출력
-dva config dump           # JSON 형식 (기본)
-dva config dump -f yaml   # YAML 형식
+dva config show           # JSON 형식 (기본)
+dva config show -f yaml   # YAML 형식
 ```
 
 ### Lifecycle (Docker Compose)
@@ -142,7 +149,7 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva manifest` | LLM용 커맨드 매니페스트 출력 |
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
-| `dva validate` | dva.yml 스키마 검증 |
+| `dva config validate` | dva.yml 스키마 검증 |
 | `dva migrate` | 레거시 설정 포맷 감지 및 마이그레이션 가이드 출력 |
 | `dva doctor` | 환경 사전조건 및 설정 문제 진단 |
 | `dva completion bash\|zsh\|fish` | 셸 자동완성 스크립트 생성 |
@@ -155,11 +162,11 @@ dva provision setup       # 특정 프로필 실행
 dva provision --list      # 사용 가능한 프로필 목록
 ```
 
-#### validate
+#### config validate
 
 ```bash
-dva validate              # 스키마 + compose project name 검증
-dva validate --fix        # compose 파일 project name 불일치 자동 수정
+dva config validate       # 스키마 + compose project name 검증
+dva config validate --fix # compose 파일 project name 불일치 자동 수정
 ```
 
 ## Configuration (`dva.yml`)
@@ -280,9 +287,11 @@ subprojects:
 
 DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제공합니다.
 
-- `dva init --ai` — Claude Code CLI로 dva.yml 자동 생성
-- `dva init -p` — LLM에게 전달할 프롬프트 출력
+- `dva config init --ai` — Claude Code CLI로 dva.yml 자동 생성
+- `dva config init -p` — LLM에게 전달할 프롬프트 출력
+- `dva config improve --print` — 기존 dva.yml 개선용 프롬프트 출력
+- `dva config improve --docs-only` — CLAUDE.md/AGENTS.md만 갱신
 - `dva manifest` — 구조화된 커맨드 매니페스트 (JSON/YAML)
-- `dva config dump` — 병합된 최종 설정 출력
+- `dva config show` — 병합된 최종 설정 출력
 - `--json` 글로벌 플래그 — 모든 출력을 JSON으로
 - `claude-plugin/` — Claude Code 플러그인

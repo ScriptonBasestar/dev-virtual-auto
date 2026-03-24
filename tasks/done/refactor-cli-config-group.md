@@ -4,7 +4,7 @@ title: "dva config 그룹으로 CLI 구조 통합"
 type: refactor
 priority: P2
 effort: M
-status: todo
+status: done
 created: 2026-03-25
 ---
 

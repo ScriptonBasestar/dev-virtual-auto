@@ -22,7 +22,7 @@
 
 ```bash
 dva manifest -f json
-dva config dump -f yaml
+dva config show -f yaml
 dva show --json
 dva validate
 ```

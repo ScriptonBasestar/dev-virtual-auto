@@ -62,7 +62,6 @@ func init() {
 
 	rootCmd.AddGroup(coreGroup, projectGroup, lifecycleGroup, integrationGroup, advancedGroup)
 
-	initCmd.GroupID = "core"
 	runCmd.GroupID = "core"
 	lsCmd.GroupID = "core"
 	versionCmd.GroupID = "core"
@@ -88,7 +87,6 @@ func init() {
 	manifestCmd.GroupID = "advanced"
 	consoleCmd.GroupID = "advanced"
 	provisionCmd.GroupID = "advanced"
-	validateCmd.GroupID = "advanced"
 
 	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(versionCmd)
@@ -103,13 +101,11 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(provisionCmd)
-	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(manifestCmd)
 	rootCmd.AddCommand(ktlCmd)
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
-	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(addCmd)
 
 	// Wrap hookable lifecycle commands with before/replace/after hook execution.

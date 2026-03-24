@@ -41,7 +41,7 @@ var validateCmd = &cobra.Command{
 		printConfigSuggestionWarnings(detectConfigSuggestionWarnings(c))
 
 		if validateStrict && len(driftWarnings) > 0 {
-			return fmt.Errorf("config drift detected; review warnings above or run 'dva init --improve-prompt'")
+			return fmt.Errorf("config drift detected; review warnings above or run 'dva config improve --print'")
 		}
 
 		// Check devcontainer sync
@@ -56,7 +56,7 @@ var validateCmd = &cobra.Command{
 					}
 				} else {
 					fmt.Fprintf(os.Stderr, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
-					fmt.Fprintf(os.Stderr, "       → run: dva add devcontainer  (or dva validate --fix)\n")
+					fmt.Fprintf(os.Stderr, "       → run: dva add devcontainer  (or dva config validate --fix)\n")
 				}
 			}
 		}
@@ -69,6 +69,7 @@ var validateCmd = &cobra.Command{
 func init() {
 	validateCmd.Flags().Bool("fix", false, "Auto-fix compose file project name mismatches")
 	validateCmd.Flags().BoolVar(&validateStrict, "strict", false, "Fail validation when config drift warnings are detected")
+	configCmd.AddCommand(validateCmd)
 }
 
 // printComposeNameWarnings prints warnings about compose file name mismatches to stderr.

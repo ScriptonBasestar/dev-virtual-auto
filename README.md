@@ -47,29 +47,29 @@ interaction:
 ```
 
 ```bash
-dva ls          # 사용 가능한 커맨드 목록
-dva shell       # = dva run shell → docker compose run app /bin/bash
-dva test        # = dva run test → docker compose run app bundle exec rspec
-dva up          # docker compose up -d --wait
-dva down        # docker compose down --remove-orphans
-dva validate    # dva.yml 스키마 검증
-dva manifest    # LLM용 전체 커맨드 매니페스트 출력
+dva ls              # 사용 가능한 커맨드 목록
+dva shell           # = dva run shell → docker compose run app /bin/bash
+dva test            # = dva run test → docker compose run app bundle exec rspec
+dva up              # docker compose up -d --wait
+dva down            # docker compose down --remove-orphans
+dva config validate # dva.yml 스키마 검증
+dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ```
 
 ## Commands
 
 ```bash
-dva ls              # 사용 가능한 커맨드 목록
-dva shell           # = dva run shell (run 생략 가능)
-dva up              # 서비스 시작 (-d --wait)
-dva up -M backend   # 모드 적용
-dva up -T backend   # 특정 태그 그룹만 실행
-dva down            # 서비스 중지 및 제거
-dva status          # 워크스페이스 상태 확인
-dva show            # 설정 요약
-dva validate        # dva.yml 검증
-dva provision       # 프로비저닝 실행
-dva init --ai       # AI로 dva.yml 자동 생성
+dva ls                 # 사용 가능한 커맨드 목록
+dva shell              # = dva run shell (run 생략 가능)
+dva up                 # 서비스 시작 (-d --wait)
+dva up -M backend      # 모드 적용
+dva up -T backend      # 특정 태그 그룹만 실행
+dva down               # 서비스 중지 및 제거
+dva status             # 워크스페이스 상태 확인
+dva show               # 설정 요약
+dva config validate    # dva.yml 검증
+dva provision          # 프로비저닝 실행
+dva config init --ai   # AI로 dva.yml 자동 생성
 ```
 
 전체 커맨드 레퍼런스: **[USAGE.md](USAGE.md)**
@@ -89,11 +89,11 @@ dva init --ai       # AI로 dva.yml 자동 생성
 ## LLM Integration
 
 ```bash
-dva init --ai         # Claude Code CLI로 dva.yml 자동 생성
-dva init -p           # LLM용 프롬프트 출력
-dva init --improve-prompt  # 기존 dva.yml 개선용 프롬프트 출력
-dva manifest          # 구조화된 커맨드 매니페스트
-dva config dump       # 병합된 최종 설정 출력
+dva config init --ai         # Claude Code CLI로 dva.yml 자동 생성
+dva config init -p           # LLM용 프롬프트 출력
+dva config improve --print   # 기존 dva.yml 개선용 프롬프트 출력
+dva manifest                 # 구조화된 커맨드 매니페스트
+dva config show              # 병합된 최종 설정 출력
 ```
 
 - **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)

@@ -24,9 +24,7 @@ var improvePromptTemplateText string
 
 var initTemplate string
 var initPrompt bool
-var initImprovePrompt bool
 var initAI bool
-var initAIDocs bool
 var initNoAIDocs bool
 var initVerbose bool
 var initDevcontainer bool
@@ -37,18 +35,12 @@ var initCmd = &cobra.Command{
 	Short: "Initialize a new 'dva.yml' configuration in the current directory",
 	Long:  "Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if initAIDocs {
-			return runAIDocsOnly()
-		}
 		if initAI {
 			return runAIInit()
 		}
 		if initPrompt {
 			generateAndPrintPrompt()
 			return nil
-		}
-		if initImprovePrompt {
-			return generateAndPrintImprovePrompt()
 		}
 
 		target := "dva.yml"
@@ -97,9 +89,9 @@ var initCmd = &cobra.Command{
 
 		fmt.Println()
 		fmt.Println("Next steps:")
-		fmt.Println("  dva ls        — list available commands")
-		fmt.Println("  dva validate  — validate the config")
-		fmt.Println("  dva up        — start services")
+		fmt.Println("  dva ls               — list available commands")
+		fmt.Println("  dva config validate  — validate the config")
+		fmt.Println("  dva up               — start services")
 		return nil
 	},
 }
@@ -107,13 +99,32 @@ var initCmd = &cobra.Command{
 func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
-	initCmd.Flags().BoolVar(&initImprovePrompt, "improve-prompt", false, "Output an LLM prompt to review and improve the current dva.yml")
 	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
-	initCmd.Flags().BoolVar(&initAIDocs, "ai-docs", false, "Generate DVA guide and update CLAUDE.md/AGENTS.md (without regenerating dva.yml)")
 	initCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
 	initCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
 	initCmd.Flags().BoolVar(&initDevcontainer, "devcontainer", false, "Include devcontainer configuration (.devcontainer/devcontainer.json)")
 	initCmd.Flags().BoolVar(&initAll, "all", false, "Include all optional features (devcontainer, etc.)")
+
+	// Register under config group
+	configCmd.AddCommand(initCmd)
+
+	// Keep a top-level alias for backward compatibility: dva init → dva config init
+	initAliasCmd := &cobra.Command{
+		Use:     "init",
+		Short:   initCmd.Short,
+		Long:    initCmd.Long,
+		Aliases: []string{},
+		RunE:    initCmd.RunE,
+		Hidden:  false, // visible alias so existing scripts just work
+	}
+	initAliasCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
+	initAliasCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
+	initAliasCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
+	initAliasCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
+	initAliasCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
+	initAliasCmd.Flags().BoolVar(&initDevcontainer, "devcontainer", false, "Include devcontainer configuration (.devcontainer/devcontainer.json)")
+	initAliasCmd.Flags().BoolVar(&initAll, "all", false, "Include all optional features (devcontainer, etc.)")
+	rootCmd.AddCommand(initAliasCmd)
 }
 
 // runAIInit generates the LLM prompt and executes it via Claude Code CLI.
