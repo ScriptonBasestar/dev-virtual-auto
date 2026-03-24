@@ -19,9 +19,9 @@ children:
   - BACKLOG-005
   - BACKLOG-006
   - BACKLOG-007
-progress: 64
+progress: 71
 total-tasks: 14
-completed-tasks: 9
+completed-tasks: 10
 target-date: null
 ---
 
@@ -47,7 +47,7 @@ DVA v0.1.12 프로젝트의 기능 발굴, 요구사항 갭 분석, 태스크 �
 - [x] TASK-007 — DVA_CURRENT_USER UID→username 수정 (XS)
 
 ### P3 — 백로그
-- [ ] BACKLOG-001 — devcontainer 지원 구현 (XL)
+- [x] BACKLOG-001 — devcontainer 지원 구현 (XL)
 - [ ] BACKLOG-002 — 핵심 커맨드 테스트 커버리지 확대 (XL)
 - [x] BACKLOG-003 — 에러 처리 패턴 통일 (M)
 - [ ] BACKLOG-004 — Config 스키마 마이그레이션 도구 (L)
