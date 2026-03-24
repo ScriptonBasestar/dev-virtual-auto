@@ -293,6 +293,105 @@ func TestProvisionConfigMergeOverride(t *testing.T) {
 	}
 }
 
+func TestServiceRelatedFieldParsing(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `compose:
+  services:
+    api:
+      tags: [web]
+      related: [worker, scheduler]
+      hint: "Worker is needed for async processing"
+    worker:
+      tags: [background]
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	api := cfg.Compose.Services["api"]
+	if len(api.Related) != 2 {
+		t.Fatalf("expected 2 related, got %d", len(api.Related))
+	}
+	if api.Related[0] != "worker" || api.Related[1] != "scheduler" {
+		t.Errorf("related = %v, want [worker scheduler]", api.Related)
+	}
+	if api.Hint != "Worker is needed for async processing" {
+		t.Errorf("hint = %q", api.Hint)
+	}
+}
+
+func TestDoctorChecksParsing(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `checks:
+  - name: Docker accessible
+    type: docker_socket
+    fix_hint: Start Docker
+  - name: .env exists
+    type: file_exists
+    path: .env
+    fix_hint: cp .env.example .env
+  - name: Migrations applied
+    type: command
+    command: make migrate-status
+    fix_hint: dva provision setup
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	if len(cfg.DoctorChecks) != 3 {
+		t.Fatalf("expected 3 checks, got %d", len(cfg.DoctorChecks))
+	}
+	if cfg.DoctorChecks[0].Type != "docker_socket" {
+		t.Errorf("check[0].type = %q, want docker_socket", cfg.DoctorChecks[0].Type)
+	}
+	if cfg.DoctorChecks[1].Path != ".env" {
+		t.Errorf("check[1].path = %q, want .env", cfg.DoctorChecks[1].Path)
+	}
+	if cfg.DoctorChecks[2].Command != "make migrate-status" {
+		t.Errorf("check[2].command = %q", cfg.DoctorChecks[2].Command)
+	}
+}
+
+func TestProfileProvisionField(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `profiles:
+  full-stack:
+    description: "Everything"
+    provision: setup
+provision:
+  setup:
+    - step: Install deps
+      run: npm install
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	p, ok := cfg.Profiles["full-stack"]
+	if !ok {
+		t.Fatal("profile full-stack not found")
+	}
+	if p.Provision != "setup" {
+		t.Errorf("provision = %q, want setup", p.Provision)
+	}
+}
+
 func TestEmptyConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")

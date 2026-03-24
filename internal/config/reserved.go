@@ -17,6 +17,29 @@ var reservedCommands = map[string]bool{
 	"logs": true, "restart": true, "show": true, "migrate": true, "doctor": true,
 }
 
+// hookableCommands is the subset of reserved commands that support
+// before/replace/after hooks via the interaction section.
+var hookableCommands = map[string]bool{
+	"up": true, "down": true, "stop": true,
+	"restart": true, "build": true, "clean": true,
+	"logs": true,
+}
+
+// IsHookableCommand reports whether name is a built-in command that
+// supports before/replace/after hooks.
+func IsHookableCommand(name string) bool {
+	return hookableCommands[name]
+}
+
+// HookableCommands returns a copy of the hookable command set.
+func HookableCommands() map[string]bool {
+	cp := make(map[string]bool, len(hookableCommands))
+	for k, v := range hookableCommands {
+		cp[k] = v
+	}
+	return cp
+}
+
 // ReservedCommands returns a copy of the built-in DVA command set.
 // Custom interaction commands in dva.yml must not use these names,
 // as they will be silently shadowed by the built-in commands.
@@ -42,11 +65,16 @@ type ReservedCommandConflict struct {
 
 // ValidateReservedCommands checks if any interaction command names
 // conflict with reserved built-in command names.
-// Returns a list of conflicts found.
+// Commands that define hook fields (before/replace/after) on hookable
+// built-in commands are NOT treated as conflicts.
 func ValidateReservedCommands(interaction map[string]*InteractionCommand) []ReservedCommandConflict {
 	var conflicts []ReservedCommandConflict
-	for name := range interaction {
+	for name, cmd := range interaction {
 		if IsReservedCommand(name) {
+			// Hookable command with hook fields → valid hook, not a conflict
+			if IsHookableCommand(name) && cmd.HasHooks() {
+				continue
+			}
 			conflicts = append(conflicts, ReservedCommandConflict{
 				Name:   name,
 				Source: "interaction",

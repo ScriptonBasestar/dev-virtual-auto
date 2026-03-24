@@ -335,6 +335,40 @@ func TestFormatPortURLs_UserConfig(t *testing.T) {
 	})
 }
 
+func TestPrintRelatedServiceHints_NoMissing(t *testing.T) {
+	services := []ServiceInfo{
+		{Service: "api", State: "running"},
+		{Service: "worker", State: "running"},
+	}
+	svcConfigs := map[string]config.ServiceTagConfig{
+		"api": {Related: []string{"worker"}},
+	}
+	// Should not panic; all related services running
+	printRelatedServiceHints(services, svcConfigs)
+}
+
+func TestPrintRelatedServiceHints_MissingRelated(t *testing.T) {
+	services := []ServiceInfo{
+		{Service: "api", State: "running"},
+	}
+	svcConfigs := map[string]config.ServiceTagConfig{
+		"api": {
+			Related: []string{"worker"},
+			Hint:    "Worker is required for async jobs",
+		},
+	}
+	// Should not panic; worker is not running
+	printRelatedServiceHints(services, svcConfigs)
+}
+
+func TestPrintRelatedServiceHints_EmptyConfig(t *testing.T) {
+	services := []ServiceInfo{
+		{Service: "api", State: "running"},
+	}
+	// nil config should not panic
+	printRelatedServiceHints(services, nil)
+}
+
 func TestFormatPorts(t *testing.T) {
 	tests := []struct {
 		name     string

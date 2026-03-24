@@ -68,12 +68,23 @@ func (c *Config) Validate() error {
 	if conflicts := ValidateReservedCommands(c.Interaction); len(conflicts) > 0 {
 		var errs []string
 		for _, conflict := range conflicts {
+			hint := "and will be shadowed"
+			if IsHookableCommand(conflict.Name) {
+				hint = "— use before/replace/after to extend it instead"
+			}
 			errs = append(errs, fmt.Sprintf(
-				"  - interaction.%s: '%s' is a reserved DVA command and will be shadowed",
-				conflict.Name, conflict.Name,
+				"  - interaction.%s: '%s' is a reserved DVA command %s",
+				conflict.Name, conflict.Name, hint,
 			))
 		}
 		return fmt.Errorf("reserved command conflict in dva.yml:\n%s", strings.Join(errs, "\n"))
+	}
+
+	// Validate hook fields are only used on hookable commands
+	for name, cmd := range c.Interaction {
+		if cmd.HasHooks() && !IsHookableCommand(name) {
+			return fmt.Errorf("interaction.%s: before/replace/after hooks are only supported on hookable commands (up, down, stop, restart, build, clean, logs)", name)
+		}
 	}
 
 	return nil

@@ -551,7 +551,13 @@ func execComposeSubprocess(e *config.Environment, c *config.Config, args []strin
 }
 
 // execComposePassthrough builds and execs a docker compose command using config.
+// When forceSubprocess is true (set by hook wrapper for after-hooks), it delegates
+// to execComposeSubprocess so the Go process survives for post-command hooks.
 func execComposePassthrough(e *config.Environment, c *config.Config, args []string) error {
+	if forceSubprocess {
+		return execComposeSubprocess(e, c, args)
+	}
+
 	composeCmd, composeArgs := buildComposeArgs(e, c, args)
 
 	if dvaexec.Debug {

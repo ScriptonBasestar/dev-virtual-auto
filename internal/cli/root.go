@@ -110,6 +110,15 @@ func init() {
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(initCmd)
 
+	// Wrap hookable lifecycle commands with before/replace/after hook execution
+	wrapWithHooks("up", upCmd)
+	wrapWithHooks("down", downCmd)
+	wrapWithHooks("stop", stopCmd)
+	wrapWithHooks("restart", restartCmd)
+	wrapWithHooks("build", buildCmd)
+	wrapWithHooks("clean", cleanCmd)
+	wrapWithHooks("logs", logsCmd)
+
 	cobra.AddTemplateFunc("colorTitle", func(s string) string {
 		if !jsonOutput && isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == "" {
 			return "\033[1;36m" + s + "\033[0m"

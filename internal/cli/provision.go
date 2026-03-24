@@ -136,6 +136,8 @@ var provisionCmd = &cobra.Command{
 		if dryRun {
 			fmt.Println("\n🔍 Dry run complete — no commands were executed.")
 		} else {
+			// Write provision marker so `dva up` knows this profile was run
+			writeProvisionMarker(c.FileDir(), profile)
 			fmt.Println("\n✅ Provision complete!")
 		}
 		return nil
@@ -318,4 +320,15 @@ func runShellCommand(cmdStr string) error {
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	return c.Run()
+}
+
+// writeProvisionMarker creates a marker file in .dva/ indicating that a provision
+// profile has been run. Used by `dva up` to skip provision suggestions.
+func writeProvisionMarker(configDir, profile string) {
+	markerDir := filepath.Join(configDir, ".dva")
+	if err := os.MkdirAll(markerDir, 0755); err != nil {
+		return
+	}
+	markerFile := filepath.Join(markerDir, "provisioned-"+profile)
+	os.WriteFile(markerFile, []byte(""), 0644)
 }

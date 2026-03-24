@@ -97,6 +97,82 @@
         }
       ]
     },
+    "provision_item": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Raw shell command string"
+        },
+        {
+          "type": "object",
+          "description": "Step-based command with name, run commands, and optional notes",
+          "additionalProperties": false,
+          "properties": {
+            "step": {
+              "type": "string",
+              "description": "Name of the step (displayed with progress indicator)"
+            },
+            "run": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ],
+              "description": "Command(s) to execute for this step"
+            },
+            "note": {
+              "type": "string",
+              "description": "Informational note displayed before/after commands"
+            },
+            "compose_up": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Docker Compose services to start (inherits compose config)"
+            },
+            "compose_exec": {
+              "type": "string",
+              "description": "Command to execute in a compose service"
+            },
+            "compose_run": {
+              "type": "string",
+              "description": "One-off command in a compose service"
+            }
+          },
+          "required": ["step"]
+        },
+        {
+          "type": "object",
+          "description": "Legacy structured command",
+          "additionalProperties": false,
+          "properties": {
+            "echo": { "type": "string" },
+            "cmd": { "type": "string" },
+            "shell": { "type": "string" },
+            "sleep": {
+              "oneOf": [
+                { "type": "integer" },
+                { "type": "number" },
+                { "type": "string" }
+              ]
+            },
+            "docker": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "compose": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "array", "items": { "type": "string" } }
+                  ]
+                }
+              },
+              "required": ["compose"]
+            }
+          },
+          "minProperties": 1,
+          "maxProperties": 1
+        }
+      ]
+    },
     "interaction_command": {
       "type": "object",
       "description": "Configuration for an interaction command",
@@ -211,6 +287,21 @@
           "items": { "type": "string" },
           "description": "Tags for categorizing this command (e.g., test, quality, infra)",
           "examples": [["test"], ["quality"], ["infra", "db"]]
+        },
+        "before": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/provision_item" },
+          "description": "Steps to run before a hookable built-in command (up, down, stop, restart, build, clean, logs)"
+        },
+        "replace": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/provision_item" },
+          "description": "Steps that replace the built-in command entirely"
+        },
+        "after": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/provision_item" },
+          "description": "Steps to run after the built-in command completes successfully"
         }
       }
     }
@@ -334,103 +425,7 @@
       "patternProperties": {
         "^[\\w\\-.:/\\s]+$": {
           "type": "array",
-          "items": {
-            "oneOf": [
-              {
-                "type": "string",
-                "description": "Raw shell command string"
-              },
-              {
-                "type": "object",
-                "description": "Step-based command with name, run commands, and optional notes",
-                "additionalProperties": false,
-                "properties": {
-                  "step": {
-                    "type": "string",
-                    "description": "Name of the step (displayed with progress indicator)"
-                  },
-                  "run": {
-                    "oneOf": [
-                      { "type": "string" },
-                      { "type": "array", "items": { "type": "string" } }
-                    ],
-                    "description": "Command(s) to execute for this step"
-                  },
-                  "note": {
-                    "type": "string",
-                    "description": "Informational note displayed before/after commands (supports multiline)"
-                  },
-                  "compose_up": {
-                    "type": "array",
-                    "items": { "type": "string" },
-                    "description": "Docker Compose services to start (inherits compose.files and compose.project_name)",
-                    "examples": [["postgres", "minio", "redis"]]
-                  },
-                  "compose_exec": {
-                    "type": "string",
-                    "description": "Command to execute in a compose service (inherits compose config)",
-                    "examples": ["postgres pg_isready -U ndstack"]
-                  },
-                  "compose_run": {
-                    "type": "string",
-                    "description": "One-off command in a compose service (inherits compose config)",
-                    "examples": ["migrate python manage.py migrate"]
-                  }
-                },
-                "required": ["step"]
-              },
-              {
-                "type": "object",
-                "description": "Legacy structured command with explicit type and arguments",
-                "additionalProperties": false,
-                "properties": {
-                  "echo": {
-                    "type": "string",
-                    "description": "Execute echo command with the given text"
-                  },
-                  "cmd": {
-                    "type": "string",
-                    "description": "Execute a raw shell command"
-                  },
-                  "shell": {
-                    "type": "string",
-                    "description": "Execute a multi-line shell script"
-                  },
-                  "sleep": {
-                    "oneOf": [
-                      { "type": "integer" },
-                      { "type": "number" },
-                      { "type": "string" }
-                    ],
-                    "description": "Sleep for the specified number of seconds"
-                  },
-                  "docker": {
-                    "type": "object",
-                    "description": "Execute docker command",
-                    "additionalProperties": false,
-                    "properties": {
-                      "compose": {
-                        "oneOf": [
-                          {
-                            "type": "string",
-                            "description": "Docker compose command with arguments"
-                          },
-                          {
-                            "type": "array",
-                            "items": { "type": "string" },
-                            "description": "Docker compose command as array of arguments"
-                          }
-                        ]
-                      }
-                    },
-                    "required": ["compose"]
-                  }
-                },
-                "minProperties": 1,
-                "maxProperties": 1
-              }
-            ]
-          },
+          "items": { "$ref": "#/definitions/provision_item" },
           "description": "Array of commands (strings, step objects, or legacy structured objects) to execute for this provision profile"
         }
       },

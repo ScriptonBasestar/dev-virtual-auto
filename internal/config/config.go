@@ -130,6 +130,16 @@ type InteractionCommand struct {
 	ComposeRunOptions []string                       `yaml:"compose_run_options"`
 	Subcommands       map[string]*InteractionCommand `yaml:"subcommands"`
 	Tags              []string                       `yaml:"tags"`
+
+	// Hook fields: extend or replace hookable built-in commands (up, down, build, etc.)
+	Before  []ProvisionItem `yaml:"before"`
+	Replace []ProvisionItem `yaml:"replace"`
+	After   []ProvisionItem `yaml:"after"`
+}
+
+// HasHooks reports whether the command defines any hook steps (before/replace/after).
+func (c *InteractionCommand) HasHooks() bool {
+	return len(c.Before) > 0 || len(c.Replace) > 0 || len(c.After) > 0
 }
 
 // ShellEnabled returns whether shell mode is enabled (default: true).
