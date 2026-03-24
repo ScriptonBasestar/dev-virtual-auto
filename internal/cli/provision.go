@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -8,6 +9,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 
@@ -47,89 +49,24 @@ var provisionCmd = &cobra.Command{
 			fmt.Printf("🚀 Running provision profile: %s\n\n", profile)
 		}
 
-		for i, step := range steps {
-			// Display step name
-			if step.Step != "" {
-				fmt.Printf("  [%d/%d] %s\n", i+1, len(steps), step.Step)
-			}
-
-			// Display note
-			if step.Note != "" {
-				fmt.Println()
-				for _, line := range strings.Split(step.Note, "\n") {
-					fmt.Printf("    %s\n", line)
-				}
-				fmt.Println()
-			}
-
-			// Execute compose-aware commands (inherit compose config)
-			if len(step.ComposeUp) > 0 {
-				composeArgs := append([]string{"up", "-d"}, step.ComposeUp...)
-				if dryRun {
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
-				} else {
-					if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
+		// Execute steps with parallel batch support
+		batches := groupParallelBatches(steps)
+		stepOffset := 0
+		for _, batch := range batches {
+			if len(batch) == 1 || !batch[0].Parallel {
+				// Sequential execution
+				for _, step := range batch {
+					if err := executeProvisionStep(e, c, step, stepOffset, len(steps), dryRun); err != nil {
 						return err
 					}
+					stepOffset++
 				}
-				continue
-			}
-
-			if step.ComposeExec != "" {
-				composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
-				if dryRun {
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
-				} else {
-					if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
-						return err
-					}
+			} else {
+				// Parallel execution
+				if err := executeParallelBatch(e, c, batch, stepOffset, len(steps), dryRun); err != nil {
+					return err
 				}
-				continue
-			}
-
-			if step.ComposeRun != "" {
-				composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
-				if dryRun {
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
-				} else {
-					if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
-						return err
-					}
-				}
-				continue
-			}
-
-			// Execute raw commands
-			cmds := step.RunCommands()
-			for _, cmdStr := range cmds {
-				if dryRun {
-					fmt.Printf("    [dry-run] $ %s\n", cmdStr)
-				} else {
-					fmt.Printf("    $ %s\n", cmdStr)
-					if err := runShellCommand(cmdStr); err != nil {
-						return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
-					}
-				}
-			}
-
-			// Legacy format: echo
-			if step.Echo != "" {
-				fmt.Printf("    %s\n", step.Echo)
-			}
-
-			// Legacy format: cmd
-			if step.Cmd != "" {
-				if dryRun {
-					fmt.Printf("    [dry-run] $ %s\n", step.Cmd)
-				} else {
-					fmt.Printf("    $ %s\n", step.Cmd)
-					if err := runShellCommand(step.Cmd); err != nil {
-						return fmt.Errorf("provision command failed: %w", err)
-					}
-				}
+				stepOffset += len(batch)
 			}
 		}
 
@@ -146,6 +83,222 @@ var provisionCmd = &cobra.Command{
 
 func init() {
 	provisionCmd.Flags().BoolVarP(&provisionList, "list", "l", false, "List available provision profiles")
+}
+
+// groupParallelBatches groups steps into batches. Consecutive steps with
+// Parallel=true form a single batch; non-parallel steps are each their own batch.
+func groupParallelBatches(steps []config.ProvisionItem) [][]config.ProvisionItem {
+	var batches [][]config.ProvisionItem
+	var current []config.ProvisionItem
+
+	for _, step := range steps {
+		if step.Parallel {
+			current = append(current, step)
+		} else {
+			if len(current) > 0 {
+				batches = append(batches, current)
+				current = nil
+			}
+			batches = append(batches, []config.ProvisionItem{step})
+		}
+	}
+	if len(current) > 0 {
+		batches = append(batches, current)
+	}
+	return batches
+}
+
+// executeProvisionStep runs a single provision step sequentially.
+func executeProvisionStep(e *config.Environment, c *config.Config, step config.ProvisionItem, index, total int, dryRun bool) error {
+	if step.Step != "" {
+		fmt.Printf("  [%d/%d] %s\n", index+1, total, step.Step)
+	}
+
+	if step.Note != "" {
+		fmt.Println()
+		for _, line := range strings.Split(step.Note, "\n") {
+			fmt.Printf("    %s\n", line)
+		}
+		fmt.Println()
+	}
+
+	// Execute compose-aware commands
+	if len(step.ComposeUp) > 0 {
+		composeArgs := append([]string{"up", "-d"}, step.ComposeUp...)
+		if dryRun {
+			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+		} else {
+			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if step.ComposeExec != "" {
+		composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
+		if dryRun {
+			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+		} else {
+			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if step.ComposeRun != "" {
+		composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
+		if dryRun {
+			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+		} else {
+			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// Execute raw commands
+	cmds := step.RunCommands()
+	for _, cmdStr := range cmds {
+		if dryRun {
+			fmt.Printf("    [dry-run] $ %s\n", cmdStr)
+		} else {
+			fmt.Printf("    $ %s\n", cmdStr)
+			if err := runShellCommand(cmdStr); err != nil {
+				return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
+			}
+		}
+	}
+
+	// Legacy format: echo
+	if step.Echo != "" {
+		fmt.Printf("    %s\n", step.Echo)
+	}
+
+	// Legacy format: cmd
+	if step.Cmd != "" {
+		if dryRun {
+			fmt.Printf("    [dry-run] $ %s\n", step.Cmd)
+		} else {
+			fmt.Printf("    $ %s\n", step.Cmd)
+			if err := runShellCommand(step.Cmd); err != nil {
+				return fmt.Errorf("provision command failed: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+// executeParallelBatch runs a batch of parallel steps concurrently.
+// Output is buffered per step and printed atomically to avoid interleaving.
+func executeParallelBatch(e *config.Environment, c *config.Config, batch []config.ProvisionItem, startIndex, total int, dryRun bool) error {
+	fmt.Printf("  ⚡ Running %d steps in parallel...\n", len(batch))
+
+	type result struct {
+		index  int
+		output string
+		err    error
+	}
+
+	results := make([]result, len(batch))
+	var wg sync.WaitGroup
+
+	for i, step := range batch {
+		wg.Add(1)
+		go func(idx int, s config.ProvisionItem) {
+			defer wg.Done()
+			var buf bytes.Buffer
+			stepLabel := fmt.Sprintf("[%d/%d]", startIndex+idx+1, total)
+
+			if s.Step != "" {
+				fmt.Fprintf(&buf, "  %s %s\n", stepLabel, s.Step)
+			}
+
+			if dryRun {
+				// Dry run: just show what would run
+				if len(s.ComposeUp) > 0 {
+					composeArgs := append([]string{"up", "-d"}, s.ComposeUp...)
+					composeCmd, args := buildComposeArgs(e, c, composeArgs)
+					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+				} else if s.ComposeExec != "" {
+					composeArgs := append([]string{"exec"}, strings.Fields(s.ComposeExec)...)
+					composeCmd, args := buildComposeArgs(e, c, composeArgs)
+					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+				} else if s.ComposeRun != "" {
+					composeArgs := append([]string{"run"}, strings.Fields(s.ComposeRun)...)
+					composeCmd, args := buildComposeArgs(e, c, composeArgs)
+					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+				} else {
+					for _, cmdStr := range s.RunCommands() {
+						fmt.Fprintf(&buf, "    [dry-run] $ %s\n", cmdStr)
+					}
+					if s.Cmd != "" {
+						fmt.Fprintf(&buf, "    [dry-run] $ %s\n", s.Cmd)
+					}
+				}
+				if s.Echo != "" {
+					fmt.Fprintf(&buf, "    %s\n", s.Echo)
+				}
+				results[idx] = result{index: idx, output: buf.String()}
+				return
+			}
+
+			// Actual execution: compose commands use exec.Command directly
+			var err error
+			if len(s.ComposeUp) > 0 {
+				err = runProvisionCompose(e, c, s.Step, append([]string{"up", "-d"}, s.ComposeUp...))
+			} else if s.ComposeExec != "" {
+				err = runProvisionCompose(e, c, s.Step, append([]string{"exec"}, strings.Fields(s.ComposeExec)...))
+			} else if s.ComposeRun != "" {
+				err = runProvisionCompose(e, c, s.Step, append([]string{"run"}, strings.Fields(s.ComposeRun)...))
+			} else {
+				for _, cmdStr := range s.RunCommands() {
+					fmt.Fprintf(&buf, "    $ %s\n", cmdStr)
+					if err = runShellCommand(cmdStr); err != nil {
+						err = fmt.Errorf("provision step '%s' failed: %w", s.Step, err)
+						break
+					}
+				}
+				if err == nil && s.Cmd != "" {
+					fmt.Fprintf(&buf, "    $ %s\n", s.Cmd)
+					if err = runShellCommand(s.Cmd); err != nil {
+						err = fmt.Errorf("provision command failed: %w", err)
+					}
+				}
+			}
+			if s.Echo != "" {
+				fmt.Fprintf(&buf, "    %s\n", s.Echo)
+			}
+			results[idx] = result{index: idx, output: buf.String(), err: err}
+		}(i, step)
+	}
+
+	wg.Wait()
+
+	// Print output in order and collect errors
+	var errs []error
+	for _, r := range results {
+		if r.output != "" {
+			fmt.Print(r.output)
+		}
+		if r.err != nil {
+			errs = append(errs, r.err)
+		}
+	}
+
+	if len(errs) > 0 {
+		msgs := make([]string, len(errs))
+		for i, e := range errs {
+			msgs[i] = e.Error()
+		}
+		return fmt.Errorf("parallel provision failed:\n  %s", strings.Join(msgs, "\n  "))
+	}
+	return nil
 }
 
 // resolveProvisionProfile resolves which provision profile to use.

@@ -197,9 +197,10 @@ func (pc *ProvisionConfig) UnmarshalYAML(node *yaml.Node) error {
 // ProvisionItem represents a single item in a provision profile.
 type ProvisionItem struct {
 	// Step-based format
-	Step string      `yaml:"step"`
-	Run  any `yaml:"run"`
-	Note string      `yaml:"note"`
+	Step     string `yaml:"step"`
+	Run      any    `yaml:"run"`
+	Note     string `yaml:"note"`
+	Parallel bool   `yaml:"parallel"` // Run concurrently with consecutive parallel steps
 
 	// Compose-aware commands (inherit compose.files and compose.project_name)
 	ComposeUp   []string `yaml:"compose_up"`   // Services to start: [postgres, minio, redis]
@@ -207,11 +208,11 @@ type ProvisionItem struct {
 	ComposeRun  string   `yaml:"compose_run"`  // One-off command in service
 
 	// Legacy structured format
-	Echo   string      `yaml:"echo"`
-	Cmd    string      `yaml:"cmd"`
-	ShellC string      `yaml:"shell"`
-	Sleep  any `yaml:"sleep"`
-	Docker any `yaml:"docker"`
+	Echo   string `yaml:"echo"`
+	Cmd    string `yaml:"cmd"`
+	ShellC string `yaml:"shell"`
+	Sleep  any    `yaml:"sleep"`
+	Docker any    `yaml:"docker"`
 
 	// Raw string format (set during custom unmarshal)
 	Raw string `yaml:"-"`

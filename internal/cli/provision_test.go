@@ -195,6 +195,93 @@ func TestResolveProvisionProfile_ExactMatchBeatsDefaultProfile(t *testing.T) {
 	}
 }
 
+// --- parallel batch grouping tests ---
+
+func TestGroupParallelBatches_AllSequential(t *testing.T) {
+	steps := []config.ProvisionItem{
+		{Step: "a"},
+		{Step: "b"},
+		{Step: "c"},
+	}
+	batches := groupParallelBatches(steps)
+	if len(batches) != 3 {
+		t.Fatalf("batches = %d, want 3", len(batches))
+	}
+	for i, b := range batches {
+		if len(b) != 1 {
+			t.Errorf("batch[%d] len = %d, want 1", i, len(b))
+		}
+	}
+}
+
+func TestGroupParallelBatches_AllParallel(t *testing.T) {
+	steps := []config.ProvisionItem{
+		{Step: "a", Parallel: true},
+		{Step: "b", Parallel: true},
+		{Step: "c", Parallel: true},
+	}
+	batches := groupParallelBatches(steps)
+	if len(batches) != 1 {
+		t.Fatalf("batches = %d, want 1", len(batches))
+	}
+	if len(batches[0]) != 3 {
+		t.Errorf("batch[0] len = %d, want 3", len(batches[0]))
+	}
+}
+
+func TestGroupParallelBatches_Mixed(t *testing.T) {
+	steps := []config.ProvisionItem{
+		{Step: "seq1"},
+		{Step: "par1", Parallel: true},
+		{Step: "par2", Parallel: true},
+		{Step: "seq2"},
+		{Step: "par3", Parallel: true},
+	}
+	batches := groupParallelBatches(steps)
+	// Expected: [seq1], [par1, par2], [seq2], [par3]
+	if len(batches) != 4 {
+		t.Fatalf("batches = %d, want 4", len(batches))
+	}
+	if len(batches[0]) != 1 || batches[0][0].Step != "seq1" {
+		t.Errorf("batch[0] = %v, want [seq1]", batches[0])
+	}
+	if len(batches[1]) != 2 {
+		t.Errorf("batch[1] len = %d, want 2 (parallel group)", len(batches[1]))
+	}
+	if len(batches[2]) != 1 || batches[2][0].Step != "seq2" {
+		t.Errorf("batch[2] = %v, want [seq2]", batches[2])
+	}
+	if len(batches[3]) != 1 || !batches[3][0].Parallel {
+		t.Errorf("batch[3] should be a single parallel step")
+	}
+}
+
+func TestGroupParallelBatches_Empty(t *testing.T) {
+	batches := groupParallelBatches(nil)
+	if len(batches) != 0 {
+		t.Fatalf("batches = %d, want 0", len(batches))
+	}
+}
+
+func TestGroupParallelBatches_BarrierAfterParallel(t *testing.T) {
+	// Sequential step after parallel group acts as barrier
+	steps := []config.ProvisionItem{
+		{Step: "p1", Parallel: true},
+		{Step: "p2", Parallel: true},
+		{Step: "barrier"},
+	}
+	batches := groupParallelBatches(steps)
+	if len(batches) != 2 {
+		t.Fatalf("batches = %d, want 2", len(batches))
+	}
+	if len(batches[0]) != 2 {
+		t.Errorf("batch[0] len = %d, want 2 (parallel)", len(batches[0]))
+	}
+	if len(batches[1]) != 1 || batches[1][0].Step != "barrier" {
+		t.Errorf("batch[1] should be barrier step")
+	}
+}
+
 func TestFirstStepDescription(t *testing.T) {
 	tests := []struct {
 		name  string

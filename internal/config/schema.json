@@ -135,6 +135,11 @@
             "compose_run": {
               "type": "string",
               "description": "One-off command in a compose service"
+            },
+            "parallel": {
+              "type": "boolean",
+              "description": "Run this step concurrently with other consecutive parallel steps",
+              "default": false
             }
           },
           "required": ["step"]
@@ -651,9 +656,99 @@
         }
       }
     },
+    "modes": {
+      "type": "object",
+      "description": "Named operational modes for dva up (--mode/-M flag). Each mode defines which compose profiles/services to start, health checks to run, and environment overrides.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Human-readable description of this mode"
+            },
+            "compose_profiles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Docker Compose profiles to activate (passed as --profile flags)",
+              "examples": [["infra"], ["infra", "monitoring"]]
+            },
+            "compose_services": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Explicit list of compose services to start. Empty array = skip compose entirely (native mode). Omit = start all services.",
+              "examples": [["postgres", "redis"], []]
+            },
+            "health_checks": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Health check names to activate (from health_checks section). Omit = use all.",
+              "examples": [["app", "worker"]]
+            },
+            "environment": {
+              "$ref": "#/definitions/environment_vars"
+            },
+            "provision": {
+              "type": "string",
+              "description": "Provision profile to suggest when services start for the first time",
+              "examples": ["setup", "reset"]
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "examples": [{
+        "infra-only": {
+          "description": "Infrastructure only",
+          "compose_services": ["postgres", "redis"]
+        },
+        "hybrid": {
+          "description": "Infra in containers, app locally",
+          "compose_services": ["postgres", "redis"],
+          "health_checks": ["app"],
+          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb" }
+        },
+        "native": {
+          "description": "Everything local, no Docker",
+          "compose_services": [],
+          "health_checks": ["postgres", "redis", "app"]
+        }
+      }]
+    },
+    "environments": {
+      "type": "object",
+      "description": "Named environment configurations for --env/-E flag. Each environment defines environment variable overrides.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Human-readable description of this environment"
+            },
+            "environment": {
+              "$ref": "#/definitions/environment_vars"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "examples": [{
+        "dev": {
+          "description": "Development settings",
+          "environment": { "LOG_LEVEL": "debug", "ENABLE_HOT_RELOAD": "true" }
+        },
+        "test": {
+          "description": "Test settings",
+          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb_test" }
+        }
+      }]
+    },
     "profiles": {
       "type": "object",
-      "description": "Named operational modes for dva up. Each profile defines which compose profiles/services to start, health checks to run, and environment overrides.",
+      "description": "DEPRECATED: Use 'modes' instead. Named operational modes for dva up.",
       "patternProperties": {
         "^[\\w\\-.]+$": {
           "type": "object",
