@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -96,6 +97,41 @@ func TestRunSingleCheck_UnknownType(t *testing.T) {
 	result := runSingleCheck(check, ".")
 	if result.Passed {
 		t.Error("expected fail for unknown type")
+	}
+}
+
+func TestPrintDoctorResults_AllPass(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "Docker installed", Passed: true},
+		{Name: "Config found", Passed: true},
+	}
+	output := captureStdout(t, func() {
+		printDoctorResults(results)
+	})
+	if !strings.Contains(output, "[pass]") {
+		t.Error("should contain [pass]")
+	}
+	if !strings.Contains(output, "2 passed, 0 failed") {
+		t.Error("should show 2 passed, 0 failed")
+	}
+}
+
+func TestPrintDoctorResults_WithFailures(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "Docker installed", Passed: true},
+		{Name: "Docker running", Passed: false, FixHint: "Start Docker Desktop"},
+	}
+	output := captureStdout(t, func() {
+		printDoctorResults(results)
+	})
+	if !strings.Contains(output, "[FAIL]") {
+		t.Error("should contain [FAIL]")
+	}
+	if !strings.Contains(output, "Start Docker Desktop") {
+		t.Error("should contain fix hint")
+	}
+	if !strings.Contains(output, "1 passed, 1 failed") {
+		t.Error("should show 1 passed, 1 failed")
 	}
 }
 

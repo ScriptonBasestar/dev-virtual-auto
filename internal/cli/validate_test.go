@@ -239,3 +239,29 @@ func TestShouldIgnorePackageScript(t *testing.T) {
 		}
 	}
 }
+
+func TestFixComposeNameWarnings_AddsMissingName(t *testing.T) {
+	c := loadTestConfig(t, "version: \"0.1.22\"\ncompose:\n  project_name: myproject\n  files: [compose.yml]\n")
+
+	// Create compose file without name
+	composePath := filepath.Join(c.FileDir(), "compose.yml")
+	os.WriteFile(composePath, []byte("services:\n  web:\n    image: nginx\n"), 0644)
+
+	warnings := []config.ComposeNameWarning{
+		{File: composePath, DvaName: "myproject", ComposeName: ""},
+	}
+
+	fixComposeNameWarnings(c, warnings)
+
+	// Verify compose file was updated
+	data, _ := os.ReadFile(composePath)
+	if !strings.Contains(string(data), "name:") {
+		t.Error("compose file should now contain 'name:' field")
+	}
+}
+
+func TestFixComposeNameWarnings_Empty(t *testing.T) {
+	c := &config.Config{}
+	// Should not panic with empty warnings
+	fixComposeNameWarnings(c, nil)
+}

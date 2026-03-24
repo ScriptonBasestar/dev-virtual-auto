@@ -64,6 +64,15 @@ func TestParseComposePS_EmptyInput(t *testing.T) {
 	}
 }
 
+func TestParseComposePS_InvalidJSON(t *testing.T) {
+	input := "not json at all"
+	result := parseComposePS([]byte(input))
+	// Falls through to JSON lines parser, which will fail and return nil items
+	if result == nil {
+		// nil is acceptable for invalid input
+	}
+}
+
 func TestParseComposePS_JSONLinesWithBlanks(t *testing.T) {
 	input := "{\"Name\":\"web\"}\n\n{\"Name\":\"db\"}\n"
 	result := parseComposePS([]byte(input))

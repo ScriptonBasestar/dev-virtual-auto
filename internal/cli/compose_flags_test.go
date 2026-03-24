@@ -374,6 +374,97 @@ compose:
 	}
 }
 
+func TestParseDvaFlags_TagShortFlag(t *testing.T) {
+	_, _, includeTags, _, filtered := parseDvaFlags([]string{"-T", "backend", "postgres"})
+	if len(includeTags) != 1 || includeTags[0] != "backend" {
+		t.Errorf("includeTags = %v, want [backend]", includeTags)
+	}
+	if len(filtered) != 1 || filtered[0] != "postgres" {
+		t.Errorf("filtered = %v, want [postgres]", filtered)
+	}
+}
+
+func TestParseDvaFlags_TagEqualsFormat(t *testing.T) {
+	_, _, includeTags, _, _ := parseDvaFlags([]string{"--tag=web"})
+	if len(includeTags) != 1 || includeTags[0] != "web" {
+		t.Errorf("includeTags = %v, want [web]", includeTags)
+	}
+}
+
+func TestParseDvaFlags_TagsEqualsFormat(t *testing.T) {
+	_, _, includeTags, _, _ := parseDvaFlags([]string{"--tags=a,b"})
+	if len(includeTags) != 2 {
+		t.Errorf("includeTags = %v, want 2 items", includeTags)
+	}
+}
+
+func TestParseDvaFlags_ExcludeTagEquals(t *testing.T) {
+	_, _, _, excludeTags, _ := parseDvaFlags([]string{"--exclude-tag=db"})
+	if len(excludeTags) != 1 || excludeTags[0] != "db" {
+		t.Errorf("excludeTags = %v, want [db]", excludeTags)
+	}
+}
+
+func TestParseDvaFlags_ExcludeTagsEquals(t *testing.T) {
+	_, _, _, excludeTags, _ := parseDvaFlags([]string{"--exclude-tags=db,cache"})
+	if len(excludeTags) != 2 {
+		t.Errorf("excludeTags = %v, want 2 items", excludeTags)
+	}
+}
+
+func TestParseDvaFlags_MissingEnvValue(t *testing.T) {
+	_, env, _, _, _ := parseDvaFlags([]string{"--env"})
+	if env != "" {
+		t.Errorf("env = %q, want empty (no value)", env)
+	}
+}
+
+func TestParseDvaFlags_MissingTagValue(t *testing.T) {
+	_, _, includeTags, _, _ := parseDvaFlags([]string{"--tag"})
+	if len(includeTags) != 0 {
+		t.Errorf("includeTags = %v, want empty (no value)", includeTags)
+	}
+}
+
+func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
+	_, _, _, excludeTags, _ := parseDvaFlags([]string{"--exclude-tag"})
+	if len(excludeTags) != 0 {
+		t.Errorf("excludeTags = %v, want empty (no value)", excludeTags)
+	}
+}
+
+func TestBuildComposeArgs_CustomCommand(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+compose:
+  command: "podman compose"
+  files: [compose.yml]
+`)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	cmd, args := buildComposeArgs(e, c, []string{"ps"})
+	if cmd != "podman" {
+		t.Errorf("cmd = %q, want 'podman'", cmd)
+	}
+	if args[0] != "compose" {
+		t.Errorf("args[0] = %q, want 'compose'", args[0])
+	}
+}
+
+func TestBuildComposeArgs_InterpolateFiles(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+compose:
+  files: [compose.yml]
+  project_name: "${APP_NAME}"
+`)
+	e := config.NewEnvironment(map[string]string{"APP_NAME": "myapp"}, c.FileDir(), c.FileDir())
+
+	_, args := buildComposeArgs(e, c, []string{"up"})
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "myapp") {
+		t.Errorf("args should contain interpolated project name 'myapp', got: %s", joined)
+	}
+}
+
 // --- suggestProvision tests ---
 
 func TestSuggestProvision_AlreadyProvisioned(t *testing.T) {

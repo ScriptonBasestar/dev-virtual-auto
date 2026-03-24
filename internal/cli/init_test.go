@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -59,6 +60,77 @@ func TestGenerateConfig(t *testing.T) {
 	}
 	if !strings.Contains(config, `docker-compose.yml`) {
 		t.Errorf("Expected config to contain 'docker-compose.yml', got:\n%s", config)
+	}
+}
+
+func TestGenerateConfig_Rails(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	got := generateConfig("rails")
+	if !strings.Contains(got, "RAILS_ENV") {
+		t.Error("rails config should contain RAILS_ENV")
+	}
+	if !strings.Contains(got, "bundle exec rspec") {
+		t.Error("rails config should contain rspec command")
+	}
+}
+
+func TestGenerateConfig_Go(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	got := generateConfig("go")
+	if !strings.Contains(got, "go test ./...") {
+		t.Error("go config should contain go test")
+	}
+}
+
+func TestGenerateConfig_Python(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	got := generateConfig("python")
+	if !strings.Contains(got, "PYTHONDONTWRITEBYTECODE") {
+		t.Error("python config should contain PYTHONDONTWRITEBYTECODE")
+	}
+	if !strings.Contains(got, "pytest") {
+		t.Error("python config should contain pytest")
+	}
+}
+
+func TestGenerateConfig_Minimal(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	got := generateConfig("minimal")
+	if !strings.Contains(got, "/bin/bash") {
+		t.Error("minimal config should contain shell command")
+	}
+	// Should NOT contain language-specific env
+	if strings.Contains(got, "RAILS_ENV") || strings.Contains(got, "NODE_ENV") {
+		t.Error("minimal config should not contain language-specific env")
+	}
+}
+
+func TestGenerateConfig_NoComposeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	// No compose files on disk → should fallback to docker-compose.yml
+	got := generateConfig("minimal")
+	if !strings.Contains(got, "docker-compose.yml") {
+		t.Error("should fallback to docker-compose.yml when no compose files exist")
 	}
 }
 
@@ -147,5 +219,127 @@ interaction:
 	}
 	if !strings.Contains(prompt, "docker-compose.yml") {
 		t.Fatalf("Expected improve prompt to include compose snapshot, got:\n%s", prompt)
+	}
+}
+
+func TestFilterEnv(t *testing.T) {
+	env := []string{"PATH=/usr/bin", "HOME=/root", "PATH=/extra"}
+	got := filterEnv(env, "PATH")
+	if len(got) != 1 {
+		t.Fatalf("expected 1 entry, got %d: %v", len(got), got)
+	}
+	if got[0] != "HOME=/root" {
+		t.Errorf("expected HOME=/root, got %s", got[0])
+	}
+}
+
+func TestFilterEnv_NoMatch(t *testing.T) {
+	env := []string{"HOME=/root", "USER=test"}
+	got := filterEnv(env, "PATH")
+	if len(got) != 2 {
+		t.Errorf("expected 2 entries, got %d", len(got))
+	}
+}
+
+func TestFilterEnv_Empty(t *testing.T) {
+	got := filterEnv(nil, "PATH")
+	if len(got) != 0 {
+		t.Errorf("expected 0 entries, got %d", len(got))
+	}
+}
+
+func TestExtractMakefileTargets(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	content := "build: ## Build the project\n\tgo build ./...\n\ntest: ## Run tests\n\tgo test ./...\n\n.PHONY: build test\n"
+	os.WriteFile("Makefile", []byte(content), 0644)
+	got := extractMakefileTargets()
+	if !strings.Contains(got, "build") {
+		t.Error("should contain 'build' target")
+	}
+	if !strings.Contains(got, "Build the project") {
+		t.Error("should contain target description")
+	}
+}
+
+func TestExtractMakefileTargets_NoMakefile(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	got := extractMakefileTargets()
+	if got != "" {
+		t.Errorf("expected empty for no Makefile, got %q", got)
+	}
+}
+
+func TestExtractComposeServices(t *testing.T) {
+	tmpDir := t.TempDir()
+	compose := filepath.Join(tmpDir, "docker-compose.yml")
+	content := "version: '3.8'\nservices:\n  postgres:\n    image: postgres:15\n  redis:\n    image: redis:7\nvolumes:\n  data:\n"
+	os.WriteFile(compose, []byte(content), 0644)
+
+	services := extractComposeServices(compose)
+	if len(services) < 2 {
+		t.Fatalf("expected at least 2 services, got %d: %v", len(services), services)
+	}
+	found := map[string]bool{}
+	for _, s := range services {
+		found[s] = true
+	}
+	if !found["postgres"] {
+		t.Error("should find 'postgres' service")
+	}
+	if !found["redis"] {
+		t.Error("should find 'redis' service")
+	}
+}
+
+func TestExtractComposeServices_NoFile(t *testing.T) {
+	services := extractComposeServices("/nonexistent/compose.yml")
+	if services != nil {
+		t.Errorf("expected nil for nonexistent file, got %v", services)
+	}
+}
+
+func TestDetectInfraComposeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	// No infra dirs
+	files := detectInfraComposeFiles()
+	if len(files) != 0 {
+		t.Errorf("expected 0 files, got %d", len(files))
+	}
+
+	// Create infra dir with compose file
+	os.MkdirAll("infra", 0755)
+	os.WriteFile("infra/compose.yml", []byte("services:\n  pg:\n"), 0644)
+	files = detectInfraComposeFiles()
+	if len(files) != 1 || files[0] != "infra/compose.yml" {
+		t.Errorf("expected [infra/compose.yml], got %v", files)
+	}
+}
+
+func TestDetectInfraComposeFiles_MultipleFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	os.MkdirAll("infra", 0755)
+	os.MkdirAll("docker", 0755)
+	os.WriteFile("infra/docker-compose.yml", []byte(""), 0644)
+	os.WriteFile("docker/compose.yaml", []byte(""), 0644)
+
+	files := detectInfraComposeFiles()
+	if len(files) != 2 {
+		t.Errorf("expected 2 files, got %d: %v", len(files), files)
 	}
 }

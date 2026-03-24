@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"testing"
 )
 
@@ -78,6 +79,93 @@ func TestSuggestCommands_NoMatch(t *testing.T) {
 	suggestions := suggestCommands("zzzzzzzzz")
 	if len(suggestions) != 0 {
 		t.Errorf("suggestCommands(%q) = %v, want empty", "zzzzzzzzz", suggestions)
+	}
+}
+
+func TestLoadConfig_ValidConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	// Reset global
+	oldCfg := cfg
+	cfg = nil
+	defer func() { cfg = oldCfg }()
+
+	os.WriteFile("dva.yml", []byte("version: \"0.1.22\"\n"), 0644)
+
+	c, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig error: %v", err)
+	}
+	if c == nil {
+		t.Fatal("expected non-nil config")
+	}
+
+	// Second call should return cached config
+	c2, err := loadConfig()
+	if err != nil {
+		t.Fatalf("second loadConfig error: %v", err)
+	}
+	if c2 != c {
+		t.Error("second call should return same cached config")
+	}
+}
+
+func TestLoadConfig_NoConfig(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	oldCfg := cfg
+	cfg = nil
+	defer func() { cfg = oldCfg }()
+
+	_, err := loadConfig()
+	if err == nil {
+		t.Fatal("expected error when no dva.yml")
+	}
+}
+
+func TestLoadEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	oldCfg := cfg
+	oldEnv := env
+	cfg = nil
+	env = nil
+	defer func() { cfg = oldCfg; env = oldEnv }()
+
+	os.WriteFile("dva.yml", []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
+
+	c, _ := loadConfig()
+	e := loadEnv(c)
+	if e == nil {
+		t.Fatal("expected non-nil environment")
+	}
+	if e.Vars["APP_ENV"] != "dev" {
+		t.Errorf("APP_ENV = %q, want 'dev'", e.Vars["APP_ENV"])
+	}
+
+	// Second call should return cached env
+	e2 := loadEnv(c)
+	if e2 != e {
+		t.Error("second call should return same cached env")
+	}
+}
+
+func TestIsTerminal(t *testing.T) {
+	// A pipe is not a terminal
+	r, w, _ := os.Pipe()
+	defer r.Close()
+	defer w.Close()
+	if isTerminal(r) {
+		t.Error("pipe should not be a terminal")
 	}
 }
 

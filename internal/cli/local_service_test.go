@@ -138,6 +138,49 @@ func TestStartUnreadyServices_WithStart(t *testing.T) {
 	stopLocalServices(tmpDir)
 }
 
+func TestMaxReadyTimeout_NoStarted(t *testing.T) {
+	checks := map[string]config.HealthCheckConfig{
+		"pg": {ReadyTimeout: 60},
+	}
+	got := maxReadyTimeout(checks, nil)
+	if got != defaultReadyTimeout {
+		t.Errorf("maxReadyTimeout = %v, want %v", got, defaultReadyTimeout)
+	}
+}
+
+func TestMaxReadyTimeout_UsesConfigValue(t *testing.T) {
+	checks := map[string]config.HealthCheckConfig{
+		"pg":    {ReadyTimeout: 60},
+		"redis": {ReadyTimeout: 10},
+	}
+	started := map[string]bool{"pg": true, "redis": true}
+	got := maxReadyTimeout(checks, started)
+	want := 60 * time.Second
+	if got != want {
+		t.Errorf("maxReadyTimeout = %v, want %v", got, want)
+	}
+}
+
+func TestMaxReadyTimeout_FallsBackToDefault(t *testing.T) {
+	checks := map[string]config.HealthCheckConfig{
+		"pg": {ReadyTimeout: 0},
+	}
+	started := map[string]bool{"pg": true}
+	got := maxReadyTimeout(checks, started)
+	if got != defaultReadyTimeout {
+		t.Errorf("maxReadyTimeout = %v, want %v", got, defaultReadyTimeout)
+	}
+}
+
+func TestMaxReadyTimeout_MissingCheck(t *testing.T) {
+	checks := map[string]config.HealthCheckConfig{}
+	started := map[string]bool{"unknown": true}
+	got := maxReadyTimeout(checks, started)
+	if got != defaultReadyTimeout {
+		t.Errorf("maxReadyTimeout = %v, want %v", got, defaultReadyTimeout)
+	}
+}
+
 func TestStartUnreadyServices_SkipsAlreadyRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 

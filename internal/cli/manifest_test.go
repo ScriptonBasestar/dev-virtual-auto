@@ -103,6 +103,31 @@ func TestBuildManifest_WithHealthChecks(t *testing.T) {
 	}
 }
 
+func TestBuildManifest_WithPodCommand(t *testing.T) {
+	c := &config.Config{
+		Interaction: map[string]*config.InteractionCommand{
+			"deploy": {
+				Description: "Deploy app",
+				Command:     "kubectl apply -f .",
+				Pod:         "api-server",
+			},
+		},
+	}
+
+	m := buildManifest(c)
+
+	deploy, ok := m.DynamicCommands["deploy"]
+	if !ok {
+		t.Fatal("missing 'deploy' in DynamicCommands")
+	}
+	if deploy.Pod != "api-server" {
+		t.Errorf("deploy.Pod = %q, want 'api-server'", deploy.Pod)
+	}
+	if deploy.Runner != "Kubectl" {
+		t.Errorf("deploy.Runner = %q, want 'Kubectl'", deploy.Runner)
+	}
+}
+
 func TestBuildManifest_WithEnvironment(t *testing.T) {
 	c := &config.Config{
 		Environment: map[string]string{
