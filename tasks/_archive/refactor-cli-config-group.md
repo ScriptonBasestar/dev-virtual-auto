@@ -4,8 +4,11 @@ title: "dva config 그룹으로 CLI 구조 통합"
 type: refactor
 priority: P2
 effort: M
-status: done
+status: archived
 created: 2026-03-25
+verified-at: 2026-03-25
+verification-summary: "dva config subgroup commands and docs successfully verified. Tests passing."
+archived-at: 2026-03-25
 ---
 
 ## Goal
