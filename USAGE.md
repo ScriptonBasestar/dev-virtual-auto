@@ -135,6 +135,9 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
 | `dva validate` | dva.yml 스키마 검증 |
+| `dva migrate` | 레거시 설정 포맷 감지 및 마이그레이션 가이드 출력 |
+| `dva doctor` | 환경 사전조건 및 설정 문제 진단 |
+| `dva completion bash\|zsh\|fish` | 셸 자동완성 스크립트 생성 |
 
 #### provision
 
@@ -255,7 +258,8 @@ subprojects:
 |----------|-------------|
 | `DVA_OS` | 현재 OS (`linux`, `darwin`, `windows`) |
 | `DVA_WORK_DIR_REL_PATH` | 작업 디렉토리 상대 경로 |
-| `DVA_CURRENT_USER` | 현재 사용자명 |
+| `DVA_CURRENT_USER` | 현재 사용자명 (`username`) |
+| `DVA_CURRENT_UID` | 현재 사용자 UID (숫자) |
 
 ### 설정 파일 로딩 순서
 

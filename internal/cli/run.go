@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -62,11 +61,7 @@ var runCmd = &cobra.Command{
 			Config:  c,
 		})
 
-		if err := r.Execute(e); err != nil {
-			fmt.Fprintf(os.Stderr, "\nERROR: %s\n", err)
-			os.Exit(1)
-		}
-		return nil
+		return r.Execute(e)
 	},
 }
 
@@ -110,8 +105,7 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	})
 
 	if err := r.Execute(subEnv); err != nil {
-		fmt.Fprintf(os.Stderr, "\nERROR [%s]: %s\n", project, err)
-		os.Exit(1)
+		return fmt.Errorf("[%s]: %w", project, err)
 	}
 	return nil
 }

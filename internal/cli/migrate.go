@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -122,11 +123,6 @@ func migrateDva(path string) error {
 		}
 	}
 
-	// Check for removed EnvFile field still present
-	if _, ok := raw["env_file"]; ok {
-		// env_file is actually supported — this is fine
-	}
-
 	// Check for old-style interaction without description
 	if interaction, ok := raw["interaction"].(map[string]any); ok {
 		for name, v := range interaction {
@@ -155,24 +151,9 @@ func printYAMLSection(prefix, key string, val any) {
 	if err != nil {
 		return
 	}
-	for _, line := range splitLines(string(out)) {
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
 		fmt.Printf("%s  %s\n", prefix, line)
 	}
-}
-
-func splitLines(s string) []string {
-	var lines []string
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			lines = append(lines, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		lines = append(lines, s[start:])
-	}
-	return lines
 }
 
 func init() {
