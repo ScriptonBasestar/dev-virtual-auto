@@ -10,6 +10,7 @@ source: "테스트 없는 파일: run.go, compose.go, status.go, manifest.go, pr
 ---
 
 ## Description
+**Reopened (2026-03-24):** The overall CLI test coverage is 35.8%, failing to meet the 50% target. Key commands like `run.go` (0%) and `status.go` (0%) are uncovered. More test expansions are required.
 현재 테스트 커버리지 ~15%. run, up/down, validate 등 핵심 커맨드에 단위 테스트 추가하여 50% 목표.
 
 ## Expected Value

@@ -7,6 +7,9 @@ effort: XL
 category: quality
 tags: [test, integration, e2e]
 source: "모든 테스트가 단위 테스트. fixture 기반 / e2e 테스트 없음"
+archived-at: "2026-03-24T17:31:15+09:00"
+verified-at: "2026-03-24T17:31:15+09:00"
+verification-summary: "Verified fixture-based test suite in internal/integration/."
 ---
 
 ## Description

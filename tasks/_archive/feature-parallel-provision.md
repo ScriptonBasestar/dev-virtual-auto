@@ -7,6 +7,9 @@ effort: L
 category: performance
 tags: [provision, parallel]
 source: "provision.go — 모든 step 순차 실행, concurrent 지원 없음"
+archived-at: "2026-03-24T17:31:15+09:00"
+verified-at: "2026-03-24T17:31:15+09:00"
+verification-summary: "Verified parallel flag in schema and concurrent execution logic in code."
 ---
 
 ## Description

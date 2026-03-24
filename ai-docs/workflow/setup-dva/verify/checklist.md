@@ -5,6 +5,7 @@
 ### Structure
 - [ ] Target project has `compose.yml` (not docker-compose.yml)
 - [ ] No `version:` key in compose files (Compose Specification)
+- [ ] `compose.yml` has top-level `name:` field matching `dva.yml compose.project_name`
 - [ ] `dva.yml` exists and matches compose services
 - [ ] `.env.example` exists with all required vars
 - [ ] `.env` exists (copied from .env.example)
@@ -16,12 +17,22 @@
 - [ ] Port assignments do not conflict with other running projects
 
 ### DVA Config (Static)
-- [ ] `dva.yml` version field present
+- [ ] `dva.yml` version is `"0.1.22"` (current)
+- [ ] `dva.yml` uses `modes:` key (NOT deprecated `profiles:`)
 - [ ] `compose.files` lists correct compose files
+- [ ] `compose.project_name` matches compose file `name:`
 - [ ] `interaction` entries match running services
 - [ ] If `modes:` defined, each mode references valid compose_profiles/compose_services/health_checks
 - [ ] If `environments:` defined, each environment has description and environment map
+
+### Naming Presets Compliance (`library/naming-presets.md`)
+- [ ] Service tags use standard names (infra, api, worker, ui, data, monitoring, build)
+- [ ] Mode names follow preset conventions (`infra` is always present as base mode)
+- [ ] `backend` and `server` are not both used in the same project
+- [ ] Env names use standard names (dev, test, stg, prd) where applicable
 - [ ] If `provision:` defined, each profile has valid step entries
+- [ ] If `health_checks:` defined, each check has both `start` and `start_hint` (for native services)
+- [ ] If `subprojects:` defined, each subproject `dva.yml` version matches root
 
 ### DVA CLI — Core Commands (실행 검증)
 - [ ] `dva validate` exits 0

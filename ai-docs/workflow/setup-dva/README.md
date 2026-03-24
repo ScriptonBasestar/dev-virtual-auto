@@ -40,5 +40,6 @@ Read and execute: ai-docs/workflow/setup-dva/auto.md
 ## References
 
 - `library/dva-schema.md` — dva.yml 스키마 레퍼런스
+- `library/naming-presets.md` — mode/env/tag 네이밍 프리셋
 - `verify/checklist.md` — 파이프라인 완료 후 검증 체크리스트
 - `templates/state.template.yaml` — 파이프라인 상태 추적 템플릿

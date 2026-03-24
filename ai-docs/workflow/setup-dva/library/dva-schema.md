@@ -2,33 +2,67 @@
 
 > Canonical schema: `internal/config/schema.json` — always validate against it.
 
+## Critical Rules (MUST follow)
+
+1. **`modes:` NOT `profiles:`** — `profiles:` is deprecated and triggers a warning. Always use `modes:`.
+2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
+3. **`version:` field** — Use the current DVA version: `"0.1.22"`. Subprojects should match.
+4. **`health_checks`: always provide BOTH `start` and `start_hint`** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is shown to users when auto-start is not available. If you know the start command, always set both.
+5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
+
 ## dva.yml Structure
 
 ```yaml
-version: "0.1.0"
+version: "0.1.22"
 
 environment:                    # Global environment variables
   VAR_NAME: value
+
+env_file:                       # .env file loading (optional)
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  priority: before_environment  # before_environment | after_environment
+  interpolate: true
 
 compose:
   files:
     - compose.yml               # Primary compose file
     # - compose.tools.yml       # Optional dev tools overlay
-  project_name: myapp           # Optional COMPOSE_PROJECT_NAME override
+  project_name: myapp           # MUST match compose.yml top-level `name:`
+  up_options: ["-d", "--wait"]  # Default options for `dva up` (detached mode)
+  tags: [infra]                 # Default tags for all services
+  services:                     # Per-service metadata (tags, ports, related, hint)
+    {service-name}:
+      tags: [infra, data]
+      ports:
+        {host-port}:
+          label: "Human-readable label"
+          http: true            # nil=auto-detect, true=http://, false=raw
+          paths:
+            /: "Description"
+            /health: "Health endpoint"
+      related: [other-service]  # Services shown as hints when this runs
+      hint: "Why this service matters"
 
 interaction:
   {name}:
     description: "{human-readable description}"
     service: {compose-service-name}
     command: {shell command to execute}
+    tags: [build]               # Optional tags for filtering
     subcommands:                # Optional nested commands
       {sub-name}:
+        description: "{description}"
+        service: {service}
         command: {sub command}
 
 provision:                      # Setup automation
   {profile-name}:
     - command 1                 # String form
-    - step: Step name           # Step form (v0.1.0+)
+    - step: Step name           # Step form
       run: command
     - step: Multi-command step
       run:
@@ -38,6 +72,7 @@ provision:                      # Setup automation
 modules:                        # Module imports (.dva/*.yml)
   - module-name
 
+# IMPORTANT: Use `modes:` — NOT `profiles:` (deprecated)
 modes:                          # Operational modes (--mode/-M flag)
   {mode-name}:
     description: "{human-readable description}"
@@ -46,6 +81,7 @@ modes:                          # Operational modes (--mode/-M flag)
     health_checks: [check1]       # Health checks to run in this mode
     environment:                  # Extra env vars for this mode
       VAR: value
+    provision: default            # Suggest provision profile on first run
 
 environments:                   # Environment configs (--env/-E flag)
   {env-name}:
@@ -56,15 +92,47 @@ environments:                   # Environment configs (--env/-E flag)
 health_checks:                  # Non-compose service health checks
   {name}:
     type: http|tcp|command
-    url: http://localhost:PORT   # for http
-    address: localhost:PORT      # for tcp
-    command: "check command"     # for command
-    start: "start command"       # auto-start if not ready
-    start_hint: "manual start instructions"
+    url: http://localhost:PORT   # for http type
+    address: localhost:PORT      # for tcp type
+    command: "check command"     # for command type
+    start: "start command"       # Auto-start command (background, PID tracked)
+    start_hint: "manual start instructions"  # Shown when start is not set
+    timeout: 5                   # Health check timeout in seconds (default: 2)
+    ready_timeout: 120           # Max wait after auto-start in seconds (default: 30)
+
+checks:                         # Environment checks for `dva doctor`
+  - name: "Check description"
+    type: docker_socket|file_exists|command
+    path: "file/path"           # for file_exists
+    command: "shell command"    # for command type
+    fix_hint: "How to fix"
+
+subprojects:                    # Subproject references
+  {name}:
+    path: relative/path
+    exclude_tags: [infra]       # Tags to exclude when running from parent
 
 kubectl:                        # Kubernetes config (optional)
   namespace: myapp-dev
 ```
+
+## compose.yml Requirements
+
+When generating or modifying `compose.yml`, ensure:
+
+```yaml
+# REQUIRED: top-level name must match dva.yml compose.project_name
+name: myapp
+
+services:
+  # ... service definitions ...
+```
+
+- **`name:` is mandatory** — prevents directory-name-based project naming conflicts
+- Use `compose.yml` (not `docker-compose.yml`) — DVA convention
+- No `version:` key — Compose Specification doesn't require it
+- All core services should have `healthcheck:` defined
+- Use profile-gated services for optional app services: `profiles: ["rust"]`
 
 ## Modes & Environments — CLI Flag Reference
 
@@ -83,6 +151,15 @@ dva up -M hybrid         # Partial compose + health checks
 3. If `compose_profiles: [prof1]` → pass `--profile prof1` to docker compose
 4. If `environment:` present → merge into compose environment
 
+**Common mode patterns:**
+| Mode Name | compose_services | compose_profiles | health_checks | Use Case |
+|-----------|-----------------|------------------|---------------|----------|
+| infra-only | [list of infra] | — | — | Infra only, app runs natively |
+| full-stack | — | [app-profile] | — | Everything in Docker |
+| hybrid | [list of infra] | — | [api, worker] | Infra in Docker, app natively |
+| native | [] (empty) | — | [api, worker] | No Docker, health checks only |
+| dev | [minimal infra] | — | [api] | Minimal infra for dev |
+
 ### --env/-E (Environments)
 Selects a named environment from `environments:` section. Determines WHAT settings to use.
 
@@ -96,6 +173,25 @@ dva up -M native -E stg  # Combined: native mode + staging env
 1. Lookup name in `environments:` map
 2. Merge `environment:` vars into compose context
 3. Can combine with `--mode` (both flags applied independently)
+
+## Health Checks — Auto-Start Pattern
+
+When a service runs natively (not in Docker), define health checks with BOTH `start` and `start_hint`:
+
+```yaml
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:11100/health/live"
+    start: "cd my-app && cargo run -p api-server"      # DVA auto-starts this
+    start_hint: "cd my-app && cargo run -p api-server"  # Shown to user
+    timeout: 5
+    ready_timeout: 120  # Rust/Go builds need longer timeouts
+```
+
+- `start` → DVA runs this in background, tracks PID, logs to `.dva/logs/{name}.log`
+- `start_hint` → displayed when `start` is absent or when user runs `dva status`
+- `dva down` automatically kills PID-tracked processes
 
 ## Interaction Patterns by Project Type
 

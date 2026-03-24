@@ -7,6 +7,9 @@ effort: M
 category: ai-agent
 tags: [workflow, orchestration, setup]
 source: "ai-docs/workflow/setup-dva/auto.md"
+archived-at: "2026-03-24T17:31:15+09:00"
+verified-at: "2026-03-24T17:31:15+09:00"
+verification-summary: "Verified 00-40 stages created and flag handlers tested internally."
 ---
 
 ## Description
