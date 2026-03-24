@@ -19,7 +19,7 @@ children:
   - BACKLOG-005
   - BACKLOG-006
   - BACKLOG-007
-progress: 50
+progress: 71
 total-tasks: 14
 completed-tasks: 7
 target-date: null
