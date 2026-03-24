@@ -38,7 +38,8 @@ func NewEnvironment(defaultVars map[string]string, workDir, cfgDir string) *Envi
 		env.Vars["DVA_WORK_DIR_REL_PATH"] = rel
 	}
 	if u, err := user.Current(); err == nil {
-		env.Vars["DVA_CURRENT_USER"] = u.Uid
+		env.Vars["DVA_CURRENT_USER"] = u.Username
+		env.Vars["DVA_CURRENT_UID"] = u.Uid
 	}
 
 	// Merge default vars from config

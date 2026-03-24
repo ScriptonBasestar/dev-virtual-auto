@@ -19,9 +19,9 @@ children:
   - BACKLOG-005
   - BACKLOG-006
   - BACKLOG-007
-progress: 0
+progress: 50
 total-tasks: 14
-completed-tasks: 0
+completed-tasks: 7
 target-date: null
 ---
 
@@ -36,15 +36,15 @@ DVA v0.1.12 프로젝트의 기능 발굴, 요구사항 갭 분석, 태스크 �
 ## Children (Priority Order)
 
 ### P1 — 즉시 실행 (이미 구현된 코드 연결 또는 소규모 작업)
-- [ ] TASK-001 — Shell completion 커맨드 구현 (S)
-- [ ] TASK-002 — env_file 로딩 파이프라인 연결 (XS)
-- [ ] TASK-003 — Tag 필터링 시스템 활성화 (XS)
-- [ ] TASK-004 — README 미문서화 플래그 업데이트 (XS)
+- [x] TASK-001 — Shell completion 커맨드 구현 (S)
+- [x] TASK-002 — env_file 로딩 파이프라인 연결 (XS)
+- [x] TASK-003 — Tag 필터링 시스템 활성화 (XS)
+- [x] TASK-004 — README 미문서화 플래그 업데이트 (XS)
 
 ### P2 — 다음 마일스톤
-- [ ] TASK-005 — dva migrate 커맨드 구현 (M)
-- [ ] TASK-006 — Provision dry-run 플래그 추가 (S)
-- [ ] TASK-007 — DVA_CURRENT_USER UID→username 수정 (XS)
+- [x] TASK-005 — dva migrate 커맨드 구현 (M)
+- [x] TASK-006 — Provision dry-run 플래그 추가 (S)
+- [x] TASK-007 — DVA_CURRENT_USER UID→username 수정 (XS)
 
 ### P3 — 백로그
 - [ ] BACKLOG-001 — devcontainer 지원 구현 (XL)

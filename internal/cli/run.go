@@ -89,7 +89,7 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	subCfg := subs[project]
 	subEnv := config.NewEnvironment(subCfg.Environment, parentEnv.WorkDir(), subCfg.FileDir())
 
-	tree := runner.NewInteractionTree(subCfg.Interaction)
+	tree := runner.NewInteractionTree(subCfg.FilterInteractions(sub.ExcludeTags))
 	resolved := tree.Find(cmdName, cmdArgs...)
 	if resolved == nil {
 		return fmt.Errorf("command `%s` not found in subproject `%s`. Run 'dva ls --project %s'", cmdName, project, project)

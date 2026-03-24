@@ -14,7 +14,7 @@ var reservedCommands = map[string]bool{
 	"run": true, "provision": true, "validate": true, "manifest": true,
 	"ktl": true, "ssh": true, "infra": true, "console": true,
 	"completion": true, "cmd": true, "init": true, "status": true, "config": true,
-	"logs": true, "restart": true, "show": true,
+	"logs": true, "restart": true, "show": true, "migrate": true,
 }
 
 // ReservedCommands returns a copy of the built-in DVA command set.

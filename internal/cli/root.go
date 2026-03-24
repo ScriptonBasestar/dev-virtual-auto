@@ -212,6 +212,11 @@ func loadEnv(c *config.Config) *config.Environment {
 	}
 	wd, _ := os.Getwd()
 	env = config.NewEnvironment(c.Environment, wd, c.FileDir())
+	if c.EnvFile != nil {
+		if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), env); err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: env_file: %s\n", err)
+		}
+	}
 	return env
 }
 
