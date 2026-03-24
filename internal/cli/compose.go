@@ -310,6 +310,12 @@ var cleanCmd = &cobra.Command{
 		}
 
 		stopLocalServices(c.FileDir())
+
+		// When removing volumes, also clear provision markers so dva up re-suggests provisioning
+		if volumes {
+			clearProvisionMarkers(c.FileDir())
+		}
+
 		return execComposePassthrough(e, c, cleanArgs)
 	},
 }

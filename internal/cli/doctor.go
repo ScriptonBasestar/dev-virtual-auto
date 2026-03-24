@@ -74,6 +74,16 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 		results = append(results, runSingleCheck(check, c.FileDir()))
 	}
 
+	// Built-in: devcontainer.json exists (when devcontainer section is enabled)
+	if len(c.Devcontainer) > 0 && isDevcontainerEnabled(c.Devcontainer) {
+		results = append(results, runSingleCheck(config.DoctorCheck{
+			Name:    "devcontainer.json exists",
+			Type:    "file_exists",
+			Path:    ".devcontainer/devcontainer.json",
+			FixHint: "Run: dva add devcontainer",
+		}, c.FileDir()))
+	}
+
 	return results
 }
 
@@ -117,7 +127,10 @@ func checkDocker() DoctorResult {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	r.Passed = exec.CommandContext(ctx, "docker", "info").Run() == nil
+	cmd := exec.CommandContext(ctx, "docker", "info")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	r.Passed = cmd.Run() == nil
 
 	if !r.Passed {
 		r.FixHint = "Start Docker Desktop or ensure dockerd is running"

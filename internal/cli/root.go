@@ -70,6 +70,7 @@ func init() {
 	showCmd.GroupID = "project"
 	statusCmd.GroupID = "project"
 	configCmd.GroupID = "project"
+	addCmd.GroupID = "project"
 
 	upCmd.GroupID = "lifecycle"
 	downCmd.GroupID = "lifecycle"
@@ -109,15 +110,28 @@ func init() {
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(addCmd)
 
-	// Wrap hookable lifecycle commands with before/replace/after hook execution
-	wrapWithHooks("up", upCmd)
-	wrapWithHooks("down", downCmd)
-	wrapWithHooks("stop", stopCmd)
-	wrapWithHooks("restart", restartCmd)
-	wrapWithHooks("build", buildCmd)
-	wrapWithHooks("clean", cleanCmd)
-	wrapWithHooks("logs", logsCmd)
+	// Wrap hookable lifecycle commands with before/replace/after hook execution.
+	// hookableCommands (config.HookableCommands) is the single source of truth;
+	// this map only provides the Go variable binding.
+	hookableCmds := map[string]*cobra.Command{
+		"up": upCmd, "down": downCmd, "stop": stopCmd,
+		"restart": restartCmd, "build": buildCmd, "clean": cleanCmd,
+		"logs": logsCmd,
+	}
+	for name, cmd := range hookableCmds {
+		if !config.IsHookableCommand(name) {
+			panic(fmt.Sprintf("BUG: hookableCmds contains '%s' which is not in config.hookableCommands", name))
+		}
+		wrapWithHooks(name, cmd)
+	}
+	// Verify all hookable commands are registered
+	for name := range config.HookableCommands() {
+		if hookableCmds[name] == nil {
+			panic(fmt.Sprintf("BUG: config.hookableCommands contains '%s' but no cobra.Command is registered in hookableCmds", name))
+		}
+	}
 
 	cobra.AddTemplateFunc("colorTitle", func(s string) string {
 		if !jsonOutput && isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == "" {

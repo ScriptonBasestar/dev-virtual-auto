@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -27,6 +28,23 @@ var validateCmd = &cobra.Command{
 			fixComposeNameWarnings(c, warnings)
 		} else {
 			printComposeNameWarnings(warnings)
+		}
+
+		// Check devcontainer sync
+		if len(c.Devcontainer) > 0 && isDevcontainerEnabled(c.Devcontainer) {
+			dcPath := filepath.Join(c.FileDir(), ".devcontainer", "devcontainer.json")
+			if _, err := os.Stat(dcPath); os.IsNotExist(err) {
+				if fix {
+					if err := writeDevcontainerFiles(c.Devcontainer, c.Compose.Files, c.FileDir()); err != nil {
+						fmt.Fprintf(os.Stderr, "[error] devcontainer: %v\n", err)
+					} else {
+						fmt.Fprintf(os.Stderr, "[fixed] created .devcontainer/devcontainer.json\n")
+					}
+				} else {
+					fmt.Fprintf(os.Stderr, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
+					fmt.Fprintf(os.Stderr, "       → run: dva add devcontainer  (or dva validate --fix)\n")
+				}
+			}
 		}
 
 		fmt.Println("✅ dva.yml is valid")

@@ -23,6 +23,8 @@ var initAI bool
 var initAIDocs bool
 var initNoAIDocs bool
 var initVerbose bool
+var initDevcontainer bool
+var initAll bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
@@ -50,12 +52,40 @@ var initCmd = &cobra.Command{
 			tmpl = detectTemplate()
 		}
 
+		composeFiles := detectComposeFiles()
 		content := generateConfig(tmpl)
+
+		withDevcontainer := initDevcontainer || initAll
+		dcService := "app"
+		if withDevcontainer {
+			if len(composeFiles) > 0 {
+				if services := extractComposeServices(composeFiles[0]); len(services) > 0 {
+					dcService = services[0]
+				}
+			}
+			content += devcontainerYAMLSection(dcService)
+		}
+
 		if err := os.WriteFile(target, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write dva.yml: %w", err)
 		}
 
 		fmt.Printf("✅ Created dva.yml (template: %s)\n", tmpl)
+
+		if withDevcontainer {
+			dc := map[string]any{
+				"enabled":         true,
+				"name":            "Development Environment",
+				"service":         dcService,
+				"workspaceFolder": "/workspace",
+			}
+			if err := writeDevcontainerFiles(dc, composeFiles, "."); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Could not create .devcontainer/: %v\n", err)
+			} else {
+				fmt.Println("📦 Created .devcontainer/devcontainer.json")
+			}
+		}
+
 		fmt.Println()
 		fmt.Println("Next steps:")
 		fmt.Println("  dva ls        — list available commands")
@@ -72,6 +102,8 @@ func init() {
 	initCmd.Flags().BoolVar(&initAIDocs, "ai-docs", false, "Generate DVA guide and update CLAUDE.md/AGENTS.md (without regenerating dva.yml)")
 	initCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
 	initCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
+	initCmd.Flags().BoolVar(&initDevcontainer, "devcontainer", false, "Include devcontainer configuration (.devcontainer/devcontainer.json)")
+	initCmd.Flags().BoolVar(&initAll, "all", false, "Include all optional features (devcontainer, etc.)")
 }
 
 // runAIInit generates the LLM prompt and executes it via Claude Code CLI.
