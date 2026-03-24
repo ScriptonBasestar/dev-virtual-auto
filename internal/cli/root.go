@@ -73,6 +73,8 @@ func init() {
 	upCmd.GroupID = "lifecycle"
 	downCmd.GroupID = "lifecycle"
 	stopCmd.GroupID = "lifecycle"
+	restartCmd.GroupID = "lifecycle"
+	logsCmd.GroupID = "lifecycle"
 	buildCmd.GroupID = "lifecycle"
 	cleanCmd.GroupID = "lifecycle"
 
@@ -93,6 +95,8 @@ func init() {
 	rootCmd.AddCommand(upCmd)
 	rootCmd.AddCommand(downCmd)
 	rootCmd.AddCommand(stopCmd)
+	rootCmd.AddCommand(restartCmd)
+	rootCmd.AddCommand(logsCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(provisionCmd)

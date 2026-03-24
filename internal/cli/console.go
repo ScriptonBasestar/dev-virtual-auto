@@ -22,9 +22,17 @@ var consoleStartCmd = &cobra.Command{
 	},
 }
 
+// shellBuiltins are names that should not be overridden without a prefix.
+var shellBuiltins = map[string]bool{
+	"test": true, "echo": true, "printf": true, "cd": true,
+	"export": true, "source": true, "type": true, "command": true,
+	"eval": true, "exec": true, "exit": true, "read": true, "set": true,
+}
+
 var consoleInjectCmd = &cobra.Command{
 	Use:   "inject",
 	Short: "Output shell function definitions for current project",
+	Long:  "Set DVA_FUNC_PREFIX=dva_ to prefix all generated functions (avoids shell builtin conflicts).",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
 		if err != nil {
@@ -32,6 +40,8 @@ var consoleInjectCmd = &cobra.Command{
 			fmt.Println("function dva_clear() { true; }")
 			return nil
 		}
+
+		prefix := os.Getenv("DVA_FUNC_PREFIX")
 
 		var aliases []string
 		var out []string
@@ -42,17 +52,24 @@ var consoleInjectCmd = &cobra.Command{
 		}
 
 		// Add built-in shortcuts
-		builtins := []string{"compose", "up", "stop", "down", "provision", "build"}
+		builtins := []string{"compose", "up", "stop", "down", "provision", "build", "logs", "restart"}
 		aliases = append(aliases, builtins...)
 
 		binPath, _ := os.Executable()
+		var funcNames []string
 		for _, name := range aliases {
-			out = append(out, fmt.Sprintf("function %s() { %s %s \"$@\"; }", name, binPath, name))
+			funcName := prefix + name
+			// Warn about shell builtin conflicts (only when no prefix)
+			if prefix == "" && shellBuiltins[name] {
+				out = append(out, fmt.Sprintf("# [warn] '%s' shadows a shell builtin. Set DVA_FUNC_PREFIX=dva_ to avoid.", name))
+			}
+			out = append(out, fmt.Sprintf("function %s() { %s %s \"$@\"; }", funcName, binPath, name))
+			funcNames = append(funcNames, funcName)
 		}
 
 		// dva_clear function
 		var unsets []string
-		for _, name := range aliases {
+		for _, name := range funcNames {
 			unsets = append(unsets, "  unset -f "+name)
 		}
 		clearBody := "true"

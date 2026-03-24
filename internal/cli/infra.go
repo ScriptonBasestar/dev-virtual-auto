@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -82,17 +83,34 @@ var infraUpdateCmd = &cobra.Command{
 		location := resolveInfraPath(svc.Path, c.FileDir())
 
 		if _, err := os.Stat(location); err == nil {
-			// Pull
-			fmt.Printf("Updating %s...\n", serviceName)
-			if err := runInDir(location, "git", "checkout", "."); err != nil {
-				return err
+			// Check for uncommitted changes before updating
+			statusCmd := exec.Command("git", "status", "--porcelain")
+			statusCmd.Dir = location
+			statusOut, _ := statusCmd.Output()
+			if len(statusOut) > 0 {
+				fmt.Fprintf(os.Stderr, "[warn] %s has uncommitted changes:\n%s\n", serviceName, string(statusOut))
+				fmt.Fprintf(os.Stderr, "Stash changes before updating? [y/N] ")
+				var answer string
+				fmt.Scanln(&answer)
+				answer = strings.ToLower(strings.TrimSpace(answer))
+				if answer != "y" && answer != "yes" {
+					return fmt.Errorf("aborted: %s has uncommitted changes. Use 'git stash' manually or commit changes first", serviceName)
+				}
+				if err := runInDir(location, "git", "stash"); err != nil {
+					return fmt.Errorf("git stash failed: %w", err)
+				}
+				fmt.Println("  Changes stashed. Run 'git stash pop' in the infra dir to restore.")
 			}
+
+			fmt.Printf("Updating %s...\n", serviceName)
 			return runInDir(location, "git", "pull", "--rebase")
 		}
 
 		// Clone
 		fmt.Printf("Cloning %s...\n", serviceName)
-		os.MkdirAll(filepath.Dir(location), 0755)
+		if err := os.MkdirAll(filepath.Dir(location), 0755); err != nil {
+			return fmt.Errorf("creating directory for %s: %w", serviceName, err)
+		}
 		cloneArgs := []string{"clone", "--single-branch", "--depth", "1"}
 		if svc.Ref != "" {
 			cloneArgs = append(cloneArgs, "--branch", svc.Ref)

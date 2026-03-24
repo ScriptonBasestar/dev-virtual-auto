@@ -145,11 +145,12 @@ func (c *Config) FixComposeProjectName(w ComposeNameWarning) error {
 		// Insert "name: <project>" at the top
 		updated = fmt.Sprintf("name: %s\n\n%s", w.DvaName, content)
 	} else {
-		// Replace existing name line
+		// Replace existing top-level name line (must not be indented)
 		lines := strings.Split(content, "\n")
 		for i, line := range lines {
 			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "name:") {
+			// Only match top-level name: (no leading whitespace)
+			if strings.HasPrefix(trimmed, "name:") && !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
 				lines[i] = fmt.Sprintf("name: %s", w.DvaName)
 				break
 			}

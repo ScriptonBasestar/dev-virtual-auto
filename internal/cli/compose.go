@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -33,7 +34,8 @@ Local services with "start" in health_checks are auto-started and monitored.
 DVA-specific flags (not passed to docker compose):
   --foreground, -f   Run in foreground (attached) mode
   --force            Bypass health check and force restart
-  --no-wait          Start services and return immediately without waiting`,
+  --no-wait          Start services and return immediately without waiting
+  --mode, -M MODE    Use a named profile from dva.yml profiles section`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -42,7 +44,10 @@ DVA-specific flags (not passed to docker compose):
 		// Warn about compose file project name mismatches
 		printComposeNameWarnings(c.ValidateComposeProjectNames())
 
-		// Parse custom flags from args
+		// Parse --mode flag first
+		mode, args := parseModeFlag(args)
+
+		// Parse remaining DVA-specific flags
 		foreground := false
 		force := false
 		noWait := false
@@ -58,6 +63,29 @@ DVA-specific flags (not passed to docker compose):
 			default:
 				filteredArgs = append(filteredArgs, a)
 			}
+		}
+
+		// Resolve profile/mode
+		rm, err := resolveMode(c, mode)
+		if err != nil {
+			return err
+		}
+		if rm.Profile != nil {
+			fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Profile.Description)
+			if len(rm.Profile.Environment) > 0 {
+				e.MergeVars(rm.Profile.Environment)
+			}
+		}
+		filteredArgs = append(filteredArgs, rm.ServiceArgs...)
+
+		// Native mode: skip compose, only run health checks
+		if rm.SkipCompose {
+			hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), !noWait)
+			if jsonOutput {
+				return printServiceJSON(nil, c.Compose.ProjectName, false, hcResults)
+			}
+			printHealthCheckResults(hcResults, c.FileDir())
+			return nil
 		}
 
 		if !foreground {
@@ -90,7 +118,11 @@ DVA-specific flags (not passed to docker compose):
 			}
 		}
 
-		upArgs := append([]string{"up"}, filteredArgs...)
+		// Build final args: [profile flags...] up [options...] [services...]
+		upArgs := make([]string, 0, len(rm.ComposeArgs)+1+len(filteredArgs))
+		upArgs = append(upArgs, rm.ComposeArgs...)
+		upArgs = append(upArgs, "up")
+		upArgs = append(upArgs, filteredArgs...)
 
 		// Foreground mode: replace process (existing behavior)
 		if foreground {
@@ -104,11 +136,12 @@ DVA-specific flags (not passed to docker compose):
 				requestedServices := extractServiceNames(filteredArgs)
 				if allServicesHealthy(services, requestedServices) {
 					projectName := c.Compose.ProjectName
-					hcResults := runHealthChecksWithAutoStart(c.HealthChecks, c.FileDir(), !noWait)
+					hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), !noWait)
 					if jsonOutput {
 						return printServiceJSON(services, projectName, true, hcResults)
 					}
-					printServiceTable(services, projectName, true)
+					printServiceTable(services, projectName, true, c.Compose.Services)
+					fmt.Fprintf(os.Stderr, "  Hint: use 'dva up --force' to force restart\n\n")
 					printHealthCheckResults(hcResults, c.FileDir())
 					return nil
 				}
@@ -127,11 +160,11 @@ DVA-specific flags (not passed to docker compose):
 			return nil
 		}
 		projectName := c.Compose.ProjectName
-		hcResults := runHealthChecksWithAutoStart(c.HealthChecks, c.FileDir(), !noWait)
+		hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), !noWait)
 		if jsonOutput {
 			return printServiceJSON(services, projectName, false, hcResults)
 		}
-		printServiceTable(services, projectName, false)
+		printServiceTable(services, projectName, false, c.Compose.Services)
 		printHealthCheckResults(hcResults, c.FileDir())
 		return nil
 	},
@@ -144,8 +177,27 @@ var downCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+
+		mode, filteredArgs := parseModeFlag(args)
+		rm, err := resolveMode(c, mode)
+		if err != nil {
+			return err
+		}
+		if rm.Profile != nil {
+			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+		}
+
 		stopLocalServices(c.FileDir())
-		return execComposePassthrough(e, c, append([]string{"down", "--remove-orphans"}, args...))
+
+		if rm.SkipCompose {
+			return nil
+		}
+
+		downArgs := make([]string, 0, len(rm.ComposeArgs)+2+len(filteredArgs))
+		downArgs = append(downArgs, rm.ComposeArgs...)
+		downArgs = append(downArgs, "down", "--remove-orphans")
+		downArgs = append(downArgs, filteredArgs...)
+		return execComposePassthrough(e, c, downArgs)
 	},
 }
 
@@ -156,8 +208,27 @@ var stopCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+
+		mode, filteredArgs := parseModeFlag(args)
+		rm, err := resolveMode(c, mode)
+		if err != nil {
+			return err
+		}
+		if rm.Profile != nil {
+			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+		}
+
 		stopLocalServices(c.FileDir())
-		return execComposePassthrough(e, c, append([]string{"stop"}, args...))
+
+		if rm.SkipCompose {
+			return nil
+		}
+
+		stopArgs := make([]string, 0, len(rm.ComposeArgs)+1+len(filteredArgs))
+		stopArgs = append(stopArgs, rm.ComposeArgs...)
+		stopArgs = append(stopArgs, "stop")
+		stopArgs = append(stopArgs, filteredArgs...)
+		return execComposePassthrough(e, c, stopArgs)
 	},
 }
 
@@ -183,6 +254,7 @@ var cleanCmd = &cobra.Command{
 
 		volumes, _ := cmd.Flags().GetBool("volumes")
 		images, _ := cmd.Flags().GetBool("images")
+		force, _ := cmd.Flags().GetBool("force")
 
 		if volumes {
 			cleanArgs = append(cleanArgs, "--volumes")
@@ -191,9 +263,185 @@ var cleanCmd = &cobra.Command{
 			cleanArgs = append(cleanArgs, "--rmi", "local")
 		}
 
+		// Confirmation prompt for destructive operations
+		if !force && (volumes || images) {
+			msg := "This will remove all containers, networks"
+			if volumes {
+				msg += ", and VOLUMES (data loss!)"
+			}
+			if images {
+				msg += ", and locally built images"
+			}
+			fmt.Fprintf(os.Stderr, "%s.\nContinue? [y/N] ", msg)
+			var answer string
+			fmt.Scanln(&answer)
+			answer = strings.ToLower(strings.TrimSpace(answer))
+			if answer != "y" && answer != "yes" {
+				fmt.Println("Aborted.")
+				return nil
+			}
+		}
+
 		stopLocalServices(c.FileDir())
 		return execComposePassthrough(e, c, cleanArgs)
 	},
+}
+
+var logsCmd = &cobra.Command{
+	Use:                "logs [OPTIONS] [SERVICE...]",
+	Short:              "View output from containers",
+	DisableFlagParsing: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+		return execComposePassthrough(e, c, append([]string{"logs"}, args...))
+	},
+}
+
+var restartCmd = &cobra.Command{
+	Use:                "restart [OPTIONS] [SERVICE...]",
+	Short:              "Restart containers (stop + start)",
+	DisableFlagParsing: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+
+		mode, filteredArgs := parseModeFlag(args)
+		rm, err := resolveMode(c, mode)
+		if err != nil {
+			return err
+		}
+		if rm.Profile != nil {
+			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			if len(rm.Profile.Environment) > 0 {
+				e.MergeVars(rm.Profile.Environment)
+			}
+		}
+
+		stopLocalServices(c.FileDir())
+
+		// Native mode: stop + restart health-checked services only
+		if rm.SkipCompose {
+			hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), true)
+			if jsonOutput {
+				return printServiceJSON(nil, c.Compose.ProjectName, false, hcResults)
+			}
+			printHealthCheckResults(hcResults, c.FileDir())
+			return nil
+		}
+
+		serviceArgs := append(filteredArgs, rm.ServiceArgs...)
+
+		// Stop services
+		stopArgs := make([]string, 0, len(rm.ComposeArgs)+1+len(serviceArgs))
+		stopArgs = append(stopArgs, rm.ComposeArgs...)
+		stopArgs = append(stopArgs, "stop")
+		stopArgs = append(stopArgs, serviceArgs...)
+		if err := execComposeSubprocess(e, c, stopArgs); err != nil {
+			return err
+		}
+
+		// Start services
+		upArgs := make([]string, 0, len(rm.ComposeArgs)+3+len(serviceArgs))
+		upArgs = append(upArgs, rm.ComposeArgs...)
+		upArgs = append(upArgs, "up", "-d", "--wait")
+		upArgs = append(upArgs, serviceArgs...)
+		if err := execComposeSubprocess(e, c, upArgs); err != nil {
+			return err
+		}
+
+		// Show status
+		services, err := queryComposeServices(e, c)
+		if err != nil {
+			return nil
+		}
+		hcResults := runHealthChecksWithAutoStart(rm.HealthChecks, c.FileDir(), true)
+		if jsonOutput {
+			return printServiceJSON(services, c.Compose.ProjectName, false, hcResults)
+		}
+		printServiceTable(services, c.Compose.ProjectName, false, c.Compose.Services)
+		printHealthCheckResults(hcResults, c.FileDir())
+		return nil
+	},
+}
+
+// parseModeFlag extracts --mode/-M from args, returning the mode name and remaining args.
+func parseModeFlag(args []string) (string, []string) {
+	var mode string
+	var filtered []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--mode" || a == "-M":
+			if i+1 < len(args) {
+				i++
+				mode = args[i]
+			}
+		case strings.HasPrefix(a, "--mode="):
+			mode = strings.TrimPrefix(a, "--mode=")
+		case strings.HasPrefix(a, "-M="):
+			mode = strings.TrimPrefix(a, "-M=")
+		default:
+			filtered = append(filtered, a)
+		}
+	}
+	return mode, filtered
+}
+
+// resolvedMode holds the result of resolving a --mode flag against config profiles.
+type resolvedMode struct {
+	Profile      *config.ProfileConfig
+	ComposeArgs  []string // --profile flags for docker compose (global position)
+	SkipCompose  bool
+	ServiceArgs  []string // specific services to target
+	HealthChecks map[string]config.HealthCheckConfig
+}
+
+// resolveMode looks up a mode name in config profiles and returns resolved settings.
+func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
+	if mode == "" {
+		return &resolvedMode{HealthChecks: c.HealthChecks}, nil
+	}
+
+	p, ok := c.Profiles[mode]
+	if !ok {
+		available := make([]string, 0, len(c.Profiles))
+		for k := range c.Profiles {
+			available = append(available, k)
+		}
+		if len(available) == 0 {
+			return nil, fmt.Errorf("mode '%s' not found. No profiles defined in dva.yml under 'profiles:'", mode)
+		}
+		return nil, fmt.Errorf("mode '%s' not found. Available: %s", mode, strings.Join(available, ", "))
+	}
+
+	rm := &resolvedMode{
+		Profile:      &p,
+		HealthChecks: c.HealthChecks,
+	}
+
+	for _, cp := range p.ComposeProfiles {
+		rm.ComposeArgs = append(rm.ComposeArgs, "--profile", cp)
+	}
+
+	if p.ComposeServices != nil {
+		if len(*p.ComposeServices) == 0 {
+			rm.SkipCompose = true
+		} else {
+			rm.ServiceArgs = *p.ComposeServices
+		}
+	}
+
+	if len(p.HealthChecks) > 0 {
+		rm.HealthChecks = make(map[string]config.HealthCheckConfig)
+		for _, name := range p.HealthChecks {
+			if hc, ok := c.HealthChecks[name]; ok {
+				rm.HealthChecks[name] = hc
+			}
+		}
+	}
+
+	return rm, nil
 }
 
 func init() {

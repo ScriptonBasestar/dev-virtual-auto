@@ -273,6 +273,32 @@
                   "type": "array",
                   "items": { "type": "string" },
                   "description": "Tags for this specific service"
+                },
+                "ports": {
+                  "type": "object",
+                  "description": "Per-port labels and sub-path descriptions (key is published host port)",
+                  "patternProperties": {
+                    "^[0-9]+$": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "label": {
+                          "type": "string",
+                          "description": "Human-readable label for this port"
+                        },
+                        "http": {
+                          "type": "boolean",
+                          "description": "Force http:// prefix (true) or plain host:port (false). Omit to auto-detect from well-known ports."
+                        },
+                        "paths": {
+                          "type": "object",
+                          "description": "Sub-paths with descriptions (key: path, value: description)",
+                          "additionalProperties": { "type": "string" }
+                        }
+                      }
+                    }
+                  },
+                  "additionalProperties": false
                 }
               }
             }
@@ -619,6 +645,72 @@
         }
       }
     },
+    "profiles": {
+      "type": "object",
+      "description": "Named operational modes for dva up. Each profile defines which compose profiles/services to start, health checks to run, and environment overrides.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": {
+              "type": "string",
+              "description": "Human-readable description of this mode"
+            },
+            "compose_profiles": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Docker Compose profiles to activate (passed as --profile flags)",
+              "examples": [["infra"], ["infra", "monitoring"]]
+            },
+            "compose_services": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Explicit list of compose services to start. Empty array = skip compose entirely (native mode). Omit = start all services.",
+              "examples": [["postgres", "redis"], []]
+            },
+            "health_checks": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Health check names to activate (from health_checks section). Omit = use all.",
+              "examples": [["app", "worker"]]
+            },
+            "environment": {
+              "$ref": "#/definitions/environment_vars"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "examples": [{
+        "docker": {
+          "description": "All services in containers"
+        },
+        "dev": {
+          "description": "Infra in containers, app locally",
+          "compose_profiles": ["infra"],
+          "health_checks": ["app"],
+          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb" }
+        },
+        "native": {
+          "description": "Everything local",
+          "compose_services": [],
+          "health_checks": ["postgres", "redis", "app"]
+        }
+      }]
+    },
+    "ssh": {
+      "type": "object",
+      "description": "SSH agent configuration",
+      "additionalProperties": false,
+      "properties": {
+        "agent_image": {
+          "type": "string",
+          "description": "Docker image for the SSH agent container (default: whilp/ssh-agent)",
+          "examples": ["whilp/ssh-agent", "my-registry/ssh-agent:latest"]
+        }
+      }
+    },
     "health_checks": {
       "type": "object",
       "description": "Health checks for non-compose services (e.g., local processes, external dependencies)",
@@ -662,6 +754,12 @@
               "description": "Timeout in seconds (default: 2)",
               "default": 2,
               "examples": [5]
+            },
+            "ready_timeout": {
+              "type": "integer",
+              "description": "Maximum time in seconds to wait for a service to become ready after auto-start (default: 30)",
+              "default": 30,
+              "examples": [60]
             }
           },
           "required": ["type"]

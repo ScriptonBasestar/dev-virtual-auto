@@ -80,6 +80,7 @@ func startLocalService(name, command, configDir string) error {
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 		logFile.Close()
+		os.Remove(filepath.Join(logDir, name+".log"))
 		return fmt.Errorf("save pid: %w", err)
 	}
 

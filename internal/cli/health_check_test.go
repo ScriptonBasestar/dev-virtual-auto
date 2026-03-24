@@ -195,7 +195,8 @@ func TestRunHealthChecks_UnknownType(t *testing.T) {
 	}
 }
 
-func TestCheckHTTP_4xxPasses(t *testing.T) {
+func TestCheckHTTP_4xxFails(t *testing.T) {
+	// 4xx responses indicate client errors — the health endpoint is not functioning correctly
 	codes := []int{400, 401, 403, 404, 499}
 	for _, code := range codes {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -203,8 +204,23 @@ func TestCheckHTTP_4xxPasses(t *testing.T) {
 		}))
 		ok := checkHTTP(srv.URL, 2*time.Second)
 		srv.Close()
+		if ok {
+			t.Errorf("expected HTTP %d to fail (not a healthy response)", code)
+		}
+	}
+}
+
+func TestCheckHTTP_2xx3xxPasses(t *testing.T) {
+	// 2xx and 3xx responses indicate healthy or redirect (still reachable)
+	codes := []int{200, 201, 204, 301, 302}
+	for _, code := range codes {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+		}))
+		ok := checkHTTP(srv.URL, 2*time.Second)
+		srv.Close()
 		if !ok {
-			t.Errorf("expected HTTP %d to pass (service is running)", code)
+			t.Errorf("expected HTTP %d to pass (healthy response)", code)
 		}
 	}
 }

@@ -13,6 +13,8 @@ var sshCmd = &cobra.Command{
 	Short: "Manage the workspace SSH agent container",
 }
 
+const defaultSSHAgentImage = "whilp/ssh-agent"
+
 var sshUpCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start SSH agent container",
@@ -27,6 +29,11 @@ var sshUpCmd = &cobra.Command{
 		key = e.Interpolate(key)
 		volume = e.Interpolate(volume)
 
+		agentImage := c.Ssh.AgentImage
+		if agentImage == "" {
+			agentImage = defaultSSHAgentImage
+		}
+
 		// Create volume
 		runSilent("docker", "volume", "create", "--name", "ssh_data")
 
@@ -35,7 +42,7 @@ var sshUpCmd = &cobra.Command{
 		if user != "" {
 			runArgs = append(runArgs, "-u", user)
 		}
-		runArgs = append(runArgs, "whilp/ssh-agent")
+		runArgs = append(runArgs, agentImage)
 		runSilent("docker", runArgs...)
 
 		// Add key
@@ -43,7 +50,7 @@ var sshUpCmd = &cobra.Command{
 		if volume != "" {
 			addArgs = append(addArgs, "--volume", volume+":"+volume)
 		}
-		addArgs = append(addArgs, "--interactive", "--tty", "whilp/ssh-agent", "ssh-add", key)
+		addArgs = append(addArgs, "--interactive", "--tty", agentImage, "ssh-add", key)
 		c2 := exec.Command("docker", addArgs...)
 		c2.Stdin = os.Stdin
 		c2.Stdout = os.Stdout

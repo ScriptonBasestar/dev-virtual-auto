@@ -105,11 +105,17 @@ var provisionCmd = &cobra.Command{
 }
 
 // runProvisionCompose builds and runs a compose command for a provision step.
+// Uses exec.Command directly instead of shell to avoid command injection.
 func runProvisionCompose(e *config.Environment, c *config.Config, stepName string, args []string) error {
 	composeCmd, composeArgs := buildComposeArgs(e, c, args)
-	cmdStr := fmt.Sprintf("%s %s", composeCmd, strings.Join(composeArgs, " "))
-	fmt.Printf("    $ %s\n", cmdStr)
-	if err := runShellCommand(cmdStr); err != nil {
+	fmt.Printf("    $ %s %s\n", composeCmd, strings.Join(composeArgs, " "))
+
+	cmd := exec.Command(composeCmd, composeArgs...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = e.EnvSlice()
+	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("provision step '%s' failed: %w", stepName, err)
 	}
 	return nil

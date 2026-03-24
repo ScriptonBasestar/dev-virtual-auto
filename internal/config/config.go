@@ -24,6 +24,8 @@ type Config struct {
 	Devcontainer map[string]any         `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
+	Profiles     map[string]ProfileConfig       `yaml:"profiles"`
+	Ssh          SshConfig                      `yaml:"ssh"`
 
 	// Internal fields
 	filePath string
@@ -33,6 +35,20 @@ type Config struct {
 type SubprojectConfig struct {
 	Path        string   `yaml:"path"`
 	ExcludeTags []string `yaml:"exclude_tags"`
+}
+
+// ProfileConfig defines a named operational mode for dva up.
+type ProfileConfig struct {
+	Description     string            `yaml:"description"`
+	ComposeProfiles []string          `yaml:"compose_profiles"`
+	ComposeServices *[]string         `yaml:"compose_services"` // nil=all, empty=none, items=only those
+	HealthChecks    []string          `yaml:"health_checks"`
+	Environment     map[string]string `yaml:"environment"`
+}
+
+// SshConfig holds SSH agent configuration.
+type SshConfig struct {
+	AgentImage string `yaml:"agent_image"`
 }
 
 // HealthCheckConfig defines a health check for a non-compose service.
@@ -47,9 +63,17 @@ type HealthCheckConfig struct {
 	ReadyTimeout int    `yaml:"ready_timeout"` // max wait after start in seconds (default: 30)
 }
 
+// PortConfig describes a published port with label and optional sub-paths.
+type PortConfig struct {
+	Label string            `yaml:"label"`
+	HTTP  *bool             `yaml:"http"`  // nil=auto-detect, true=http://, false=host:port
+	Paths map[string]string `yaml:"paths"` // path -> description
+}
+
 // ServiceTagConfig defines per-service tag configuration.
 type ServiceTagConfig struct {
-	Tags []string `yaml:"tags"`
+	Tags  []string           `yaml:"tags"`
+	Ports map[int]PortConfig `yaml:"ports"` // published (host) port -> config
 }
 
 // ComposeConfig holds Docker Compose settings.
@@ -258,7 +282,8 @@ func findConfig(workDir string) (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find dva.yml config (searched from %s to /)", workDir)
+			absWork, _ := filepath.Abs(workDir)
+			return "", fmt.Errorf("could not find dva.yml (searched from %s to /).\n  Hint: run 'dva init' or set DVA_FILE=/path/to/dva.yml", absWork)
 		}
 		dir = parent
 	}
@@ -324,6 +349,14 @@ func (c *Config) mergeFrom(other *Config) {
 	if len(other.Compose.UpOptions) > 0 {
 		c.Compose.UpOptions = other.Compose.UpOptions
 	}
+	if other.Compose.Services != nil {
+		if c.Compose.Services == nil {
+			c.Compose.Services = make(map[string]ServiceTagConfig)
+		}
+		for k, v := range other.Compose.Services {
+			c.Compose.Services[k] = v
+		}
+	}
 
 	// Merge kubectl
 	if other.Kubectl.Namespace != "" {
@@ -348,6 +381,41 @@ func (c *Config) mergeFrom(other *Config) {
 		for k, v := range other.Infra {
 			c.Infra[k] = v
 		}
+	}
+
+	// Merge profiles
+	if other.Profiles != nil {
+		if c.Profiles == nil {
+			c.Profiles = make(map[string]ProfileConfig)
+		}
+		for k, v := range other.Profiles {
+			c.Profiles[k] = v
+		}
+	}
+
+	// Merge ssh
+	if other.Ssh.AgentImage != "" {
+		c.Ssh.AgentImage = other.Ssh.AgentImage
+	}
+
+	// Merge env_file (override takes precedence as a whole)
+	if other.EnvFile != nil {
+		c.EnvFile = other.EnvFile
+	}
+
+	// Merge subprojects
+	if other.Subprojects != nil {
+		if c.Subprojects == nil {
+			c.Subprojects = make(map[string]SubprojectConfig)
+		}
+		for k, v := range other.Subprojects {
+			c.Subprojects[k] = v
+		}
+	}
+
+	// Merge devcontainer (override takes precedence as a whole)
+	if other.Devcontainer != nil {
+		c.Devcontainer = other.Devcontainer
 	}
 }
 

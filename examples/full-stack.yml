@@ -6,6 +6,10 @@
 #           subcommands, multiple runners, compose profiles, and infra management
 #
 # Usage:
+#   dva up                     # Start all services (default)
+#   dva up -M native           # Native mode: health checks only, no Docker
+#   dva up -M hybrid           # Databases in Docker, app natively
+#   dva down -M native         # Stop native services only
 #   dva provision              # Run default setup
 #   dva provision reset        # Reset and rebuild
 #   dva rails console          # Start Rails console
@@ -178,6 +182,28 @@ provision:
 
     - step: Precompiling assets
       run: dva rails assets:precompile
+
+# Profiles define named operational modes for `dva up/down/stop/restart --mode NAME`
+# See: compose_services (nil=all, []=skip compose, [items]=specific services)
+profiles:
+  native:
+    description: Run without Docker (native services only)
+    compose_services: []
+    health_checks: [postgres, redis, web_server]
+    environment:
+      DATABASE_URL: postgres://user:password@localhost:5432/myapp_development
+      REDIS_URL: redis://localhost:6379/0
+
+  docker:
+    description: Full Docker mode with all profiles activated
+    compose_profiles: [web, development, frontend]
+
+  hybrid:
+    description: Databases in Docker, app runs natively
+    compose_services: [db, redis]
+    health_checks: [web_server]
+    environment:
+      DATABASE_URL: postgres://user:password@localhost:5432/myapp_development
 
 kubectl:
   namespace: myapp-development
