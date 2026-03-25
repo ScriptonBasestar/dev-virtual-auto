@@ -85,7 +85,7 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
 ### 🔄 Configuration Migration
 
 - **[MIGRATE.md](MIGRATE.md)** - DVA configuration upgrade guide
-  - Step-by-step migration walkthrough (hip v8.x → dva v0.1.x)
+  - Step-by-step migration walkthrough
   - Common migration scenarios with before/after examples
   - AI-assisted migration with Claude/ChatGPT
   - Troubleshooting deprecated features

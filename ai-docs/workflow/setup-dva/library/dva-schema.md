@@ -292,5 +292,5 @@ DVA_FILE=path/to/dva.yml dva validate
 ## See Also
 
 - `examples/` — Complete configuration examples by use case
-- `examples/MIGRATE.md` — Migration guide from hip/legacy configs
+- `examples/MIGRATE.md` — Migration guide from legacy configs
 - `internal/config/schema.json` — Canonical JSON schema

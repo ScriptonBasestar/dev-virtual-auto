@@ -22,7 +22,7 @@ The `dva migrate` command helps you upgrade your `dva.yml` configuration by:
 - Generating AI-friendly prompts
 
 **When to use:**
-- Upgrading from hip v8.x to dva v0.1.x
+- Upgrading from legacy dva v0.0.x to dva v0.1.x
 - Adopting new features (env_file, step/run/note syntax)
 - Fixing deprecated warnings
 - Preparing for breaking changes
@@ -31,9 +31,9 @@ The `dva migrate` command helps you upgrade your `dva.yml` configuration by:
 
 ## Common Migration Scenarios
 
-### Scenario 1: Upgrading from hip v8.x to dva v0.1.0
+### Scenario 1: Upgrading from legacy dva v0.0.x to dva v0.1.0
 
-**Your current `hip.yml` (v8.1.0):**
+**Your current dva.yml` (v8.1.0):**
 ```yaml
 version: '8.1.0'
 
@@ -200,7 +200,7 @@ SECRET_KEY_BASE=your_secret_key_here
 
 ### Scenario 3: Complex Multi-Service Migration
 
-**Before (hip v7.x with old patterns):**
+**Before (legacy dva v0.0.x with old patterns):**
 ```yaml
 version: '7.0.0'
 
@@ -347,7 +347,7 @@ $ dva provision
 ```bash
 $ rm migration-guide.md dva.yml.backup
 $ git add dva.yml
-$ git commit -m "chore(config): upgrade from hip to dva v0.1.0"
+$ git commit -m "chore(config): upgrade from legacy dva to dva v0.1.0"
 ```
 
 ---

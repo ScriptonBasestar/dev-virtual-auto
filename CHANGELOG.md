@@ -6,7 +6,7 @@ All notable changes to DVA are documented here.
 
 ### Added
 - `dva doctor` command: environment prerequisite checks and setup diagnostics
-- `dva migrate` command: detect legacy `.hip.yml` / old `dva.yml` format and generate migration guide
+- `dva migrate` command: detect old `dva.yml` format and generate migration guide
 - `dva completion bash|zsh|fish`: shell autocompletion (Cobra built-in, dynamic interaction commands included)
 - Command hooks system (`before`/`replace`/`after`) for hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`)
 - `DVA_CURRENT_UID` special variable (numeric user ID); `DVA_CURRENT_USER` now returns username (string)

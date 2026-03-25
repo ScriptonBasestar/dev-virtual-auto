@@ -2,8 +2,6 @@
 
 Docker Compose / Kubernetes CLI wrapper — `dva.yml` 설정 파일로 복잡한 명령어를 간단하게.
 
-> Hip CLI의 Go 재작성 버전 (v10+).
-
 ## Install
 
 ### Binary (추천)
