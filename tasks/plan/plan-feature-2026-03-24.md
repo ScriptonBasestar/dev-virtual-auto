@@ -20,9 +20,9 @@ children:
   - BACKLOG-006
   - BACKLOG-007
   - BACKLOG-008
-progress: 79
+progress: 93
 total-tasks: 15
-completed-tasks: 11
+completed-tasks: 14
 target-date: null
 ---
 
@@ -53,9 +53,9 @@ DVA v0.1.12 프로젝트의 기능 발굴, 요구사항 갭 분석, 태스크 �
 - [x] BACKLOG-003 — 에러 처리 패턴 통일 (M)
 - [ ] BACKLOG-004 — Config 스키마 마이그레이션 도구 (L)
 - [x] BACKLOG-005 — CHANGELOG.md 도입 (S)
-- [ ] BACKLOG-006 — Provision 병렬 실행 지원 (L)
-- [ ] BACKLOG-007 — 통합 테스트 프레임워크 구축 (XL)
-- [ ] BACKLOG-008 — cli 커맨드 실행 경로 테스트 확장 (L)
+- [x] BACKLOG-006 — Provision 병렬 실행 지원 (L)
+- [x] BACKLOG-007 — 통합 테스트 프레임워크 구축 (XL)
+- [x] BACKLOG-008 — cli 커맨드 실행 경로 테스트 확장 (L)
 
 ## Recommended Execution Order
 1. TASK-002, TASK-003 (XS, 이미 구현된 코드 연결)

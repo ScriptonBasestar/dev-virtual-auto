@@ -10,6 +10,9 @@ source: "BACKLOG-002 후속"
 status: done
 created: 2026-03-25
 completed-at: 2026-03-25T09:58:13+09:00
+archived-at: 2026-03-25T10:07:37+09:00
+verified-at: 2026-03-25T10:07:37+09:00
+verification-summary: "Test coverage metrics verified; internal/cli (58.1%) and internal/exec (96.5%) targets met. Evidence aligns with test execution outputs."
 completion-summary: |
   internal/exec 패키지와 internal/cli 실행 경로에 대한 단위 테스트 추가.
   두 개의 새 테스트 파일 작성:
