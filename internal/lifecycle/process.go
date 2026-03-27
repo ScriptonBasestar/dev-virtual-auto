@@ -41,7 +41,7 @@ func (p *ProcessPlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
 	if data, err := os.ReadFile(pidFile); err == nil {
 		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid > 0 && isProcessRunning(pid) {
+		if pid > 0 && IsProcessRunning(pid) {
 			pctx.Logger.Info("already running", "name", name, "pid", pid)
 			return &Result{
 				Services: []ServiceStatus{{
@@ -84,7 +84,7 @@ func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 	}
 
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid > 0 && isProcessRunning(pid) {
+	if pid > 0 && IsProcessRunning(pid) {
 		return []ServiceStatus{{Name: name, State: "running"}}, nil
 	}
 
@@ -164,8 +164,8 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 	return nil
 }
 
-// isProcessRunning checks if a process with the given PID is still alive.
-func isProcessRunning(pid int) bool {
+// IsProcessRunning checks if a process with the given PID is still alive.
+func IsProcessRunning(pid int) bool {
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		return false

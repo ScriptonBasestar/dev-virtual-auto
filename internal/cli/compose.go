@@ -74,14 +74,39 @@ DVA-specific flags:
 		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
-		return orch.Up(context.Background(), lifecycle.UpOptions{
+		if err := orch.Up(context.Background(), lifecycle.UpOptions{
 			DryRun:      dryRun,
 			Force:       force,
 			Wait:        !noWait,
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,
-		})
+		}); err != nil {
+			return err
+		}
+
+		// Print status summary after successful startup
+		fmt.Fprintln(os.Stderr)
+		status, statusErr := orch.Status(context.Background())
+		if statusErr == nil {
+			lifecycle.PrintStatus(status, c.FileDir())
+		}
+		if len(c.Endpoints) > 0 {
+			var allHC []HealthCheckResult
+			if statusErr == nil {
+				for _, entry := range status.Entries {
+					for _, h := range entry.Health {
+						allHC = append(allHC, HealthCheckResult{
+							Name:  h.Name,
+							Ready: h.Ready,
+						})
+					}
+				}
+			}
+			printEndpointTable(c.Endpoints, nil, allHC)
+		}
+
+		return nil
 	},
 }
 
@@ -238,22 +263,14 @@ var cleanCmd = &cobra.Command{
 			clearProvisionMarkers(c.FileDir())
 		}
 
-		// Orchestrator down for all lifecycle entries
+		// Orchestrator down for all lifecycle entries (with volume/image cleanup if requested)
 		orch := lifecycle.NewOrchestrator(c, e)
-		if err := orch.Down(context.Background(), lifecycle.DownOptions{DryRun: dryRun}); err != nil {
+		if err := orch.Down(context.Background(), lifecycle.DownOptions{
+			DryRun:       dryRun,
+			Volumes:      volumes,
+			RemoveImages: images,
+		}); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] lifecycle down: %v\n", err)
-		}
-
-		// Additional compose cleanup for volumes/images
-		if volumes || images {
-			cleanArgs := []string{"down", "--remove-orphans"}
-			if volumes {
-				cleanArgs = append(cleanArgs, "--volumes")
-			}
-			if images {
-				cleanArgs = append(cleanArgs, "--rmi", "local")
-			}
-			return execComposePassthrough(e, c, cleanArgs)
 		}
 
 		return nil
@@ -351,8 +368,7 @@ func applyEnv(e *config.Environment, c *config.Config, envName string) error {
 
 // resolvedMode holds the result of resolving a --mode flag against config modes.
 type resolvedMode struct {
-	Mode         *config.ModeConfig
-	EndpointTags []string
+	Mode *config.ModeConfig
 }
 
 // resolveMode looks up a mode name in config modes and returns resolved settings.
@@ -374,8 +390,7 @@ func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 	}
 
 	return &resolvedMode{
-		Mode:         &m,
-		EndpointTags: m.EndpointTags,
+		Mode: &m,
 	}, nil
 }
 

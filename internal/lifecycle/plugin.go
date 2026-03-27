@@ -19,13 +19,15 @@ type LifecyclePlugin interface {
 
 // PluginContext provides runtime context to each plugin invocation.
 type PluginContext struct {
-	Entry     *config.LifecycleEntry
-	Env       *config.Environment
-	ConfigDir string
-	DryRun    bool
-	Force     bool
-	Wait      bool
-	Logger    *slog.Logger
+	Entry        *config.LifecycleEntry
+	Env          *config.Environment
+	ConfigDir    string
+	DryRun       bool
+	Force        bool
+	Wait         bool
+	Volumes      bool // clean: also remove named volumes
+	RemoveImages bool // clean: also remove locally built images
+	Logger       *slog.Logger
 }
 
 // Result holds the output of a plugin Up() call.

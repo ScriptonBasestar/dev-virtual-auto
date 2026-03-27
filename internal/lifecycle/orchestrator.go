@@ -22,10 +22,12 @@ type UpOptions struct {
 
 // DownOptions configures orchestrator Down behavior.
 type DownOptions struct {
-	DryRun      bool
-	IncludeTags []string
-	ExcludeTags []string
-	Mode        string
+	DryRun       bool
+	Volumes      bool // also remove named volumes
+	RemoveImages bool // also remove locally built images
+	IncludeTags  []string
+	ExcludeTags  []string
+	Mode         string
 }
 
 // StopOptions configures orchestrator Stop behavior.
@@ -143,11 +145,13 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 		}
 
 		pctx := &PluginContext{
-			Entry:     &entry,
-			Env:       o.env,
-			ConfigDir: o.cfg.FileDir(),
-			DryRun:    opts.DryRun,
-			Logger:    o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
+			Entry:        &entry,
+			Env:          o.env,
+			ConfigDir:    o.cfg.FileDir(),
+			DryRun:       opts.DryRun,
+			Volumes:      opts.Volumes,
+			RemoveImages: opts.RemoveImages,
+			Logger:       o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, entry.Plugin)

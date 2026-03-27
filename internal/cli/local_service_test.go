@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 func TestStartLocalService(t *testing.T) {
@@ -32,7 +33,7 @@ func TestStartLocalService(t *testing.T) {
 	}
 
 	// Verify process is running
-	if !isProcessRunning(pid) {
+	if !lifecycle.IsProcessRunning(pid) {
 		t.Error("expected process to be running")
 	}
 
@@ -47,7 +48,7 @@ func TestStartLocalService(t *testing.T) {
 
 	// Verify process stopped
 	time.Sleep(100 * time.Millisecond)
-	if isProcessRunning(pid) {
+	if lifecycle.IsProcessRunning(pid) {
 		t.Error("expected process to be stopped after stopLocalServices")
 	}
 
@@ -76,18 +77,6 @@ func TestStopLocalServices_StalePid(t *testing.T) {
 	// PID file should be cleaned up
 	if _, err := os.Stat(pidFile); !os.IsNotExist(err) {
 		t.Error("expected stale PID file to be removed")
-	}
-}
-
-func TestIsProcessRunning(t *testing.T) {
-	// Current process should be running
-	if !isProcessRunning(os.Getpid()) {
-		t.Error("expected current process to be running")
-	}
-
-	// Non-existent PID should not be running
-	if isProcessRunning(99999999) {
-		t.Error("expected non-existent PID to not be running")
 	}
 }
 

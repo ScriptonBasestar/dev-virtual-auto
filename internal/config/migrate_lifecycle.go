@@ -1,8 +1,8 @@
 package config
 
-// MigrateComposeToLifecycle converts legacy compose: config to lifecycle entries
+// migrateComposeToLifecycle converts legacy compose: config to lifecycle entries
 // when no explicit lifecycle: section is defined.
-func MigrateComposeToLifecycle(cfg *Config) {
+func migrateComposeToLifecycle(cfg *Config) {
 	if len(cfg.Lifecycle) > 0 {
 		return // explicit lifecycle takes priority
 	}

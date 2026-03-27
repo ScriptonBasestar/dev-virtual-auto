@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 // startUnreadyServices starts local services that have a start command and failed health checks.
@@ -31,7 +32,7 @@ func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []
 		pidFile := filepath.Join(configDir, config.DotDirName, "pids", r.Name+".pid")
 		if data, err := os.ReadFile(pidFile); err == nil {
 			pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-			if pid > 0 && isProcessRunning(pid) {
+			if pid > 0 && lifecycle.IsProcessRunning(pid) {
 				continue
 			}
 		}
@@ -132,15 +133,6 @@ func stopLocalServices(configDir string) {
 	}
 }
 
-// isProcessRunning checks if a process with the given PID is still alive.
-func isProcessRunning(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return process.Signal(syscall.Signal(0)) == nil
-}
-
 const defaultReadyTimeout = 30 * time.Second
 
 // maxReadyTimeout returns the maximum ready_timeout across started services.
@@ -157,56 +149,3 @@ func maxReadyTimeout(checks map[string]config.HealthCheckConfig, startedNames ma
 	return maxT
 }
 
-// runHealthChecksWithAutoStart runs health checks, auto-starts services with start commands,
-// and optionally polls until all started services are ready.
-//
-// When wait is true: polls every 2s until all started services pass health checks or timeout.
-// When wait is false: starts services and returns immediately with current status.
-func runHealthChecksWithAutoStart(checks map[string]config.HealthCheckConfig, configDir string, wait bool) []HealthCheckResult {
-	results := runHealthChecks(checks)
-
-	startedNames := startUnreadyServices(checks, results, configDir)
-	if len(startedNames) == 0 {
-		return results
-	}
-
-	if wait {
-		timeout := maxReadyTimeout(checks, startedNames)
-
-		// Collect names of services we're waiting for
-		var pending []string
-		for name := range startedNames {
-			pending = append(pending, name)
-		}
-		fmt.Fprintf(os.Stderr, "  waiting for %s to be ready (timeout %ds)...\n", strings.Join(pending, ", "), int(timeout.Seconds()))
-
-		// Poll until all started services are ready or timeout
-		start := time.Now()
-		deadline := start.Add(timeout)
-		for time.Now().Before(deadline) {
-			time.Sleep(2 * time.Second)
-			results = runHealthChecks(checks)
-
-			var notReady []string
-			for _, r := range results {
-				if startedNames[r.Name] && !r.Ready {
-					notReady = append(notReady, r.Name)
-				}
-			}
-			if len(notReady) == 0 {
-				elapsed := time.Since(start).Truncate(time.Second)
-				fmt.Fprintf(os.Stderr, "  all services ready (%s)\n", elapsed)
-				break
-			}
-		}
-	}
-
-	// Mark started services
-	for i, r := range results {
-		if startedNames[r.Name] {
-			results[i].Started = true
-		}
-	}
-
-	return results
-}

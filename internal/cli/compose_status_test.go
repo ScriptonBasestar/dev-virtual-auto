@@ -54,75 +54,6 @@ func TestParseServiceInfo_Empty(t *testing.T) {
 	}
 }
 
-func TestAllServicesHealthy_AllHealthy(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "running", Health: "healthy"},
-		{Service: "redis", State: "running", Health: "healthy"},
-	}
-	if !allServicesHealthy(services, nil) {
-		t.Error("expected all healthy")
-	}
-}
-
-func TestAllServicesHealthy_OneUnhealthy(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "running", Health: "healthy"},
-		{Service: "redis", State: "running", Health: "unhealthy"},
-	}
-	if allServicesHealthy(services, nil) {
-		t.Error("expected not all healthy")
-	}
-}
-
-func TestAllServicesHealthy_NoHealthcheck(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "running", Health: ""},
-	}
-	if !allServicesHealthy(services, nil) {
-		t.Error("running without healthcheck should be considered healthy")
-	}
-}
-
-func TestAllServicesHealthy_NotRunning(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "exited", Health: ""},
-	}
-	if allServicesHealthy(services, nil) {
-		t.Error("exited service should not be healthy")
-	}
-}
-
-func TestAllServicesHealthy_Empty(t *testing.T) {
-	if allServicesHealthy(nil, nil) {
-		t.Error("empty services should return false")
-	}
-}
-
-func TestAllServicesHealthy_Subset(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "running", Health: "healthy"},
-		{Service: "redis", State: "running", Health: "unhealthy"},
-		{Service: "vault", State: "running", Health: "healthy"},
-	}
-	// Only requesting postgres and vault (both healthy)
-	if !allServicesHealthy(services, []string{"postgres", "vault"}) {
-		t.Error("requested subset should be healthy")
-	}
-	// Requesting redis (unhealthy)
-	if allServicesHealthy(services, []string{"redis"}) {
-		t.Error("redis is unhealthy")
-	}
-}
-
-func TestAllServicesHealthy_MissingService(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "postgres", State: "running", Health: "healthy"},
-	}
-	if allServicesHealthy(services, []string{"postgres", "nonexistent"}) {
-		t.Error("missing service should return false")
-	}
-}
-
 func TestExtractServiceNames(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -333,40 +264,6 @@ func TestFormatPortURLs_UserConfig(t *testing.T) {
 			t.Errorf("expected http scheme override, got %v", lines)
 		}
 	})
-}
-
-func TestPrintRelatedServiceHints_NoMissing(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "api", State: "running"},
-		{Service: "worker", State: "running"},
-	}
-	svcConfigs := map[string]config.ServiceTagConfig{
-		"api": {Related: []string{"worker"}},
-	}
-	// Should not panic; all related services running
-	printRelatedServiceHints(services, svcConfigs)
-}
-
-func TestPrintRelatedServiceHints_MissingRelated(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "api", State: "running"},
-	}
-	svcConfigs := map[string]config.ServiceTagConfig{
-		"api": {
-			Related: []string{"worker"},
-			Hint:    "Worker is required for async jobs",
-		},
-	}
-	// Should not panic; worker is not running
-	printRelatedServiceHints(services, svcConfigs)
-}
-
-func TestPrintRelatedServiceHints_EmptyConfig(t *testing.T) {
-	services := []ServiceInfo{
-		{Service: "api", State: "running"},
-	}
-	// nil config should not panic
-	printRelatedServiceHints(services, nil)
 }
 
 func TestFormatPorts(t *testing.T) {

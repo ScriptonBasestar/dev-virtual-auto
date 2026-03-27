@@ -329,7 +329,7 @@ func Load(workDir string) (*Config, error) {
 	migrateDeprecatedProfiles(cfg)
 
 	// Migrate compose: → lifecycle: if no explicit lifecycle section
-	MigrateComposeToLifecycle(cfg)
+	migrateComposeToLifecycle(cfg)
 
 	// Apply defaults
 	if cfg.Environment == nil {

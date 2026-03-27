@@ -65,6 +65,12 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	}
 
 	args := []string{"down", "--remove-orphans"}
+	if pctx.Volumes {
+		args = append(args, "--volumes")
+	}
+	if pctx.RemoveImages {
+		args = append(args, "--rmi", "local")
+	}
 
 	if pctx.DryRun {
 		cmd, cmdArgs := p.buildArgs(pctx, args)

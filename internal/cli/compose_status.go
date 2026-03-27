@@ -1,18 +1,12 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"sort"
 	"strings"
-	"text/tabwriter"
-	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
-	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 // ServiceInfo represents a service from docker compose ps JSON output.
@@ -30,18 +24,6 @@ type Publisher struct {
 	TargetPort    int    `json:"TargetPort"`
 	PublishedPort int    `json:"PublishedPort"`
 	Protocol      string `json:"Protocol"`
-}
-
-// queryComposeServices runs docker compose ps --format json and parses the result.
-func queryComposeServices(e *config.Environment, c *config.Config) ([]ServiceInfo, error) {
-	composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "json"})
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, composeCmd, composeArgs...).Output()
-	if err != nil {
-		return nil, err
-	}
-	return parseServiceInfo(out)
 }
 
 // parseServiceInfo parses docker compose ps JSON output.
@@ -72,52 +54,6 @@ func parseServiceInfo(data []byte) ([]ServiceInfo, error) {
 		services = append(services, svc)
 	}
 	return services, nil
-}
-
-// allServicesHealthy checks if all requested services are running and healthy.
-// If requestedServices is empty, checks all services.
-// Services without a healthcheck (Health=="") pass if State is "running".
-func allServicesHealthy(services []ServiceInfo, requestedServices []string) bool {
-	if len(services) == 0 {
-		return false
-	}
-
-	if len(requestedServices) == 0 {
-		for _, s := range services {
-			if !isServiceHealthy(s) {
-				return false
-			}
-		}
-		return true
-	}
-
-	// Build lookup map
-	svcMap := make(map[string]ServiceInfo, len(services))
-	for _, s := range services {
-		svcMap[s.Service] = s
-	}
-
-	for _, name := range requestedServices {
-		s, ok := svcMap[name]
-		if !ok {
-			return false
-		}
-		if !isServiceHealthy(s) {
-			return false
-		}
-	}
-	return true
-}
-
-func isServiceHealthy(s ServiceInfo) bool {
-	if s.State != "running" {
-		return false
-	}
-	// No healthcheck defined → running is enough
-	if s.Health == "" {
-		return true
-	}
-	return s.Health == "healthy"
 }
 
 // formatPorts formats publisher list into a human-readable string.
@@ -236,103 +172,6 @@ func formatPortURLs(publishers []Publisher, portConfigs map[int]config.PortConfi
 		}
 	}
 	return lines
-}
-
-// printServiceTable prints a formatted table of services with ports.
-// svcConfigs provides per-service port labels/paths from dva.yml; may be nil.
-func printServiceTable(services []ServiceInfo, projectName string, alreadyRunning bool, svcConfigs map[string]config.ServiceTagConfig) {
-	if alreadyRunning {
-		fmt.Printf("\n[ok] Services already running (project: %s)\n\n", projectName)
-	} else {
-		fmt.Printf("\n[+] Services started (project: %s)\n\n", projectName)
-	}
-
-	if len(services) == 0 {
-		return
-	}
-
-	var buf strings.Builder
-	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "  SERVICE\tSTATUS\tURL\n")
-	for _, s := range services {
-		status := s.State
-		if s.Health != "" {
-			status = s.Health
-		}
-		var portConfigs map[int]config.PortConfig
-		if sc, ok := svcConfigs[s.Service]; ok {
-			portConfigs = sc.Ports
-		}
-		lines := formatPortURLs(s.Publishers, portConfigs)
-		if len(lines) == 0 {
-			fmt.Fprintf(tw, "  %s\t%s\t\n", s.Service, status)
-		} else {
-			fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Service, status, lines[0])
-			for _, line := range lines[1:] {
-				fmt.Fprintf(tw, "  \t\t%s\n", line)
-			}
-		}
-	}
-	tw.Flush()
-	fmt.Print(buf.String())
-	fmt.Println()
-}
-
-// printServiceJSON outputs services in JSON format.
-func printServiceJSON(services []ServiceInfo, projectName string, alreadyRunning bool, healthChecks []HealthCheckResult) error {
-	data := map[string]any{
-		"project":         projectName,
-		"already_running": alreadyRunning,
-		"services":        services,
-	}
-	if len(healthChecks) > 0 {
-		data["health_checks"] = healthChecks
-	}
-	return output.PrintJSON(data)
-}
-
-// printRelatedServiceHints checks running services against their "related" config
-// and prints warnings for related services that are not currently running.
-func printRelatedServiceHints(services []ServiceInfo, svcConfigs map[string]config.ServiceTagConfig) {
-	if len(svcConfigs) == 0 {
-		return
-	}
-
-	// Build set of running service names
-	running := make(map[string]bool, len(services))
-	for _, s := range services {
-		running[s.Service] = true
-	}
-
-	// Check each running service for missing related services
-	var hints []string
-	seen := make(map[string]bool)
-	for _, s := range services {
-		sc, ok := svcConfigs[s.Service]
-		if !ok || len(sc.Related) == 0 {
-			continue
-		}
-		for _, rel := range sc.Related {
-			if running[rel] || seen[rel] {
-				continue
-			}
-			seen[rel] = true
-			hint := fmt.Sprintf("  %s -> related service '%s' is not running", s.Service, rel)
-			if sc.Hint != "" {
-				hint += fmt.Sprintf("\n    Hint: %s", sc.Hint)
-			}
-			hint += fmt.Sprintf("\n    Run:  dva up %s", rel)
-			hints = append(hints, hint)
-		}
-	}
-
-	if len(hints) > 0 {
-		fmt.Fprintf(os.Stderr, "Related Services:\n")
-		for _, h := range hints {
-			fmt.Fprintln(os.Stderr, h)
-		}
-		fmt.Fprintln(os.Stderr)
-	}
 }
 
 // extractServiceNames extracts positional service names from args,

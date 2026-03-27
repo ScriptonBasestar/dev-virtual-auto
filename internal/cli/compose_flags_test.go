@@ -190,22 +190,6 @@ func TestResolveMode_Found(t *testing.T) {
 	}
 }
 
-func TestResolveMode_EndpointTags(t *testing.T) {
-	c := &config.Config{
-		Modes: map[string]config.ModeConfig{
-			"docker": {
-				EndpointTags: []string{"web"},
-			},
-		},
-	}
-	rm, err := resolveMode(c, "docker")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(rm.EndpointTags) != 1 || rm.EndpointTags[0] != "web" {
-		t.Errorf("EndpointTags = %v, want [web]", rm.EndpointTags)
-	}
-}
 
 func TestApplyEnv_Empty(t *testing.T) {
 	e := config.NewEnvironment(nil, "/tmp", "/tmp")
