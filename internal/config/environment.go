@@ -24,6 +24,11 @@ func (e *Environment) WorkDir() string {
 	return e.workDir
 }
 
+// CfgDir returns the config directory.
+func (e *Environment) CfgDir() string {
+	return e.cfgDir
+}
+
 // NewEnvironment creates a new Environment with merged variables from config.
 func NewEnvironment(defaultVars map[string]string, workDir, cfgDir string) *Environment {
 	env := &Environment{

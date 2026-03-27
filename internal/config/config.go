@@ -31,6 +31,7 @@ type Config struct {
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
+	Lifecycle    []LifecycleEntry              `yaml:"lifecycle"`
 
 	// Deprecated: use Modes instead. Kept for backwards compatibility with existing dva.yml files.
 	DeprecatedProfiles map[string]ModeConfig `yaml:"profiles"`
@@ -62,7 +63,8 @@ type ModeConfig struct {
 	HealthChecks    []string          `yaml:"health_checks"`
 	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
-	Provision       string            `yaml:"provision"` // provision profile to suggest on first run
+	Provision       string            `yaml:"provision"`  // provision profile to suggest on first run
+	Lifecycle       []string          `yaml:"lifecycle"`   // lifecycle entry names to include (empty=all)
 }
 
 // EnvironmentProfile defines a named environment configuration for --env flag.
@@ -326,6 +328,9 @@ func Load(workDir string) (*Config, error) {
 	// Migrate deprecated 'profiles:' → 'modes:'
 	migrateDeprecatedProfiles(cfg)
 
+	// Migrate compose: → lifecycle: if no explicit lifecycle section
+	MigrateComposeToLifecycle(cfg)
+
 	// Apply defaults
 	if cfg.Environment == nil {
 		cfg.Environment = make(map[string]string)
@@ -535,6 +540,11 @@ func (c *Config) mergeFrom(other *Config) {
 		for k, v := range other.Subprojects {
 			c.Subprojects[k] = v
 		}
+	}
+
+	// Merge lifecycle entries (append, re-sort by order later)
+	if len(other.Lifecycle) > 0 {
+		c.Lifecycle = append(c.Lifecycle, other.Lifecycle...)
 	}
 
 	// Merge doctor checks

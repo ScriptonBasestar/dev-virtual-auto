@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
@@ -101,8 +104,37 @@ var statusCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Println("\nServices:")
 		e := loadEnv(c)
+
+		// Use orchestrator status when lifecycle entries are configured
+		if useOrchestrator(c) {
+			orch := lifecycle.NewOrchestrator(c, e)
+			status, err := orch.Status(context.Background())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "[warn] could not query lifecycle status: %v\n", err)
+			} else {
+				lifecycle.PrintStatus(status, c.FileDir())
+			}
+
+			if len(c.Endpoints) > 0 {
+				// Collect health check results from all entries for endpoint display
+				var allHC []HealthCheckResult
+				for _, entry := range status.Entries {
+					for _, h := range entry.Health {
+						allHC = append(allHC, HealthCheckResult{
+							Name:  h.Name,
+							Ready: h.Ready,
+						})
+					}
+				}
+				printEndpointTable(c.Endpoints, nil, allHC)
+			}
+
+			return nil
+		}
+
+		// Legacy compose path
+		fmt.Println("\nServices:")
 		services, svcErr := queryComposeServices(e, c)
 		if svcErr != nil || len(services) == 0 {
 			fmt.Println("   (no containers running or docker not available)")

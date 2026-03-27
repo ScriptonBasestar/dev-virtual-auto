@@ -56,7 +56,7 @@ func init() {
 
 	coreGroup := &cobra.Group{ID: "core", Title: "Core Commands"}
 	projectGroup := &cobra.Group{ID: "project", Title: "Project Management"}
-	lifecycleGroup := &cobra.Group{ID: "lifecycle", Title: "Lifecycle (Docker Compose)"}
+	lifecycleGroup := &cobra.Group{ID: "lifecycle", Title: "Lifecycle"}
 	integrationGroup := &cobra.Group{ID: "integration", Title: "Integration Tools"}
 	advancedGroup := &cobra.Group{ID: "advanced", Title: "Advanced Utilities"}
 

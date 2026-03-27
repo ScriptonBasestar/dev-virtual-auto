@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 var composeCmd = &cobra.Command{
@@ -23,10 +25,26 @@ var composeCmd = &cobra.Command{
 	},
 }
 
+// useOrchestrator checks if the config has explicit lifecycle entries
+// (not auto-migrated from compose:) that warrant using the lifecycle orchestrator.
+func useOrchestrator(c *config.Config) bool {
+	// Use orchestrator when lifecycle: is explicitly defined in config,
+	// or when auto-migrated entries exist with more than one entry or non-compose plugins.
+	if len(c.Lifecycle) == 0 {
+		return false
+	}
+	if len(c.Lifecycle) > 1 {
+		return true
+	}
+	// Single entry: use orchestrator if it's not a plain compose migration
+	// (i.e., user explicitly wrote lifecycle: in their dva.yml)
+	return c.Lifecycle[0].Plugin != "compose" || c.Lifecycle[0].Name != "compose"
+}
+
 var upCmd = &cobra.Command{
 	Use:   "up [OPTIONS] [SERVICE...]",
-	Short: "Create and start containers in the background",
-	Long: `Create and start containers in detached mode by default.
+	Short: "Create and start services",
+	Long: `Create and start services in detached mode by default.
 
 If all services are already running and healthy, skips restart and shows status.
 Local services with "start" in health_checks are auto-started and monitored.
@@ -37,32 +55,15 @@ DVA-specific flags (not passed to docker compose):
   --no-wait                 Start services and return immediately without waiting
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
-  --tag, -T TAG[,TAG]       Include only compose services matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude compose services matching any of the given tags`,
+  --tag, -T TAG[,TAG]       Include only services matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude services matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		// Warn about compose file project name mismatches
-		printComposeNameWarnings(c.ValidateComposeProjectNames())
-
 		// Parse DVA-specific flags (--mode, --env, --tag, --exclude-tag extracted first)
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
-
-		// Apply tag-based service filtering
-		if len(includeTags) > 0 {
-			included := c.GetComposeServicesIncluding(includeTags)
-			if len(included) == 0 {
-				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
-				return nil
-			}
-			args = append(args, included...)
-		} else if len(excludeTags) > 0 {
-			if excluded := c.GetComposeServicesExcluding(excludeTags); len(excluded) > 0 {
-				args = append(args, excluded...)
-			}
-		}
 
 		foreground := false
 		force := false
@@ -81,6 +82,52 @@ DVA-specific flags (not passed to docker compose):
 			}
 		}
 
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
+		}
+
+		// Orchestrator path: use lifecycle orchestrator for multi-plugin setups
+		if useOrchestrator(c) && !foreground {
+			rm, err := resolveMode(c, mode)
+			if err != nil {
+				return err
+			}
+			if rm.Mode != nil {
+				fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+				if len(rm.Mode.Environment) > 0 {
+					e.MergeVars(rm.Mode.Environment)
+				}
+			}
+
+			orch := lifecycle.NewOrchestrator(c, e)
+			return orch.Up(context.Background(), lifecycle.UpOptions{
+				DryRun:      dryRun,
+				Force:       force,
+				Wait:        !noWait,
+				IncludeTags: includeTags,
+				ExcludeTags: excludeTags,
+				Mode:        mode,
+			})
+		}
+
+		// Legacy compose path
+		// Warn about compose file project name mismatches
+		printComposeNameWarnings(c.ValidateComposeProjectNames())
+
+		// Apply tag-based service filtering
+		if len(includeTags) > 0 {
+			included := c.GetComposeServicesIncluding(includeTags)
+			if len(included) == 0 {
+				fmt.Fprintf(os.Stderr, "[warn] no services matched tags: %v\n", includeTags)
+				return nil
+			}
+			filteredArgs = append(filteredArgs, included...)
+		} else if len(excludeTags) > 0 {
+			if excluded := c.GetComposeServicesExcluding(excludeTags); len(excluded) > 0 {
+				filteredArgs = append(filteredArgs, excluded...)
+			}
+		}
+
 		// Resolve mode
 		rm, err := resolveMode(c, mode)
 		if err != nil {
@@ -91,9 +138,6 @@ DVA-specific flags (not passed to docker compose):
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
-		}
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
 		}
 		filteredArgs = append(filteredArgs, rm.ServiceArgs...)
 
@@ -201,22 +245,47 @@ DVA-specific flags (not passed to docker compose):
 
 var downCmd = &cobra.Command{
 	Use:                "down [OPTIONS]",
-	Short:              "Stop and remove containers and network bridges",
+	Short:              "Stop and remove services and network bridges",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
+
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
+		}
+
+		// Orchestrator path
+		if useOrchestrator(c) {
+			rm, err := resolveMode(c, mode)
+			if err != nil {
+				return err
+			}
+			if rm.Mode != nil {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+				if len(rm.Mode.Environment) > 0 {
+					e.MergeVars(rm.Mode.Environment)
+				}
+			}
+
+			orch := lifecycle.NewOrchestrator(c, e)
+			return orch.Down(context.Background(), lifecycle.DownOptions{
+				DryRun:      dryRun,
+				IncludeTags: includeTags,
+				ExcludeTags: excludeTags,
+				Mode:        mode,
+			})
+		}
+
+		// Legacy compose path
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
 		if rm.Mode != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
-		}
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
 		}
 
 		// Apply tag-based service filtering (down specific tagged services)
@@ -249,22 +318,47 @@ var downCmd = &cobra.Command{
 
 var stopCmd = &cobra.Command{
 	Use:                "stop [OPTIONS] [SERVICE...]",
-	Short:              "Stop running containers without removing them",
+	Short:              "Stop running services without removing them",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
+
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
+		}
+
+		// Orchestrator path
+		if useOrchestrator(c) {
+			rm, err := resolveMode(c, mode)
+			if err != nil {
+				return err
+			}
+			if rm.Mode != nil {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+				if len(rm.Mode.Environment) > 0 {
+					e.MergeVars(rm.Mode.Environment)
+				}
+			}
+
+			orch := lifecycle.NewOrchestrator(c, e)
+			return orch.Stop(context.Background(), lifecycle.StopOptions{
+				DryRun:      dryRun,
+				IncludeTags: includeTags,
+				ExcludeTags: excludeTags,
+				Mode:        mode,
+			})
+		}
+
+		// Legacy compose path
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
 		}
 		if rm.Mode != nil {
 			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
-		}
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
 		}
 
 		// Apply tag-based service filtering (stop specific tagged services)
@@ -369,13 +463,43 @@ var logsCmd = &cobra.Command{
 
 var restartCmd = &cobra.Command{
 	Use:                "restart [OPTIONS] [SERVICE...]",
-	Short:              "Restart containers (stop + start)",
+	Short:              "Restart services (stop + start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, filteredArgs := parseDvaFlags(args)
+
+		if err := applyEnv(e, c, envName); err != nil {
+			return err
+		}
+
+		// Orchestrator path
+		if useOrchestrator(c) {
+			rm, err := resolveMode(c, mode)
+			if err != nil {
+				return err
+			}
+			if rm.Mode != nil {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+				if len(rm.Mode.Environment) > 0 {
+					e.MergeVars(rm.Mode.Environment)
+				}
+			}
+
+			orch := lifecycle.NewOrchestrator(c, e)
+			return orch.Restart(context.Background(), lifecycle.UpOptions{
+				DryRun:      dryRun,
+				Force:       true,
+				Wait:        true,
+				IncludeTags: includeTags,
+				ExcludeTags: excludeTags,
+				Mode:        mode,
+			})
+		}
+
+		// Legacy compose path
 		rm, err := resolveMode(c, mode)
 		if err != nil {
 			return err
@@ -385,9 +509,6 @@ var restartCmd = &cobra.Command{
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
-		}
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
 		}
 
 		// Apply tag-based service filtering
