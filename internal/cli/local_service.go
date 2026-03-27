@@ -28,7 +28,7 @@ func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []
 		}
 
 		// Skip if already running via PID file
-		pidFile := filepath.Join(configDir, ".dva", "pids", r.Name+".pid")
+		pidFile := filepath.Join(configDir, config.DotDirName, "pids", r.Name+".pid")
 		if data, err := os.ReadFile(pidFile); err == nil {
 			pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
 			if pid > 0 && isProcessRunning(pid) {
@@ -49,8 +49,8 @@ func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []
 
 // startLocalService starts a command in background, saves PID and redirects output to log.
 func startLocalService(name, command, configDir string) error {
-	pidDir := filepath.Join(configDir, ".dva", "pids")
-	logDir := filepath.Join(configDir, ".dva", "logs")
+	pidDir := filepath.Join(configDir, config.DotDirName, "pids")
+	logDir := filepath.Join(configDir, config.DotDirName, "logs")
 
 	if err := os.MkdirAll(pidDir, 0755); err != nil {
 		return fmt.Errorf("create pid dir: %w", err)
@@ -95,7 +95,7 @@ func startLocalService(name, command, configDir string) error {
 
 // stopLocalServices reads PID files and terminates all managed local services.
 func stopLocalServices(configDir string) {
-	pidDir := filepath.Join(configDir, ".dva", "pids")
+	pidDir := filepath.Join(configDir, config.DotDirName, "pids")
 	entries, err := os.ReadDir(pidDir)
 	if err != nil {
 		return // no pids directory = nothing to stop

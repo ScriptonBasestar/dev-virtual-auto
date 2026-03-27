@@ -591,9 +591,9 @@ func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 }
 
 // suggestProvision checks if a provision profile has been run before
-// (via marker file in .dva/) and prints a suggestion if not.
+// (via marker file in .sb/dva/) and prints a suggestion if not.
 func suggestProvision(c *config.Config, provisionProfile string) {
-	markerDir := filepath.Join(c.FileDir(), ".dva")
+	markerDir := filepath.Join(c.FileDir(), config.DotDirName)
 	markerFile := filepath.Join(markerDir, "provisioned-"+provisionProfile)
 
 	if _, err := os.Stat(markerFile); err == nil {

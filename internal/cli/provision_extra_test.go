@@ -73,7 +73,7 @@ func TestWriteProvisionMarker(t *testing.T) {
 	dir := t.TempDir()
 	writeProvisionMarker(dir, "setup")
 
-	markerFile := filepath.Join(dir, ".dva", "provisioned-setup")
+	markerFile := filepath.Join(dir, config.DotDirName, "provisioned-setup")
 	if _, err := os.Stat(markerFile); os.IsNotExist(err) {
 		t.Error("expected marker file to be created")
 	}
@@ -87,7 +87,7 @@ func TestClearProvisionMarkers(t *testing.T) {
 	writeProvisionMarker(dir, "reset")
 
 	// Should have 2 marker files
-	markerDir := filepath.Join(dir, ".dva")
+	markerDir := filepath.Join(dir, config.DotDirName)
 	entries, _ := os.ReadDir(markerDir)
 	if len(entries) != 2 {
 		t.Fatalf("expected 2 markers, got %d", len(entries))

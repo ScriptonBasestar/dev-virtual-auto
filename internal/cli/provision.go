@@ -475,10 +475,10 @@ func runShellCommand(cmdStr string) error {
 	return c.Run()
 }
 
-// clearProvisionMarkers removes all provision marker files from .dva/.
+// clearProvisionMarkers removes all provision marker files from .sb/dva/.
 // Called by `dva clean --volumes` so that provision suggestions reappear after a reset.
 func clearProvisionMarkers(configDir string) {
-	markerDir := filepath.Join(configDir, ".dva")
+	markerDir := filepath.Join(configDir, config.DotDirName)
 	entries, err := os.ReadDir(markerDir)
 	if err != nil {
 		return
@@ -490,10 +490,10 @@ func clearProvisionMarkers(configDir string) {
 	}
 }
 
-// writeProvisionMarker creates a marker file in .dva/ indicating that a provision
+// writeProvisionMarker creates a marker file indicating that a provision
 // profile has been run. Used by `dva up` to skip provision suggestions.
 func writeProvisionMarker(configDir, profile string) {
-	markerDir := filepath.Join(configDir, ".dva")
+	markerDir := filepath.Join(configDir, config.DotDirName)
 	if err := os.MkdirAll(markerDir, 0755); err != nil {
 		return
 	}

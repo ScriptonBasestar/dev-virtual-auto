@@ -20,9 +20,9 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 		}
 		cfg.filePath = subCfgPath
 
-		// Load sub-project modules (same .dva/*.yml pattern)
+		// Load sub-project modules (same .sb/dva/*.yml pattern)
 		if len(cfg.Modules) > 0 {
-			modulesDir := filepath.Join(subPath, ".dva")
+			modulesDir := filepath.Join(subPath, DotDirName)
 			for _, mod := range cfg.Modules {
 				modFile := filepath.Join(modulesDir, mod+".yml")
 				modCfg, err := loadFile(modFile)

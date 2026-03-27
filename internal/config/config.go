@@ -9,6 +9,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DotDirName is the directory used for transient state and modules.
+const DotDirName = ".sb/dva"
 
 // Config represents the parsed dva.yml configuration.
 type Config struct {
@@ -301,7 +303,7 @@ func Load(workDir string) (*Config, error) {
 
 	// Load modules
 	if len(cfg.Modules) > 0 {
-		modulesDir := filepath.Join(filepath.Dir(filePath), ".dva")
+		modulesDir := filepath.Join(filepath.Dir(filePath), DotDirName)
 		for _, mod := range cfg.Modules {
 			modFile := filepath.Join(modulesDir, mod+".yml")
 			modCfg, err := loadFile(modFile)

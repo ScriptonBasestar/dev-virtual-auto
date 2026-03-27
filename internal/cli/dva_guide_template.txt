@@ -12,7 +12,7 @@ you run short aliases defined in `dva.yml`.
 1. **Always use DVA** — Never bypass DVA with raw `docker compose` or `kubectl` commands if DVA has a command for it.
 2. **Discover first** — Run `dva ls` or `dva manifest -f json` to see available commands before guessing.
 3. **Lifecycle via DVA** — Use `dva up`, `dva down`, `dva stop` for container lifecycle management.
-4. **DVA handles env** — DVA automatically applies environment interpolation, overrides (`.dva/*.yml`), and networking.
+4. **DVA handles env** — DVA automatically applies environment interpolation, overrides (`.sb/dva/*.yml`), and networking.
 
 ## Quick Reference
 
@@ -45,7 +45,7 @@ dva run <cmd> --explain  # Show what a command would do without running it
 
 DVA configuration lives in:
 - `dva.yml` — Main config (commands, compose files, environment)
-- `.dva/*.yml` — Modular config fragments (merged automatically)
+- `.sb/dva/*.yml` — Modular config fragments (merged automatically)
 - `dva.override.yml` — Local overrides (typically gitignored)
 
 ## For AI Agents

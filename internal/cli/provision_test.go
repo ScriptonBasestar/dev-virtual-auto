@@ -346,7 +346,7 @@ func TestWriteAndClearProvisionMarker(t *testing.T) {
 
 	writeProvisionMarker(tmpDir, "setup")
 
-	markerFile := tmpDir + "/.dva/provisioned-setup"
+	markerFile := tmpDir + "/.sb/dva/provisioned-setup"
 	if _, err := os.Stat(markerFile); os.IsNotExist(err) {
 		t.Error("marker file should exist after writeProvisionMarker")
 	}

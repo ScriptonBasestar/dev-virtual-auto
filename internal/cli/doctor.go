@@ -84,7 +84,35 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 		}, c.FileDir()))
 	}
 
+	// Built-in: Check if .sb/dva is ignored in .gitignore
+	results = append(results, checkGitignoreStatus(c.FileDir()))
+
 	return results
+}
+
+func checkGitignoreStatus(configDir string) DoctorResult {
+	r := DoctorResult{Name: fmt.Sprintf("%s/ is ignored in .gitignore", config.DotDirName)}
+
+	gitignorePath := filepath.Join(configDir, ".gitignore")
+	data, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			r.Passed = false
+			r.FixHint = fmt.Sprintf("Create .gitignore and add %s/ or run 'dva init'", config.DotDirName)
+			return r
+		}
+		r.Passed = false
+		return r
+	}
+
+	if isDvaIgnored(string(data)) {
+		r.Passed = true
+	} else {
+		r.Passed = false
+		r.FixHint = fmt.Sprintf("Add '%s/' to .gitignore to avoid committing transient state", config.DotDirName)
+	}
+
+	return r
 }
 
 func runSingleCheck(check config.DoctorCheck, configDir string) DoctorResult {

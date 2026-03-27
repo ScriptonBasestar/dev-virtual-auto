@@ -104,7 +104,7 @@ interaction:
 
 func TestLoadConfigWithModules(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaDir := filepath.Join(tmpDir, ".dva")
+	dvaDir := filepath.Join(tmpDir, DotDirName)
 	os.MkdirAll(dvaDir, 0755)
 
 	// Main config with module reference

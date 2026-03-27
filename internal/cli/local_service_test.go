@@ -20,7 +20,7 @@ func TestStartLocalService(t *testing.T) {
 	}
 
 	// Verify PID file created
-	pidFile := filepath.Join(tmpDir, ".dva", "pids", "test-svc.pid")
+	pidFile := filepath.Join(tmpDir, config.DotDirName, "pids", "test-svc.pid")
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
 		t.Fatalf("PID file not created: %v", err)
@@ -37,7 +37,7 @@ func TestStartLocalService(t *testing.T) {
 	}
 
 	// Verify log file created
-	logFile := filepath.Join(tmpDir, ".dva", "logs", "test-svc.log")
+	logFile := filepath.Join(tmpDir, config.DotDirName, "logs", "test-svc.log")
 	if _, err := os.Stat(logFile); err != nil {
 		t.Errorf("log file not created: %v", err)
 	}
@@ -58,13 +58,13 @@ func TestStartLocalService(t *testing.T) {
 }
 
 func TestStopLocalServices_NoPidDir(t *testing.T) {
-	// Should not panic when .dva/pids doesn't exist
+	// Should not panic when .sb/dva/pids doesn't exist
 	stopLocalServices(t.TempDir())
 }
 
 func TestStopLocalServices_StalePid(t *testing.T) {
 	tmpDir := t.TempDir()
-	pidDir := filepath.Join(tmpDir, ".dva", "pids")
+	pidDir := filepath.Join(tmpDir, config.DotDirName, "pids")
 	os.MkdirAll(pidDir, 0755)
 
 	// Write a PID that doesn't exist (99999999)

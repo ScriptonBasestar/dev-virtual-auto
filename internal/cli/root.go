@@ -213,6 +213,8 @@ func loadConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Check if .sb/dva is in .gitignore and warn if not
+	checkGitignoreForWarning(cfg.FileDir())
 	return cfg, nil
 }
 

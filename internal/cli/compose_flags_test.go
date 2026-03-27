@@ -475,7 +475,7 @@ provision:
       run: echo ok
 `)
 	// Create marker file
-	markerDir := filepath.Join(c.FileDir(), ".dva")
+	markerDir := filepath.Join(c.FileDir(), config.DotDirName)
 	os.MkdirAll(markerDir, 0755)
 	os.WriteFile(filepath.Join(markerDir, "provisioned-setup"), []byte(""), 0644)
 

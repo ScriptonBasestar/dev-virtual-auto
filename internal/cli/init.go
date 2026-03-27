@@ -73,6 +73,11 @@ var initCmd = &cobra.Command{
 
 		fmt.Printf("✅ Created dva.yml (template: %s)\n", tmpl)
 
+		// Ensure .gitignore exists and ignores the dot directory
+		if updated, err := ensureGitignore("."); err == nil && updated {
+			fmt.Printf("📎 Updated .gitignore to ignore %s/\n", config.DotDirName)
+		}
+
 		if withDevcontainer {
 			dc := map[string]any{
 				"enabled":         true,
