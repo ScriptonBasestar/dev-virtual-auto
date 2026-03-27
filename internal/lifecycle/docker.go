@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"sort"
-	"strconv"
-	"strings"
 
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 )
@@ -159,18 +157,3 @@ func (p *DockerPlugin) buildRunArgs(pctx *PluginContext) []string {
 	return args
 }
 
-// buildPortsMap parses port mappings from config into host:container map.
-func buildPortsMap(ports []string) map[int]int {
-	result := make(map[int]int)
-	for _, p := range ports {
-		parts := strings.SplitN(p, ":", 2)
-		if len(parts) == 2 {
-			host, err1 := strconv.Atoi(parts[0])
-			container, err2 := strconv.Atoi(parts[1])
-			if err1 == nil && err2 == nil {
-				result[host] = container
-			}
-		}
-	}
-	return result
-}

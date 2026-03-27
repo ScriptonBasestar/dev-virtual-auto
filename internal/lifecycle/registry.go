@@ -5,10 +5,20 @@ import "fmt"
 // registry maps implemented plugin types to their factory functions.
 // Plugins are registered at compile time — no dynamic loading.
 var registry = map[PluginType]func() LifecyclePlugin{
-	PluginCompose: func() LifecyclePlugin { return &ComposePlugin{} },
-	PluginProcess: func() LifecyclePlugin { return &ProcessPlugin{} },
-	PluginScript:  func() LifecyclePlugin { return &ScriptPlugin{} },
-	PluginDocker:  func() LifecyclePlugin { return &DockerPlugin{} },
+	PluginCompose:       func() LifecyclePlugin { return &ComposePlugin{} },
+	PluginProcess:       func() LifecyclePlugin { return &ProcessPlugin{} },
+	PluginScript:        func() LifecyclePlugin { return &ScriptPlugin{} },
+	PluginDocker:        func() LifecyclePlugin { return &DockerPlugin{} },
+	PluginPodmanCompose: func() LifecyclePlugin { return &PodmanComposePlugin{} },
+	PluginKubectl:       func() LifecyclePlugin { return &KubectlPlugin{} },
+	PluginHelm:          func() LifecyclePlugin { return &HelmPlugin{} },
+	PluginKustomize:     func() LifecyclePlugin { return &KustomizePlugin{} },
+	PluginVagrant:       func() LifecyclePlugin { return &VagrantPlugin{} },
+	PluginTilt:          func() LifecyclePlugin { return &TiltPlugin{} },
+	PluginSkaffold:      func() LifecyclePlugin { return &SkaffoldPlugin{} },
+	PluginSAM:           func() LifecyclePlugin { return &SAMPlugin{} },
+	PluginServerless:    func() LifecyclePlugin { return &ServerlessPlugin{} },
+	PluginMultipass:     func() LifecyclePlugin { return &MultipassPlugin{} },
 }
 
 // NewPlugin creates a new plugin instance by type name.
