@@ -2,10 +2,7 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,30 +12,9 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
-// parseComposePS parses docker compose ps JSON output (handles both array and JSON lines).
-func parseComposePS(out []byte) any {
-	var psData any
-	if err := json.Unmarshal(out, &psData); err == nil {
-		return psData
-	}
-	// Fallback: JSON lines format
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var services []any
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		var s any
-		if err := json.Unmarshal([]byte(line), &s); err == nil {
-			services = append(services, s)
-		}
-	}
-	return services
-}
-
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Display workspace status (config, active services, containers)",
+	Short: "Display workspace status (config, lifecycle entries, services)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
 
@@ -50,20 +26,14 @@ var statusCmd = &cobra.Command{
 			if err == nil {
 				statusData["config_path"] = c.FilePath()
 				statusData["config_version"] = c.Version
-				statusData["project_name"] = c.Compose.ProjectName
-				statusData["compose_files"] = c.Compose.Files
 				statusData["commands_count"] = len(c.Interaction)
+				statusData["lifecycle_count"] = len(c.Lifecycle)
 
 				e := loadEnv(c)
-				composeCmd, composeArgs := buildComposeArgs(e, c, []string{"ps", "--format", "json"})
-				if out, execErr := exec.Command(composeCmd, composeArgs...).Output(); execErr == nil {
-					statusData["services"] = parseComposePS(out)
-				} else {
-					statusData["services"] = nil
-				}
-
-				if len(c.HealthChecks) > 0 {
-					statusData["health_checks"] = runHealthChecks(c.HealthChecks)
+				orch := lifecycle.NewOrchestrator(c, e)
+				status, statusErr := orch.Status(context.Background())
+				if statusErr == nil {
+					statusData["lifecycle"] = status.Entries
 				}
 			}
 			return output.PrintJSON(statusData)
@@ -72,20 +42,14 @@ var statusCmd = &cobra.Command{
 		fmt.Printf("DVA v%s\n\n", config.Version)
 
 		if err != nil {
-			fmt.Println("📄 Config: not found")
+			fmt.Println("Config: not found")
 			fmt.Println("   Run 'dva init' to create a dva.yml")
 			return nil
 		}
 
-		fmt.Printf("📄 Config: %s\n", c.FilePath())
+		fmt.Printf("Config: %s\n", c.FilePath())
 		if c.Version != "" {
 			fmt.Printf("   Version: %s\n", c.Version)
-		}
-		if c.Compose.ProjectName != "" {
-			fmt.Printf("   Project: %s\n", c.Compose.ProjectName)
-		}
-		if len(c.Compose.Files) > 0 {
-			fmt.Printf("   Compose files: %s\n", strings.Join(c.Compose.Files, ", "))
 		}
 
 		cmdCount := len(c.Interaction)
@@ -100,25 +64,23 @@ var statusCmd = &cobra.Command{
 				if len(sub.ExcludeTags) > 0 {
 					tags = fmt.Sprintf(" (exclude: %s)", strings.Join(sub.ExcludeTags, ", "))
 				}
-				fmt.Printf("     ▸ %s → %s%s\n", name, sub.Path, tags)
+				fmt.Printf("     - %s -> %s%s\n", name, sub.Path, tags)
 			}
 		}
 
+		// Lifecycle status via orchestrator
 		e := loadEnv(c)
+		orch := lifecycle.NewOrchestrator(c, e)
+		status, statusErr := orch.Status(context.Background())
+		if statusErr != nil {
+			fmt.Println("\nLifecycle: (error querying status)")
+		} else {
+			lifecycle.PrintStatus(status, c.FileDir())
+		}
 
-		// Use orchestrator status when lifecycle entries are configured
-		if useOrchestrator(c) {
-			orch := lifecycle.NewOrchestrator(c, e)
-			status, err := orch.Status(context.Background())
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "[warn] could not query lifecycle status: %v\n", err)
-			} else {
-				lifecycle.PrintStatus(status, c.FileDir())
-			}
-
-			if len(c.Endpoints) > 0 {
-				// Collect health check results from all entries for endpoint display
-				var allHC []HealthCheckResult
+		if len(c.Endpoints) > 0 {
+			var allHC []HealthCheckResult
+			if statusErr == nil {
 				for _, entry := range status.Entries {
 					for _, h := range entry.Health {
 						allHC = append(allHC, HealthCheckResult{
@@ -127,30 +89,8 @@ var statusCmd = &cobra.Command{
 						})
 					}
 				}
-				printEndpointTable(c.Endpoints, nil, allHC)
 			}
-
-			return nil
-		}
-
-		// Legacy compose path
-		fmt.Println("\nServices:")
-		services, svcErr := queryComposeServices(e, c)
-		if svcErr != nil || len(services) == 0 {
-			fmt.Println("   (no containers running or docker not available)")
-		} else {
-			printServiceTable(services, c.Compose.ProjectName, false, c.Compose.Services)
-		}
-
-		var hcResults []HealthCheckResult
-		if len(c.HealthChecks) > 0 {
-			fmt.Println()
-			hcResults = runHealthChecks(c.HealthChecks)
-			printHealthCheckResults(hcResults, c.FileDir())
-		}
-
-		if len(c.Endpoints) > 0 {
-			printEndpointTable(c.Endpoints, nil, hcResults)
+			printEndpointTable(c.Endpoints, nil, allHC)
 		}
 
 		return nil

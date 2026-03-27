@@ -139,23 +139,13 @@ func TestParseDvaFlags_IncludeTagsCommaSeparated(t *testing.T) {
 }
 
 func TestResolveMode_Empty(t *testing.T) {
-	c := &config.Config{
-		HealthChecks: map[string]config.HealthCheckConfig{
-			"pg": {Type: "tcp"},
-		},
-	}
+	c := &config.Config{}
 	rm, err := resolveMode(c, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if rm.Mode != nil {
 		t.Error("Mode should be nil for empty mode")
-	}
-	if rm.SkipCompose {
-		t.Error("SkipCompose should be false for empty mode")
-	}
-	if len(rm.HealthChecks) != 1 {
-		t.Errorf("HealthChecks = %d, want 1", len(rm.HealthChecks))
 	}
 }
 
@@ -179,33 +169,32 @@ func TestResolveMode_NoModesDefined(t *testing.T) {
 	}
 }
 
-func TestResolveMode_SkipCompose(t *testing.T) {
-	empty := []string{}
+func TestResolveMode_Found(t *testing.T) {
 	c := &config.Config{
 		Modes: map[string]config.ModeConfig{
 			"native": {
-				Description:     "Native",
-				ComposeServices: &empty,
+				Description: "Native mode",
+				Lifecycle:   []string{"api", "worker"},
 			},
-		},
-		HealthChecks: map[string]config.HealthCheckConfig{
-			"pg": {Type: "tcp"},
 		},
 	}
 	rm, err := resolveMode(c, "native")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !rm.SkipCompose {
-		t.Error("SkipCompose should be true for empty compose_services")
+	if rm.Mode == nil {
+		t.Fatal("Mode should not be nil")
+	}
+	if rm.Mode.Description != "Native mode" {
+		t.Errorf("Description = %q, want %q", rm.Mode.Description, "Native mode")
 	}
 }
 
-func TestResolveMode_ComposeProfiles(t *testing.T) {
+func TestResolveMode_EndpointTags(t *testing.T) {
 	c := &config.Config{
 		Modes: map[string]config.ModeConfig{
 			"docker": {
-				ComposeProfiles: []string{"web", "dev"},
+				EndpointTags: []string{"web"},
 			},
 		},
 	}
@@ -213,38 +202,8 @@ func TestResolveMode_ComposeProfiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := []string{"--profile", "web", "--profile", "dev"}
-	if len(rm.ComposeArgs) != len(want) {
-		t.Fatalf("ComposeArgs = %v, want %v", rm.ComposeArgs, want)
-	}
-	for i, v := range want {
-		if rm.ComposeArgs[i] != v {
-			t.Errorf("ComposeArgs[%d] = %q, want %q", i, rm.ComposeArgs[i], v)
-		}
-	}
-}
-
-func TestResolveMode_HealthCheckFilter(t *testing.T) {
-	c := &config.Config{
-		Modes: map[string]config.ModeConfig{
-			"native": {
-				HealthChecks: []string{"pg"},
-			},
-		},
-		HealthChecks: map[string]config.HealthCheckConfig{
-			"pg":    {Type: "tcp"},
-			"redis": {Type: "tcp"},
-		},
-	}
-	rm, err := resolveMode(c, "native")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(rm.HealthChecks) != 1 {
-		t.Errorf("HealthChecks count = %d, want 1", len(rm.HealthChecks))
-	}
-	if _, ok := rm.HealthChecks["pg"]; !ok {
-		t.Error("HealthChecks should contain 'pg'")
+	if len(rm.EndpointTags) != 1 || rm.EndpointTags[0] != "web" {
+		t.Errorf("EndpointTags = %v, want [web]", rm.EndpointTags)
 	}
 }
 
