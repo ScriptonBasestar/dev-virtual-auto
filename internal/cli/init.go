@@ -22,6 +22,9 @@ var promptTemplateText string
 //go:embed improve_prompt_template.txt
 var improvePromptTemplateText string
 
+//go:embed library_reference.txt
+var libraryReferenceText string
+
 var initTemplate string
 var initPrompt bool
 var initAI bool
@@ -315,6 +318,7 @@ func buildPromptWithProgress(prog *progress) string {
 		detectedMakeTargets,
 		detectedEnv,
 		detectedSubprojects,
+		libraryReferenceText,
 		config.Version,
 	)
 }
@@ -618,6 +622,7 @@ func buildImprovePrompt() (string, error) {
 		validationStatus,
 		composeWarnings,
 		buildProjectSnapshot(),
+		libraryReferenceText,
 		config.Version,
 	), nil
 }

@@ -116,33 +116,8 @@ Path: `%s`
 - [ ] health_checks에 start + start_hint 모두 존재
 - [ ] provision에서 `dva <command>` 미호출
 - [ ] 서비스 메타데이터(tags, ports, label) 완비
-- [ ] interaction 키에 예약 커맨드 미사용 (아래 목록 참조)
-- [ ] 존재하지 않는 필드명 미사용 (아래 목록 참조)
-
-### 예약 커맨드 (interaction 키로 사용 금지)
-```
-help, version, ls, compose, up, stop, down, build, clean,
-run, provision, validate, manifest, ktl, ssh, infra, console,
-completion, cmd, init, status, config, logs, restart, show,
-migrate, doctor, add
-```
-예외: hookable 커맨드(up, down, stop, restart, build, clean, logs)는 `replace:` 훅과 함께 사용 가능
-
-### 자주 틀리는 필드명 (Hallucination 방지)
-| ❌ 잘못된 필드명 | ✅ 올바른 필드명/대처 | 위치 |
-|---|---|---|
-| `working_dir` | `workdir` | interaction |
-| `compose_files` | (존재하지 않음) | modes/environments — 사용 불가 |
-| `env_file` | (environments 내 사용 불가) | environments — `environment:` 만 허용 |
-| `address` | (checks 내 사용 불가) | checks — type은 file_exists/command/docker_socket만 |
-| `depends_on` | (존재하지 않음) | interaction — DVA에 없음 |
-
-### 각 섹션별 허용 필드
-- `interaction.<cmd>`: description, service, command, workdir, user, default_args, environment, env_file, compose, shell, entrypoint, runner, pod, compose_run_options, subcommands, tags, before, replace, after
-- `modes.<name>`: description, compose_profiles, compose_services, health_checks, endpoint_tags, environment, stack, provision
-- `environments.<name>`: description, environment, stack
-- `checks[N]`: name, type(file_exists/command/docker_socket), path, command, fix_hint
-- `health_checks.<name>`: type(http/tcp/command), url, address, command, start, start_hint, timeout, ready_timeout
+- [ ] interaction 키에 예약 커맨드 미사용 (Library Reference 참조)
+- [ ] 존재하지 않는 필드명 미사용 (Library Reference 참조)
 
 ## 6. 서브프로젝트 검사 (devbox 패턴일 때)
 - [ ] 서브프로젝트 dva.yml version이 루트와 일치
@@ -153,6 +128,14 @@ migrate, doctor, add
 - compose 파일의 `${VAR:-DEFAULT}` 패턴에서 기본 포트 추출
 - dva.yml `stack.compose.services.{name}.ports` 엔트리와 대조
 - 불일치 발견시 dva.yml 수정
+
+---
+
+# DVA Library Reference
+
+아래 레퍼런스는 DVA 설정 스키마, 네이밍 프리셋, 패턴별 예시를 포함합니다.
+
+%s
 
 ---
 
