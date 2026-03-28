@@ -18,6 +18,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 7. **No `version:` in compose.yml** — Compose Specification does not require it.
 8. **Healthchecks in compose** — All core services MUST have `healthcheck:` defined.
 9. **`runner: local` for host commands** — Interaction commands that run on the host MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
+10. **Package names: EXACT from manifests** — Health check `start` and build `command` MUST use the EXACT package/binary name from the project's package manifest (Cargo.toml `[package] name`, go.mod, package.json). For Rust: `cargo run -p {exact-package-name}` where the name comes from `[package] name = "..."` in each crate's Cargo.toml. Common pitfall: directory names differ from package names (e.g., directory `db-orchestrator-api-rs` but package name `db-orchestrator-api`). **ALWAYS use `[package] name`, NOT the directory name.**
 </critical-rules>
 
 <steps>

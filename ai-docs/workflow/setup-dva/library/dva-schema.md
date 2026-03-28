@@ -276,7 +276,7 @@ health_checks:
     ready_timeout: 120  # Rust/Go builds need longer timeouts
 ```
 
-- `start` → DVA runs this in background, tracks PID, logs to `.dva/logs/{name}.log`
+- `start` → DVA runs this in background, tracks PID, logs to `.sb/dva/logs/{name}.log`
 - `start_hint` → displayed when `start` is absent or when user runs `dva status`
 - `dva down` automatically kills PID-tracked processes
 

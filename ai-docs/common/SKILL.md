@@ -1,11 +1,11 @@
 ---
-name: DVA (Docker Virtual Auto) Integration
+name: DVA (Dev Virtual Auto) Integration
 description: Instructions for using DVA to execute project-specific commands and manage containers.
 ---
 
-# Using DVA (Docker Virtual Auto)
+# Using DVA (Dev Virtual Auto)
 
-This project uses `dva` (Docker Virtual Auto) to manage Docker Compose and Kubernetes interactions, as well as project-specific scripts. The `dva.yml` file acts as the configuration hub for all commands.
+This project uses `dva` (Dev Virtual Auto) to manage Docker Compose and Kubernetes interactions, as well as project-specific scripts. The `dva.yml` file acts as the configuration hub for all commands.
 
 ## When to use this skill
 - You need to spin up or tear down services (`dva up`, `dva down`).
@@ -59,5 +59,5 @@ DVA provides both **static commands** (built-in Docker/Kubernetes wrappers) and 
 
 ## Rules and Best Practices
 - **Do not manually read `docker-compose.yml` and run `docker compose exec ...`** if there is a `dva` command available for the task. `dva` handles the correct arguments and environments.
-- **Do not parse `dva.yml` manually.** Always use `dva manifest -f json` (or `dva ls --json`) to get the evaluated configuration, as DVA natively merges overrides and module configurations (`.dva/*.yml`).
+- **Do not parse `dva.yml` manually.** Always use `dva manifest -f json` (or `dva ls --json`) to get the evaluated configuration, as DVA natively merges overrides and module configurations (`.sb/dva/*.yml`).
 - If a command fails, use the `--explain` flag to understand what underlying runner (DockerCompose, Kubectl, Local) is doing.

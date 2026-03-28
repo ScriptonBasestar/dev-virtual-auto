@@ -1,6 +1,6 @@
 # DVA Plugin for Claude Code
 
-DVA (Docker Virtual Auto) CLI integration - Automate container operations and project tooling natively inside Claude Code.
+DVA (Dev Virtual Auto) CLI integration - Automate container operations and project tooling natively inside Claude Code.
 
 ## Installation
 

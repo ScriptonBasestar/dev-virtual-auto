@@ -28,15 +28,25 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - Subproject dva.yml files (check same issues recursively, **flag version mismatches** with root)
    - **Port metadata validation** — For each service in compose files, extract the default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against dva.yml `stack.compose.services.{name}.ports` entries. Flag any discrepancies.
    - **Development pattern detection** — Determine if the project is container-first (app runs in Docker, e.g., Django) or hybrid (infra in Docker, app runs natively, e.g., Rust/Go). This affects whether interaction commands should use `service:` or `runner: local`.
-4. Identify existing `Dockerfile`s and the software technology stack (languages, frameworks, dependencies).
-5. Determine track:
+4. **Classify compose overlay files** — For all `compose*.yml` and `docker-compose*.yml` in TARGET root:
+   - Parse service names from each file.
+   - Identify mutually exclusive overlays: files that redefine the same service names with incompatible configurations (e.g., `compose.redis-sentinel.yml` vs `compose.redis-cluster.yml`).
+   - Classify into `primary_compose_files` (safe to combine) and `mutually_exclusive_overlays` (groups of conflicting files).
+5. Identify existing `Dockerfile`s and the software technology stack (languages, frameworks, dependencies).
+6. **CRITICAL: Read package manifests to extract EXACT package names.**
+   - **Rust**: Read `Cargo.toml` (workspace root) → extract `[workspace] members` list, then read each member's `Cargo.toml` for `[package] name = "..."`. These EXACT names are used in `cargo run -p {name}` for health_check `start` commands. Common pitfall: directory names may differ from package names (e.g., directory `db-orchestrator-api-rs` but package name `db-orchestrator-api`). **Always use the `[package] name` value, NOT the directory name.**
+   - **Go**: Read `go.mod` → extract module path. Read `cmd/` directory for binary names.
+   - **Node.js**: Read `package.json` → extract `name`, `scripts` (for interaction commands).
+   - **Python**: Read `pyproject.toml` or `setup.py` → extract project name.
+   - Record these in `package_names` field of the analysis report.
+7. Determine track:
    - If existing `dva.yml` found with deprecated patterns: set `setup_track: upgrade` (preserve structure, upgrade format).
    - If the project has an extensive, well-maintained docker compose setup but no dva.yml: set `setup_track: adopt`.
    - If no valid docker compose file exists, or the user requests a fresh robust environment: set `setup_track: full`.
-6. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
+7. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
    - Map each detected service to standard tags from `library/naming-presets.md` (infra, api, worker, ui, data, monitoring, build).
    - Determine the project archetype (web app / service-daemon / microservices / simple app) to guide mode selection.
-7. Compile findings into `00-analysis-report.yaml`.
+8. Compile findings into `00-analysis-report.yaml`.
 </steps>
 
 <output>
@@ -51,7 +61,13 @@ Scan the user's TARGET project to identify existing configurations, docker usage
   - `compose_issues`: [list of issues found: missing_name, has_version_key, default_ports, missing_healthchecks]
   - `development_pattern`: container-first | hybrid | native
   - `all_compose_files`: [all compose*.yml and docker-compose*.yml found in TARGET root]
+  - `mutually_exclusive_overlays`: [groups of files that redefine the same services and cannot be combined, e.g. [[compose.redis-sentinel.yml, compose.redis-cluster.yml]]]
+  - `primary_compose_files`: [compose files safe to combine in main stack — excludes mutually exclusive overlays]
   - `port_discrepancies`: [{ service: name, dva_port: N, compose_default: M, compose_var: "VAR_NAME" }]
+  - `package_names`:                   # EXACT names from package manifests
+      # Rust: { workspace_root: "path", members: [{ name: "exact-pkg-name", path: "relative" }] }
+      # Go: { module: "module/path", binaries: ["bin1", "bin2"] }
+      # Node: { name: "pkg-name", scripts: { ... } }
   - `existing_dva`:
       found: bool
       version: string                  # e.g. "0.1.0"

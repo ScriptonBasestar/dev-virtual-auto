@@ -1,9 +1,9 @@
 ---
-description: Always use DVA (Docker Virtual Auto) for interacting with the project environment (running tests, building, starting services)
+description: Always use DVA (Dev Virtual Auto) for interacting with the project environment (running tests, building, starting services)
 globs: *
 ---
 
-# Cursor Rule: Use DVA (Docker Virtual Auto)
+# Cursor Rule: Use DVA (Dev Virtual Auto)
 
 Whenever you are asked to run tests, build the project, or start background services in this repository, you **MUST** use the `dva` CLI instead of raw `docker`, `docker compose`, or `npm/yarn/cargo/go` commands.
 

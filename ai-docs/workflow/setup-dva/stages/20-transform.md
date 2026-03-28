@@ -8,7 +8,7 @@ Modify the TARGET project's directory structure safely according to the approved
 
 <steps>
 1. Read the finalized blueprint from `tmp/setup-dva/10-proposal-approved.yaml`.
-2. Create necessary infrastructure directories outlined in the proposal (e.g. `.dva/`, `infra/`, `.devcontainer/`).
+2. Create necessary infrastructure directories outlined in the proposal (e.g. `.sb/dva/`, `infra/`, `.devcontainer/`).
 3. If necessary, relocate colliding files safely (with `.bak` extensions).
 4. If `setup_track` is `full`, prepare empty scaffolding files as required by the blueprint.
 5. Log all applied directory/file mutations to `20-transform-log.txt`.
