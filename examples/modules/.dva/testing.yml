@@ -7,7 +7,7 @@
 # - dva coverage      # Generate coverage report
 # - dva ci            # Run full CI test suite
 
-version: '0.1.0'
+version: '0.1.26'
 
 interaction:
   # RSpec - Behavior-driven testing framework

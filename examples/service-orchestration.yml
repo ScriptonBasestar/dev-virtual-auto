@@ -18,7 +18,7 @@
 #
 # Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.16'
+version: '0.1.26'
 
 stack:
   compose:

@@ -66,7 +66,7 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
   - Demonstrates best practices for project automation
   - Use when: You need different setup scenarios (development, testing, CI/CD)
 
-- **[provision-step-syntax.yml](provision-step-syntax.yml)** - New step/run/note syntax (v0.1.0+)
+- **[provision-step-syntax.yml](provision-step-syntax.yml)** - New step/run/note syntax
   - Cleaner provision scripts without repetitive echo commands
   - Automatic step numbering with progress indicators (📦 [1/4])
   - Multi-command steps with `run:` arrays
@@ -149,7 +149,7 @@ dva validate -c examples/basic.yml
 All examples follow this general structure:
 
 ```yaml
-version: '0.1.0'              # Minimum required dva version
+version: '0.1.26'             # Minimum required dva version
 
 environment:                  # Environment variables
   VAR_NAME: value
@@ -348,5 +348,5 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 
 ---
 
-**Version**: 0.1.0
+**Version**: 0.1.26
 **Last Updated**: March 2026
