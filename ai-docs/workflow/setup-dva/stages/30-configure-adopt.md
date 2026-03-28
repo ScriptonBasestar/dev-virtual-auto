@@ -25,9 +25,14 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 13. **Health check commands verifiable** — Use `pgrep -f {process}` or actual HTTP endpoint. Never invent flags.
 14. **Service metadata** — Every service MUST have `tags:` and `ports:` with `label:`.
 15. **Package names: EXACT from manifests** — Use `[package] name`, NOT directory name.
-16. **Section order** — version → env_file → stack → checks → modes → health_checks → interaction → provision → subprojects.
+16. **Section order** — version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit sections that are not needed, but included sections MUST follow this order.
 17. **Naming presets** — Use standard tag names (infra, api, worker, ui, data, monitoring, build) and mode names (infra, full-stack, hybrid, etc.).
 18. **Reserved commands use replace:** — `build`, `clean`, `logs` are reserved DVA commands. Use `replace:` hooks.
+19. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`).
+20. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Run `ls` to verify before including. Do NOT assume overlay files exist.
+21. **Multi-stack entries: no duplicate base files** — When creating separate stack entries for overlays (e.g., compose-apps, compose-monitoring), each entry should list ONLY its own overlay file(s). Do NOT repeat the base `compose.yml` in every entry — DVA merges stack entries at runtime. Exception: if an overlay file requires the base to parse, include it, but document why.
+22. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
+23. **stack.compose.tags: [infra]** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 </critical-rules>
 
 <steps>
@@ -57,6 +62,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
    - `stack:` with services grouped by workgroup
    - `checks:` (docker_socket, .env, compose, language toolchain)
    - `modes:` (minimum: infra + full-stack or hybrid)
+   - `environments:` if project has multi-env configs (dev, test, stg, prd) — place AFTER modes, BEFORE health_checks
    - `health_checks:` (with start + start_hint, appropriate ready_timeout)
    - `interaction:` organized by category (Database, Build, Test, Quality, Logs, Clean)
    - `provision:` (default, full, reset)
@@ -76,6 +82,25 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
     - Apply same upgrade rules
     - Subprojects use `exclude_tags: [infra]`
 13. Verify output against schema.
+14. **MANDATORY SELF-REVIEW** — Before finalizing, check the generated dva.yml against these patterns:
+    - ❌ `interaction.status:` → ✅ rename to `service-status` or `ps` (status is reserved)
+    - ❌ `interaction.show:` → ✅ rename (show is reserved)
+    - ❌ `stack.compose.files: [compose.yml, overlay.yml]` where overlay.yml doesn't exist → ✅ remove non-existent files
+    - ❌ Multi-stack entries all listing `compose.yml` → ✅ only include base in primary entry
+    - ❌ `url: "http://localhost:${VAR:-8080}/health"` → ✅ `url: "http://localhost:14000/health"` (literal)
+    - ❌ `stack.compose:` without `tags:` → ✅ add `tags: [infra]`
+    - ❌ `env_file: ".env"` → ✅ `env_file: { files: [...], interpolate: true }`
+    - ❌ `build: { command: "make build", runner: local }` → ✅ `build: { replace: [{ step: "...", run: "make build" }] }`
+    - ❌ health_checks with `start:` but no `start_hint:` → ✅ add both
+    - ❌ Missing `checks:` section → ✅ add docker_socket + file_exists + toolchain checks
+    - ❌ Missing `provision.reset:` → ✅ add reset profile
+    - ❌ `environments:` placed before `modes:` or after `interaction:` → ✅ place between `modes:` and `health_checks:`
+    - ❌ Sections out of canonical order → ✅ reorder: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints
+15. **Compose file existence check** — For each file in `stack.{entry}.files`, verify it exists:
+    ```bash
+    ls $TARGET/{filename} 2>/dev/null
+    ```
+    Remove any file that doesn't exist. If an overlay file is referenced but missing, remove it from the list and add a comment.
 </steps>
 
 <output>
@@ -99,9 +124,14 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 - [ ] File header with schema comment present.
 - [ ] All services have tags and ports with labels.
 - [ ] Subproject versions match root.
-- [ ] Section order follows standard.
+- [ ] Section order follows canonical: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints.
 - [ ] Naming follows presets (tags, modes, envs).
 - [ ] Reserved commands use `replace:` hooks.
+- [ ] No reserved DVA command names used as plain interaction keys (up/down/stop/restart/build/clean/logs/status/show/ls/run/config/doctor/provision/add/version).
+- [ ] All files in stack.compose.files actually exist in TARGET.
+- [ ] Health check URLs use literal values (no ${VAR:-DEFAULT}).
+- [ ] stack.compose.tags: [infra] is present on primary stack entry.
+- [ ] Multi-stack entries do not redundantly list the same base compose file.
 </gate>
 
 <return>

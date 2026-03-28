@@ -25,7 +25,7 @@
 dva manifest -f json
 dva config show -f yaml
 dva show --json
-dva validate
+dva config validate
 ```
 
 특정 interaction이 의심스러우면 실행하지 말고 먼저 계획을 확인하세요:
@@ -114,10 +114,14 @@ Path: `%s`
 - [ ] echo 더미 커맨드 없음
 - [ ] 기본 포트(5432, 6379 등) 미사용
 - [ ] health_checks에 start + start_hint 모두 존재
+- [ ] health_checks URL이 리터럴 값 (`${VAR:-DEFAULT}` 패턴 금지)
 - [ ] provision에서 `dva <command>` 미호출
 - [ ] 서비스 메타데이터(tags, ports, label) 완비
-- [ ] interaction 키에 예약 커맨드 미사용 (Library Reference 참조)
+- [ ] interaction 키에 예약 커맨드 미사용 (전체: up, down, stop, restart, build, clean, logs, status, show, ls, run, config, doctor, provision, add, version)
 - [ ] 존재하지 않는 필드명 미사용 (Library Reference 참조)
+- [ ] `stack.compose`에 `tags: [infra]` 존재 (primary stack entry 필수)
+- [ ] `stack.{entry}.files` 내 모든 compose 파일이 실제 존재
+- [ ] Multi-stack entries에서 base compose.yml 불필요 중복 없음
 
 ## 6. 서브프로젝트 검사 (devbox 패턴일 때)
 - [ ] 서브프로젝트 dva.yml version이 루트와 일치

@@ -196,7 +196,11 @@ dva config validate 2>&1
 □ 모든 서비스에 `tags:` 와 `ports:` (with `label:`)가 있는가?
 □ compose 파일의 기본 포트와 dva.yml 포트 메타데이터가 일치하는가?
 □ provision에서 `run: "dva <command>"` 호출이 없는가?
-□ interaction 키에 예약 커맨드(status, migrate, init, version 등)를 사용하지 않았는가? (Library Reference 참조)
+□ interaction 키에 예약 커맨드를 사용하지 않았는가? (전체 목록: up, down, stop, restart, build, clean, logs, status, show, ls, run, config, doctor, provision, add, version)
+□ Health check URL이 리터럴 값인가? (`${VAR:-DEFAULT}` 패턴 금지 — DVA는 URL 내 셸 변수를 보간하지 않음)
+□ `stack.compose`에 `tags: [infra]`가 있는가? (primary stack entry 필수)
+□ `stack.{entry}.files`에 나열된 모든 compose 파일이 실제 존재하는가?
+□ Multi-stack entries에서 base compose.yml을 불필요하게 중복 포함하지 않았는가?
 □ `working_dir`, `compose_files`, `depends_on` 등 존재하지 않는 필드를 사용하지 않았는가? (Library Reference 참조)
 □ checks 섹션의 type이 file_exists/command/docker_socket 중 하나인가? (http/tcp 불가)
 □ environments 섹션에 description, environment, stack 외의 필드가 없는가?

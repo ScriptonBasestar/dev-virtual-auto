@@ -19,6 +19,12 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 8. **Healthchecks in compose** — All core services MUST have `healthcheck:` defined.
 9. **`runner: local` for host commands** — Interaction commands that run on the host MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
 10. **Package names: EXACT from manifests** — Health check `start` and build `command` MUST use the EXACT package/binary name from the project's package manifest (Cargo.toml `[package] name`, go.mod, package.json). For Rust: `cargo run -p {exact-package-name}` where the name comes from `[package] name = "..."` in each crate's Cargo.toml. Common pitfall: directory names differ from package names (e.g., directory `db-orchestrator-api-rs` but package name `db-orchestrator-api`). **ALWAYS use `[package] name`, NOT the directory name.**
+11. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`).
+12. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns.
+13. **stack.compose.tags: [infra]** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services.
+14. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
+15. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency).
+16. **Section order** — version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit sections that are not needed, but included sections MUST follow this order.
 </critical-rules>
 
 <steps>
@@ -63,6 +69,18 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 6. Initialize a `.devcontainer` configuration block inside `dva.yml` if proposal calls for it.
 7. Create a standard `.env.example` detailing all required environment variables.
 8. Verify output fields match `library/dva-schema.md` and `internal/config/schema.json`.
+9. **MANDATORY SELF-REVIEW** — Before finalizing, check generated files:
+    - ❌ Any interaction key matching reserved names (status, show, ls, run, config, etc.) → ✅ rename
+    - ❌ `url: "http://localhost:${VAR:-8080}/health"` → ✅ `url: "http://localhost:14000/health"` (literal)
+    - ❌ `stack.compose:` without `tags:` → ✅ add `tags: [infra]`
+    - ❌ `env_file: ".env"` → ✅ `env_file: { files: [...], interpolate: true }`
+    - ❌ `build: { command: "...", runner: local }` → ✅ `build: { replace: [...] }`
+    - ❌ health_checks with `start:` but no `start_hint:` → ✅ add both
+    - ❌ Missing `checks:` section → ✅ add docker_socket + file_exists + toolchain
+    - ❌ Missing `provision.reset:` → ✅ add
+    - ❌ No `dva <command>` in provision steps → verify
+    - ❌ `environments:` placed before `modes:` or after `interaction:` → ✅ place between `modes:` and `health_checks:`
+    - ❌ Sections out of canonical order → ✅ reorder: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints
 </steps>
 
 <output>
@@ -82,6 +100,12 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 - [ ] Host commands use `runner: local` (no `echo 'Run: ...'` wrappers).
 - [ ] No common default ports used as host ports.
 - [ ] No JSON/YAML syntax errors exist in the output files.
+- [ ] No reserved DVA command names as plain interaction keys.
+- [ ] Health check URLs use literal values (no shell variables).
+- [ ] stack.compose.tags: [infra] present.
+- [ ] Provision has default + full + reset.
+- [ ] No `dva <command>` in provision steps.
+- [ ] Section order follows canonical: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints.
 </gate>
 
 <return>
