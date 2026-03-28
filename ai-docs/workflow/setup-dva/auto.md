@@ -51,6 +51,7 @@ For each stage (00 → 10 → 20 → 30 → 40):
   - `setup_track: upgrade` → use `stages/30-configure-adopt.md` (same stage handles both adopt and upgrade)
 - Spawn a subagent with the stage prompt content + previous stage artifacts
 - Provide DVA context: pass DVA_ROOT, EXAMPLES_DIR, SCHEMA_REF paths
+- **Stage 30 context**: also pass `library/reference-examples.md` and `library/naming-presets.md` for structural guidance
 - The subagent MUST:
   a. Execute all `<steps>` defined in the stage
   b. Produce all artifacts listed in `<output>`

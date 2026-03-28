@@ -32,7 +32,11 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 3. **Load naming presets** from `library/naming-presets.md`:
    - Use `00-analysis-report.yaml`의 `project_archetype`로 mode 선택 가이드 결정.
    - `recommended_tags`와 `recommended_modes`를 참조하여 일관된 네이밍 적용.
-4. Generate the primary `dva.yml` at the project root:
+4. **Load reference example** from `library/reference-examples.md`:
+   - Select the section matching the project's primary language and `development_pattern`.
+   - Use as structural guide for section ordering, mode patterns, health check patterns, interaction coverage, and provision profiles.
+   - Do NOT copy placeholder values — replace with project-specific values.
+5. Generate the primary `dva.yml` at the project root:
    - Set `version: "0.1.26"`.
    - Use `stack:` section (NOT top-level `compose:`):
      ```yaml
