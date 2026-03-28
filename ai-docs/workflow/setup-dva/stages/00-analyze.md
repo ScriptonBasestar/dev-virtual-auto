@@ -43,10 +43,10 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - If existing `dva.yml` found with deprecated patterns: set `setup_track: upgrade` (preserve structure, upgrade format).
    - If the project has an extensive, well-maintained docker compose setup but no dva.yml: set `setup_track: adopt`.
    - If no valid docker compose file exists, or the user requests a fresh robust environment: set `setup_track: full`.
-7. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
+8. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
    - Map each detected service to standard tags from `library/naming-presets.md` (infra, api, worker, ui, data, monitoring, build).
    - Determine the project archetype (web app / service-daemon / microservices / simple app) to guide mode selection.
-8. Compile findings into `00-analysis-report.yaml`.
+9. Compile findings into `00-analysis-report.yaml`.
 </steps>
 
 <output>
