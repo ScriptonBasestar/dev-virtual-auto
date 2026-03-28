@@ -1,0 +1,494 @@
+# DVA Reference Examples by Language/Pattern
+
+> setup-dva Stage 30에서 자동 참조하는 레퍼런스 스니펫.
+> 프로젝트 archetype과 development_pattern에 맞는 섹션을 선택하여 구조적 가이드로 사용.
+> **값(포트, 서비스명, 경로)은 복사하지 말 것** — 구조와 패턴만 참조.
+
+## File Header Template
+
+모든 dva.yml은 이 헤더로 시작:
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/schema.json
+# =============================================================================
+# DVA Configuration — {project-name} ({role: Root DevBox | Subproject})
+# =============================================================================
+# Pattern: {devbox | standalone | monorepo}
+# Root manages: {what this config manages}
+# Development pattern: {hybrid | container-first | native}
+# =============================================================================
+```
+
+## Section Order
+
+모든 dva.yml은 이 순서를 따름:
+
+1. `version:`
+2. `env_file:`
+3. `stack:` (services grouped by workgroup)
+4. `checks:` (dva doctor)
+5. `modes:`
+6. `health_checks:` (native processes)
+7. `interaction:` (organized by category)
+8. `provision:` (default, full, reset)
+9. `subprojects:` (if devbox pattern)
+
+---
+
+## Rust — Hybrid Pattern (devbox)
+
+> archetype: service-daemon | microservices
+> development_pattern: hybrid (infra Docker, app native via cargo)
+> Typical: Rust workspace with multiple crates, compose for DB/cache/monitoring
+
+### Stack
+
+```yaml
+stack:
+  compose:
+    order: 10
+    tags: [infra]
+    files:
+      - compose.yml
+      # - compose.monitoring.yml  # optional overlays
+    project_name: {project}
+    up_options: ["-d", "--wait"]
+    services:
+      # --- Core Data ---
+      postgres:
+        tags: [infra, data]
+        ports:
+          {PORT}:
+            label: "PostgreSQL"
+      redis:
+        tags: [infra, data]
+        ports:
+          {PORT}:
+            label: "Redis"
+      # --- Application (compose profile: rust) ---
+      {app-api}:
+        tags: [app, rust, backend]
+        related: [{app-worker}, postgres, redis]
+        hint: "REST API server"
+        ports:
+          {PORT}:
+            label: "API"
+            http: true
+            paths:
+              /healthz: "Health check"
+```
+
+### Modes
+
+```yaml
+modes:
+  infra-only:
+    description: "Infrastructure only (DB, Redis)"
+    compose_services: [postgres, redis]
+  full-stack:
+    description: "All services in Docker"
+    compose_profiles: [rust]
+    provision: default
+  hybrid:
+    description: "Infra in Docker, app runs natively"
+    compose_services: [postgres, redis]
+    health_checks: [api, worker]
+    environment:
+      DATABASE_URL: "postgresql://{user}:{pass}@localhost:{port}/{db}"
+      REDIS_URL: "redis://localhost:{port}"
+  dev:
+    description: "Minimal infra for fast native development"
+    compose_services: [postgres, redis]
+    health_checks: [api]
+    environment:
+      DATABASE_URL: "postgresql://{user}:{pass}@localhost:{port}/{db}"
+      REDIS_URL: "redis://localhost:{port}"
+```
+
+### Health Checks
+
+```yaml
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:{PORT}/healthz"
+    start: "cd {workspace} && cargo run -p {exact-package-name}"
+    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
+    timeout: 5
+    ready_timeout: 120    # Rust compilation needs longer
+  worker:
+    type: command
+    command: "pgrep -f {binary-name}"
+    start: "cd {workspace} && cargo run -p {exact-package-name}"
+    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
+    timeout: 5
+    ready_timeout: 120
+```
+
+### Interaction
+
+```yaml
+interaction:
+  # --- Database ---
+  db:
+    description: "PostgreSQL console"
+    service: postgres
+    command: "psql -U {user} -d {db}"
+    subcommands:
+      reset:
+        description: "Drop and recreate database"
+        service: postgres
+        command: "psql -U {user} -d postgres -c 'DROP DATABASE IF EXISTS {db};' && psql -U {user} -d postgres -c 'CREATE DATABASE {db};'"
+      tables:
+        description: "Show table structure"
+        service: postgres
+        command: "psql -U {user} -d {db} -c '\\dt+'"
+  redis:
+    description: "Redis CLI"
+    service: redis
+    command: "redis-cli"
+
+  # --- Build (reserved — replace + subcommands) ---
+  build:
+    replace:
+      - step: "Build all binaries (release)"
+        run: "cd {workspace} && cargo build --release"
+    tags: [build]
+    subcommands:
+      api:
+        description: "Build API binary"
+        runner: local
+        command: "cd {workspace} && cargo build --release --bin {api-binary}"
+        tags: [build]
+      docker:
+        description: "Build Docker images"
+        runner: local
+        command: "docker compose build"
+        tags: [build]
+
+  # --- Test ---
+  test:
+    description: "Run all tests"
+    runner: local
+    command: "cd {workspace} && cargo test"
+    tags: [test]
+    subcommands:
+      unit:
+        description: "Unit tests only"
+        runner: local
+        command: "cd {workspace} && cargo test --lib"
+        tags: [test]
+      integration:
+        description: "Integration tests (requires Docker)"
+        runner: local
+        command: "cd {workspace} && cargo test --test '*' -- --test-threads=1"
+        tags: [test]
+      e2e:
+        description: "End-to-end tests"
+        runner: local
+        command: "cd {workspace} && cargo test -p {e2e-crate}"
+        tags: [test]
+
+  # --- Quality ---
+  lint:
+    description: "Run clippy (warnings-as-errors)"
+    runner: local
+    command: "cd {workspace} && cargo clippy -- -D warnings"
+    tags: [quality]
+  fmt:
+    description: "Format code"
+    runner: local
+    command: "cd {workspace} && cargo fmt"
+    tags: [quality]
+  check:
+    description: "Type-check without building"
+    runner: local
+    command: "cd {workspace} && cargo check"
+    tags: [quality]
+
+  # --- Logs (reserved) ---
+  logs:
+    replace:
+      - step: "Tail compose logs"
+        run: "docker compose logs -f"
+
+  # --- Clean (reserved) ---
+  clean:
+    replace:
+      - step: "Clean artifacts and volumes"
+        run: "cd {workspace} && cargo clean && docker compose down -v"
+```
+
+### Provision
+
+```yaml
+provision:
+  default:
+    - step: "Copy environment file"
+      run: "cp -n .env.example .env 2>/dev/null || true"
+    - step: "Start infrastructure"
+      run: "docker compose up -d --wait postgres redis"
+    - step: "Install dev tools"
+      run: "cargo install sqlx-cli --no-default-features --features rustls,postgres --locked 2>/dev/null || true"
+    - step: "Fetch dependencies"
+      run: "cd {workspace} && cargo fetch"
+    - step: "Run migrations"
+      run: "cd {workspace}/{api-crate} && sqlx migrate run"
+    - step: "Verify"
+      run: "cd {workspace} && cargo check"
+  full:
+    - step: "Copy environment file"
+      run: "cp -n .env.example .env 2>/dev/null || true"
+    - step: "Start full stack"
+      run: "docker compose --profile rust up --build -d"
+    - step: "Wait for API"
+      run: "sleep 20 && curl -sf http://localhost:{PORT}/healthz || echo 'API not ready'"
+  reset:
+    - step: "Stop all services"
+      run: "docker compose down -v"
+    - step: "Clean artifacts"
+      run: "cd {workspace} && cargo clean"
+    - step: "Re-setup"
+      note: "Run 'dva provision default' to re-setup"
+```
+
+---
+
+## Go — Hybrid Pattern (devbox)
+
+> archetype: service-daemon | web-app
+> development_pattern: hybrid
+> Typical: Go module with cmd/ binaries, compose for DB/cache
+
+### Key Differences from Rust
+
+```yaml
+# Health checks — Go compiles faster
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:{PORT}/health"
+    start: "go run ./cmd/{binary}"
+    start_hint: "go run ./cmd/{binary}"
+    timeout: 5
+    ready_timeout: 60     # Go compiles faster than Rust
+
+# Interaction — Go toolchain
+interaction:
+  build:
+    replace:
+      - step: "Build binary"
+        run: "make build"   # or: go build -o bin/{name} ./cmd/{name}
+  test:
+    description: "Run tests"
+    runner: local
+    command: "go test ./..."
+    tags: [test]
+    subcommands:
+      race:
+        description: "Tests with race detector"
+        runner: local
+        command: "go test -race ./..."
+  lint:
+    description: "Run linters"
+    runner: local
+    command: "golangci-lint run"
+    tags: [quality]
+  fmt:
+    description: "Format code"
+    runner: local
+    command: "gofmt -w ."
+    tags: [quality]
+```
+
+---
+
+## Python/Django — Container-First Pattern
+
+> archetype: web-app
+> development_pattern: container-first (app runs in Docker)
+> Typical: Django/FastAPI with Docker for everything
+
+### Key Differences
+
+```yaml
+# Modes — container-first uses compose_profiles for overlays
+modes:
+  infra:
+    description: "Dependencies only (DB, cache, auth)"
+    compose_services: [postgres, redis]
+  full-stack:
+    description: "Core app + infra"
+  full-stack-tools:
+    description: "Core + dev tools (adminer, redis-commander)"
+    compose_profiles: [tools]
+
+# Health checks — typically not needed (app is in Docker)
+# Use compose healthcheck: instead
+
+# Interaction — runs INSIDE container
+interaction:
+  shell:
+    description: "Open shell in app"
+    service: app
+    command: /bin/bash
+  test:
+    description: "Run tests"
+    service: app
+    command: uv run pytest
+  migrate:
+    description: "Run migrations"
+    service: app
+    command: uv run python manage.py migrate
+  manage:
+    description: "Django management"
+    service: app
+    command: uv run python manage.py
+
+# Provision — starts containers
+provision:
+  default:
+    - step: "Copy environment file"
+      run: "cp -n .env.example .env 2>/dev/null || true"
+    - step: "Start infrastructure"
+      run: "docker compose up -d --wait postgres redis"
+    - step: "Start application"
+      run: "docker compose up -d --wait app"
+    - step: "Run migrations"
+      run: "docker compose exec app uv run python manage.py migrate"
+```
+
+---
+
+## Node.js/TypeScript — Hybrid or Container-First
+
+> archetype: web-app | ui
+> development_pattern: varies
+
+### Hybrid (local dev server)
+
+```yaml
+health_checks:
+  dev:
+    type: http
+    url: "http://localhost:{PORT}"
+    start: "pnpm dev"
+    start_hint: "pnpm dev"
+    timeout: 5
+    ready_timeout: 30
+
+interaction:
+  build:
+    replace:
+      - step: "Build project"
+        run: "pnpm build"
+  test:
+    description: "Run tests"
+    runner: local
+    command: "pnpm test"
+    tags: [test]
+  lint:
+    description: "Run linter"
+    runner: local
+    command: "pnpm lint"
+    tags: [quality]
+  dev:
+    description: "Start dev server"
+    runner: local
+    command: "pnpm dev"
+```
+
+### Container-First
+
+```yaml
+interaction:
+  shell:
+    description: "Open shell"
+    service: app
+    command: /bin/sh
+  test:
+    description: "Run tests"
+    service: app
+    command: pnpm test
+  dev:
+    description: "Start dev server"
+    service: app
+    command: pnpm dev
+```
+
+---
+
+## Multi-Component (devbox with subprojects)
+
+> Pattern: devbox parent manages shared infra, each subproject has its own dva.yml
+
+```yaml
+# Root dva.yml — manages shared infrastructure
+subprojects:
+  {component-1}:
+    path: {component-1}
+    exclude_tags: [infra]    # Prevents duplicate infra when running from parent
+  {component-2}:
+    path: {component-2}
+    exclude_tags: [infra]
+
+# Subproject dva.yml — inherits parent infra, defines app-specific commands
+# version MUST match root
+version: "0.1.26"
+
+stack:
+  compose:
+    order: 10
+    files:
+      - ../compose.yml       # Reference parent compose (or none if infra-only)
+    project_name: {same-as-root}
+    services:
+      {app-service}:
+        tags: [app]
+
+interaction:
+  # Only app-specific commands here
+  # Infrastructure commands (db, redis) are in parent
+```
+
+---
+
+## Checks (dva doctor) — Common Patterns
+
+```yaml
+checks:
+  # Always include
+  - name: Docker daemon accessible
+    type: docker_socket
+    fix_hint: "Start Docker Desktop or ensure dockerd is running"
+  - name: .env file exists
+    type: file_exists
+    path: .env
+    fix_hint: "cp .env.example .env"
+  - name: compose.yml exists
+    type: file_exists
+    path: compose.yml
+    fix_hint: "compose.yml should be at repo root"
+
+  # Language-specific
+  # Rust:
+  - name: Rust toolchain available
+    type: command
+    command: "rustc --version >/dev/null 2>&1"
+    fix_hint: "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+  # Go:
+  - name: Go toolchain available
+    type: command
+    command: "go version >/dev/null 2>&1"
+    fix_hint: "Install Go: https://go.dev/dl/"
+  # Node.js:
+  - name: Node.js available
+    type: command
+    command: "node --version >/dev/null 2>&1"
+    fix_hint: "Install Node.js via mise or nvm"
+  # Docker Compose:
+  - name: Docker Compose available
+    type: command
+    command: "docker compose version >/dev/null 2>&1"
+    fix_hint: "Install Docker Compose plugin"
+```
