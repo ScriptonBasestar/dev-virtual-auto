@@ -1,9 +1,9 @@
 package config
 
-// PrimaryComposeEntry returns the first lifecycle entry with plugin=="compose".
+// PrimaryComposeEntry returns the first lifecycle entry with a compose config section.
 func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 	for i := range c.Lifecycle {
-		if c.Lifecycle[i].Plugin == "compose" && c.Lifecycle[i].Compose != nil {
+		if c.Lifecycle[i].Compose != nil {
 			return &c.Lifecycle[i]
 		}
 	}
@@ -22,7 +22,7 @@ func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 func (c *Config) AllComposeFiles() []string {
 	var files []string
 	for _, e := range c.Lifecycle {
-		if e.Plugin == "compose" && e.Compose != nil {
+		if e.Compose != nil {
 			files = append(files, e.Compose.Files...)
 		}
 	}
@@ -48,7 +48,7 @@ func (c *Config) ComposeCommand() string {
 // PrimaryKubectlConfig returns the KubectlPluginConfig from the first kubectl lifecycle entry.
 func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 	for _, e := range c.Lifecycle {
-		if e.Plugin == "kubectl" && e.Kubectl != nil {
+		if e.Kubectl != nil {
 			return e.Kubectl
 		}
 	}

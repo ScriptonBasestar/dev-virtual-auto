@@ -3,7 +3,6 @@ package config
 // LifecycleEntry defines a single entry in the lifecycle pipeline.
 type LifecycleEntry struct {
 	Name         string                       `yaml:"name"`
-	Plugin       string                       `yaml:"plugin"`
 	Order        int                          `yaml:"order"`
 	Tags         []string                     `yaml:"tags"`
 	Exports      map[string]string            `yaml:"exports"`
@@ -28,6 +27,41 @@ type LifecycleEntry struct {
 	SAM        *SAMPluginConfig        `yaml:"sam,omitempty"`
 	Serverless *ServerlessPluginConfig `yaml:"serverless,omitempty"`
 	Multipass  *MultipassPluginConfig  `yaml:"multipass,omitempty"`
+}
+
+// DetectPlugin returns the plugin type by inspecting which config section is set.
+func (e *LifecycleEntry) DetectPlugin() string {
+	switch {
+	case e.Compose != nil:
+		return "compose"
+	case e.Process != nil:
+		return "process"
+	case e.Script != nil:
+		return "script"
+	case e.Docker != nil:
+		return "docker"
+	case e.Kubectl != nil:
+		return "kubectl"
+	case e.Helm != nil:
+		return "helm"
+	case e.Kustomize != nil:
+		return "kustomize"
+	case e.Tilt != nil:
+		return "tilt"
+	case e.Skaffold != nil:
+		return "skaffold"
+	case e.PodmanCompose != nil:
+		return "podman-compose"
+	case e.Vagrant != nil:
+		return "vagrant"
+	case e.SAM != nil:
+		return "sam"
+	case e.Serverless != nil:
+		return "serverless"
+	case e.Multipass != nil:
+		return "multipass"
+	}
+	return ""
 }
 
 // ===== Tier 1: Core =====
@@ -69,9 +103,10 @@ type DockerPluginConfig struct {
 
 // KubectlPluginConfig holds kubectl apply settings.
 type KubectlPluginConfig struct {
-	Manifests []string `yaml:"manifests"`
-	Namespace string   `yaml:"namespace"`
-	Context   string   `yaml:"context"`
+	Manifests  []string `yaml:"manifests"`
+	Namespace  string   `yaml:"namespace"`
+	Context    string   `yaml:"context"`
+	Kubeconfig string   `yaml:"kubeconfig"`
 }
 
 // HelmPluginConfig holds Helm chart deployment settings.

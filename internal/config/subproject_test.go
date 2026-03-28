@@ -82,7 +82,7 @@ func TestConfigHasTag(t *testing.T) {
 	cfg := &Config{
 		Lifecycle: []LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &ComposePluginConfig{Tags: []string{"infra", "shared"}},
 			},
 		},
@@ -128,7 +128,7 @@ func TestGetComposeServicesExcluding(t *testing.T) {
 	cfg := &Config{
 		Lifecycle: []LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &ComposePluginConfig{
 					Tags: []string{"app"},
 					Services: map[string]ServiceTagConfig{
@@ -156,7 +156,7 @@ func TestGetExcludedComposeServices(t *testing.T) {
 	cfg := &Config{
 		Lifecycle: []LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &ComposePluginConfig{
 					Tags: []string{"app"},
 					Services: map[string]ServiceTagConfig{
@@ -190,7 +190,7 @@ func TestGetComposeServicesExcludingEmpty(t *testing.T) {
 	cfg2 := &Config{
 		Lifecycle: []LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &ComposePluginConfig{
 					Services: map[string]ServiceTagConfig{
 						"app": {Tags: []string{"app"}},

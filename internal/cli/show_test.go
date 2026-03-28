@@ -39,7 +39,7 @@ func TestShowText_WithCompose(t *testing.T) {
 	c := &config.Config{
 		Lifecycle: []config.LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &config.ComposePluginConfig{
 					ProjectName: "myproject",
 					Files:       []string{"compose.yml", "compose.dev.yml"},
@@ -182,7 +182,7 @@ func TestShowJSON_FullConfig(t *testing.T) {
 	c := &config.Config{
 		Lifecycle: []config.LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &config.ComposePluginConfig{
 					ProjectName: "test",
 					Files:       []string{"compose.yml"},

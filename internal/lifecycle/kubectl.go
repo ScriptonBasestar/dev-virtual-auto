@@ -21,6 +21,7 @@ func (p *KubectlPlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 	cmd := "kubectl"
 	args := make([]string, 0, len(extraArgs)+4)
 	args = append(args, extraArgs...)
+	args = append(args, buildKubectlKubeconfigArgs(cfg.Kubeconfig)...)
 	args = append(args, buildKubectlContextArgs(cfg.Context)...)
 	args = append(args, buildK8sNamespaceArgs(cfg.Namespace)...)
 

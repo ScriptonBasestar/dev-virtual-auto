@@ -78,7 +78,8 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 	envClone := cloneEnv(o.env)
 
 	for _, entry := range filtered {
-		plugin, err := NewPlugin(entry.Plugin)
+		pluginType := entry.DetectPlugin()
+		plugin, err := NewPlugin(pluginType)
 		if err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
@@ -90,10 +91,10 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 			DryRun:    opts.DryRun,
 			Force:     opts.Force,
 			Wait:      opts.Wait,
-			Logger:    o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
+			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
-		fmt.Fprintf(os.Stderr, "[lifecycle] %s (%s)\n", entry.Name, entry.Plugin)
+		fmt.Fprintf(os.Stderr, "[lifecycle] %s (%s)\n", entry.Name, pluginType)
 
 		result, err := plugin.Up(ctx, pctx)
 		if err != nil {
@@ -139,7 +140,8 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 	}
 
 	for _, entry := range filtered {
-		plugin, err := NewPlugin(entry.Plugin)
+		pluginType := entry.DetectPlugin()
+		plugin, err := NewPlugin(pluginType)
 		if err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
@@ -151,10 +153,10 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 			DryRun:       opts.DryRun,
 			Volumes:      opts.Volumes,
 			RemoveImages: opts.RemoveImages,
-			Logger:       o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
+			Logger:       o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
-		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, entry.Plugin)
+		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
 
 		if err := plugin.Down(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q down failed: %v\n", entry.Name, err)
@@ -175,7 +177,8 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 	}
 
 	for _, entry := range filtered {
-		plugin, err := NewPlugin(entry.Plugin)
+		pluginType := entry.DetectPlugin()
+		plugin, err := NewPlugin(pluginType)
 		if err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
@@ -185,10 +188,10 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 			Env:       o.env,
 			ConfigDir: o.cfg.FileDir(),
 			DryRun:    opts.DryRun,
-			Logger:    o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
+			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
-		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, entry.Plugin)
+		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
 
 		if err := plugin.Stop(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q stop failed: %v\n", entry.Name, err)
@@ -217,7 +220,8 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 	status := &AggregatedStatus{}
 
 	for _, entry := range o.entries {
-		plugin, err := NewPlugin(entry.Plugin)
+		pluginType := entry.DetectPlugin()
+		plugin, err := NewPlugin(pluginType)
 		if err != nil {
 			continue
 		}
@@ -226,7 +230,7 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 			Entry:     &entry,
 			Env:       o.env,
 			ConfigDir: o.cfg.FileDir(),
-			Logger:    o.logger.With("entry", entry.Name, "plugin", entry.Plugin),
+			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
 		services, _ := plugin.Status(ctx, pctx)
@@ -238,7 +242,7 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 
 		status.Entries = append(status.Entries, EntryStatus{
 			Name:     entry.Name,
-			Plugin:   entry.Plugin,
+			Plugin:   pluginType,
 			Services: services,
 			Health:   healthResults,
 		})

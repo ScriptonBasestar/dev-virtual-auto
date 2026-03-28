@@ -11,7 +11,7 @@ func TestBuildManifest_MinimalConfig(t *testing.T) {
 		Version: "0.1.22",
 		Lifecycle: []config.LifecycleEntry{
 			{
-				Name: "compose", Plugin: "compose", Order: 10,
+				Name: "compose", Order: 10,
 				Compose: &config.ComposePluginConfig{
 					Files: []string{"compose.yml"},
 				},

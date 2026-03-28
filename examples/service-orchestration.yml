@@ -22,7 +22,6 @@ version: '0.1.16'
 
 lifecycle:
   - name: compose
-    plugin: compose
     order: 10
     compose:
       files:

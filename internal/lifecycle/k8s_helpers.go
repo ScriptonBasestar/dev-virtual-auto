@@ -21,6 +21,14 @@ func buildKubectlContextArgs(ctx string) []string {
 	return []string{"--context", ctx}
 }
 
+// buildKubectlKubeconfigArgs returns ["--kubeconfig", path] if path is non-empty.
+func buildKubectlKubeconfigArgs(kubeconfig string) []string {
+	if kubeconfig == "" {
+		return nil
+	}
+	return []string{"--kubeconfig", kubeconfig}
+}
+
 // buildHelmContextArgs returns ["--kube-context", ctx] if ctx is non-empty.
 // Note: Helm uses --kube-context, not --context.
 func buildHelmContextArgs(ctx string) []string {

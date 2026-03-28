@@ -34,7 +34,6 @@ environment:
 
 lifecycle:
   - name: compose
-    plugin: compose
     order: 10
     compose:
       files:
@@ -43,7 +42,6 @@ lifecycle:
       project_name: myapp_project
       command: docker compose
   - name: kubectl
-    plugin: kubectl
     order: 20
     kubectl:
       namespace: myapp-development

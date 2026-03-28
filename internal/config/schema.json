@@ -319,20 +319,15 @@
     },
     "lifecycle": {
       "type": "array",
-      "description": "Ordered list of lifecycle plugin entries. Each entry defines a plugin (compose, kubectl, helm, process, script, docker, etc.) and its configuration. Entries are executed in ascending order for up, descending for down/stop.",
+      "description": "Ordered list of lifecycle entries. Each entry contains exactly one plugin configuration section (compose, kubectl, helm, process, script, docker, etc.). Entries are executed in ascending order for up, descending for down/stop.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["name", "plugin"],
+        "required": ["name"],
         "properties": {
           "name": {
             "type": "string",
             "description": "Unique name for this lifecycle entry"
-          },
-          "plugin": {
-            "type": "string",
-            "description": "Plugin type to use",
-            "enum": ["compose", "process", "script", "docker", "kubectl", "helm", "kustomize", "tilt", "skaffold", "podman_compose", "vagrant", "sam", "serverless", "multipass"]
           },
           "order": {
             "type": "integer",
@@ -483,7 +478,8 @@
             "properties": {
               "manifests": { "type": "array", "items": { "type": "string" } },
               "namespace": { "type": "string" },
-              "context": { "type": "string" }
+              "context": { "type": "string" },
+              "kubeconfig": { "type": "string", "description": "Path to kubeconfig file" }
             }
           },
           "helm": {
@@ -585,7 +581,6 @@
         [
           {
             "name": "compose",
-            "plugin": "compose",
             "order": 10,
             "compose": {
               "files": ["compose.yml"],

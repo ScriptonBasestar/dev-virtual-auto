@@ -23,7 +23,6 @@ version: '0.1.0'
 # Kubernetes configuration (lifecycle)
 lifecycle:
   - name: kubectl
-    plugin: kubectl
     order: 20
     kubectl:
       namespace: myapp-development

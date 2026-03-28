@@ -10,7 +10,6 @@ environment:
 
 lifecycle:
   - name: compose
-    plugin: compose
     order: 10
     compose:
       files:

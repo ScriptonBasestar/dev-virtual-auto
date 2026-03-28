@@ -2,7 +2,6 @@ version: "0.1.22"
 
 lifecycle:
   - name: compose
-    plugin: compose
     order: 10
     compose:
       files: [compose.yml]

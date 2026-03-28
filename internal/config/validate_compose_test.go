@@ -12,7 +12,7 @@ func makeComposeLifecycleConfig(tmpDir string, files []string, projectName strin
 		Lifecycle: []LifecycleEntry{
 			{
 				Name:   "compose",
-				Plugin: "compose",
+				
 				Order:  10,
 				Compose: &ComposePluginConfig{
 					Files:       files,
