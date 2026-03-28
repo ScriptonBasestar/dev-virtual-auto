@@ -23,10 +23,10 @@ environment:
 # Docker Compose configuration (lifecycle)
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
+    files:
+      - docker-compose.yml
 
 # Interactive commands
 interaction:

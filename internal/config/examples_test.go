@@ -48,6 +48,94 @@ func TestExamplesParseSuccessfully(t *testing.T) {
 	t.Logf("validated %d example files", count)
 }
 
+func TestLifecycleFlatFormatParsing(t *testing.T) {
+	cases := []struct {
+		name        string
+		yaml        string
+		wantPlugin  string
+		wantCompose func(*ComposePluginConfig) bool
+		wantKubectl func(*KubectlPluginConfig) bool
+	}{
+		{
+			name: "compose flat",
+			yaml: `version: "0.1.0"
+lifecycle:
+  db:
+    plugin: compose
+    order: 10
+    files: [docker-compose.yml]
+    project_name: myapp
+`,
+			wantPlugin: "compose",
+			wantCompose: func(c *ComposePluginConfig) bool {
+				return len(c.Files) == 1 && c.Files[0] == "docker-compose.yml" && c.ProjectName == "myapp"
+			},
+		},
+		{
+			name: "kubectl flat",
+			yaml: `version: "0.1.0"
+lifecycle:
+  k8s:
+    plugin: kubectl
+    order: 20
+    namespace: myapp-dev
+    context: minikube
+`,
+			wantPlugin: "kubectl",
+			wantKubectl: func(k *KubectlPluginConfig) bool {
+				return k.Namespace == "myapp-dev" && k.Context == "minikube"
+			},
+		},
+		{
+			name: "nested format (backward compat)",
+			yaml: `version: "0.1.0"
+lifecycle:
+  compose:
+    order: 10
+    compose:
+      files: [docker-compose.yml]
+`,
+			wantPlugin: "compose",
+			wantCompose: func(c *ComposePluginConfig) bool {
+				return len(c.Files) == 1 && c.Files[0] == "docker-compose.yml"
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var cfg Config
+			if err := yaml.Unmarshal([]byte(tc.yaml), &cfg); err != nil {
+				t.Fatalf("parse: %v", err)
+			}
+			if len(cfg.Lifecycle) == 0 {
+				t.Fatal("expected lifecycle entries")
+			}
+			for _, entry := range cfg.Lifecycle {
+				if entry.Plugin != tc.wantPlugin {
+					t.Errorf("Plugin = %q, want %q", entry.Plugin, tc.wantPlugin)
+				}
+				if tc.wantCompose != nil {
+					if entry.Compose == nil {
+						t.Fatal("expected Compose config")
+					}
+					if !tc.wantCompose(entry.Compose) {
+						t.Errorf("Compose config mismatch: %+v", entry.Compose)
+					}
+				}
+				if tc.wantKubectl != nil {
+					if entry.Kubectl == nil {
+						t.Fatal("expected Kubectl config")
+					}
+					if !tc.wantKubectl(entry.Kubectl) {
+						t.Errorf("Kubectl config mismatch: %+v", entry.Kubectl)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestExampleModulesParseSuccessfully(t *testing.T) {
 	dir := examplesDir()
 

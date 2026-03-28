@@ -22,45 +22,45 @@ version: '0.1.16'
 
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-      project_name: db-orchestrator
-      services:
-        api:
-          tags: [app]
-          related: [worker]
-          hint: "Worker is required for async DB provisioning — without it, databases stay in 'Provisioning' state"
-          ports:
-            8080:
-              label: "API"
-              http: true
-              paths:
-                /health: "Health check"
-                /api/v1/databases: "Database management"
-        worker:
-          tags: [app]
-          related: [api]
-          hint: "API server accepts requests; worker processes them"
-        postgres:
-          tags: [infra]
-          ports:
-            5432:
-              label: "PostgreSQL"
-        kafka:
-          tags: [infra]
-          ports:
-            9092:
-              label: "Kafka"
-        frontend:
-          tags: [ui]
-          related: [api]
-          hint: "Frontend needs the API server for data"
-          ports:
-            3000:
-              label: "Web UI"
-              http: true
+    files:
+      - docker-compose.yml
+    project_name: db-orchestrator
+    services:
+      api:
+        tags: [app]
+        related: [worker]
+        hint: "Worker is required for async DB provisioning — without it, databases stay in 'Provisioning' state"
+        ports:
+          8080:
+            label: "API"
+            http: true
+            paths:
+              /health: "Health check"
+              /api/v1/databases: "Database management"
+      worker:
+        tags: [app]
+        related: [api]
+        hint: "API server accepts requests; worker processes them"
+      postgres:
+        tags: [infra]
+        ports:
+          5432:
+            label: "PostgreSQL"
+      kafka:
+        tags: [infra]
+        ports:
+          9092:
+            label: "Kafka"
+      frontend:
+        tags: [ui]
+        related: [api]
+        hint: "Frontend needs the API server for data"
+        ports:
+          3000:
+            label: "Web UI"
+            http: true
 
 # Endpoints — user-facing URLs for the project
 # Compose service ports (above) are shown automatically.

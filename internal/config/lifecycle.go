@@ -1,8 +1,15 @@
 package config
 
+import (
+	"fmt"
+
+	"gopkg.in/yaml.v3"
+)
+
 // LifecycleEntry defines a single entry in the lifecycle pipeline.
 type LifecycleEntry struct {
 	Name         string                       `yaml:"-"` // populated from map key
+	Plugin       string                       `yaml:"-"` // populated during UnmarshalYAML
 	Order        int                          `yaml:"order"`
 	Tags         []string                     `yaml:"tags"`
 	Exports      map[string]string            `yaml:"exports"`
@@ -17,16 +24,220 @@ type LifecycleEntry struct {
 	Helm    *HelmPluginConfig    `yaml:"helm,omitempty"`
 
 	// --- Tier 2: Extended ---
-	Kustomize    *KustomizePluginConfig    `yaml:"kustomize,omitempty"`
-	Tilt         *TiltPluginConfig         `yaml:"tilt,omitempty"`
-	Skaffold     *SkaffoldPluginConfig     `yaml:"skaffold,omitempty"`
+	Kustomize     *KustomizePluginConfig    `yaml:"kustomize,omitempty"`
+	Tilt          *TiltPluginConfig         `yaml:"tilt,omitempty"`
+	Skaffold      *SkaffoldPluginConfig     `yaml:"skaffold,omitempty"`
 	PodmanCompose *PodmanComposePluginConfig `yaml:"podman_compose,omitempty"`
-	Vagrant      *VagrantPluginConfig      `yaml:"vagrant,omitempty"`
+	Vagrant       *VagrantPluginConfig      `yaml:"vagrant,omitempty"`
 
 	// --- Tier 3: Niche ---
 	SAM        *SAMPluginConfig        `yaml:"sam,omitempty"`
 	Serverless *ServerlessPluginConfig `yaml:"serverless,omitempty"`
 	Multipass  *MultipassPluginConfig  `yaml:"multipass,omitempty"`
+}
+
+// UnmarshalYAML supports two formats for lifecycle entries:
+//
+// Nested (legacy): plugin config under a named sub-key
+//
+//	compose:
+//	  order: 10
+//	  compose:
+//	    files: [docker-compose.yml]
+//
+// Flat (preferred): plugin fields at top level with explicit `plugin:` key
+//
+//	compose:
+//	  plugin: compose
+//	  order: 10
+//	  files: [docker-compose.yml]
+func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
+	// Decode common fields + nested plugin configs
+	var raw struct {
+		Plugin       string                       `yaml:"plugin"`
+		Order        int                          `yaml:"order"`
+		Tags         []string                     `yaml:"tags"`
+		Exports      map[string]string            `yaml:"exports"`
+		HealthChecks map[string]HealthCheckConfig `yaml:"health_checks"`
+
+		// Nested format: plugin config under its type key
+		Compose       *ComposePluginConfig       `yaml:"compose"`
+		Process       *ProcessPluginConfig       `yaml:"process"`
+		Script        *ScriptPluginConfig        `yaml:"script"`
+		Docker        *DockerPluginConfig        `yaml:"docker"`
+		Kubectl       *KubectlPluginConfig       `yaml:"kubectl"`
+		Helm          *HelmPluginConfig          `yaml:"helm"`
+		Kustomize     *KustomizePluginConfig     `yaml:"kustomize"`
+		Tilt          *TiltPluginConfig          `yaml:"tilt"`
+		Skaffold      *SkaffoldPluginConfig      `yaml:"skaffold"`
+		PodmanCompose *PodmanComposePluginConfig `yaml:"podman_compose"`
+		Vagrant       *VagrantPluginConfig       `yaml:"vagrant"`
+		SAM           *SAMPluginConfig           `yaml:"sam"`
+		Serverless    *ServerlessPluginConfig    `yaml:"serverless"`
+		Multipass     *MultipassPluginConfig     `yaml:"multipass"`
+	}
+	if err := node.Decode(&raw); err != nil {
+		return err
+	}
+
+	e.Order = raw.Order
+	e.Tags = raw.Tags
+	e.Exports = raw.Exports
+	e.HealthChecks = raw.HealthChecks
+
+	// Nested format: detect by checking which plugin sub-key is set
+	switch {
+	case raw.Compose != nil:
+		e.Compose = raw.Compose
+		e.Plugin = "compose"
+		return nil
+	case raw.Process != nil:
+		e.Process = raw.Process
+		e.Plugin = "process"
+		return nil
+	case raw.Script != nil:
+		e.Script = raw.Script
+		e.Plugin = "script"
+		return nil
+	case raw.Docker != nil:
+		e.Docker = raw.Docker
+		e.Plugin = "docker"
+		return nil
+	case raw.Kubectl != nil:
+		e.Kubectl = raw.Kubectl
+		e.Plugin = "kubectl"
+		return nil
+	case raw.Helm != nil:
+		e.Helm = raw.Helm
+		e.Plugin = "helm"
+		return nil
+	case raw.Kustomize != nil:
+		e.Kustomize = raw.Kustomize
+		e.Plugin = "kustomize"
+		return nil
+	case raw.Tilt != nil:
+		e.Tilt = raw.Tilt
+		e.Plugin = "tilt"
+		return nil
+	case raw.Skaffold != nil:
+		e.Skaffold = raw.Skaffold
+		e.Plugin = "skaffold"
+		return nil
+	case raw.PodmanCompose != nil:
+		e.PodmanCompose = raw.PodmanCompose
+		e.Plugin = "podman-compose"
+		return nil
+	case raw.Vagrant != nil:
+		e.Vagrant = raw.Vagrant
+		e.Plugin = "vagrant"
+		return nil
+	case raw.SAM != nil:
+		e.SAM = raw.SAM
+		e.Plugin = "sam"
+		return nil
+	case raw.Serverless != nil:
+		e.Serverless = raw.Serverless
+		e.Plugin = "serverless"
+		return nil
+	case raw.Multipass != nil:
+		e.Multipass = raw.Multipass
+		e.Plugin = "multipass"
+		return nil
+	}
+
+	// Flat format: plugin type from explicit `plugin:` field
+	e.Plugin = raw.Plugin
+	switch raw.Plugin {
+	case "":
+		return nil // no plugin (valid: entry with only order/tags)
+	case "compose":
+		cfg := &ComposePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("compose plugin: %w", err)
+		}
+		e.Compose = cfg
+	case "process":
+		cfg := &ProcessPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("process plugin: %w", err)
+		}
+		e.Process = cfg
+	case "script":
+		cfg := &ScriptPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("script plugin: %w", err)
+		}
+		e.Script = cfg
+	case "docker":
+		cfg := &DockerPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("docker plugin: %w", err)
+		}
+		e.Docker = cfg
+	case "kubectl":
+		cfg := &KubectlPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("kubectl plugin: %w", err)
+		}
+		e.Kubectl = cfg
+	case "helm":
+		cfg := &HelmPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("helm plugin: %w", err)
+		}
+		e.Helm = cfg
+	case "kustomize":
+		cfg := &KustomizePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("kustomize plugin: %w", err)
+		}
+		e.Kustomize = cfg
+	case "tilt":
+		cfg := &TiltPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("tilt plugin: %w", err)
+		}
+		e.Tilt = cfg
+	case "skaffold":
+		cfg := &SkaffoldPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("skaffold plugin: %w", err)
+		}
+		e.Skaffold = cfg
+	case "podman-compose", "podman_compose":
+		cfg := &PodmanComposePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("podman-compose plugin: %w", err)
+		}
+		e.PodmanCompose = cfg
+	case "vagrant":
+		cfg := &VagrantPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("vagrant plugin: %w", err)
+		}
+		e.Vagrant = cfg
+	case "sam":
+		cfg := &SAMPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("sam plugin: %w", err)
+		}
+		e.SAM = cfg
+	case "serverless":
+		cfg := &ServerlessPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("serverless plugin: %w", err)
+		}
+		e.Serverless = cfg
+	case "multipass":
+		cfg := &MultipassPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return fmt.Errorf("multipass plugin: %w", err)
+		}
+		e.Multipass = cfg
+	default:
+		return fmt.Errorf("unknown lifecycle plugin %q (valid: compose, process, script, docker, kubectl, helm, kustomize, tilt, skaffold, podman-compose, vagrant, sam, serverless, multipass)", raw.Plugin)
+	}
+	return nil
 }
 
 // DetectPlugin returns the plugin type by inspecting which config section is set.

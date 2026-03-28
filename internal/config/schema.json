@@ -319,11 +319,17 @@
     },
     "lifecycle": {
       "type": "object",
-      "description": "Named lifecycle entries. Each key is the entry name, each value contains exactly one plugin configuration section (compose, kubectl, helm, process, script, docker, etc.). Entries are executed in ascending order of the 'order' field for up, descending for down/stop.",
+      "description": "Named lifecycle entries. Each key is the entry name. Use `plugin:` (flat format) to specify the plugin type with fields at top level, or use a nested plugin key (legacy format). Entries execute in ascending order of `order` for up, descending for down/stop.",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": false,
+        "additionalProperties": true,
         "properties": {
+          "plugin": {
+            "type": "string",
+            "description": "Plugin type (flat format). Specifies which plugin to use; plugin-specific fields go at the top level of this entry.",
+            "enum": ["compose", "process", "script", "docker", "kubectl", "helm", "kustomize", "tilt", "skaffold", "podman-compose", "podman_compose", "vagrant", "sam", "serverless", "multipass"],
+            "examples": ["compose", "kubectl", "helm"]
+          },
           "order": {
             "type": "integer",
             "description": "Execution order (ascending for up, descending for down/stop)",
@@ -575,11 +581,15 @@
       "examples": [
         {
           "compose": {
+            "plugin": "compose",
             "order": 10,
-            "compose": {
-              "files": ["compose.yml"],
-              "project_name": "myapp"
-            }
+            "files": ["compose.yml"],
+            "project_name": "myapp"
+          },
+          "k8s": {
+            "plugin": "kubectl",
+            "order": 20,
+            "namespace": "myapp-dev"
           }
         }
       ]

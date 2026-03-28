@@ -34,17 +34,17 @@ environment:
 
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-        - docker-compose.override.yml
-      project_name: myapp_project
-      command: docker compose
+    files:
+      - docker-compose.yml
+      - docker-compose.override.yml
+    project_name: myapp_project
+    command: docker compose
   kubectl:
+    plugin: kubectl
     order: 20
-    kubectl:
-      namespace: myapp-development
+    namespace: myapp-development
 
 interaction:
   rails:

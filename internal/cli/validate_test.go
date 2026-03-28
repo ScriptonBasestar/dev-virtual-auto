@@ -95,7 +95,7 @@ func TestDetectConfigDriftWarnings_ComposeFilesMismatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.override.yml"), []byte("services:\n  app:\n    environment:\n      FOO: bar\n"), 0644); err != nil {
 		t.Fatalf("write override: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    order: 10\n    compose:\n      files:\n        - docker-compose.yml\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
 		t.Fatalf("write compose: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    order: 10\n    compose:\n      files:\n        - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestPrintConfigDriftWarnings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
 		t.Fatalf("write compose: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    order: 10\n    compose:\n      files:\n        - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nlifecycle:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -241,7 +241,7 @@ func TestShouldIgnorePackageScript(t *testing.T) {
 }
 
 func TestFixComposeNameWarnings_AddsMissingName(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nlifecycle:\n  compose:\n    order: 10\n    compose:\n      project_name: myproject\n      files: [compose.yml]\n")
+	c := loadTestConfig(t, "version: \"0.1.22\"\nlifecycle:\n  compose:\n    plugin: compose\n    order: 10\n    project_name: myproject\n    files: [compose.yml]\n")
 
 	// Create compose file without name
 	composePath := filepath.Join(c.FileDir(), "compose.yml")

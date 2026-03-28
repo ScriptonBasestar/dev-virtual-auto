@@ -6,10 +6,10 @@ environment:
 
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files: [compose.yml]
-      project_name: fullstack-test
+    files: [compose.yml]
+    project_name: fullstack-test
 
 modes:
   docker:

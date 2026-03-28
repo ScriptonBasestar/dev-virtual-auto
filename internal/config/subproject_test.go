@@ -16,13 +16,13 @@ func TestLoadSubprojects(t *testing.T) {
 version: "0.1.0"
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-      project_name: engine
-      tags: [app]
-      services:
+    files:
+      - docker-compose.yml
+    project_name: engine
+    tags: [app]
+    services:
         postgres:
           tags: [infra]
         django-engine:
@@ -213,9 +213,9 @@ func TestLoadConfigWithSubprojects(t *testing.T) {
 version: "0.1.0"
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files: [docker-compose.yml]
+    files: [docker-compose.yml]
 interaction:
   test:
     description: "Sub test"
@@ -227,10 +227,10 @@ interaction:
 version: "0.1.0"
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files: [docker-compose.yml]
-      tags: [infra]
+    files: [docker-compose.yml]
+    tags: [infra]
 subprojects:
   sub-app:
     path: sub-app

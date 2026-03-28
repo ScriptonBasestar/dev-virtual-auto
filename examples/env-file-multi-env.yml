@@ -31,11 +31,11 @@ environment:
 
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-        - docker-compose.${ENV:-development}.yml
+    files:
+      - docker-compose.yml
+      - docker-compose.${ENV:-development}.yml
 
 interaction:
   rails:

@@ -353,15 +353,15 @@ func generateConfig(tmpl string) string {
 	composeFiles := detectComposeFiles()
 	b.WriteString("lifecycle:\n")
 	b.WriteString("  compose:\n")
+	b.WriteString("    plugin: compose\n")
 	b.WriteString("    order: 10\n")
-	b.WriteString("    compose:\n")
-	b.WriteString("      files:\n")
+	b.WriteString("    files:\n")
 	if len(composeFiles) > 0 {
 		for _, f := range composeFiles {
-			b.WriteString(fmt.Sprintf("        - %s\n", f))
+			b.WriteString(fmt.Sprintf("      - %s\n", f))
 		}
 	} else {
-		b.WriteString("        - docker-compose.yml\n")
+		b.WriteString("      - docker-compose.yml\n")
 	}
 	b.WriteString("\n")
 

@@ -58,11 +58,11 @@ func TestLoadConfig(t *testing.T) {
 	content := `version: "0.1.0"
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-      project_name: myapp
+    files:
+      - docker-compose.yml
+    project_name: myapp
 
 environment:
   RAILS_ENV: development
@@ -152,9 +152,9 @@ func TestLoadConfigWithOverride(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      project_name: original
+    project_name: original
 interaction:
   shell:
     service: app
@@ -164,9 +164,9 @@ interaction:
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
 lifecycle:
   compose-override:
+    plugin: compose
     order: 10
-    compose:
-      project_name: overridden
+    project_name: overridden
 `), 0644)
 
 	cfg, err := Load(tmpDir)
@@ -312,10 +312,10 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 
 	content := `lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files: [docker-compose.yml]
-      services:
+    files: [docker-compose.yml]
+    services:
         api:
           tags: [web]
           related: [worker, scheduler]

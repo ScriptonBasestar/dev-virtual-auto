@@ -6,11 +6,11 @@ version: '0.1.0'
 # Docker Compose configuration (lifecycle, shared with devcontainer)
 lifecycle:
   compose:
+    plugin: compose
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-      project_name: myapp
+    files:
+      - docker-compose.yml
+    project_name: myapp
 
 # DevContainer configuration
 # This section will be synced to .devcontainer/devcontainer.json
