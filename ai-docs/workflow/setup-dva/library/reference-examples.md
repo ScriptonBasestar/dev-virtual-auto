@@ -259,6 +259,10 @@ provision:
 > development_pattern: hybrid
 > Typical: Go module with cmd/ binaries, compose for DB/cache
 
+### Stack + Endpoints
+
+Same structure as Rust section above — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
+
 ### Key Differences from Rust
 
 ```yaml
@@ -307,6 +311,10 @@ interaction:
 > archetype: web-app
 > development_pattern: container-first (app runs in Docker)
 > Typical: Django/FastAPI with Docker for everything
+
+### Stack + Endpoints
+
+Same structure as Rust section — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
 
 ### Key Differences
 
@@ -363,6 +371,10 @@ provision:
 
 > archetype: web-app | ui
 > development_pattern: varies
+
+### Stack + Endpoints
+
+Same structure as Rust section — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
 
 ### Hybrid (local dev server)
 
