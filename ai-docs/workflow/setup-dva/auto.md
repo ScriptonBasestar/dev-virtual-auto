@@ -29,6 +29,7 @@ Exception: Stage 10 (Verify) requires user confirmation before proceeding.
 | 20 | Transform | stages/20-transform.md | Migrate directory structure | No |
 | 30 | Configure (full) | stages/30-configure-full.md | compose.yml + dva.yml 신규 생성 | No |
 | 30 | Configure (adopt) | stages/30-configure-adopt.md | 기존 compose 기반 dva.yml만 생성 | No |
+| 30 | Configure (upgrade) | stages/30-configure-adopt.md | 기존 dva.yml 포맷 업그레이드 | No |
 | 40 | Execute | stages/40-execute.md | Start infra, verify health | No |
 </stages>
 
@@ -47,6 +48,7 @@ For each stage (00 → 10 → 20 → 30 → 40):
 - **Stage 30 routing:** Read `setup_track` from analysis report (stage 00 output):
   - `setup_track: full` → use `stages/30-configure-full.md`
   - `setup_track: adopt` → use `stages/30-configure-adopt.md`
+  - `setup_track: upgrade` → use `stages/30-configure-adopt.md` (same stage handles both adopt and upgrade)
 - Spawn a subagent with the stage prompt content + previous stage artifacts
 - Provide DVA context: pass DVA_ROOT, EXAMPLES_DIR, SCHEMA_REF paths
 - The subagent MUST:

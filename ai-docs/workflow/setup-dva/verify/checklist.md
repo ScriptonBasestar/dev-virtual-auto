@@ -17,12 +17,19 @@
 - [ ] Port assignments do not conflict with other running projects
 
 ### DVA Config (Static)
-- [ ] `dva.yml` version is `"0.1.22"` (current)
+- [ ] `dva.yml` version is `"0.1.26"` (current)
+- [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:` or `lifecycle:`)
 - [ ] `dva.yml` uses `modes:` key (NOT deprecated `profiles:`)
-- [ ] `compose.files` lists correct compose files
-- [ ] `compose.project_name` matches compose file `name:`
+- [ ] `stack.compose.files` lists correct compose files
+- [ ] `stack.compose.project_name` matches compose file `name:`
 - [ ] `interaction` entries match running services
-- [ ] If `modes:` defined, each mode references valid compose_profiles/compose_services/health_checks
+- [ ] Host commands use `runner: local` (no `echo 'Run: ...'` wrappers)
+- [ ] Reserved commands (build, clean) use `replace:` hooks if overridden
+- [ ] No non-standard fields remain (`host_command`, `compose_up`/`compose_logs` in interaction)
+- [ ] `env_file:` uses object format (not string)
+- [ ] Provision steps do NOT call `run: "dva <command>"` (bootstrap ordering risk)
+- [ ] Provision steps do NOT hardcode compose file paths that duplicate `stack.compose.files`
+- [ ] If `modes:` defined, each mode references valid compose_profiles/compose_services/health_checks/stack
 - [ ] If `environments:` defined, each environment has description and environment map
 
 ### Naming Presets Compliance (`library/naming-presets.md`)

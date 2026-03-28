@@ -62,6 +62,18 @@
   → infra, full-stack
 ```
 
+### Container-First Modes (앱이 Docker 안에서 실행될 때)
+
+> Django, Rails 등 컨테이너 내부에서 개발하는 프로젝트용. 여러 compose overlay 파일을 조합.
+
+| Name | Description | compose_services | When |
+|------|-------------|-----------------|------|
+| `infra` | Dependencies only (DB, cache, auth) | infra 태그 서비스 | 앱을 Docker 밖에서 연결할 때 |
+| `full-stack` | Core app + infra | core compose 서비스 | 기본 개발 모드 |
+| `full-stack-tools` | Core + dev tools | + adminer, redis-commander 등 | DB/cache 관리 필요 시 |
+| `full-stack-monitoring` | Core + observability | + prometheus, grafana 등 | 성능/메트릭 확인 시 |
+| `all` | Every service | `~` (null = 전체) | 전체 스택 데모/테스트 |
+
 **Rules:**
 - `backend`과 `server`는 겹침 — 프로젝트당 하나만 선택
   - 웹 프로젝트 → `backend` 선호
@@ -69,6 +81,8 @@
 - `infra`는 항상 포함 (가장 기본적인 모드)
 - 프로젝트가 단순하면 core modes만으로 충분
 - 모드 이름은 프로젝트의 실제 어휘에 맞춤 (README, Makefile 등 참조)
+- Container-first 프로젝트는 compose overlay 파일 조합으로 모드 구성
+- Hybrid 프로젝트는 compose_services + health_checks 조합으로 모드 구성
 
 ## Env Presets
 
@@ -113,6 +127,7 @@ modes:
     health_checks: [frontend]
   full-stack:
     description: "All services in Docker"
+    stack: [compose]              # Include all stack entries (explicit)
 
 environments:
   dev:
@@ -124,4 +139,28 @@ environments:
     environment:
       LOG_LEVEL: warn
       DATABASE_SUFFIX: _test
+```
+
+멀티-스택 프로젝트 (compose + kubectl) 모드 예시:
+```yaml
+stack:
+  compose:
+    order: 10
+    files: [compose.yml]
+    # ...
+  kubectl:
+    order: 20
+    namespace: myapp-dev
+    # ...
+
+modes:
+  local:
+    description: "Local dev — compose only"
+    stack: [compose]              # Skip kubectl
+  cluster:
+    description: "K8s cluster — kubectl only"
+    stack: [kubectl]              # Skip compose
+  full:
+    description: "Both compose + kubectl"
+    # stack: omitted = all entries
 ```

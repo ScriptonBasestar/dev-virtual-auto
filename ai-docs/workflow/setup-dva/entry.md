@@ -29,6 +29,7 @@ Multi-stage workflow with user confirmation gates — step mode recommended for 
 | 20 | Transform | stages/20-transform.md | Migrate files/directories to DVA-compatible layout |
 | 30 | Configure (full) | stages/30-configure-full.md | compose.yml + dva.yml 신규 생성 (compose 없는 프로젝트) |
 | 30 | Configure (adopt) | stages/30-configure-adopt.md | 기존 compose 기반 dva.yml만 생성 (compose 있는 프로젝트) |
+| 30 | Configure (upgrade) | stages/30-configure-adopt.md | 기존 dva.yml 포맷 업그레이드 (레거시 → 최신) |
 | 40 | Execute | stages/40-execute.md | Run dva up, verify container health |
 </stages>
 
@@ -57,7 +58,7 @@ ls tmp/setup-dva/ 2>/dev/null
 | No prior state, fresh project | Recommend stage 00 (present menu) |
 | State shows 00 complete | Recommend stage 10 (present menu) |
 | State shows 10 complete (user approved) | Recommend stage 20 |
-| State shows 20 complete (transform done) | Recommend stage 30 — route to `30-configure-full.md` or `30-configure-adopt.md` based on `setup_track` in analysis report |
+| State shows 20 complete (transform done) | Recommend stage 30 — route to `30-configure-full.md` or `30-configure-adopt.md` based on `setup_track` in analysis report (upgrade track also uses adopt stage) |
 | State shows 30 complete (config generated) | Recommend stage 40 |
 | Specific stage requested | Execute that stage directly |
 
