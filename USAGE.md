@@ -1,6 +1,7 @@
 # DVA 사용 가이드
 
 > DVA CLI 전체 커맨드 레퍼런스 및 설정 가이드.
+> DVA는 개발 환경 오케스트레이터 — Docker Compose, Kubernetes, Helm 등 여러 인프라 도구를 `stack:` 파이프라인으로 통합 관리합니다.
 > 빠른 시작은 [README.md](README.md) 참조.
 
 ## Global Flags
@@ -85,14 +86,16 @@ dva config show           # JSON 형식 (기본)
 dva config show -f yaml   # YAML 형식
 ```
 
-### Lifecycle (Docker Compose)
+### Lifecycle (Stack Orchestration)
+
+`stack:` 섹션에 정의된 플러그인들을 `order` 순서대로 실행합니다.
 
 | Command | Description |
 |---------|-------------|
-| `dva up [SERVICE]` | 컨테이너 시작 (기본: -d --wait) |
-| `dva down` | 컨테이너 중지 및 제거 |
-| `dva stop [SERVICE]` | 컨테이너 중지 (제거하지 않음) |
-| `dva restart [SERVICE]` | 컨테이너 재시작 (stop + start) |
+| `dva up [SERVICE]` | stack 시작 (compose up, kubectl apply 등) |
+| `dva down` | stack 중지 및 제거 |
+| `dva stop [SERVICE]` | 서비스 중지 (제거하지 않음) |
+| `dva restart [SERVICE]` | 서비스 재시작 (stop + start) |
 | `dva logs [SERVICE]` | 컨테이너 로그 보기 |
 | `dva build [SERVICE]` | 이미지 빌드 |
 | `dva clean` | 전체 정리 (containers, networks) |
@@ -100,12 +103,12 @@ dva config show -f yaml   # YAML 형식
 #### up
 
 ```bash
-dva up                    # 전체 서비스 시작 (-d --wait)
+dva up                    # stack 전체 시작 (order 순서)
 dva up postgres redis     # 특정 서비스만
 dva up -f                 # foreground 모드 (attached)
 dva up --force            # 헬스체크 무시, 강제 재시작
 dva up --no-wait          # 즉시 리턴 (wait 하지 않음)
-dva up -M backend         # 모드 적용
+dva up -M backend         # 모드 적용 (mode.stack 엔트리만 실행)
 dva up -E staging         # 환경 프리셋 적용
 dva up -T backend,ui      # 특정 태그 그룹만 실행 (--tag 별칭 허용)
 dva up --exclude-tags db  # 특정 태그 그룹 제외 (--exclude-tag 별칭 허용)
@@ -176,10 +179,11 @@ dva config validate --fix # compose 파일 project name 불일치 자동 수정
 ```yaml
 version: "0.1.0"          # 최소 DVA 버전
 
-compose:
-  files: [docker-compose.yml]
-  project_name: myproject
-  up_options: ["-d", "--wait"]
+stack:
+  compose:                 # 엔트리 이름으로 플러그인 자동추론
+    order: 10
+    files: [docker-compose.yml]
+    project_name: myproject
 
 interaction:
   shell:
@@ -192,8 +196,7 @@ interaction:
 
 | Section | Description |
 |---------|-------------|
-| `compose` | Docker Compose 파일, project name, 기본 옵션 |
-| `kubectl` | Kubernetes namespace 설정 |
+| `stack` | 인프라 오케스트레이션 파이프라인 (플러그인 기반) |
 | `environment` | 글로벌 환경변수 |
 | `env_file` | .env 파일 로딩 |
 | `interaction` | 커맨드 정의 (service, command, subcommands 등) |
@@ -201,15 +204,55 @@ interaction:
 | `modes` | 운영 모드 (`--mode` 플래그용) |
 | `environments` | 환경 프리셋 (`--env` 플래그용) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
+| `endpoints` | 사용자 노출 URL 정의 |
+| `checks` | `dva doctor` 환경 사전조건 체크 |
 | `subprojects` | 서브프로젝트 참조 (모노레포) |
 | `infra` | 공유 인프라 서비스 (git 기반) |
-| `modules` | `.dva/*.yml` 모듈 분리 |
+| `modules` | `.sb/dva/*.yml` 모듈 분리 |
 | `ssh` | SSH agent 설정 |
 | `devcontainer` | devcontainer 통합 (실험적) |
 
+### stack (인프라 파이프라인)
+
+`stack:` 섹션에서 여러 플러그인 엔트리를 `order` 순서대로 실행합니다.
+
+```yaml
+stack:
+  compose:                      # 이름 = 플러그인 자동추론
+    order: 10
+    files: [docker-compose.yml]
+    project_name: myapp
+    services:
+      api:
+        tags: [app]
+        related: [worker]
+  kubectl:                      # kubectl 플러그인 자동추론
+    order: 20
+    namespace: myapp-dev
+    context: my-cluster
+    kubeconfig: ~/.kube/config
+  staging-compose:              # 이름 ≠ 플러그인명이면 plugin: 명시
+    plugin: compose
+    order: 30
+    files: [docker-compose.staging.yml]
+```
+
+지원 플러그인:
+
+| Tier | Plugins |
+|------|---------|
+| Core | `compose`, `kubectl`, `helm`, `process`, `script`, `docker` |
+| Extended | `kustomize`, `tilt`, `skaffold`, `podman-compose`, `vagrant` |
+| Niche | `sam`, `serverless`, `multipass` |
+
+플러그인 타입 결정 우선순위:
+1. 중첩 포맷 (legacy): `compose:` 서브키가 있으면 해당 플러그인
+2. 플랫 포맷 + `plugin:` 명시
+3. 엔트리 이름이 알려진 플러그인명과 일치하면 자동추론
+
 ### modes (--mode)
 
-`dva up -M <name>`으로 활성화. Compose profiles, 서비스 필터, 환경변수를 묶어서 관리합니다.
+`dva up -M <name>`으로 활성화. Compose profiles, 서비스 필터, 환경변수, stack 엔트리 필터를 묶어서 관리합니다.
 
 ```yaml
 modes:
@@ -218,6 +261,7 @@ modes:
     compose_profiles: [backend]
     compose_services: [api, postgres, redis]
     health_checks: [api-server]
+    stack: [compose]            # 특정 stack 엔트리만 실행
     environment:
       LOG_LEVEL: debug
   native:
@@ -280,8 +324,9 @@ subprojects:
 
 1. `DVA_FILE` 환경변수 (설정 시)
 2. 현재 디렉토리에서 루트까지 `dva.yml` 탐색
-3. `.dva/*.yml` 모듈 병합
+3. `.sb/dva/*.yml` 모듈 병합
 4. `dva.override.yml` 오버라이드 적용
+5. deprecated `lifecycle` → `stack` 자동 변환
 
 ## LLM Integration
 
