@@ -244,9 +244,9 @@ provision:
     - step: "Wait for API"
       run: "sleep 20 && curl -sf http://localhost:{PORT}/healthz || echo 'API not ready'"
   reset:
-    - step: "Stop all services"
-      run: "docker compose down -v"
-    - step: "Clean artifacts"
+    - step: "Stop all services and remove volumes"
+      run: "docker compose down -v"    # Add overlay files if used: -f compose.yml -f compose.X.yml
+    - step: "Clean Rust artifacts"
       run: "cd {workspace} && cargo clean"
     - step: "Re-setup"
       note: "Run 'dva provision default' to re-setup"
@@ -432,23 +432,39 @@ subprojects:
     path: {component-2}
     exclude_tags: [infra]
 
-# Subproject dva.yml — inherits parent infra, defines app-specific commands
+# Subproject dva.yml — app-specific commands only, NO stack section needed
 # version MUST match root
+# NOTE: Subprojects do NOT re-declare the parent's compose stack.
+# The parent's `subprojects.{name}.exclude_tags: [infra]` prevents duplicate infra.
+# Subproject dva.yml only needs interaction commands for app-specific operations.
 version: "0.1.26"
 
-stack:
-  compose:
-    order: 10
-    files:
-      - ../compose.yml       # Reference parent compose (or none if infra-only)
-    project_name: {same-as-root}
-    services:
-      {app-service}:
-        tags: [app]
+# stack: is OPTIONAL in subprojects — omit if the subproject relies entirely on parent infra
+# Only add stack: if the subproject has its own compose services
 
 interaction:
-  # Only app-specific commands here
-  # Infrastructure commands (db, redis) are in parent
+  # Only app-specific commands — no db/redis (those are in parent)
+  build:
+    replace:
+      - step: "Build {component}"
+        run: "make build"
+  test:
+    description: "Run tests"
+    runner: local
+    command: "{test command}"
+    tags: [test]
+  lint:
+    description: "Lint"
+    runner: local
+    command: "{lint command}"
+    tags: [quality]
+
+provision:
+  default:
+    - step: "Fetch dependencies"
+      run: "{dependency install command}"
+    - step: "Check"
+      run: "{type check command}"
 ```
 
 ---

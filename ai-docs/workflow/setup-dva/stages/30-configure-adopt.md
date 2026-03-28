@@ -95,15 +95,15 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
    - Never generate `echo 'Run: ...'` wrappers — always execute the actual command
    - Avoid `|| echo '...'` in provision — prefer `|| true` for silent idempotency
    - **Interaction coverage guideline**: Include commands for each distinct tool/service. At minimum: data access (db, redis), quality (build, test, lint, fmt, check), logs, clean. Add CLI tools, migration commands, and service-specific utilities as appropriate.
-9. **Port metadata validation** — For each service in compose files, extract the default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against `stack.compose.services.{name}.ports` entries. Fix any discrepancies so DVA metadata matches compose reality.
-10. **Development pattern–aware command generation**:
+9. **Compose file selection** — Use `primary_compose_files` from the analysis report (step 11 in 00-analyze.md):
+   - Include only primary files in `stack.compose.files` (safely combinable files)
+   - Mutually exclusive overlays are already classified — do NOT include them in the main list
+   - Document excluded overlays in a comment above the `stack:` section
+10. **Port metadata validation** — For each service in the selected compose files, extract the default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against `stack.compose.services.{name}.ports` entries. Fix any discrepancies so DVA metadata matches compose reality.
+11. **Development pattern–aware command generation**:
    - If `development_pattern: container-first` (app runs in Docker, e.g., Django/Rails): interaction commands for build/test/lint use `service: {app-service}`.
    - If `development_pattern: hybrid` (infra in Docker, app native, e.g., Rust/Go): interaction commands for build/test/lint use `runner: local`.
    - Heuristic: if compose services have app profiles (`profiles: [rust]`) or if `modes:` includes `hybrid`/health_checks for native processes → hybrid pattern. If main app has no profile and always runs in Docker → container-first.
-11. **Compose file selection** — Glob for `compose*.yml` and `docker-compose*.yml` in TARGET root. Classify each file:
-   - **Primary files**: can be combined safely (compose.yml, compose.monitoring.yml, compose.kafka.yml, etc.) → include in `stack.compose.files`
-   - **Mutually exclusive overlays**: files that conflict with each other (e.g., redis-sentinel vs redis-cluster, or alternative HA configurations) → do NOT include in main `files:` list. Instead, document as separate stack entries or mode-specific overlays.
-   - **Detection heuristic**: files redefining the same service names with different configurations are likely mutually exclusive.
 12. **Cascade to subprojects** — if `subprojects:` exists, check each subproject's dva.yml:
    - Version must match root (`"0.1.26"`)
    - Apply same upgrade rules (stack format, runner:local, no echo wrappers)
