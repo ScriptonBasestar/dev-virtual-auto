@@ -20,10 +20,9 @@
 
 version: '0.1.0'
 
-# Kubernetes configuration (lifecycle)
-lifecycle:
+# Kubernetes configuration (stack)
+stack:
   kubectl:
-    plugin: kubectl
     order: 20
     namespace: myapp-development
 

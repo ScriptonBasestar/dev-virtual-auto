@@ -4,9 +4,8 @@ environment:
   RAILS_ENV: development
   DATABASE_URL: postgres://user:pass@db:5432/app
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files: [compose.yml]
     project_name: fullstack-test

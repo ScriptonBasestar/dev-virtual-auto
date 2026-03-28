@@ -22,9 +22,8 @@ version: '0.1.0'
 environment:
   RAILS_ENV: development
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

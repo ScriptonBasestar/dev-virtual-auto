@@ -14,7 +14,7 @@ func TestLoadSubprojects(t *testing.T) {
 	os.MkdirAll(subDir, 0755)
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -79,7 +79,7 @@ func TestLoadSubprojectsMissing(t *testing.T) {
 
 func TestConfigHasTag(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: map[string]*LifecycleEntry{
+		Stack: map[string]*LifecycleEntry{
 			"compose": {
 				Order:   10,
 				Compose: &ComposePluginConfig{Tags: []string{"infra", "shared"}},
@@ -125,7 +125,7 @@ func TestFilterInteractions(t *testing.T) {
 
 func TestGetComposeServicesExcluding(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: map[string]*LifecycleEntry{
+		Stack: map[string]*LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &ComposePluginConfig{
@@ -153,7 +153,7 @@ func TestGetComposeServicesExcluding(t *testing.T) {
 
 func TestGetExcludedComposeServices(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: map[string]*LifecycleEntry{
+		Stack: map[string]*LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &ComposePluginConfig{
@@ -187,7 +187,7 @@ func TestGetComposeServicesExcludingEmpty(t *testing.T) {
 	}
 
 	cfg2 := &Config{
-		Lifecycle: map[string]*LifecycleEntry{
+		Stack: map[string]*LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &ComposePluginConfig{
@@ -211,7 +211,7 @@ func TestLoadConfigWithSubprojects(t *testing.T) {
 	os.MkdirAll(subDir, 0755)
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -225,7 +225,7 @@ interaction:
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
 version: "0.1.0"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10

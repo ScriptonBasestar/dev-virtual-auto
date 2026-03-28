@@ -154,17 +154,15 @@ version: '0.1.0'              # Minimum required dva version
 environment:                  # Environment variables
   VAR_NAME: value
 
-lifecycle:                    # Lifecycle plugins
-  compose:                    # Docker Compose configuration
+stack:                        # Infrastructure stack
+  compose:                    # Docker Compose (auto-inferred)
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
-      project_name: myapp
-  kubectl:                    # Kubernetes config (optional)
+    files:
+      - docker-compose.yml
+    project_name: myapp
+  kubectl:                    # Kubernetes (auto-inferred)
     order: 20
-    kubectl:
-      namespace: myapp-dev
+    namespace: myapp-dev
 
 interaction:                  # Interactive commands
   command-name:

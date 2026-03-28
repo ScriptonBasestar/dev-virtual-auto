@@ -48,7 +48,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new orchestrator from config.
 func NewOrchestrator(cfg *config.Config, env *config.Environment) *Orchestrator {
-	entries := cfg.SortedLifecycle()
+	entries := cfg.SortedStack()
 
 	return &Orchestrator{
 		entries: entries,
@@ -248,11 +248,11 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 func (o *Orchestrator) filterEntries(includeTags, excludeTags []string, mode string) []config.LifecycleEntry {
 	entries := o.entries
 
-	// Filter by mode (lifecycle entry names)
+	// Filter by mode (stack entry names)
 	if mode != "" {
-		if m, ok := o.cfg.Modes[mode]; ok && len(m.Lifecycle) > 0 {
-			nameSet := make(map[string]bool, len(m.Lifecycle))
-			for _, name := range m.Lifecycle {
+		if m, ok := o.cfg.Modes[mode]; ok && len(m.StackEntries()) > 0 {
+			nameSet := make(map[string]bool, len(m.StackEntries()))
+			for _, name := range m.StackEntries() {
 				nameSet[name] = true
 			}
 			var filtered []config.LifecycleEntry

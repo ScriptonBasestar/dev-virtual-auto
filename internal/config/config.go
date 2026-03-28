@@ -29,7 +29,8 @@ type Config struct {
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
-	Lifecycle    map[string]*LifecycleEntry      `yaml:"lifecycle"`
+	Stack     map[string]*LifecycleEntry `yaml:"stack"`
+	Lifecycle map[string]*LifecycleEntry `yaml:"lifecycle"` // deprecated: use stack
 
 	// Internal fields
 	filePath string
@@ -59,7 +60,17 @@ type ModeConfig struct {
 	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
 	Provision       string            `yaml:"provision"`  // provision profile to suggest on first run
-	Lifecycle       []string          `yaml:"lifecycle"`   // lifecycle entry names to include (empty=all)
+	Stack           []string          `yaml:"stack"`       // stack entry names to include (empty=all)
+	Lifecycle       []string          `yaml:"lifecycle"`   // deprecated: use stack
+}
+
+// StackEntries returns the stack entry names for mode filtering.
+// Falls back to deprecated Lifecycle field if Stack is empty.
+func (m *ModeConfig) StackEntries() []string {
+	if len(m.Stack) > 0 {
+		return m.Stack
+	}
+	return m.Lifecycle
 }
 
 // EnvironmentProfile defines a named environment configuration for --env flag.
@@ -314,13 +325,37 @@ func Load(workDir string) (*Config, error) {
 	if cfg.Provision.Profiles == nil {
 		cfg.Provision.Profiles = make(map[string][]ProvisionItem)
 	}
-	if cfg.Lifecycle == nil {
-		cfg.Lifecycle = make(map[string]*LifecycleEntry)
+	// Normalize deprecated lifecycle → stack
+	if cfg.Stack == nil && cfg.Lifecycle != nil {
+		cfg.Stack = cfg.Lifecycle
+		cfg.Lifecycle = nil
+	} else if cfg.Stack != nil && cfg.Lifecycle != nil {
+		for k, v := range cfg.Lifecycle {
+			if _, exists := cfg.Stack[k]; !exists {
+				cfg.Stack[k] = v
+			}
+		}
+		cfg.Lifecycle = nil
+	}
+	if cfg.Stack == nil {
+		cfg.Stack = make(map[string]*LifecycleEntry)
 	}
 
-	// Populate Name field from map keys
-	for name, entry := range cfg.Lifecycle {
+	// Normalize deprecated mode.lifecycle → mode.stack
+	for name, m := range cfg.Modes {
+		if len(m.Stack) == 0 && len(m.Lifecycle) > 0 {
+			m.Stack = m.Lifecycle
+			m.Lifecycle = nil
+			cfg.Modes[name] = m
+		}
+	}
+
+	// Populate Name field and resolve deferred plugins from map keys
+	for name, entry := range cfg.Stack {
 		entry.Name = name
+		if err := entry.ResolvePluginFromName(); err != nil {
+			return nil, err
+		}
 	}
 
 	// Warn if interaction commands shadow reserved built-in commands
@@ -478,13 +513,17 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge lifecycle entries (map merge, key=name)
-	if len(other.Lifecycle) > 0 {
-		if c.Lifecycle == nil {
-			c.Lifecycle = make(map[string]*LifecycleEntry)
+	// Merge stack entries (map merge, key=name)
+	otherStack := other.Stack
+	if otherStack == nil {
+		otherStack = other.Lifecycle
+	}
+	if len(otherStack) > 0 {
+		if c.Stack == nil {
+			c.Stack = make(map[string]*LifecycleEntry)
 		}
-		for k, v := range other.Lifecycle {
-			c.Lifecycle[k] = v
+		for k, v := range otherStack {
+			c.Stack[k] = v
 		}
 	}
 

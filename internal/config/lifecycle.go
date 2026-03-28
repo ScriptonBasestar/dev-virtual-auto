@@ -6,10 +6,30 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// LifecycleEntry defines a single entry in the lifecycle pipeline.
+// knownPluginNames maps entry/YAML key names to canonical plugin type strings.
+// Keep in sync with lifecycle.AllPluginTypes() in internal/lifecycle/plugin_type.go.
+var knownPluginNames = map[string]string{
+	"compose":        "compose",
+	"process":        "process",
+	"script":         "script",
+	"docker":         "docker",
+	"kubectl":        "kubectl",
+	"helm":           "helm",
+	"kustomize":      "kustomize",
+	"tilt":           "tilt",
+	"skaffold":       "skaffold",
+	"podman_compose": "podman-compose",
+	"podman-compose": "podman-compose",
+	"vagrant":        "vagrant",
+	"sam":            "sam",
+	"serverless":     "serverless",
+	"multipass":      "multipass",
+}
+
+// LifecycleEntry defines a single entry in the stack pipeline.
 type LifecycleEntry struct {
 	Name         string                       `yaml:"-"` // populated from map key
-	Plugin       string                       `yaml:"-"` // populated during UnmarshalYAML
+	Plugin       string                       `yaml:"plugin,omitempty"`
 	Order        int                          `yaml:"order"`
 	Tags         []string                     `yaml:"tags"`
 	Exports      map[string]string            `yaml:"exports"`
@@ -34,9 +54,13 @@ type LifecycleEntry struct {
 	SAM        *SAMPluginConfig        `yaml:"sam,omitempty"`
 	Serverless *ServerlessPluginConfig `yaml:"serverless,omitempty"`
 	Multipass  *MultipassPluginConfig  `yaml:"multipass,omitempty"`
+
+	// rawNode stores the YAML node for deferred plugin resolution
+	// when plugin type is inferred from the entry name.
+	rawNode *yaml.Node `yaml:"-"`
 }
 
-// UnmarshalYAML supports two formats for lifecycle entries:
+// UnmarshalYAML supports three resolution strategies for lifecycle entries:
 //
 // Nested (legacy): plugin config under a named sub-key
 //
@@ -47,8 +71,14 @@ type LifecycleEntry struct {
 //
 // Flat (preferred): plugin fields at top level with explicit `plugin:` key
 //
-//	compose:
+//	my-compose:
 //	  plugin: compose
+//	  order: 10
+//	  files: [docker-compose.yml]
+//
+// 3. Flat with auto-inference: plugin inferred from entry name (resolved later)
+//
+//	compose:
 //	  order: 10
 //	  files: [docker-compose.yml]
 func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
@@ -146,10 +176,19 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	// Flat format: plugin type from explicit `plugin:` field
-	e.Plugin = raw.Plugin
-	switch raw.Plugin {
-	case "":
-		return nil // no plugin (valid: entry with only order/tags)
+	if raw.Plugin != "" {
+		e.Plugin = raw.Plugin
+		return e.resolvePluginConfig(node)
+	}
+
+	// No plugin detected: store raw node for deferred resolution from entry name
+	e.rawNode = node
+	return nil
+}
+
+// resolvePluginConfig decodes plugin-specific fields from a flat YAML node.
+func (e *LifecycleEntry) resolvePluginConfig(node *yaml.Node) error {
+	switch e.Plugin {
 	case "compose":
 		cfg := &ComposePluginConfig{}
 		if err := node.Decode(cfg); err != nil {
@@ -235,13 +274,34 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 		}
 		e.Multipass = cfg
 	default:
-		return fmt.Errorf("unknown lifecycle plugin %q (valid: compose, process, script, docker, kubectl, helm, kustomize, tilt, skaffold, podman-compose, vagrant, sam, serverless, multipass)", raw.Plugin)
+		return fmt.Errorf("unknown plugin %q", e.Plugin)
 	}
 	return nil
 }
 
-// DetectPlugin returns the plugin type by inspecting which config section is set.
+// ResolvePluginFromName infers the plugin type from the entry name
+// when neither plugin: field nor nested config is present.
+// Called after Name is set from the map key in Config.Load().
+func (e *LifecycleEntry) ResolvePluginFromName() error {
+	if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil {
+		return nil
+	}
+	if pt, ok := knownPluginNames[e.Name]; ok {
+		e.Plugin = pt
+		if err := e.resolvePluginConfig(e.rawNode); err != nil {
+			return fmt.Errorf("entry %q: %w", e.Name, err)
+		}
+	}
+	e.rawNode = nil
+	return nil
+}
+
+// DetectPlugin returns the plugin type string.
+// Uses Plugin field if set, otherwise inspects nested config pointers.
 func (e *LifecycleEntry) DetectPlugin() string {
+	if e.Plugin != "" {
+		return e.Plugin
+	}
 	switch {
 	case e.Compose != nil:
 		return "compose"

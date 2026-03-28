@@ -7,9 +7,8 @@ environment:
   COMPOSE_EXT: development
   RAILS_ENV: development
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

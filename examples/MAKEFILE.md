@@ -18,12 +18,11 @@ Create a `dva.yml` file in your project root. See [makefile-integration.yml](mak
 ```yaml
 version: '0.1.0'
 
-lifecycle:
+stack:
   compose:
     order: 10
-    compose:
-      files:
-        - docker-compose.yml
+    files:
+      - docker-compose.yml
 
 interaction:
   rails:

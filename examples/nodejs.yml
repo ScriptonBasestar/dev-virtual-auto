@@ -22,9 +22,8 @@ environment:
   REDIS_URL: redis://redis:6379/0
   PORT: ${PORT:-3000}
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

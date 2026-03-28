@@ -27,13 +27,13 @@ var statusCmd = &cobra.Command{
 				statusData["config_path"] = c.FilePath()
 				statusData["config_version"] = c.Version
 				statusData["commands_count"] = len(c.Interaction)
-				statusData["lifecycle_count"] = len(c.Lifecycle)
+				statusData["stack_count"] = len(c.Stack)
 
 				e := loadEnv(c)
 				orch := lifecycle.NewOrchestrator(c, e)
 				status, statusErr := orch.Status(context.Background())
 				if statusErr == nil {
-					statusData["lifecycle"] = status.Entries
+					statusData["stack"] = status.Entries
 				}
 			}
 			return output.PrintJSON(statusData)

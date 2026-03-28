@@ -20,9 +20,8 @@
 
 version: '0.1.16'
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

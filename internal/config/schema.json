@@ -317,9 +317,9 @@
       "description": "Specifies the minimum required version of DVA",
       "examples": ["8.1.0"]
     },
-    "lifecycle": {
+    "stack": {
       "type": "object",
-      "description": "Named lifecycle entries. Each key is the entry name. Use `plugin:` (flat format) to specify the plugin type with fields at top level, or use a nested plugin key (legacy format). Entries execute in ascending order of `order` for up, descending for down/stop.",
+      "description": "Named stack entries defining the infrastructure lifecycle pipeline. Each key is the entry name. When the key matches a known plugin name (e.g., 'compose', 'kubectl'), the plugin type is auto-inferred. Use `plugin:` for custom names (e.g., 'my-db: plugin: compose'). Plugin-specific fields go at the top level (flat format). Entries execute in ascending order of `order` for up, descending for down/stop.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": true,
@@ -581,7 +581,6 @@
       "examples": [
         {
           "compose": {
-            "plugin": "compose",
             "order": 10,
             "files": ["compose.yml"],
             "project_name": "myapp"
@@ -593,6 +592,14 @@
           }
         }
       ]
+    },
+    "lifecycle": {
+      "type": "object",
+      "description": "DEPRECATED: Use 'stack' instead. Alias for backward compatibility.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
     },
     "interaction": {
       "type": "object",
@@ -861,6 +868,12 @@
             },
             "environment": {
               "$ref": "#/definitions/environment_vars"
+            },
+            "stack": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Stack entry names to include in this mode. Only these entries will be started.",
+              "examples": [["compose", "kubectl"]]
             },
             "provision": {
               "type": "string",

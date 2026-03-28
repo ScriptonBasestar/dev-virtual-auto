@@ -37,7 +37,7 @@ func TestShowText_MinimalConfig(t *testing.T) {
 
 func TestShowText_WithCompose(t *testing.T) {
 	c := &config.Config{
-		Lifecycle: map[string]*config.LifecycleEntry{
+		Stack: map[string]*config.LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &config.ComposePluginConfig{
@@ -180,7 +180,7 @@ func TestShowJSON_MinimalConfig(t *testing.T) {
 
 func TestShowJSON_FullConfig(t *testing.T) {
 	c := &config.Config{
-		Lifecycle: map[string]*config.LifecycleEntry{
+		Stack: map[string]*config.LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &config.ComposePluginConfig{

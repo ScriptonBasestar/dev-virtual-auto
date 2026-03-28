@@ -15,7 +15,7 @@ func TestDetectPrimaryService_WithComposeFile(t *testing.T) {
 	os.WriteFile(compose, []byte(content), 0644)
 
 	c := &config.Config{
-		Lifecycle: map[string]*config.LifecycleEntry{
+		Stack: map[string]*config.LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &config.ComposePluginConfig{
@@ -41,7 +41,7 @@ func TestDetectPrimaryService_NoComposeFiles(t *testing.T) {
 
 func TestDetectPrimaryService_MissingFile(t *testing.T) {
 	c := &config.Config{
-		Lifecycle: map[string]*config.LifecycleEntry{
+		Stack: map[string]*config.LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &config.ComposePluginConfig{

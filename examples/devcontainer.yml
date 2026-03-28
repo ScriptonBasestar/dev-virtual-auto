@@ -3,10 +3,9 @@
 
 version: '0.1.0'
 
-# Docker Compose configuration (lifecycle, shared with devcontainer)
-lifecycle:
+# Docker Compose configuration (stack, shared with devcontainer)
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

@@ -53,10 +53,9 @@ environment:
   APP_ENV: development
   DATABASE_URL: postgres://user:password@db:5432/app_dev
 
-# Docker Compose configuration (lifecycle)
-lifecycle:
+# Docker Compose configuration (stack)
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

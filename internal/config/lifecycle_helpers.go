@@ -2,10 +2,10 @@ package config
 
 import "sort"
 
-// SortedLifecycle returns lifecycle entries sorted by Order with Name populated.
-func (c *Config) SortedLifecycle() []LifecycleEntry {
-	entries := make([]LifecycleEntry, 0, len(c.Lifecycle))
-	for name, e := range c.Lifecycle {
+// SortedStack returns stack entries sorted by Order with Name populated.
+func (c *Config) SortedStack() []LifecycleEntry {
+	entries := make([]LifecycleEntry, 0, len(c.Stack))
+	for name, e := range c.Stack {
 		entry := *e
 		entry.Name = name
 		entries = append(entries, entry)
@@ -20,7 +20,7 @@ func (c *Config) SortedLifecycle() []LifecycleEntry {
 func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 	var best *LifecycleEntry
 	bestOrder := int(^uint(0) >> 1) // max int
-	for name, e := range c.Lifecycle {
+	for name, e := range c.Stack {
 		if e.Compose != nil && (best == nil || e.Order < bestOrder) {
 			e.Name = name
 			best = e
@@ -41,7 +41,7 @@ func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 // AllComposeFiles aggregates compose files from all lifecycle entries.
 func (c *Config) AllComposeFiles() []string {
 	var files []string
-	for _, e := range c.Lifecycle {
+	for _, e := range c.Stack {
 		if e.Compose != nil {
 			files = append(files, e.Compose.Files...)
 		}
@@ -69,7 +69,7 @@ func (c *Config) ComposeCommand() string {
 func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 	var best *LifecycleEntry
 	bestOrder := int(^uint(0) >> 1) // max int
-	for _, e := range c.Lifecycle {
+	for _, e := range c.Stack {
 		if e.Kubectl != nil && (best == nil || e.Order < bestOrder) {
 			best = e
 			bestOrder = e.Order

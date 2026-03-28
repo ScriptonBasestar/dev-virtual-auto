@@ -9,9 +9,9 @@ import (
 
 func newTestConfig(entries map[string]*config.LifecycleEntry) *config.Config {
 	return &config.Config{
-		Lifecycle: entries,
+		Stack: entries,
 		Modes: map[string]config.ModeConfig{
-			"lite": {Lifecycle: []string{"db"}},
+			"lite": {Stack: []string{"db"}},
 		},
 	}
 }
@@ -121,9 +121,9 @@ func TestFilterEntries_CombinedTagAndMode(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Lifecycle: entries,
+		Stack: entries,
 		Modes: map[string]config.ModeConfig{
-			"both": {Lifecycle: []string{"db", "app"}},
+			"both": {Stack: []string{"db", "app"}},
 		},
 	}
 

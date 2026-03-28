@@ -9,7 +9,7 @@ import (
 func makeComposeLifecycleConfig(tmpDir string, files []string, projectName string) *Config {
 	cfg := &Config{
 		filePath: filepath.Join(tmpDir, "dva.yml"),
-		Lifecycle: map[string]*LifecycleEntry{
+		Stack: map[string]*LifecycleEntry{
 			"compose": {
 				Order: 10,
 				Compose: &ComposePluginConfig{

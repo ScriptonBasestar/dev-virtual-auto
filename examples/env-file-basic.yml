@@ -23,9 +23,8 @@ environment:
   DATABASE_HOST: postgres
   DATABASE_PORT: 5432
 
-lifecycle:
+stack:
   compose:
-    plugin: compose
     order: 10
     files:
       - docker-compose.yml

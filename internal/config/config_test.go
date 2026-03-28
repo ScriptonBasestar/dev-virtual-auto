@@ -56,7 +56,7 @@ func TestLoadConfig(t *testing.T) {
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
 	content := `version: "0.1.0"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -150,7 +150,7 @@ func TestLoadConfigWithOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -162,7 +162,7 @@ interaction:
 `), 0644)
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
-lifecycle:
+stack:
   compose-override:
     plugin: compose
     order: 10
@@ -177,8 +177,8 @@ lifecycle:
 	if cfg.ComposeProjectName() != "original" {
 		t.Errorf("project_name = %s, want original (first compose entry)", cfg.ComposeProjectName())
 	}
-	if len(cfg.Lifecycle) != 2 {
-		t.Errorf("lifecycle entries = %d, want 2 (merged)", len(cfg.Lifecycle))
+	if len(cfg.Stack) != 2 {
+		t.Errorf("stack entries = %d, want 2 (merged)", len(cfg.Stack))
 	}
 }
 
@@ -310,7 +310,7 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
-	content := `lifecycle:
+	content := `stack:
   compose:
     plugin: compose
     order: 10

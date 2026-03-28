@@ -59,7 +59,7 @@ func TestLifecycleFlatFormatParsing(t *testing.T) {
 		{
 			name: "compose flat",
 			yaml: `version: "0.1.0"
-lifecycle:
+stack:
   db:
     plugin: compose
     order: 10
@@ -74,7 +74,7 @@ lifecycle:
 		{
 			name: "kubectl flat",
 			yaml: `version: "0.1.0"
-lifecycle:
+stack:
   k8s:
     plugin: kubectl
     order: 20
@@ -89,7 +89,7 @@ lifecycle:
 		{
 			name: "nested format (backward compat)",
 			yaml: `version: "0.1.0"
-lifecycle:
+stack:
   compose:
     order: 10
     compose:
@@ -108,10 +108,10 @@ lifecycle:
 			if err := yaml.Unmarshal([]byte(tc.yaml), &cfg); err != nil {
 				t.Fatalf("parse: %v", err)
 			}
-			if len(cfg.Lifecycle) == 0 {
-				t.Fatal("expected lifecycle entries")
+			if len(cfg.Stack) == 0 {
+				t.Fatal("expected stack entries")
 			}
-			for _, entry := range cfg.Lifecycle {
+			for _, entry := range cfg.Stack {
 				if entry.Plugin != tc.wantPlugin {
 					t.Errorf("Plugin = %q, want %q", entry.Plugin, tc.wantPlugin)
 				}

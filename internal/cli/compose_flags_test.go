@@ -174,7 +174,7 @@ func TestResolveMode_Found(t *testing.T) {
 		Modes: map[string]config.ModeConfig{
 			"native": {
 				Description: "Native mode",
-				Lifecycle:   []string{"api", "worker"},
+				Stack:       []string{"api", "worker"},
 			},
 		},
 	}
@@ -261,7 +261,7 @@ func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
 
 func TestBuildComposeArgs_Default(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -286,7 +286,7 @@ lifecycle:
 
 func TestBuildComposeArgs_WithProjectName(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -306,7 +306,7 @@ lifecycle:
 
 func TestBuildComposeArgs_MultipleFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -387,7 +387,7 @@ func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
 
 func TestBuildComposeArgs_CustomCommand(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
@@ -407,7 +407,7 @@ lifecycle:
 
 func TestBuildComposeArgs_InterpolateFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-lifecycle:
+stack:
   compose:
     plugin: compose
     order: 10
