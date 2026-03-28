@@ -81,6 +81,7 @@ DVA-specific flags:
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,
+			Env:         envName,
 		}); err != nil {
 			return err
 		}
@@ -141,6 +142,7 @@ var downCmd = &cobra.Command{
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,
+			Env:         envName,
 		})
 	},
 }
@@ -176,6 +178,7 @@ var stopCmd = &cobra.Command{
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,
+			Env:         envName,
 		})
 	},
 }
@@ -213,6 +216,7 @@ var restartCmd = &cobra.Command{
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,
+			Env:         envName,
 		})
 	},
 }
@@ -360,6 +364,9 @@ func applyEnv(e *config.Environment, c *config.Config, envName string) error {
 		return fmt.Errorf("env '%s' not found. Available: %s", envName, strings.Join(available, ", "))
 	}
 	fmt.Fprintf(os.Stderr, "[env: %s] %s\n", envName, ec.Description)
+	if len(ec.Stack) > 0 {
+		fmt.Fprintf(os.Stderr, "[env: %s] stack: %s\n", envName, strings.Join(ec.Stack, ", "))
+	}
 	if len(ec.Environment) > 0 {
 		e.MergeVars(ec.Environment)
 	}

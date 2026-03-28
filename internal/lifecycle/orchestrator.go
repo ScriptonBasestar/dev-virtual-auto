@@ -17,6 +17,7 @@ type UpOptions struct {
 	IncludeTags []string
 	ExcludeTags []string
 	Mode        string
+	Env         string
 }
 
 // DownOptions configures orchestrator Down behavior.
@@ -27,6 +28,7 @@ type DownOptions struct {
 	IncludeTags  []string
 	ExcludeTags  []string
 	Mode         string
+	Env          string
 }
 
 // StopOptions configures orchestrator Stop behavior.
@@ -35,6 +37,7 @@ type StopOptions struct {
 	IncludeTags []string
 	ExcludeTags []string
 	Mode        string
+	Env         string
 }
 
 // Orchestrator coordinates lifecycle plugin execution in order.
@@ -61,7 +64,7 @@ func NewOrchestrator(cfg *config.Config, env *config.Environment) *Orchestrator 
 
 // Up starts all matching lifecycle entries in order.
 func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode)
+	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if len(filtered) == 0 {
 		fmt.Fprintln(os.Stderr, "[warn] no lifecycle entries matched filters")
 		return nil
@@ -125,7 +128,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode)
+	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order for teardown
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -162,7 +165,7 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode)
+	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -244,11 +247,28 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 	return status, nil
 }
 
-// filterEntries returns lifecycle entries matching the given tag and mode filters.
-func (o *Orchestrator) filterEntries(includeTags, excludeTags []string, mode string) []config.LifecycleEntry {
+// filterEntries returns lifecycle entries matching the given tag, mode, and env filters.
+func (o *Orchestrator) filterEntries(includeTags, excludeTags []string, mode, env string) []config.LifecycleEntry {
 	entries := o.entries
 
-	// Filter by mode (stack entry names)
+	// Filter by env (stack entry names)
+	if env != "" {
+		if ep, ok := o.cfg.Environments[env]; ok && len(ep.StackEntries()) > 0 {
+			nameSet := make(map[string]bool, len(ep.StackEntries()))
+			for _, name := range ep.StackEntries() {
+				nameSet[name] = true
+			}
+			var filtered []config.LifecycleEntry
+			for _, e := range entries {
+				if nameSet[e.Name] {
+					filtered = append(filtered, e)
+				}
+			}
+			entries = filtered
+		}
+	}
+
+	// Filter by mode (stack entry names) — narrows further if both env and mode specify
 	if mode != "" {
 		if m, ok := o.cfg.Modes[mode]; ok && len(m.StackEntries()) > 0 {
 			nameSet := make(map[string]bool, len(m.StackEntries()))

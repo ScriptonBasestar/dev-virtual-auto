@@ -17,12 +17,12 @@ func (c *Config) SortedStack() []LifecycleEntry {
 }
 
 // PrimaryComposeEntry returns the lifecycle entry with lowest order that has a compose config.
+// Name is already populated from map keys during Load().
 func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 	var best *LifecycleEntry
 	bestOrder := int(^uint(0) >> 1) // max int
-	for name, e := range c.Stack {
+	for _, e := range c.Stack {
 		if e.Compose != nil && (best == nil || e.Order < bestOrder) {
-			e.Name = name
 			best = e
 			bestOrder = e.Order
 		}

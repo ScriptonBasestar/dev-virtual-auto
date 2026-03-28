@@ -917,6 +917,11 @@
             },
             "environment": {
               "$ref": "#/definitions/environment_vars"
+            },
+            "stack": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Stack entry names to include when this environment is active (empty=all)"
             }
           }
         }
@@ -925,11 +930,13 @@
       "examples": [{
         "dev": {
           "description": "Development settings",
+          "stack": ["compose"],
           "environment": { "LOG_LEVEL": "debug", "ENABLE_HOT_RELOAD": "true" }
         },
-        "test": {
-          "description": "Test settings",
-          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb_test" }
+        "stg": {
+          "description": "Staging settings",
+          "stack": ["kubectl"],
+          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb_stg" }
         }
       }]
     },

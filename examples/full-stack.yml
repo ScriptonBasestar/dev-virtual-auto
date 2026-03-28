@@ -206,9 +206,11 @@ modes:
     health_checks: [web_server]
 
 # Environments: env configuration (--env/-E) — WHAT settings to use
+# Optional `stack` field filters which stack entries run (empty=all)
 environments:
   dev:
     description: Development settings (default)
+    stack: [compose]
     environment:
       RAILS_ENV: development
       DATABASE_URL: postgres://user:password@db:5432/myapp_development
@@ -216,6 +218,7 @@ environments:
 
   stg:
     description: Staging settings for local testing
+    stack: [kubectl]
     environment:
       RAILS_ENV: staging
       DATABASE_URL: postgres://user:password@localhost:5433/myapp_staging
@@ -223,6 +226,7 @@ environments:
 
   prd:
     description: Production-like settings for local testing
+    stack: [kubectl]
     environment:
       RAILS_ENV: production
       DATABASE_URL: postgres://user:password@localhost:5434/myapp_production

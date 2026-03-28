@@ -77,6 +77,12 @@ func (m *ModeConfig) StackEntries() []string {
 type EnvironmentProfile struct {
 	Description string            `yaml:"description"`
 	Environment map[string]string `yaml:"environment"`
+	Stack       []string          `yaml:"stack"` // stack entry names to include (empty=all)
+}
+
+// StackEntries returns the stack entry names for environment filtering.
+func (ep *EnvironmentProfile) StackEntries() []string {
+	return ep.Stack
 }
 
 // SshConfig holds SSH agent configuration.
