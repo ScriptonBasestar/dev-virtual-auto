@@ -18,13 +18,15 @@ func (c *Config) SortedStack() []LifecycleEntry {
 
 // PrimaryComposeEntry returns the lifecycle entry with lowest order that has a compose config.
 // Name is already populated from map keys during Load().
+// Tiebreaker: alphabetically first Name when Order values are equal.
 func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 	var best *LifecycleEntry
-	bestOrder := int(^uint(0) >> 1) // max int
 	for _, e := range c.Stack {
-		if e.Compose != nil && (best == nil || e.Order < bestOrder) {
+		if e.Compose == nil {
+			continue
+		}
+		if best == nil || e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name) {
 			best = e
-			bestOrder = e.Order
 		}
 	}
 	return best
@@ -66,13 +68,15 @@ func (c *Config) ComposeCommand() string {
 }
 
 // PrimaryKubectlConfig returns the KubectlPluginConfig from the kubectl lifecycle entry with lowest order.
+// Tiebreaker: alphabetically first Name when Order values are equal.
 func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 	var best *LifecycleEntry
-	bestOrder := int(^uint(0) >> 1) // max int
 	for _, e := range c.Stack {
-		if e.Kubectl != nil && (best == nil || e.Order < bestOrder) {
+		if e.Kubectl == nil {
+			continue
+		}
+		if best == nil || e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name) {
 			best = e
-			bestOrder = e.Order
 		}
 	}
 	if best != nil {
