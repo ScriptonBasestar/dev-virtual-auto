@@ -60,7 +60,7 @@ func TestUpsertDVASection_NewFile(t *testing.T) {
 
 	data, _ := os.ReadFile(file)
 	content := string(data)
-	if !strings.Contains(content, "## DVA (Docker Virtual Auto)") {
+	if !strings.Contains(content, "## DVA (Dev Virtual Auto)") {
 		t.Error("should append DVA section")
 	}
 	if !strings.Contains(content, "docs/dva-guide.md") {
@@ -71,7 +71,7 @@ func TestUpsertDVASection_NewFile(t *testing.T) {
 func TestUpsertDVASection_UpdateExisting(t *testing.T) {
 	tmpDir := t.TempDir()
 	file := filepath.Join(tmpDir, "AGENTS.md")
-	os.WriteFile(file, []byte("# AGENTS.md\n\n## DVA (Docker Virtual Auto)\n\nOld content\n"), 0644)
+	os.WriteFile(file, []byte("# AGENTS.md\n\n## DVA (Dev Virtual Auto)\n\nOld content\n"), 0644)
 
 	err := upsertDVASection(file, "docs/dva-guide.md")
 	if err != nil {
@@ -164,10 +164,10 @@ func TestGenerateAIDocs_NoAgentFiles(t *testing.T) {
 func TestReplaceDVASection_WithFollowingSection(t *testing.T) {
 	tmpDir := t.TempDir()
 	file := filepath.Join(tmpDir, "test.md")
-	content := "# Top\n\n## DVA (Docker Virtual Auto)\n\nOld stuff\n\n## Other Section\n\nKeep this\n"
+	content := "# Top\n\n## DVA (Dev Virtual Auto)\n\nOld stuff\n\n## Other Section\n\nKeep this\n"
 	os.WriteFile(file, []byte(content), 0644)
 
-	newSnippet := "\n## DVA (Docker Virtual Auto)\n\nNew content\n"
+	newSnippet := "\n## DVA (Dev Virtual Auto)\n\nNew content\n"
 	err := replaceDVASection(file, content, newSnippet)
 	if err != nil {
 		t.Fatalf("replaceDVASection error: %v", err)

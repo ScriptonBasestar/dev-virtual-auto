@@ -30,7 +30,7 @@ func isTopLevelCommand(name string) bool {
 var rootCmd = &cobra.Command{
 	Use:   "dva",
 	Short: "DVA: Developer Workspace Automator",
-	Long: `DVA (Docker Virtual Auto) is a comprehensive developer workspace automation tool.
+	Long: `DVA (Dev Virtual Auto) is a comprehensive developer workspace automation tool.
 It simplifies complex workflows involving Docker Compose and Kubernetes by providing 
 intuitive shortcuts and uniform environments defined in 'dva.yml'.
 

@@ -15,7 +15,7 @@ const dvaGuideFilename = "dva-guide.md"
 
 // agentConfigSnippet is the section appended to CLAUDE.md / AGENTS.md.
 const agentConfigSnippet = `
-## DVA (Docker Virtual Auto)
+## DVA (Dev Virtual Auto)
 
 This project uses DVA for all build, test, and run operations.
 Always use DVA commands instead of raw docker compose or language-specific tools.
@@ -94,7 +94,7 @@ func upsertDVASection(filename string, guidePath string) error {
 	content := string(data)
 
 	// Check if DVA section already exists
-	if strings.Contains(content, "## DVA (Docker Virtual Auto)") {
+	if strings.Contains(content, "## DVA (Dev Virtual Auto)") {
 		// Replace existing section
 		return replaceDVASection(filename, content, snippet)
 	}
@@ -110,7 +110,7 @@ func upsertDVASection(filename string, guidePath string) error {
 
 // replaceDVASection replaces an existing DVA section in the file content.
 func replaceDVASection(filename, content, newSnippet string) error {
-	startMarker := "## DVA (Docker Virtual Auto)"
+	startMarker := "## DVA (Dev Virtual Auto)"
 	startIdx := strings.Index(content, startMarker)
 	if startIdx < 0 {
 		return nil
