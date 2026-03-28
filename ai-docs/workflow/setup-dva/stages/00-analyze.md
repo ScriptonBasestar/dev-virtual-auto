@@ -3,10 +3,15 @@
 <role>Target project configuration and structure analyzer</role>
 
 <objective>
-Scan the user's TARGET project to identify existing configurations, docker usage, technology stack, and directory structure. Determine the appropriate setup track ("full" or "adopt").
+Scan the user's TARGET project to identify existing configurations, docker usage, technology stack, and directory structure. Determine the appropriate setup track ("full", "adopt", or "upgrade"). Also determine if DVA is even needed for this project.
 </objective>
 
 <steps>
+0. **DVA Necessity Check** — Before full analysis, check if DVA is needed:
+   - If no compose files exist AND no infrastructure dependencies (DB, cache, MQ) detected AND no Dockerfile present → set `dva_needed: false` with reason and STOP.
+   - If project is purely ops/docs/policy with no buildable code → set `dva_needed: false` and STOP.
+   - Otherwise proceed with full analysis.
+
 1. Identify existing Docker Compose files (`docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`) in TARGET.
 2. If compose files found, check for:
    - Top-level `name:` field (required by DVA — flag as missing if absent).
@@ -18,73 +23,76 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - Deprecated `profiles:` key (should be `modes:`)
    - Deprecated top-level `compose:` (should be under `stack:`)
    - Deprecated `lifecycle:` key (should be `stack:`)
-   - Interaction anti-patterns: `echo 'Run: ...'` wrappers (should use `runner: local`) — **count and list affected command names**
+   - Interaction anti-patterns: `echo 'Run: ...'` wrappers — **count and list affected command names**
    - Missing `runner: local` on host commands (build, test, lint, fmt, check)
    - Prefixed command workarounds: `app-build`, `app-clean` (should migrate to `build`/`clean` with `replace:` hooks)
-   - Non-standard fields: `host_command`, `compose_up`, `compose_logs` in interaction (see `library/dva-schema.md` Non-Standard Field Migration)
-   - Non-standard provision fields: `compose_up`, `compose_exec` in provision steps
-   - Old `env_file` format: string `".env"` instead of object with `files` array
+   - Non-standard fields: `host_command`, `compose_up`, `compose_logs` in interaction
    - Missing sections: `modes:`, `environments:`, `checks:`, `env_file:`, `health_checks:`
-   - Subproject dva.yml files (check same issues recursively, **flag version mismatches** with root)
-   - **Port metadata validation** — For each service in compose files, extract the default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against dva.yml `stack.compose.services.{name}.ports` entries. Flag any discrepancies.
-   - **Development pattern detection** — Determine if the project is container-first (app runs in Docker, e.g., Django) or hybrid (infra in Docker, app runs natively, e.g., Rust/Go). This affects whether interaction commands should use `service:` or `runner: local`.
-4. **Classify compose overlay files** — For all `compose*.yml` and `docker-compose*.yml` in TARGET root:
+   - Missing `start_hint` in health_checks (both `start` and `start_hint` required)
+   - Subproject dva.yml files (**flag version mismatches** with root)
+   - **Port metadata validation** — Extract default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against dva.yml ports entries. Flag discrepancies.
+   - **Development pattern detection** — container-first (Django, Rails) vs hybrid (Rust, Go) vs native (pure library)
+4. **Classify compose overlay files** — For all compose*.yml:
    - Parse service names from each file.
-   - Identify mutually exclusive overlays: files that redefine the same service names with incompatible configurations (e.g., `compose.redis-sentinel.yml` vs `compose.redis-cluster.yml`).
-   - Classify into `primary_compose_files` (safe to combine) and `mutually_exclusive_overlays` (groups of conflicting files).
-5. Identify existing `Dockerfile`s and the software technology stack (languages, frameworks, dependencies).
+   - Identify mutually exclusive overlays (files redefining same services).
+   - Classify into `primary_compose_files` and `mutually_exclusive_overlays`.
+5. Identify Dockerfiles and technology stack (languages, frameworks).
 6. **CRITICAL: Read package manifests to extract EXACT package names.**
-   - **Rust**: Read `Cargo.toml` (workspace root) → extract `[workspace] members` list, then read each member's `Cargo.toml` for `[package] name = "..."`. These EXACT names are used in `cargo run -p {name}` for health_check `start` commands. Common pitfall: directory names may differ from package names (e.g., directory `db-orchestrator-api-rs` but package name `db-orchestrator-api`). **Always use the `[package] name` value, NOT the directory name.**
-   - **Go**: Read `go.mod` → extract module path. Read `cmd/` directory for binary names.
-   - **Node.js**: Read `package.json` → extract `name`, `scripts` (for interaction commands).
-   - **Python**: Read `pyproject.toml` or `setup.py` → extract project name.
-   - Record these in `package_names` field of the analysis report.
+   - **Rust**: Read `Cargo.toml` workspace → extract members, then each `[package] name`. **Use `[package] name`, NOT directory name.**
+   - **Go**: Read `go.mod` → module path. Read `cmd/` for binaries.
+   - **Node.js**: Read `package.json` → `name`, `scripts`.
+   - **Python**: Read `pyproject.toml` or `setup.py` → project name.
+   - Record in `package_names` field.
 7. Determine track:
-   - If existing `dva.yml` found with deprecated patterns: set `setup_track: upgrade` (preserve structure, upgrade format).
-   - If the project has an extensive, well-maintained docker compose setup but no dva.yml: set `setup_track: adopt`.
-   - If no valid docker compose file exists, or the user requests a fresh robust environment: set `setup_track: full`.
-8. Analyze and identify logically distinct service groups / working groups (e.g., frontend, backend, workers, infrastructure). This is critical for assigning `tags` and `modes` later.
-   - Map each detected service to standard tags from `library/naming-presets.md` (infra, api, worker, ui, data, monitoring, build).
-   - Determine the project archetype (web app / service-daemon / microservices / simple app) to guide mode selection.
-9. Compile findings into `00-analysis-report.yaml`.
+   - Existing dva.yml with deprecated patterns: `setup_track: upgrade`
+   - Extensive compose but no dva.yml: `setup_track: adopt`
+   - No valid compose or user requests fresh: `setup_track: full`
+8. Analyze service groups — map to standard tags from naming-presets:
+   - Tags: infra, api, worker, ui, data, monitoring, build
+   - Determine project archetype: web-app | service-daemon | microservices | simple-app
+   - Select recommended modes based on archetype
+9. **Naming compliance pre-check** — Verify existing dva.yml (if any) against naming presets:
+   - Are mode names from the standard set?
+   - Are service tags from the standard set?
+   - Flag non-standard names for migration
+10. Compile findings into `00-analysis-report.yaml`.
 </steps>
 
 <output>
 - `tmp/setup-dva/00-analysis-report.yaml` containing:
+  - `dva_needed`: bool (false → pipeline stops here)
+  - `dva_not_needed_reason`: string (if dva_needed is false)
   - `setup_track`: full | adopt | upgrade
   - `stack`: [list of detected tech]
-  - `service_groups`: [list of distinct groups, e.g. ui, backend, worker, db]
+  - `service_groups`: [list of distinct groups]
   - `project_archetype`: web-app | service-daemon | microservices | simple-app
-  - `recommended_tags`: { service_name: [tag1, tag2] }
-  - `recommended_modes`: [list of mode names from naming-presets.md]
-  - `existing_compose_files`: [paths relative to TARGET]
-  - `compose_issues`: [list of issues found: missing_name, has_version_key, default_ports, missing_healthchecks]
   - `development_pattern`: container-first | hybrid | native
-  - `all_compose_files`: [all compose*.yml and docker-compose*.yml found in TARGET root]
-  - `mutually_exclusive_overlays`: [groups of files that redefine the same services and cannot be combined, e.g. [[compose.redis-sentinel.yml, compose.redis-cluster.yml]]]
-  - `primary_compose_files`: [compose files safe to combine in main stack — excludes mutually exclusive overlays]
-  - `port_discrepancies`: [{ service: name, dva_port: N, compose_default: M, compose_var: "VAR_NAME" }]
-  - `package_names`:                   # EXACT names from package manifests
-      # Rust: { workspace_root: "path", members: [{ name: "exact-pkg-name", path: "relative" }] }
-      # Go: { module: "module/path", binaries: ["bin1", "bin2"] }
-      # Node: { name: "pkg-name", scripts: { ... } }
+  - `recommended_tags`: { service_name: [tag1, tag2] }
+  - `recommended_modes`: [list of mode names]
+  - `existing_compose_files`: [paths]
+  - `compose_issues`: [list of issues]
+  - `all_compose_files`: [all compose*.yml found]
+  - `mutually_exclusive_overlays`: [groups]
+  - `primary_compose_files`: [safe to combine]
+  - `port_discrepancies`: [{ service, dva_port, compose_default }]
+  - `naming_compliance`: { non_standard_modes: [], non_standard_tags: [] }
+  - `package_names`: { ... }
   - `existing_dva`:
       found: bool
-      version: string                  # e.g. "0.1.0"
-      deprecated_patterns:             # list of detected issues
-        # profiles | top_level_compose | lifecycle | echo_wrappers
-        # missing_runner_local | non_standard_fields | old_env_file_format
-        # missing_modes | missing_environments | missing_checks | prefixed_commands
-      echo_wrapper_commands:           # [{ name: cmd, count: N }]
-      missing_sections:                # [modes|environments|checks|env_file|health_checks]
-      non_standard_fields:             # [list of field names found]
-      subproject_dvas:                 # [{ path, version, version_mismatch, deprecated_patterns }]
+      version: string
+      deprecated_patterns: [...]
+      echo_wrapper_commands: [...]
+      missing_sections: [...]
+      missing_start_hint: [health_check_names]
+      subproject_dvas: [{ path, version, version_mismatch }]
 </output>
 
 <gate>
 - [ ] Analysis report artifact is properly formatted and saved.
-- [ ] `setup_track` field is explicitly defined as `full`, `adopt`, or `upgrade`.
+- [ ] `dva_needed` field is explicitly defined.
+- [ ] If `dva_needed: true`, `setup_track` field is explicitly defined.
 - [ ] `compose_issues` field lists all detected issues (may be empty).
+- [ ] Package names extracted from actual manifests (not guessed from directories).
 </gate>
 
 <return>

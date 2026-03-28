@@ -11,130 +11,97 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 ## MUST follow — config generation invariants
 
 1. **`modes:` NOT `profiles:`** — The `profiles:` key is deprecated. Always generate `modes:`.
-2. **`compose.yml` needs `name:`** — If the existing compose file lacks a top-level `name:` field, ADD it. The value MUST match `stack.compose.project_name`.
+2. **`compose.yml` needs `name:`** — If missing, ADD it matching `stack.compose.project_name`.
 3. **`version:` field** — Set to current DVA version: `"0.1.26"`.
-4. **`stack:` NOT top-level `compose:`** — Compose configuration MUST be under `stack:` section, not at top-level. Top-level `compose:` is deprecated.
-5. **`health_checks`: BOTH `start` and `start_hint`** — When generating health checks for native services, always include both. `start` enables auto-start; `start_hint` is the user-facing instruction.
-6. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000) as host ports. Verify the existing compose uses project-specific port ranges.
-7. **compose.yml `version:` key** — Remove if present. Compose Specification does not require it.
-8. **`runner: local` for host commands** — Interaction commands that run on the host (build, test, lint, fmt, check) MUST use `runner: local`. Never use `echo 'Run: ...'` as a command.
-9. **Provision: `run:` NOT `compose_up:`/`compose_exec:`** — Always convert `compose_up:` to `run: "docker compose up -d --wait svc1 svc2"` and `compose_exec:` to `run: "docker compose exec svc cmd"`. These schema-valid shortcuts create inconsistency.
-10. **Mutually exclusive compose overlays** — Compose files that are mutually exclusive (e.g., `compose.redis-sentinel.yml` vs `compose.redis-cluster.yml`) MUST NOT be included together in `stack.compose.files`. Instead, create separate stack entries with `plugin: compose` for each exclusive overlay (selectable via `modes.*.stack`), or include only the primary compose files. Detection heuristic: files redefining the same service names with different configurations are likely mutually exclusive.
-11. **Provision completeness** — Always generate at least 3 provision profiles: `default` (minimal setup for development), `full` (complete infrastructure stack), `reset` (teardown + cleanup + note for re-setup). NEVER call `run: "dva <command>"` in provision steps — this creates a circular bootstrap dependency. Use direct shell commands instead.
-12. **Formatting consistency** — Start the file with `# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/schema.json`. Include a pattern description block (Pattern, Root manages, Development pattern). Use `# ===` for major section separators, `# ---` for subsection dividers within interaction. Group services by workgroup with `# --- Group Name ---` comments.
-13. **Health check commands must be verifiable** — Use documented, standard commands only. For process checks use `pgrep -f {process-name}`. For HTTP checks use the actual health endpoint URL. NEVER invent CLI flags (e.g., `--health-check`) that don't exist in the target application.
-14. **Service metadata completeness** — Every service MUST have `tags:` and `ports:` (with `label:`). Services with dependencies SHOULD have `related:` listing dependent/related services and `hint:` explaining the relationship. HTTP services SHOULD have `http: true` and `paths:` for key endpoints. Stack-level `tags: [infra]` SHOULD be set as the default.
-15. **Package names: EXACT from manifests** — Health check `start` and build `command` MUST use the EXACT package/binary name from the project's package manifest (Cargo.toml `[package] name`, go.mod, package.json). For Rust: `cargo run -p {exact-package-name}` where `{exact-package-name}` is from `[package] name = "..."` in each crate's Cargo.toml. Common pitfall: directory names differ from package names (e.g., directory `db-orchestrator-api-rs` but package name `db-orchestrator-api`). **ALWAYS use `[package] name`, NOT the directory/workspace member name.**
+4. **`stack:` NOT top-level `compose:`** — Compose config MUST be under `stack:` section.
+5. **`health_checks`: BOTH `start` and `start_hint`** — Always include both for native services.
+6. **Port conventions** — Never use common default ports as host ports.
+7. **compose.yml `version:` key** — Remove if present.
+8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`.
+9. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency). Use direct shell commands.
+10. **Mutually exclusive overlays** — MUST NOT be combined in `stack.compose.files`. Create separate stack entries.
+11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
+12. **File header** — Start with `yaml-language-server: $schema=...` and pattern description block.
+13. **Health check commands verifiable** — Use `pgrep -f {process}` or actual HTTP endpoint. Never invent flags.
+14. **Service metadata** — Every service MUST have `tags:` and `ports:` with `label:`.
+15. **Package names: EXACT from manifests** — Use `[package] name`, NOT directory name.
+16. **Section order** — version → env_file → stack → checks → modes → health_checks → interaction → provision → subprojects.
+17. **Naming presets** — Use standard tag names (infra, api, worker, ui, data, monitoring, build) and mode names (infra, full-stack, hybrid, etc.).
+18. **Reserved commands use replace:** — `build`, `clean`, `logs` are reserved DVA commands. Use `replace:` hooks.
 </critical-rules>
 
 <steps>
 1. Load `tmp/setup-dva/10-proposal-approved.yaml` with `setup_track: adopt`.
-2. Process the project's existing docker compose files mapped in `00-analysis-report.yaml`.
-3. **Check for existing dva.yml** — if `existing_dva.found` is true in analysis report:
-   - Identify deprecated patterns: top-level `compose:`, `lifecycle:`, `profiles:`, old version
-   - Identify interaction anti-patterns: `echo 'Run: ...'` wrappers, missing `runner: local`
-   - **Migrate prefixed command workarounds**: `app-build` → `build` with `replace:` hook, `app-clean` → `clean` with `replace:` hook (these were workarounds for reserved DVA commands)
-   - **Convert non-standard fields** (see `library/dva-schema.md` Non-Standard Field Migration):
-     - `host_command:` → `command:` + `runner: local`
-     - `compose_up:` in interaction → `command: "docker compose up -d ..."` + `runner: local`
-     - `compose_logs:` in interaction → `command: "docker compose logs ..."` + `runner: local`
-     - `compose_up:` / `compose_exec:` in provision → `run:` preferred (but schema-valid, keep if working)
-     - `endpoints:` as array → convert to object-with-keys format with `label:` instead of `name:`
-   - **Convert old `env_file` format**: string `".env"` → object with `files` array, add `interpolate: true`
-   - **Warn on anti-patterns**:
-     - Provision steps calling `run: "dva <command>"` → use direct commands (bootstrap ordering risk)
-     - Provision hardcoding compose file paths → should reference stack config, not duplicate file lists
-   - Preserve user's existing structure (modes, checks, provision, health_checks) while upgrading format
-   - Log all migrations performed
+2. Process existing docker compose files from `00-analysis-report.yaml`.
+3. **Check for existing dva.yml** — if found:
+   - Migrate deprecated patterns (top-level compose → stack, profiles → modes, lifecycle → stack)
+   - Convert anti-patterns (echo wrappers → real commands, prefixed commands → replace hooks)
+   - Convert non-standard fields (host_command → command + runner:local, etc.)
+   - Convert old env_file format (string → object with files array)
+   - Preserve user's existing structure while upgrading format
 4. **Compose file fixes** (minimal, non-destructive):
-   - If missing top-level `name:`, add it matching the proposed `stack.compose.project_name`.
-   - If `version:` key exists, remove it (Compose Specification).
-   - Do NOT modify service definitions, networks, or volumes.
-5. **Load naming presets** from `library/naming-presets.md`:
-   - Use `00-analysis-report.yaml`의 `project_archetype`로 mode 선택 가이드 결정.
-   - `recommended_tags`와 `recommended_modes`를 참조하여 일관된 네이밍 적용.
-6. **Reference example lookup** — Read `library/reference-examples.md` and select the section matching the project's language and `development_pattern` from the analysis report:
-   - Rust hybrid → "Rust — Hybrid Pattern" section
-   - Go hybrid → "Go — Hybrid Pattern" section
-   - Python container-first → "Python/Django — Container-First" section
-   - Node.js → "Node.js/TypeScript" section (hybrid or container-first subsection)
-   - Multi-component devbox → also read "Multi-Component" section
-   Use the selected reference to guide:
-   - Section ordering and comment style (always follow "Section Order" from reference)
-   - Mode selection and naming
-   - Health check patterns (correct commands per language, ready_timeout values)
-   - Interaction command coverage and structure
-   - Provision profile patterns (default, full, reset)
-   - Do NOT copy placeholder values (`{PORT}`, `{workspace}`) — replace with project-specific values.
-7. Generate `dva.yml` at the root directory:
-   - Set `version: "0.1.26"`.
-   - Use `stack:` section (NOT top-level `compose:`):
-     ```yaml
-     stack:
-       compose:
-         order: 10
-         tags: [infra]           # Default tags for all services
-         files: [compose.yml, ...]
-         project_name: {project}
-         up_options: ["-d", "--wait"]
-         services: { ... }
-     ```
-   - **CRITICAL:** Group services logically by workgroup with clear dividing comments.
-   - Apply DVA metadata using preset tag names (infra, api, worker, ui, data, monitoring, build).
-   - Use `modes:` (NOT `profiles:`) — preset mode names 적용, `infra`는 항상 포함.
-   - Use `modes.*.stack` to filter stack entries per mode where appropriate.
-   - Use `environments:` — preset env names (dev, test, stg, prd) 중 필요한 것만.
-   - Generate `health_checks` with both `start` and `start_hint` for native services.
-   - Include `checks:` for `dva doctor` (docker_socket, file_exists, command checks).
-8. Create DVA native custom interactions:
-   - **Container commands** (db, redis, shell): use `service:` field, no `runner:`
-   - **Host commands** (build, test, lint, fmt, check): use `runner: local`, no `service:`
-   - **Reserved DVA commands** (build, clean, logs): use `replace:` hooks. `replace:` and `subcommands:` can coexist.
-   - **Namespace-only parents**: commands with only `description:` + `subcommands:` (no `command:`) are valid for grouping
-   - **Mixed-runner subcommands**: a parent with `service:` can have children with `runner: local` (e.g., `db` → container shell, `db migrate` → host command)
-   - Never generate `echo 'Run: ...'` wrappers — always execute the actual command
-   - Avoid `|| echo '...'` in provision — prefer `|| true` for silent idempotency
-   - **Interaction coverage guideline**: Include commands for each distinct tool/service. At minimum: data access (db, redis), quality (build, test, lint, fmt, check), logs, clean. Add CLI tools, migration commands, and service-specific utilities as appropriate.
-9. **Compose file selection** — Use `primary_compose_files` from the analysis report (step 11 in 00-analyze.md):
-   - Include only primary files in `stack.compose.files` (safely combinable files)
-   - Mutually exclusive overlays are already classified — do NOT include them in the main list
-   - Document excluded overlays in a comment above the `stack:` section
-10. **Port metadata validation** — For each service in the selected compose files, extract the default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against `stack.compose.services.{name}.ports` entries. Fix any discrepancies so DVA metadata matches compose reality.
-11. **Development pattern–aware command generation**:
-   - If `development_pattern: container-first` (app runs in Docker, e.g., Django/Rails): interaction commands for build/test/lint use `service: {app-service}`.
-   - If `development_pattern: hybrid` (infra in Docker, app native, e.g., Rust/Go): interaction commands for build/test/lint use `runner: local`.
-   - Heuristic: if compose services have app profiles (`profiles: [rust]`) or if `modes:` includes `hybrid`/health_checks for native processes → hybrid pattern. If main app has no profile and always runs in Docker → container-first.
-12. **Cascade to subprojects** — if `subprojects:` exists, check each subproject's dva.yml:
-   - Version must match root (`"0.1.26"`)
-   - Apply same upgrade rules (stack format, runner:local, no echo wrappers)
-   - Convert `service: local` (old convention) → `runner: local`
-   - Flag version mismatches between root and subproject
-13. Verify output fields match `library/dva-schema.md` and `internal/config/schema.json`.
+   - Add `name:` if missing
+   - Remove `version:` key if present
+   - Do NOT modify service definitions
+5. **Load naming presets** — Apply recommended tags and modes from analysis report.
+6. **Reference example lookup** — Select matching section from reference-examples.md:
+   - Rust hybrid → "Rust — Hybrid Pattern"
+   - Go hybrid → "Go — Hybrid Pattern"
+   - Python container-first → "Python/Django — Container-First"
+   - Node.js → appropriate subsection
+   - Do NOT copy placeholder values — use project-specific values.
+7. Generate `dva.yml`:
+   - File header with schema comment and pattern description
+   - `version: "0.1.26"`
+   - `env_file:` with files array and interpolate
+   - `stack:` with services grouped by workgroup
+   - `checks:` (docker_socket, .env, compose, language toolchain)
+   - `modes:` (minimum: infra + full-stack or hybrid)
+   - `health_checks:` (with start + start_hint, appropriate ready_timeout)
+   - `interaction:` organized by category (Database, Build, Test, Quality, Logs, Clean)
+   - `provision:` (default, full, reset)
+   - `subprojects:` if devbox pattern
+8. **Interaction command rules:**
+   - Container commands (db, redis, shell): `service:` field
+   - Host commands (build, test, lint, fmt, check): `runner: local`
+   - Reserved commands (build, clean, logs): `replace:` hooks
+   - Never generate echo wrappers
+9. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
+10. **Port metadata validation** — Cross-reference compose ports with dva.yml metadata.
+11. **Development pattern commands:**
+    - container-first: commands use `service: {app-service}`
+    - hybrid: commands use `runner: local`
+12. **Subproject cascade:**
+    - Version must match root
+    - Apply same upgrade rules
+    - Subprojects use `exclude_tags: [infra]`
+13. Verify output against schema.
 </steps>
 
 <output>
 - `dva.yml` written (or upgraded) at TARGET root.
-- Compose file patched if `name:` was missing (minimal change).
-- `tmp/setup-dva/30-configuration-log.txt` (List of adopt track config operations executed by the subagent)
+- Compose file patched if `name:` was missing.
+- `tmp/setup-dva/30-configuration-log.txt`
 </output>
 
 <gate>
-- [ ] Existing `docker-compose` ecosystem is fully wrapped without destructive rewrites.
-- [ ] `dva.yml` uses `modes:` key (NOT `profiles:`).
+- [ ] `dva.yml` uses `modes:` (NOT `profiles:`).
 - [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:`).
 - [ ] `dva.yml` version is `"0.1.26"`.
-- [ ] Compose file has top-level `name:` matching `stack.compose.project_name`.
-- [ ] Health checks include both `start` and `start_hint` where applicable.
-- [ ] Host commands use `runner: local` (no `echo 'Run: ...'` wrappers).
-- [ ] Port metadata in `stack.compose.services` matches compose file default ports.
-- [ ] Prefixed commands (`app-build`, `app-clean`) migrated to reserved names with `replace:` hooks.
-- [ ] Compose overlay files properly classified (mutually exclusive files NOT mixed in main stack).
-- [ ] Subproject dva.yml versions match root version.
-- [ ] Resulting `dva.yml` implements proper custom commands against existing services.
-- [ ] Provision includes at least 3 profiles (default, full, reset) with NO `dva <command>` calls.
-- [ ] File starts with yaml-language-server schema comment and pattern description block.
-- [ ] Health check commands use standard verifiable commands (no invented flags).
-- [ ] All services have tags and ports with labels; key services have related/hint.
+- [ ] Compose file has top-level `name:`.
+- [ ] Health checks include both `start` and `start_hint`.
+- [ ] Host commands use `runner: local` (no echo wrappers).
+- [ ] Port metadata matches compose defaults.
+- [ ] Modes section exists (minimum infra + one other).
+- [ ] Checks section exists (minimum docker_socket + file_exists).
+- [ ] Provision includes default + full + reset profiles.
+- [ ] No `dva <command>` calls in provision.
+- [ ] File header with schema comment present.
+- [ ] All services have tags and ports with labels.
+- [ ] Subproject versions match root.
+- [ ] Section order follows standard.
+- [ ] Naming follows presets (tags, modes, envs).
+- [ ] Reserved commands use `replace:` hooks.
 </gate>
 
 <return>

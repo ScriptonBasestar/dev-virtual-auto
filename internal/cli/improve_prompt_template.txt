@@ -13,6 +13,7 @@
 3. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
 4. 실제 실행 근거 없이 `service`, `runner`, `compose.method`를 추측하지 마세요.
 5. 앱 코드나 Dockerfile을 고치지 말고, 우선 `dva.yml` 개선에 집중하세요.
+6. **서브프로젝트 dva.yml의 version은 루트와 반드시 일치**시키세요.
 
 ---
 
@@ -33,7 +34,7 @@ dva validate
 dva run <command> --explain
 ```
 
-실제로 컨테이너 상태가 필요하면 다음도 활용할 수 있습니다:
+실제로 컨테이너 상태가 필요하면:
 
 ```bash
 dva status --json
@@ -88,11 +89,70 @@ Path: `%s`
 
 # Review Tasks
 
-1. 현재 프로젝트 구조와 `dva.yml` 사이에 드리프트가 있는지 찾으세요.
-2. 새로 추가된 실행 진입점이 있으면 `interaction`, `provision`, `subprojects`, `health_checks`에 반영할지 판단하세요.
-3. 더 이상 맞지 않는 명령, 중복 명령, 잘못된 runner/service 연결을 찾으세요.
-4. `Makefile`, `package.json`, compose 파일, 서브프로젝트 구조와의 매핑이 충분히 직접적인지 검토하세요.
-5. 필요하면 `dva.yml`만 수정하고, 마지막에 `dva validate` 기준으로 문제가 없는지 확인하세요.
+## 1. 드리프트 검출
+- 현재 프로젝트 구조와 `dva.yml` 사이에 드리프트가 있는지 찾으세요.
+- 새로 추가된 실행 진입점이 있으면 `interaction`, `provision`, `subprojects`, `health_checks`에 반영할지 판단하세요.
+- 더 이상 맞지 않는 명령, 중복 명령, 잘못된 runner/service 연결을 찾으세요.
+
+## 2. Makefile/package.json 매핑
+- Makefile, package.json, compose 파일, 서브프로젝트 구조와의 매핑이 충분히 직접적인지 검토하세요.
+
+## 3. 네이밍 프리셋 준수
+- 서비스 태그: infra, api, worker, ui, data, monitoring, build 사용 여부
+- 모드 이름: infra, full-stack, hybrid, backend, server, worker, ui 중 적절한 것 사용 여부
+- 환경 이름: dev, test, stg, prd 중 적절한 것 사용 여부
+
+## 4. 누락 섹션 검사
+- [ ] modes 섹션 존재 (최소 infra + full-stack/hybrid)
+- [ ] checks 섹션 존재 (최소 docker_socket + .env)
+- [ ] env_file 섹션 존재 (files 배열 + interpolate)
+- [ ] health_checks 섹션 존재 (hybrid 패턴일 때)
+- [ ] provision에 default + reset 프로필 존재
+- [ ] 파일 헤더에 yaml-language-server 스키마 주석
+
+## 5. 안티패턴 검사
+- [ ] echo 더미 커맨드 없음
+- [ ] 기본 포트(5432, 6379 등) 미사용
+- [ ] health_checks에 start + start_hint 모두 존재
+- [ ] provision에서 `dva <command>` 미호출
+- [ ] 서비스 메타데이터(tags, ports, label) 완비
+- [ ] interaction 키에 예약 커맨드 미사용 (아래 목록 참조)
+- [ ] 존재하지 않는 필드명 미사용 (아래 목록 참조)
+
+### 예약 커맨드 (interaction 키로 사용 금지)
+```
+help, version, ls, compose, up, stop, down, build, clean,
+run, provision, validate, manifest, ktl, ssh, infra, console,
+completion, cmd, init, status, config, logs, restart, show,
+migrate, doctor, add
+```
+예외: hookable 커맨드(up, down, stop, restart, build, clean, logs)는 `replace:` 훅과 함께 사용 가능
+
+### 자주 틀리는 필드명 (Hallucination 방지)
+| ❌ 잘못된 필드명 | ✅ 올바른 필드명/대처 | 위치 |
+|---|---|---|
+| `working_dir` | `workdir` | interaction |
+| `compose_files` | (존재하지 않음) | modes/environments — 사용 불가 |
+| `env_file` | (environments 내 사용 불가) | environments — `environment:` 만 허용 |
+| `address` | (checks 내 사용 불가) | checks — type은 file_exists/command/docker_socket만 |
+| `depends_on` | (존재하지 않음) | interaction — DVA에 없음 |
+
+### 각 섹션별 허용 필드
+- `interaction.<cmd>`: description, service, command, workdir, user, default_args, environment, env_file, compose, shell, entrypoint, runner, pod, compose_run_options, subcommands, tags, before, replace, after
+- `modes.<name>`: description, compose_profiles, compose_services, health_checks, endpoint_tags, environment, stack, provision
+- `environments.<name>`: description, environment, stack
+- `checks[N]`: name, type(file_exists/command/docker_socket), path, command, fix_hint
+- `health_checks.<name>`: type(http/tcp/command), url, address, command, start, start_hint, timeout, ready_timeout
+
+## 6. 서브프로젝트 검사 (devbox 패턴일 때)
+- [ ] 서브프로젝트 dva.yml version이 루트와 일치
+- [ ] exclude_tags: [infra] 설정
+- [ ] 서브프로젝트에 불필요한 stack 섹션 없음
+
+## 7. 포트 메타데이터 교차 검증
+- compose 파일의 `${VAR:-DEFAULT}` 패턴에서 기본 포트 추출
+- dva.yml `stack.compose.services.{name}.ports` 엔트리와 대조
+- 불일치 발견시 dva.yml 수정
 
 ---
 
@@ -103,8 +163,10 @@ Path: `%s`
 1. 먼저 발견한 문제를 우선순위대로 짧게 정리
 2. 수정이 필요하면 `dva.yml`을 직접 갱신
 3. 변경 후 어떤 명령이 추가/수정/삭제되었는지 요약
-4. 마지막에 검증 결과를 적기:
-   - `dva validate`
-   - 필요시 `dva run <command> --explain`
+4. **필수 검증 루프** — `dva config validate` 실행 → ERROR가 0이 될 때까지 수정 반복 (최대 3회)
+   - `Additional property X is not allowed` → 스키마에 없는 필드 삭제/교체
+   - `reserved command conflict` → interaction 키 이름 변경 (접두사 추가)
+   - `X.type must be one of the following` → 허용된 type 값 사용
+5. `✅ dva.yml is valid` 확인 후 작업 완료
 
 생성/수정하는 `dva.yml`은 DVA schema `%s` 와 호환되어야 합니다.

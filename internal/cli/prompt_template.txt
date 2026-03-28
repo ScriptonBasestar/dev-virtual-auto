@@ -4,6 +4,18 @@
 
 ---
 
+# Phase 0: DVA 필요성 판단 (반드시 먼저 실행)
+
+아래 **모든** 조건에 해당하면 DVA를 생성하지 않고 즉시 종료하세요:
+- Docker/컨테이너를 사용하지 않는 순수 라이브러리 프로젝트
+- compose 파일이 없고 인프라 의존성(DB, Cache, MQ)이 전혀 없는 프로젝트
+- ops/policy/문서 전용 프로젝트 (코드 빌드/실행이 없음)
+- 이미 다른 오케스트레이션 도구가 완전히 구성된 프로젝트 (Tilt, Skaffold 등)
+
+→ 해당시 `# DVA not needed: {reason}` 메시지를 출력하고 종료.
+
+---
+
 # Phase 1: Project Exploration (탐색 및 분석)
 이 프로젝트에서 자동 감지된 메타데이터입니다. 이를 바탕으로 프로젝트의 성격을 파악하세요.
 
@@ -52,7 +64,7 @@ Makefile에서 추출한 문서화된 타겟 목록입니다. 이것을 interact
 
 분석 결과를 바탕으로, 아래 중 하나를 결정하세요. **이 판단이 dva.yml 구조의 근간**이 됩니다.
 
-## A. 호스트 빌드 + Docker 인프라 패턴 (가장 흔함)
+## A. 호스트 빌드 + Docker 인프라 패턴 (hybrid — 가장 흔함)
 - 앱은 호스트에서 빌드/실행 (예: `cargo build`, `go build`, `npm run dev`)
 - Docker는 인프라(postgres, redis 등)나 통합테스트 용도로만 사용
 - Makefile이나 package.json scripts가 실제 개발 워크플로우를 정의
@@ -60,15 +72,16 @@ Makefile에서 추출한 문서화된 타겟 목록입니다. 이것을 interact
 → **이 패턴이면:**
   - 빌드/테스트/린트 커맨드는 반드시 `runner: local` 사용 (`service` 생략)
   - Docker 인프라 기동은 `stack.compose`에 정의하고 `dva up`으로 실행
+  - `health_checks`에 네이티브 프로세스 정의 (start + start_hint 필수)
   - `echo` 더미 커맨드를 절대 만들지 마세요
 
-## B. 컨테이너 내부 실행 패턴
+## B. 컨테이너 내부 실행 패턴 (container-first)
 - 앱이 Docker 컨테이너 안에서만 빌드/실행됨 (예: Rails + Docker, Node + Docker)
 - compose의 app/web 서비스에 개발용 이미지가 정의되어 있음 (Dockerfile.dev 등)
-- 호스트에는 해당 언어의 런타임이 설치되어 있지 않음
 
 → **이 패턴이면:**
   - 커맨드에 `service: <app-service>` 지정
+  - health_checks 대신 compose healthcheck: 사용
   - compose 파일이 개발용인지 프로덕션용인지 반드시 확인
 
 ## C. devbox(부모) 패턴
@@ -77,13 +90,14 @@ Makefile에서 추출한 문서화된 타겟 목록입니다. 이것을 interact
 
 → **이 패턴이면:**
   - 루트: `stack.compose.tags: [infra]` + `subprojects` 섹션 정의
-  - 각 서브프로젝트: 자체 `dva.yml` 생성
+  - 각 서브프로젝트: 자체 `dva.yml` 생성 (version 일치 필수)
+  - 서브프로젝트: `exclude_tags: [infra]`로 부모 인프라 중복 방지
 ```yaml
 # 루트 dva.yml (devbox)
 stack:
   compose:
     order: 10
-    files: [infra/compose.yaml]
+    files: [compose.yaml]
     tags: [infra]
     services:
       postgres:
@@ -113,41 +127,133 @@ build:
   command: "cargo build --release"
   runner: local
 ```
-만약 특정 커맨드를 이 dva.yml에서 직접 실행할 수 없다면, 해당 커맨드를 **아예 정의하지 마세요**. echo로 안내 메시지를 출력하는 것은 DVA의 목적에 반합니다.
+만약 특정 커맨드를 이 dva.yml에서 직접 실행할 수 없다면, 해당 커맨드를 **아예 정의하지 마세요**.
 
 ## 규칙 2: service에는 반드시 실제 앱 서비스만 지정
-❌ 금지: 인프라/테스트 스텁 서비스(webhook-ok, mirror-upstream, healthcheck 등)를 앱 커맨드의 service로 지정
+❌ 금지: 인프라/테스트 스텁 서비스를 앱 커맨드의 service로 지정
 ✅ 규칙: `service`에는 해당 커맨드가 **실제로 실행될 앱 컨테이너**만 지정. 적절한 서비스가 없으면 `runner: local`을 사용
 
 ## 규칙 3: 프로덕션 이미지 vs 개발 이미지 구분
-- `image: myapp:latest` 형태의 프로덕션 이미지에는 컴파일러(rustc, gcc, javac 등)가 없음
+- `image: myapp:latest` 형태의 프로덕션 이미지에는 컴파일러가 없음
 - 프로덕션 compose 파일을 개발 커맨드의 `stack.compose.files`에 넣지 마세요
-- 개발용 오버레이(예: `compose.dev.yaml`, `docker-compose.dev.yml`)가 있다면 그것을 사용
 - 개발용 compose가 없는 경우 → `runner: local`로 호스트에서 실행
 
 ## 규칙 4: Makefile/package.json이 있으면 반드시 참고
 빌드 파일의 실제 타겟/스크립트를 읽고, DVA interaction에 1:1 매핑하세요.
-```
-# Makefile에 이런 타겟이 있다면:
-# make build  → cargo build
-# make test   → cargo test
-# make dev    → docker compose -f infra/compose.yaml up -d && cargo watch
 
-# DVA에서는 이렇게 매핑:
-interaction:
-  build:
-    description: "Build the project"
-    command: "cargo build"
-    runner: local
-  test:
-    description: "Run tests"
-    command: "cargo test"
-    runner: local
-  dev:
-    description: "Start dev environment (infra + watch)"
-    command: "cargo watch -x run"
-    runner: local
+## 규칙 5: 패키지명은 반드시 실제 매니페스트에서 추출
+- **Rust**: `Cargo.toml`의 `[package] name = "..."` 사용 (디렉토리명 X)
+- **Go**: `go.mod` 모듈 경로 + `cmd/` 바이너리 이름 사용
+- **Node.js**: `package.json`의 `name` 필드 사용
+- 디렉토리명과 패키지명이 다를 수 있음 (예: dir `api-rs` → package `api`)
+
+## 규칙 6: 기본 포트 사용 금지
+❌ 금지: 5432, 6379, 8080, 3000, 3306, 27017을 호스트 포트로 사용
+✅ 프로젝트별 고유 포트 범위 할당 (예: 11200~11299)
+
+## 규칙 7: health_checks에는 start와 start_hint 모두 필수
+```yaml
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:{PORT}/healthz"
+    start: "cd project-rs && cargo run -p exact-package-name"
+    start_hint: "cd project-rs && cargo run -p exact-package-name"
+    timeout: 5
+    ready_timeout: 120
 ```
+
+## 규칙 8: 예약 커맨드(build, clean, logs)는 replace: 사용
+```yaml
+build:
+  replace:
+    - step: "Build all"
+      run: "make build"
+  subcommands:
+    docker:
+      description: "Build Docker images"
+      runner: local
+      command: "docker compose build"
+```
+
+## 규칙 9: env_file은 반드시 객체 형태 (문자열 금지)
+❌ 금지:
+```yaml
+env_file: .env
+env_file: ".env"
+```
+✅ 올바른 형태:
+```yaml
+env_file:
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  priority: before_environment
+  interpolate: true
+```
+
+## 규칙 10: 호스트 포트 범위 검증 (2181, 8080 등도 기본 포트)
+기본 포트 전체 목록: 2181(zk), 3000(node), 3306(mysql), 5432(pg), 6379(redis), 8080(http), 8443(https), 9090(prometheus), 9092(kafka), 9200(es), 15672(rabbitmq), 27017(mongo)
+→ 이 포트들을 호스트 포트로 사용하면 안 됨
+→ 프로젝트별 고유 범위 사용 (예: 11100~11199, 11200~11299)
+
+## 규칙 11: 예약 커맨드 이름을 interaction에 사용 금지
+아래 이름은 DVA 내장 커맨드이므로 interaction 키로 사용하면 **schema validation 에러**가 발생합니다:
+```
+help, version, ls, compose, up, stop, down, build, clean,
+run, provision, validate, manifest, ktl, ssh, infra, console,
+completion, cmd, init, status, config, logs, restart, show,
+migrate, doctor, add
+```
+**예외:** hookable 커맨드(up, down, stop, restart, build, clean, logs)는 `replace:` 훅과 함께 사용 가능
+❌ 금지:
+```yaml
+interaction:
+  status:
+    command: "docker compose ps"
+  migrate:
+    command: "make migrate"
+```
+✅ 올바른 예:
+```yaml
+interaction:
+  service-status:          # "status" 대신 접두사 추가
+    command: "docker compose ps"
+  db-migrate:              # "migrate" 대신 접두사 추가
+    command: "make migrate"
+```
+
+## 규칙 12: 필드명은 반드시 스키마 정의와 정확히 일치 (Hallucination 금지)
+**자주 틀리는 필드명:**
+| ❌ 잘못된 필드명 | ✅ 올바른 필드명 | 위치 |
+|---|---|---|
+| `working_dir` | `workdir` | interaction command |
+| `compose_files` | (존재하지 않음) | modes/environments — 사용 불가 |
+| `env_file` | (environments 내 사용 불가) | environments 섹션 — `environment:` 만 허용 |
+| `address` | (checks 내 사용 불가) | checks — type은 file_exists/command/docker_socket만 |
+| `depends_on` | (존재하지 않음) | interaction — DVA에는 의존성 정의 없음 |
+| `restart` | (존재하지 않음) | interaction — compose 속성이 아님 |
+| `volumes` | (존재하지 않음) | interaction — compose 속성이 아님 |
+
+**각 섹션별 허용 필드 (이 외의 필드는 schema validation 실패):**
+
+`interaction.<command>` 허용 필드:
+→ description, service, command, workdir, user, default_args, environment, env_file, compose, shell, entrypoint, runner, pod, compose_run_options, subcommands, tags, before, replace, after
+
+`modes.<name>` 허용 필드:
+→ description, compose_profiles, compose_services, health_checks, endpoint_tags, environment, stack, provision
+
+`environments.<name>` 허용 필드:
+→ description, environment, stack
+
+`checks[N]` 허용 필드 (type별):
+→ name, type, path(file_exists), command(command), fix_hint
+→ type 값: file_exists, command, docker_socket (tcp/http 등 불가)
+
+`health_checks.<name>` 허용 필드:
+→ type(http/tcp/command), url, address, command, start, start_hint, timeout, ready_timeout
 
 ---
 
@@ -172,110 +278,178 @@ infra: { ... }                # [선택] 외부 인프라 레포 참조
 subprojects: { ... }          # [선택] 서브프로젝트 정의 (devbox 전용)
 ```
 
+## 파일 헤더 (필수)
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/schema.json
+# =============================================================================
+# DVA Configuration — {project-name} ({role})
+# =============================================================================
+# Pattern: {devbox | standalone | monorepo}
+# Root manages: {what this config manages}
+# Development pattern: {hybrid | container-first | native}
+# =============================================================================
+```
+
+## 섹션 순서 (반드시 준수)
+1. `version:`
+2. `env_file:`
+3. `stack:` (서비스를 workgroup별로 그룹화)
+4. `checks:` (dva doctor)
+5. `modes:`
+6. `health_checks:` (네이티브 프로세스)
+7. `interaction:` (카테고리별 정리)
+8. `provision:` (default, full, reset)
+9. `subprojects:` (devbox 패턴일 때)
+
 ## `stack` 섹션
 ```yaml
 stack:
-  compose:                                  # 이름 자유 (plugin 자동 추론)
-    order: 10                               # 기동 순서
-    files: ["docker-compose.yml"]           # compose 파일 경로 배열
-    project_name: "myapp"                   # (선택) 프로젝트 이름
-    command: "docker compose"               # (선택) compose 바이너리
-    up_options: ["-d", "--wait"]            # (선택) `dva up` 기본 옵션
-    tags: ["infra"]                         # (선택) 전체 기본 태그
-    services:                               # (선택) 서비스별 메타데이터
+  compose:
+    order: 10
+    files: ["compose.yml"]
+    project_name: "myapp"
+    up_options: ["-d", "--wait"]
+    tags: ["infra"]                         # 전체 기본 태그
+    services:
       postgres:
-        tags: ["infra"]
+        tags: ["infra", "data"]
         ports:
-          5432:
+          11432:
             label: "PostgreSQL"
-  kubectl:                                  # K8s 스택 엔트리
-    order: 20
-    namespace: "myapp-dev"
+      redis:
+        tags: ["infra", "data"]
+        ports:
+          11479:
+            label: "Redis"
 ```
 
-## `interaction` 섹션 — 커맨드 정의
-각 커맨드에서 사용 가능한 **모든** 속성:
+## `interaction` 섹션
 ```yaml
 interaction:
   <command-name>:
-    description: "명령어 설명"            # [권장] 사용자에게 보여줄 설명
+    description: "명령어 설명"            # [권장]
     service: "app"                        # [조건부] Docker 서비스명 (컨테이너 실행 시)
     command: "npm test"                   # [필수] 실행할 명령어
     runner: "local"                       # [선택] local | docker_compose | kubectl
-    workdir: "/app"                       # [선택] 작업 디렉토리
-    user: "root"                          # [선택] 실행 사용자
-    default_args: "server -p 3000"        # [선택] 기본 인자
-    shell: true                           # [선택] 쉘 보간 활성화
-    entrypoint: "/entrypoint.sh"          # [선택] 엔트리포인트
-    pod: "my-pod"                         # [선택] K8s Pod (kubectl runner)
+    workdir: "/app"                       # [선택]
     tags: ["test"]                        # [선택] 분류 태그
     environment:                          # [선택] 추가 환경변수
       RAILS_ENV: test
-    env_file: ".env.test"                 # [선택] 커맨드별 env 파일
-    compose:                              # [선택] Compose 세부 옵션
-      method: "run"                       #   run | up | exec
-      run_options: ["rm", "service-ports"]
-      profiles: ["web", "development"]
     subcommands:                          # [선택] 중첩 하위 명령어
       migrate:
         description: "Run DB migrations"
         command: "rails db:migrate"
 ```
 
-### Runner 자동 선택 로직 (중요!)
-DVA는 다음 우선순위로 Runner를 결정합니다:
-1. `runner` 속성이 명시되어 있으면 → 해당 runner 사용
+### Runner 자동 선택 로직
+1. `runner` 속성이 명시 → 해당 runner 사용
 2. `service` 속성이 있으면 → `DockerComposeRunner`
 3. `pod` 속성이 있으면 → `KubectlRunner`
 4. 둘 다 없으면 → `LocalRunner` (호스트에서 직접 실행)
 
-따라서:
-- 컨테이너 안에서 실행: `service: <name>` 지정 (runner 생략 가능)
-- 호스트에서 실행: `service`와 `pod` 둘 다 생략 (또는 `runner: local` 명시)
-- **`service`를 지정하면서 `runner: local`은 논리적 모순** → 절대 하지 마세요
-
-## `provision` 섹션 — 초기화 스크립트
+## `modes` 섹션 (네이밍 프리셋 적용)
 ```yaml
-provision:
-  <profile-name>:                         # default, reset, test, ci 등
-    # 방법 1: step/run/note 구문 (권장)
-    - step: "Install dependencies"
-      run: "dva bundle install"           # 단일 명령어
-    - step: "Setup database"
-      run:                                # 복수 명령어 배열
-        - "dva rails db:create"
-        - "dva rails db:migrate"
-    - step: "Complete"
-      note: "Run 'dva dev' to start"      # 안내 메시지 (실행 없음)
-
-    # Docker 인프라 기동은 dva 명령어로 실행
-    - step: "Start infra"
-      run: "dva up"                        # stack에 정의된 인프라 기동
-    - step: "Run migrations"
-      run: "dva rails db:migrate"          # interaction 커맨드 재사용
+modes:
+  infra:                        # 항상 포함 — 가장 기본적인 모드
+    description: "Infrastructure only (DB, Redis)"
+    compose_services: [postgres, redis]
+  full-stack:                   # 전체 Docker
+    description: "All services in Docker"
+  hybrid:                       # hybrid 패턴 전용
+    description: "Infra in Docker, app runs natively"
+    compose_services: [postgres, redis]
+    health_checks: [api]
 ```
 
-### Provision에서 지켜야 할 규칙
-- `run: "docker compose up -d"` ← ❌ Raw shell 대신 `run: "dva up"` 사용
-- `run: "dva <command>"` ← ✅ interaction에 정의된 dva 커맨드를 재사용
-- 호스트/컨테이너 구분이 모호한 명령은 `run:` 대신 interaction을 먼저 정의하고 `dva <cmd>`로 호출
+모드 선택 가이드:
+- 웹앱 (SPA + API + Worker): infra, backend, ui, full-stack
+- 서비스/데몬 (gRPC, TCP server): infra, server, full-stack
+- 단순 앱 (API only): infra, full-stack
+
+## `environments` 섹션
+```yaml
+environments:
+  dev:
+    description: "Development"
+    environment:
+      LOG_LEVEL: debug
+  test:
+    description: "Testing"
+    environment:
+      LOG_LEVEL: warn
+```
+
+## `checks` 섹션 (dva doctor)
+```yaml
+checks:
+  - name: Docker daemon accessible
+    type: docker_socket
+    fix_hint: "Start Docker Desktop"
+  - name: .env file exists
+    type: file_exists
+    path: .env
+    fix_hint: "cp .env.example .env"
+```
+
+## `provision` 섹션
+```yaml
+provision:
+  default:
+    - step: "Copy environment file"
+      run: "cp -n .env.example .env 2>/dev/null || true"
+    - step: "Start infrastructure"
+      run: "docker compose up -d --wait postgres redis"
+    - step: "Fetch dependencies"
+      run: "cargo fetch"
+    - step: "Run migrations"
+      run: "cd project-rs && sqlx migrate run"
+  full:
+    - step: "Complete setup"
+      run: "docker compose up --build -d"
+  reset:
+    - step: "Stop and clean"
+      run: "docker compose down -v"
+    - step: "Re-setup"
+      note: "Run 'dva provision default' to re-setup"
+```
+
+**Provision 규칙:**
+- `run: "docker compose up -d"` 사용 (raw shell OK in provision)
+- provision에서 `run: "dva <command>"` 사용 금지 (순환 의존성)
+- 최소 3개 프로필: default, full, reset
+
+## `env_file` 섹션
+```yaml
+env_file:
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  priority: before_environment
+  interpolate: true
+```
 
 ---
 
 # Phase 5: Anti-Pattern 체크리스트 (생성 전 최종 점검)
 
-생성한 dva.yml을 출력하기 전에, 아래 항목을 반드시 자가 검증하세요:
-
 | # | Anti-Pattern | 확인 |
 |---|---|---|
-| 1 | echo 더미 커맨드가 있는가? | → 있으면 삭제하거나 실제 명령로 교체 |
-| 2 | service에 인프라 스텁(healthcheck, webhook 등)을 지정했는가? | → 있으면 `runner: local`로 변경하거나 삭제 |
-| 3 | 프로덕션 이미지(`image: xxx:latest`)를 개발 커맨드에 사용했는가? | → 있으면 개발용 compose로 교체 또는 `runner: local` |
-| 4 | compose 파일이 없는 서브프로젝트에 `service:`를 지정했는가? | → 있으면 `stack.compose.files` 추가 또는 `runner: local` |
-| 5 | provision에서 raw `docker compose` 명령을 사용했는가? | → `run: "dva up"` 또는 `run: "dva <cmd>"` 형태로 교체 |
-| 6 | Makefile/package.json의 주요 타겟을 반영했는가? | → 누락된 타겟은 interaction에 추가 |
-| 7 | 모든 서브프로젝트에 dva.yml이 생성되었는가? | → devbox 패턴이면 누락 없이 모두 생성 |
-| 8 | stack 섹션 없이 service를 참조하는 커맨드가 있는가? | → 있으면 stack.compose.files 추가 |
+| 1 | echo 더미 커맨드가 있는가? | → 있으면 삭제하거나 실제 명령으로 교체 |
+| 2 | service에 인프라 스텁을 지정했는가? | → `runner: local`로 변경하거나 삭제 |
+| 3 | 프로덕션 이미지를 개발 커맨드에 사용했는가? | → 개발용 compose로 교체 또는 `runner: local` |
+| 4 | compose 파일 없는 서브프로젝트에 `service:` 지정했는가? | → `runner: local`로 변경 |
+| 5 | provision에서 `dva <cmd>` 호출했는가? | → 직접 shell 명령으로 교체 |
+| 6 | Makefile/package.json 주요 타겟 누락했는가? | → interaction에 추가 |
+| 7 | 서브프로젝트 dva.yml version이 루트와 불일치하는가? | → 동일하게 맞춤 |
+| 8 | 기본 포트(5432, 6379, 8080 등)를 사용했는가? | → 프로젝트 고유 범위로 변경 |
+| 9 | health_checks에 start_hint가 누락되었는가? | → start와 동일 값으로 추가 |
+| 10 | modes 섹션이 없는가? | → 최소 infra + full-stack 추가 |
+| 11 | checks 섹션이 없는가? | → docker_socket + .env + compose 체크 추가 |
+| 12 | provision에 reset 프로필이 없는가? | → 추가 |
+| 13 | 파일 헤더/스키마 주석이 없는가? | → yaml-language-server 주석 추가 |
+| 14 | 서비스 메타데이터(tags, ports)가 누락되었는가? | → 모든 서비스에 추가 |
 
 ---
 
@@ -286,46 +460,78 @@ provision:
 ## 제안 기준
 - **호스트 빌드 언어 (Rust, Go, C++)**: compose 없이 `runner: local`이 기본. 단, DB/캐시 의존성이 있으면 인프라용 compose 제안
 - **컨테이너 빌드 언어 (Node.js, Rails, Python)**: compose가 없으면 `docker-compose.yml` + `Dockerfile.dev` 생성을 강력 제안
-- **devbox 루트에 인프라 compose가 없으면**: `infra/compose.yaml` 생성 제안
+- **devbox 루트에 인프라 compose가 없으면**: `compose.yaml` 생성 제안
 
 ## 제안 방식
-- dva.yml 파일 상단 주석에 `# TODO: ...` 형태로 제안 사항을 명시
-- 가능하면 compose 파일도 함께 생성 (에이전트 환경에서)
-
-예시:
-```yaml
-# dva.yml — myapp (Node.js)
-# TODO: docker-compose.yml이 없습니다. 아래 내용으로 생성을 권장합니다:
-#   services:
-#     app:
-#       build: .
-#       volumes: [".:/app"]
-#       ports: ["3000:3000"]
-```
+dva.yml 파일 상단 주석에 `# TODO: ...` 형태로 제안 사항을 명시
 
 ---
 
 # Phase 7: Action & Output
 
 ## 실행 절차
-1. Phase 2에서 결정한 프로젝트 패턴을 먼저 명시하세요
-2. 완벽하게 동작하는 `dva.yml` 파일을 **직접 파일로 저장**하세요 (출력만 하지 마세요)
-3. devbox 패턴이면 각 서브프로젝트의 `dva.yml`도 모두 생성
-4. 주요 설계 결정의 근거를 YAML 주석으로 기술
-5. Phase 6 기준에 따라 필요시 compose 파일도 생성
-6. 각 dva.yml 위치에서 `dva validate` 실행하여 검증, 실패시 수정
+1. Phase 0에서 DVA 필요 여부 판단 → 불필요시 종료
+2. Phase 2에서 결정한 프로젝트 패턴을 먼저 명시
+3. 완벽하게 동작하는 `dva.yml` 파일을 **직접 파일로 저장** (출력만 하지 마세요)
+4. devbox 패턴이면 각 서브프로젝트의 `dva.yml`도 모두 생성 (version 동일)
+5. 주요 설계 결정의 근거를 YAML 주석으로 기술
+6. Phase 6 기준에 따라 필요시 compose 파일도 생성
+7. **반드시** 각 dva.yml 위치에서 `dva config validate` 실행 → 에러 0이 될 때까지 수정 반복
 
-## devbox 패턴에서의 효율적 작업
-서브프로젝트가 여러 개인 경우, 각 서브프로젝트의 dva.yml은 독립적으로 생성할 수 있습니다.
-루트 dva.yml을 먼저 생성한 후, 서브프로젝트들을 순차적으로 생성하세요.
+## 필수 포함 섹션 체크리스트
+- [ ] version (현재 DVA 버전)
+- [ ] env_file (files + interpolate)
+- [ ] stack (서비스 메타데이터 포함)
+- [ ] checks (최소 docker_socket + file_exists)
+- [ ] modes (최소 infra + full-stack 또는 hybrid)
+- [ ] health_checks (hybrid 패턴일 때 필수)
+- [ ] interaction (카테고리별 정리: Database, Build, Test, Quality, Logs, Clean)
+- [ ] provision (최소 default + reset)
+- [ ] subprojects (devbox 패턴일 때 필수)
 
-## 최종 검증
-모든 파일 생성 후 아래 명령어로 전체 검증:
+## 필수 검증 루프 (Validate-Fix Loop)
+파일 생성/수정 후 **반드시** 아래 루프를 실행하세요. `[warn]`은 무시해도 되지만, `ERROR:`가 있으면 반드시 수정하세요.
+
 ```bash
-# 루트
-dva validate
-# 각 서브프로젝트
-for dir in <subproject-dirs>; do
-  (cd "$dir" && dva validate)
-done
+# 1. 검증 실행
+dva config validate 2>&1
+
+# 2. ERROR가 있으면 수정 후 다시 검증 (최대 3회 반복)
+# 3. "✅ dva.yml is valid" 메시지가 나올 때까지 반복
 ```
+
+### 검증 에러 해석 및 수정 가이드
+| 에러 메시지 패턴 | 원인 | 해결 |
+|---|---|---|
+| `Additional property X is not allowed` | 스키마에 없는 필드 사용 | 해당 필드를 삭제하거나 올바른 필드명으로 교체 (규칙 12 참조) |
+| `reserved command conflict: interaction.X` | interaction 키가 DVA 내장 커맨드와 충돌 | 키 이름에 접두사 추가 (예: `status` → `service-status`) (규칙 11 참조) |
+| `before/replace/after hooks are only supported on hookable commands` | hookable이 아닌 커맨드에 hook 사용 | hook 필드 제거하거나 일반 interaction으로 변환 |
+| `X.type must be one of the following` | type 값이 허용 범위 밖 | 허용된 값만 사용 (checks: file_exists/command/docker_socket) |
+| `schema validation failed` | 전체 스키마 불일치 | 에러 목록의 각 항목을 순서대로 수정 |
+
+---
+
+# MANDATORY SELF-REVIEW (파일 저장 전 반드시 수행)
+
+**아래 체크를 모두 통과해야 파일을 저장할 수 있습니다. 하나라도 실패하면 수정 후 다시 확인하세요.**
+
+□ `env_file:` 섹션이 **객체 형태**인가? (`env_file: ".env"` 형태가 아닌, `files:` 배열 + `interpolate: true` 포함)
+□ `env_file.interpolate: true`가 명시적으로 포함되어 있는가?
+□ 모든 호스트 포트가 프로젝트 고유 범위인가? (2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017 모두 금지)
+□ `yaml-language-server: $schema=...` 주석이 첫 줄에 있는가?
+□ `modes:` 섹션에 `infra` 모드가 있는가?
+□ `checks:` 섹션에 `docker_socket` 체크가 있는가?
+□ `provision:` 에 `default`와 `reset` 프로필이 있는가?
+□ 모든 `health_checks` 항목에 `start:` 와 `start_hint:` 가 모두 있는가?
+□ 호스트 빌드 커맨드(build, test, lint, fmt, check)에 `runner: local`이 있는가?
+□ 예약 커맨드(build, clean, logs)에 `replace:` 훅이 있는가?
+□ 서브프로젝트의 `version`이 루트와 동일한가?
+□ 모든 서비스에 `tags:` 와 `ports:` (with `label:`)가 있는가?
+□ compose 파일의 기본 포트와 dva.yml 포트 메타데이터가 일치하는가?
+□ provision에서 `run: "dva <command>"` 호출이 없는가?
+□ interaction 키에 예약 커맨드(status, migrate, init, version 등)를 사용하지 않았는가? (규칙 11)
+□ `working_dir`, `compose_files`, `depends_on` 등 존재하지 않는 필드를 사용하지 않았는가? (규칙 12)
+□ checks 섹션의 type이 file_exists/command/docker_socket 중 하나인가? (http/tcp 불가)
+□ environments 섹션에 description, environment, stack 외의 필드가 없는가?
+□ modes 섹션에 허용 필드(description, compose_profiles, compose_services, health_checks, endpoint_tags, environment, stack, provision) 외의 필드가 없는가?
+□ `dva config validate` 실행 결과 `✅ dva.yml is valid`인가? (ERROR 0개)

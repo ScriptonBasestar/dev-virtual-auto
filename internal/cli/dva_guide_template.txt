@@ -9,10 +9,11 @@ you run short aliases defined in `dva.yml`.
 
 ## Rules
 
-1. **Always use DVA** — Never bypass DVA with raw `docker compose` or `kubectl` commands if DVA has a command for it.
-2. **Discover first** — Run `dva ls` or `dva manifest -f json` to see available commands before guessing.
-3. **Lifecycle via DVA** — Use `dva up`, `dva down`, `dva stop` for container lifecycle management.
-4. **DVA handles env** — DVA automatically applies environment interpolation, overrides (`.sb/dva/*.yml`), and networking.
+1. **Read SOUL.md first** — If SOUL.md exists, read it before making any architectural decisions.
+2. **Always use DVA** — Never bypass DVA with raw `docker compose` or `kubectl` commands if DVA has a command for it.
+3. **Discover first** — Run `dva ls` or `dva manifest -f json` to see available commands before guessing.
+4. **Lifecycle via DVA** — Use `dva up`, `dva down`, `dva stop` for container lifecycle management.
+5. **DVA handles env** — DVA automatically applies environment interpolation, overrides (`.sb/dva/*.yml`), and networking.
 
 ## Quick Reference
 
@@ -29,15 +30,25 @@ dva manifest -f json   # Machine-readable manifest
 dva <command>          # Run an interaction command (e.g., dva shell, dva test)
 dva run <command>      # Explicit run (same as above)
 
+# Modes & Environments
+dva up -M infra        # Start infrastructure only
+dva up -M hybrid       # Infra Docker + app native
+dva up -M full-stack   # All services in Docker
+dva up -E test         # Use test environment config
+
 # Lifecycle
 dva up                 # Start services
 dva down               # Stop and remove services
 dva stop               # Stop services (keep containers)
 dva build              # Build images
 
+# Health & Diagnostics
+dva doctor             # Run checks (toolchain, files, docker)
+dva status             # Show service health
+dva validate           # Validate dva.yml
+
 # Debugging
 dva config             # Show resolved configuration
-dva validate           # Validate dva.yml
 dva run <cmd> --explain  # Show what a command would do without running it
 ```
 
@@ -56,3 +67,5 @@ When working on this project:
 3. Use `dva build` instead of direct build commands
 4. If a task requires a new DVA command, suggest adding it to `dva.yml` interaction section
 5. If `dva.yml` does not exist, run `dva init --ai` to generate it
+6. When adding new services, follow existing port range conventions in dva.yml
+7. When modifying infrastructure, run `dva validate` after changes
