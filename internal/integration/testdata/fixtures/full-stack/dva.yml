@@ -5,7 +5,7 @@ environment:
   DATABASE_URL: postgres://user:pass@db:5432/app
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]

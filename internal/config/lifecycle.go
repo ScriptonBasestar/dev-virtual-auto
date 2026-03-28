@@ -2,7 +2,7 @@ package config
 
 // LifecycleEntry defines a single entry in the lifecycle pipeline.
 type LifecycleEntry struct {
-	Name         string                       `yaml:"name"`
+	Name         string                       `yaml:"-"` // populated from map key
 	Order        int                          `yaml:"order"`
 	Tags         []string                     `yaml:"tags"`
 	Exports      map[string]string            `yaml:"exports"`

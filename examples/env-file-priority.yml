@@ -27,7 +27,7 @@ environment:
   DATABASE_HOST: postgres
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

@@ -19,8 +19,7 @@ Create a `dva.yml` file in your project root. See [makefile-integration.yml](mak
 version: '0.1.0'
 
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files:

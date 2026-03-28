@@ -155,15 +155,13 @@ environment:                  # Environment variables
   VAR_NAME: value
 
 lifecycle:                    # Lifecycle plugins
-  - name: compose             # Docker Compose configuration
-    plugin: compose
+  compose:                    # Docker Compose configuration
     order: 10
     compose:
       files:
         - docker-compose.yml
       project_name: myapp
-  - name: kubectl             # Kubernetes config (optional)
-    plugin: kubectl
+  kubectl:                    # Kubernetes config (optional)
     order: 20
     kubectl:
       namespace: myapp-dev

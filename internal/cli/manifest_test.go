@@ -9,9 +9,9 @@ import (
 func TestBuildManifest_MinimalConfig(t *testing.T) {
 	c := &config.Config{
 		Version: "0.1.22",
-		Lifecycle: []config.LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*config.LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &config.ComposePluginConfig{
 					Files: []string{"compose.yml"},
 				},

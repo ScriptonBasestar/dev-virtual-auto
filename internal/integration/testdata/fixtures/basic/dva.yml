@@ -4,7 +4,7 @@ environment:
   APP_ENV: development
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]

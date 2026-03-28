@@ -15,8 +15,7 @@ func TestLoadSubprojects(t *testing.T) {
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files:
@@ -80,9 +79,9 @@ func TestLoadSubprojectsMissing(t *testing.T) {
 
 func TestConfigHasTag(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: []LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*LifecycleEntry{
+			"compose": {
+				Order:   10,
 				Compose: &ComposePluginConfig{Tags: []string{"infra", "shared"}},
 			},
 		},
@@ -126,9 +125,9 @@ func TestFilterInteractions(t *testing.T) {
 
 func TestGetComposeServicesExcluding(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: []LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &ComposePluginConfig{
 					Tags: []string{"app"},
 					Services: map[string]ServiceTagConfig{
@@ -154,9 +153,9 @@ func TestGetComposeServicesExcluding(t *testing.T) {
 
 func TestGetExcludedComposeServices(t *testing.T) {
 	cfg := &Config{
-		Lifecycle: []LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &ComposePluginConfig{
 					Tags: []string{"app"},
 					Services: map[string]ServiceTagConfig{
@@ -188,9 +187,9 @@ func TestGetComposeServicesExcludingEmpty(t *testing.T) {
 	}
 
 	cfg2 := &Config{
-		Lifecycle: []LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &ComposePluginConfig{
 					Services: map[string]ServiceTagConfig{
 						"app": {Tags: []string{"app"}},
@@ -213,8 +212,7 @@ func TestLoadConfigWithSubprojects(t *testing.T) {
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [docker-compose.yml]
@@ -228,8 +226,7 @@ interaction:
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
 version: "0.1.0"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [docker-compose.yml]

@@ -24,7 +24,7 @@ environment:
   DATABASE_PORT: 5432
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

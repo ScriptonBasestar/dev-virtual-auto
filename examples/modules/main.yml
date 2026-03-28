@@ -24,7 +24,7 @@ environment:
   RAILS_ENV: development
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

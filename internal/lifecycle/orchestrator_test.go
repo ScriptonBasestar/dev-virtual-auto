@@ -7,7 +7,7 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
-func newTestConfig(entries []config.LifecycleEntry) *config.Config {
+func newTestConfig(entries map[string]*config.LifecycleEntry) *config.Config {
 	return &config.Config{
 		Lifecycle: entries,
 		Modes: map[string]config.ModeConfig{
@@ -21,10 +21,10 @@ func newTestEnv() *config.Environment {
 }
 
 func TestNewOrchestrator_SortsByOrder(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "app", Order: 2},
-		{Name: "db", Order: 1},
-		{Name: "cache", Order: 3},
+	entries := map[string]*config.LifecycleEntry{
+		"app":   {Order: 2},
+		"db":    {Order: 1},
+		"cache": {Order: 3},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
@@ -44,10 +44,10 @@ func TestNewOrchestrator_SortsByOrder(t *testing.T) {
 }
 
 func TestFilterEntries_ByIncludeTags(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "db", Tags: []string{"infra"}},
-		{Name: "app", Tags: []string{"app"}},
-		{Name: "cache", Tags: []string{"infra", "cache"}},
+	entries := map[string]*config.LifecycleEntry{
+		"db":    {Tags: []string{"infra"}},
+		"app":   {Tags: []string{"app"}},
+		"cache": {Tags: []string{"infra", "cache"}},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
@@ -56,15 +56,18 @@ func TestFilterEntries_ByIncludeTags(t *testing.T) {
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 entries with tag 'infra', got %d", len(filtered))
 	}
-	if filtered[0].Name != "db" || filtered[1].Name != "cache" {
-		t.Errorf("unexpected entries: %v, %v", filtered[0].Name, filtered[1].Name)
+	// Both should have "infra" tag
+	for _, e := range filtered {
+		if e.Name != "db" && e.Name != "cache" {
+			t.Errorf("unexpected entry: %v", e.Name)
+		}
 	}
 }
 
 func TestFilterEntries_ByExcludeTags(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "db", Tags: []string{"infra"}},
-		{Name: "app", Tags: []string{"app"}},
+	entries := map[string]*config.LifecycleEntry{
+		"db":  {Tags: []string{"infra"}},
+		"app": {Tags: []string{"app"}},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
@@ -79,10 +82,10 @@ func TestFilterEntries_ByExcludeTags(t *testing.T) {
 }
 
 func TestFilterEntries_ByMode(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "db", Order: 1},
-		{Name: "app", Order: 2},
-		{Name: "cache", Order: 3},
+	entries := map[string]*config.LifecycleEntry{
+		"db":    {Order: 1},
+		"app":   {Order: 2},
+		"cache": {Order: 3},
 	}
 
 	cfg := newTestConfig(entries)
@@ -98,9 +101,9 @@ func TestFilterEntries_ByMode(t *testing.T) {
 }
 
 func TestFilterEntries_NoFilters(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "db"},
-		{Name: "app"},
+	entries := map[string]*config.LifecycleEntry{
+		"db":  {},
+		"app": {},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
@@ -112,9 +115,9 @@ func TestFilterEntries_NoFilters(t *testing.T) {
 }
 
 func TestFilterEntries_CombinedTagAndMode(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{Name: "db", Tags: []string{"infra"}},
-		{Name: "app", Tags: []string{"app"}},
+	entries := map[string]*config.LifecycleEntry{
+		"db":  {Tags: []string{"infra"}},
+		"app": {Tags: []string{"app"}},
 	}
 
 	cfg := &config.Config{
@@ -137,9 +140,8 @@ func TestFilterEntries_CombinedTagAndMode(t *testing.T) {
 }
 
 func TestUp_DryRun_ScriptPlugin(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{
-			Name:   "setup",
+	entries := map[string]*config.LifecycleEntry{
+		"setup": {
 			Order:  1,
 			Script: &config.ScriptPluginConfig{Up: "echo hello"},
 		},
@@ -153,9 +155,8 @@ func TestUp_DryRun_ScriptPlugin(t *testing.T) {
 }
 
 func TestDown_DryRun_ScriptPlugin(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{
-			Name:   "setup",
+	entries := map[string]*config.LifecycleEntry{
+		"setup": {
 			Order:  1,
 			Script: &config.ScriptPluginConfig{Down: "echo bye"},
 		},
@@ -169,9 +170,8 @@ func TestDown_DryRun_ScriptPlugin(t *testing.T) {
 }
 
 func TestDown_VolumesAndImages_Propagated(t *testing.T) {
-	entries := []config.LifecycleEntry{
-		{
-			Name:    "db",
+	entries := map[string]*config.LifecycleEntry{
+		"db": {
 			Order:   1,
 			Compose: &config.ComposePluginConfig{},
 		},
@@ -199,8 +199,8 @@ func TestUp_EmptyLifecycle(t *testing.T) {
 
 func TestUp_NoPluginConfigured(t *testing.T) {
 	// Entry with no plugin config section: DetectPlugin() returns "" → NewPlugin("") errors
-	entries := []config.LifecycleEntry{
-		{Name: "bad", Order: 1},
+	entries := map[string]*config.LifecycleEntry{
+		"bad": {Order: 1},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
@@ -213,10 +213,10 @@ func TestUp_NoPluginConfigured(t *testing.T) {
 func TestDown_ReverseOrder(t *testing.T) {
 	// Verify entries are processed in reverse order during down.
 	// Use script plugin with dry-run to avoid side effects.
-	entries := []config.LifecycleEntry{
-		{Name: "first", Order: 1, Script: &config.ScriptPluginConfig{Down: "echo 1"}},
-		{Name: "second", Order: 2, Script: &config.ScriptPluginConfig{Down: "echo 2"}},
-		{Name: "third", Order: 3, Script: &config.ScriptPluginConfig{Down: "echo 3"}},
+	entries := map[string]*config.LifecycleEntry{
+		"first":  {Order: 1, Script: &config.ScriptPluginConfig{Down: "echo 1"}},
+		"second": {Order: 2, Script: &config.ScriptPluginConfig{Down: "echo 2"}},
+		"third":  {Order: 3, Script: &config.ScriptPluginConfig{Down: "echo 3"}},
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())

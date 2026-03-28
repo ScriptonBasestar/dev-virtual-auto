@@ -1,16 +1,36 @@
 package config
 
-// PrimaryComposeEntry returns the first lifecycle entry with a compose config section.
-func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
-	for i := range c.Lifecycle {
-		if c.Lifecycle[i].Compose != nil {
-			return &c.Lifecycle[i]
-		}
+import "sort"
+
+// SortedLifecycle returns lifecycle entries sorted by Order with Name populated.
+func (c *Config) SortedLifecycle() []LifecycleEntry {
+	entries := make([]LifecycleEntry, 0, len(c.Lifecycle))
+	for name, e := range c.Lifecycle {
+		entry := *e
+		entry.Name = name
+		entries = append(entries, entry)
 	}
-	return nil
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Order < entries[j].Order
+	})
+	return entries
 }
 
-// PrimaryComposeConfig returns the ComposePluginConfig from the first compose lifecycle entry.
+// PrimaryComposeEntry returns the lifecycle entry with lowest order that has a compose config.
+func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
+	var best *LifecycleEntry
+	bestOrder := int(^uint(0) >> 1) // max int
+	for name, e := range c.Lifecycle {
+		if e.Compose != nil && (best == nil || e.Order < bestOrder) {
+			e.Name = name
+			best = e
+			bestOrder = e.Order
+		}
+	}
+	return best
+}
+
+// PrimaryComposeConfig returns the ComposePluginConfig from the primary compose lifecycle entry.
 func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 	if e := c.PrimaryComposeEntry(); e != nil {
 		return e.Compose
@@ -29,7 +49,7 @@ func (c *Config) AllComposeFiles() []string {
 	return files
 }
 
-// ComposeProjectName returns the project_name from the first compose lifecycle entry.
+// ComposeProjectName returns the project_name from the primary compose lifecycle entry.
 func (c *Config) ComposeProjectName() string {
 	if cc := c.PrimaryComposeConfig(); cc != nil {
 		return cc.ProjectName
@@ -37,7 +57,7 @@ func (c *Config) ComposeProjectName() string {
 	return ""
 }
 
-// ComposeCommand returns the command from the first compose lifecycle entry.
+// ComposeCommand returns the command from the primary compose lifecycle entry.
 func (c *Config) ComposeCommand() string {
 	if cc := c.PrimaryComposeConfig(); cc != nil {
 		return cc.Command
@@ -45,12 +65,18 @@ func (c *Config) ComposeCommand() string {
 	return ""
 }
 
-// PrimaryKubectlConfig returns the KubectlPluginConfig from the first kubectl lifecycle entry.
+// PrimaryKubectlConfig returns the KubectlPluginConfig from the kubectl lifecycle entry with lowest order.
 func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
+	var best *LifecycleEntry
+	bestOrder := int(^uint(0) >> 1) // max int
 	for _, e := range c.Lifecycle {
-		if e.Kubectl != nil {
-			return e.Kubectl
+		if e.Kubectl != nil && (best == nil || e.Order < bestOrder) {
+			best = e
+			bestOrder = e.Order
 		}
+	}
+	if best != nil {
+		return best.Kubectl
 	}
 	return nil
 }

@@ -352,8 +352,7 @@ func generateConfig(tmpl string) string {
 	// Detect compose files
 	composeFiles := detectComposeFiles()
 	b.WriteString("lifecycle:\n")
-	b.WriteString("  - name: compose\n")
-	b.WriteString("    plugin: compose\n")
+	b.WriteString("  compose:\n")
 	b.WriteString("    order: 10\n")
 	b.WriteString("    compose:\n")
 	b.WriteString("      files:\n")

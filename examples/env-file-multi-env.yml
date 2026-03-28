@@ -30,7 +30,7 @@ environment:
   APP_NAME: myapp
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"sort"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -49,13 +48,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new orchestrator from config.
 func NewOrchestrator(cfg *config.Config, env *config.Environment) *Orchestrator {
-	entries := make([]config.LifecycleEntry, len(cfg.Lifecycle))
-	copy(entries, cfg.Lifecycle)
-
-	// Sort by order
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Order < entries[j].Order
-	})
+	entries := cfg.SortedLifecycle()
 
 	return &Orchestrator{
 		entries: entries,

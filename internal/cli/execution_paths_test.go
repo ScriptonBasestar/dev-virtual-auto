@@ -28,8 +28,7 @@ func makeConfig(t *testing.T) *config.Config {
 	dvaFile := filepath.Join(dir, "dva.yml")
 	if err := os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]
@@ -397,8 +396,7 @@ func TestExecComposePassthrough_ExecReplaceMode(t *testing.T) {
 	dvaFile := filepath.Join(dir, "dva.yml")
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       command: "__nonexistent_compose_cmd__"
@@ -426,8 +424,7 @@ func TestExecComposeSubprocess_NonexistentCmd(t *testing.T) {
 	dvaFile := filepath.Join(dir, "dva.yml")
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       command: "__nonexistent_compose_cmd__"
@@ -473,8 +470,7 @@ func TestExecComposePassthrough_Debug(t *testing.T) {
 	dvaFile := filepath.Join(dir, "dva.yml")
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       command: "__nonexistent_compose_cmd__"

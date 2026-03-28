@@ -121,8 +121,7 @@ Minimal version for quick setup:
 version: '0.1.0'
 
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files:
@@ -250,8 +249,7 @@ dva bundle install
 
 ```yaml
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files:

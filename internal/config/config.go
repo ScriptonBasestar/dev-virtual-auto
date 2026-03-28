@@ -29,7 +29,7 @@ type Config struct {
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
-	Lifecycle    []LifecycleEntry               `yaml:"lifecycle"`
+	Lifecycle    map[string]*LifecycleEntry      `yaml:"lifecycle"`
 
 	// Internal fields
 	filePath string
@@ -314,6 +314,14 @@ func Load(workDir string) (*Config, error) {
 	if cfg.Provision.Profiles == nil {
 		cfg.Provision.Profiles = make(map[string][]ProvisionItem)
 	}
+	if cfg.Lifecycle == nil {
+		cfg.Lifecycle = make(map[string]*LifecycleEntry)
+	}
+
+	// Populate Name field from map keys
+	for name, entry := range cfg.Lifecycle {
+		entry.Name = name
+	}
 
 	// Warn if interaction commands shadow reserved built-in commands
 	WarnReservedCommandConflicts(cfg.Interaction)
@@ -470,9 +478,14 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge lifecycle entries (append, re-sort by order later)
+	// Merge lifecycle entries (map merge, key=name)
 	if len(other.Lifecycle) > 0 {
-		c.Lifecycle = append(c.Lifecycle, other.Lifecycle...)
+		if c.Lifecycle == nil {
+			c.Lifecycle = make(map[string]*LifecycleEntry)
+		}
+		for k, v := range other.Lifecycle {
+			c.Lifecycle[k] = v
+		}
 	}
 
 	// Merge doctor checks

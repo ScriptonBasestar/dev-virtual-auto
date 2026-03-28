@@ -37,9 +37,9 @@ func TestShowText_MinimalConfig(t *testing.T) {
 
 func TestShowText_WithCompose(t *testing.T) {
 	c := &config.Config{
-		Lifecycle: []config.LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*config.LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &config.ComposePluginConfig{
 					ProjectName: "myproject",
 					Files:       []string{"compose.yml", "compose.dev.yml"},
@@ -180,9 +180,9 @@ func TestShowJSON_MinimalConfig(t *testing.T) {
 
 func TestShowJSON_FullConfig(t *testing.T) {
 	c := &config.Config{
-		Lifecycle: []config.LifecycleEntry{
-			{
-				Name: "compose", Order: 10,
+		Lifecycle: map[string]*config.LifecycleEntry{
+			"compose": {
+				Order: 10,
 				Compose: &config.ComposePluginConfig{
 					ProjectName: "test",
 					Files:       []string{"compose.yml"},

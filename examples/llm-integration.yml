@@ -55,7 +55,7 @@ environment:
 
 # Docker Compose configuration (lifecycle)
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

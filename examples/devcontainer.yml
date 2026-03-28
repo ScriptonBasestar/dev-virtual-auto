@@ -5,7 +5,7 @@ version: '0.1.0'
 
 # Docker Compose configuration (lifecycle, shared with devcontainer)
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:

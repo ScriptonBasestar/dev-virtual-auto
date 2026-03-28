@@ -262,8 +262,7 @@ func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
 func TestBuildComposeArgs_Default(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]
@@ -288,8 +287,7 @@ lifecycle:
 func TestBuildComposeArgs_WithProjectName(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       project_name: myproject
@@ -309,8 +307,7 @@ lifecycle:
 func TestBuildComposeArgs_MultipleFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml, compose.override.yml]
@@ -391,8 +388,7 @@ func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
 func TestBuildComposeArgs_CustomCommand(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       command: "podman compose"
@@ -412,8 +408,7 @@ lifecycle:
 func TestBuildComposeArgs_InterpolateFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 lifecycle:
-  - name: compose
-    plugin: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]

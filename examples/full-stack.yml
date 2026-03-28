@@ -33,7 +33,7 @@ environment:
   WORKER_CONCURRENCY: 4
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files:
@@ -41,7 +41,7 @@ lifecycle:
         - docker-compose.override.yml
       project_name: myapp_project
       command: docker compose
-  - name: kubectl
+  kubectl:
     order: 20
     kubectl:
       namespace: myapp-development

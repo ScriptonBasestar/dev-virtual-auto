@@ -1,7 +1,7 @@
 version: "0.1.22"
 
 lifecycle:
-  - name: compose
+  compose:
     order: 10
     compose:
       files: [compose.yml]
