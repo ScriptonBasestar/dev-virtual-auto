@@ -177,7 +177,7 @@ dva config validate --fix # compose 파일 project name 불일치 자동 수정
 ### 기본 구조
 
 ```yaml
-version: "0.1.0"          # 최소 DVA 버전
+version: "0.1.26"         # 최소 DVA 버전
 
 stack:
   compose:                 # 엔트리 이름으로 플러그인 자동추론
