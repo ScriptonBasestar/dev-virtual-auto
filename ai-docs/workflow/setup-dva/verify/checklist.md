@@ -18,8 +18,8 @@
 
 ### DVA Config (Static)
 - [ ] `dva.yml` version is `"0.1.26"` (current)
-- [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:` or `lifecycle:`)
-- [ ] `dva.yml` uses `modes:` key (NOT deprecated `profiles:`)
+- [ ] `dva.yml` uses `stack:` section
+- [ ] `dva.yml` uses `modes:` key
 - [ ] `stack.compose.files` lists correct compose files
 - [ ] `stack.compose.project_name` matches compose file `name:`
 - [ ] `interaction` entries match running services

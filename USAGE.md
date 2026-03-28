@@ -75,7 +75,6 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 | `dva show` | 설정 요약 (modes, environments, commands 등) |
 | `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
-| `dva config dump` | (deprecated) `dva config show` 사용 |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
@@ -326,7 +325,6 @@ subprojects:
 2. 현재 디렉토리에서 루트까지 `dva.yml` 탐색
 3. `.sb/dva/*.yml` 모듈 병합
 4. `dva.override.yml` 오버라이드 적용
-5. deprecated `lifecycle` → `stack` 자동 변환
 
 ## LLM Integration
 

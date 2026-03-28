@@ -21,14 +21,6 @@ All notable changes to DVA are documented here.
 ### Changed
 - `compose:` / `kubectl:` 최상위 섹션 → `stack:` 섹션으로 통합 마이그레이션
 - 모듈 디렉토리 `.dva/` → `.sb/dva/`로 변경
-- `lifecycle` 키 → `stack`으로 이름 변경 (`lifecycle`은 deprecated, 자동 변환됨)
-- `modes.*.lifecycle` → `modes.*.stack`으로 변경 (자동 변환됨)
-
-### Deprecated
-- `lifecycle:` 섹션 (→ `stack:` 사용)
-- `modes.*.lifecycle` 필드 (→ `modes.*.stack` 사용)
-- 중첩 포맷 (`compose: { compose: { files: [...] } }`) — 플랫 포맷 권장
-
 ### Fixed
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)
 - `env_file` field was parsed but never loaded into environment

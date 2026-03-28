@@ -116,7 +116,7 @@ Path: `%s`
 - [ ] health_checks에 start + start_hint 모두 존재
 - [ ] health_checks URL이 리터럴 값 (`${VAR:-DEFAULT}` 패턴 금지)
 - [ ] provision에서 `dva <command>` 미호출
-- [ ] 서비스에 tags 존재 (ports는 endpoints 섹션에 — services.ports는 deprecated)
+- [ ] 서비스에 tags 존재 (port metadata는 `endpoints:` 섹션에 선언)
 - [ ] interaction 키에 예약 커맨드 미사용 (전체: up, down, stop, restart, build, clean, logs, status, show, ls, run, config, doctor, provision, add, version)
 - [ ] 존재하지 않는 필드명 미사용 (Library Reference 참조)
 - [ ] `stack.compose`에 `tags: [infra]` 존재 (primary stack entry 필수)
@@ -133,7 +133,7 @@ Path: `%s`
 ## 7. endpoints 완비 검사
 - compose 파일의 포트 매핑에서 사용자 접근 포트 추출
 - dva.yml `endpoints:` 섹션에 각 포트가 label과 함께 선언되었는지 확인
-- services.ports에 포트 메타데이터가 있으면 → endpoints로 이동 제안
+- port metadata는 `endpoints:` 섹션에 선언되어 있는지 확인
 
 ---
 

@@ -401,24 +401,6 @@
                         "type": "array",
                         "items": { "type": "string" }
                       },
-                      "ports": {
-                        "type": "object",
-                        "patternProperties": {
-                          "^[0-9]+$": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "properties": {
-                              "label": { "type": "string" },
-                              "http": { "type": "boolean" },
-                              "paths": {
-                                "type": "object",
-                                "additionalProperties": { "type": "string" }
-                              }
-                            }
-                          }
-                        },
-                        "additionalProperties": false
-                      },
                       "related": {
                         "type": "array",
                         "items": { "type": "string" }
@@ -584,14 +566,6 @@
           }
         }
       ]
-    },
-    "lifecycle": {
-      "type": "object",
-      "description": "DEPRECATED: Use 'stack' instead. Alias for backward compatibility.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": true
-      }
     },
     "interaction": {
       "type": "object",

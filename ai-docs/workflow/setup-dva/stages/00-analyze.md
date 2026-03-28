@@ -15,14 +15,11 @@ Scan the user's TARGET project to identify existing configurations, docker usage
 1. Identify existing Docker Compose files (`docker-compose.yml`, `docker-compose.yaml`, `compose.yml`, `compose.yaml`) in TARGET.
 2. If compose files found, check for:
    - Top-level `name:` field (required by DVA — flag as missing if absent).
-   - Deprecated `version:` key (flag for removal).
+   - Obsolete `version:` key (flag for removal).
    - Service healthcheck coverage (flag services without `healthcheck:`).
    - Host port range analysis (flag common default ports like 5432, 6379, 3000, 8080).
 3. Check for existing `dva.yml` — if found, analyze for:
    - Version (compare against current `0.1.26`)
-   - Deprecated `profiles:` key (should be `modes:`)
-   - Deprecated top-level `compose:` (should be under `stack:`)
-   - Deprecated `lifecycle:` key (should be `stack:`)
    - Interaction anti-patterns: `echo 'Run: ...'` wrappers — **count and list affected command names**
    - Missing `runner: local` on host commands (build, test, lint, fmt, check)
    - Prefixed command workarounds: `app-build`, `app-clean` (should migrate to `build`/`clean` with `replace:` hooks)
@@ -44,7 +41,7 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - **Python**: Read `pyproject.toml` or `setup.py` → project name.
    - Record in `package_names` field.
 7. Determine track:
-   - Existing dva.yml with deprecated patterns: `setup_track: upgrade`
+   - Existing dva.yml needing updates: `setup_track: upgrade`
    - Extensive compose but no dva.yml: `setup_track: adopt`
    - No valid compose or user requests fresh: `setup_track: full`
 8. Analyze service groups — map to standard tags from naming-presets:
@@ -80,7 +77,6 @@ Scan the user's TARGET project to identify existing configurations, docker usage
   - `existing_dva`:
       found: bool
       version: string
-      deprecated_patterns: [...]
       echo_wrapper_commands: [...]
       missing_sections: [...]
       missing_start_hint: [health_check_names]

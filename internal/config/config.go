@@ -105,19 +105,11 @@ type HealthCheckConfig struct {
 	ReadyTimeout int    `yaml:"ready_timeout"` // max wait after start in seconds (default: 30)
 }
 
-// PortConfig describes a published port with label and optional sub-paths.
-type PortConfig struct {
-	Label string            `yaml:"label"`
-	HTTP  *bool             `yaml:"http"`  // nil=auto-detect, true=http://, false=host:port
-	Paths map[string]string `yaml:"paths"` // path -> description
-}
-
 // ServiceTagConfig defines per-service tag configuration.
 type ServiceTagConfig struct {
-	Tags    []string           `yaml:"tags"`
-	Ports   map[int]PortConfig `yaml:"ports"`   // published (host) port -> config
-	Related []string           `yaml:"related"` // related service names (shown as hints when not running)
-	Hint    string             `yaml:"hint"`    // human-readable hint shown when related services are missing
+	Tags    []string `yaml:"tags"`
+	Related []string `yaml:"related"` // related service names (shown as hints when not running)
+	Hint    string   `yaml:"hint"`    // human-readable hint shown when related services are missing
 }
 
 // InteractionCommand defines a command in the interaction section.

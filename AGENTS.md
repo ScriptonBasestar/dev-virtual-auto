@@ -41,8 +41,7 @@ internal/exec/                 → Process execution (syscall.Exec, subprocess)
 2. Merge `.sb/dva/*.yml` modules
 3. Merge `dva.override.yml`
 4. Validate against embedded `schema.json`
-5. Normalize deprecated `lifecycle` → `stack`
-6. Resolve plugin types from entry names (auto-inference)
+5. Resolve plugin types from entry names (auto-inference)
 
 ### Stack Plugin Resolution (3가지 방식)
 

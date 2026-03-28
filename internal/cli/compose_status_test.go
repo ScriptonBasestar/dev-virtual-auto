@@ -3,8 +3,6 @@ package cli
 import (
 	"strings"
 	"testing"
-
-	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 func TestParseServiceInfo_JSONArray(t *testing.T) {
@@ -155,115 +153,12 @@ func TestFormatPortURLs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// nil portConfigs preserves backward-compatible behavior
-			got := strings.Join(formatPortURLs(tt.pubs, nil), "  ")
+			got := strings.Join(formatPortURLs(tt.pubs), "  ")
 			if got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)
 			}
 		})
 	}
-}
-
-func TestFormatPortURLs_UserConfig(t *testing.T) {
-	t.Run("user label overrides wellKnownPorts", func(t *testing.T) {
-		pubs := []Publisher{
-			{PublishedPort: 11330, TargetPort: 8200, Protocol: "tcp"},
-		}
-		portConfigs := map[int]config.PortConfig{
-			11330: {Label: "Vault API"},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 1 {
-			t.Fatalf("expected 1 line, got %d", len(lines))
-		}
-		if lines[0] != "http://localhost:11330 (Vault API)" {
-			t.Errorf("expected user label, got %q", lines[0])
-		}
-	})
-
-	t.Run("port with paths generates multi-line", func(t *testing.T) {
-		pubs := []Publisher{
-			{PublishedPort: 11300, TargetPort: 11300, Protocol: "tcp"},
-		}
-		portConfigs := map[int]config.PortConfig{
-			11300: {
-				Label: "Public API",
-				Paths: map[string]string{
-					"/":        "Login UI",
-					"/healthz": "Health Check",
-				},
-			},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 3 {
-			t.Fatalf("expected 3 lines, got %d: %v", len(lines), lines)
-		}
-		if lines[0] != "http://localhost:11300 (Public API)" {
-			t.Errorf("line 0: %q", lines[0])
-		}
-		// paths are sorted: "/" before "/healthz"
-		if !strings.Contains(lines[1], "/") || !strings.Contains(lines[1], "Login UI") {
-			t.Errorf("line 1 should contain / and Login UI: %q", lines[1])
-		}
-		if !strings.Contains(lines[2], "/healthz") || !strings.Contains(lines[2], "Health Check") {
-			t.Errorf("line 2 should contain /healthz and Health Check: %q", lines[2])
-		}
-	})
-
-	t.Run("unconfigured port falls back to wellKnownPorts", func(t *testing.T) {
-		pubs := []Publisher{
-			{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
-		}
-		// portConfigs exists but has no entry for port 11310
-		portConfigs := map[int]config.PortConfig{
-			11300: {Label: "API"},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 1 || lines[0] != "localhost:11310 (PostgreSQL)" {
-			t.Errorf("expected wellKnownPorts fallback, got %v", lines)
-		}
-	})
-
-	t.Run("label only without paths", func(t *testing.T) {
-		pubs := []Publisher{
-			{PublishedPort: 11301, TargetPort: 11301, Protocol: "tcp"},
-		}
-		portConfigs := map[int]config.PortConfig{
-			11301: {Label: "Admin API"},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 1 || lines[0] != "http://localhost:11301 (Admin API)" {
-			t.Errorf("expected label-only line, got %v", lines)
-		}
-	})
-
-	t.Run("http=false forces plain host:port scheme", func(t *testing.T) {
-		f := false
-		pubs := []Publisher{
-			{PublishedPort: 11400, TargetPort: 11400, Protocol: "tcp"},
-		}
-		portConfigs := map[int]config.PortConfig{
-			11400: {Label: "Custom TCP", HTTP: &f},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 1 || lines[0] != "localhost:11400 (Custom TCP)" {
-			t.Errorf("expected plain host:port, got %v", lines)
-		}
-	})
-
-	t.Run("http=true forces http scheme on non-HTTP well-known port", func(t *testing.T) {
-		tr := true
-		pubs := []Publisher{
-			{PublishedPort: 11310, TargetPort: 5432, Protocol: "tcp"},
-		}
-		portConfigs := map[int]config.PortConfig{
-			11310: {Label: "DB UI", HTTP: &tr},
-		}
-		lines := formatPortURLs(pubs, portConfigs)
-		if len(lines) != 1 || lines[0] != "http://localhost:11310 (DB UI)" {
-			t.Errorf("expected http scheme override, got %v", lines)
-		}
-	})
 }
 
 func TestFormatPorts(t *testing.T) {

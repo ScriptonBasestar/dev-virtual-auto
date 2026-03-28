@@ -4,19 +4,19 @@
 
 ## Critical Rules (MUST follow)
 
-1. **`modes:` NOT `profiles:`** — `profiles:` is deprecated and triggers a warning. Always use `modes:`.
+1. **`modes:` NOT `profiles:`** — Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
 4. **`health_checks`: always provide BOTH `start` and `start_hint`** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is shown to users when auto-start is not available. If you know the start command, always set both.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
-6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Top-level `compose:` is deprecated (auto-converted but generates warnings).
+6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
 8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`).
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
 12. **Multi-stack entries: no duplicate base files** — When creating separate stack entries for overlays, each entry should list ONLY its own overlay file(s). Do NOT repeat the base `compose.yml` in every entry. Exception: if an overlay file uses `extends` or `depends_on` referencing base services, include the base but document why.
-13. **`services:` is tags-only** — `stack.compose.services` exists ONLY for tag-based filtering (subprojects, modes). Do NOT put port metadata (`ports:`, `label:`, `http:`, `paths:`) in services. Port/endpoint metadata belongs in the `endpoints:` section.
+13. **`services:` is tags-only** — `stack.compose.services` exists ONLY for tag-based filtering (subprojects, modes). Port information is read from compose.yml at runtime.
 14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
 15. **One stack entry + modes, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `modes.*.compose_services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
 
@@ -41,7 +41,6 @@ env_file:                       # .env file loading (optional)
   interpolate: true
 
 # --- Infrastructure Orchestration Pipeline ---
-# `stack:` replaces the deprecated top-level `compose:` / `kubectl:` sections.
 # Each entry is a plugin with an execution order.
 # Plugin type is auto-inferred from entry name (e.g., "compose" → compose plugin).
 # Use `plugin:` field when entry name differs from plugin type.
@@ -54,13 +53,11 @@ stack:
     project_name: myapp           # MUST match compose.yml top-level `name:`
     up_options: ["-d", "--wait"]  # Default options for `dva up` (detached mode)
     tags: [infra]                 # Default tags for all services
-    services:                     # Per-service TAG metadata only (NO ports here)
+    services:                     # Per-service TAG metadata only
       {service-name}:
         tags: [infra, data]       # Used for tag-based filtering (subprojects, modes)
         related: [other-service]  # Services shown as hints when this runs
         hint: "Why this service matters"
-      # ANTI-PATTERN: Do NOT put ports/label/http/paths here.
-      # Use top-level `endpoints:` section instead (see below).
 
   # --- Multi-stack: only for different backends ---
   # Use ONE stack entry + modes for operational variants (NOT separate entries).
@@ -125,8 +122,8 @@ interaction:
 
 provision:                      # Setup automation
   {profile-name}:
-    - command 1                 # String form (legacy)
-    - step: Step name           # Step form (preferred)
+    - command 1                 # String form (shorthand)
+    - step: Step name           # Step form (recommended)
       run: command
     - step: Multi-command step
       run:
@@ -140,7 +137,6 @@ provision:                      # Setup automation
 modules:                        # Module imports (.sb/dva/*.yml)
   - module-name
 
-# IMPORTANT: Use `modes:` — NOT `profiles:` (deprecated)
 modes:                          # Operational modes (--mode/-M flag)
   {mode-name}:
     description: "{human-readable description}"
@@ -207,7 +203,7 @@ endpoints:                      # User-facing access URLs
 | Sub-paths | `endpoints` | `paths: { /health: "Health check" }` |
 | HTTP flag | `endpoints` | Inferred from source port or explicit in url |
 
-**Anti-pattern:** Do NOT duplicate compose port numbers in `stack.compose.services.*.ports`. Compose files are the source of truth for port mappings; `endpoints` adds DVA display metadata on top.
+**Anti-pattern:** Do NOT create `compose` + `compose-full` as separate stack entries — this duplicates service definitions and compose file references.
 
 ## compose.yml Requirements
 
@@ -498,75 +494,43 @@ interaction:
     command: redis-cli
 ```
 
-## Non-Standard Field Migration
+## Invalid Field Reference
 
-When upgrading existing dva.yml files, you may encounter fields that are not in the current schema. These were either from early DVA versions or custom extensions.
+The following fields are NOT valid in dva.yml. Use the correct equivalents:
 
-### Interaction Non-Standard Fields
-
-| Non-Standard Field | Standard Equivalent | Example |
+| Invalid Field | Correct Equivalent | Notes |
 |-------------------|--------------------|---------|
-| `host_command: "cmd"` | `command: "cmd"` + `runner: local` | `host_command: "make test"` → `command: "make test"` + `runner: local` |
-| `compose_up: { tags: [infra] }` | Convert to `modes:` section | Tag-based service selection belongs in modes, not interaction. Resolve tags to explicit service names. |
+| `host_command: "cmd"` | `command: "cmd"` + `runner: local` | Host commands use `runner: local` |
+| `compose_up: { tags: [infra] }` | `modes:` section | Tag-based service selection belongs in modes. Resolve tags to explicit service names. |
 | `compose_logs: { services: [svc], follow: true }` | `command: "docker compose logs -f svc"` + `runner: local` | For reserved `logs` command, use `replace:` hook instead |
-| `endpoints: [...]` in interaction | Move to top-level `endpoints:` section | Convert array-of-objects to named-keys format: `{name}: { url: ..., label: ... }` |
+| `endpoints: [...]` in interaction | Top-level `endpoints:` section | Use named-keys format: `{name}: { url: ..., label: ... }` |
 | `echo 'Run: ...'` as command | Actual command + `runner: local` | Always execute, never just echo instructions |
-| `service: local` | `runner: local` (remove `service:`) | Old convention for host commands |
-| `shell: true` (on host commands) | `runner: local` (remove `shell: true`) | `runner: local` already executes via shell. Keep `shell: true` only for container commands needing shell interpolation |
+| `service: local` | `runner: local` (no `service:`) | Host commands use `runner: local`, not `service: local` |
+| `shell: true` (on host commands) | `runner: local` (no `shell: true`) | `runner: local` already executes via shell. Keep `shell: true` only for container commands needing shell interpolation |
+| `profiles:` | `modes:` | Use `modes:` |
+| top-level `compose:` | `stack: { compose: { ... } }` | Use `stack:` |
+| `lifecycle:` | `stack:` | Use `stack:` |
 
-### Prefixed Command Migration
+### Subproject Consistency
 
-Commands prefixed to avoid DVA reserved names should be migrated:
-
-```yaml
-# BEFORE (workaround for reserved command collision)
-app-build:
-  command: "echo 'Run: make build'"
-  service: some-service
-app-clean:
-  command: "echo 'Run: make clean'"
-  service: some-service
-
-# AFTER (use replace: hooks on the actual reserved command)
-build:
-  replace:
-    - step: "Build application"
-      run: "make build"
-  subcommands:           # subcommands coexist with replace:
-    api:
-      command: "make build-api"
-      runner: local
-clean:
-  replace:
-    - step: "Clean build artifacts"
-      run: "make clean"
-```
-
-### Subproject Cascade Upgrade
-
-When upgrading a root dva.yml, ALL subproject dva.yml files MUST be checked and upgraded too:
+All subproject dva.yml files MUST follow the same rules as the root:
 - Version must match root (`"0.1.29"`)
 - Same format rules apply (stack, runner:local, no echo wrappers)
-- `service: local` (old convention) → `runner: local`
 
 ### Provision Step Fields
 
 `compose_up:` and `compose_exec:` ARE valid in the schema as provision step fields. However, `run:` is preferred for clarity and portability:
 
-| Schema-Valid Field | Preferred `run:` Equivalent | When to Convert |
-|-------------------|-----------------------------|-----------------|
-| `compose_up: [svc1, svc2]` | `run: "docker compose up -d --wait svc1 svc2"` | When upgrading for consistency |
-| `compose_exec: "svc cmd"` | `run: "docker compose exec svc cmd"` | When upgrading for consistency |
+| Schema-Valid Field | Preferred `run:` Equivalent |
+|-------------------|-----------------------------|
+| `compose_up: [svc1, svc2]` | `run: "docker compose up -d --wait svc1 svc2"` |
+| `compose_exec: "svc cmd"` | `run: "docker compose exec svc cmd"` |
 
-**When upgrading, ALWAYS convert to `run:` format.** While both forms work at runtime, `run:` is the standard and `compose_up:`/`compose_exec:` create inconsistency in upgraded configs.
+Always use `run:` format. While both forms work at runtime, `run:` is the standard.
 
 ### env_file Format
 
 ```yaml
-# BEFORE (string — old format)
-env_file: ".env"
-
-# AFTER (object — current format)
 env_file:
   files:
     - path: .env.example
@@ -577,99 +541,19 @@ env_file:
   interpolate: true
 ```
 
-### Valid but Often Misused Fields
+### Commonly Misused Fields
 
-These fields ARE in the schema but are frequently used incorrectly:
+These fields ARE valid but are frequently used incorrectly:
 
 - **`shell: true`** — Valid. Enables shell interpolation for multi-line or piped commands. Use when command contains `&&`, `||`, `|`, or shell variables.
 - **`compose: { method: "up", profiles: [] }`** — Valid. Controls how DVA invokes docker compose for this command.
 - **`environment:`** in interaction — Valid. Per-command environment variable overrides.
-
-## Deprecated Formats — Migration Guide
-
-### Top-level `compose:` → `stack:` (0.1.26)
-
-The top-level `compose:` section is deprecated. Wrap it under `stack:`:
-
-```yaml
-# BEFORE (deprecated)
-compose:
-  files: [compose.yml]
-  project_name: myapp
-  services:
-    postgres:
-      tags: [infra, data]
-
-# AFTER (current)
-stack:
-  compose:
-    order: 10
-    files: [compose.yml]
-    project_name: myapp
-    services:
-      postgres:
-        tags: [infra, data]
-```
-
-All compose fields remain the same — just nest under `stack: { compose: { ... } }` and add `order:`.
-
-### `lifecycle:` → `stack:` (0.1.26)
-
-The `lifecycle:` key was an intermediate name. Replace with `stack:`:
-- `lifecycle:` → `stack:`
-- `modes.*.lifecycle` → `modes.*.stack`
-
-### `profiles:` → `modes:` (0.1.16)
-
-Replace top-level `profiles:` with `modes:`. Same structure, just renamed.
-
-### Prefixed command workarounds → Reserved command hooks (0.1.26)
-
-Early DVA users prefixed commands to avoid reserved name conflicts. Migrate these to `replace:` hooks:
-
-```yaml
-# BEFORE (workaround — prefixed names)
-interaction:
-  app-build:
-    description: "Build application"
-    service: app
-    command: "echo 'Run: cargo build --release'"
-  app-clean:
-    description: "Clean artifacts"
-    service: app
-    command: "echo 'Run: cargo clean'"
-
-# AFTER (current — replace hooks + runner: local)
-interaction:
-  build:
-    replace:
-      - step: "Build application"
-        run: "cargo build --release"
-    subcommands:
-      docker:
-        description: "Build Docker images"
-        command: "docker compose build"
-        runner: local
-  clean:
-    replace:
-      - step: "Clean artifacts"
-        run: "cargo clean"
-```
-
-Common prefixed names: `app-build` → `build`, `app-clean` → `clean`. `app-logs` can stay (not reserved).
-
-### Module directory `.dva/` → `.sb/dva/` (0.1.26)
-
-Module files moved from `.dva/*.yml` to `.sb/dva/*.yml`.
 
 ## Validation
 
 ```bash
 # Validate using DVA CLI
 dva validate
-
-# Detect legacy format and show migration guide
-dva migrate
 
 # Validate specific file
 DVA_FILE=path/to/dva.yml dva validate

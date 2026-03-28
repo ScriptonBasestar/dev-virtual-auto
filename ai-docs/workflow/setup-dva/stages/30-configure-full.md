@@ -9,10 +9,10 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 <critical-rules>
 ## MUST follow — config generation invariants
 
-1. **`modes:` NOT `profiles:`** — The `profiles:` key is deprecated. Always generate `modes:`.
+1. **Use `modes:`** — Always generate `modes:` for environment selection.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` is required. MUST match `stack.compose.project_name`.
 3. **`version:` field** — Set to current DVA version: `"0.1.29"`.
-4. **`stack:` NOT top-level `compose:`** — Compose configuration MUST be under `stack:` section. Top-level `compose:` is deprecated.
+4. **`stack:` section** — Compose configuration MUST be under `stack:` section.
 5. **`health_checks`: BOTH `start` and `start_hint`** — When generating health checks for native services, always include both. `start` enables DVA auto-start with PID tracking; `start_hint` is the user-facing instruction.
 6. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, 3306, 27017) as host ports. Use project-specific port ranges.
 7. **No `version:` in compose.yml** — Compose Specification does not require it.
@@ -44,7 +44,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
    - Do NOT copy placeholder values — replace with project-specific values.
 5. Generate the primary `dva.yml` at the project root:
    - Set `version: "0.1.29"`.
-   - Use `stack:` section (NOT top-level `compose:`):
+   - Use `stack:` section:
      ```yaml
      stack:
        compose:
@@ -58,7 +58,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
    - **CRITICAL:** Services section is tags-only. Port metadata belongs in `endpoints:`.
    - Assign tag names using presets (infra, api, worker, ui, data, monitoring, build).
    - Use ONE stack entry with all compose files. Use `modes.compose_services` for service selection.
-   - Use `modes:` (NOT `profiles:`) — preset mode names 적용, `infra`는 항상 포함.
+   - Use `modes:` — preset mode names 적용, `infra`는 항상 포함.
    - Use `modes.*.stack` to filter stack entries per mode where appropriate.
    - Use `environments:` — preset env names (dev, test, stg, prd) 중 필요한 것만.
    - Generate `health_checks` with both `start` and `start_hint` for native services.
@@ -93,8 +93,8 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 </output>
 
 <gate>
-- [ ] Primary `dva.yml` uses `modes:` key (NOT `profiles:`).
-- [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:`).
+- [ ] Primary `dva.yml` uses `modes:` key.
+- [ ] `dva.yml` uses `stack:` section.
 - [ ] `dva.yml` version is `"0.1.29"`.
 - [ ] `compose.yml` has top-level `name:` matching `stack.compose.project_name`.
 - [ ] `compose.yml` has NO top-level `version:` key.

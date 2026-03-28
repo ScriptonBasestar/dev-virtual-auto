@@ -4,16 +4,16 @@
 
 <objective>
 Generate or upgrade the `dva.yml` mapping seamlessly to the TARGET project's existing Docker Compose infrastructure without rewriting their existing manifests.
-Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva.yml exists).
+Handles both fresh adoption (no dva.yml) and upgrade from an older dva.yml.
 </objective>
 
 <critical-rules>
 ## MUST follow — config generation invariants
 
-1. **`modes:` NOT `profiles:`** — The `profiles:` key is deprecated. Always generate `modes:`.
+1. **Use `modes:`** — Always generate `modes:` for environment selection.
 2. **`compose.yml` needs `name:`** — If missing, ADD it matching `stack.compose.project_name`.
 3. **`version:` field** — Set to current DVA version: `"0.1.29"`.
-4. **`stack:` NOT top-level `compose:`** — Compose config MUST be under `stack:` section.
+4. **`stack:` section** — Compose config MUST be under `stack:` section.
 5. **`health_checks`: BOTH `start` and `start_hint`** — Always include both for native services.
 6. **Port conventions** — Never use common default ports as host ports.
 7. **compose.yml `version:` key** — Remove if present.
@@ -23,7 +23,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **File header** — Start with `yaml-language-server: $schema=...` and pattern description block.
 13. **Health check commands verifiable** — Use `pgrep -f {process}` or actual HTTP endpoint. Never invent flags.
-14. **Service metadata** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in the `endpoints:` section, NOT in `services.ports` (deprecated).
+14. **Service metadata** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in the `endpoints:` section, NOT in `services.ports`.
 15. **Package names: EXACT from manifests** — Use `[package] name`, NOT directory name.
 16. **Section order** — version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit sections that are not needed, but included sections MUST follow this order.
 17. **Naming presets** — Use standard tag names (infra, api, worker, ui, data, monitoring, build) and mode names (infra, full-stack, hybrid, etc.).
@@ -39,7 +39,6 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 1. Load `tmp/setup-dva/10-proposal-approved.yaml` with `setup_track: adopt`.
 2. Process existing docker compose files from `00-analysis-report.yaml`.
 3. **Check for existing dva.yml** — if found:
-   - Migrate deprecated patterns (top-level compose → stack, profiles → modes, lifecycle → stack)
    - Convert anti-patterns (echo wrappers → real commands, prefixed commands → replace hooks)
    - Convert non-standard fields (host_command → command + runner:local, etc.)
    - Convert old env_file format (string → object with files array)
@@ -110,8 +109,8 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 </output>
 
 <gate>
-- [ ] `dva.yml` uses `modes:` (NOT `profiles:`).
-- [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:`).
+- [ ] `dva.yml` uses `modes:`.
+- [ ] `dva.yml` uses `stack:` section.
 - [ ] `dva.yml` version is `"0.1.29"`.
 - [ ] Compose file has top-level `name:`.
 - [ ] Health checks include both `start` and `start_hint`.

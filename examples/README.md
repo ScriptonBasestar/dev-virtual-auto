@@ -88,7 +88,6 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
   - Step-by-step migration walkthrough
   - Common migration scenarios with before/after examples
   - AI-assisted migration with Claude/ChatGPT
-  - Troubleshooting deprecated features
   - Best practices for safe upgrades
   - Use when: Upgrading DVA versions or adopting new features
 
