@@ -165,7 +165,7 @@ interaction:
 stack:
   compose-override:
     plugin: compose
-    order: 10
+    order: 20
     project_name: overridden
 `), 0644)
 
@@ -174,8 +174,9 @@ stack:
 		t.Fatalf("Load error: %v", err)
 	}
 
+	// "compose" (order 10) is primary over "compose-override" (order 20)
 	if cfg.ComposeProjectName() != "original" {
-		t.Errorf("project_name = %s, want original (first compose entry)", cfg.ComposeProjectName())
+		t.Errorf("project_name = %s, want original (lower order is primary)", cfg.ComposeProjectName())
 	}
 	if len(cfg.Stack) != 2 {
 		t.Errorf("stack entries = %d, want 2 (merged)", len(cfg.Stack))
@@ -604,6 +605,14 @@ func TestResolveEndpoints_NonHTTPServices(t *testing.T) {
 		{"kafka:9092", "localhost:9092"},
 		{"rabbitmq:5672", "localhost:5672"},
 		{"ssh:2222", "localhost:2222"},
+		// Common aliases
+		{"db:15432", "localhost:15432"},
+		{"database:13306", "localhost:13306"},
+		{"cache:16379", "localhost:16379"},
+		{"mq:5672", "localhost:5672"},
+		{"queue:9092", "localhost:9092"},
+		{"broker:9092", "localhost:9092"},
+		// HTTP services
 		{"gitea:3000", "http://localhost:3000"},
 		{"nginx:8080", "http://localhost:8080"},
 		{"api:3000", "http://localhost:3000"},

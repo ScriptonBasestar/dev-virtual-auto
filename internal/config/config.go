@@ -533,15 +533,22 @@ func parseVersion(v string) [3]int {
 // nonHTTPServices are compose service name prefixes that resolve to plain host:port
 // instead of http://localhost:port. Users needing other protocols should use url: directly.
 var nonHTTPServices = map[string]bool{
+	// Databases
 	"postgres": true, "postgresql": true, "pg": true,
 	"mysql": true, "mariadb": true,
 	"mssql": true, "sqlserver": true,
-	"redis": true, "valkey": true,
-	"memcached": true,
 	"mongo": true, "mongodb": true,
 	"cassandra": true, "scylla": true,
+	"db": true, "database": true,
+	// Caches
+	"redis": true, "valkey": true,
+	"memcached": true,
+	"cache": true,
+	// Messaging
 	"kafka": true, "zookeeper": true,
 	"rabbitmq": true, "nats": true,
+	"mq": true, "queue": true, "broker": true,
+	// Other
 	"ssh": true,
 }
 
