@@ -53,12 +53,19 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 5. **Load naming presets** from `library/naming-presets.md`:
    - Use `00-analysis-report.yaml`의 `project_archetype`로 mode 선택 가이드 결정.
    - `recommended_tags`와 `recommended_modes`를 참조하여 일관된 네이밍 적용.
-6. **Reference example lookup** — If a reference dva.yml from a similar project type (same language/framework) is available in DVA's `examples/` directory or from existing DVA-configured projects, read it for structural guidance. Use it to inform:
-   - Section ordering and comment style
+6. **Reference example lookup** — Read `library/reference-examples.md` and select the section matching the project's language and `development_pattern` from the analysis report:
+   - Rust hybrid → "Rust — Hybrid Pattern" section
+   - Go hybrid → "Go — Hybrid Pattern" section
+   - Python container-first → "Python/Django — Container-First" section
+   - Node.js → "Node.js/TypeScript" section (hybrid or container-first subsection)
+   - Multi-component devbox → also read "Multi-Component" section
+   Use the selected reference to guide:
+   - Section ordering and comment style (always follow "Section Order" from reference)
    - Mode selection and naming
+   - Health check patterns (correct commands per language, ready_timeout values)
    - Interaction command coverage and structure
-   - Provision profile patterns
-   - Do NOT copy project-specific values (ports, service names, paths) — only structural patterns.
+   - Provision profile patterns (default, full, reset)
+   - Do NOT copy placeholder values (`{PORT}`, `{workspace}`) — replace with project-specific values.
 7. Generate `dva.yml` at the root directory:
    - Set `version: "0.1.26"`.
    - Use `stack:` section (NOT top-level `compose:`):
