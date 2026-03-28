@@ -544,3 +544,145 @@ func TestEmptyConfig(t *testing.T) {
 		t.Fatal("Expected cfg to not be nil")
 	}
 }
+
+func TestResolveEndpoints_SourceToURL(t *testing.T) {
+	cfg := &Config{
+		Endpoints: map[string]EndpointConfig{
+			"app": {Source: "app:11700", Label: "App HTTP"},
+			"db":  {Source: "postgres:15432", Label: "PostgreSQL"},
+		},
+	}
+	cfg.ResolveEndpoints()
+
+	if cfg.Endpoints["app"].URL != "http://localhost:11700" {
+		t.Errorf("app.URL = %q, want http://localhost:11700", cfg.Endpoints["app"].URL)
+	}
+	if cfg.Endpoints["db"].URL != "localhost:15432" {
+		t.Errorf("db.URL = %q, want localhost:15432", cfg.Endpoints["db"].URL)
+	}
+}
+
+func TestResolveEndpoints_URLAlreadySet(t *testing.T) {
+	cfg := &Config{
+		Endpoints: map[string]EndpointConfig{
+			"api": {Source: "app:8080", URL: "https://custom.dev:8080", Label: "API"},
+		},
+	}
+	cfg.ResolveEndpoints()
+
+	if cfg.Endpoints["api"].URL != "https://custom.dev:8080" {
+		t.Errorf("should not override existing URL, got %q", cfg.Endpoints["api"].URL)
+	}
+}
+
+func TestResolveEndpoints_NoSource(t *testing.T) {
+	cfg := &Config{
+		Endpoints: map[string]EndpointConfig{
+			"api": {URL: "http://localhost:8080", Label: "API"},
+		},
+	}
+	cfg.ResolveEndpoints()
+
+	if cfg.Endpoints["api"].URL != "http://localhost:8080" {
+		t.Errorf("should keep existing URL, got %q", cfg.Endpoints["api"].URL)
+	}
+}
+
+func TestResolveEndpoints_NilEndpoints(t *testing.T) {
+	cfg := &Config{}
+	cfg.ResolveEndpoints() // should not panic
+}
+
+func TestResolveEndpoints_NonHTTPServices(t *testing.T) {
+	tests := []struct {
+		source  string
+		wantURL string
+	}{
+		{"redis:16379", "localhost:16379"},
+		{"mysql:13306", "localhost:13306"},
+		{"mongo:27017", "localhost:27017"},
+		{"kafka:9092", "localhost:9092"},
+		{"rabbitmq:5672", "localhost:5672"},
+		{"ssh:2222", "localhost:2222"},
+		{"gitea:3000", "http://localhost:3000"},
+		{"nginx:8080", "http://localhost:8080"},
+		{"api:3000", "http://localhost:3000"},
+	}
+	for _, tt := range tests {
+		cfg := &Config{
+			Endpoints: map[string]EndpointConfig{
+				"svc": {Source: tt.source, Label: "test"},
+			},
+		}
+		cfg.ResolveEndpoints()
+		if cfg.Endpoints["svc"].URL != tt.wantURL {
+			t.Errorf("source=%q → URL=%q, want %q", tt.source, cfg.Endpoints["svc"].URL, tt.wantURL)
+		}
+	}
+}
+
+func TestResolveEndpoints_InvalidSource(t *testing.T) {
+	cfg := &Config{
+		Endpoints: map[string]EndpointConfig{
+			"bad1": {Source: "nocolon", Label: "bad"},
+			"bad2": {Source: "svc:", Label: "bad"},
+		},
+	}
+	cfg.ResolveEndpoints()
+
+	if cfg.Endpoints["bad1"].URL != "" {
+		t.Errorf("invalid source should not resolve, got %q", cfg.Endpoints["bad1"].URL)
+	}
+	if cfg.Endpoints["bad2"].URL != "" {
+		t.Errorf("empty port should not resolve, got %q", cfg.Endpoints["bad2"].URL)
+	}
+}
+
+func TestResolveEndpoints_IntegrationWithLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+	dvaYml := filepath.Join(tmpDir, "dva.yml")
+
+	content := `endpoints:
+  app-http:
+    source: "app:11700"
+    label: "App HTTP"
+    tags: [app]
+    paths:
+      /health: "Health check"
+  app-ssh:
+    url: "ssh://git@localhost:2222"
+    label: "Git SSH"
+    tags: [app]
+  db:
+    source: "postgres:15432"
+    label: "PostgreSQL"
+    tags: [infra]
+`
+	os.WriteFile(dvaYml, []byte(content), 0644)
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	// source-resolved HTTP endpoint
+	app := cfg.Endpoints["app-http"]
+	if app.URL != "http://localhost:11700" {
+		t.Errorf("app-http.URL = %q, want http://localhost:11700", app.URL)
+	}
+	if app.Source != "app:11700" {
+		t.Errorf("source should be preserved, got %q", app.Source)
+	}
+
+	// explicit URL not touched
+	ssh := cfg.Endpoints["app-ssh"]
+	if ssh.URL != "ssh://git@localhost:2222" {
+		t.Errorf("app-ssh.URL = %q, should not be modified", ssh.URL)
+	}
+
+	// non-HTTP service
+	db := cfg.Endpoints["db"]
+	if db.URL != "localhost:15432" {
+		t.Errorf("db.URL = %q, want localhost:15432", db.URL)
+	}
+}

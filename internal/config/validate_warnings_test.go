@@ -1,0 +1,351 @@
+package config
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestWarnVersionOutdated(t *testing.T) {
+	// Config version older than binary → warning
+	c := &Config{Version: "0.0.1"}
+	warnings := c.warnVersionOutdated()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "older than") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+
+	// Same version → no warning
+	c = &Config{Version: Version}
+	warnings = c.warnVersionOutdated()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for same version, got %d", len(warnings))
+	}
+
+	// Empty version → no warning
+	c = &Config{Version: ""}
+	warnings = c.warnVersionOutdated()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for empty version, got %d", len(warnings))
+	}
+}
+
+func TestWarnHealthCheckRedundancy(t *testing.T) {
+	// Both start and start_hint → warning
+	c := &Config{
+		HealthChecks: map[string]HealthCheckConfig{
+			"app": {
+				Type:      "http",
+				URL:       "http://localhost:8080/health",
+				Start:     "make run",
+				StartHint: "make run",
+			},
+		},
+		Stack: make(map[string]*LifecycleEntry),
+	}
+	warnings := c.warnHealthCheckRedundancy()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "start_hint") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+
+	// Only start → no warning
+	c = &Config{
+		HealthChecks: map[string]HealthCheckConfig{
+			"app": {Type: "http", Start: "make run"},
+		},
+		Stack: make(map[string]*LifecycleEntry),
+	}
+	warnings = c.warnHealthCheckRedundancy()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+
+	// Only start_hint → no warning
+	c = &Config{
+		HealthChecks: map[string]HealthCheckConfig{
+			"app": {Type: "http", StartHint: "make run"},
+		},
+		Stack: make(map[string]*LifecycleEntry),
+	}
+	warnings = c.warnHealthCheckRedundancy()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+}
+
+func TestWarnHealthCheckRedundancy_StackNested(t *testing.T) {
+	c := &Config{
+		HealthChecks: make(map[string]HealthCheckConfig),
+		Stack: map[string]*LifecycleEntry{
+			"compose": {
+				HealthChecks: map[string]HealthCheckConfig{
+					"db": {
+						Type:      "tcp",
+						Address:   "localhost:5432",
+						Start:     "pg_ctl start",
+						StartHint: "pg_ctl start",
+					},
+				},
+			},
+		},
+	}
+	warnings := c.warnHealthCheckRedundancy()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for nested health check, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "stack.compose.health_checks.db") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+}
+
+func TestWarnDuplicateParentSubcommand(t *testing.T) {
+	// Same command → warning
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"build": {
+				Command: "cargo build",
+				Subcommands: map[string]*InteractionCommand{
+					"ce": {Command: "cargo build"},
+				},
+			},
+		},
+	}
+	warnings := c.warnDuplicateParentSubcommand()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "identical to parent") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+
+	// Different command → no warning
+	c = &Config{
+		Interaction: map[string]*InteractionCommand{
+			"build": {
+				Command: "cargo build",
+				Subcommands: map[string]*InteractionCommand{
+					"all": {Command: "cargo build --workspace"},
+				},
+			},
+		},
+	}
+	warnings = c.warnDuplicateParentSubcommand()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+
+	// No subcommands → no warning
+	c = &Config{
+		Interaction: map[string]*InteractionCommand{
+			"test": {Command: "cargo test"},
+		},
+	}
+	warnings = c.warnDuplicateParentSubcommand()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+}
+
+func TestWarnDuplicateStackOrder(t *testing.T) {
+	// Same order → warning
+	c := &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose":      {Order: 10},
+			"compose-full": {Order: 10},
+		},
+	}
+	warnings := c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "order value 10") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+
+	// Different order → no warning
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose": {Order: 10},
+			"k8s":     {Order: 20},
+		},
+	}
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+
+	// Single entry → no warning
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose": {Order: 10},
+		},
+	}
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+
+	// Order 0 (default) → distinct message
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"a": {Order: 0},
+			"b": {Order: 0},
+		},
+	}
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for order 0, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "default") {
+		t.Errorf("expected 'default' hint in warning, got: %s", warnings[0])
+	}
+}
+
+func TestCanonicalOrder_Correct(t *testing.T) {
+	content := `version: "0.1.29"
+env_file: .env
+stack:
+  compose:
+    order: 10
+modes:
+  dev:
+    description: Dev
+health_checks:
+  app:
+    type: http
+interaction:
+  test:
+    command: make test
+provision:
+  default:
+    - step: Setup
+      run: make setup
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dva.yml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	warnings := validateCanonicalOrder(path)
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for correct order, got %d: %v", len(warnings), warnings)
+	}
+}
+
+func TestCanonicalOrder_Wrong(t *testing.T) {
+	// interaction before stack → out of order
+	content := `version: "0.1.29"
+interaction:
+  test:
+    command: make test
+stack:
+  compose:
+    order: 10
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dva.yml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	warnings := validateCanonicalOrder(path)
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for wrong order, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "section order") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+}
+
+func TestCanonicalOrder_SingleSection(t *testing.T) {
+	content := `version: "0.1.29"
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dva.yml")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	warnings := validateCanonicalOrder(path)
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for single section, got %d", len(warnings))
+	}
+}
+
+func TestWarnMultiStackComposeSplit(t *testing.T) {
+	// Multiple compose entries → warning
+	c := &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose":      {Compose: &ComposePluginConfig{}},
+			"compose-full": {Compose: &ComposePluginConfig{}},
+		},
+	}
+	warnings := c.warnMultiStackComposeSplit()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "multiple compose entries") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+
+	// Single compose entry → no warning
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose": {Compose: &ComposePluginConfig{}},
+		},
+	}
+	warnings = c.warnMultiStackComposeSplit()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings, got %d", len(warnings))
+	}
+
+	// Compose + kubectl → no warning (different backends)
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose": {Compose: &ComposePluginConfig{}},
+			"k8s":     {Kubectl: &KubectlPluginConfig{}},
+		},
+	}
+	warnings = c.warnMultiStackComposeSplit()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for different backends, got %d", len(warnings))
+	}
+}
+
+func TestValidateWarnings_Integration(t *testing.T) {
+	c := &Config{
+		Version: "0.0.1",
+		HealthChecks: map[string]HealthCheckConfig{
+			"app": {
+				Type:      "http",
+				Start:     "make run",
+				StartHint: "make run",
+			},
+		},
+		Interaction: map[string]*InteractionCommand{
+			"test": {
+				Command: "make test",
+				Subcommands: map[string]*InteractionCommand{
+					"unit": {Command: "make test"},
+				},
+			},
+		},
+		Stack: map[string]*LifecycleEntry{
+			"a": {Order: 10},
+			"b": {Order: 10},
+		},
+	}
+
+	warnings := c.ValidateWarnings()
+	// Expect at least: version outdated + health check redundancy + duplicate command + duplicate order
+	if len(warnings) < 4 {
+		t.Errorf("expected at least 4 warnings, got %d: %v", len(warnings), warnings)
+	}
+}

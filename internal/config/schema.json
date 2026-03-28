@@ -268,14 +268,6 @@
           "type": "string",
           "description": "Specifies the pod for the kubectl runner"
         },
-        "compose_run_options": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "DEPRECATED: Options to pass to the 'docker-compose run' command",
-          "examples": [["service-ports", "rm"]]
-        },
         "subcommands": {
           "type": "object",
           "description": "Contains subcommands with the same structure as main commands",
@@ -954,7 +946,7 @@
     },
     "endpoints": {
       "type": "object",
-      "description": "Declares user-facing endpoint URLs for the project. Compose service ports are shown automatically; use this for non-compose endpoints (local processes, external services). Keys matching health_check names are auto-linked for status display.",
+      "description": "Declares user-facing endpoint URLs for the project. Use `source` to reference compose service ports (URL auto-resolved), or `url` for non-compose endpoints. Keys matching health_check names are auto-linked for status display.",
       "patternProperties": {
         "^[\\w\\-.]+$": {
           "type": "object",
@@ -962,8 +954,13 @@
           "properties": {
             "url": {
               "type": "string",
-              "description": "User-facing access URL",
+              "description": "User-facing access URL. Required if source is not set.",
               "examples": ["http://localhost:8080", "ssh://git@localhost:2222", "grpc://localhost:50051"]
+            },
+            "source": {
+              "type": "string",
+              "description": "Compose service:host_port reference. DVA resolves the URL automatically from compose port mappings. Use instead of url for compose services.",
+              "examples": ["postgres:15432", "app:11700", "gitea:11792"]
             },
             "label": {
               "type": "string",
@@ -973,7 +970,7 @@
             "tags": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tags for filtering (used by modes.endpoint_tags)",
+              "description": "Tags for filtering (used by modes.endpoint_tags). Inherited from stack.compose.services tags if omitted.",
               "examples": [["app"], ["infra", "monitoring"]]
             },
             "paths": {
@@ -983,13 +980,13 @@
               "examples": [{ "/api/v1": "REST API", "/metrics": "Prometheus metrics" }]
             }
           },
-          "required": ["url", "label"]
+          "required": ["label"]
         }
       },
       "additionalProperties": false,
       "examples": [{
         "app-http": {
-          "url": "http://localhost:8080",
+          "source": "app:11700",
           "label": "App HTTP",
           "tags": ["app"],
           "paths": { "/health": "Health check", "/api/v1": "REST API" }

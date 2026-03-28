@@ -29,8 +29,7 @@ type Config struct {
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
-	Stack     map[string]*LifecycleEntry `yaml:"stack"`
-	Lifecycle map[string]*LifecycleEntry `yaml:"lifecycle"` // deprecated: use stack
+	Stack map[string]*LifecycleEntry `yaml:"stack"`
 
 	// Internal fields
 	filePath string
@@ -60,17 +59,12 @@ type ModeConfig struct {
 	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
 	Provision       string            `yaml:"provision"`  // provision profile to suggest on first run
-	Stack           []string          `yaml:"stack"`       // stack entry names to include (empty=all)
-	Lifecycle       []string          `yaml:"lifecycle"`   // deprecated: use stack
+	Stack []string `yaml:"stack"` // stack entry names to include (empty=all)
 }
 
 // StackEntries returns the stack entry names for mode filtering.
-// Falls back to deprecated Lifecycle field if Stack is empty.
 func (m *ModeConfig) StackEntries() []string {
-	if len(m.Stack) > 0 {
-		return m.Stack
-	}
-	return m.Lifecycle
+	return m.Stack
 }
 
 // EnvironmentProfile defines a named environment configuration for --env flag.
@@ -92,10 +86,11 @@ type SshConfig struct {
 
 // EndpointConfig defines a user-facing endpoint URL for the project.
 type EndpointConfig struct {
-	URL   string            `yaml:"url"`
-	Label string            `yaml:"label"`
-	Tags  []string          `yaml:"tags"`
-	Paths map[string]string `yaml:"paths"` // sub-path -> description
+	URL    string            `yaml:"url"`
+	Label  string            `yaml:"label"`
+	Tags   []string          `yaml:"tags"`
+	Paths  map[string]string `yaml:"paths"`  // sub-path -> description
+	Source string            `yaml:"source"` // compose "service:host_port" reference (URL auto-resolved)
 }
 
 // HealthCheckConfig defines a health check for a non-compose service.
@@ -140,8 +135,7 @@ type InteractionCommand struct {
 	Entrypoint        string                         `yaml:"entrypoint"`
 	Runner            string                         `yaml:"runner"`
 	Pod               string                         `yaml:"pod"`
-	ComposeRunOptions []string                       `yaml:"compose_run_options"`
-	Subcommands       map[string]*InteractionCommand `yaml:"subcommands"`
+	Subcommands map[string]*InteractionCommand `yaml:"subcommands"`
 	Tags              []string                       `yaml:"tags"`
 
 	// Hook fields: extend or replace hookable built-in commands (up, down, build, etc.)
@@ -331,29 +325,8 @@ func Load(workDir string) (*Config, error) {
 	if cfg.Provision.Profiles == nil {
 		cfg.Provision.Profiles = make(map[string][]ProvisionItem)
 	}
-	// Normalize deprecated lifecycle → stack
-	if cfg.Stack == nil && cfg.Lifecycle != nil {
-		cfg.Stack = cfg.Lifecycle
-		cfg.Lifecycle = nil
-	} else if cfg.Stack != nil && cfg.Lifecycle != nil {
-		for k, v := range cfg.Lifecycle {
-			if _, exists := cfg.Stack[k]; !exists {
-				cfg.Stack[k] = v
-			}
-		}
-		cfg.Lifecycle = nil
-	}
 	if cfg.Stack == nil {
 		cfg.Stack = make(map[string]*LifecycleEntry)
-	}
-
-	// Normalize deprecated mode.lifecycle → mode.stack
-	for name, m := range cfg.Modes {
-		if len(m.Stack) == 0 && len(m.Lifecycle) > 0 {
-			m.Stack = m.Lifecycle
-			m.Lifecycle = nil
-			cfg.Modes[name] = m
-		}
 	}
 
 	// Populate Name field and resolve deferred plugins from map keys
@@ -363,6 +336,9 @@ func Load(workDir string) (*Config, error) {
 			return nil, err
 		}
 	}
+
+	// Resolve endpoint URLs from source references
+	cfg.ResolveEndpoints()
 
 	// Warn if interaction commands shadow reserved built-in commands
 	WarnReservedCommandConflicts(cfg.Interaction)
@@ -520,15 +496,11 @@ func (c *Config) mergeFrom(other *Config) {
 	}
 
 	// Merge stack entries (map merge, key=name)
-	otherStack := other.Stack
-	if otherStack == nil {
-		otherStack = other.Lifecycle
-	}
-	if len(otherStack) > 0 {
+	if len(other.Stack) > 0 {
 		if c.Stack == nil {
 			c.Stack = make(map[string]*LifecycleEntry)
 		}
-		for k, v := range otherStack {
+		for k, v := range other.Stack {
 			c.Stack[k] = v
 		}
 	}
@@ -564,4 +536,49 @@ func parseVersion(v string) [3]int {
 	v = strings.TrimPrefix(v, "v")
 	fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
 	return parts
+}
+
+// nonHTTPServices are compose service name prefixes that resolve to plain host:port
+// instead of http://localhost:port. Users needing other protocols should use url: directly.
+var nonHTTPServices = map[string]bool{
+	"postgres": true, "postgresql": true, "pg": true,
+	"mysql": true, "mariadb": true,
+	"mssql": true, "sqlserver": true,
+	"redis": true, "valkey": true,
+	"memcached": true,
+	"mongo": true, "mongodb": true,
+	"cassandra": true, "scylla": true,
+	"kafka": true, "zookeeper": true,
+	"rabbitmq": true, "nats": true,
+	"ssh": true,
+}
+
+// ResolveEndpoints auto-fills URL for endpoints that have source but no url.
+// Source format: "service:host_port" → resolves to http://localhost:{port}
+// or plain localhost:{port} for known non-HTTP infrastructure services.
+func (c *Config) ResolveEndpoints() {
+	if c.Endpoints == nil {
+		return
+	}
+
+	for name, ep := range c.Endpoints {
+		if ep.Source == "" || ep.URL != "" {
+			continue
+		}
+
+		parts := strings.SplitN(ep.Source, ":", 2)
+		if len(parts) != 2 || parts[1] == "" {
+			continue
+		}
+
+		svc := parts[0]
+		port := parts[1]
+
+		if nonHTTPServices[strings.ToLower(svc)] {
+			ep.URL = "localhost:" + port
+		} else {
+			ep.URL = "http://localhost:" + port
+		}
+		c.Endpoints[name] = ep
+	}
 }

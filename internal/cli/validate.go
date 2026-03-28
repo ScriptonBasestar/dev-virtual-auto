@@ -36,12 +36,18 @@ var validateCmd = &cobra.Command{
 			printComposeNameWarnings(warnings)
 		}
 
+		// Semantic warnings (version, health checks, duplicate commands, etc.)
+		semanticWarnings := c.ValidateWarnings()
+		for _, w := range semanticWarnings {
+			fmt.Fprintf(os.Stderr, "[warn] %s\n", w)
+		}
+
 		driftWarnings := detectConfigDriftWarnings(c)
 		printConfigDriftWarnings(driftWarnings)
 		printConfigSuggestionWarnings(detectConfigSuggestionWarnings(c))
 
-		if validateStrict && len(driftWarnings) > 0 {
-			return fmt.Errorf("config drift detected; review warnings above or run 'dva config improve --print'")
+		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0) {
+			return fmt.Errorf("config warnings detected; review warnings above or run 'dva config improve --print'")
 		}
 
 		// Check devcontainer sync

@@ -134,11 +134,6 @@ func normalizeCompose(entry *config.InteractionCommand) ComposeOpts {
 		opts.RunOptions = normalizeRunOptions(entry.Compose.RunOptions)
 	}
 
-	// Legacy compose_run_options
-	if len(entry.ComposeRunOptions) > 0 && len(opts.RunOptions) == 0 {
-		opts.RunOptions = normalizeRunOptions(entry.ComposeRunOptions)
-	}
-
 	return opts
 }
 

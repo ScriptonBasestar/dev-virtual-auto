@@ -12,7 +12,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 
 1. **`modes:` NOT `profiles:`** — The `profiles:` key is deprecated. Always generate `modes:`.
 2. **`compose.yml` needs `name:`** — If missing, ADD it matching `stack.compose.project_name`.
-3. **`version:` field** — Set to current DVA version: `"0.1.26"`.
+3. **`version:` field** — Set to current DVA version: `"0.1.29"`.
 4. **`stack:` NOT top-level `compose:`** — Compose config MUST be under `stack:` section.
 5. **`health_checks`: BOTH `start` and `start_hint`** — Always include both for native services.
 6. **Port conventions** — Never use common default ports as host ports.
@@ -23,7 +23,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **File header** — Start with `yaml-language-server: $schema=...` and pattern description block.
 13. **Health check commands verifiable** — Use `pgrep -f {process}` or actual HTTP endpoint. Never invent flags.
-14. **Service metadata** — Every service MUST have `tags:` and `ports:` with `label:`.
+14. **Service metadata** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in the `endpoints:` section, NOT in `services.ports` (deprecated).
 15. **Package names: EXACT from manifests** — Use `[package] name`, NOT directory name.
 16. **Section order** — version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit sections that are not needed, but included sections MUST follow this order.
 17. **Naming presets** — Use standard tag names (infra, api, worker, ui, data, monitoring, build) and mode names (infra, full-stack, hybrid, etc.).
@@ -57,7 +57,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
    - Do NOT copy placeholder values — use project-specific values.
 7. Generate `dva.yml`:
    - File header with schema comment and pattern description
-   - `version: "0.1.26"`
+   - `version: "0.1.29"`
    - `env_file:` with files array and interpolate
    - `stack:` with services grouped by workgroup
    - `checks:` (docker_socket, .env, compose, language toolchain)
@@ -73,7 +73,7 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
    - Reserved commands (build, clean, logs): `replace:` hooks
    - Never generate echo wrappers
 9. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
-10. **Port metadata validation** — Cross-reference compose ports with dva.yml metadata.
+10. **Endpoint completeness check** — Verify all user-facing compose ports are declared in `endpoints:` section with label and tags. Do NOT put port metadata in `services.ports`.
 11. **Development pattern commands:**
     - container-first: commands use `service: {app-service}`
     - hybrid: commands use `runner: local`
@@ -112,17 +112,17 @@ Handles both fresh adoption (no dva.yml) and upgrade from legacy format (old dva
 <gate>
 - [ ] `dva.yml` uses `modes:` (NOT `profiles:`).
 - [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:`).
-- [ ] `dva.yml` version is `"0.1.26"`.
+- [ ] `dva.yml` version is `"0.1.29"`.
 - [ ] Compose file has top-level `name:`.
 - [ ] Health checks include both `start` and `start_hint`.
 - [ ] Host commands use `runner: local` (no echo wrappers).
-- [ ] Port metadata matches compose defaults.
+- [ ] Endpoints section covers all user-facing compose ports.
 - [ ] Modes section exists (minimum infra + one other).
 - [ ] Checks section exists (minimum docker_socket + file_exists).
 - [ ] Provision includes default + full + reset profiles.
 - [ ] No `dva <command>` calls in provision.
 - [ ] File header with schema comment present.
-- [ ] All services have tags and ports with labels.
+- [ ] All services have tags. User-facing ports declared in `endpoints:` section.
 - [ ] Subproject versions match root.
 - [ ] Section order follows canonical: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints.
 - [ ] Naming follows presets (tags, modes, envs).

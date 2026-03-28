@@ -11,7 +11,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 
 1. **`modes:` NOT `profiles:`** — The `profiles:` key is deprecated. Always generate `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` is required. MUST match `stack.compose.project_name`.
-3. **`version:` field** — Set to current DVA version: `"0.1.26"`.
+3. **`version:` field** — Set to current DVA version: `"0.1.29"`.
 4. **`stack:` NOT top-level `compose:`** — Compose configuration MUST be under `stack:` section. Top-level `compose:` is deprecated.
 5. **`health_checks`: BOTH `start` and `start_hint`** — When generating health checks for native services, always include both. `start` enables DVA auto-start with PID tracking; `start_hint` is the user-facing instruction.
 6. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, 3306, 27017) as host ports. Use project-specific port ranges.
@@ -43,7 +43,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
    - Use as structural guide for section ordering, mode patterns, health check patterns, interaction coverage, and provision profiles.
    - Do NOT copy placeholder values — replace with project-specific values.
 5. Generate the primary `dva.yml` at the project root:
-   - Set `version: "0.1.26"`.
+   - Set `version: "0.1.29"`.
    - Use `stack:` section (NOT top-level `compose:`):
      ```yaml
      stack:
@@ -51,10 +51,13 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
          order: 10
          files: [compose.yml, ...]
          project_name: {project}
-         services: { ... }
+         services:          # Tags only — NO ports here
+           postgres: { tags: [infra, data] }
+           app: { tags: [app] }
      ```
-   - **CRITICAL:** Organize services by workgroup (Frontend, Backend, Workers), with clear comments.
-   - Assign rich metadata using preset tag names (infra, api, worker, ui, data, monitoring, build).
+   - **CRITICAL:** Services section is tags-only. Port metadata belongs in `endpoints:`.
+   - Assign tag names using presets (infra, api, worker, ui, data, monitoring, build).
+   - Use ONE stack entry with all compose files. Use `modes.compose_services` for service selection.
    - Use `modes:` (NOT `profiles:`) — preset mode names 적용, `infra`는 항상 포함.
    - Use `modes.*.stack` to filter stack entries per mode where appropriate.
    - Use `environments:` — preset env names (dev, test, stg, prd) 중 필요한 것만.
@@ -92,7 +95,7 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 <gate>
 - [ ] Primary `dva.yml` uses `modes:` key (NOT `profiles:`).
 - [ ] `dva.yml` uses `stack:` section (NOT top-level `compose:`).
-- [ ] `dva.yml` version is `"0.1.26"`.
+- [ ] `dva.yml` version is `"0.1.29"`.
 - [ ] `compose.yml` has top-level `name:` matching `stack.compose.project_name`.
 - [ ] `compose.yml` has NO top-level `version:` key.
 - [ ] All infra services in compose have `healthcheck:` defined.
@@ -106,6 +109,9 @@ Generate a comprehensive set of clean infra files, including new `compose.yml` (
 - [ ] Provision has default + full + reset.
 - [ ] No `dva <command>` in provision steps.
 - [ ] Section order follows canonical: version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → subprojects → endpoints.
+- [ ] Services section is tags-only (no ports/label/http/paths).
+- [ ] Endpoints section declares all user-facing ports with labels.
+- [ ] No separate stack entries for compose overlays (use single stack + modes).
 </gate>
 
 <return>

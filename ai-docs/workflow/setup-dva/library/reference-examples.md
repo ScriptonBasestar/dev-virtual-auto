@@ -25,13 +25,14 @@
 
 1. `version:`
 2. `env_file:`
-3. `stack:` (services grouped by workgroup)
+3. `stack:` (services tags-only, NO ports)
 4. `checks:` (dva doctor)
 5. `modes:`
 6. `health_checks:` (native processes)
 7. `interaction:` (organized by category)
 8. `provision:` (default, full, reset)
 9. `subprojects:` (if devbox pattern)
+10. `endpoints:` (user-facing access URLs)
 
 ---
 
@@ -41,7 +42,7 @@
 > development_pattern: hybrid (infra Docker, app native via cargo)
 > Typical: Rust workspace with multiple crates, compose for DB/cache/monitoring
 
-### Stack
+### Stack + Endpoints
 
 ```yaml
 stack:
@@ -53,29 +54,27 @@ stack:
       # - compose.monitoring.yml  # optional overlays
     project_name: {project}
     up_options: ["-d", "--wait"]
-    services:
-      # --- Core Data ---
-      postgres:
-        tags: [infra, data]
-        ports:
-          {PORT}:
-            label: "PostgreSQL"
-      redis:
-        tags: [infra, data]
-        ports:
-          {PORT}:
-            label: "Redis"
-      # --- Application (compose profile: rust) ---
-      {app-api}:
-        tags: [app, rust, backend]
-        related: [{app-worker}, postgres, redis]
-        hint: "REST API server"
-        ports:
-          {PORT}:
-            label: "API"
-            http: true
-            paths:
-              /healthz: "Health check"
+    services:                      # Tags only — NO ports here
+      postgres:  { tags: [infra, data] }
+      redis:     { tags: [infra, data] }
+      {app-api}: { tags: [app, rust, backend] }
+
+# Endpoints — user-facing access URLs (port metadata lives here, NOT in services)
+endpoints:
+  postgres:
+    source: "postgres:{PORT}"
+    label: "PostgreSQL"
+    tags: [infra, data]
+  redis:
+    source: "redis:{PORT}"
+    label: "Redis"
+    tags: [infra, data]
+  {app-api}:
+    source: "{app-api}:{PORT}"
+    label: "API"
+    tags: [app]
+    paths:
+      /healthz: "Health check"
 ```
 
 ### Modes
@@ -437,7 +436,7 @@ subprojects:
 # NOTE: Subprojects do NOT re-declare the parent's compose stack.
 # The parent's `subprojects.{name}.exclude_tags: [infra]` prevents duplicate infra.
 # Subproject dva.yml only needs interaction commands for app-specific operations.
-version: "0.1.26"
+version: "0.1.29"
 
 # stack: is OPTIONAL in subprojects — omit if the subproject relies entirely on parent infra
 # Only add stack: if the subproject has its own compose services

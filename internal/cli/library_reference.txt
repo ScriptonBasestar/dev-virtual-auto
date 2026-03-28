@@ -9,7 +9,7 @@
 
 1. **`modes:` NOT `profiles:`** — `profiles:` is deprecated and triggers a warning. Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
-3. **`version:` field** — Use the current DVA version: `"0.1.26"`. Subprojects should match.
+3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
 4. **`health_checks`: always provide BOTH `start` and `start_hint`** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is shown to users when auto-start is not available. If you know the start command, always set both.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Top-level `compose:` is deprecated (auto-converted but generates warnings).
@@ -19,6 +19,9 @@
 10. **`stack.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
 12. **Multi-stack entries: no duplicate base files** — When creating separate stack entries for overlays, each entry should list ONLY its own overlay file(s). Do NOT repeat the base `compose.yml` in every entry. Exception: if an overlay file uses `extends` or `depends_on` referencing base services, include the base but document why.
+13. **`services:` is tags-only** — `stack.compose.services` exists ONLY for tag-based filtering (subprojects, modes). Do NOT put port metadata (`ports:`, `label:`, `http:`, `paths:`) in services. Port/endpoint metadata belongs in the `endpoints:` section.
+14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
+15. **One stack entry + modes, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `modes.*.compose_services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
 
 ## dva.yml Structure
 
@@ -26,7 +29,7 @@
 `version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
-version: "0.1.26"
+version: "0.1.29"
 
 environment:                    # Global environment variables
   VAR_NAME: value
@@ -54,33 +57,22 @@ stack:
     project_name: myapp           # MUST match compose.yml top-level `name:`
     up_options: ["-d", "--wait"]  # Default options for `dva up` (detached mode)
     tags: [infra]                 # Default tags for all services
-    services:                     # Per-service metadata (tags, ports, related, hint)
+    services:                     # Per-service TAG metadata only (NO ports here)
       {service-name}:
-        tags: [infra, data]
-        ports:
-          {host-port}:
-            label: "Human-readable label"
-            http: true            # nil=auto-detect, true=http://, false=raw
-            paths:
-              /: "Description"
-              /health: "Health endpoint"
+        tags: [infra, data]       # Used for tag-based filtering (subprojects, modes)
         related: [other-service]  # Services shown as hints when this runs
         hint: "Why this service matters"
+      # ANTI-PATTERN: Do NOT put ports/label/http/paths here.
+      # Use top-level `endpoints:` section instead (see below).
 
-  # --- Multi-stack entries (multiple compose files as separate entries) ---
-  # Use when compose files serve different purposes (e.g., infra vs dev-full):
-  # compose:                        # Primary infra
+  # --- Multi-stack: only for different backends ---
+  # Use ONE stack entry + modes for operational variants (NOT separate entries).
+  # Only separate stack entries for genuinely different infrastructure:
+  # compose:                      # Local Docker infra
   #   order: 10
   #   files: [compose.yml]
-  #   project_name: myapp
-  # compose-dev-full:               # Dev overlay (custom name → explicit plugin)
-  #   plugin: compose
-  #   order: 20
-  #   files: [compose.yml, compose.dev-full.yml]
-  #   project_name: myapp
-
-  # --- Other plugin examples ---
-  # kubectl:                      # Auto-inferred as kubectl plugin
+  # k8s:                          # Staging Kubernetes
+  #   plugin: kubectl
   #   order: 20
   #   namespace: myapp-dev
 
@@ -192,7 +184,33 @@ subprojects:                    # Subproject references
   {name}:
     path: relative/path
     exclude_tags: [infra]       # Tags to exclude when running from parent
+
+endpoints:                      # User-facing access URLs
+  # For compose services: use source to reference compose service:port
+  {endpoint-name}:
+    source: "{service}:{host_port}"  # Auto-resolves URL from compose port
+    label: "Human-readable label"
+    tags: [app]                      # Inherited from services if omitted
+    paths:                           # Optional sub-paths
+      /health: "Health endpoint"
+      /api/v1: "REST API"
+  # For non-compose services: specify url directly
+  {endpoint-name}:
+    url: "http://localhost:8080"     # Manual URL (local process, external)
+    label: "Local Dev Server"
+    tags: [app, local]
 ```
+
+### Endpoints vs Services — When to Use What
+
+| Information | Where it belongs | Example |
+|-------------|-----------------|---------|
+| Service tags (filtering) | `stack.compose.services` | `postgres: { tags: [infra, data] }` |
+| Port labels, URLs | `endpoints` | `db: { source: "postgres:15432", label: "PostgreSQL" }` |
+| Sub-paths | `endpoints` | `paths: { /health: "Health check" }` |
+| HTTP flag | `endpoints` | Inferred from source port or explicit in url |
+
+**Anti-pattern:** Do NOT duplicate compose port numbers in `stack.compose.services.*.ports`. Compose files are the source of truth for port mappings; `endpoints` adds DVA display metadata on top.
 
 ## compose.yml Requirements
 
@@ -232,15 +250,22 @@ dva up -M hybrid         # Partial compose + health checks
 6. If `environment:` present → merge into compose environment
 7. `compose_services` and `compose_profiles` can be combined (both apply independently)
 
-**Multi-stack mode pattern:** When a project has multiple compose stack entries (e.g., `compose` for infra, `compose-dev-full` for full dev overlay), use `stack:` in modes to select which entry to activate:
+**Single stack + modes pattern (preferred):** Use ONE stack entry with all compose files and control service selection via `compose_services` in modes:
 ```yaml
+stack:
+  compose:
+    files: [compose.yml, compose.dev-full.yml]  # All overlays in one entry
+    services:
+      db:    { tags: [infra] }
+      redis: { tags: [infra] }
+      app:   { tags: [app] }
 modes:
   infra-only:
-    stack: [compose]              # Only the base infra compose
-    compose_services: [db, redis]
+    compose_services: [db, redis]       # Start only infra
   dev-full:
-    stack: [compose-dev-full]     # Uses overlay compose with app services
+    description: "Full dev environment"  # Omit compose_services = start all
 ```
+**Anti-pattern:** Do NOT create `compose` + `compose-full` as separate stack entries — this duplicates service definitions and compose file references.
 
 **`compose_profiles` semantics:**
 - `compose_profiles: [rust]` → activate the "rust" profile
@@ -523,7 +548,7 @@ clean:
 ### Subproject Cascade Upgrade
 
 When upgrading a root dva.yml, ALL subproject dva.yml files MUST be checked and upgraded too:
-- Version must match root (`"0.1.26"`)
+- Version must match root (`"0.1.29"`)
 - Same format rules apply (stack, runner:local, no echo wrappers)
 - `service: local` (old convention) → `runner: local`
 
@@ -855,13 +880,14 @@ modes:
 
 1. `version:`
 2. `env_file:`
-3. `stack:` (services grouped by workgroup)
+3. `stack:` (services tags-only, NO ports)
 4. `checks:` (dva doctor)
 5. `modes:`
 6. `health_checks:` (native processes)
 7. `interaction:` (organized by category)
 8. `provision:` (default, full, reset)
 9. `subprojects:` (if devbox pattern)
+10. `endpoints:` (user-facing access URLs)
 
 ---
 
@@ -871,7 +897,7 @@ modes:
 > development_pattern: hybrid (infra Docker, app native via cargo)
 > Typical: Rust workspace with multiple crates, compose for DB/cache/monitoring
 
-### Stack
+### Stack + Endpoints
 
 ```yaml
 stack:
@@ -883,29 +909,27 @@ stack:
       # - compose.monitoring.yml  # optional overlays
     project_name: {project}
     up_options: ["-d", "--wait"]
-    services:
-      # --- Core Data ---
-      postgres:
-        tags: [infra, data]
-        ports:
-          {PORT}:
-            label: "PostgreSQL"
-      redis:
-        tags: [infra, data]
-        ports:
-          {PORT}:
-            label: "Redis"
-      # --- Application (compose profile: rust) ---
-      {app-api}:
-        tags: [app, rust, backend]
-        related: [{app-worker}, postgres, redis]
-        hint: "REST API server"
-        ports:
-          {PORT}:
-            label: "API"
-            http: true
-            paths:
-              /healthz: "Health check"
+    services:                      # Tags only — NO ports here
+      postgres:  { tags: [infra, data] }
+      redis:     { tags: [infra, data] }
+      {app-api}: { tags: [app, rust, backend] }
+
+# Endpoints — user-facing access URLs (port metadata lives here, NOT in services)
+endpoints:
+  postgres:
+    source: "postgres:{PORT}"
+    label: "PostgreSQL"
+    tags: [infra, data]
+  redis:
+    source: "redis:{PORT}"
+    label: "Redis"
+    tags: [infra, data]
+  {app-api}:
+    source: "{app-api}:{PORT}"
+    label: "API"
+    tags: [app]
+    paths:
+      /healthz: "Health check"
 ```
 
 ### Modes
@@ -1267,7 +1291,7 @@ subprojects:
 # NOTE: Subprojects do NOT re-declare the parent's compose stack.
 # The parent's `subprojects.{name}.exclude_tags: [infra]` prevents duplicate infra.
 # Subproject dva.yml only needs interaction commands for app-specific operations.
-version: "0.1.26"
+version: "0.1.29"
 
 # stack: is OPTIONAL in subprojects — omit if the subproject relies entirely on parent infra
 # Only add stack: if the subproject has its own compose services

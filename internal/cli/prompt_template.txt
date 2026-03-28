@@ -92,21 +92,27 @@ Makefile에서 추출한 문서화된 타겟 목록입니다. 이것을 interact
   - 루트: `stack.compose.tags: [infra]` + `subprojects` 섹션 정의
   - 각 서브프로젝트: 자체 `dva.yml` 생성 (version 일치 필수)
   - 서브프로젝트: `exclude_tags: [infra]`로 부모 인프라 중복 방지
+  - `services`에는 tags만 (ports 금지 — endpoints에 선언)
+  - overlay compose가 있으면 별도 stack 엔트리 아닌 단일 stack에 files로 통합
 ```yaml
 # 루트 dva.yml (devbox)
 stack:
   compose:
     order: 10
-    files: [compose.yaml]
+    files: [compose.yaml]       # overlay도 여기에 추가
     tags: [infra]
-    services:
-      postgres:
-        tags: [infra]
+    services:                    # tags only
+      postgres: { tags: [infra] }
 
 subprojects:
   engine:
     path: engine
     exclude_tags: [infra]
+
+endpoints:
+  postgres:
+    source: "postgres:{PORT}"
+    label: "PostgreSQL"
 ```
 
 ---
@@ -148,13 +154,14 @@ dva.yml 파일 상단 주석에 `# TODO: ...` 형태로 제안 사항을 명시
 ## 필수 포함 섹션 체크리스트
 - [ ] version (현재 DVA 버전)
 - [ ] env_file (files + interpolate)
-- [ ] stack (서비스 메타데이터 포함)
+- [ ] stack (서비스 tags-only, ports 금지)
 - [ ] checks (최소 docker_socket + file_exists)
-- [ ] modes (최소 infra + full-stack 또는 hybrid)
+- [ ] modes (최소 infra + full-stack 또는 hybrid, compose_services로 서비스 선택)
 - [ ] health_checks (hybrid 패턴일 때 필수)
 - [ ] interaction (카테고리별 정리: Database, Build, Test, Quality, Logs, Clean)
 - [ ] provision (최소 default + reset)
 - [ ] subprojects (devbox 패턴일 때 필수)
+- [ ] endpoints (접근 가능한 포트의 label, tags, paths 선언)
 
 ## 필수 검증 루프 (Validate-Fix Loop)
 파일 생성/수정 후 **반드시** 아래 루프를 실행하세요. `[warn]`은 무시해도 되지만, `ERROR:`가 있으면 반드시 수정하세요.
@@ -193,8 +200,9 @@ dva config validate 2>&1
 □ 호스트 빌드 커맨드(build, test, lint, fmt, check)에 `runner: local`이 있는가?
 □ 예약 커맨드(build, clean, logs)에 `replace:` 훅이 있는가?
 □ 서브프로젝트의 `version`이 루트와 동일한가?
-□ 모든 서비스에 `tags:` 와 `ports:` (with `label:`)가 있는가?
-□ compose 파일의 기본 포트와 dva.yml 포트 메타데이터가 일치하는가?
+□ 모든 서비스에 `tags:`가 있는가? (ports/label은 `endpoints:` 섹션에 선언)
+□ 접근 가능한 포트가 `endpoints:` 섹션에 모두 선언되었는가? (services.ports에 넣지 말 것)
+□ compose overlay가 별도 stack 엔트리가 아닌 단일 stack.files에 통합되었는가?
 □ provision에서 `run: "dva <command>"` 호출이 없는가?
 □ interaction 키에 예약 커맨드를 사용하지 않았는가? (전체 목록: up, down, stop, restart, build, clean, logs, status, show, ls, run, config, doctor, provision, add, version)
 □ Health check URL이 리터럴 값인가? (`${VAR:-DEFAULT}` 패턴 금지 — DVA는 URL 내 셸 변수를 보간하지 않음)
