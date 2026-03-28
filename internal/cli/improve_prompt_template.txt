@@ -77,6 +77,24 @@ Path: `%s`
 %s
 ```
 
+- Semantic warnings (version, health checks, duplicates):
+
+```text
+%s
+```
+
+- Config drift warnings (compose files, service references):
+
+```text
+%s
+```
+
+- Config suggestion warnings (unmapped Makefile/package.json targets):
+
+```text
+%s
+```
+
 ---
 
 # Project Snapshot

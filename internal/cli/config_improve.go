@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 var improvePrint bool
@@ -70,17 +72,7 @@ func runAIImprove() error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Claude Code finished. Validating...")
-
-	// Auto-validate
-	validateExec := exec.Command("dva", "config", "validate")
-	validateExec.Stdout = os.Stdout
-	validateExec.Stderr = os.Stderr
-	if err := validateExec.Run(); err != nil {
-		fmt.Println("⚠️  Validation failed — review the generated dva.yml")
-	}
-
-	return nil
+	return runValidationFeedbackLoop(claudePath, improveVerbose)
 }
 
 func init() {
@@ -88,4 +80,98 @@ func init() {
 	improveCmd.Flags().BoolVar(&improveDocsOnly, "docs-only", false, "Only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged)")
 	improveCmd.Flags().BoolVarP(&improveVerbose, "verbose", "v", false, "Show detailed progress during AI execution")
 	configCmd.AddCommand(improveCmd)
+}
+
+const maxValidationRetries = 3
+
+// runValidationFeedbackLoop runs dva config validate after AI finishes.
+// If validation fails, it feeds the errors back to the AI for fixing, up to maxValidationRetries.
+func runValidationFeedbackLoop(claudePath string, verbose bool) error {
+	for attempt := 1; attempt <= maxValidationRetries; attempt++ {
+		fmt.Printf("🔍 Validating dva.yml (attempt %d/%d)...\n", attempt, maxValidationRetries)
+
+		validateOutput, validateErr := captureValidateOutput()
+
+		if validateOutput != "" {
+			fmt.Print(validateOutput)
+		}
+
+		if validateErr == nil {
+			return nil
+		}
+
+		if attempt == maxValidationRetries {
+			fmt.Println("\n⚠️  Validation still failing after max retries — review manually")
+			return nil
+		}
+
+		fmt.Printf("\n🔄 Feeding validation errors back to AI (retry %d/%d)...\n\n", attempt, maxValidationRetries)
+
+		fixPrompt, err := buildValidationFixPrompt(validateOutput)
+		if err != nil {
+			return fmt.Errorf("failed to build fix prompt: %w", err)
+		}
+
+		claudeArgs := []string{"-p", "--allowedTools", "Edit,Write,Bash"}
+		if verbose {
+			claudeArgs = append(claudeArgs, "--verbose")
+		}
+
+		cmd := exec.Command(claudePath, claudeArgs...)
+		cmd.Stdin = strings.NewReader(fixPrompt)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("claude CLI failed during validation fix: %w", err)
+		}
+		fmt.Println()
+	}
+	return nil
+}
+
+// captureValidateOutput runs dva config validate and captures combined output.
+func captureValidateOutput() (string, error) {
+	selfPath, err := os.Executable()
+	if err != nil {
+		selfPath = "dva"
+	}
+	cmd := exec.Command(selfPath, "config", "validate")
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
+
+// buildValidationFixPrompt builds a focused prompt for the AI to fix validation errors.
+func buildValidationFixPrompt(validateOutput string) (string, error) {
+	c, err := config.Load(".")
+	if err != nil {
+		return "", fmt.Errorf("could not load dva.yml: %w", err)
+	}
+
+	rawConfig, err := os.ReadFile(c.FilePath())
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", c.FilePath(), err)
+	}
+
+	prompt := "# DVA Validation Fix\n\n" +
+		"dva.yml에서 검출된 validation 에러를 수정하세요.\n\n" +
+		"## Current dva.yml\n\n" +
+		"Path: " + c.FilePath() + "\n\n" +
+		"```yaml\n" + string(rawConfig) + "\n```\n\n" +
+		"## Validation Output\n\n" +
+		"```text\n" + validateOutput + "\n```\n\n" +
+		"## Instructions\n\n" +
+		"1. 위 에러/경고를 수정하세요. **최소 변경만** — 에러 수정에 집중.\n" +
+		"2. 기존 interaction 이름, 구조는 최대한 유지.\n" +
+		"3. 수정 후 DVA schema " + config.Version + "와 호환되어야 합니다.\n\n" +
+		"Common fixes:\n" +
+		"- `Additional property X is not allowed` → 스키마에 없는 필드를 삭제하거나 올바른 필드로 교체\n" +
+		"- `reserved command conflict` → interaction 키 이름을 변경 (예: run → app-run)\n" +
+		"- `X.type must be one of the following` → 허용된 type 값으로 변경\n" +
+		"- compose name mismatch → compose 파일의 top-level name을 dva.yml project_name과 일치시킴\n\n" +
+		"## DVA Library Reference\n\n" +
+		libraryReferenceText + "\n"
+
+	return prompt, nil
 }

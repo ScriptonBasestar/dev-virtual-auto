@@ -21,6 +21,7 @@ All notable changes to DVA are documented here.
 ### Changed
 - `compose:` / `kubectl:` 최상위 섹션 → `stack:` 섹션으로 통합 마이그레이션
 - 모듈 디렉토리 `.dva/` → `.sb/dva/`로 변경
+
 ### Fixed
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)
 - `env_file` field was parsed but never loaded into environment
@@ -32,7 +33,7 @@ All notable changes to DVA are documented here.
 ### Added
 - `dva show` command: config summary (profiles, environments, commands)
 - `--env` flag: named environment profiles (`environments:` section in dva.yml)
-- `--mode` flag: operational mode profiles (`profiles:` section in dva.yml)
+- `--mode` flag: operational mode profiles (`modes:` section in dva.yml)
 - `default_profile` field in `provision` config for profile fallback
 - `dva provision --list`: list available provision profiles
 - USAGE.md: comprehensive command and flag reference

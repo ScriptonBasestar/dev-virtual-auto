@@ -169,14 +169,8 @@ func runAIInit() error {
 	}
 
 	fmt.Println()
-	fmt.Println("✅ Claude Code finished. Validating...")
-
-	// Auto-validate
-	validateCmd := exec.Command("dva", "validate")
-	validateCmd.Stdout = os.Stdout
-	validateCmd.Stderr = os.Stderr
-	if err := validateCmd.Run(); err != nil {
-		fmt.Println("⚠️  Validation failed — review the generated dva.yml")
+	if err := runValidationFeedbackLoop(claudePath, initVerbose); err != nil {
+		return err
 	}
 
 	// Generate AI docs unless --no-ai-docs is set
@@ -614,6 +608,24 @@ func buildImprovePrompt() (string, error) {
 		composeWarnings = "None"
 	}
 
+	semanticWarnings := c.ValidateWarnings()
+	semanticWarningsText := "None"
+	if len(semanticWarnings) > 0 {
+		semanticWarningsText = strings.Join(semanticWarnings, "\n")
+	}
+
+	driftWarnings := detectConfigDriftWarnings(c)
+	driftWarningsText := "None"
+	if len(driftWarnings) > 0 {
+		driftWarningsText = strings.Join(driftWarnings, "\n")
+	}
+
+	suggestionWarnings := detectConfigSuggestionWarnings(c)
+	suggestionWarningsText := "None"
+	if len(suggestionWarnings) > 0 {
+		suggestionWarningsText = strings.Join(suggestionWarnings, "\n")
+	}
+
 	return fmt.Sprintf(improvePromptTemplateText,
 		c.FilePath(),
 		string(rawConfig),
@@ -621,6 +633,9 @@ func buildImprovePrompt() (string, error) {
 		string(resolvedConfigYAML),
 		validationStatus,
 		composeWarnings,
+		semanticWarningsText,
+		driftWarningsText,
+		suggestionWarningsText,
 		buildProjectSnapshot(),
 		libraryReferenceText,
 		config.Version,
