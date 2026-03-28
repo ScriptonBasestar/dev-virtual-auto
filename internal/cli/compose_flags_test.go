@@ -261,8 +261,12 @@ func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
 
 func TestBuildComposeArgs_Default(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-compose:
-  files: [compose.yml]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [compose.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -283,8 +287,12 @@ compose:
 
 func TestBuildComposeArgs_WithProjectName(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-compose:
-  project_name: myproject
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      project_name: myproject
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -300,8 +308,12 @@ compose:
 
 func TestBuildComposeArgs_MultipleFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-compose:
-  files: [compose.yml, compose.override.yml]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [compose.yml, compose.override.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -378,9 +390,13 @@ func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
 
 func TestBuildComposeArgs_CustomCommand(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-compose:
-  command: "podman compose"
-  files: [compose.yml]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      command: "podman compose"
+      files: [compose.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -395,9 +411,13 @@ compose:
 
 func TestBuildComposeArgs_InterpolateFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
-compose:
-  files: [compose.yml]
-  project_name: "${APP_NAME}"
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [compose.yml]
+      project_name: "${APP_NAME}"
 `)
 	e := config.NewEnvironment(map[string]string{"APP_NAME": "myapp"}, c.FileDir(), c.FileDir())
 

@@ -102,12 +102,13 @@ type ComposeNameWarning struct {
 // because Docker Compose uses the first file's name when merging multiple files.
 // Returns warnings for missing or mismatched names.
 func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
-	if c.Compose.ProjectName == "" || len(c.Compose.Files) == 0 {
+	cc := c.PrimaryComposeConfig()
+	if cc == nil || cc.ProjectName == "" || len(cc.Files) == 0 {
 		return nil
 	}
 
 	cfgDir := c.FileDir()
-	f := c.Compose.Files[0]
+	f := cc.Files[0]
 	filePath := f
 	if !filepath.IsAbs(filePath) {
 		filePath = filepath.Join(cfgDir, f)
@@ -123,13 +124,13 @@ func (c *Config) ValidateComposeProjectNames() []ComposeNameWarning {
 	if composeName == "" {
 		warnings = append(warnings, ComposeNameWarning{
 			File:    f,
-			DvaName: c.Compose.ProjectName,
+			DvaName: cc.ProjectName,
 		})
-	} else if composeName != c.Compose.ProjectName {
+	} else if composeName != cc.ProjectName {
 		warnings = append(warnings, ComposeNameWarning{
 			File:        f,
 			ComposeName: composeName,
-			DvaName:     c.Compose.ProjectName,
+			DvaName:     cc.ProjectName,
 		})
 	}
 	return warnings

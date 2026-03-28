@@ -34,10 +34,13 @@ type LifecycleEntry struct {
 
 // ComposePluginConfig holds Docker Compose plugin settings.
 type ComposePluginConfig struct {
-	Files       []string `yaml:"files"`
-	ProjectName string   `yaml:"project_name"`
-	Command     string   `yaml:"command"`
-	UpOptions   []string `yaml:"up_options"`
+	Files       []string                    `yaml:"files"`
+	ProjectName string                      `yaml:"project_name"`
+	Command     string                      `yaml:"command"`
+	Method      string                      `yaml:"method"`
+	UpOptions   []string                    `yaml:"up_options"`
+	Tags        []string                    `yaml:"tags"`
+	Services    map[string]ServiceTagConfig `yaml:"services"`
 }
 
 // ProcessPluginConfig holds local process plugin settings.

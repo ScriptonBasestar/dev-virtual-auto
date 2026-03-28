@@ -54,7 +54,7 @@ func runAddDevcontainer() error {
 		"service":         service,
 		"workspaceFolder": "/workspace",
 	}
-	if err := writeDevcontainerFiles(dc, c.Compose.Files, c.FileDir()); err != nil {
+	if err := writeDevcontainerFiles(dc, c.AllComposeFiles(), c.FileDir()); err != nil {
 		return err
 	}
 
@@ -70,7 +70,7 @@ func runAddDevcontainer() error {
 
 // detectPrimaryService returns the first service name found in compose files, or "app".
 func detectPrimaryService(c *config.Config) string {
-	for _, f := range c.Compose.Files {
+	for _, f := range c.AllComposeFiles() {
 		if services := extractComposeServices(f); len(services) > 0 {
 			return services[0]
 		}

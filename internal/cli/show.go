@@ -35,15 +35,17 @@ func showText(c *config.Config) error {
 		fmt.Printf("  Required version: %s\n", c.Version)
 	}
 
-	// Compose
-	if c.Compose.ProjectName != "" || len(c.Compose.Files) > 0 {
-		fmt.Println()
-		fmt.Println("Compose:")
-		if c.Compose.ProjectName != "" {
-			fmt.Printf("  Project: %s\n", c.Compose.ProjectName)
-		}
-		if len(c.Compose.Files) > 0 {
-			fmt.Printf("  Files:   %s\n", strings.Join(c.Compose.Files, ", "))
+	// Lifecycle / Compose
+	if cc := c.PrimaryComposeConfig(); cc != nil {
+		if cc.ProjectName != "" || len(cc.Files) > 0 {
+			fmt.Println()
+			fmt.Println("Compose:")
+			if cc.ProjectName != "" {
+				fmt.Printf("  Project: %s\n", cc.ProjectName)
+			}
+			if len(cc.Files) > 0 {
+				fmt.Printf("  Files:   %s\n", strings.Join(cc.Files, ", "))
+			}
 		}
 	}
 
@@ -156,15 +158,17 @@ func showJSON(c *config.Config) error {
 		"config_version": c.Version,
 	}
 
-	if c.Compose.ProjectName != "" || len(c.Compose.Files) > 0 {
-		compose := map[string]any{}
-		if c.Compose.ProjectName != "" {
-			compose["project_name"] = c.Compose.ProjectName
+	if cc := c.PrimaryComposeConfig(); cc != nil {
+		if cc.ProjectName != "" || len(cc.Files) > 0 {
+			compose := map[string]any{}
+			if cc.ProjectName != "" {
+				compose["project_name"] = cc.ProjectName
+			}
+			if len(cc.Files) > 0 {
+				compose["files"] = cc.Files
+			}
+			data["compose"] = compose
 		}
-		if len(c.Compose.Files) > 0 {
-			compose["files"] = c.Compose.Files
-		}
-		data["compose"] = compose
 	}
 
 	if len(c.Modes) > 0 {

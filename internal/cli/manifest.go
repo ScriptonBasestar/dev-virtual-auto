@@ -94,7 +94,7 @@ func buildManifest(c *config.Config) *Manifest {
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ConfigFile:    c.FilePath(),
 		ProjectDir:    c.FileDir(),
-		ComposeFiles:  c.Compose.Files,
+		ComposeFiles:  c.AllComposeFiles(),
 		StaticCommands: map[string]ManifestCmd{
 			"run": {
 				Description: "Run configured command (run prefix may be omitted)",

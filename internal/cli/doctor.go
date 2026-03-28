@@ -56,7 +56,7 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	results = append(results, checkDocker())
 
 	// Built-in: compose files exist
-	for _, f := range c.Compose.Files {
+	for _, f := range c.AllComposeFiles() {
 		path := f
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(c.FileDir(), f)

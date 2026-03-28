@@ -120,9 +120,13 @@ Minimal version for quick setup:
 ```yaml
 version: '0.1.0'
 
-compose:
-  files:
-    - docker-compose.yml
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
 
 interaction:
   rails:
@@ -245,11 +249,15 @@ dva bundle install
 ### Using Different Compose Files
 
 ```yaml
-compose:
-  files:
-    - docker-compose.yml
-    - docker-compose.development.yml
-  project_name: gorisa-discourse
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+        - docker-compose.development.yml
+      project_name: gorisa-discourse
 ```
 
 ### Environment Variables

@@ -29,10 +29,14 @@ environment:
   RAILS_ENV: ${ENV:-development}
   APP_NAME: myapp
 
-compose:
-  files:
-    - docker-compose.yml
-    - docker-compose.${ENV:-development}.yml
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+        - docker-compose.${ENV:-development}.yml
 
 interaction:
   rails:

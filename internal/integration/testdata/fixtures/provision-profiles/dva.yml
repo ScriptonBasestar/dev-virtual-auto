@@ -1,7 +1,11 @@
 version: "0.1.22"
 
-compose:
-  files: [compose.yml]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [compose.yml]
 
 provision:
   default_profile: setup

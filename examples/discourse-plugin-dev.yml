@@ -8,10 +8,14 @@ environment:
   RAILS_ENV: development
   DISCOURSE_HOSTNAME: localhost
 
-compose:
-  files:
-    - docker-compose.yml
-  project_name: gorisa-discourse
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+      project_name: gorisa-discourse
 
 interaction:
   # Rails commands

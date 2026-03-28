@@ -37,9 +37,14 @@ func TestShowText_MinimalConfig(t *testing.T) {
 
 func TestShowText_WithCompose(t *testing.T) {
 	c := &config.Config{
-		Compose: config.ComposeConfig{
-			ProjectName: "myproject",
-			Files:       []string{"compose.yml", "compose.dev.yml"},
+		Lifecycle: []config.LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &config.ComposePluginConfig{
+					ProjectName: "myproject",
+					Files:       []string{"compose.yml", "compose.dev.yml"},
+				},
+			},
 		},
 	}
 	output := captureStdout(t, func() {
@@ -175,9 +180,14 @@ func TestShowJSON_MinimalConfig(t *testing.T) {
 
 func TestShowJSON_FullConfig(t *testing.T) {
 	c := &config.Config{
-		Compose: config.ComposeConfig{
-			ProjectName: "test",
-			Files:       []string{"compose.yml"},
+		Lifecycle: []config.LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &config.ComposePluginConfig{
+					ProjectName: "test",
+					Files:       []string{"compose.yml"},
+				},
+			},
 		},
 		Modes: map[string]config.ModeConfig{
 			"docker": {Description: "Docker"},

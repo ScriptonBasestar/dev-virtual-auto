@@ -7,10 +7,14 @@ environment:
   COMPOSE_EXT: development
   RAILS_ENV: development
 
-compose:
-  files:
-    - docker-compose.yml
-  project_name: myapp
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+      project_name: myapp
 
 interaction:
   # Rails console - used by 'make dva-console'

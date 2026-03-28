@@ -32,12 +32,21 @@ environment:
   ENABLE_WEB_CONSOLE: true
   WORKER_CONCURRENCY: 4
 
-compose:
-  files:
-    - docker-compose.yml
-    - docker-compose.override.yml
-  project_name: myapp_project
-  command: docker compose
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+        - docker-compose.override.yml
+      project_name: myapp_project
+      command: docker compose
+  - name: kubectl
+    plugin: kubectl
+    order: 20
+    kubectl:
+      namespace: myapp-development
 
 interaction:
   rails:
@@ -222,9 +231,6 @@ environments:
       RAILS_ENV: production
       DATABASE_URL: postgres://user:password@localhost:5434/myapp_production
       REDIS_URL: redis://localhost:6381/0
-
-kubectl:
-  namespace: myapp-development
 
 # modules:
 #   - production

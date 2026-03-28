@@ -46,7 +46,7 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 
 // HasTag checks if the compose-level default tags contain the given tag.
 func (c *Config) HasTag(tag string) bool {
-	for _, t := range c.Compose.Tags {
+	for _, t := range c.ComposeTags() {
 		if t == tag {
 			return true
 		}
@@ -72,40 +72,38 @@ func (c *Config) FilterInteractions(excludeTags []string) map[string]*Interactio
 // GetComposeServicesExcluding returns compose service names that do NOT have any of the excluded tags.
 // Services without explicit tags inherit the compose-level default tags.
 func (c *Config) GetComposeServicesExcluding(excludeTags []string) []string {
-	if len(excludeTags) == 0 || len(c.Compose.Services) == 0 {
+	services := c.ComposeServices()
+	if len(excludeTags) == 0 || len(services) == 0 {
 		return nil
 	}
 	exclude := toSet(excludeTags)
-	defaults := c.Compose.Tags
+	defaults := c.ComposeTags()
 
 	var included []string
-	var excluded []string
-	for svcName, svcCfg := range c.Compose.Services {
+	for svcName, svcCfg := range services {
 		tags := svcCfg.Tags
 		if len(tags) == 0 {
 			tags = defaults
 		}
-		if hasAnyTag(tags, exclude) {
-			excluded = append(excluded, svcName)
-		} else {
+		if !hasAnyTag(tags, exclude) {
 			included = append(included, svcName)
 		}
 	}
-	_ = excluded // excluded services are simply not returned
 	return included
 }
 
 // GetComposeServicesIncluding returns compose service names that HAVE ANY of the included tags.
 // Services without explicit tags inherit the compose-level default tags.
 func (c *Config) GetComposeServicesIncluding(includeTags []string) []string {
-	if len(includeTags) == 0 || len(c.Compose.Services) == 0 {
+	services := c.ComposeServices()
+	if len(includeTags) == 0 || len(services) == 0 {
 		return nil
 	}
 	include := toSet(includeTags)
-	defaults := c.Compose.Tags
+	defaults := c.ComposeTags()
 
 	var included []string
-	for svcName, svcCfg := range c.Compose.Services {
+	for svcName, svcCfg := range services {
 		tags := svcCfg.Tags
 		if len(tags) == 0 {
 			tags = defaults
@@ -119,14 +117,15 @@ func (c *Config) GetComposeServicesIncluding(includeTags []string) []string {
 
 // GetExcludedComposeServices returns compose service names that HAVE any of the excluded tags.
 func (c *Config) GetExcludedComposeServices(excludeTags []string) []string {
-	if len(excludeTags) == 0 || len(c.Compose.Services) == 0 {
+	services := c.ComposeServices()
+	if len(excludeTags) == 0 || len(services) == 0 {
 		return nil
 	}
 	exclude := toSet(excludeTags)
-	defaults := c.Compose.Tags
+	defaults := c.ComposeTags()
 
 	var result []string
-	for svcName, svcCfg := range c.Compose.Services {
+	for svcName, svcCfg := range services {
 		tags := svcCfg.Tags
 		if len(tags) == 0 {
 			tags = defaults

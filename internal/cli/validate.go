@@ -49,7 +49,7 @@ var validateCmd = &cobra.Command{
 			dcPath := filepath.Join(c.FileDir(), ".devcontainer", "devcontainer.json")
 			if _, err := os.Stat(dcPath); os.IsNotExist(err) {
 				if fix {
-					if err := writeDevcontainerFiles(c.Devcontainer, c.Compose.Files, c.FileDir()); err != nil {
+					if err := writeDevcontainerFiles(c.Devcontainer, c.AllComposeFiles(), c.FileDir()); err != nil {
 						fmt.Fprintf(os.Stderr, "[error] devcontainer: %v\n", err)
 					} else {
 						fmt.Fprintf(os.Stderr, "[fixed] created .devcontainer/devcontainer.json\n")
@@ -108,7 +108,7 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 
 	detectedCompose := detectComposeFilesInDir(c.FileDir())
 	if len(detectedCompose) > 0 {
-		configured := normalizeRelativePaths(c.Compose.Files)
+		configured := normalizeRelativePaths(c.AllComposeFiles())
 		if !sameStringSlice(configured, detectedCompose) {
 			warnings = append(warnings,
 				fmt.Sprintf("compose.files is %s but detected root compose files are %s; review whether dva.yml is tracking the current project layout",
@@ -233,7 +233,7 @@ func detectComposeFilesInDir(dir string) []string {
 
 func configuredComposeServices(c *config.Config) map[string]bool {
 	services := map[string]bool{}
-	for _, file := range c.Compose.Files {
+	for _, file := range c.AllComposeFiles() {
 		path := file
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(c.FileDir(), file)

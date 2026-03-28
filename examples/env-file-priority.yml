@@ -26,9 +26,13 @@ environment:
   LOG_LEVEL: info        # This overrides any LOG_LEVEL in .env files
   DATABASE_HOST: postgres
 
-compose:
-  files:
-    - docker-compose.yml
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
 
 interaction:
   rails:

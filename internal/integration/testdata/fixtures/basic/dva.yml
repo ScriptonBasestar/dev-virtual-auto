@@ -3,9 +3,13 @@ version: "0.1.22"
 environment:
   APP_ENV: development
 
-compose:
-  files: [compose.yml]
-  project_name: basic-test
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [compose.yml]
+      project_name: basic-test
 
 interaction:
   shell:

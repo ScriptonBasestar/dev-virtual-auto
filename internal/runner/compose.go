@@ -17,29 +17,28 @@ func execCompose(env *config.Environment, cfg *config.Config, args []string) err
 	fullArgs = append(fullArgs, "compose")
 
 	if cfg != nil {
-		if cfg.Compose.Command != "" {
-			parts := dvaexec.SplitCommand(cfg.Compose.Command)
-			composeCmd = parts[0]
-			if len(parts) > 1 {
-				fullArgs = parts[1:]
+		cc := cfg.PrimaryComposeConfig()
+		if cc != nil {
+			if cc.Command != "" {
+				parts := dvaexec.SplitCommand(cc.Command)
+				composeCmd = parts[0]
+				if len(parts) > 1 {
+					fullArgs = parts[1:]
+				}
 			}
-		}
 
-		cfgDir := cfg.FileDir()
-		for _, f := range cfg.Compose.Files {
-			f = env.Interpolate(f)
-			if !filepath.IsAbs(f) {
-				f = filepath.Join(cfgDir, f)
+			cfgDir := cfg.FileDir()
+			for _, f := range cc.Files {
+				f = env.Interpolate(f)
+				if !filepath.IsAbs(f) {
+					f = filepath.Join(cfgDir, f)
+				}
+				fullArgs = append(fullArgs, "-f", f)
 			}
-			fullArgs = append(fullArgs, "-f", f)
-		}
 
-		if cfg.Compose.ProjectName != "" {
-			fullArgs = append(fullArgs, "--project-name", env.Interpolate(cfg.Compose.ProjectName))
-		}
-
-		if ns := cfg.Kubectl.Namespace; ns != "" {
-			os.Setenv("KUBE_NAMESPACE", env.Interpolate(ns))
+			if cc.ProjectName != "" {
+				fullArgs = append(fullArgs, "--project-name", env.Interpolate(cc.ProjectName))
+			}
 		}
 	}
 

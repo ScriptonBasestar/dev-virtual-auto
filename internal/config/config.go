@@ -15,26 +15,21 @@ const DotDirName = ".sb/dva"
 // Config represents the parsed dva.yml configuration.
 type Config struct {
 	Version      string                         `yaml:"version"`
-	Compose      ComposeConfig                  `yaml:"compose"`
-	Kubectl      KubectlConfig                  `yaml:"kubectl"`
 	Environment  map[string]string              `yaml:"environment"`
-	EnvFile      any                    `yaml:"env_file"`
+	EnvFile      any                            `yaml:"env_file"`
 	Interaction  map[string]*InteractionCommand `yaml:"interaction"`
-	Provision    ProvisionConfig                 `yaml:"provision"`
+	Provision    ProvisionConfig                `yaml:"provision"`
 	Infra        map[string]InfraConfig         `yaml:"infra"`
 	Modules      []string                       `yaml:"modules"`
-	Devcontainer map[string]any         `yaml:"devcontainer"`
+	Devcontainer map[string]any                 `yaml:"devcontainer"`
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
-	Endpoints    map[string]EndpointConfig        `yaml:"endpoints"`
-	Modes        map[string]ModeConfig            `yaml:"modes"`
+	Endpoints    map[string]EndpointConfig      `yaml:"endpoints"`
+	Modes        map[string]ModeConfig          `yaml:"modes"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`
-	Lifecycle    []LifecycleEntry              `yaml:"lifecycle"`
-
-	// Deprecated: use Modes instead. Kept for backwards compatibility with existing dva.yml files.
-	DeprecatedProfiles map[string]ModeConfig `yaml:"profiles"`
+	Lifecycle    []LifecycleEntry               `yaml:"lifecycle"`
 
 	// Internal fields
 	filePath string
@@ -111,22 +106,6 @@ type ServiceTagConfig struct {
 	Ports   map[int]PortConfig `yaml:"ports"`   // published (host) port -> config
 	Related []string           `yaml:"related"` // related service names (shown as hints when not running)
 	Hint    string             `yaml:"hint"`    // human-readable hint shown when related services are missing
-}
-
-// ComposeConfig holds Docker Compose settings.
-type ComposeConfig struct {
-	Files       []string                    `yaml:"files"`
-	ProjectName string                      `yaml:"project_name"`
-	Command     string                      `yaml:"command"`
-	Method      string                      `yaml:"method"`
-	UpOptions   []string                    `yaml:"up_options"`
-	Tags        []string                    `yaml:"tags"`
-	Services    map[string]ServiceTagConfig `yaml:"services"`
-}
-
-// KubectlConfig holds Kubernetes settings.
-type KubectlConfig struct {
-	Namespace string `yaml:"namespace"`
 }
 
 // InteractionCommand defines a command in the interaction section.
@@ -325,12 +304,6 @@ func Load(workDir string) (*Config, error) {
 		cfg.mergeFrom(overCfg)
 	}
 
-	// Migrate deprecated 'profiles:' → 'modes:'
-	migrateDeprecatedProfiles(cfg)
-
-	// Migrate compose: → lifecycle: if no explicit lifecycle section
-	migrateComposeToLifecycle(cfg)
-
 	// Apply defaults
 	if cfg.Environment == nil {
 		cfg.Environment = make(map[string]string)
@@ -391,27 +364,9 @@ func loadFile(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// migrateDeprecatedProfiles moves entries from the deprecated 'profiles:' key
-// into 'modes:', printing a warning. Both keys in the same file is an error.
-func migrateDeprecatedProfiles(cfg *Config) {
-	if len(cfg.DeprecatedProfiles) == 0 {
-		return
-	}
-	if len(cfg.Modes) > 0 {
-		fmt.Fprintf(os.Stderr, "[warn] dva.yml has both 'profiles:' and 'modes:'. 'profiles:' is ignored — please remove it.\n")
-		cfg.DeprecatedProfiles = nil
-		return
-	}
-	fmt.Fprintf(os.Stderr, "[warn] 'profiles:' is deprecated in dva.yml. Rename to 'modes:'.\n")
-	cfg.Modes = cfg.DeprecatedProfiles
-	cfg.DeprecatedProfiles = nil
-}
-
 // mergeFrom merges another config into this one (other values take precedence
 // for top-level scalars; maps are deep-merged).
 func (c *Config) mergeFrom(other *Config) {
-	// Migrate deprecated profiles in the source before merging
-	migrateDeprecatedProfiles(other)
 	// Merge environment
 	if other.Environment != nil {
 		if c.Environment == nil {
@@ -443,33 +398,6 @@ func (c *Config) mergeFrom(other *Config) {
 		for k, v := range other.Provision.Profiles {
 			c.Provision.Profiles[k] = v
 		}
-	}
-
-	// Merge compose
-	if len(other.Compose.Files) > 0 {
-		c.Compose.Files = other.Compose.Files
-	}
-	if other.Compose.ProjectName != "" {
-		c.Compose.ProjectName = other.Compose.ProjectName
-	}
-	if other.Compose.Command != "" {
-		c.Compose.Command = other.Compose.Command
-	}
-	if len(other.Compose.UpOptions) > 0 {
-		c.Compose.UpOptions = other.Compose.UpOptions
-	}
-	if other.Compose.Services != nil {
-		if c.Compose.Services == nil {
-			c.Compose.Services = make(map[string]ServiceTagConfig)
-		}
-		for k, v := range other.Compose.Services {
-			c.Compose.Services[k] = v
-		}
-	}
-
-	// Merge kubectl
-	if other.Kubectl.Namespace != "" {
-		c.Kubectl.Namespace = other.Kubectl.Namespace
 	}
 
 	// Merge health checks

@@ -56,10 +56,14 @@ func TestLoadConfig(t *testing.T) {
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
 	content := `version: "0.1.0"
-compose:
-  files:
-    - docker-compose.yml
-  project_name: myapp
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+      project_name: myapp
 
 environment:
   RAILS_ENV: development
@@ -85,11 +89,12 @@ interaction:
 	if cfg.Version != "0.1.0" {
 		t.Errorf("version = %s, want 0.1.0", cfg.Version)
 	}
-	if cfg.Compose.ProjectName != "myapp" {
-		t.Errorf("project_name = %s, want myapp", cfg.Compose.ProjectName)
+	if cfg.ComposeProjectName() != "myapp" {
+		t.Errorf("project_name = %s, want myapp", cfg.ComposeProjectName())
 	}
-	if len(cfg.Compose.Files) != 1 || cfg.Compose.Files[0] != "docker-compose.yml" {
-		t.Errorf("compose.files = %v, want [docker-compose.yml]", cfg.Compose.Files)
+	files := cfg.AllComposeFiles()
+	if len(files) != 1 || files[0] != "docker-compose.yml" {
+		t.Errorf("compose.files = %v, want [docker-compose.yml]", files)
 	}
 	if len(cfg.Interaction) != 2 {
 		t.Errorf("interaction count = %d, want 2", len(cfg.Interaction))
@@ -146,8 +151,12 @@ func TestLoadConfigWithOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
-compose:
-  project_name: original
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      project_name: original
 interaction:
   shell:
     service: app
@@ -155,8 +164,12 @@ interaction:
 `), 0644)
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
-compose:
-  project_name: overridden
+lifecycle:
+  - name: compose-override
+    plugin: compose
+    order: 10
+    compose:
+      project_name: overridden
 `), 0644)
 
 	cfg, err := Load(tmpDir)
@@ -164,8 +177,11 @@ compose:
 		t.Fatalf("Load error: %v", err)
 	}
 
-	if cfg.Compose.ProjectName != "overridden" {
-		t.Errorf("project_name = %s, want overridden", cfg.Compose.ProjectName)
+	if cfg.ComposeProjectName() != "original" {
+		t.Errorf("project_name = %s, want original (first compose entry)", cfg.ComposeProjectName())
+	}
+	if len(cfg.Lifecycle) != 2 {
+		t.Errorf("lifecycle entries = %d, want 2 (merged)", len(cfg.Lifecycle))
 	}
 }
 
@@ -297,14 +313,19 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, "dva.yml")
 
-	content := `compose:
-  services:
-    api:
-      tags: [web]
-      related: [worker, scheduler]
-      hint: "Worker is needed for async processing"
-    worker:
-      tags: [background]
+	content := `lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [docker-compose.yml]
+      services:
+        api:
+          tags: [web]
+          related: [worker, scheduler]
+          hint: "Worker is needed for async processing"
+        worker:
+          tags: [background]
 `
 	os.WriteFile(dvaYml, []byte(content), 0644)
 
@@ -313,7 +334,8 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 		t.Fatalf("Load error: %v", err)
 	}
 
-	api := cfg.Compose.Services["api"]
+	services := cfg.ComposeServices()
+	api := services["api"]
 	if len(api.Related) != 2 {
 		t.Fatalf("expected 2 related, got %d", len(api.Related))
 	}

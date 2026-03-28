@@ -14,11 +14,12 @@ func TestLoadBasicFixture(t *testing.T) {
 	if c.Version != "0.1.22" {
 		t.Errorf("Version = %q, want %q", c.Version, "0.1.22")
 	}
-	if c.Compose.ProjectName != "basic-test" {
-		t.Errorf("ProjectName = %q, want %q", c.Compose.ProjectName, "basic-test")
+	if c.ComposeProjectName() != "basic-test" {
+		t.Errorf("ProjectName = %q, want %q", c.ComposeProjectName(), "basic-test")
 	}
-	if len(c.Compose.Files) != 1 || c.Compose.Files[0] != "compose.yml" {
-		t.Errorf("Compose.Files = %v, want [compose.yml]", c.Compose.Files)
+	files := c.AllComposeFiles()
+	if len(files) != 1 || files[0] != "compose.yml" {
+		t.Errorf("Compose.Files = %v, want [compose.yml]", files)
 	}
 	if len(c.Interaction) != 2 {
 		t.Errorf("Interaction count = %d, want 2", len(c.Interaction))

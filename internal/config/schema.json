@@ -317,102 +317,283 @@
       "description": "Specifies the minimum required version of DVA",
       "examples": ["8.1.0"]
     },
-    "compose": {
-      "type": "object",
-      "description": "Contains Docker Compose configuration",
-      "properties": {
-        "files": {
-          "type": "array",
-          "items": {
-            "type": "string"
+    "lifecycle": {
+      "type": "array",
+      "description": "Ordered list of lifecycle plugin entries. Each entry defines a plugin (compose, kubectl, helm, process, script, docker, etc.) and its configuration. Entries are executed in ascending order for up, descending for down/stop.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "plugin"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Unique name for this lifecycle entry"
           },
-          "description": "Array of strings representing paths to Docker Compose files",
-          "examples": [["docker-compose.yml", "docker-compose.override.yml"]]
-        },
-        "project_name": {
-          "type": "string",
-          "description": "Specifies the project name for Docker Compose",
-          "examples": ["app"]
-        },
-        "command": {
-          "type": "string",
-          "description": "Specifies an alternative Docker Compose command",
-          "examples": ["docker compose"]
-        },
-        "method": {
-          "type": "string",
-          "description": "Specifies the Docker Compose method to use"
-        },
-        "up_options": {
-          "type": "array",
-          "items": {
-            "type": "string"
+          "plugin": {
+            "type": "string",
+            "description": "Plugin type to use",
+            "enum": ["compose", "process", "script", "docker", "kubectl", "helm", "kustomize", "tilt", "skaffold", "podman_compose", "vagrant", "sam", "serverless", "multipass"]
           },
-          "description": "Default options for 'dva up' command",
-          "examples": [["-d", "--wait"], ["--build", "-d"]]
-        },
-        "tags": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Default tags for all compose services (e.g., infra, app)",
-          "examples": [["infra"], ["app"]]
-        },
-        "services": {
-          "type": "object",
-          "description": "Per-service tag configuration to override compose-level defaults",
-          "patternProperties": {
-            "^[\\w\\-.]+$": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "tags": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "Tags for this specific service"
+          "order": {
+            "type": "integer",
+            "description": "Execution order (ascending for up, descending for down/stop)",
+            "examples": [10, 20, 30]
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Tags for categorizing this lifecycle entry"
+          },
+          "exports": {
+            "type": "object",
+            "description": "Environment variables to export to subsequent lifecycle entries",
+            "additionalProperties": { "type": "string" }
+          },
+          "health_checks": {
+            "type": "object",
+            "description": "Health checks specific to this lifecycle entry",
+            "patternProperties": {
+              "^[\\w\\-.]+$": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": "string", "enum": ["http", "tcp", "command"] },
+                  "url": { "type": "string" },
+                  "address": { "type": "string" },
+                  "command": { "type": "string" },
+                  "timeout": { "type": "integer" }
                 },
-                "ports": {
-                  "type": "object",
-                  "description": "Per-port labels and sub-path descriptions (key is published host port)",
-                  "patternProperties": {
-                    "^[0-9]+$": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "label": {
-                          "type": "string",
-                          "description": "Human-readable label for this port"
-                        },
-                        "http": {
-                          "type": "boolean",
-                          "description": "Force http:// prefix (true) or plain host:port (false). Omit to auto-detect from well-known ports."
-                        },
-                        "paths": {
-                          "type": "object",
-                          "description": "Sub-paths with descriptions (key: path, value: description)",
-                          "additionalProperties": { "type": "string" }
-                        }
-                      }
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                "related": {
-                  "type": "array",
-                  "items": { "type": "string" },
-                  "description": "Related service names that should typically run alongside this service",
-                  "examples": [["worker", "scheduler"]]
-                },
-                "hint": {
-                  "type": "string",
-                  "description": "Human-readable hint shown when related services are not running",
-                  "examples": ["Worker is required for async job processing"]
-                }
+                "required": ["type"]
               }
             }
           },
-          "additionalProperties": false
+          "compose": {
+            "type": "object",
+            "description": "Docker Compose plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Paths to Docker Compose files",
+                "examples": [["compose.yml", "compose.override.yml"]]
+              },
+              "project_name": {
+                "type": "string",
+                "description": "Project name for Docker Compose"
+              },
+              "command": {
+                "type": "string",
+                "description": "Alternative Docker Compose command",
+                "examples": ["docker compose", "podman compose"]
+              },
+              "method": {
+                "type": "string",
+                "description": "Docker Compose method to use"
+              },
+              "up_options": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Default options for up command",
+                "examples": [["-d", "--wait"]]
+              },
+              "tags": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Default tags for all compose services"
+              },
+              "services": {
+                "type": "object",
+                "description": "Per-service configuration",
+                "patternProperties": {
+                  "^[\\w\\-.]+$": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "tags": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "ports": {
+                        "type": "object",
+                        "patternProperties": {
+                          "^[0-9]+$": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "label": { "type": "string" },
+                              "http": { "type": "boolean" },
+                              "paths": {
+                                "type": "object",
+                                "additionalProperties": { "type": "string" }
+                              }
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "related": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      },
+                      "hint": { "type": "string" }
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "process": {
+            "type": "object",
+            "description": "Local process plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "command": { "type": "string", "description": "Command to run" },
+              "dir": { "type": "string", "description": "Working directory" },
+              "ready_timeout": { "type": "integer", "description": "Timeout in seconds to wait for readiness" }
+            }
+          },
+          "script": {
+            "type": "object",
+            "description": "Shell script plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "up": { "type": "string", "description": "Script to run on up" },
+              "down": { "type": "string", "description": "Script to run on down" },
+              "stop": { "type": "string", "description": "Script to run on stop" }
+            }
+          },
+          "docker": {
+            "type": "object",
+            "description": "Standalone Docker container plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "image": { "type": "string" },
+              "name": { "type": "string" },
+              "ports": { "type": "array", "items": { "type": "string" } },
+              "volumes": { "type": "array", "items": { "type": "string" } },
+              "env": { "type": "object", "additionalProperties": { "type": "string" } },
+              "options": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "kubectl": {
+            "type": "object",
+            "description": "Kubectl apply plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "manifests": { "type": "array", "items": { "type": "string" } },
+              "namespace": { "type": "string" },
+              "context": { "type": "string" }
+            }
+          },
+          "helm": {
+            "type": "object",
+            "description": "Helm chart deployment plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "chart": { "type": "string" },
+              "release": { "type": "string" },
+              "namespace": { "type": "string" },
+              "context": { "type": "string" },
+              "values": { "type": "array", "items": { "type": "string" } },
+              "set": { "type": "object", "additionalProperties": { "type": "string" } }
+            }
+          },
+          "kustomize": {
+            "type": "object",
+            "description": "Kustomize overlay plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "dir": { "type": "string" },
+              "namespace": { "type": "string" },
+              "context": { "type": "string" }
+            }
+          },
+          "tilt": {
+            "type": "object",
+            "description": "Tilt local dev plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "dir": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "skaffold": {
+            "type": "object",
+            "description": "Skaffold pipeline plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "config": { "type": "string" },
+              "profile": { "type": "string" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "podman_compose": {
+            "type": "object",
+            "description": "Podman Compose plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "files": { "type": "array", "items": { "type": "string" } },
+              "project_name": { "type": "string" }
+            }
+          },
+          "vagrant": {
+            "type": "object",
+            "description": "Vagrant VM plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "dir": { "type": "string" },
+              "machine": { "type": "string" }
+            }
+          },
+          "sam": {
+            "type": "object",
+            "description": "AWS SAM local plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "template": { "type": "string" },
+              "port": { "type": "integer" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "serverless": {
+            "type": "object",
+            "description": "Serverless offline plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "dir": { "type": "string" },
+              "port": { "type": "integer" },
+              "args": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "multipass": {
+            "type": "object",
+            "description": "Multipass VM plugin configuration",
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "image": { "type": "string" },
+              "cpus": { "type": "integer" },
+              "memory": { "type": "string" },
+              "disk": { "type": "string" },
+              "cloud_init": { "type": "string" }
+            }
+          }
         }
-      }
+      },
+      "examples": [
+        [
+          {
+            "name": "compose",
+            "plugin": "compose",
+            "order": 10,
+            "compose": {
+              "files": ["compose.yml"],
+              "project_name": "myapp"
+            }
+          }
+        ]
+      ]
     },
     "interaction": {
       "type": "object",
@@ -459,18 +640,6 @@
     },
     "env_file": {
       "$ref": "#/definitions/env_file"
-    },
-    "kubectl": {
-      "type": "object",
-      "description": "Contains Kubernetes configuration",
-      "additionalProperties": false,
-      "properties": {
-        "namespace": {
-          "type": "string",
-          "description": "Specifies the Kubernetes namespace to use",
-          "examples": ["app"]
-        }
-      }
     },
     "modules": {
       "type": "array",
@@ -749,71 +918,6 @@
         "test": {
           "description": "Test settings",
           "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb_test" }
-        }
-      }]
-    },
-    "profiles": {
-      "type": "object",
-      "description": "DEPRECATED: Use 'modes' instead. Named operational modes for dva up.",
-      "patternProperties": {
-        "^[\\w\\-.]+$": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "type": "string",
-              "description": "Human-readable description of this mode"
-            },
-            "compose_profiles": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Docker Compose profiles to activate (passed as --profile flags)",
-              "examples": [["infra"], ["infra", "monitoring"]]
-            },
-            "compose_services": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Explicit list of compose services to start. Empty array = skip compose entirely (native mode). Omit = start all services.",
-              "examples": [["postgres", "redis"], []]
-            },
-            "health_checks": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Health check names to activate (from health_checks section). Omit = use all.",
-              "examples": [["app", "worker"]]
-            },
-            "endpoint_tags": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Show only endpoints matching these tags. Omit = show all endpoints.",
-              "examples": [["app"], ["app", "monitoring"]]
-            },
-            "environment": {
-              "$ref": "#/definitions/environment_vars"
-            },
-            "provision": {
-              "type": "string",
-              "description": "Provision profile to suggest when services start for the first time",
-              "examples": ["setup", "reset"]
-            }
-          }
-        }
-      },
-      "additionalProperties": false,
-      "examples": [{
-        "docker": {
-          "description": "All services in containers"
-        },
-        "dev": {
-          "description": "Infra in containers, app locally",
-          "compose_profiles": ["infra"],
-          "health_checks": ["app"],
-          "environment": { "DATABASE_URL": "postgres://localhost:5432/mydb" }
-        },
-        "native": {
-          "description": "Everything local",
-          "compose_services": [],
-          "health_checks": ["postgres", "redis", "app"]
         }
       }]
     },

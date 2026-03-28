@@ -16,8 +16,8 @@ var ktlCmd = &cobra.Command{
 
 		var kubectlArgs []string
 
-		if ns := c.Kubectl.Namespace; ns != "" {
-			kubectlArgs = append(kubectlArgs, "--namespace", e.Interpolate(ns))
+		if kc := c.PrimaryKubectlConfig(); kc != nil && kc.Namespace != "" {
+			kubectlArgs = append(kubectlArgs, "--namespace", e.Interpolate(kc.Namespace))
 		}
 		kubectlArgs = append(kubectlArgs, args...)
 

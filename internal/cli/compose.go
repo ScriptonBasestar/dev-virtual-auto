@@ -453,25 +453,28 @@ func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (s
 	composeCmd := "docker"
 	composeArgs := []string{"compose"}
 
-	if c.Compose.Command != "" {
-		parts := dvaexec.SplitCommand(c.Compose.Command)
-		composeCmd = parts[0]
-		if len(parts) > 1 {
-			composeArgs = parts[1:]
+	cc := c.PrimaryComposeConfig()
+	if cc != nil {
+		if cc.Command != "" {
+			parts := dvaexec.SplitCommand(cc.Command)
+			composeCmd = parts[0]
+			if len(parts) > 1 {
+				composeArgs = parts[1:]
+			}
 		}
-	}
 
-	cfgDir := c.FileDir()
-	for _, f := range c.Compose.Files {
-		f = e.Interpolate(f)
-		if !filepath.IsAbs(f) {
-			f = cfgDir + "/" + f
+		cfgDir := c.FileDir()
+		for _, f := range cc.Files {
+			f = e.Interpolate(f)
+			if !filepath.IsAbs(f) {
+				f = cfgDir + "/" + f
+			}
+			composeArgs = append(composeArgs, "-f", f)
 		}
-		composeArgs = append(composeArgs, "-f", f)
-	}
 
-	if c.Compose.ProjectName != "" {
-		composeArgs = append(composeArgs, "--project-name", e.Interpolate(c.Compose.ProjectName))
+		if cc.ProjectName != "" {
+			composeArgs = append(composeArgs, "--project-name", e.Interpolate(cc.ProjectName))
+		}
 	}
 
 	composeArgs = append(composeArgs, args...)

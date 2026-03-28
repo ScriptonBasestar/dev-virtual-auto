@@ -8,24 +8,26 @@ import (
 )
 
 func TestLoadSubprojects(t *testing.T) {
-	// Create parent/devbox dir
 	parentDir := t.TempDir()
 
-	// Create sub-project directory with its own dva.yml
 	subDir := filepath.Join(parentDir, "engine")
 	os.MkdirAll(subDir, 0755)
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
-compose:
-  files:
-    - docker-compose.yml
-  project_name: engine
-  tags: [app]
-  services:
-    postgres:
-      tags: [infra]
-    django-engine:
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
+      project_name: engine
       tags: [app]
+      services:
+        postgres:
+          tags: [infra]
+        django-engine:
+          tags: [app]
 interaction:
   test:
     description: "Run tests"
@@ -55,8 +57,8 @@ interaction:
 	if !ok {
 		t.Fatal("subproject 'engine' not found")
 	}
-	if eng.Compose.ProjectName != "engine" {
-		t.Errorf("project_name = %s, want engine", eng.Compose.ProjectName)
+	if eng.ComposeProjectName() != "engine" {
+		t.Errorf("project_name = %s, want engine", eng.ComposeProjectName())
 	}
 	if len(eng.Interaction) != 2 {
 		t.Errorf("interaction count = %d, want 2", len(eng.Interaction))
@@ -78,7 +80,12 @@ func TestLoadSubprojectsMissing(t *testing.T) {
 
 func TestConfigHasTag(t *testing.T) {
 	cfg := &Config{
-		Compose: ComposeConfig{Tags: []string{"infra", "shared"}},
+		Lifecycle: []LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &ComposePluginConfig{Tags: []string{"infra", "shared"}},
+			},
+		},
 	}
 	if !cfg.HasTag("infra") {
 		t.Error("expected HasTag('infra') to be true")
@@ -98,7 +105,6 @@ func TestFilterInteractions(t *testing.T) {
 		},
 	}
 
-	// Exclude infra
 	filtered := cfg.FilterInteractions([]string{"infra"})
 	if len(filtered) != 3 {
 		t.Errorf("expected 3 commands after infra exclusion, got %d", len(filtered))
@@ -107,13 +113,11 @@ func TestFilterInteractions(t *testing.T) {
 		t.Error("'db' should be excluded with infra tag")
 	}
 
-	// Exclude nothing
 	all := cfg.FilterInteractions(nil)
 	if len(all) != 4 {
 		t.Errorf("expected 4 commands with no exclusion, got %d", len(all))
 	}
 
-	// Exclude multiple tags
 	multi := cfg.FilterInteractions([]string{"test", "quality"})
 	if len(multi) != 2 {
 		t.Errorf("expected 2 commands after multi-tag exclusion, got %d", len(multi))
@@ -122,13 +126,18 @@ func TestFilterInteractions(t *testing.T) {
 
 func TestGetComposeServicesExcluding(t *testing.T) {
 	cfg := &Config{
-		Compose: ComposeConfig{
-			Tags: []string{"app"}, // default
-			Services: map[string]ServiceTagConfig{
-				"postgres":      {Tags: []string{"infra"}},
-				"redis":         {Tags: []string{"infra"}},
-				"django-engine": {Tags: []string{"app"}},
-				"worker":        {}, // inherits compose default: [app]
+		Lifecycle: []LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &ComposePluginConfig{
+					Tags: []string{"app"},
+					Services: map[string]ServiceTagConfig{
+						"postgres":      {Tags: []string{"infra"}},
+						"redis":         {Tags: []string{"infra"}},
+						"django-engine": {Tags: []string{"app"}},
+						"worker":        {},
+					},
+				},
 			},
 		},
 	}
@@ -145,12 +154,17 @@ func TestGetComposeServicesExcluding(t *testing.T) {
 
 func TestGetExcludedComposeServices(t *testing.T) {
 	cfg := &Config{
-		Compose: ComposeConfig{
-			Tags: []string{"app"},
-			Services: map[string]ServiceTagConfig{
-				"postgres":      {Tags: []string{"infra"}},
-				"redis":         {Tags: []string{"infra"}},
-				"django-engine": {Tags: []string{"app"}},
+		Lifecycle: []LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &ComposePluginConfig{
+					Tags: []string{"app"},
+					Services: map[string]ServiceTagConfig{
+						"postgres":      {Tags: []string{"infra"}},
+						"redis":         {Tags: []string{"infra"}},
+						"django-engine": {Tags: []string{"app"}},
+					},
+				},
 			},
 		},
 	}
@@ -166,21 +180,22 @@ func TestGetExcludedComposeServices(t *testing.T) {
 }
 
 func TestGetComposeServicesExcludingEmpty(t *testing.T) {
-	cfg := &Config{
-		Compose: ComposeConfig{},
-	}
+	cfg := &Config{}
 
-	// No services defined
 	result := cfg.GetComposeServicesExcluding([]string{"infra"})
 	if len(result) != 0 {
 		t.Errorf("expected 0 results for empty services, got %d", len(result))
 	}
 
-	// No exclude tags
 	cfg2 := &Config{
-		Compose: ComposeConfig{
-			Services: map[string]ServiceTagConfig{
-				"app": {Tags: []string{"app"}},
+		Lifecycle: []LifecycleEntry{
+			{
+				Name: "compose", Plugin: "compose", Order: 10,
+				Compose: &ComposePluginConfig{
+					Services: map[string]ServiceTagConfig{
+						"app": {Tags: []string{"app"}},
+					},
+				},
 			},
 		},
 	}
@@ -193,13 +208,16 @@ func TestGetComposeServicesExcludingEmpty(t *testing.T) {
 func TestLoadConfigWithSubprojects(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create sub-project dir
 	subDir := filepath.Join(tmpDir, "sub-app")
 	os.MkdirAll(subDir, 0755)
 	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
 version: "0.1.0"
-compose:
-  files: [docker-compose.yml]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [docker-compose.yml]
 interaction:
   test:
     description: "Sub test"
@@ -207,12 +225,15 @@ interaction:
     command: "npm test"
 `), 0644)
 
-	// Main config with subprojects
 	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
 version: "0.1.0"
-compose:
-  files: [docker-compose.yml]
-  tags: [infra]
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files: [docker-compose.yml]
+      tags: [infra]
 subprojects:
   sub-app:
     path: sub-app
@@ -243,7 +264,6 @@ interaction:
 		t.Errorf("exclude_tags = %v, want [infra]", sub.ExcludeTags)
 	}
 
-	// Verify sub-project can be loaded
 	subs, err := LoadSubprojects(cfg.FileDir(), cfg.Subprojects)
 	if err != nil {
 		t.Fatalf("LoadSubprojects error: %v", err)

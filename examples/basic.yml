@@ -20,10 +20,14 @@ environment:
   RAILS_ENV: development
   DATABASE_URL: postgres://user:password@db:5432/myapp_development
 
-# Docker Compose configuration
-compose:
-  files:
-    - docker-compose.yml
+# Docker Compose configuration (lifecycle)
+lifecycle:
+  - name: compose
+    plugin: compose
+    order: 10
+    compose:
+      files:
+        - docker-compose.yml
 
 # Interactive commands
 interaction:
