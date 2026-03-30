@@ -197,11 +197,10 @@ Path: `%s`
 ### Prefix 기반 subcommand 그루핑
 공통 prefix를 가진 Makefile 타겟은 부모 interaction + subcommand 구조로 변환하세요:
 
-- `build-ce`, `build-ee`, `build-mirror` → 기존 빌드 interaction의 subcommand `ce`, `ee`, `mirror`
-- `test-ce`, `test-ee`, `test-cloud`, `test-all` → `test`의 subcommand `ce`, `ee`, `cloud`, `all`
-- `e2e-smoke`, `e2e-full`, `e2e-rust` → `e2e`의 subcommand `smoke`, `full`, `rust`
-- `clippy`, `clippy-all` → `clippy` interaction + subcommand `all`
-- `fmt-check` → `fmt` interaction + subcommand `check`
+- `build-{variant}` → 빌드 interaction의 subcommand (예: `build-api`, `build-worker` → `app:build.subcommands.api`, `.worker`)
+- `test-{scope}` → `test`의 subcommand (예: `test-unit`, `test-integration` → `test.subcommands.unit`, `.integration`)
+- `e2e-{scenario}` → `e2e`의 subcommand (예: `e2e-smoke`, `e2e-full` → `e2e.subcommands.smoke`, `.full`)
+- `lint-{tool}` / `{tool}-check` → quality interaction (예: `lint-js`, `fmt-check` → `lint.subcommands.js`, `fmt.subcommands.check`)
 
 subcommand의 `command:` 필드에는 원본 Makefile 타겟의 실제 실행 명령을 넣으세요 (`make X` 아님).
 

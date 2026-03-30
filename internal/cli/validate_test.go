@@ -227,6 +227,49 @@ func TestDetectConfigSuggestionWarnings_FromMakefileAndPackageJSON(t *testing.T)
 	}
 }
 
+func TestShouldIgnoreMakefileTarget(t *testing.T) {
+	// Exact matches: DVA reserved commands and meta targets
+	exactIgnored := []string{
+		"help", "all", "default",
+		"stop", "up", "down", "restart",
+		"ps", "run", "logs", "build", "clean",
+		"infra-up", "infra-down", "infra-start", "infra-stop",
+		"deps", "install", "prepare", "setup", "install-hooks",
+		"docs", "docs-build", "docs-serve",
+	}
+	for _, name := range exactIgnored {
+		if !shouldIgnoreMakefileTarget(name) {
+			t.Errorf("expected %q to be ignored (exact match)", name)
+		}
+	}
+
+	// Suffix patterns: compose lifecycle
+	suffixIgnored := []string{
+		"dev-full-up", "dev-full-down", "dev-full-logs", "dev-full-ps",
+		"e2e-up", "e2e-down", "e2e-stop", "e2e-restart",
+		"app-logs", "backend-ps",
+	}
+	for _, name := range suffixIgnored {
+		if !shouldIgnoreMakefileTarget(name) {
+			t.Errorf("expected %q to be ignored (suffix pattern)", name)
+		}
+	}
+
+	// Should NOT be ignored: legitimate development workflow targets
+	kept := []string{
+		"build-ce", "build-ee", "build-mirror", "build-all",
+		"test-ce", "test-all", "test-cloud",
+		"e2e-smoke", "e2e-full", "e2e-rust",
+		"clippy", "clippy-all", "fmt-check", "check-all",
+		"lint", "dev", "test",
+	}
+	for _, name := range kept {
+		if shouldIgnoreMakefileTarget(name) {
+			t.Errorf("expected %q to be kept, but was ignored", name)
+		}
+	}
+}
+
 func TestShouldIgnorePackageScript(t *testing.T) {
 	for _, name := range []string{"pretest", "postinstall", "prepare"} {
 		if !shouldIgnorePackageScript(name) {
