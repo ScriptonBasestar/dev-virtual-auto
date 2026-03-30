@@ -367,8 +367,9 @@ func shouldIgnoreMakefileTarget(name string) bool {
 	ignoredTargets := map[string]bool{
 		// Meta targets
 		"help": true, "all": true, "default": true,
-		// DVA already handles these natively
+		// DVA reserved commands — overlap with built-in DVA commands
 		"stop": true, "up": true, "down": true, "restart": true,
+		"ps": true, "run": true, "logs": true, "build": true, "clean": true,
 		// Generic infra targets that overlap with DVA modes/stack
 		"infra-up": true, "infra-down": true, "infra-start": true, "infra-stop": true,
 		// Generic setup/dependency targets handled by provision
@@ -377,7 +378,19 @@ func shouldIgnoreMakefileTarget(name string) bool {
 		// Documentation targets
 		"docs": true, "docs-build": true, "docs-serve": true,
 	}
-	return ignoredTargets[name]
+	if ignoredTargets[name] {
+		return true
+	}
+
+	// Compose lifecycle suffixes: e.g., dev-full-up, e2e-down, app-logs
+	// DVA handles these natively via modes and `dva up/down/logs` commands
+	for _, suffix := range []string{"-up", "-down", "-stop", "-restart", "-logs", "-ps"} {
+		if strings.HasSuffix(name, suffix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func extractPackageScriptNamesInDir(dir string) []string {

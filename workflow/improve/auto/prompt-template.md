@@ -194,6 +194,23 @@ Path: `%s`
 - Makefile, package.json, compose 파일, 서브프로젝트 구조와의 매핑이 충분히 직접적인지 검토하세요.
 - **모든** Makefile 타겟을 매핑할 필요는 없습니다. 개발자가 자주 사용하는 핵심 워크플로우만 DVA interaction으로 노출하세요.
 
+### Prefix 기반 subcommand 그루핑
+공통 prefix를 가진 Makefile 타겟은 부모 interaction + subcommand 구조로 변환하세요:
+
+- `build-ce`, `build-ee`, `build-mirror` → 기존 빌드 interaction의 subcommand `ce`, `ee`, `mirror`
+- `test-ce`, `test-ee`, `test-cloud`, `test-all` → `test`의 subcommand `ce`, `ee`, `cloud`, `all`
+- `e2e-smoke`, `e2e-full`, `e2e-rust` → `e2e`의 subcommand `smoke`, `full`, `rust`
+- `clippy`, `clippy-all` → `clippy` interaction + subcommand `all`
+- `fmt-check` → `fmt` interaction + subcommand `check`
+
+subcommand의 `command:` 필드에는 원본 Makefile 타겟의 실제 실행 명령을 넣으세요 (`make X` 아님).
+
+### 매핑 제외 대상
+다음 Makefile 타겟은 DVA가 네이티브로 처리하므로 interaction으로 매핑하지 마세요:
+- Compose 라이프사이클: `*-up`, `*-down`, `*-logs`, `*-ps` (→ `dva up --mode X`, `dva logs`)
+- DVA 예약 커맨드와 동일: `run`, `ps`, `build`, `clean`, `logs`
+- 릴리즈/CI 전용: `*-release` (개발환경 명령이 아님)
+
 ## 3. 네이밍 프리셋 준수
 - 서비스 태그: infra, api, worker, ui, data, monitoring, build
 - 모드 이름: infra, full-stack, hybrid, backend, server, worker, ui
