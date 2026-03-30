@@ -297,6 +297,100 @@ func TestIsDVAWrapperRecipe(t *testing.T) {
 	}
 }
 
+func TestMatchesSuggestionIgnore(t *testing.T) {
+	patterns := []string{"*-release", "clippy*", "test-e2e-*"}
+
+	matches := []string{"build-ce-release", "clippy", "clippy-all", "test-e2e-ci", "test-e2e-dev"}
+	for _, name := range matches {
+		if !matchesSuggestionIgnore(name, patterns) {
+			t.Errorf("expected %q to match suggestion_ignore patterns", name)
+		}
+	}
+
+	noMatches := []string{"build-ce", "test-ce", "e2e-smoke", "clipboard", "lint"}
+	for _, name := range noMatches {
+		if matchesSuggestionIgnore(name, patterns) {
+			t.Errorf("expected %q NOT to match suggestion_ignore patterns", name)
+		}
+	}
+
+	// Empty patterns never match
+	if matchesSuggestionIgnore("anything", nil) {
+		t.Error("empty patterns should never match")
+	}
+}
+
+func TestDetectConfigSuggestionWarnings_SubcommandCoverage(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	makefile := "build-ce: ## Build CE edition\nbuild-ee: ## Build EE edition\norphan: ## No coverage\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte(makefile), 0644); err != nil {
+		t.Fatalf("write Makefile: %v", err)
+	}
+	// app:build has subcommands ce and ee — should suppress build-ce and build-ee warnings
+	dvaYml := "version: \"0.1.0\"\ninteraction:\n  app:build:\n    runner: local\n    command: cargo build\n    subcommands:\n      ce:\n        command: cargo build --features ce\n      ee:\n        command: cargo build --features ee\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(dvaYml), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	warnings := detectConfigSuggestionWarnings(c)
+	joined := strings.Join(warnings, "\n")
+	if strings.Contains(joined, `"build-ce"`) {
+		t.Errorf("build-ce should be suppressed by subcommand coverage, got: %s", joined)
+	}
+	if strings.Contains(joined, `"build-ee"`) {
+		t.Errorf("build-ee should be suppressed by subcommand coverage, got: %s", joined)
+	}
+	if !strings.Contains(joined, `"orphan"`) {
+		t.Errorf("orphan should still warn (not covered), got: %s", joined)
+	}
+}
+
+func TestDetectConfigSuggestionWarnings_SuggestionIgnore(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldWd, _ := os.Getwd()
+	defer os.Chdir(oldWd)
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	makefile := "build-ce-release: ## Release build\nclippy: ## Lint\norphan: ## No coverage\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte(makefile), 0644); err != nil {
+		t.Fatalf("write Makefile: %v", err)
+	}
+	dvaYml := "version: \"0.1.0\"\nsuggestion_ignore:\n  - \"*-release\"\n  - \"clippy*\"\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(dvaYml), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(".")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+
+	warnings := detectConfigSuggestionWarnings(c)
+	joined := strings.Join(warnings, "\n")
+	if strings.Contains(joined, `"build-ce-release"`) {
+		t.Errorf("build-ce-release should be suppressed by suggestion_ignore, got: %s", joined)
+	}
+	if strings.Contains(joined, `"clippy"`) {
+		t.Errorf("clippy should be suppressed by suggestion_ignore, got: %s", joined)
+	}
+	if !strings.Contains(joined, `"orphan"`) {
+		t.Errorf("orphan should still warn (not ignored), got: %s", joined)
+	}
+}
+
 func TestShouldIgnorePackageScript(t *testing.T) {
 	for _, name := range []string{"pretest", "postinstall", "prepare"} {
 		if !shouldIgnorePackageScript(name) {

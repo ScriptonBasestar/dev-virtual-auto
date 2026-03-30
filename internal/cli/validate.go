@@ -149,31 +149,29 @@ func printConfigSuggestionWarnings(warnings []string) {
 }
 
 func detectConfigSuggestionWarnings(c *config.Config) []string {
-	tree := runner.NewInteractionTree(c.Interaction)
+	allCommands := runner.NewInteractionTree(c.Interaction).List()
 	commandSet := map[string]bool{}
-	for name := range tree.List() {
+	for name := range allCommands {
 		commandSet[name] = true
 	}
 
-	// Build subcommand coverage set: for "app:build ce" → also match "build-ce", "build ce"
+	// Build subcommand coverage set: for "app:build ce" → also match "build-ce"
 	// This detects when a Makefile target like "build-ce" is already covered by a
 	// DVA interaction subcommand under a different parent name.
 	subcommandCoverage := map[string]bool{}
-	for fullPath := range tree.List() {
+	for fullPath := range allCommands {
 		parts := strings.Split(fullPath, " ")
 		if len(parts) < 2 {
 			continue
 		}
-		// Extract the base name (strip namespace prefix like "app:")
+		// Strip namespace prefix from parent name ("app:build" → "build")
 		baseName := parts[0]
 		if idx := strings.LastIndex(baseName, ":"); idx >= 0 {
 			baseName = baseName[idx+1:]
 		}
-		// "app:build ce" → coverage for "build-ce"
+		// "app:build ce" → "build-ce", "test all" → "test-all"
 		subParts := append([]string{baseName}, parts[1:]...)
 		subcommandCoverage[strings.Join(subParts, "-")] = true
-		// "test all" → coverage for "test-all" (no namespace)
-		subcommandCoverage[strings.Join(parts, "-")] = true
 	}
 
 	candidates := map[string]string{}
