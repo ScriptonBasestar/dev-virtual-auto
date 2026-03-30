@@ -19,11 +19,12 @@
 13. **`services:` is tags-only** — `stack.compose.services` exists ONLY for tag-based filtering (subprojects, modes). Port information is read from compose.yml at runtime.
 14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
 15. **One stack entry + modes, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `modes.*.compose_services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
+16. **`default_mode` for minimal startup** — Always set `default_mode` to a minimal infrastructure mode (e.g., `infra`). Without it, `dva up` starts ALL services from ALL compose files. The default mode should only include core data services (DB, cache). Heavy infrastructure (monitoring, Kafka, Redis Sentinel/Cluster, PostgreSQL replicas, HA setups) MUST be in separate modes like `full-stack` or `full-stack-monitoring`.
 
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → environment → env_file → stack → checks → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
+`version → environment → env_file → stack → checks → default_mode → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
 version: "0.1.29"
@@ -252,12 +253,16 @@ stack:
       db:    { tags: [infra] }
       redis: { tags: [infra] }
       app:   { tags: [app] }
+default_mode: infra                      # dva up (no -M) → minimal infra only
 modes:
-  infra-only:
+  infra:
+    description: "Core infrastructure only (DB + cache)"
     compose_services: [db, redis]       # Start only infra
-  dev-full:
+  full-stack:
     description: "Full dev environment"  # Omit compose_services = start all
 ```
+**`default_mode` (required):** Specifies which mode is applied when `dva up` is called without `--mode/-M`. This ensures `dva up` starts only minimal infrastructure by default. Heavy services (monitoring, Kafka, Redis Sentinel/Cluster, HA setups) must be in explicit modes like `full-stack` or `full-stack-monitoring`. Users run `dva up -M full-stack` when they need everything.
+
 **Anti-pattern:** Do NOT create `compose` + `compose-full` as separate stack entries — this duplicates service definitions and compose file references.
 
 **`compose_profiles` semantics:**

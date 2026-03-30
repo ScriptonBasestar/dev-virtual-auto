@@ -796,6 +796,11 @@
         }
       }
     },
+    "default_mode": {
+      "type": "string",
+      "description": "Mode applied automatically when dva up/down/stop/restart is called without --mode/-M. Should reference a minimal infrastructure mode (e.g., 'infra') so that dva up starts only core services by default. Use 'dva up -M full-stack' for everything.",
+      "examples": ["infra", "dev"]
+    },
     "modes": {
       "type": "object",
       "description": "Named operational modes for dva up (--mode/-M flag). Each mode defines which compose profiles/services to start, health checks to run, and environment overrides.",

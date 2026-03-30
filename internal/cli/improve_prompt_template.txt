@@ -36,6 +36,7 @@ environment:      # (선택)
 env_file:
 stack:
 checks:
+default_mode:     # dva up 기본 모드 (미니멀 인프라)
 modes:
 environments:     # (선택)
 health_checks:
@@ -202,6 +203,7 @@ Path: `%s`
 **아래 항목은 선택이 아닌 필수입니다. 기존에 없으면 새로 만들어야 합니다.**
 
 - [ ] **`stack.compose`** 섹션 (루트에 `compose:`가 있으면 `stack.compose:`로 마이그레이션)
+- [ ] **`default_mode`** 필드 — `dva up` 기본 모드 지정 (미니멀 인프라 모드를 가리켜야 함)
 - [ ] **`modes`** 섹션 (최소 `infra` + `full-stack` 또는 `hybrid`)
 - [ ] **`checks`** 섹션 (최소 `docker_socket` + `.env` file_exists)
 - [ ] **`env_file`** 섹션 (`files` 배열 + `interpolate: true`)
@@ -225,6 +227,7 @@ Path: `%s`
 - [ ] Multi-stack entries에서 base compose.yml 불필요 중복 없음
 - [ ] **services.ports 미사용** — 포트 메타데이터는 `endpoints:` 섹션에 선언
 - [ ] **별도 stack 엔트리로 overlay 분리 안 함** — 단일 stack + modes.compose_services 사용
+- [ ] **`default_mode`가 미니멀 인프라를 가리키는가** — Redis Sentinel/Cluster, Kafka, 모니터링, HA 구성은 기본 모드에 포함 금지
 - [ ] **subprojects에 `description:` 필드 미사용** — 허용 필드: `path`, `exclude_tags`만
 - [ ] **섹션 순서가 canonical order를 따르는가** (Guardrails 참조)
 
@@ -268,6 +271,7 @@ Path: `%s`
 □ `env_file:` 섹션이 객체 형태인가? (`files:` 배열 + `interpolate: true`)
 □ 모든 호스트 포트가 프로젝트 고유 범위인가? (2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017 금지)
 □ `yaml-language-server: $schema=...` 주석이 첫 줄에 있는가?
+□ `default_mode`가 미니멀 인프라 모드를 가리키는가?
 □ `modes:` 섹션에 `infra` 모드가 있는가?
 □ `checks:` 섹션에 `docker_socket` 체크가 있는가?
 □ `provision:` 에 `default`와 `reset` 프로필이 있는가?

@@ -43,6 +43,7 @@ DVA-specific flags:
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
+		mode, isDefault := applyDefaultMode(c, mode)
 
 		force := false
 		noWait := false
@@ -64,7 +65,11 @@ DVA-specific flags:
 			return err
 		}
 		if rm.Mode != nil {
-			fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+			if isDefault {
+				fmt.Fprintf(os.Stderr, "[mode: %s (default)] %s\n", mode, rm.Mode.Description)
+			} else {
+				fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+			}
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
@@ -74,7 +79,7 @@ DVA-specific flags:
 		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
-		if err := orch.Up(context.Background(), lifecycle.UpOptions{
+		upErr := orch.Up(context.Background(), lifecycle.UpOptions{
 			DryRun:      dryRun,
 			Force:       force,
 			Wait:        !noWait,
@@ -82,11 +87,10 @@ DVA-specific flags:
 			ExcludeTags: excludeTags,
 			Mode:        mode,
 			Env:         envName,
-		}); err != nil {
-			return err
-		}
+		})
 
-		// Print status summary after successful startup
+		// Print status summary and endpoints regardless of up errors,
+		// so users can see connection info for services that did start.
 		fmt.Fprintln(os.Stderr)
 		status, statusErr := orch.Status(context.Background())
 		if statusErr == nil {
@@ -107,7 +111,7 @@ DVA-specific flags:
 			printEndpointTable(c.Endpoints, nil, allHC)
 		}
 
-		return nil
+		return upErr
 	},
 }
 
@@ -120,6 +124,7 @@ var downCmd = &cobra.Command{
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -130,7 +135,11 @@ var downCmd = &cobra.Command{
 			return err
 		}
 		if rm.Mode != nil {
-			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			if isDefault {
+				fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
+			} else {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			}
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
@@ -156,6 +165,7 @@ var stopCmd = &cobra.Command{
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -166,7 +176,11 @@ var stopCmd = &cobra.Command{
 			return err
 		}
 		if rm.Mode != nil {
-			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			if isDefault {
+				fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
+			} else {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			}
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
@@ -192,6 +206,7 @@ var restartCmd = &cobra.Command{
 		e := loadEnv(c)
 
 		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -202,7 +217,11 @@ var restartCmd = &cobra.Command{
 			return err
 		}
 		if rm.Mode != nil {
-			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			if isDefault {
+				fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
+			} else {
+				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+			}
 			if len(rm.Mode.Environment) > 0 {
 				e.MergeVars(rm.Mode.Environment)
 			}
@@ -376,6 +395,19 @@ func applyEnv(e *config.Environment, c *config.Config, envName string) error {
 // resolvedMode holds the result of resolving a --mode flag against config modes.
 type resolvedMode struct {
 	Mode *config.ModeConfig
+}
+
+// applyDefaultMode returns the effective mode and whether it was applied from default_mode.
+// It does NOT print any output — callers decide how to log.
+func applyDefaultMode(c *config.Config, mode string) (string, bool) {
+	if mode != "" || c.DefaultMode == "" {
+		return mode, false
+	}
+	if _, ok := c.Modes[c.DefaultMode]; ok {
+		return c.DefaultMode, true
+	}
+	fmt.Fprintf(os.Stderr, "[warn] default_mode '%s' not found in modes — starting all services\n", c.DefaultMode)
+	return mode, false
 }
 
 // resolveMode looks up a mode name in config modes and returns resolved settings.

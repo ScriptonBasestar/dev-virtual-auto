@@ -13,7 +13,7 @@ import (
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{
 	"version", "environment", "env_file", "stack", "checks",
-	"modes", "environments", "health_checks", "interaction",
+	"default_mode", "modes", "environments", "health_checks", "interaction",
 	"provision", "modules", "subprojects", "endpoints",
 }
 
@@ -36,6 +36,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnDuplicateParentSubcommand()...)
 	warnings = append(warnings, c.warnDuplicateStackOrder()...)
 	warnings = append(warnings, c.warnMultiStackComposeSplit()...)
+	warnings = append(warnings, c.warnMissingDefaultMode()...)
 	if c.filePath != "" {
 		warnings = append(warnings, validateCanonicalOrder(c.filePath)...)
 	}
@@ -166,6 +167,18 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 	return []string{
 		fmt.Sprintf("stack: multiple compose entries [%s] detected — consider consolidating into one entry and using modes.compose_services for service selection",
 			strings.Join(composeEntries, ", ")),
+	}
+}
+
+// warnMissingDefaultMode warns when modes are defined but no default_mode is set,
+// meaning dva up without -M will start all services from all compose files.
+// Note: invalid default_mode references are caught as hard errors in Validate().
+func (c *Config) warnMissingDefaultMode() []string {
+	if len(c.Modes) == 0 || c.DefaultMode != "" {
+		return nil
+	}
+	return []string{
+		"modes are defined but default_mode is not set — dva up without -M will start all services from all compose files; set default_mode to a minimal infrastructure mode (e.g., 'infra')",
 	}
 }
 

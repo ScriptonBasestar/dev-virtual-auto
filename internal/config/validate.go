@@ -87,6 +87,20 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate default_mode references an existing mode
+	if c.DefaultMode != "" {
+		if _, ok := c.Modes[c.DefaultMode]; !ok {
+			available := make([]string, 0, len(c.Modes))
+			for k := range c.Modes {
+				available = append(available, k)
+			}
+			if len(available) == 0 {
+				return fmt.Errorf("default_mode '%s' is set but no modes are defined", c.DefaultMode)
+			}
+			return fmt.Errorf("default_mode '%s' not found in modes. Available: %s", c.DefaultMode, strings.Join(available, ", "))
+		}
+	}
+
 	return nil
 }
 

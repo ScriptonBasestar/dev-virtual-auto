@@ -25,6 +25,7 @@ type Config struct {
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
 	Endpoints    map[string]EndpointConfig      `yaml:"endpoints"`
+	DefaultMode  string                          `yaml:"default_mode"`
 	Modes        map[string]ModeConfig          `yaml:"modes"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
@@ -457,6 +458,11 @@ func (c *Config) mergeFrom(other *Config) {
 		for k, v := range other.Infra {
 			c.Infra[k] = v
 		}
+	}
+
+	// Merge default_mode
+	if other.DefaultMode != "" {
+		c.DefaultMode = other.DefaultMode
 	}
 
 	// Merge modes

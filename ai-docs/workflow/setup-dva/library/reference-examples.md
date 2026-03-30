@@ -80,6 +80,8 @@ endpoints:
 ### Modes
 
 ```yaml
+default_mode: infra-only    # dva up → minimal infra only
+
 modes:
   infra-only:
     description: "Infrastructure only (DB, Redis)"
@@ -320,6 +322,8 @@ Same structure as Rust section — use `stack.compose.services` for tags only, `
 
 ```yaml
 # Modes — container-first uses compose_profiles for overlays
+default_mode: infra    # dva up → minimal infra only
+
 modes:
   infra:
     description: "Dependencies only (DB, cache, auth)"

@@ -13,3 +13,4 @@
 6. **서브프로젝트 dva.yml의 version은 루트와 반드시 일치**시키세요.
 7. **기존 `stack.compose.services` 메타데이터(tags, ports, related, hint)를 삭제하지 마세요.** 수정/추가만 허용됩니다.
 8. 구 스키마 필드(`compose:` 루트 레벨)는 반드시 `stack.compose:`로 마이그레이션하세요.
+9. **`default_mode`를 반드시 설정하세요.** `dva up`(모드 미지정)은 미니멀 인프라만 기동해야 합니다. `default_mode`가 없으면 모든 compose 파일의 전체 서비스가 기동됩니다. Redis Sentinel/Cluster, PostgreSQL Replica, Kafka, 모니터링 스택 등 무거운 인프라는 기본 모드에 포함하지 마세요.

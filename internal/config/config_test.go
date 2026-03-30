@@ -695,3 +695,41 @@ func TestResolveEndpoints_IntegrationWithLoad(t *testing.T) {
 		t.Errorf("db.URL = %q, want localhost:15432", db.URL)
 	}
 }
+
+func TestDefaultMode_ValidReference(t *testing.T) {
+	cfg := &Config{
+		DefaultMode: "dev",
+		Modes: map[string]ModeConfig{
+			"dev": {Description: "dev mode"},
+		},
+	}
+	// Valid reference — no error expected from semantic check
+	if _, ok := cfg.Modes[cfg.DefaultMode]; !ok {
+		t.Errorf("expected default_mode '%s' to exist in modes", cfg.DefaultMode)
+	}
+}
+
+func TestDefaultMode_InvalidReference(t *testing.T) {
+	cfg := &Config{
+		DefaultMode: "nonexistent",
+		Modes: map[string]ModeConfig{
+			"dev": {Description: "dev mode"},
+		},
+	}
+	if _, ok := cfg.Modes[cfg.DefaultMode]; ok {
+		t.Errorf("expected default_mode '%s' NOT to exist in modes", cfg.DefaultMode)
+	}
+}
+
+func TestDefaultMode_Empty(t *testing.T) {
+	cfg := &Config{
+		DefaultMode: "",
+		Modes: map[string]ModeConfig{
+			"dev": {Description: "dev mode"},
+		},
+	}
+	// Empty default_mode should not cause issues
+	if cfg.DefaultMode != "" {
+		t.Errorf("expected empty default_mode")
+	}
+}

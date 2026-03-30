@@ -24,11 +24,15 @@ var improveGuardrailsDefaultText string
 //go:embed improve_guardrails_rewrite.txt
 var improveGuardrailsRewriteText string
 
+//go:embed setup_dva_workflow.txt
+var setupDvaWorkflowText string
+
 var improvePrint bool
 var improveDocsOnly bool
 var improveVerbose bool
 var improveRecursive bool
 var improveRewrite bool
+var improveInteractive bool
 
 var improveCmd = &cobra.Command{
 	Use:   "improve",
@@ -40,14 +44,20 @@ then runs AI improvement on it. If dva.yml already exists, it improves in place.
 
 Use --rewrite to rebuild dva.yml from scratch based on project analysis.
 Use --recursive to also improve dva.yml in detected sub-projects.
+Use --interactive to open Claude Code in interactive mode (session stays open).
 Use --print to output the prompt to stdout for manual use.
-Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).`,
+Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).
+
+Flags --print, --docs-only, --interactive are mutually exclusive (first match wins).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if improvePrint {
 			return generateAndPrintImprovePrompt()
 		}
 		if improveDocsOnly {
 			return runAIDocsOnly()
+		}
+		if improveInteractive {
+			return runAIImproveInteractive()
 		}
 		if err := runAIImprove(); err != nil {
 			return err
@@ -108,6 +118,78 @@ func runAIImprove() error {
 
 	fmt.Println()
 	return runValidationFeedbackLoop(claudePath, improveVerbose)
+}
+
+// runAIImproveInteractive launches Claude Code in interactive mode with the improve prompt
+// as system context, then chains into setup-dva workflow. The session stays open for follow-up.
+func runAIImproveInteractive() error {
+	// If dva.yml doesn't exist, scaffold it first (auto-detect project type)
+	if !dvaConfigExists() {
+		fmt.Println("📋 No dva.yml found — scaffolding initial configuration...")
+		if _, err := scaffoldDvaYml(".", ""); err != nil {
+			return fmt.Errorf("failed to scaffold dva.yml: %w", err)
+		}
+		fmt.Println()
+	}
+
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		return fmt.Errorf("claude CLI not found in PATH.\n  Install: https://docs.anthropic.com/en/docs/claude-code\n  Or use 'dva config improve --print' to output the prompt manually")
+	}
+
+	prompt, err := buildImprovePrompt()
+	if err != nil {
+		return err
+	}
+
+	// Write prompt to temp file for --append-system-prompt-file
+	promptFile := filepath.Join(os.TempDir(), "dva-improve-prompt.md")
+	if err := os.WriteFile(promptFile, []byte(prompt), 0600); err != nil {
+		return fmt.Errorf("failed to write prompt file: %w", err)
+	}
+	defer os.Remove(promptFile)
+
+	// Extract setup-dva workflow files to tmp/setup-dva/
+	workflowDir := filepath.Join("tmp", "setup-dva")
+	if err := extractSetupDvaWorkflow(workflowDir); err != nil {
+		return fmt.Errorf("failed to extract setup-dva workflow: %w", err)
+	}
+	defer os.RemoveAll(workflowDir)
+
+	fmt.Println("🤖 Opening Claude Code interactive session...")
+	fmt.Println("   Pipeline: improve dva.yml → validate → setup-dva workflow")
+	fmt.Println()
+
+	initialPrompt := `다음 순서로 작업을 진행하세요:
+
+1. **dva.yml 개선**: system prompt의 improve 지침에 따라 dva.yml을 분석하고 개선하세요.
+2. **검증**: dva config validate를 실행하여 검증하세요. 실패하면 수정 후 재검증.
+3. **setup-dva 워크플로우 실행**: tmp/setup-dva/auto.md를 읽고, 그 안의 파이프라인을 실행하세요.
+   - stage 파일들은 tmp/setup-dva/stages/ 에 있습니다.
+   - 검증 체크리스트는 tmp/setup-dva/verify/checklist.md 에 있습니다.
+   - DVA library reference는 이미 system prompt에 포함되어 있습니다.
+
+지금 시작하세요.`
+
+	claudeArgs := []string{
+		"--append-system-prompt-file", promptFile,
+		initialPrompt,
+	}
+	if improveVerbose {
+		claudeArgs = append(claudeArgs, "--verbose")
+	}
+
+	claudeCmd := exec.Command(claudePath, claudeArgs...)
+	claudeCmd.Stdin = os.Stdin
+	claudeCmd.Stdout = os.Stdout
+	claudeCmd.Stderr = os.Stderr
+	claudeCmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+
+	if err := claudeCmd.Run(); err != nil {
+		return fmt.Errorf("claude CLI failed: %w", err)
+	}
+
+	return nil
 }
 
 // runAIDocsOnly generates DVA guide and updates agent configs without regenerating dva.yml.
@@ -370,6 +452,7 @@ func init() {
 	improveCmd.Flags().BoolVarP(&improveVerbose, "verbose", "v", false, "Show detailed progress during AI execution")
 	improveCmd.Flags().BoolVar(&improveRecursive, "recursive", false, "Also improve dva.yml in detected sub-projects")
 	improveCmd.Flags().BoolVar(&improveRewrite, "rewrite", false, "Rewrite dva.yml from scratch based on project analysis (ignores existing structure)")
+	improveCmd.Flags().BoolVarP(&improveInteractive, "interactive", "i", false, "Open Claude Code in interactive mode (session stays open for follow-up work)")
 	configCmd.AddCommand(improveCmd)
 }
 
@@ -512,6 +595,40 @@ func buildValidationFixPrompt(validateOutput string) (string, error) {
 		libraryReferenceText + "\n"
 
 	return prompt, nil
+}
+
+// extractSetupDvaWorkflow parses the bundled setup-dva workflow text and writes
+// individual files to targetDir. The bundle uses "--- FILE: <path> ---" markers.
+func extractSetupDvaWorkflow(targetDir string) error {
+	const marker = "--- FILE: "
+	var currentFile string
+	var currentLines []string
+
+	flush := func() error {
+		if currentFile == "" {
+			return nil
+		}
+		outPath := filepath.Join(targetDir, currentFile)
+		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+			return err
+		}
+		return os.WriteFile(outPath, []byte(strings.Join(currentLines, "\n")), 0600)
+	}
+
+	for _, line := range strings.Split(setupDvaWorkflowText, "\n") {
+		if strings.HasPrefix(line, marker) && strings.HasSuffix(line, " ---") {
+			if err := flush(); err != nil {
+				return err
+			}
+			currentFile = strings.TrimSuffix(strings.TrimPrefix(line, marker), " ---")
+			currentLines = nil
+			continue
+		}
+		if currentFile != "" {
+			currentLines = append(currentLines, line)
+		}
+	}
+	return flush()
 }
 
 // dvaConfigExists checks whether dva.yml or dva.yaml exists in the current directory only.
