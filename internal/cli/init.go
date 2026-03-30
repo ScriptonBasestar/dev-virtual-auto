@@ -620,8 +620,7 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 	recipeMap := extractMakefileRecipes(lines)
 
 	documentedTargets := map[string]bool{}
-	for i, line := range lines {
-		_ = i
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		// Follow include/-include directives

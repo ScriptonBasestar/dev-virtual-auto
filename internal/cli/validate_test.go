@@ -270,6 +270,32 @@ func TestShouldIgnoreMakefileTarget(t *testing.T) {
 	}
 }
 
+func TestIsDVAWrapperRecipe(t *testing.T) {
+	wrappers := [][]string{
+		{"dva up"},
+		{"dva down"},
+		{"dva up", "dva status"},
+	}
+	for _, recipe := range wrappers {
+		if !isDVAWrapperRecipe(recipe) {
+			t.Errorf("expected %v to be DVA wrapper", recipe)
+		}
+	}
+
+	notWrappers := [][]string{
+		{},
+		{"go build ./..."},
+		{"dva up", "echo done"},
+		{"cargo test"},
+		{"docker compose up -d"},
+	}
+	for _, recipe := range notWrappers {
+		if isDVAWrapperRecipe(recipe) {
+			t.Errorf("expected %v NOT to be DVA wrapper", recipe)
+		}
+	}
+}
+
 func TestShouldIgnorePackageScript(t *testing.T) {
 	for _, name := range []string{"pretest", "postinstall", "prepare"} {
 		if !shouldIgnorePackageScript(name) {
