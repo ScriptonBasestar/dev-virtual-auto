@@ -801,6 +801,12 @@
       "description": "Mode applied automatically when dva up/down/stop/restart is called without --mode/-M. Should reference a minimal infrastructure mode (e.g., 'infra') so that dva up starts only core services by default. Use 'dva up -M full-stack' for everything.",
       "examples": ["infra", "dev"]
     },
+    "suggestion_ignore": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns for Makefile/package.json targets to suppress from config suggestion warnings. Use when targets are intentionally not mapped to DVA interactions (e.g., CI-only targets, aliases covered by other interactions).",
+      "examples": [["*-release", "clippy*", "test-e2e-*"]]
+    },
     "modes": {
       "type": "object",
       "description": "Named operational modes for dva up (--mode/-M flag). Each mode defines which compose profiles/services to start, health checks to run, and environment overrides.",

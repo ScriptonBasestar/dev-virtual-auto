@@ -37,6 +37,7 @@ env_file:
 stack:
 checks:
 default_mode:     # dva up 기본 모드 (미니멀 인프라)
+suggestion_ignore: # Makefile/package.json 타겟 중 의도적으로 무시할 글로브 패턴
 modes:
 environments:     # (선택)
 health_checks:
@@ -212,6 +213,15 @@ subcommand의 `command:` 필드에는 원본 Makefile 타겟의 실제 실행 �
 - Compose 라이프사이클: `*-up`, `*-down`, `*-logs`, `*-ps` (→ `dva up --mode X`, `dva logs`)
 - DVA 예약 커맨드와 동일: `run`, `ps`, `build`, `clean`, `logs`
 - 릴리즈/CI 전용: `*-release` (개발환경 명령이 아님)
+
+매핑하지 않기로 결정한 타겟이 config suggestion warning으로 반복 노출되면,
+`suggestion_ignore` 필드에 글로브 패턴을 추가하세요:
+```yaml
+suggestion_ignore:
+  - "*-release"     # CI-only release builds
+  - "clippy*"       # covered by lint interaction
+  - "test-e2e-*"    # covered by e2e interaction
+```
 
 ## 3. 네이밍 프리셋 준수
 - 서비스 태그: infra, api, worker, ui, data, monitoring, build

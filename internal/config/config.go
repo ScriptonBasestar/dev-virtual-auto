@@ -25,8 +25,9 @@ type Config struct {
 	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
 	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
 	Endpoints    map[string]EndpointConfig      `yaml:"endpoints"`
-	DefaultMode  string                          `yaml:"default_mode"`
-	Modes        map[string]ModeConfig          `yaml:"modes"`
+	DefaultMode       string                          `yaml:"default_mode"`
+	SuggestionIgnore  []string                        `yaml:"suggestion_ignore"`
+	Modes             map[string]ModeConfig           `yaml:"modes"`
 	Environments map[string]EnvironmentProfile  `yaml:"environments"`
 	Ssh          SshConfig                      `yaml:"ssh"`
 	DoctorChecks []DoctorCheck                  `yaml:"checks"`

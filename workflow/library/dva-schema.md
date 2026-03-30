@@ -24,7 +24,7 @@
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → environment → env_file → stack → checks → default_mode → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
+`version → environment → env_file → stack → checks → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
 version: "0.1.29"
@@ -264,6 +264,14 @@ modes:
 **`default_mode` (required):** Specifies which mode is applied when `dva up` is called without `--mode/-M`. This ensures `dva up` starts only minimal infrastructure by default. Heavy services (monitoring, Kafka, Redis Sentinel/Cluster, HA setups) must be in explicit modes like `full-stack` or `full-stack-monitoring`. Users run `dva up -M full-stack` when they need everything.
 
 **Anti-pattern:** Do NOT create `compose` + `compose-full` as separate stack entries — this duplicates service definitions and compose file references.
+
+**`suggestion_ignore` (optional):** Array of glob patterns for Makefile/package.json targets to suppress from `config suggestion` warnings. Use when targets are intentionally not mapped to DVA interactions:
+```yaml
+suggestion_ignore:
+  - "*-release"     # CI-only release builds
+  - "clippy*"       # covered by lint interaction
+  - "test-e2e-*"    # covered by e2e interaction
+```
 
 **`compose_profiles` semantics:**
 - `compose_profiles: [rust]` → activate the "rust" profile

@@ -200,12 +200,26 @@ func detectConfigSuggestionWarnings(c *config.Config) []string {
 		if subcommandCoverage[name] {
 			continue
 		}
+		if matchesSuggestionIgnore(name, c.SuggestionIgnore) {
+			continue
+		}
 		warnings = append(warnings,
 			fmt.Sprintf("%s defines %q but no DVA interaction with the same name exists; consider adding a direct mapping if it is part of the developer workflow",
 				candidates[name], name))
 	}
 
 	return warnings
+}
+
+// matchesSuggestionIgnore returns true if name matches any glob pattern in the
+// suggestion_ignore list from dva.yml.
+func matchesSuggestionIgnore(name string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if matched, _ := filepath.Match(pattern, name); matched {
+			return true
+		}
+	}
+	return false
 }
 
 func detectComposeFilesInDir(dir string) []string {
