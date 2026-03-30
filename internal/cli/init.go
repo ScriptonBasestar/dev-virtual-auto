@@ -1,115 +1,79 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
 	_ "embed"
 
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
-
-//go:embed prompt_template.txt
-var promptTemplateText string
-
-//go:embed improve_prompt_template.txt
-var improvePromptTemplateText string
 
 //go:embed library_reference.txt
 var libraryReferenceText string
 
 var initTemplate string
-var initPrompt bool
-var initAI bool
-var initNoAIDocs bool
-var initVerbose bool
+var initRecursive bool
 var initDevcontainer bool
 var initAll bool
 
 var initCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new 'dva.yml' configuration in the current directory",
-	Long:  "Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.",
+	Short: "Scaffold a new 'dva.yml' configuration in the current directory",
+	Long: `Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.
+
+Use --recursive to also scaffold dva.yml in detected sub-projects.
+After scaffolding, run 'dva config improve' to let an AI agent optimize the configuration.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if initAI {
-			return runAIInit()
-		}
-		if initPrompt {
-			generateAndPrintPrompt()
-			return nil
+		created, err := scaffoldDvaYml(".", initTemplate)
+		if err != nil {
+			return err
 		}
 
-		target := "dva.yml"
-		if _, err := os.Stat(target); err == nil {
-			return fmt.Errorf("dva.yml already exists in current directory")
-		}
-
-		tmpl := initTemplate
-		if tmpl == "" {
-			tmpl = detectTemplate()
-		}
-
-		composeFiles := detectComposeFiles()
-		content := generateConfig(tmpl)
-
-		withDevcontainer := initDevcontainer || initAll
-		dcService := "app"
-		if withDevcontainer {
-			if len(composeFiles) > 0 {
-				if services := extractComposeServices(composeFiles[0]); len(services) > 0 {
-					dcService = services[0]
+		if created {
+			withDevcontainer := initDevcontainer || initAll
+			if withDevcontainer {
+				composeFiles := detectComposeFiles()
+				dcService := "app"
+				if len(composeFiles) > 0 {
+					if services := extractComposeServices(composeFiles[0]); len(services) > 0 {
+						dcService = services[0]
+					}
+				}
+				dc := map[string]any{
+					"enabled":         true,
+					"name":            "Development Environment",
+					"service":         dcService,
+					"workspaceFolder": "/workspace",
+				}
+				if err := writeDevcontainerFiles(dc, composeFiles, "."); err != nil {
+					fmt.Fprintf(os.Stderr, "⚠️  Could not create .devcontainer/: %v\n", err)
+				} else {
+					fmt.Println("📦 Created .devcontainer/devcontainer.json")
 				}
 			}
-			content += devcontainerYAMLSection(dcService)
 		}
 
-		if err := os.WriteFile(target, []byte(content), 0644); err != nil {
-			return fmt.Errorf("failed to write dva.yml: %w", err)
-		}
-
-		fmt.Printf("✅ Created dva.yml (template: %s)\n", tmpl)
-
-		// Ensure .gitignore exists and ignores the dot directory
-		if updated, err := ensureGitignore("."); err == nil && updated {
-			fmt.Printf("📎 Updated .gitignore to ignore %s/\n", config.DotDirName)
-		}
-
-		if withDevcontainer {
-			dc := map[string]any{
-				"enabled":         true,
-				"name":            "Development Environment",
-				"service":         dcService,
-				"workspaceFolder": "/workspace",
-			}
-			if err := writeDevcontainerFiles(dc, composeFiles, "."); err != nil {
-				fmt.Fprintf(os.Stderr, "⚠️  Could not create .devcontainer/: %v\n", err)
-			} else {
-				fmt.Println("📦 Created .devcontainer/devcontainer.json")
-			}
+		if initRecursive {
+			scaffoldSubprojects()
 		}
 
 		fmt.Println()
 		fmt.Println("Next steps:")
-		fmt.Println("  dva ls               — list available commands")
+		fmt.Println("  dva config improve   — optimize config via AI agent")
 		fmt.Println("  dva config validate  — validate the config")
-		fmt.Println("  dva up               — start services")
+		fmt.Println("  dva ls               — list available commands")
 		return nil
 	},
 }
 
 func init() {
 	initCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
-	initCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
-	initCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
-	initCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
-	initCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
+	initCmd.Flags().BoolVar(&initRecursive, "recursive", false, "Also scaffold dva.yml in detected sub-projects")
 	initCmd.Flags().BoolVar(&initDevcontainer, "devcontainer", false, "Include devcontainer configuration (.devcontainer/devcontainer.json)")
 	initCmd.Flags().BoolVar(&initAll, "all", false, "Include all optional features (devcontainer, etc.)")
 
@@ -118,90 +82,150 @@ func init() {
 
 	// Keep a top-level alias for backward compatibility: dva init → dva config init
 	initAliasCmd := &cobra.Command{
-		Use:     "init",
-		Short:   initCmd.Short,
-		Long:    initCmd.Long,
-		Aliases: []string{},
-		RunE:    initCmd.RunE,
-		Hidden:  false, // visible alias so existing scripts just work
+		Use:    "init",
+		Short:  initCmd.Short,
+		Long:   initCmd.Long,
+		RunE:   initCmd.RunE,
+		Hidden: false, // visible alias so existing scripts just work
 	}
 	initAliasCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
-	initAliasCmd.Flags().BoolVarP(&initPrompt, "prompt", "p", false, "Output an LLM prompt to help generate dva.yml instead of creating one directly")
-	initAliasCmd.Flags().BoolVar(&initAI, "ai", false, "Generate dva.yml via Claude Code CLI (requires 'claude' in PATH)")
-	initAliasCmd.Flags().BoolVar(&initNoAIDocs, "no-ai-docs", false, "Skip generating AI agent docs when using --ai")
-	initAliasCmd.Flags().BoolVarP(&initVerbose, "verbose", "v", false, "Show detailed progress during AI generation")
+	initAliasCmd.Flags().BoolVar(&initRecursive, "recursive", false, "Also scaffold dva.yml in detected sub-projects")
 	initAliasCmd.Flags().BoolVar(&initDevcontainer, "devcontainer", false, "Include devcontainer configuration (.devcontainer/devcontainer.json)")
 	initAliasCmd.Flags().BoolVar(&initAll, "all", false, "Include all optional features (devcontainer, etc.)")
 	rootCmd.AddCommand(initAliasCmd)
 }
 
-// runAIInit generates the LLM prompt and executes it via Claude Code CLI.
-func runAIInit() error {
-	prog := newProgress(initVerbose)
-
-	prog.Start("Checking claude CLI...")
-	claudePath, err := exec.LookPath("claude")
-	if err != nil {
-		prog.Stop()
-		return fmt.Errorf("claude CLI not found in PATH.\n  Install: https://docs.anthropic.com/en/docs/claude-code\n  Or use 'dva init -p' to output the prompt manually")
+// scaffoldDvaYml creates a dva.yml in the given directory if one doesn't exist.
+// Returns true if a file was created.
+func scaffoldDvaYml(dir, tmpl string) (bool, error) {
+	target := filepath.Join(dir, "dva.yml")
+	if _, err := os.Stat(target); err == nil {
+		fmt.Printf("⏭  dva.yml already exists in %s (skipped)\n", dir)
+		return false, nil
 	}
 
-	prog.Update("Scanning project files...")
-	prompt := buildPromptWithProgress(prog)
-
-	prog.StopWithMessage("🤖 Generating dva.yml via Claude Code...")
-	fmt.Println()
-
-	claudeArgs := []string{"-p", "--allowedTools", "Edit,Write,Bash"}
-	if initVerbose {
-		claudeArgs = append(claudeArgs, "--verbose")
+	if tmpl == "" {
+		tmpl = detectTemplateIn(dir)
 	}
 
-	cmd := exec.Command(claudePath, claudeArgs...)
-	cmd.Stdin = strings.NewReader(prompt)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	// Clear CLAUDECODE env var to allow spawning from within a Claude Code session
-	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+	content := generateConfigIn(dir, tmpl)
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("claude CLI failed: %w", err)
+	if err := os.WriteFile(target, []byte(content), 0644); err != nil {
+		return false, fmt.Errorf("failed to write %s: %w", target, err)
 	}
 
-	fmt.Println()
-	if err := runValidationFeedbackLoop(claudePath, initVerbose); err != nil {
-		return err
+	fmt.Printf("✅ Created %s (template: %s)\n", target, tmpl)
+
+	// Ensure .gitignore exists and ignores the dot directory
+	if updated, err := ensureGitignore(dir); err == nil && updated {
+		fmt.Printf("📎 Updated .gitignore to ignore %s/\n", config.DotDirName)
 	}
 
-	// Generate AI docs unless --no-ai-docs is set
-	if !initNoAIDocs {
-		fmt.Println()
-		guidePath, err := generateAIDocs()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "⚠️  Could not generate AI docs: %v\n", err)
-		} else {
-			fmt.Printf("📄 Generated %s\n", guidePath)
-		}
-	}
-
-	return nil
+	return true, nil
 }
 
-// runAIDocsOnly generates DVA guide and updates agent configs without regenerating dva.yml.
-func runAIDocsOnly() error {
-	if _, err := os.Stat("dva.yml"); os.IsNotExist(err) {
-		if _, err := os.Stat("dva.yaml"); os.IsNotExist(err) {
-			return fmt.Errorf("dva.yml not found. Run 'dva init --ai' first to generate it")
+// scaffoldSubprojects detects sub-projects and scaffolds dva.yml in each.
+func scaffoldSubprojects() {
+	var subs []subInfo
+	scanForSubprojects(".", 0, 3, &subs)
+
+	if len(subs) == 0 {
+		fmt.Println("No sub-projects detected.")
+		return
+	}
+
+	fmt.Printf("\n📂 Found %d sub-project(s):\n", len(subs))
+	for _, sp := range subs {
+		tmpl := languageToTemplate(sp.language)
+		if _, err := scaffoldDvaYml(sp.path, tmpl); err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  %s: %v\n", sp.path, err)
 		}
 	}
+}
 
-	guidePath, err := generateAIDocs()
-	if err != nil {
-		return err
+type subInfo struct {
+	path     string
+	language string
+}
+
+// scanForSubprojects recursively finds sub-project directories.
+func scanForSubprojects(dir string, depth, maxDepth int, result *[]subInfo) {
+	if depth > maxDepth {
+		return
+	}
+	skipDirs := map[string]bool{
+		"node_modules": true, "vendor": true, ".venv": true, "venv": true,
+		"dist": true, "target": true, "__pycache__": true, ".mypy_cache": true,
+		"collected_static": true, ".pytest_cache": true, "tmp": true,
+		// Config/infra directories — not sub-projects
+		"compose": true, "docker": true, "infra": true, "infrastructure": true,
+		"scripts": true, "docs": true, "monitoring": true, "k8s": true,
+		"build": true, "data": true, "specs": true, "reports": true,
 	}
 
-	fmt.Printf("✅ Generated %s\n", guidePath)
-	return nil
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() || strings.HasPrefix(e.Name(), ".") || skipDirs[e.Name()] {
+			continue
+		}
+		childPath := filepath.Join(dir, e.Name())
+
+		// Detect sub-project indicators
+		isSubProject := false
+		lang := ""
+
+		for _, indicator := range []string{".git", "dva.yml", "dva.yaml"} {
+			if _, err := os.Stat(filepath.Join(childPath, indicator)); err == nil {
+				isSubProject = true
+				break
+			}
+		}
+
+		// Check for build files
+		buildIndicators := []struct {
+			file string
+			lang string
+		}{
+			{"go.mod", "go"}, {"package.json", "node"}, {"pyproject.toml", "python"},
+			{"requirements.txt", "python"}, {"Gemfile", "rails"}, {"Cargo.toml", ""},
+		}
+		for _, bi := range buildIndicators {
+			if _, err := os.Stat(filepath.Join(childPath, bi.file)); err == nil {
+				isSubProject = true
+				if lang == "" && bi.lang != "" {
+					lang = bi.lang
+				}
+				break
+			}
+		}
+
+		if isSubProject {
+			*result = append(*result, subInfo{childPath, lang})
+			continue
+		}
+
+		scanForSubprojects(childPath, depth+1, maxDepth, result)
+	}
+}
+
+// languageToTemplate maps detected language to init template name.
+func languageToTemplate(lang string) string {
+	switch lang {
+	case "go":
+		return "go"
+	case "node":
+		return "node"
+	case "python":
+		return "python"
+	case "rails":
+		return "rails"
+	default:
+		return ""
+	}
 }
 
 // filterEnv returns a copy of env with entries matching key removed.
@@ -216,110 +240,8 @@ func filterEnv(env []string, key string) []string {
 	return filtered
 }
 
-// buildPrompt generates the LLM prompt string (shared by -p and --ai).
-func buildPrompt() string {
-	return buildPromptWithProgress(nil)
-}
-
-// buildPromptWithProgress generates the LLM prompt, reporting each detection step to prog.
-func buildPromptWithProgress(prog *progress) string {
-	if prog != nil {
-		prog.Update("Detecting compose files...")
-	}
-	composeFiles := detectComposeFiles()
-	detectedCompose := "None"
-	if len(composeFiles) > 0 {
-		var parts []string
-		parts = append(parts, strings.Join(composeFiles, ", "))
-		var allServices []string
-		for _, cf := range composeFiles {
-			if services := extractComposeServices(cf); len(services) > 0 {
-				allServices = append(allServices, services...)
-			}
-		}
-		if len(allServices) > 0 {
-			parts = append(parts, fmt.Sprintf("services: %s", strings.Join(allServices, ", ")))
-		}
-		detectedCompose = strings.Join(parts, " → ")
-	}
-
-	if prog != nil {
-		prog.Update("Detecting infra compose files...")
-	}
-	infraComposeFiles := detectInfraComposeFiles()
-	detectedInfraCompose := "None"
-	if len(infraComposeFiles) > 0 {
-		var infraParts []string
-		for _, icf := range infraComposeFiles {
-			entry := icf
-			if services := extractComposeServices(icf); len(services) > 0 {
-				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
-			}
-			infraParts = append(infraParts, entry)
-		}
-		detectedInfraCompose = strings.Join(infraParts, "\n")
-	}
-
-	if prog != nil {
-		prog.Update("Detecting build files...")
-	}
-	buildFiles := []string{}
-	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
-		if _, err := os.Stat(f); err == nil {
-			buildFiles = append(buildFiles, f)
-		}
-	}
-	detectedBuild := "None"
-	if len(buildFiles) > 0 {
-		detectedBuild = strings.Join(buildFiles, ", ")
-	}
-
-	if prog != nil {
-		prog.Update("Extracting Makefile targets...")
-	}
-	detectedMakeTargets := "None"
-	if makeTargets := extractMakefileTargets(); makeTargets != "" {
-		detectedMakeTargets = makeTargets
-	}
-
-	if prog != nil {
-		prog.Update("Detecting environment files...")
-	}
-	envFiles := []string{}
-	for _, f := range []string{".env.example", ".env"} {
-		if _, err := os.Stat(f); err == nil {
-			envFiles = append(envFiles, f)
-		}
-	}
-	detectedEnv := "None"
-	if len(envFiles) > 0 {
-		detectedEnv = strings.Join(envFiles, ", ")
-	}
-
-	if prog != nil {
-		prog.Update("Scanning sub-projects...")
-	}
-	detectedSubprojects := detectSubprojects(prog)
-
-	if prog != nil {
-		prog.Update("Building prompt...")
-	}
-
-	return fmt.Sprintf(promptTemplateText,
-		detectedCompose,
-		detectedInfraCompose,
-		detectedBuild,
-		detectedMakeTargets,
-		detectedEnv,
-		detectedSubprojects,
-		libraryReferenceText,
-		config.Version,
-	)
-}
-
-// detectTemplate inspects the current directory to auto-detect project type.
-func detectTemplate() string {
-	// Check for language-specific files
+// detectTemplateIn inspects the given directory to auto-detect project type.
+func detectTemplateIn(dir string) string {
 	indicators := []struct {
 		file     string
 		template string
@@ -333,7 +255,7 @@ func detectTemplate() string {
 	}
 
 	for _, ind := range indicators {
-		if _, err := os.Stat(ind.file); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, ind.file)); err == nil {
 			return ind.template
 		}
 	}
@@ -342,13 +264,20 @@ func detectTemplate() string {
 }
 
 // generateConfig produces the dva.yml content for the given template.
+// Detects compose files in the current working directory.
 func generateConfig(tmpl string) string {
+	return generateConfigIn(".", tmpl)
+}
+
+// generateConfigIn produces the dva.yml content for the given template,
+// detecting compose files relative to dir.
+func generateConfigIn(dir, tmpl string) string {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("version: \"%s\"\n\n", config.Version))
 
-	// Detect compose files
-	composeFiles := detectComposeFiles()
+	// Detect compose files relative to dir
+	composeFiles := detectComposeFilesIn(dir)
 	b.WriteString("stack:\n")
 	b.WriteString("  compose:\n")
 	b.WriteString("    order: 10\n")
@@ -493,6 +422,11 @@ interaction:
 
 // detectComposeFiles finds existing docker compose files in the current directory.
 func detectComposeFiles() []string {
+	return detectComposeFilesIn(".")
+}
+
+// detectComposeFilesIn finds existing docker compose files in the given directory.
+func detectComposeFilesIn(dir string) []string {
 	candidates := []string{
 		"docker-compose.yml",
 		"docker-compose.yaml",
@@ -502,7 +436,7 @@ func detectComposeFiles() []string {
 
 	var found []string
 	for _, c := range candidates {
-		if _, err := os.Stat(c); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, c)); err == nil {
 			found = append(found, c)
 		}
 	}
@@ -513,13 +447,13 @@ func detectComposeFiles() []string {
 		"docker-compose.override.yaml",
 	}
 	for _, o := range overrides {
-		if _, err := os.Stat(o); err == nil {
+		if _, err := os.Stat(filepath.Join(dir, o)); err == nil {
 			found = append(found, o)
 		}
 	}
 
-	// Check subdirectories for common patterns
-	if entries, err := os.ReadDir("."); err == nil {
+	// Check for additional docker-compose.* patterns
+	if entries, err := os.ReadDir(dir); err == nil {
 		for _, e := range entries {
 			if e.IsDir() {
 				continue
@@ -533,9 +467,8 @@ func detectComposeFiles() []string {
 		}
 	}
 
-	// Sort for deterministic output
+	// Sort for deterministic output: primary files first
 	if len(found) > 1 {
-		// Keep docker-compose.yml first, then overrides
 		primary := []string{}
 		rest := []string{}
 		for _, f := range found {
@@ -562,158 +495,6 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
-// generateAndPrintPrompt outputs the LLM prompt to stdout.
-func generateAndPrintPrompt() {
-	fmt.Println(buildPrompt())
-}
-
-// generateAndPrintImprovePrompt outputs the LLM prompt for iterative dva.yml improvement.
-func generateAndPrintImprovePrompt() error {
-	prompt, err := buildImprovePrompt()
-	if err != nil {
-		return err
-	}
-	fmt.Println(prompt)
-	return nil
-}
-
-func buildImprovePrompt() (string, error) {
-	c, err := config.Load(".")
-	if err != nil {
-		return "", fmt.Errorf("could not load current dva.yml: %w", err)
-	}
-
-	rawConfig, err := os.ReadFile(c.FilePath())
-	if err != nil {
-		return "", fmt.Errorf("failed to read %s: %w", c.FilePath(), err)
-	}
-
-	manifestJSON, err := json.MarshalIndent(buildManifest(c), "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("failed to build manifest: %w", err)
-	}
-
-	resolvedConfigYAML, err := yaml.Marshal(c)
-	if err != nil {
-		return "", fmt.Errorf("failed to render merged config: %w", err)
-	}
-
-	validationStatus := "PASS"
-	if err := c.Validate(); err != nil {
-		validationStatus = "FAIL: " + err.Error()
-	}
-
-	composeWarnings := formatComposeWarnings(c.ValidateComposeProjectNames())
-	if composeWarnings == "" {
-		composeWarnings = "None"
-	}
-
-	semanticWarnings := c.ValidateWarnings()
-	semanticWarningsText := "None"
-	if len(semanticWarnings) > 0 {
-		semanticWarningsText = strings.Join(semanticWarnings, "\n")
-	}
-
-	driftWarnings := detectConfigDriftWarnings(c)
-	driftWarningsText := "None"
-	if len(driftWarnings) > 0 {
-		driftWarningsText = strings.Join(driftWarnings, "\n")
-	}
-
-	suggestionWarnings := detectConfigSuggestionWarnings(c)
-	suggestionWarningsText := "None"
-	if len(suggestionWarnings) > 0 {
-		suggestionWarningsText = strings.Join(suggestionWarnings, "\n")
-	}
-
-	return fmt.Sprintf(improvePromptTemplateText,
-		c.FilePath(),
-		string(rawConfig),
-		string(manifestJSON),
-		string(resolvedConfigYAML),
-		validationStatus,
-		composeWarnings,
-		semanticWarningsText,
-		driftWarningsText,
-		suggestionWarningsText,
-		buildProjectSnapshot(),
-		libraryReferenceText,
-		config.Version,
-	), nil
-}
-
-func buildProjectSnapshot() string {
-	composeFiles := detectComposeFiles()
-	composeSummary := "None"
-	if len(composeFiles) > 0 {
-		var parts []string
-		for _, cf := range composeFiles {
-			entry := cf
-			if services := extractComposeServices(cf); len(services) > 0 {
-				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
-			}
-			parts = append(parts, entry)
-		}
-		composeSummary = strings.Join(parts, "\n")
-	}
-
-	infraFiles := detectInfraComposeFiles()
-	infraSummary := "None"
-	if len(infraFiles) > 0 {
-		var parts []string
-		for _, cf := range infraFiles {
-			entry := cf
-			if services := extractComposeServices(cf); len(services) > 0 {
-				entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
-			}
-			parts = append(parts, entry)
-		}
-		infraSummary = strings.Join(parts, "\n")
-	}
-
-	buildFiles := []string{}
-	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
-		if _, err := os.Stat(f); err == nil {
-			buildFiles = append(buildFiles, f)
-		}
-	}
-	buildSummary := "None"
-	if len(buildFiles) > 0 {
-		buildSummary = strings.Join(buildFiles, ", ")
-	}
-
-	makeTargets := extractMakefileTargets()
-	if makeTargets == "" {
-		makeTargets = "None"
-	}
-
-	envFiles := []string{}
-	for _, f := range []string{".env.example", ".env"} {
-		if _, err := os.Stat(f); err == nil {
-			envFiles = append(envFiles, f)
-		}
-	}
-	envSummary := "None"
-	if len(envFiles) > 0 {
-		envSummary = strings.Join(envFiles, ", ")
-	}
-
-	subprojects := detectSubprojects(nil)
-	if subprojects == "" {
-		subprojects = "None"
-	}
-
-	return fmt.Sprintf(
-		"Root compose files:\n%s\n\nInfra compose files:\n%s\n\nBuild files:\n%s\n\nMakefile targets:\n%s\n\nEnvironment files:\n%s\n\nSubprojects:\n%s",
-		composeSummary,
-		infraSummary,
-		buildSummary,
-		makeTargets,
-		envSummary,
-		subprojects,
-	)
-}
-
 func formatComposeWarnings(warnings []config.ComposeNameWarning) string {
 	if len(warnings) == 0 {
 		return ""
@@ -732,7 +513,7 @@ func formatComposeWarnings(warnings []config.ComposeNameWarning) string {
 
 // detectInfraComposeFiles finds compose files in common infrastructure subdirectories.
 func detectInfraComposeFiles() []string {
-	dirs := []string{"infra", "docker", "deploy"}
+	dirs := []string{"infra", "docker", "deploy", "compose", "infrastructure"}
 	var found []string
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -752,14 +533,76 @@ func detectInfraComposeFiles() []string {
 }
 
 // extractMakefileTargets reads documented Makefile targets (target: ## description).
+// It also follows `include` and `-include` directives to read fragment-based Makefiles
+// (e.g., include .make/*.mk).
 func extractMakefileTargets() string {
-	data, err := os.ReadFile("Makefile")
-	if err != nil {
+	targets := extractTargetsFromMakefiles("Makefile")
+	if len(targets) == 0 {
 		return ""
 	}
-	lines := strings.Split(string(data), "\n")
+	return strings.Join(targets, "\n")
+}
+
+// extractTargetsFromMakefiles reads a Makefile and all its includes, extracting
+// documented targets. The seen map prevents infinite include loops.
+func extractTargetsFromMakefiles(path string) []string {
+	seen := map[string]bool{}
 	var targets []string
+	collectMakefileTargets(path, seen, &targets)
+	return targets
+}
+
+// collectMakefileTargets recursively reads Makefile and included files.
+func collectMakefileTargets(path string, seen map[string]bool, targets *[]string) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+	if seen[absPath] {
+		return
+	}
+	seen[absPath] = true
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// Try glob expansion for patterns like .make/*.mk
+		matches, globErr := filepath.Glob(path)
+		if globErr != nil || len(matches) == 0 {
+			return
+		}
+		for _, m := range matches {
+			collectMakefileTargets(m, seen, targets)
+		}
+		return
+	}
+
+	dir := filepath.Dir(path)
+	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Follow include/-include directives
+		if strings.HasPrefix(trimmed, "include ") || strings.HasPrefix(trimmed, "-include ") {
+			includePath := strings.TrimPrefix(trimmed, "-include ")
+			includePath = strings.TrimPrefix(includePath, "include ")
+			includePath = strings.TrimSpace(includePath)
+			// Resolve relative to the current Makefile's directory
+			if !filepath.IsAbs(includePath) {
+				includePath = filepath.Join(dir, includePath)
+			}
+			// Handle glob patterns (e.g., .make/*.mk)
+			matches, globErr := filepath.Glob(includePath)
+			if globErr == nil && len(matches) > 0 {
+				for _, m := range matches {
+					collectMakefileTargets(m, seen, targets)
+				}
+			} else {
+				collectMakefileTargets(includePath, seen, targets)
+			}
+			continue
+		}
+
+		// Extract target: ## description lines
 		if strings.Contains(line, "##") && !strings.HasPrefix(line, "#") &&
 			!strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
 			parts := strings.SplitN(line, ":", 2)
@@ -770,17 +613,13 @@ func extractMakefileTargets() string {
 					desc = strings.TrimSpace(parts[1][idx+2:])
 				}
 				if desc != "" {
-					targets = append(targets, fmt.Sprintf("  make %-18s # %s", target, desc))
+					*targets = append(*targets, fmt.Sprintf("  make %-18s # %s", target, desc))
 				} else {
-					targets = append(targets, fmt.Sprintf("  make %s", target))
+					*targets = append(*targets, fmt.Sprintf("  make %s", target))
 				}
 			}
 		}
 	}
-	if len(targets) == 0 {
-		return ""
-	}
-	return strings.Join(targets, "\n")
 }
 
 // detectSubprojects recursively searches for sub-projects by finding .git directories
@@ -801,6 +640,10 @@ func detectSubprojects(prog *progress) string {
 		"node_modules": true, "vendor": true, ".venv": true, "venv": true,
 		"dist": true, "target": true, "__pycache__": true, ".mypy_cache": true,
 		"collected_static": true, ".pytest_cache": true, "tmp": true,
+		// Config/infra directories — not sub-projects
+		"compose": true, "docker": true, "infra": true, "infrastructure": true,
+		"scripts": true, "docs": true, "monitoring": true, "k8s": true,
+		"build": true, "data": true, "specs": true, "reports": true,
 	}
 
 	var subs []subProject

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestDetectTemplate(t *testing.T) {
+func TestDetectTemplateIn(t *testing.T) {
 	// Setup a temporary directory
 	tempDir, err := os.MkdirTemp("", "dva-init-test-*")
 	if err != nil {
@@ -20,20 +20,20 @@ func TestDetectTemplate(t *testing.T) {
 	defer os.Chdir(originalWd)
 
 	// Test default (minimal)
-	if tmpl := detectTemplate(); tmpl != "minimal" {
+	if tmpl := detectTemplateIn("."); tmpl != "minimal" {
 		t.Errorf("Expected minimal, got %s", tmpl)
 	}
 
 	// Test node detection
 	os.WriteFile("package.json", []byte("{}"), 0644)
-	if tmpl := detectTemplate(); tmpl != "node" {
+	if tmpl := detectTemplateIn("."); tmpl != "node" {
 		t.Errorf("Expected node, got %s", tmpl)
 	}
 	os.Remove("package.json")
 
 	// Test go detection
 	os.WriteFile("go.mod", []byte("module foo"), 0644)
-	if tmpl := detectTemplate(); tmpl != "go" {
+	if tmpl := detectTemplateIn("."); tmpl != "go" {
 		t.Errorf("Expected go, got %s", tmpl)
 	}
 	os.Remove("go.mod")

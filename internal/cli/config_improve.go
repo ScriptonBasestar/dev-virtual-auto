@@ -1,26 +1,37 @@
 package cli
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
+//go:embed improve_prompt_template.txt
+var improvePromptTemplateText string
+
 var improvePrint bool
 var improveDocsOnly bool
 var improveVerbose bool
+var improveRecursive bool
 
 var improveCmd = &cobra.Command{
 	Use:   "improve",
 	Short: "Review and improve the current dva.yml via AI",
-	Long: `Runs AI-assisted improvement of the current dva.yml.
+	Long: `Runs AI-assisted improvement of dva.yml.
 
-Default behavior: executes Claude Code CLI with the improvement prompt.
+If dva.yml does not exist, it scaffolds one first (auto-detecting project type),
+then runs AI improvement on it. If dva.yml already exists, it improves in place.
+
+Use --recursive to also improve dva.yml in detected sub-projects.
 Use --print to output the prompt to stdout for manual use.
 Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -30,13 +41,29 @@ Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).`,
 		if improveDocsOnly {
 			return runAIDocsOnly()
 		}
-		return runAIImprove()
+		if err := runAIImprove(); err != nil {
+			return err
+		}
+		if improveRecursive {
+			return runAIImproveRecursive()
+		}
+		return nil
 	},
 }
 
 // runAIImprove generates the improve prompt and executes it via Claude Code CLI.
+// If dva.yml does not exist, it scaffolds one first via dva init logic, then improves it.
 func runAIImprove() error {
 	prog := newProgress(improveVerbose)
+
+	// If dva.yml doesn't exist, scaffold it first (auto-detect project type)
+	if !dvaConfigExists() {
+		fmt.Println("📋 No dva.yml found — scaffolding initial configuration...")
+		if _, err := scaffoldDvaYml(".", ""); err != nil {
+			return fmt.Errorf("failed to scaffold dva.yml: %w", err)
+		}
+		fmt.Println()
+	}
 
 	prog.Start("Checking claude CLI...")
 	claudePath, err := exec.LookPath("claude")
@@ -75,10 +102,255 @@ func runAIImprove() error {
 	return runValidationFeedbackLoop(claudePath, improveVerbose)
 }
 
+// runAIDocsOnly generates DVA guide and updates agent configs without regenerating dva.yml.
+func runAIDocsOnly() error {
+	if !dvaConfigExists() {
+		return fmt.Errorf("dva.yml not found.\n  Run 'dva init' first to scaffold a configuration")
+	}
+
+	guidePath, err := generateAIDocs()
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("✅ Generated %s\n", guidePath)
+	return nil
+}
+
+// runAIImproveRecursive finds sub-projects with dva.yml and runs improve in each.
+func runAIImproveRecursive() error {
+	var subs []subInfo
+	scanForSubprojects(".", 0, 3, &subs)
+
+	var targets []string
+	for _, sp := range subs {
+		for _, name := range []string{"dva.yml", "dva.yaml"} {
+			if _, err := os.Stat(filepath.Join(sp.path, name)); err == nil {
+				targets = append(targets, sp.path)
+				break
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		fmt.Println("No sub-projects with dva.yml found.")
+		return nil
+	}
+
+	originalWd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	for _, dir := range targets {
+		fmt.Printf("\n📂 Improving %s/dva.yml...\n", dir)
+		func() {
+			if err := os.Chdir(dir); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  Could not enter %s: %v\n", dir, err)
+				return
+			}
+			// Restore working directory and reset cached config on exit
+			defer func() {
+				os.Chdir(originalWd)
+				cfg = nil
+				env = nil
+			}()
+
+			// Reset cached config for sub-project context
+			cfg = nil
+			env = nil
+
+			if err := runAIImprove(); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  %s: %v\n", dir, err)
+			}
+		}()
+	}
+
+	return nil
+}
+
+// generateAndPrintImprovePrompt outputs the unified LLM prompt to stdout.
+// If dva.yml does not exist, it scaffolds one first.
+func generateAndPrintImprovePrompt() error {
+	if !dvaConfigExists() {
+		fmt.Fprintln(os.Stderr, "📋 No dva.yml found — scaffolding initial configuration...")
+		if _, err := scaffoldDvaYml(".", ""); err != nil {
+			return fmt.Errorf("failed to scaffold dva.yml: %w", err)
+		}
+		fmt.Fprintln(os.Stderr)
+	}
+	prompt, err := buildImprovePrompt()
+	if err != nil {
+		return err
+	}
+	fmt.Println(prompt)
+	return nil
+}
+
+// buildImprovePrompt builds the unified prompt that includes both project exploration
+// and current DVA state analysis.
+func buildImprovePrompt() (string, error) {
+	c, err := config.Load(".")
+	if err != nil {
+		return "", fmt.Errorf("could not load current dva.yml: %w", err)
+	}
+
+	// --- Project exploration data (Phase 1) ---
+	detectedCompose := detectComposeSummary()
+	detectedInfraCompose := detectInfraComposeSummary()
+	detectedBuild := detectBuildSummary()
+	detectedMakeTargets := detectMakeTargetsSummary()
+	detectedEnv := detectEnvSummary()
+	detectedSubprojects := detectSubprojects(nil)
+
+	// --- Current DVA state (Phase 3) ---
+	rawConfig, err := os.ReadFile(c.FilePath())
+	if err != nil {
+		return "", fmt.Errorf("failed to read %s: %w", c.FilePath(), err)
+	}
+
+	manifestJSON, err := json.MarshalIndent(buildManifest(c), "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to build manifest: %w", err)
+	}
+
+	resolvedConfigYAML, err := yaml.Marshal(c)
+	if err != nil {
+		return "", fmt.Errorf("failed to render merged config: %w", err)
+	}
+
+	validationStatus := "PASS"
+	if err := c.Validate(); err != nil {
+		validationStatus = "FAIL: " + err.Error()
+	}
+
+	composeWarnings := formatComposeWarnings(c.ValidateComposeProjectNames())
+	if composeWarnings == "" {
+		composeWarnings = "None"
+	}
+
+	semanticWarnings := c.ValidateWarnings()
+	semanticWarningsText := "None"
+	if len(semanticWarnings) > 0 {
+		semanticWarningsText = strings.Join(semanticWarnings, "\n")
+	}
+
+	driftWarnings := detectConfigDriftWarnings(c)
+	driftWarningsText := "None"
+	if len(driftWarnings) > 0 {
+		driftWarningsText = strings.Join(driftWarnings, "\n")
+	}
+
+	suggestionWarnings := detectConfigSuggestionWarnings(c)
+	suggestionWarningsText := "None"
+	if len(suggestionWarnings) > 0 {
+		suggestionWarningsText = strings.Join(suggestionWarnings, "\n")
+	}
+
+	// Unified prompt: version + Phase 1 (exploration) + Phase 3 (current state) + Phase 4 version + library ref + version
+	return fmt.Sprintf(improvePromptTemplateText,
+		// Guardrails: CRITICAL version (1 slot)
+		config.Version,
+		// Phase 1: Project exploration (6 slots)
+		detectedCompose,
+		detectedInfraCompose,
+		detectedBuild,
+		detectedMakeTargets,
+		detectedEnv,
+		detectedSubprojects,
+		// Phase 3: Current DVA state (9 slots)
+		c.FilePath(),
+		string(rawConfig),
+		string(manifestJSON),
+		string(resolvedConfigYAML),
+		validationStatus,
+		composeWarnings,
+		semanticWarningsText,
+		driftWarningsText,
+		suggestionWarningsText,
+		// Phase 4: version enforcement (1 slot)
+		config.Version,
+		// Library reference + version (2 slots)
+		libraryReferenceText,
+		config.Version,
+	), nil
+}
+
+// --- Project exploration helpers ---
+
+func detectComposeSummary() string {
+	composeFiles := detectComposeFiles()
+	if len(composeFiles) == 0 {
+		return "None"
+	}
+	var parts []string
+	parts = append(parts, strings.Join(composeFiles, ", "))
+	var allServices []string
+	for _, cf := range composeFiles {
+		if services := extractComposeServices(cf); len(services) > 0 {
+			allServices = append(allServices, services...)
+		}
+	}
+	if len(allServices) > 0 {
+		parts = append(parts, fmt.Sprintf("services: %s", strings.Join(allServices, ", ")))
+	}
+	return strings.Join(parts, " → ")
+}
+
+func detectInfraComposeSummary() string {
+	infraComposeFiles := detectInfraComposeFiles()
+	if len(infraComposeFiles) == 0 {
+		return "None"
+	}
+	var parts []string
+	for _, icf := range infraComposeFiles {
+		entry := icf
+		if services := extractComposeServices(icf); len(services) > 0 {
+			entry += fmt.Sprintf(" → services: %s", strings.Join(services, ", "))
+		}
+		parts = append(parts, entry)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func detectBuildSummary() string {
+	buildFiles := []string{}
+	for _, f := range []string{"Makefile", "package.json", "build.gradle", "pom.xml", "pyproject.toml", "Gemfile", "go.mod", "Cargo.toml"} {
+		if _, err := os.Stat(f); err == nil {
+			buildFiles = append(buildFiles, f)
+		}
+	}
+	if len(buildFiles) == 0 {
+		return "None"
+	}
+	return strings.Join(buildFiles, ", ")
+}
+
+func detectMakeTargetsSummary() string {
+	if makeTargets := extractMakefileTargets(); makeTargets != "" {
+		return makeTargets
+	}
+	return "None"
+}
+
+func detectEnvSummary() string {
+	envFiles := []string{}
+	for _, f := range []string{".env.example", ".env"} {
+		if _, err := os.Stat(f); err == nil {
+			envFiles = append(envFiles, f)
+		}
+	}
+	if len(envFiles) == 0 {
+		return "None"
+	}
+	return strings.Join(envFiles, ", ")
+}
+
 func init() {
 	improveCmd.Flags().BoolVar(&improvePrint, "print", false, "Output the improvement prompt to stdout (for manual use)")
 	improveCmd.Flags().BoolVar(&improveDocsOnly, "docs-only", false, "Only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged)")
 	improveCmd.Flags().BoolVarP(&improveVerbose, "verbose", "v", false, "Show detailed progress during AI execution")
+	improveCmd.Flags().BoolVar(&improveRecursive, "recursive", false, "Also improve dva.yml in detected sub-projects")
 	configCmd.AddCommand(improveCmd)
 }
 
@@ -174,4 +446,15 @@ func buildValidationFixPrompt(validateOutput string) (string, error) {
 		libraryReferenceText + "\n"
 
 	return prompt, nil
+}
+
+// dvaConfigExists checks whether dva.yml or dva.yaml exists in the current directory only.
+// Unlike config.findConfig(), this does not walk up parent directories — scaffold targets cwd.
+func dvaConfigExists() bool {
+	for _, name := range []string{"dva.yml", "dva.yaml"} {
+		if _, err := os.Stat(name); err == nil {
+			return true
+		}
+	}
+	return false
 }

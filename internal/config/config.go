@@ -338,6 +338,8 @@ func Load(workDir string) (*Config, error) {
 	return cfg, nil
 }
 
+var yamlDeprecationWarned bool
+
 // findConfig walks up from workDir to find dva.yml.
 func findConfig(workDir string) (string, error) {
 	// Check DVA_FILE env var first
@@ -354,9 +356,19 @@ func findConfig(workDir string) (string, error) {
 	}
 
 	for {
+		// Prefer dva.yml (canonical name)
 		candidate := filepath.Join(dir, "dva.yml")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
+		}
+		// Fallback: accept dva.yaml with deprecation warning (once per process)
+		altCandidate := filepath.Join(dir, "dva.yaml")
+		if _, err := os.Stat(altCandidate); err == nil {
+			if !yamlDeprecationWarned {
+				yamlDeprecationWarned = true
+				fmt.Fprintf(os.Stderr, "⚠  Found %s — consider renaming to dva.yml (canonical name)\n", altCandidate)
+			}
+			return altCandidate, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
