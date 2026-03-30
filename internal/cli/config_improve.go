@@ -18,10 +18,17 @@ import (
 //go:embed improve_prompt_template.txt
 var improvePromptTemplateText string
 
+//go:embed improve_guardrails_default.txt
+var improveGuardrailsDefaultText string
+
+//go:embed improve_guardrails_rewrite.txt
+var improveGuardrailsRewriteText string
+
 var improvePrint bool
 var improveDocsOnly bool
 var improveVerbose bool
 var improveRecursive bool
+var improveRewrite bool
 
 var improveCmd = &cobra.Command{
 	Use:   "improve",
@@ -31,6 +38,7 @@ var improveCmd = &cobra.Command{
 If dva.yml does not exist, it scaffolds one first (auto-detecting project type),
 then runs AI improvement on it. If dva.yml already exists, it improves in place.
 
+Use --rewrite to rebuild dva.yml from scratch based on project analysis.
 Use --recursive to also improve dva.yml in detected sub-projects.
 Use --print to output the prompt to stdout for manual use.
 Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).`,
@@ -247,8 +255,18 @@ func buildImprovePrompt() (string, error) {
 		suggestionWarningsText = strings.Join(suggestionWarnings, "\n")
 	}
 
+	// Apply mode-specific guardrails
+	guardrails := improveGuardrailsDefaultText
+	selfReviewPreserve := "□ 기존 `stack.compose.services` 메타데이터가 보존되었는가?"
+	if improveRewrite {
+		guardrails = improveGuardrailsRewriteText
+		selfReviewPreserve = ""
+	}
+	promptTemplate := strings.Replace(improvePromptTemplateText, "{{GUARDRAILS}}", guardrails, 1)
+	promptTemplate = strings.Replace(promptTemplate, "{{SELF_REVIEW_PRESERVE}}", selfReviewPreserve, 1)
+
 	// Unified prompt: version + Phase 1 (exploration) + Phase 3 (current state) + Phase 4 version + library ref + version
-	return fmt.Sprintf(improvePromptTemplateText,
+	return fmt.Sprintf(promptTemplate,
 		// Guardrails: CRITICAL version (1 slot)
 		config.Version,
 		// Phase 1: Project exploration (6 slots)
@@ -351,6 +369,7 @@ func init() {
 	improveCmd.Flags().BoolVar(&improveDocsOnly, "docs-only", false, "Only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged)")
 	improveCmd.Flags().BoolVarP(&improveVerbose, "verbose", "v", false, "Show detailed progress during AI execution")
 	improveCmd.Flags().BoolVar(&improveRecursive, "recursive", false, "Also improve dva.yml in detected sub-projects")
+	improveCmd.Flags().BoolVar(&improveRewrite, "rewrite", false, "Rewrite dva.yml from scratch based on project analysis (ignores existing structure)")
 	configCmd.AddCommand(improveCmd)
 }
 
