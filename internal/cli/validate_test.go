@@ -246,8 +246,9 @@ func TestShouldIgnoreMakefileTarget(t *testing.T) {
 	// Suffix patterns: compose lifecycle
 	suffixIgnored := []string{
 		"dev-full-up", "dev-full-down", "dev-full-logs", "dev-full-ps",
+		"dev-full-build",
 		"e2e-up", "e2e-down", "e2e-stop", "e2e-restart",
-		"app-logs", "backend-ps",
+		"app-logs", "backend-ps", "frontend-build",
 	}
 	for _, name := range suffixIgnored {
 		if !shouldIgnoreMakefileTarget(name) {

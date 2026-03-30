@@ -149,9 +149,31 @@ func printConfigSuggestionWarnings(warnings []string) {
 }
 
 func detectConfigSuggestionWarnings(c *config.Config) []string {
+	tree := runner.NewInteractionTree(c.Interaction)
 	commandSet := map[string]bool{}
-	for name := range runner.NewInteractionTree(c.Interaction).List() {
+	for name := range tree.List() {
 		commandSet[name] = true
+	}
+
+	// Build subcommand coverage set: for "app:build ce" → also match "build-ce", "build ce"
+	// This detects when a Makefile target like "build-ce" is already covered by a
+	// DVA interaction subcommand under a different parent name.
+	subcommandCoverage := map[string]bool{}
+	for fullPath := range tree.List() {
+		parts := strings.Split(fullPath, " ")
+		if len(parts) < 2 {
+			continue
+		}
+		// Extract the base name (strip namespace prefix like "app:")
+		baseName := parts[0]
+		if idx := strings.LastIndex(baseName, ":"); idx >= 0 {
+			baseName = baseName[idx+1:]
+		}
+		// "app:build ce" → coverage for "build-ce"
+		subParts := append([]string{baseName}, parts[1:]...)
+		subcommandCoverage[strings.Join(subParts, "-")] = true
+		// "test all" → coverage for "test-all" (no namespace)
+		subcommandCoverage[strings.Join(parts, "-")] = true
 	}
 
 	candidates := map[string]string{}
@@ -173,6 +195,9 @@ func detectConfigSuggestionWarnings(c *config.Config) []string {
 	var warnings []string
 	for _, name := range names {
 		if commandSet[name] {
+			continue
+		}
+		if subcommandCoverage[name] {
 			continue
 		}
 		warnings = append(warnings,
@@ -384,7 +409,7 @@ func shouldIgnoreMakefileTarget(name string) bool {
 
 	// Compose lifecycle suffixes: e.g., dev-full-up, e2e-down, app-logs
 	// DVA handles these natively via modes and `dva up/down/logs` commands
-	for _, suffix := range []string{"-up", "-down", "-stop", "-restart", "-logs", "-ps"} {
+	for _, suffix := range []string{"-up", "-down", "-stop", "-restart", "-logs", "-ps", "-build"} {
 		if strings.HasSuffix(name, suffix) {
 			return true
 		}
