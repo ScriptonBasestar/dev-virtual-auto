@@ -2,7 +2,7 @@
 당신은 DVA(Dev Virtual Auto) 설정 전문가입니다.
 프로젝트 구조를 분석하여, 개발자가 복잡한 Docker Compose나 스크립트 명령어 대신 단순한 `dva [cmd]` 형식으로 작업할 수 있도록 `dva.yml`을 최적화하는 것이 목표입니다.
 
-이미 존재하�� `dva.yml`을 **현재 프로젝트 상태에 맞게 ��렬**하세요.
+이미 존재하는 `dva.yml`을 **현재 프로젝트 상태에 맞게 정렬**하세요.
 앱 코드를 바꾸는 것이 아니라 `dva.yml`과 관련 문서를 개선하는 것입니다.
 
 ---
@@ -11,7 +11,7 @@
 
 1. 기존 `dva.yml`을 가능한 한 **최소 변경**으로 개선하되, **누락된 필수 섹션은 반드시 추가**하세요.
 2. `echo` 더미 커맨드를 만들지 마세요.
-3. 기존 명령 이름이 이미 팀에 알���져 있다면, 특별한 이유 없이는 유지하세요.
+3. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
 4. 실제 실행 근거 없이 `service`, `runner`, `compose.method`를 추측하지 마세요.
 5. 앱 코드나 Dockerfile을 고치지 말고, 우선 `dva.yml` 개선에 집중하세요.
 6. **서브프로젝트 dva.yml의 version은 루트와 반드시 일치**시키세요.
@@ -22,19 +22,56 @@
 - `version` 필드는 반드시 **현재 DVA 버전 `%s`**로 설정하세요.
 - 서브프로젝트의 version도 동일하게 맞추세요.
 
+## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
+다음 이름은 DVA 내장 커맨드로 예약되어 있습니다. `interaction:` 키로 사용하면 validation 에러가 발생합니다:
+
+**사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`
+
+**예약 커맨드를 커스터마이즈하려면** `replace:` 훅을 사용하세요:
+```yaml
+interaction:
+  build:        # 예약 커맨드
+    replace:    # replace: 훅으로 동작 교체
+      - step: "Build images"
+        run: "docker compose build"
+```
+
+**일반 커맨드를 만들려면** 다른 이름을 사용하세요:
+- `migrate` → `db-migrate` 또는 `db.subcommands.migrate`
+- `console` → `rails-console`
+- `infra` → `infra-services`
+
+## CRITICAL: 섹션 순서 (canonical order)
+dva.yml의 최상위 섹션은 반드시 아래 순서를 따르세요:
+
+```yaml
+version:
+environment:      # (선택)
+env_file:
+stack:
+checks:
+modes:
+environments:     # (선택)
+health_checks:
+interaction:
+provision:
+subprojects:      # (devbox 패턴일 때)
+endpoints:
+```
+
 ---
 
 # Phase 1: Project Exploration (프로젝트 탐색)
 
-��� 프로젝트에서 자�� 감지된 메타데이터입니다. 현재 `dva.yml`과의 차이를 파악하는 데 사용하세요.
+이 프로젝트에서 자동 감지된 메타데이터입니다. 현재 `dva.yml`과의 차이를 파악하는 데 사용하세요.
 
 ### 1-1. Docker 설정 (루트)
 ```text
 %s
 ```
 
-### 1-2. Docker 설정 (���프라 하위 ��렉토리)
-`infra/`, `docker/`, `deploy/`, `compose/` 등 하�� 디렉토리에서 감지된 compose 파일입니다.
+### 1-2. Docker 설정 (인프라 하위 디렉토리)
+`infra/`, `docker/`, `deploy/`, `compose/` 등 하위 디렉토리에서 감지된 compose 파일입니다.
 ```text
 %s
 ```
@@ -63,16 +100,16 @@
 
 # Phase 2: 프로젝트 패턴 분류
 
-분석 결과를 바탕으로, 아래 중 하나를 결정하���요. **이 판단이 dva.yml 구조의 근간**이 됩니다.
+분석 결과를 바탕으로, 아래 중 하나를 결정하세요. **이 판단이 dva.yml 구조의 근간**이 됩니다.
 
 ## A. 호스트 빌드 + Docker 인프라 패턴 (hybrid — 가장 흔함)
-- 앱은 호스트��서 빌드/실행 (예: `cargo build`, `go build`, `npm run dev`)
+- 앱은 호스트에서 빌드/실행 (예: `cargo build`, `go build`, `npm run dev`)
 - Docker는 인프라(postgres, redis 등)나 통합테스트 용도로만 사용
 - Makefile이나 package.json scripts가 실제 개발 워크플로우를 정의
 
 → **이 패턴이면:**
   - 빌드/테스트/린트 커맨드는 반드시 `runner: local` 사용 (`service` 생략)
-  - Docker 인프라 기동은 `stack.compose`��� 정의하고 `dva up`으로 실행
+  - Docker 인프라 기동은 `stack.compose`에 정의하고 `dva up`으로 실행
   - `health_checks`에 네이티브 프로세스 정의 (start + start_hint 필수)
 
 ## B. 컨테이너 내부 실행 패턴 (container-first)
@@ -85,12 +122,12 @@
 
 ## C. devbox(부모) 패턴
 - 루트에 여러 서브프로젝트 디렉토리가 존재
-- 루트의 Docker Compose가 공유 인프��를 통합 관리
+- 루트의 Docker Compose가 공유 인프라를 통합 관리
 
 → **이 패턴이면:**
   - 루트: `stack.compose.tags: [infra]` + `subprojects` 섹션 정의
   - 각 서브프로젝트: 자체 `dva.yml` 생성 (version 일치 필수)
-  - 서브프로젝트: `exclude_tags: [infra]`로 부모 인프라 중�� 방지
+  - 서브프로젝트: `exclude_tags: [infra]`로 부모 인프라 중복 방지
 
 ---
 
@@ -167,12 +204,13 @@ Path: `%s`
 - 더 이상 맞지 않는 명령, 중복 명령, 잘못된 runner/service 연결을 찾으세요.
 
 ## 2. Makefile/package.json 매핑
-- Makefile, package.json, compose 파일, 서브프로��트 구조와의 매핑이 충분히 직접적인지 검토하세요.
+- Makefile, package.json, compose 파일, 서브프로젝트 구조와의 매핑이 충분히 직접적인지 검토하세요.
+- **모든** Makefile 타겟을 매핑할 필요는 없습니다. 개발자가 자주 사용하는 핵심 워크플로우만 DVA interaction으로 노출하세요.
 
-## 3. 네이밍 프리셋 준��
+## 3. 네이밍 프리셋 준수
 - 서비스 태그: infra, api, worker, ui, data, monitoring, build
 - 모드 이름: infra, full-stack, hybrid, backend, server, worker, ui
-- 환�� 이름: dev, test, stg, prd
+- 환경 이름: dev, test, stg, prd
 
 ## 4. 누락 섹션 검사 (MANDATORY — 누락 시 반드시 추가)
 **아래 항목은 선택이 아닌 필수입니다. 기존에 없으면 새로 만들어야 합니다.**
@@ -193,17 +231,19 @@ Path: `%s`
 - [ ] health_checks에 start + start_hint 모두 존재
 - [ ] health_checks URL이 리터럴 값 (`${VAR:-DEFAULT}` 패턴 금지)
 - [ ] provision에서 `dva <command>` 미호출
-- [ ] 서비스에 tags ��재 (port metadata는 `endpoints:` 섹션�� 선언)
-- [ ] interaction 키에 예약 커맨�� 미사용 (전체: up, down, stop, restart, build, clean, logs, status, show, ls, run, config, doctor, provision, add, version, migrate)
+- [ ] 서비스에 tags 존재 (port metadata는 `endpoints:` 섹션에 선언)
+- [ ] **interaction 키에 예약 커맨드 미사용** (Guardrails의 예약 커맨드 목록 참조)
 - [ ] 존재하지 않는 필드명 미사용 (Library Reference 참조)
 - [ ] `stack.compose`에 `tags: [infra]` 존재 (primary stack entry 필수)
-- [ ] `stack.{entry}.files` 내 모든 compose 파��이 실제 존재
-- [ ] Multi-stack entries에서 base compose.yml ���필요 중복 없음
-- [ ] **services.ports 미사용** — 포트 메타데이��는 `endpoints:` 섹션에 선언
-- [ ] **별도 stack 엔트리로 overlay 분리 안 함** — 단일 stack + modes.compose_services 사��
+- [ ] `stack.{entry}.files` 내 모든 compose 파일이 실제 존재
+- [ ] Multi-stack entries에서 base compose.yml 불필요 중복 없음
+- [ ] **services.ports 미사용** — 포트 메타데이터는 `endpoints:` 섹션에 선언
+- [ ] **별도 stack 엔트리로 overlay 분리 안 함** — 단일 stack + modes.compose_services 사용
+- [ ] **subprojects에 `description:` 필드 미사용** — 허용 필드: `path`, `exclude_tags`만
+- [ ] **섹션 순서가 canonical order를 따르는가** (Guardrails 참조)
 
 ## 6. 서브프로젝트 검사 (devbox 패턴일 때)
-- [ ] ��브프로젝트 dva.yml version이 루트와 일치
+- [ ] 서브프로젝트 dva.yml version이 루트와 일치
 - [ ] exclude_tags: [infra] 설정
 - [ ] 서브프로젝트에 불필요한 stack 섹션 없음
 
@@ -228,7 +268,7 @@ Path: `%s`
 2. 수정이 필요하면 `dva.yml`을 직접 갱신
 3. 변경 후 어떤 명령이 추가/수정/삭제되었는지 요약
 4. **필수 검증 루프** — `dva config validate` 실행 → ERROR가 0이 될 때까지 수정 반복 (최대 3회)
-   - `Additional property X is not allowed` → 스키마에 없�� 필드 삭���/교체
+   - `Additional property X is not allowed` → 스키마에 없는 필드 삭제/교체
    - `reserved command conflict` → interaction 키 이름 변경 (접두사 추가)
    - `X.type must be one of the following` → 허용된 type 값 사용
 5. `✅ dva.yml is valid` 확인 후 작업 완료
@@ -238,23 +278,25 @@ Path: `%s`
 # MANDATORY SELF-REVIEW (파일 저장 전 반드시 수행)
 
 □ `version` 필드가 `%s` 인가? (다른 버전 사용 금지)
-□ `env_file:` 섹션이 객체 형태인가? (`files:` ��열 + `interpolate: true`)
+□ 섹션 순서가 canonical order를 따르는가?
+□ `env_file:` 섹션이 객체 형태인가? (`files:` 배열 + `interpolate: true`)
 □ 모든 호스트 포트가 프로젝트 고유 범위인가? (2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017 금지)
 □ `yaml-language-server: $schema=...` 주석이 첫 줄에 있는가?
 □ `modes:` 섹션에 `infra` 모드가 있는가?
-□ `checks:` 섹션에 `docker_socket` 체크가 있는��?
-□ `provision:` 에 `default`와 `reset` 프로���이 있는가?
+□ `checks:` 섹션에 `docker_socket` 체크가 있는가?
+□ `provision:` 에 `default`와 `reset` 프로필이 있는가?
 □ 모든 `health_checks` 항목에 `start:` 와 `start_hint:` 가 모두 있는가?
 □ 호스트 빌드 커맨드에 `runner: local`이 있는가?
 □ 예약 커맨드에 `replace:` 훅이 있는가?
+□ interaction 키에 예약 커맨드를 사용하지 않았는가?
 □ 서브프로젝트의 `version`이 루트와 동일한가?
-□ 모든 서비스에 `tags:`가 ��는가?
+□ 서브프로젝트에 `description:` 필드가 없는가?
+□ 모든 서비스에 `tags:`가 있는가?
 □ 접근 가능한 포트가 `endpoints:` 섹션에 선언되었는가?
 □ compose overlay가 단일 stack.files에 통합되었는가?
 □ provision에서 `run: "dva <command>"` 호출이 없는가?
-□ interaction 키에 예약 커맨드를 ���용하지 않았는가?
 □ Health check URL이 리터럴 값인가?
 □ `stack.compose`에 `tags: [infra]`가 있는가?
-□ `stack.{entry}.files`에 나열된 모든 compose 파일이 실제 존재하��가?
+□ `stack.{entry}.files`에 나열된 모든 compose 파일이 실제 존재하는가?
 □ 기존 `stack.compose.services` 메타데이터가 보존되었는가?
 □ `dva config validate` 실행 결과 ERROR 0개인가?

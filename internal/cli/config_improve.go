@@ -358,6 +358,7 @@ const maxValidationRetries = 3
 
 // runValidationFeedbackLoop runs dva config validate after AI finishes.
 // If validation fails, it feeds the errors back to the AI for fixing, up to maxValidationRetries.
+// After validation passes, it also checks for version mismatch and fixes it.
 func runValidationFeedbackLoop(claudePath string, verbose bool) error {
 	for attempt := 1; attempt <= maxValidationRetries; attempt++ {
 		fmt.Printf("🔍 Validating dva.yml (attempt %d/%d)...\n", attempt, maxValidationRetries)
@@ -369,6 +370,10 @@ func runValidationFeedbackLoop(claudePath string, verbose bool) error {
 		}
 
 		if validateErr == nil {
+			// Validation passed — check version mismatch as a post-validation step
+			if versionErr := fixVersionMismatch(); versionErr != nil {
+				fmt.Fprintf(os.Stderr, "⚠️  version fix failed: %v\n", versionErr)
+			}
 			return nil
 		}
 
@@ -400,6 +405,48 @@ func runValidationFeedbackLoop(claudePath string, verbose bool) error {
 		}
 		fmt.Println()
 	}
+	return nil
+}
+
+// fixVersionMismatch checks if dva.yml version matches the running DVA version.
+// If not, it directly updates the version field in the file (simple sed-like replacement).
+func fixVersionMismatch() error {
+	c, err := config.Load(".")
+	if err != nil {
+		return nil // can't load — skip
+	}
+	if c.Version == config.Version {
+		return nil // already matches
+	}
+
+	fmt.Printf("🔄 Updating dva.yml version %q → %q...\n", c.Version, config.Version)
+
+	// Direct file replacement — no need to invoke AI for a simple version bump
+	raw, err := os.ReadFile(c.FilePath())
+	if err != nil {
+		return fmt.Errorf("failed to read %s: %w", c.FilePath(), err)
+	}
+
+	oldVersionLine := fmt.Sprintf("version: %q", c.Version)
+	newVersionLine := fmt.Sprintf("version: %q", config.Version)
+	updated := strings.Replace(string(raw), oldVersionLine, newVersionLine, 1)
+
+	if updated == string(raw) {
+		// Try without quotes
+		oldVersionLine = fmt.Sprintf("version: \"%s\"", c.Version)
+		newVersionLine = fmt.Sprintf("version: \"%s\"", config.Version)
+		updated = strings.Replace(string(raw), oldVersionLine, newVersionLine, 1)
+	}
+
+	if updated == string(raw) {
+		return nil // couldn't find version line to replace
+	}
+
+	if err := os.WriteFile(c.FilePath(), []byte(updated), 0644); err != nil {
+		return fmt.Errorf("failed to write %s: %w", c.FilePath(), err)
+	}
+
+	fmt.Printf("✅ Version updated to %s\n", config.Version)
 	return nil
 }
 

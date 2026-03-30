@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	_ "embed"
@@ -578,6 +579,24 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 
 	dir := filepath.Dir(path)
 	lines := strings.Split(string(data), "\n")
+
+	// Collect .PHONY targets for undocumented target detection
+	phonyTargets := map[string]bool{}
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, ".PHONY") {
+			// .PHONY: target1 target2 ...
+			if idx := strings.Index(trimmed, ":"); idx >= 0 {
+				for _, t := range strings.Fields(trimmed[idx+1:]) {
+					if !strings.HasPrefix(t, ".") && !strings.Contains(t, "$") {
+						phonyTargets[t] = true
+					}
+				}
+			}
+		}
+	}
+
+	documentedTargets := map[string]bool{}
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
@@ -602,12 +621,17 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 			continue
 		}
 
-		// Extract target: ## description lines
+		// Extract target: ## description lines (documented targets)
 		if strings.Contains(line, "##") && !strings.HasPrefix(line, "#") &&
 			!strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 && !strings.HasPrefix(parts[0], ".") {
 				target := strings.TrimSpace(parts[0])
+				// Skip targets with variable references
+				if strings.Contains(target, "$") || strings.Contains(target, "%") {
+					continue
+				}
+				documentedTargets[target] = true
 				desc := ""
 				if idx := strings.Index(parts[1], "##"); idx >= 0 {
 					desc = strings.TrimSpace(parts[1][idx+2:])
@@ -619,6 +643,18 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 				}
 			}
 		}
+	}
+
+	// Also extract undocumented .PHONY targets that weren't already captured (sorted for deterministic output)
+	var undocumented []string
+	for phony := range phonyTargets {
+		if !documentedTargets[phony] {
+			undocumented = append(undocumented, phony)
+		}
+	}
+	sort.Strings(undocumented)
+	for _, name := range undocumented {
+		*targets = append(*targets, fmt.Sprintf("  make %s", name))
 	}
 }
 

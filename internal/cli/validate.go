@@ -288,14 +288,65 @@ func formatList(items []string) string {
 }
 
 func extractDocumentedMakefileTargetNamesInDir(dir string) []string {
-	data, err := os.ReadFile(filepath.Join(dir, "Makefile"))
+	makefilePath := filepath.Join(dir, "Makefile")
+	targets := extractDocumentedTargetNamesFromMakefiles(makefilePath)
+	sort.Strings(targets)
+	return targets
+}
+
+// extractDocumentedTargetNamesFromMakefiles follows include directives and
+// extracts target names (without descriptions) from documented targets.
+func extractDocumentedTargetNamesFromMakefiles(path string) []string {
+	seen := map[string]bool{}
+	var targets []string
+	collectDocumentedTargetNames(path, seen, &targets)
+	return targets
+}
+
+func collectDocumentedTargetNames(path string, seen map[string]bool, targets *[]string) {
+	absPath, _ := filepath.Abs(path)
+	if seen[absPath] {
+		return
+	}
+	seen[absPath] = true
+
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil
+		matches, globErr := filepath.Glob(path)
+		if globErr != nil || len(matches) == 0 {
+			return
+		}
+		for _, m := range matches {
+			collectDocumentedTargetNames(m, seen, targets)
+		}
+		return
 	}
 
+	dir := filepath.Dir(path)
 	lines := strings.Split(string(data), "\n")
-	var targets []string
 	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Follow include/-include directives
+		if strings.HasPrefix(trimmed, "include ") || strings.HasPrefix(trimmed, "-include ") {
+			includePath := strings.TrimPrefix(trimmed, "-include ")
+			includePath = strings.TrimPrefix(includePath, "include ")
+			includePath = strings.TrimSpace(includePath)
+			if !filepath.IsAbs(includePath) {
+				includePath = filepath.Join(dir, includePath)
+			}
+			matches, globErr := filepath.Glob(includePath)
+			if globErr == nil && len(matches) > 0 {
+				for _, m := range matches {
+					collectDocumentedTargetNames(m, seen, targets)
+				}
+			} else {
+				collectDocumentedTargetNames(includePath, seen, targets)
+			}
+			continue
+		}
+
+		// Extract target: ## description lines
 		if strings.Contains(line, "##") && !strings.HasPrefix(line, "#") &&
 			!strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, " ") {
 			parts := strings.SplitN(line, ":", 2)
@@ -303,13 +354,30 @@ func extractDocumentedMakefileTargetNamesInDir(dir string) []string {
 				continue
 			}
 			target := strings.TrimSpace(parts[0])
-			if target != "" {
-				targets = append(targets, target)
+			if target != "" && !shouldIgnoreMakefileTarget(target) {
+				*targets = append(*targets, target)
 			}
 		}
 	}
-	sort.Strings(targets)
-	return targets
+}
+
+// shouldIgnoreMakefileTarget returns true for Makefile targets that are meta/infra
+// targets unlikely to be useful as DVA interactions.
+func shouldIgnoreMakefileTarget(name string) bool {
+	ignoredTargets := map[string]bool{
+		// Meta targets
+		"help": true, "all": true, "default": true,
+		// DVA already handles these natively
+		"stop": true, "up": true, "down": true, "restart": true,
+		// Generic infra targets that overlap with DVA modes/stack
+		"infra-up": true, "infra-down": true, "infra-start": true, "infra-stop": true,
+		// Generic setup/dependency targets handled by provision
+		"deps": true, "install": true, "prepare": true, "setup": true,
+		"install-hooks": true,
+		// Documentation targets
+		"docs": true, "docs-build": true, "docs-serve": true,
+	}
+	return ignoredTargets[name]
 }
 
 func extractPackageScriptNamesInDir(dir string) []string {
