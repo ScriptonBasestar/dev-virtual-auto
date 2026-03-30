@@ -1,4 +1,4 @@
-# setup-dva Verification Checklist
+# Guided Improve Verification Checklist
 
 ## Post-Pipeline Verification
 
@@ -17,7 +17,7 @@
 - [ ] Port assignments do not conflict with other running projects
 
 ### DVA Config (Static)
-- [ ] `dva.yml` version is `"0.1.26"` (current)
+- [ ] `dva.yml` version matches current DVA CLI version
 - [ ] `dva.yml` uses `stack:` section
 - [ ] `dva.yml` uses `modes:` key
 - [ ] `stack.compose.files` lists correct compose files
@@ -92,7 +92,7 @@
 ### Pipeline Flags
 
 #### --resume (cache-based resume)
-- [ ] `tmp/setup-dva/state.yaml` exists after at least one stage completes
+- [ ] `tmp/improve-guided/state.yaml` exists after at least one stage completes
 - [ ] Re-running the pipeline with `--resume` skips stages where `gate: PASS` is recorded
 - [ ] Re-running without `--resume` re-executes all stages from the beginning
 - [ ] Interrupted pipeline resumes from the last incomplete stage (not from stage 00)
@@ -110,5 +110,5 @@
 - [ ] Fallback containers appear in `docker compose ps` output
 
 ### Rollback
-- [ ] Backup exists at `tmp/setup-dva/backup-*/`
+- [ ] Backup exists at `tmp/improve-guided/backup-*/`
 - [ ] Transform log documents all changes made

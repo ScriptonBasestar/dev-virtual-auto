@@ -24,8 +24,8 @@ var improveGuardrailsDefaultText string
 //go:embed improve_guardrails_rewrite.txt
 var improveGuardrailsRewriteText string
 
-//go:embed setup_dva_workflow.txt
-var setupDvaWorkflowText string
+//go:embed improve_guided_workflow.txt
+var improveGuidedWorkflowText string
 
 var improvePrint bool
 var improveDocsOnly bool
@@ -48,8 +48,12 @@ Use --interactive to open Claude Code in interactive mode (session stays open).
 Use --print to output the prompt to stdout for manual use.
 Use --docs-only to only regenerate CLAUDE.md/AGENTS.md (dva.yml unchanged).
 
-Flags --print, --docs-only, --interactive are mutually exclusive (first match wins).`,
+Flags --print, --docs-only, --interactive are mutually exclusive (first match wins).
+--interactive cannot be combined with --recursive.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if improveInteractive && improveRecursive {
+			return fmt.Errorf("--interactive and --recursive cannot be combined")
+		}
 		if improvePrint {
 			return generateAndPrintImprovePrompt()
 		}
@@ -121,7 +125,7 @@ func runAIImprove() error {
 }
 
 // runAIImproveInteractive launches Claude Code in interactive mode with the improve prompt
-// as system context, then chains into setup-dva workflow. The session stays open for follow-up.
+// as system context, then chains into the guided improve pipeline. The session stays open for follow-up.
 func runAIImproveInteractive() error {
 	// If dva.yml doesn't exist, scaffold it first (auto-detect project type)
 	if !dvaConfigExists() {
@@ -149,27 +153,30 @@ func runAIImproveInteractive() error {
 	}
 	defer os.Remove(promptFile)
 
-	// Extract setup-dva workflow files to tmp/setup-dva/
-	workflowDir := filepath.Join("tmp", "setup-dva")
-	if err := extractSetupDvaWorkflow(workflowDir); err != nil {
-		return fmt.Errorf("failed to extract setup-dva workflow: %w", err)
+	// Extract guided improve workflow to a unique temp dir
+	workflowDir, err := os.MkdirTemp("", "dva-improve-guided-*")
+	if err != nil {
+		return fmt.Errorf("failed to create workflow temp dir: %w", err)
 	}
 	defer os.RemoveAll(workflowDir)
+	if err := extractGuidedWorkflow(workflowDir); err != nil {
+		return fmt.Errorf("failed to extract guided workflow: %w", err)
+	}
 
 	fmt.Println("🤖 Opening Claude Code interactive session...")
-	fmt.Println("   Pipeline: improve dva.yml → validate → setup-dva workflow")
+	fmt.Println("   Pipeline: improve dva.yml → validate → guided improve")
 	fmt.Println()
 
-	initialPrompt := `다음 순서로 작업을 진행하세요:
+	initialPrompt := fmt.Sprintf(`다음 순서로 작업을 진행하세요:
 
 1. **dva.yml 개선**: system prompt의 improve 지침에 따라 dva.yml을 분석하고 개선하세요.
 2. **검증**: dva config validate를 실행하여 검증하세요. 실패하면 수정 후 재검증.
-3. **setup-dva 워크플로우 실행**: tmp/setup-dva/auto.md를 읽고, 그 안의 파이프라인을 실행하세요.
-   - stage 파일들은 tmp/setup-dva/stages/ 에 있습니다.
-   - 검증 체크리스트는 tmp/setup-dva/verify/checklist.md 에 있습니다.
+3. **guided improve 파이프라인 실행**: %s/orchestrator.md를 읽고, 그 안의 파이프라인을 실행하세요.
+   - stage 파일들은 %s/stages/ 에 있습니다.
+   - 검증 체크리스트는 %s/verify/checklist.md 에 있습니다.
    - DVA library reference는 이미 system prompt에 포함되어 있습니다.
 
-지금 시작하세요.`
+지금 시작하세요.`, workflowDir, workflowDir, workflowDir)
 
 	claudeArgs := []string{
 		"--append-system-prompt-file", promptFile,
@@ -597,9 +604,9 @@ func buildValidationFixPrompt(validateOutput string) (string, error) {
 	return prompt, nil
 }
 
-// extractSetupDvaWorkflow parses the bundled setup-dva workflow text and writes
+// extractGuidedWorkflow parses the bundled guided improve workflow text and writes
 // individual files to targetDir. The bundle uses "--- FILE: <path> ---" markers.
-func extractSetupDvaWorkflow(targetDir string) error {
+func extractGuidedWorkflow(targetDir string) error {
 	const marker = "--- FILE: "
 	var currentFile string
 	var currentLines []string
@@ -615,7 +622,7 @@ func extractSetupDvaWorkflow(targetDir string) error {
 		return os.WriteFile(outPath, []byte(strings.Join(currentLines, "\n")), 0600)
 	}
 
-	for _, line := range strings.Split(setupDvaWorkflowText, "\n") {
+	for _, line := range strings.Split(improveGuidedWorkflowText, "\n") {
 		if strings.HasPrefix(line, marker) && strings.HasSuffix(line, " ---") {
 			if err := flush(); err != nil {
 				return err

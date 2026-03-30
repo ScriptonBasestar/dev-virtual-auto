@@ -1,6 +1,6 @@
 # DVA Naming Presets
 
-> setup-dva 워크플로우가 dva.yml을 생성할 때 참조하는 네이밍 규약.
+> improve 워크플로우가 dva.yml을 생성할 때 참조하는 네이밍 규약.
 > 새 프로젝트마다 일관된 이름과 패턴을 적용하기 위한 프리셋.
 
 ## Service Tags

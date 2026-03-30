@@ -7,7 +7,7 @@ Present the proposed changes and structure (based on the analysis) to the user f
 </objective>
 
 <steps>
-1. Read `tmp/setup-dva/00-analysis-report.yaml`.
+1. Read `tmp/improve-guided/00-analysis-report.yaml`.
 2. Generate a clear markdown proposal outlining what files will be created or modified, the structure of the DVA configuration, the setup track, and infra services.
    - **Crucial:** Highlight how services will be categorized into distinct working groups (e.g., frontend, backend, workers) using `tags` and `related` fields.
 3. Present the generated proposal directly to the user.
@@ -18,7 +18,7 @@ Present the proposed changes and structure (based on the analysis) to the user f
 </steps>
 
 <output>
-- `tmp/setup-dva/10-proposal-approved.yaml` containing the approved blueprint.
+- `tmp/improve-guided/10-proposal-approved.yaml` containing the approved blueprint.
 </output>
 
 <gate>
@@ -28,5 +28,5 @@ Present the proposed changes and structure (based on the analysis) to the user f
 </gate>
 
 <return>
-{ "artifacts": ["tmp/setup-dva/10-proposal-approved.yaml"], "gate": "PASS|FAIL", "summary": "..." }
+{ "artifacts": ["tmp/improve-guided/10-proposal-approved.yaml"], "gate": "PASS|FAIL", "summary": "..." }
 </return>

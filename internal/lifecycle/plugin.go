@@ -28,6 +28,10 @@ type PluginContext struct {
 	Volumes      bool // clean: also remove named volumes
 	RemoveImages bool // clean: also remove locally built images
 	Logger       *slog.Logger
+
+	// Mode-derived compose hints (set by orchestrator when a mode is active)
+	ComposeProfiles []string  // --profile flags for docker compose
+	ComposeServices *[]string // service names to append to compose up (nil=all)
 }
 
 // Result holds the output of a plugin Up() call.

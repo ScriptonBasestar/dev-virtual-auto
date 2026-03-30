@@ -60,7 +60,9 @@ type ModeConfig struct {
 	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
 	Provision       string            `yaml:"provision"`  // provision profile to suggest on first run
-	Stack []string `yaml:"stack"` // stack entry names to include (empty=all)
+	Stack           []string          `yaml:"stack"`       // stack entry names to include (empty=all)
+	Build           string            `yaml:"build"`       // build strategy: "docker" (compose build), "native" (run command), or custom shell command
+	Run             string            `yaml:"run"`         // run strategy: "docker" (compose up), "native" (process via health_checks.start), or custom shell command
 }
 
 // StackEntries returns the stack entry names for mode filtering.

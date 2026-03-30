@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
+	"syscall"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -73,6 +76,16 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 	// Clone env so exports accumulate without mutating the original
 	envClone := cloneEnv(o.env)
 
+	// Resolve mode-derived compose hints
+	var modeProfiles []string
+	var modeServices *[]string
+	if opts.Mode != "" {
+		if m, ok := o.cfg.Modes[opts.Mode]; ok {
+			modeProfiles = m.ComposeProfiles
+			modeServices = m.ComposeServices
+		}
+	}
+
 	for _, entry := range filtered {
 		pluginType := entry.DetectPlugin()
 		plugin, err := NewPlugin(pluginType)
@@ -81,13 +94,15 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		}
 
 		pctx := &PluginContext{
-			Entry:     &entry,
-			Env:       envClone,
-			ConfigDir: o.cfg.FileDir(),
-			DryRun:    opts.DryRun,
-			Force:     opts.Force,
-			Wait:      opts.Wait,
-			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
+			Entry:           &entry,
+			Env:             envClone,
+			ConfigDir:       o.cfg.FileDir(),
+			DryRun:          opts.DryRun,
+			Force:           opts.Force,
+			Wait:            opts.Wait,
+			ComposeProfiles: modeProfiles,
+			ComposeServices: modeServices,
+			Logger:          o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] %s (%s)\n", entry.Name, pluginType)
@@ -123,11 +138,19 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		}
 	}
 
+	// Start native processes defined in mode health_checks with start commands
+	if err := o.startModeProcesses(ctx, opts, envClone); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
+	// Stop native processes first (reverse of startup order)
+	o.stopModeProcesses(opts.Mode)
+
 	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order for teardown
@@ -165,6 +188,9 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
+	// Stop native processes first
+	o.stopModeProcesses(opts.Mode)
+
 	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order
@@ -316,6 +342,112 @@ func (o *Orchestrator) filterEntries(includeTags, excludeTags []string, mode, en
 	}
 
 	return entries
+}
+
+// startModeProcesses launches native processes for mode health_checks that have a start command.
+// This bridges the gap between compose-managed infra and natively-run app services.
+func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, env *config.Environment) error {
+	if opts.Mode == "" {
+		return nil
+	}
+	mode, ok := o.cfg.Modes[opts.Mode]
+	if !ok || len(mode.HealthChecks) == 0 {
+		return nil
+	}
+
+	for _, hcName := range mode.HealthChecks {
+		hc, ok := o.cfg.HealthChecks[hcName]
+		if !ok || hc.Start == "" {
+			continue
+		}
+
+		if opts.DryRun {
+			fmt.Fprintf(os.Stderr, "[native] (dry-run) would start %s: %s\n", hcName, hc.Start)
+			continue
+		}
+
+		// Check if already running
+		pidFile := fmt.Sprintf("%s/%s/pids/%s.pid", o.cfg.FileDir(), config.DotDirName, hcName)
+		if data, err := os.ReadFile(pidFile); err == nil {
+			pidStr := strings.TrimSpace(string(data))
+			if pid := 0; true {
+				fmt.Sscanf(pidStr, "%d", &pid)
+				if pid > 0 && IsProcessRunning(pid) {
+					fmt.Fprintf(os.Stderr, "[native] %s already running (pid %d)\n", hcName, pid)
+					continue
+				}
+			}
+		}
+
+		dir := o.cfg.FileDir()
+		pctx := &PluginContext{
+			Entry: &config.LifecycleEntry{
+				Name: hcName,
+			},
+			Env:       env,
+			ConfigDir: o.cfg.FileDir(),
+			DryRun:    opts.DryRun,
+			Logger:    o.logger.With("native", hcName),
+		}
+
+		fmt.Fprintf(os.Stderr, "[native] starting %s\n", hcName)
+		if err := startLocalProcess(hcName, hc.Start, dir, pctx); err != nil {
+			return fmt.Errorf("native start %s: %w", hcName, err)
+		}
+		fmt.Fprintf(os.Stderr, "[+] started %s\n", hcName)
+
+		// Wait for health check readiness if --wait
+		if opts.Wait {
+			checks := map[string]config.HealthCheckConfig{hcName: hc}
+			readyTimeout := time.Duration(hc.ReadyTimeout) * time.Second
+			if readyTimeout == 0 {
+				readyTimeout = 30 * time.Second
+			}
+			waitCtx, cancel := context.WithTimeout(ctx, readyTimeout)
+			results := o.hc.WaitUntilReady(waitCtx, checks)
+			cancel()
+			for _, r := range results {
+				if !r.Ready {
+					fmt.Fprintf(os.Stderr, "[warn] %s not ready after %s\n", hcName, readyTimeout)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// stopModeProcesses stops native processes that were started via mode health_checks.
+func (o *Orchestrator) stopModeProcesses(mode string) {
+	if mode == "" {
+		return
+	}
+	m, ok := o.cfg.Modes[mode]
+	if !ok || len(m.HealthChecks) == 0 {
+		return
+	}
+
+	for _, hcName := range m.HealthChecks {
+		hc, ok := o.cfg.HealthChecks[hcName]
+		if !ok || hc.Start == "" {
+			continue
+		}
+
+		pidFile := fmt.Sprintf("%s/%s/pids/%s.pid", o.cfg.FileDir(), config.DotDirName, hcName)
+		data, err := os.ReadFile(pidFile)
+		if err != nil {
+			continue
+		}
+
+		var pid int
+		fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
+		if pid > 0 {
+			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+				fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", hcName, pid)
+			}
+			os.Remove(pidFile)
+		}
+	}
 }
 
 // hasAnyTag returns true if any of the entry's tags exist in the tag set.

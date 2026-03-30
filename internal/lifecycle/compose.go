@@ -102,6 +102,8 @@ func (p *ComposePlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 }
 
 // buildArgs constructs the docker compose command and arguments from plugin config.
+// Mode-derived profiles are injected before the subcommand; mode-derived services
+// are appended after the subcommand args (only for "up").
 func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (string, []string) {
 	cfg := pctx.Entry.Compose
 
@@ -128,7 +130,20 @@ func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 		args = append(args, "--project-name", pctx.Env.Interpolate(cfg.ProjectName))
 	}
 
+	// Inject mode-derived --profile flags (before subcommand args)
+	for _, profile := range pctx.ComposeProfiles {
+		args = append(args, "--profile", profile)
+	}
+
 	args = append(args, extraArgs...)
+
+	// Append mode-derived service names (only for "up" subcommand)
+	if pctx.ComposeServices != nil && len(*pctx.ComposeServices) > 0 {
+		if len(extraArgs) > 0 && extraArgs[0] == "up" {
+			args = append(args, *pctx.ComposeServices...)
+		}
+	}
+
 	return cmd, args
 }
 

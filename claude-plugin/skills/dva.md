@@ -1,47 +1,72 @@
 ---
-description: Always use DVA (Dev Virtual Auto) for CLI tasks, building, and running tests.
+description: Always use DVA (Dev Virtual Auto) for CLI tasks, building, running tests, and managing dev environments. Never use raw docker/compose/kubectl directly.
 globs: *
 ---
 
 # Use DVA (Dev Virtual Auto)
 
-Whenever you interact with this project environment, you **MUST** use the `dva` CLI instead of raw `docker`, `docker compose`, or underlying language tools directly. DVA ensures execution is perfectly matched to the project configuration.
+You **MUST** use the `dva` CLI instead of raw `docker`, `docker compose`, `kubectl`, or language tools directly. DVA ensures execution matches the project's `dva.yml` configuration with correct environments, overrides, and networking.
 
-## Instructions
+## Workflow
 
-0. **Bootstrap (If `dva.yml` is missing)**
-   If `dva.yml` does not exist in the current project, you must scaffold it correctly by running:
-   
-   ```bash
-   dva init --prompt
-   ```
-   
-   Read the output prompt text and follow its instructions to generate the optimal `dva.yml` configuration before performing any other tasks.
+### 1. Discover Available Commands
 
-1. **Discover**
-   To see what customized commands exist for this project, run:
-   
-   ```bash
-   dva manifest -f json
-   ```
+Before guessing how to build/test/run, always check what commands exist:
 
+```bash
+dva manifest -f json
+```
 
-2. **Run**
-   Execute the target using DVA. For example, to run tests:
-   ```bash
-   dva test
-   ```
+Read the `dynamic_commands` section from the output to find project-specific commands.
 
-3. **Lifecycle Management**
-   - Start the dev environment: `dva up`
-   - Stop the dev environment: `dva down`
-   - See logs: `dva logs <service>` 
+For a human-readable overview of modes, environments, and commands:
 
-4. **Never Bypass DVA**
-   Do not write manual `docker compose exec ...` commands if DVA has an exact command for it. DVA automatically applies correct environment interpolations, overrides (`.sb/dva/*.yml`), and handles networking natively.
+```bash
+dva show
+```
 
-5. **Self-Diagnosis**
-   If an alias fails, inspect the DVA config evaluation via:
-   ```bash
-   dva run <CMD> --explain
-   ```
+### 2. Execute Commands
+
+Run project-defined commands directly:
+
+```bash
+dva test           # run tests
+dva build          # build the project
+dva run <command>  # explicit form
+```
+
+### 3. Lifecycle Management
+
+```bash
+dva up             # start services
+dva down           # stop and remove services
+dva stop           # stop without removing
+dva restart        # stop + start
+dva logs <service> # view logs
+dva clean          # remove containers, networks, volumes
+```
+
+### 4. Infrastructure & Integration
+
+```bash
+dva compose <args> # pass-through to docker compose
+dva ktl <args>     # pass-through to kubectl
+dva infra up       # shared background infrastructure
+dva ssh            # SSH agent container management
+```
+
+### 5. Diagnostics
+
+```bash
+dva doctor         # check environment prerequisites
+dva status         # workspace status overview
+dva config show    # show final merged configuration
+dva config validate # validate dva.yml syntax/schema
+```
+
+## Rules
+
+- **Never bypass DVA.** Do not use `docker compose exec ...` or `kubectl exec ...` if DVA has a command for it.
+- **Never parse `dva.yml` manually.** Use `dva manifest -f json` to get the evaluated configuration (merges overrides from `.sb/dva/*.yml`).
+- **Use `--dry-run` flag** to see what DVA will execute without running it.
+- **Configuration changes** are managed by `dva config improve`, not manually.

@@ -1,13 +1,13 @@
 <!-- v:2026-03-23 -->
 
 <constants>
-TOOLKIT = setup-dva
-SELF = ai-docs/workflow/setup-dva/entry.md
+TOOLKIT = improve-guided
+SELF = workflow/improve/guided/entry.md
 DVA_ROOT = {DVA project root — resolved from git root or dva.yml location}
-WORKFLOW_ROOT = ai-docs/workflow/setup-dva
+WORKFLOW_ROOT = workflow/improve/guided
 SCHEMA_REF = internal/config/schema.json
 EXAMPLES_DIR = examples/
-STATE_FILE = tmp/setup-dva/state.yaml
+STATE_FILE = tmp/improve-guided/state.yaml
 TARGET = {user-provided target project path}
 </constants>
 
@@ -46,7 +46,7 @@ command -v dva 2>/dev/null || ls $DVA_ROOT/bin/dva 2>/dev/null
 # Target project state
 ls $TARGET/dva.yml $TARGET/compose.yml $TARGET/docker-compose.yml 2>/dev/null
 # Prior analysis artifacts
-ls tmp/setup-dva/ 2>/dev/null
+ls tmp/improve-guided/ 2>/dev/null
 ```
 </diagnosis>
 
@@ -65,7 +65,7 @@ ls tmp/setup-dva/ 2>/dev/null
 ### Stage Selection Menu (step mode)
 
 ```text
-[setup-dva] Available stages:
+[improve-guided] Available stages:
   00. Analyze    — Scan target project, detect patterns
   10. Verify     — Review DVA structure proposal (requires user approval)
   20. Transform  — Migrate to standard structure

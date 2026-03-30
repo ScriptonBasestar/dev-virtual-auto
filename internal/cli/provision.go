@@ -169,7 +169,7 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 			fmt.Printf("    [dry-run] $ %s\n", cmdStr)
 		} else {
 			fmt.Printf("    $ %s\n", cmdStr)
-			if err := runShellCommand(cmdStr); err != nil {
+			if err := runShellCommand(e, cmdStr); err != nil {
 				return fmt.Errorf("provision step '%s' failed: %w", step.Step, err)
 			}
 		}
@@ -186,7 +186,7 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 			fmt.Printf("    [dry-run] $ %s\n", step.Cmd)
 		} else {
 			fmt.Printf("    $ %s\n", step.Cmd)
-			if err := runShellCommand(step.Cmd); err != nil {
+			if err := runShellCommand(e, step.Cmd); err != nil {
 				return fmt.Errorf("provision command failed: %w", err)
 			}
 		}
@@ -259,14 +259,14 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 			} else {
 				for _, cmdStr := range s.RunCommands() {
 					fmt.Fprintf(&buf, "    $ %s\n", cmdStr)
-					if err = runShellCommand(cmdStr); err != nil {
+					if err = runShellCommand(e, cmdStr); err != nil {
 						err = fmt.Errorf("provision step '%s' failed: %w", s.Step, err)
 						break
 					}
 				}
 				if err == nil && s.Cmd != "" {
 					fmt.Fprintf(&buf, "    $ %s\n", s.Cmd)
-					if err = runShellCommand(s.Cmd); err != nil {
+					if err = runShellCommand(e, s.Cmd); err != nil {
 						err = fmt.Errorf("provision command failed: %w", err)
 					}
 				}
@@ -456,7 +456,7 @@ func runProvisionCompose(e *config.Environment, c *config.Config, stepName strin
 	return nil
 }
 
-func runShellCommand(cmdStr string) error {
+func runShellCommand(e *config.Environment, cmdStr string) error {
 	var c *exec.Cmd
 
 	// Platform-specific shell selection
@@ -472,6 +472,9 @@ func runShellCommand(cmdStr string) error {
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
+	if e != nil {
+		c.Env = e.EnvSlice()
+	}
 	return c.Run()
 }
 

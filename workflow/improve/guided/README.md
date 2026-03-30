@@ -1,4 +1,4 @@
-# setup-dva Workflow Toolkit
+# DVA Improve: Guided Pipeline
 
 사용자 프로젝트에 DVA를 도입하고, 기존 인프라를 DVA 표준으로 마이그레이션하는 5단계 파이프라인.
 
@@ -31,10 +31,10 @@ Stage 00에서 대상 프로젝트의 compose 파일 유무를 감지하여 자�
 
 ```
 # Step mode (recommended for first run)
-Read and execute: ai-docs/workflow/setup-dva/entry.md
+Read and execute: workflow/improve/guided/entry.md
 
 # Auto mode
-Read and execute: ai-docs/workflow/setup-dva/auto.md
+Read and execute: workflow/improve/guided/orchestrator.md
 ```
 
 ## References

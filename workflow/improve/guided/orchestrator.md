@@ -1,13 +1,13 @@
 <!-- v:2026-03-23 -->
 
 <constants>
-TOOLKIT = setup-dva
-SELF = ai-docs/workflow/setup-dva/auto.md
+TOOLKIT = improve-guided
+SELF = workflow/improve/guided/orchestrator.md
 DVA_ROOT = {DVA project root — resolved from git root or dva.yml location}
-WORKFLOW_ROOT = ai-docs/workflow/setup-dva
+WORKFLOW_ROOT = workflow/improve/guided
 SCHEMA_REF = internal/config/schema.json
 EXAMPLES_DIR = examples/
-STATE_FILE = tmp/setup-dva/state.yaml
+STATE_FILE = tmp/improve-guided/state.yaml
 TARGET = {user-provided or detected target project path}
 </constants>
 

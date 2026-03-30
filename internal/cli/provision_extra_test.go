@@ -143,13 +143,13 @@ func TestFirstStepDescription_FallbackEmpty(t *testing.T) {
 }
 
 func TestRunShellCommand_Success(t *testing.T) {
-	if err := runShellCommand("true"); err != nil {
+	if err := runShellCommand(nil, "true"); err != nil {
 		t.Errorf("expected success, got: %v", err)
 	}
 }
 
 func TestRunShellCommand_Failure(t *testing.T) {
-	if err := runShellCommand("false"); err == nil {
+	if err := runShellCommand(nil, "false"); err == nil {
 		t.Error("expected error from 'false'")
 	}
 }

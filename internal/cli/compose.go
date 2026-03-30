@@ -242,12 +242,45 @@ var restartCmd = &cobra.Command{
 
 var buildCmd = &cobra.Command{
 	Use:                "build [OPTIONS] [SERVICE...]",
-	Short:              "Build or rebuild services via Docker Compose",
+	Short:              "Build or rebuild services (mode-aware: docker or native)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		return execComposePassthrough(e, c, append([]string{"build"}, args...))
+
+		mode, _, _, _, remaining := parseDvaFlags(args)
+		mode, _ = applyDefaultMode(c, mode)
+
+		// Check mode build strategy
+		if mode != "" {
+			if m, ok := c.Modes[mode]; ok && m.Build != "" {
+				switch m.Build {
+				case "docker":
+					return execComposePassthrough(e, c, append([]string{"build"}, remaining...))
+				case "native":
+					// Look for interaction.build.replace steps or run native build
+					if ic, ok := c.Interaction["build"]; ok && len(ic.Replace) > 0 {
+						for _, step := range ic.Replace {
+							cmds := step.RunCommands()
+							for _, cmdStr := range cmds {
+								fmt.Printf("  $ %s\n", cmdStr)
+								if err := runShellCommand(e, cmdStr); err != nil {
+									return fmt.Errorf("native build failed: %w", err)
+								}
+							}
+						}
+						return nil
+					}
+					return fmt.Errorf("mode %q build=native but no interaction.build.replace defined", mode)
+				default:
+					// Custom build command
+					fmt.Printf("  $ %s\n", m.Build)
+					return runShellCommand(e, m.Build)
+				}
+			}
+		}
+
+		return execComposePassthrough(e, c, append([]string{"build"}, remaining...))
 	},
 }
 

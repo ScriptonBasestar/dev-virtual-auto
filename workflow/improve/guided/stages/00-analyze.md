@@ -56,7 +56,7 @@ Scan the user's TARGET project to identify existing configurations, docker usage
 </steps>
 
 <output>
-- `tmp/setup-dva/00-analysis-report.yaml` containing:
+- `tmp/improve-guided/00-analysis-report.yaml` containing:
   - `dva_needed`: bool (false → pipeline stops here)
   - `dva_not_needed_reason`: string (if dva_needed is false)
   - `setup_track`: full | adopt | upgrade
@@ -92,5 +92,5 @@ Scan the user's TARGET project to identify existing configurations, docker usage
 </gate>
 
 <return>
-{ "artifacts": ["tmp/setup-dva/00-analysis-report.yaml"], "gate": "PASS|FAIL", "summary": "..." }
+{ "artifacts": ["tmp/improve-guided/00-analysis-report.yaml"], "gate": "PASS|FAIL", "summary": "..." }
 </return>

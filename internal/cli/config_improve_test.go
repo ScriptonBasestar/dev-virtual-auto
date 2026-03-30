@@ -29,19 +29,18 @@ func TestImproveAllFlagsRegistered(t *testing.T) {
 	}
 }
 
-func TestExtractSetupDvaWorkflow(t *testing.T) {
-	if setupDvaWorkflowText == "" {
-		t.Fatal("setup_dva_workflow.txt not embedded")
+func TestExtractGuidedWorkflow(t *testing.T) {
+	if improveGuidedWorkflowText == "" {
+		t.Fatal("improve_guided_workflow.txt not embedded")
 	}
 
 	targetDir := t.TempDir()
-	if err := extractSetupDvaWorkflow(targetDir); err != nil {
-		t.Fatalf("extractSetupDvaWorkflow failed: %v", err)
+	if err := extractGuidedWorkflow(targetDir); err != nil {
+		t.Fatalf("extractGuidedWorkflow failed: %v", err)
 	}
 
-	// Verify expected files are extracted
 	expectedFiles := []string{
-		"auto.md",
+		"orchestrator.md",
 		"stages/00-analyze.md",
 		"stages/10-verify.md",
 		"stages/20-transform.md",
@@ -64,18 +63,17 @@ func TestExtractSetupDvaWorkflow(t *testing.T) {
 	}
 }
 
-func TestExtractSetupDvaWorkflowContent(t *testing.T) {
+func TestExtractGuidedWorkflowContent(t *testing.T) {
 	targetDir := t.TempDir()
-	if err := extractSetupDvaWorkflow(targetDir); err != nil {
-		t.Fatalf("extractSetupDvaWorkflow failed: %v", err)
+	if err := extractGuidedWorkflow(targetDir); err != nil {
+		t.Fatalf("extractGuidedWorkflow failed: %v", err)
 	}
 
-	// auto.md should contain orchestrator keywords
-	autoContent, err := os.ReadFile(filepath.Join(targetDir, "auto.md"))
+	content, err := os.ReadFile(filepath.Join(targetDir, "orchestrator.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(autoContent), "setup-dva") {
-		t.Error("auto.md should reference setup-dva")
+	if !strings.Contains(string(content), "improve-guided") {
+		t.Error("orchestrator.md should reference improve-guided")
 	}
 }

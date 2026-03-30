@@ -20,11 +20,11 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 4. If `--mode` or `--env` flags were provided during the pipeline run, verify the environment parameters are applied:
    - `--mode`: confirm the mode-specific services/profiles are active
    - `--env`: confirm environment vars from the named environment are in effect
-5. Collect all CLI output into `tmp/setup-dva/40-execution-report.txt`.
+5. Collect all CLI output into `tmp/improve-guided/40-execution-report.txt`.
 </steps>
 
 <output>
-- `tmp/setup-dva/40-execution-report.txt` — CLI logs from validation and startup (dva or docker compose)
+- `tmp/improve-guided/40-execution-report.txt` — CLI logs from validation and startup (dva or docker compose)
 </output>
 
 <gate>
@@ -35,5 +35,5 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 </gate>
 
 <return>
-{ "artifacts": ["tmp/setup-dva/40-execution-report.txt"], "gate": "PASS|FAIL", "summary": "..." }
+{ "artifacts": ["tmp/improve-guided/40-execution-report.txt"], "gate": "PASS|FAIL", "summary": "..." }
 </return>

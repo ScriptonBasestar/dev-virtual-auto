@@ -133,7 +133,7 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 				fmt.Fprintf(os.Stderr, "  [dry-run] $ %s\n", cmdStr)
 			} else {
 				fmt.Fprintf(os.Stderr, "  $ %s\n", cmdStr)
-				if err := runShellCommand(cmdStr); err != nil {
+				if err := runShellCommand(e, cmdStr); err != nil {
 					return fmt.Errorf("hook %s:%s step '%s' failed: %w", phase, cmdName, label, err)
 				}
 			}

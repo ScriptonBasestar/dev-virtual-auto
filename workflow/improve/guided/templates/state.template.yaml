@@ -1,7 +1,7 @@
-## setup-dva state template
-## Path: tmp/setup-dva/state.yaml
+## improve-guided state template
+## Path: tmp/improve-guided/state.yaml
 
-pipeline: setup-dva
+pipeline: improve-guided
 target_project: ""
 target_path: ""
 status: in_progress  # in_progress | complete | blocked | rejected

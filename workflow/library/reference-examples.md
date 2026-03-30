@@ -1,6 +1,6 @@
 # DVA Reference Examples by Language/Pattern
 
-> setup-dva Stage 30에서 자동 참조하는 레퍼런스 스니펫.
+> guided improve Stage 30에서 자동 참조하는 레퍼런스 스니펫.
 > 프로젝트 archetype과 development_pattern에 맞는 섹션을 선택하여 구조적 가이드로 사용.
 > **값(포트, 서비스명, 경로)은 복사하지 말 것** — 구조와 패턴만 참조.
 

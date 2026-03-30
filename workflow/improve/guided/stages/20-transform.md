@@ -7,7 +7,7 @@ Modify the TARGET project's directory structure safely according to the approved
 </objective>
 
 <steps>
-1. Read the finalized blueprint from `tmp/setup-dva/10-proposal-approved.yaml`.
+1. Read the finalized blueprint from `tmp/improve-guided/10-proposal-approved.yaml`.
 2. Create necessary infrastructure directories outlined in the proposal (e.g. `.sb/dva/`, `infra/`, `.devcontainer/`).
 3. If necessary, relocate colliding files safely (with `.bak` extensions).
 4. If `setup_track` is `full`, prepare empty scaffolding files as required by the blueprint.
@@ -15,7 +15,7 @@ Modify the TARGET project's directory structure safely according to the approved
 </steps>
 
 <output>
-- `tmp/setup-dva/20-transform-log.txt` (Log file listing applied directory/file movements/creations)
+- `tmp/improve-guided/20-transform-log.txt` (Log file listing applied directory/file movements/creations)
 </output>
 
 <gate>
@@ -25,5 +25,5 @@ Modify the TARGET project's directory structure safely according to the approved
 </gate>
 
 <return>
-{ "artifacts": ["tmp/setup-dva/20-transform-log.txt"], "gate": "PASS|FAIL", "summary": "..." }
+{ "artifacts": ["tmp/improve-guided/20-transform-log.txt"], "gate": "PASS|FAIL", "summary": "..." }
 </return>
