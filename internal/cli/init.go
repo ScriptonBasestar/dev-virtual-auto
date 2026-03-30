@@ -533,27 +533,48 @@ func detectInfraComposeFiles() []string {
 	return found
 }
 
-// extractMakefileTargets reads documented Makefile targets (target: ## description).
-// It also follows `include` and `-include` directives to read fragment-based Makefiles
-// (e.g., include .make/*.mk).
+// extractMakefileTargets reads documented Makefile targets (target: ## description)
+// with their recipe lines. It scans Makefile, GNUmakefile, *.mk in the current
+// directory, and .make/ directory. Include directives are followed recursively.
 func extractMakefileTargets() string {
-	targets := extractTargetsFromMakefiles("Makefile")
+	seen := map[string]bool{}
+	var targets []string
+
+	// Primary Makefile entry points
+	for _, name := range []string{"Makefile", "GNUmakefile", "makefile"} {
+		if _, err := os.Stat(name); err == nil {
+			collectMakefileTargets(name, seen, &targets)
+		}
+	}
+
+	// Standalone *.mk files in project root (not already included)
+	if matches, err := filepath.Glob("*.mk"); err == nil {
+		for _, m := range matches {
+			collectMakefileTargets(m, seen, &targets)
+		}
+	}
+
+	// .make/ directory (common fragment pattern)
+	if matches, err := filepath.Glob(".make/*.mk"); err == nil {
+		for _, m := range matches {
+			collectMakefileTargets(m, seen, &targets)
+		}
+	}
+	if matches, err := filepath.Glob(".make/Makefile*"); err == nil {
+		for _, m := range matches {
+			collectMakefileTargets(m, seen, &targets)
+		}
+	}
+
 	if len(targets) == 0 {
 		return ""
 	}
 	return strings.Join(targets, "\n")
 }
 
-// extractTargetsFromMakefiles reads a Makefile and all its includes, extracting
-// documented targets. The seen map prevents infinite include loops.
-func extractTargetsFromMakefiles(path string) []string {
-	seen := map[string]bool{}
-	var targets []string
-	collectMakefileTargets(path, seen, &targets)
-	return targets
-}
 
-// collectMakefileTargets recursively reads Makefile and included files.
+// collectMakefileTargets recursively reads Makefile and included files,
+// extracting target names, descriptions, and recipe lines.
 func collectMakefileTargets(path string, seen map[string]bool, targets *[]string) {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -585,7 +606,6 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, ".PHONY") {
-			// .PHONY: target1 target2 ...
 			if idx := strings.Index(trimmed, ":"); idx >= 0 {
 				for _, t := range strings.Fields(trimmed[idx+1:]) {
 					if !strings.HasPrefix(t, ".") && !strings.Contains(t, "$") {
@@ -596,8 +616,12 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 		}
 	}
 
+	// Build a map of target → recipe lines for all targets
+	recipeMap := extractMakefileRecipes(lines)
+
 	documentedTargets := map[string]bool{}
-	for _, line := range lines {
+	for i, line := range lines {
+		_ = i
 		trimmed := strings.TrimSpace(line)
 
 		// Follow include/-include directives
@@ -605,11 +629,9 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 			includePath := strings.TrimPrefix(trimmed, "-include ")
 			includePath = strings.TrimPrefix(includePath, "include ")
 			includePath = strings.TrimSpace(includePath)
-			// Resolve relative to the current Makefile's directory
 			if !filepath.IsAbs(includePath) {
 				includePath = filepath.Join(dir, includePath)
 			}
-			// Handle glob patterns (e.g., .make/*.mk)
 			matches, globErr := filepath.Glob(includePath)
 			if globErr == nil && len(matches) > 0 {
 				for _, m := range matches {
@@ -627,7 +649,6 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 			parts := strings.SplitN(line, ":", 2)
 			if len(parts) == 2 && !strings.HasPrefix(parts[0], ".") {
 				target := strings.TrimSpace(parts[0])
-				// Skip targets with variable references
 				if strings.Contains(target, "$") || strings.Contains(target, "%") {
 					continue
 				}
@@ -641,11 +662,17 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 				} else {
 					*targets = append(*targets, fmt.Sprintf("  make %s", target))
 				}
+				// Append recipe lines (max 5)
+				if recipe, ok := recipeMap[target]; ok {
+					for _, r := range recipe {
+						*targets = append(*targets, fmt.Sprintf("    → %s", r))
+					}
+				}
 			}
 		}
 	}
 
-	// Also extract undocumented .PHONY targets that weren't already captured (sorted for deterministic output)
+	// Undocumented .PHONY targets
 	var undocumented []string
 	for phony := range phonyTargets {
 		if !documentedTargets[phony] {
@@ -655,7 +682,65 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 	sort.Strings(undocumented)
 	for _, name := range undocumented {
 		*targets = append(*targets, fmt.Sprintf("  make %s", name))
+		if recipe, ok := recipeMap[name]; ok {
+			for _, r := range recipe {
+				*targets = append(*targets, fmt.Sprintf("    → %s", r))
+			}
+		}
 	}
+}
+
+// extractMakefileRecipes builds a map of target name → recipe lines (tab-indented
+// commands following a target definition). At most 5 recipe lines per target.
+func extractMakefileRecipes(lines []string) map[string][]string {
+	const maxRecipeLines = 5
+	result := map[string][]string{}
+
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
+		// Detect target definition: starts at column 0, contains ':', not a comment/variable
+		if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, " ") ||
+			strings.HasPrefix(line, "#") || strings.HasPrefix(line, ".") {
+			continue
+		}
+		if !strings.Contains(line, ":") {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		target := strings.TrimSpace(parts[0])
+		if target == "" || strings.Contains(target, "$") || strings.Contains(target, "%") ||
+			strings.Contains(target, "=") || strings.HasPrefix(target, "export") {
+			continue
+		}
+
+		// Collect tab-indented recipe lines following this target
+		var recipe []string
+		for j := i + 1; j < len(lines) && len(recipe) < maxRecipeLines; j++ {
+			rLine := lines[j]
+			if !strings.HasPrefix(rLine, "\t") {
+				break
+			}
+			cleaned := strings.TrimSpace(rLine)
+			// Skip empty lines, pure comments, and echo-only lines
+			if cleaned == "" || strings.HasPrefix(cleaned, "#") {
+				continue
+			}
+			// Strip leading @ (silent prefix)
+			cleaned = strings.TrimPrefix(cleaned, "@")
+			cleaned = strings.TrimSpace(cleaned)
+			if cleaned != "" {
+				recipe = append(recipe, cleaned)
+			}
+		}
+		if len(recipe) > 0 {
+			result[target] = recipe
+		}
+	}
+
+	return result
 }
 
 // detectSubprojects recursively searches for sub-projects by finding .git directories

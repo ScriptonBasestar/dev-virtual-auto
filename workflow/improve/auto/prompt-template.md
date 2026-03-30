@@ -68,7 +68,9 @@ endpoints:
 %s
 ```
 
-### 3. Makefile 타겟
+### 3. Makefile 타겟 (이름 + 실제 명령)
+각 타겟 아래 `→` 라인이 해당 타겟의 실제 실행 명령(레시피)입니다.
+DVA interaction의 `command:` 필드에는 이 실제 명령을 사용하세요 (`make X` 아님).
 ```text
 %s
 ```
