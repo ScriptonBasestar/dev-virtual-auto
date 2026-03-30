@@ -208,6 +208,7 @@ subcommand의 `command:` 필드에는 원본 Makefile 타겟의 실제 실행 �
 
 ### 매핑 제외 대상
 다음 Makefile 타겟은 DVA가 네이티브로 처리하므로 interaction으로 매핑하지 마세요:
+- `[DVA wrapper — skip]` 태그가 붙은 타겟: 레시피가 `dva` 명령 호출뿐인 위임 타겟
 - Compose 라이프사이클: `*-up`, `*-down`, `*-logs`, `*-ps` (→ `dva up --mode X`, `dva logs`)
 - DVA 예약 커맨드와 동일: `run`, `ps`, `build`, `clean`, `logs`
 - 릴리즈/CI 전용: `*-release` (개발환경 명령이 아님)

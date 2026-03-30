@@ -653,20 +653,23 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 					continue
 				}
 				documentedTargets[target] = true
+				recipe := recipeMap[target]
+				dvaTag := ""
+				if isDVAWrapperRecipe(recipe) {
+					dvaTag = " [DVA wrapper — skip]"
+				}
 				desc := ""
 				if idx := strings.Index(parts[1], "##"); idx >= 0 {
 					desc = strings.TrimSpace(parts[1][idx+2:])
 				}
 				if desc != "" {
-					*targets = append(*targets, fmt.Sprintf("  make %-18s # %s", target, desc))
+					*targets = append(*targets, fmt.Sprintf("  make %-18s # %s%s", target, desc, dvaTag))
 				} else {
-					*targets = append(*targets, fmt.Sprintf("  make %s", target))
+					*targets = append(*targets, fmt.Sprintf("  make %s%s", target, dvaTag))
 				}
 				// Append recipe lines (max 5)
-				if recipe, ok := recipeMap[target]; ok {
-					for _, r := range recipe {
-						*targets = append(*targets, fmt.Sprintf("    → %s", r))
-					}
+				for _, r := range recipe {
+					*targets = append(*targets, fmt.Sprintf("    → %s", r))
 				}
 			}
 		}
@@ -681,13 +684,31 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 	}
 	sort.Strings(undocumented)
 	for _, name := range undocumented {
-		*targets = append(*targets, fmt.Sprintf("  make %s", name))
-		if recipe, ok := recipeMap[name]; ok {
-			for _, r := range recipe {
-				*targets = append(*targets, fmt.Sprintf("    → %s", r))
-			}
+		recipe := recipeMap[name]
+		dvaTag := ""
+		if isDVAWrapperRecipe(recipe) {
+			dvaTag = " [DVA wrapper — skip]"
+		}
+		*targets = append(*targets, fmt.Sprintf("  make %s%s", name, dvaTag))
+		for _, r := range recipe {
+			*targets = append(*targets, fmt.Sprintf("    → %s", r))
 		}
 	}
+}
+
+// isDVAWrapperRecipe returns true if all recipe lines are just `dva` command
+// invocations (e.g., `dva up`, `dva down`). These targets are thin wrappers
+// that DVA already handles natively and should be excluded from improve prompts.
+func isDVAWrapperRecipe(recipe []string) bool {
+	if len(recipe) == 0 {
+		return false
+	}
+	for _, line := range recipe {
+		if !strings.HasPrefix(line, "dva ") && line != "dva" {
+			return false
+		}
+	}
+	return true
 }
 
 // extractMakefileRecipes builds a map of target name → recipe lines (tab-indented
