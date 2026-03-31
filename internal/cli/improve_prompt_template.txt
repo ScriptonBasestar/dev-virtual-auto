@@ -13,6 +13,11 @@
 
 **사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`
 
+**네임스페이스 prefix도 금지**: 예약 커맨드 이름을 콜론 앞 prefix로 사용하면 안 됩니다.
+- ❌ `app:build`, `app:run`, `app:clean` (prefix `app`이 예약 커맨드)
+- ❌ `infra:setup`, `build:docker` (prefix `infra`, `build`이 예약 커맨드)
+- ✅ `cargo:build`, `db:migrate`, `rust:test` (prefix가 예약 커맨드 아님)
+
 **예약 커맨드를 커스터마이즈하려면** `replace:` 훅을 사용하세요:
 ```yaml
 interaction:
@@ -201,7 +206,7 @@ Path: `%s`
 ### Prefix 기반 subcommand 그루핑
 공통 prefix를 가진 Makefile 타겟은 부모 interaction + subcommand 구조로 변환하세요:
 
-- `build-{variant}` → 빌드 interaction의 subcommand (예: `build-api`, `build-worker` → `app:build.subcommands.api`, `.worker`)
+- `build-{variant}` → 빌드 interaction의 subcommand (예: `build-api`, `build-worker` → `build.subcommands.api`, `.worker`)
 - `test-{scope}` → `test`의 subcommand (예: `test-unit`, `test-integration` → `test.subcommands.unit`, `.integration`)
 - `e2e-{scenario}` → `e2e`의 subcommand (예: `e2e-smoke`, `e2e-full` → `e2e.subcommands.smoke`, `.full`)
 - `lint-{tool}` / `{tool}-check` → quality interaction (예: `lint-js`, `fmt-check` → `lint.subcommands.js`, `fmt.subcommands.check`)

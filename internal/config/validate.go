@@ -68,9 +68,14 @@ func (c *Config) Validate() error {
 	if conflicts := ValidateReservedCommands(c.Interaction); len(conflicts) > 0 {
 		var errs []string
 		for _, conflict := range conflicts {
-			hint := "and will be shadowed"
-			if IsHookableCommand(conflict.Name) {
+			var hint string
+			if strings.Contains(conflict.Name, ":") {
+				prefix := conflict.Name[:strings.Index(conflict.Name, ":")]
+				hint = fmt.Sprintf("— namespace prefix '%s' is a reserved DVA command; use a different prefix", prefix)
+			} else if IsHookableCommand(conflict.Name) {
 				hint = "— use before/replace/after to extend it instead"
+			} else {
+				hint = "and will be shadowed"
 			}
 			errs = append(errs, fmt.Sprintf(
 				"  - interaction.%s: '%s' is a reserved DVA command %s",

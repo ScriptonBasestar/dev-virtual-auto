@@ -332,8 +332,8 @@ func TestDetectConfigSuggestionWarnings_SubcommandCoverage(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "Makefile"), []byte(makefile), 0644); err != nil {
 		t.Fatalf("write Makefile: %v", err)
 	}
-	// app:build has subcommands ce and ee — should suppress build-ce and build-ee warnings
-	dvaYml := "version: \"0.1.0\"\ninteraction:\n  app:build:\n    runner: local\n    command: cargo build\n    subcommands:\n      ce:\n        command: cargo build --features ce\n      ee:\n        command: cargo build --features ee\n"
+	// cargo:build has subcommands ce and ee — should suppress build-ce and build-ee warnings
+	dvaYml := "version: \"0.1.0\"\ninteraction:\n  cargo:build:\n    runner: local\n    command: cargo build\n    subcommands:\n      ce:\n        command: cargo build --features ce\n      ee:\n        command: cargo build --features ee\n"
 	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(dvaYml), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}

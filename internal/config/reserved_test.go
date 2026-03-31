@@ -116,6 +116,33 @@ func TestIsReservedCommand(t *testing.T) {
 	}
 }
 
+func TestValidateReservedCommands_NamespacePrefixConflict(t *testing.T) {
+	interaction := map[string]*InteractionCommand{
+		"app:build":   {Description: "build app"},
+		"infra:setup": {Description: "setup infra"},
+		"cargo:build": {Description: "no conflict"},
+	}
+
+	conflicts := ValidateReservedCommands(interaction)
+	if len(conflicts) != 2 {
+		t.Fatalf("expected 2 conflicts (app:build, infra:setup), got %d: %v", len(conflicts), conflicts)
+	}
+
+	names := map[string]bool{}
+	for _, c := range conflicts {
+		names[c.Name] = true
+	}
+	if !names["app:build"] {
+		t.Error("expected conflict for 'app:build'")
+	}
+	if !names["infra:setup"] {
+		t.Error("expected conflict for 'infra:setup'")
+	}
+	if names["cargo:build"] {
+		t.Error("'cargo:build' should not conflict")
+	}
+}
+
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }

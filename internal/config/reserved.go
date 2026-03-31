@@ -68,6 +68,8 @@ type ReservedCommandConflict struct {
 // conflict with reserved built-in command names.
 // Commands that define hook fields (before/replace/after) on hookable
 // built-in commands are NOT treated as conflicts.
+// Namespaced names like "app:build" are also rejected when the prefix
+// before ':' is a reserved command (e.g., "app", "infra").
 func ValidateReservedCommands(interaction map[string]*InteractionCommand) []ReservedCommandConflict {
 	var conflicts []ReservedCommandConflict
 	for name, cmd := range interaction {
@@ -80,6 +82,17 @@ func ValidateReservedCommands(interaction map[string]*InteractionCommand) []Rese
 				Name:   name,
 				Source: "interaction",
 			})
+			continue
+		}
+		// Check namespace prefix: "app:build" conflicts if "app" is reserved
+		if idx := strings.Index(name, ":"); idx > 0 {
+			prefix := name[:idx]
+			if IsReservedCommand(prefix) {
+				conflicts = append(conflicts, ReservedCommandConflict{
+					Name:   name,
+					Source: "interaction",
+				})
+			}
 		}
 	}
 	return conflicts
