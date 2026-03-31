@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,7 +21,7 @@ type DoctorResult struct {
 	Name    string `json:"name"`
 	Passed  bool   `json:"passed"`
 	FixHint string `json:"fix_hint,omitempty"`
-	Fixable bool   `json:"fixable"`
+	Fixable bool   `json:"fixable,omitempty"`
 	Fixed   bool   `json:"fixed,omitempty"`
 	fixFunc func() error // built-in fix function (unexported)
 }
@@ -128,7 +129,7 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 		if os.IsNotExist(err) {
 			r.Passed = false
 			r.Fixable = true
-			r.FixHint = fmt.Sprintf("Create .gitignore and add %s/ or run 'dva doctor --fix'", config.DotDirName)
+			r.FixHint = fmt.Sprintf("Create .gitignore and add '%s/' to avoid committing transient state", config.DotDirName)
 			r.fixFunc = func() error {
 				_, err := ensureGitignore(configDir)
 				return err
@@ -259,7 +260,7 @@ func printDoctorResults(results []DoctorResult) {
 			if r.FixHint != "" {
 				fmt.Printf("         -> %s\n", r.FixHint)
 			}
-			if r.Fixable {
+			if r.Fixable && !strings.Contains(r.FixHint, "--fix") {
 				fmt.Printf("         -> Run 'dva doctor --fix' to auto-fix\n")
 			}
 			failed++
