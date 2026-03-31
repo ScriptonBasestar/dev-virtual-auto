@@ -102,7 +102,7 @@ func checkGitignoreForWarning(configDir string) {
 	}
 
 	fmt.Fprintf(os.Stderr, "⚠️  [warn] %s/ is not in your .gitignore. Transient markers might be committed.\n", config.DotDirName)
-	fmt.Fprintf(os.Stderr, "         Run 'dva doctor' to fix or add '%s/' to .gitignore manually.\n\n", config.DotDirName)
+	fmt.Fprintf(os.Stderr, "         Run 'dva doctor --fix' to auto-fix or add '%s/' to .gitignore manually.\n\n", config.DotDirName)
 }
 
 // readGitignoreLines reads .gitignore and returns lines for scanning.

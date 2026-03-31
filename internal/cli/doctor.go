@@ -20,7 +20,12 @@ type DoctorResult struct {
 	Name    string `json:"name"`
 	Passed  bool   `json:"passed"`
 	FixHint string `json:"fix_hint,omitempty"`
+	Fixable bool   `json:"fixable"`
+	Fixed   bool   `json:"fixed,omitempty"`
+	fixFunc func() error // built-in fix function (unexported)
 }
+
+var doctorFix bool
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
@@ -28,11 +33,16 @@ var doctorCmd = &cobra.Command{
 	Long: `Run environment checks defined in the 'checks' section of dva.yml.
 Also runs built-in checks for Docker availability and compose file existence.
 
-Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.`,
+Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.
+Use --fix to automatically resolve fixable issues.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 
 		results := runDoctorChecks(c)
+
+		if doctorFix {
+			applyDoctorFixes(results)
+		}
 
 		if jsonOutput {
 			return output.PrintJSON(map[string]any{"checks": results})
@@ -44,6 +54,7 @@ Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.
 }
 
 func init() {
+	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Automatically fix issues that can be resolved")
 	doctorCmd.GroupID = "project"
 	rootCmd.AddCommand(doctorCmd)
 }
@@ -90,6 +101,24 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	return results
 }
 
+// applyDoctorFixes attempts to fix all failed checks that have a fix function or command.
+func applyDoctorFixes(results []DoctorResult) {
+	for i := range results {
+		r := &results[i]
+		if r.Passed || !r.Fixable {
+			continue
+		}
+		if r.fixFunc != nil {
+			if err := r.fixFunc(); err != nil {
+				fmt.Fprintf(os.Stderr, "  [fix-err] %s: %v\n", r.Name, err)
+			} else {
+				r.Fixed = true
+				r.Passed = true
+			}
+		}
+	}
+}
+
 func checkGitignoreStatus(configDir string) DoctorResult {
 	r := DoctorResult{Name: fmt.Sprintf("%s/ is ignored in .gitignore", config.DotDirName)}
 
@@ -98,7 +127,12 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 	if err != nil {
 		if os.IsNotExist(err) {
 			r.Passed = false
-			r.FixHint = fmt.Sprintf("Create .gitignore and add %s/ or run 'dva init'", config.DotDirName)
+			r.Fixable = true
+			r.FixHint = fmt.Sprintf("Create .gitignore and add %s/ or run 'dva doctor --fix'", config.DotDirName)
+			r.fixFunc = func() error {
+				_, err := ensureGitignore(configDir)
+				return err
+			}
 			return r
 		}
 		r.Passed = false
@@ -109,7 +143,12 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 		r.Passed = true
 	} else {
 		r.Passed = false
+		r.Fixable = true
 		r.FixHint = fmt.Sprintf("Add '%s/' to .gitignore to avoid committing transient state", config.DotDirName)
+		r.fixFunc = func() error {
+			_, err := ensureGitignore(configDir)
+			return err
+		}
 	}
 
 	return r
@@ -145,6 +184,21 @@ func runSingleCheck(check config.DoctorCheck, configDir string) DoctorResult {
 	// Clear fix hint on success
 	if r.Passed {
 		r.FixHint = ""
+	}
+
+	// If check has a fix command, mark as fixable
+	if !r.Passed && check.Fix != "" {
+		r.Fixable = true
+		fixCmd := check.Fix
+		r.fixFunc = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "sh", "-c", fixCmd)
+			cmd.Dir = configDir
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			return cmd.Run()
+		}
 	}
 
 	return r
@@ -191,8 +245,13 @@ func printDoctorResults(results []DoctorResult) {
 
 	passed := 0
 	failed := 0
+	fixed := 0
 	for _, r := range results {
-		if r.Passed {
+		if r.Fixed {
+			fmt.Printf("  [fixed] %s\n", r.Name)
+			fixed++
+			passed++
+		} else if r.Passed {
 			fmt.Printf("  [pass] %s\n", r.Name)
 			passed++
 		} else {
@@ -200,11 +259,18 @@ func printDoctorResults(results []DoctorResult) {
 			if r.FixHint != "" {
 				fmt.Printf("         -> %s\n", r.FixHint)
 			}
+			if r.Fixable {
+				fmt.Printf("         -> Run 'dva doctor --fix' to auto-fix\n")
+			}
 			failed++
 		}
 	}
 
-	fmt.Printf("\n  %d passed, %d failed\n", passed, failed)
+	summary := fmt.Sprintf("\n  %d passed, %d failed", passed, failed)
+	if fixed > 0 {
+		summary += fmt.Sprintf(" (%d auto-fixed)", fixed)
+	}
+	fmt.Println(summary)
 }
 
 func condStr(cond bool, s string) string {
