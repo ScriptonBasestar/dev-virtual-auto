@@ -73,6 +73,29 @@ func showText(c *config.Config) error {
 		}
 	}
 
+	// Applications
+	if len(c.Applications) > 0 {
+		fmt.Println()
+		fmt.Printf("Applications: %d defined\n", len(c.Applications))
+		names := sortedKeys(c.Applications)
+		maxLen := maxKeyLen(names)
+		for _, name := range names {
+			app := c.Applications[name]
+			strategies := []string{}
+			if app.Run.HasNative() || app.Dev.HasNative() {
+				strategies = append(strategies, "native")
+			}
+			if app.Run.HasDocker() || app.Dev.HasDocker() {
+				strategies = append(strategies, "docker")
+			}
+			desc := app.Description
+			if len(strategies) > 0 {
+				desc += fmt.Sprintf(" [%s]", strings.Join(strategies, "/"))
+			}
+			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
+		}
+	}
+
 	// Interaction commands
 	if len(c.Interaction) > 0 {
 		fmt.Println()
@@ -185,6 +208,24 @@ func showJSON(c *config.Config) error {
 			envs[k] = v.Description
 		}
 		data["environments"] = envs
+	}
+
+	if len(c.Applications) > 0 {
+		apps := make(map[string]any, len(c.Applications))
+		for k, v := range c.Applications {
+			entry := map[string]any{"description": v.Description}
+			if v.Run.HasNative() || v.Dev.HasNative() {
+				entry["native"] = true
+			}
+			if v.Run.HasDocker() || v.Dev.HasDocker() {
+				entry["docker"] = true
+			}
+			if len(v.Tags) > 0 {
+				entry["tags"] = v.Tags
+			}
+			apps[k] = entry
+		}
+		data["applications"] = apps
 	}
 
 	if len(c.Interaction) > 0 {

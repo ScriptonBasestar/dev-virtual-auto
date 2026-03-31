@@ -10,7 +10,7 @@
 - [ ] `yaml-language-server: $schema=...` comment on first line
 
 ### Structure
-- [ ] Section order follows canonical: version → environment → env_file → stack → checks → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints
+- [ ] Section order follows canonical: version → environment → env_file → stack → checks → applications → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints
 - [ ] `env_file:` uses object format (`files:` array + `interpolate: true`)
 - [ ] `stack:` section present (no legacy `compose:` root-level)
 - [ ] `default_mode` set and points to minimal infra mode
@@ -32,6 +32,12 @@
 ### Health Checks
 - [ ] All `health_checks` have both `start:` and `start_hint:`
 - [ ] Health check URLs use literal values (no `${VAR:-DEFAULT}`)
+
+### Applications (if project has long-running dev servers)
+- [ ] App servers (API, workers, web) declared in `applications:` section
+- [ ] Each app has at least `run:` or `dev:` exec path defined
+- [ ] Apps with HTTP endpoints have `health:` block
+- [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`

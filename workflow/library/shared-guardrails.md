@@ -13,12 +13,12 @@
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
 7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
-9. **Reserved commands** — These are DVA built-in commands and MUST NOT appear as plain interaction keys: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`. Hookable commands (up/down/stop/restart/build/clean/logs) use `replace:` hooks. Others must be renamed (e.g., `service-status`, `db-migrate`).
+9. **Reserved commands** — These are DVA built-in commands and MUST NOT appear as plain interaction keys: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`. Hookable commands (up/down/stop/restart/build/clean/logs/dev) use `replace:` hooks. Others must be renamed (e.g., `service-status`, `db-migrate`).
 10. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency). Use direct shell commands.
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
 13. **`checks:` section** — Minimum: `docker_socket` + `.env` file_exists.
-14. **Section order (canonical)** — version → environment → env_file → stack → checks → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit unused sections, but included sections MUST follow this order.
+14. **Section order (canonical)** — version → environment → env_file → stack → checks → applications → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit unused sections, but included sections MUST follow this order.
 15. **File header** — First line must be `# yaml-language-server: $schema=...` schema comment.
 16. **`stack.compose.tags: [infra]`** — Primary stack entry MUST have compose-level `tags:` field.
 17. **Service metadata: tags required** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in `endpoints:` section, NOT in `services.ports`.
@@ -31,3 +31,6 @@
 24. **No echo wrappers** — Never generate `echo 'Run: ...'` dummy commands.
 25. **No code changes** — Only modify `dva.yml` and related config. Do not touch app code or Dockerfiles.
 26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Only allowed fields: `path`, `exclude_tags`.
+27. **`applications:` for long-running app processes** — Application servers (API, workers, web frontends) that the developer actively develops MUST be declared in the `applications:` section, NOT buried in `interaction:` or only in `health_checks.start`. The `applications:` section supports both native and docker execution strategies via `run:`, `dev:`, and `build:` paths.
+28. **`applications:` naming** — Use short lowercase names: `api`, `worker`, `web`, `scheduler`. These become the PID/log identifiers.
+29. **`applications:` health** — Each application SHOULD have a `health:` block for readiness checking. `dva dev` waits for health before reporting success.

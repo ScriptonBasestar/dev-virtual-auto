@@ -13,6 +13,7 @@ import (
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{
 	"version", "environment", "env_file", "stack", "checks",
+	"applications",
 	"default_mode", "modes", "environments", "health_checks", "interaction",
 	"provision", "modules", "subprojects", "endpoints",
 }

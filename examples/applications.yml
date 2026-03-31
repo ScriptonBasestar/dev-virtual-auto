@@ -1,0 +1,188 @@
+# yaml-language-server: $schema=../internal/config/schema.json
+# Example: applications section — Rust workspace (api + worker) + Svelte frontend
+# Demonstrates native/docker strategies, depends_on, health checks, and mode integration.
+
+version: "0.1.33"
+
+environment:
+  DATABASE_URL: "postgres://dev:dev@localhost:15432/myapp"
+  REDIS_URL: "redis://localhost:16379"
+
+env_file:
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  interpolate: true
+
+stack:
+  compose:
+    order: 10
+    files:
+      - compose.yml
+    project_name: myapp
+    up_options: ["-d", "--wait"]
+    tags: [infra]
+    services:
+      postgres: { tags: [infra, data] }
+      redis:    { tags: [infra, data] }
+
+checks:
+  - name: Docker socket accessible
+    type: docker_socket
+
+applications:
+  api:
+    description: "REST API server (Rust)"
+    tags: [app, api]
+    dir: "rust-workspace"
+    run:
+      native: "cargo run --release -p api-server"
+      docker:
+        service: api-rs
+        profile: rust
+    dev:
+      native: "cargo watch -x 'run -p api-server'"
+      docker: "docker compose --profile rust up api-rs"
+    build:
+      native: "cargo build -p api-server"
+      docker:
+        service: api-rs
+        command: "cargo build"
+    environment:
+      PORT: "11200"
+      RUST_LOG: "info"
+    health:
+      type: http
+      url: "http://localhost:11200/health"
+      timeout: 5
+      ready_timeout: 120
+
+  worker:
+    description: "Background job worker (Rust)"
+    tags: [app, worker]
+    dir: "rust-workspace"
+    depends_on: [api]
+    run:
+      native: "cargo run --release -p worker"
+    dev:
+      native: "cargo watch -x 'run -p worker'"
+    build:
+      native: "cargo build -p worker"
+    health:
+      type: command
+      command: "curl -sf http://localhost:11201/health || exit 1"
+      timeout: 5
+      ready_timeout: 120
+
+  web:
+    description: "Svelte frontend"
+    tags: [app, ui]
+    dir: "frontend"
+    run: "pnpm build && pnpm preview"
+    dev: "pnpm dev --port 11300"
+    build:
+      native: "pnpm build"
+    health:
+      type: http
+      url: "http://localhost:11300"
+      timeout: 3
+      ready_timeout: 30
+
+default_mode: infra
+
+modes:
+  infra:
+    description: "Core infrastructure only (DB + cache)"
+    compose_services: [postgres, redis]
+
+  backend:
+    description: "Infra + Rust API and worker (native)"
+    compose_services: [postgres, redis]
+    applications: native
+
+  full-stack:
+    description: "Everything running natively"
+    applications: native
+
+  docker:
+    description: "Everything in Docker"
+    compose_profiles: [rust]
+    applications: docker
+
+  hybrid:
+    description: "API native, worker in Docker"
+    compose_services: [postgres, redis]
+    applications:
+      api: native
+      worker: docker
+      web: native
+
+health_checks:
+  postgres:
+    type: tcp
+    address: "localhost:15432"
+    timeout: 3
+  redis:
+    type: tcp
+    address: "localhost:16379"
+    timeout: 2
+
+interaction:
+  db:
+    description: "Database management"
+    subcommands:
+      shell:
+        description: "PostgreSQL interactive console"
+        service: postgres
+        command: psql -U dev -d myapp
+      migrate:
+        description: "Run database migrations"
+        command: "cargo run -p migration"
+        runner: local
+
+  test:
+    description: "Run all tests"
+    command: "cargo test"
+    runner: local
+    tags: [test]
+
+  lint:
+    description: "Run clippy"
+    command: "cargo clippy --all-targets -- -D warnings"
+    runner: local
+    tags: [quality]
+
+provision:
+  default:
+    - step: "Start infrastructure"
+      run: "docker compose up -d --wait"
+    - step: "Run database migrations"
+      run: "cargo run -p migration"
+    - step: "Install frontend dependencies"
+      run: "cd frontend && pnpm install"
+  reset:
+    - step: "Stop all services"
+      run: "docker compose down -v"
+    - step: "Restart infrastructure"
+      run: "docker compose up -d --wait"
+    - step: "Re-run migrations"
+      run: "cargo run -p migration"
+
+endpoints:
+  api:
+    url: "http://localhost:11200"
+    label: "REST API"
+    tags: [app, api]
+    paths:
+      /health: "Health check"
+      /api/v1: "API v1"
+  web:
+    url: "http://localhost:11300"
+    label: "Frontend"
+    tags: [app, ui]
+  db:
+    source: "postgres:15432"
+    label: "PostgreSQL"
+    tags: [infra, data]

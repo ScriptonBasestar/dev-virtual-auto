@@ -143,12 +143,35 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		return err
 	}
 
+	// Start applications if defined and a mode is active
+	if len(o.cfg.Applications) > 0 && opts.Mode != "" {
+		am := NewAppManager(o.cfg, envClone)
+		strategy := ""
+		if m, ok := o.cfg.Modes[opts.Mode]; ok {
+			strategy = m.AppStrategy("")
+		}
+		if err := am.StartApps(ctx, AppStartOptions{
+			Strategy: strategy,
+			Wait:     opts.Wait,
+			DryRun:   opts.DryRun,
+			Mode:     opts.Mode,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "[warn] application start: %v\n", err)
+		}
+	}
+
 	return nil
 }
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	// Stop native processes first (reverse of startup order)
+	// Stop applications first (reverse of startup order)
+	if len(o.cfg.Applications) > 0 {
+		am := NewAppManager(o.cfg, o.env)
+		am.StopApps()
+	}
+
+	// Stop native processes
 	o.stopModeProcesses(opts.Mode)
 
 	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
@@ -188,7 +211,13 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	// Stop native processes first
+	// Stop applications first
+	if len(o.cfg.Applications) > 0 {
+		am := NewAppManager(o.cfg, o.env)
+		am.StopApps()
+	}
+
+	// Stop native processes
 	o.stopModeProcesses(opts.Mode)
 
 	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)

@@ -11,7 +11,7 @@
 ## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
 다음 이름은 DVA 내장 커맨드로 예약되어 있습니다. `interaction:` 키로 사용하면 validation 에러가 발생합니다:
 
-**사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`
+**사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`
 
 **예약 커맨드를 커스터마이즈하려면** `replace:` 훅을 사용하세요:
 ```yaml
@@ -36,6 +36,7 @@ environment:      # (선택)
 env_file:
 stack:
 checks:
+applications:     # (앱 서버가 있을 때)
 default_mode:     # dva up 기본 모드 (미니멀 인프라)
 suggestion_ignore: # Makefile/package.json 타겟 중 의도적으로 무시할 글로브 패턴
 modes:
@@ -236,6 +237,7 @@ suggestion_ignore:
 - [ ] **`modes`** 섹션 (최소 `infra` + `full-stack` 또는 `hybrid`)
 - [ ] **`checks`** 섹션 (최소 `docker_socket` + `.env` file_exists)
 - [ ] **`env_file`** 섹션 (`files` 배열 + `interpolate: true`)
+- [ ] **`applications`** 섹션 (앱 서버/워커가 있는 프로젝트: API, worker, web 등을 선언)
 - [ ] **`health_checks`** 섹션 (hybrid 패턴일 때, 또는 compose 서비스 health check용)
 - [ ] **`provision`** 에 `default` + `reset` 프로필
 - [ ] **`endpoints`** 섹션 (외부 접근 가능한 포트가 있을 때)

@@ -15,7 +15,7 @@ import (
 func TestStartLocalService(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	err := startLocalService("test-svc", "sleep 30", tmpDir)
+	err := startLocalService("test-svc", "sleep 30", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("failed to start service: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestStartUnreadyServices_NoStart(t *testing.T) {
 		{Name: "web", Ready: false},
 	}
 
-	started := startUnreadyServices(checks, results, t.TempDir())
+	started := startUnreadyServices(checks, results, t.TempDir(), nil)
 	if len(started) != 0 {
 		t.Error("expected no services started when no start command configured")
 	}
@@ -102,7 +102,7 @@ func TestStartUnreadyServices_AlreadyReady(t *testing.T) {
 		{Name: "web", Ready: true},
 	}
 
-	started := startUnreadyServices(checks, results, t.TempDir())
+	started := startUnreadyServices(checks, results, t.TempDir(), nil)
 	if len(started) != 0 {
 		t.Error("expected no services started when already ready")
 	}
@@ -118,7 +118,7 @@ func TestStartUnreadyServices_WithStart(t *testing.T) {
 		{Name: "worker", Ready: false},
 	}
 
-	started := startUnreadyServices(checks, results, tmpDir)
+	started := startUnreadyServices(checks, results, tmpDir, nil)
 	if !started["worker"] {
 		t.Error("expected worker to be started")
 	}
@@ -174,7 +174,7 @@ func TestStartUnreadyServices_SkipsAlreadyRunning(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Start a service first
-	err := startLocalService("worker", "sleep 30", tmpDir)
+	err := startLocalService("worker", "sleep 30", tmpDir, nil)
 	if err != nil {
 		t.Fatalf("failed to start: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestStartUnreadyServices_SkipsAlreadyRunning(t *testing.T) {
 	}
 
 	// Should skip because PID file exists and process is running
-	started := startUnreadyServices(checks, results, tmpDir)
+	started := startUnreadyServices(checks, results, tmpDir, nil)
 	if started["worker"] {
 		t.Error("expected worker to be skipped since already running")
 	}

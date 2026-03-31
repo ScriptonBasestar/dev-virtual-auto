@@ -78,6 +78,8 @@ func init() {
 	logsCmd.GroupID = "lifecycle"
 	buildCmd.GroupID = "lifecycle"
 	cleanCmd.GroupID = "lifecycle"
+	devCmd.GroupID = "lifecycle"
+	appCmd.GroupID = "lifecycle"
 
 	composeCmd.GroupID = "integration"
 	ktlCmd.GroupID = "integration"
@@ -107,6 +109,8 @@ func init() {
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(devCmd)
+	rootCmd.AddCommand(appCmd)
 
 	// Wrap hookable lifecycle commands with before/replace/after hook execution.
 	// hookableCommands (config.HookableCommands) is the single source of truth;
@@ -114,7 +118,7 @@ func init() {
 	hookableCmds := map[string]*cobra.Command{
 		"up": upCmd, "down": downCmd, "stop": stopCmd,
 		"restart": restartCmd, "build": buildCmd, "clean": cleanCmd,
-		"logs": logsCmd,
+		"logs": logsCmd, "dev": devCmd,
 	}
 	for name, cmd := range hookableCmds {
 		if !config.IsHookableCommand(name) {

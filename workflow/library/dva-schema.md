@@ -11,7 +11,7 @@
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
-8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`).
+8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `dev`, `app`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs/dev) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`).
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
@@ -24,7 +24,7 @@
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → environment → env_file → stack → checks → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
+`version → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
 version: "0.1.29"
@@ -70,6 +70,37 @@ stack:
   #   plugin: kubectl
   #   order: 20
   #   namespace: myapp-dev
+
+applications:                   # Long-running app processes (API servers, workers, etc.)
+  {app-name}:                   # Short name: api, worker, web, scheduler
+    description: "{human-readable description}"
+    tags: [app]                 # For filtering
+    dir: "relative/path"        # Working directory (default: config dir)
+    depends_on: [other-app]     # Startup dependency ordering
+    environment:                # App-specific env vars
+      PORT: "11200"
+    run:                        # How to run in production-like mode
+      native: "cargo run --release -p api"
+      docker:
+        service: api-rs         # Compose service name
+        profile: rust           # Compose profile to activate
+    dev:                        # How to run in dev mode (hot-reload, debug, etc.)
+      native: "cargo watch -x 'run -p api'"
+      docker: "docker compose up api-dev"  # String shorthand for docker command
+    build:                      # How to build the app
+      native: "cargo build -p api"
+      docker:
+        service: api-rs
+        command: "cargo build"
+    health:                     # Readiness check (same format as health_checks entries)
+      type: http
+      url: "http://localhost:11200/health"
+      timeout: 5
+      ready_timeout: 120
+
+  # --- String shorthand for exec paths ---
+  # run/dev/build accept a string shorthand that sets the native path only:
+  # run: "cargo run -p api"  ← equivalent to  run: { native: "cargo run -p api" }
 
 interaction:
   # --- Container commands (service-based) ---
@@ -148,6 +179,11 @@ modes:                          # Operational modes (--mode/-M flag)
       VAR: value
     stack: [entry1, entry2]       # Stack entries to include for this mode
     provision: default            # Suggest provision profile on first run
+    applications: native          # App strategy: "native" (string) or per-app map
+    # applications:               # Per-app strategy override:
+    #   api: native
+    #   worker: docker
+    #   _default: native          # Fallback for unlisted apps
 
 environments:                   # Environment configs (--env/-E flag)
   {env-name}:

@@ -35,6 +35,10 @@ var statusCmd = &cobra.Command{
 				if statusErr == nil {
 					statusData["stack"] = status.Entries
 				}
+				if len(c.Applications) > 0 {
+					am := lifecycle.NewAppManager(c, e)
+					statusData["applications"] = am.AppStatuses()
+				}
 			}
 			return output.PrintJSON(statusData)
 		}
@@ -76,6 +80,14 @@ var statusCmd = &cobra.Command{
 			fmt.Println("\nLifecycle: (error querying status)")
 		} else {
 			lifecycle.PrintStatus(status, c.FileDir())
+		}
+
+		// Applications status
+		if len(c.Applications) > 0 {
+			am := lifecycle.NewAppManager(c, e)
+			statuses := am.AppStatuses()
+			fmt.Println()
+			printAppStatuses(statuses)
 		}
 
 		if len(c.Endpoints) > 0 {

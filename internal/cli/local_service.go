@@ -16,7 +16,7 @@ import (
 
 // startUnreadyServices starts local services that have a start command and failed health checks.
 // Returns a set of service names that were started.
-func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []HealthCheckResult, configDir string) map[string]bool {
+func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []HealthCheckResult, configDir string, env *config.Environment) map[string]bool {
 	started := make(map[string]bool)
 
 	for _, r := range results {
@@ -37,7 +37,7 @@ func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []
 			}
 		}
 
-		if err := startLocalService(r.Name, hc.Start, configDir); err != nil {
+		if err := startLocalService(r.Name, hc.Start, configDir, env); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] failed to start %s: %v\n", r.Name, err)
 			continue
 		}
@@ -49,7 +49,7 @@ func startUnreadyServices(checks map[string]config.HealthCheckConfig, results []
 }
 
 // startLocalService starts a command in background, saves PID and redirects output to log.
-func startLocalService(name, command, configDir string) error {
+func startLocalService(name, command, configDir string, env *config.Environment) error {
 	pidDir := filepath.Join(configDir, config.DotDirName, "pids")
 	logDir := filepath.Join(configDir, config.DotDirName, "logs")
 
@@ -69,6 +69,9 @@ func startLocalService(name, command, configDir string) error {
 	cmd.Dir = configDir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
+	if env != nil {
+		cmd.Env = env.EnvSlice()
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
