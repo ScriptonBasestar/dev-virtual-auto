@@ -69,8 +69,6 @@ func init() {
 	showCmd.GroupID = "project"
 	statusCmd.GroupID = "project"
 	configCmd.GroupID = "project"
-	addCmd.GroupID = "project"
-
 	upCmd.GroupID = "lifecycle"
 	downCmd.GroupID = "lifecycle"
 	stopCmd.GroupID = "lifecycle"
@@ -108,7 +106,6 @@ func init() {
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
-	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(appCmd)
 
@@ -139,6 +136,9 @@ func init() {
 		}
 		return s
 	})
+	cobra.AddTemplateFunc("commandNameIs", commandNameIs)
+	cobra.AddTemplateFunc("isFeaturedLifecycle", isFeaturedLifecycleCommand)
+	cobra.AddTemplateFunc("featuredLifecycleHint", featuredLifecycleHint)
 	rootCmd.SetUsageTemplate(dvaUsageTemplate)
 }
 
@@ -287,6 +287,40 @@ func isTerminal(file *os.File) bool {
 	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
+func isFeaturedLifecycleCommand(cmd *cobra.Command) bool {
+	if cmd == nil || cmd.GroupID != "lifecycle" {
+		return false
+	}
+	switch cmd.Name() {
+	case "up", "dev", "app", "down":
+		return true
+	default:
+		return false
+	}
+}
+
+func featuredLifecycleHint(cmd *cobra.Command) string {
+	if cmd == nil || !isFeaturedLifecycleCommand(cmd) {
+		return cmd.Short
+	}
+	switch cmd.Name() {
+	case "up":
+		return "[start] " + cmd.Short
+	case "dev":
+		return "[dev] " + cmd.Short
+	case "app":
+		return "[apps] " + cmd.Short
+	case "down":
+		return "[stop] " + cmd.Short
+	default:
+		return cmd.Short
+	}
+}
+
+func commandNameIs(cmd *cobra.Command, name string) bool {
+	return cmd != nil && cmd.Name() == name
+}
+
 const dvaUsageTemplate = `Usage:{{if .Runnable}}
   {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
   {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
@@ -300,8 +334,20 @@ Examples:
 Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
 
-{{colorTitle .Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+{{colorTitle .Title}}{{if eq $group.ID "lifecycle"}}
+  Recommended Flow
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "up"))}}
+  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "dev"))}}
+  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "app"))}}
+  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "down"))}}
+  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+  Other Commands
+{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (not (isFeaturedLifecycle .)))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 
 Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
