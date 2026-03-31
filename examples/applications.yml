@@ -2,7 +2,7 @@
 # Example: applications section — Rust workspace (api + worker) + Svelte frontend
 # Demonstrates native/docker strategies, depends_on, health checks, and mode integration.
 
-version: "0.1.33"
+version: "0.1.44"
 
 environment:
   DATABASE_URL: "postgres://dev:dev@localhost:15432/myapp"
@@ -56,6 +56,8 @@ applications:
     health:
       type: http
       url: "http://localhost:11200/health"
+      start: "cd rust-workspace && cargo run --release -p api-server"
+      start_hint: "Start API: cd rust-workspace && cargo run --release -p api-server"
       timeout: 5
       ready_timeout: 120
 
@@ -73,6 +75,8 @@ applications:
     health:
       type: command
       command: "curl -sf http://localhost:11201/health || exit 1"
+      start: "cd rust-workspace && cargo run --release -p worker"
+      start_hint: "Start worker: cd rust-workspace && cargo run --release -p worker"
       timeout: 5
       ready_timeout: 120
 
@@ -87,6 +91,8 @@ applications:
     health:
       type: http
       url: "http://localhost:11300"
+      start: "cd frontend && pnpm build && pnpm preview"
+      start_hint: "Start frontend: cd frontend && pnpm dev --port 11300"
       timeout: 3
       ready_timeout: 30
 

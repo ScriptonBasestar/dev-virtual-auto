@@ -16,7 +16,7 @@ go install github.com/ScriptonBasestar/dva/cmd/dva@latest
 Create a `dva.yml` file in your project root. See [makefile-integration.yml](makefile-integration.yml) for a complete example.
 
 ```yaml
-version: '0.1.26'
+version: '0.1.44'
 
 stack:
   compose:

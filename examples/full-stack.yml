@@ -20,7 +20,7 @@
 #
 # Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.26'
+version: '0.1.44'
 
 environment:
   RAILS_ENV: development
@@ -204,6 +204,27 @@ modes:
     description: Databases in Docker, app runs natively
     compose_services: [db, redis]
     health_checks: [web_server]
+
+health_checks:
+  postgres:
+    type: tcp
+    address: "localhost:5432"
+    start: "pg_ctl -D /usr/local/var/postgres start"
+    start_hint: "Start PostgreSQL: pg_ctl -D /usr/local/var/postgres start"
+    timeout: 3
+  redis:
+    type: tcp
+    address: "localhost:6379"
+    start: "redis-server --daemonize yes"
+    start_hint: "Start Redis: redis-server --daemonize yes"
+    timeout: 2
+  web_server:
+    type: http
+    url: "http://localhost:3000/health"
+    start: "cd myapp && bundle exec rails server -p 3000 -d"
+    start_hint: "Start Rails: bundle exec rails server -p 3000"
+    timeout: 5
+    ready_timeout: 30
 
 # Environments: env configuration (--env/-E) — WHAT settings to use
 # Optional `stack` field filters which stack entries run (empty=all)

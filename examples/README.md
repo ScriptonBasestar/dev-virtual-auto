@@ -148,7 +148,7 @@ dva validate -c examples/basic.yml
 All examples follow this general structure:
 
 ```yaml
-version: '0.1.26'             # Minimum required dva version
+version: '0.1.44'             # Minimum required dva version
 
 environment:                  # Environment variables
   VAR_NAME: value
@@ -347,5 +347,5 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 
 ---
 
-**Version**: 0.1.26
+**Version**: 0.1.44
 **Last Updated**: March 2026

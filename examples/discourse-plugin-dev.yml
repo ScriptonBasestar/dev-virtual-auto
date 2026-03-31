@@ -1,7 +1,7 @@
 # dva.yml for Discourse Plugin Development
 # Based on standard Discourse development environment
 
-version: '0.1.26'
+version: '0.1.44'
 
 environment:
   RUBY_VERSION: "3.2"

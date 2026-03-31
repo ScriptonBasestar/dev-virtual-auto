@@ -1,7 +1,7 @@
 # dva.yml - Example configuration for Makefile integration
 # This demonstrates DVA commands used in Makefile.dev.mk examples
 
-version: '0.1.26'
+version: '0.1.44'
 
 environment:
   COMPOSE_EXT: development

@@ -11,7 +11,7 @@
 #
 # Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.26'
+version: '0.1.44'
 
 # Load environment variables from .env file
 # .env file should be git-ignored
