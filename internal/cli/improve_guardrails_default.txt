@@ -7,6 +7,5 @@
 2. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
 3. **기존 `stack.compose.services` 메타데이터(tags, ports, related, hint)를 삭제하지 마세요.** 수정/추가만 허용됩니다.
 4. **기존 `applications:` 섹션의 앱 정의를 삭제하지 마세요.** 수정/추가만 허용됩니다.
-5. **앱 서버/워커가 감지되는데 `applications:` 섹션이 없으면 반드시 생성하세요.** `interaction:`에 앱 실행 명령을 넣지 말고 `applications:`에 선언하세요. native/docker 실행 경로를 모두 정의하세요.
 
 > 공통 규칙은 DVA Library Reference의 "DVA Configuration Guardrails (Shared)" 섹션을 따르세요.
