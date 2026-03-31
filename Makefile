@@ -16,7 +16,7 @@ GEN_PROMPT      := $(GEN_DIR)/improve_prompt_template.txt
 GEN_GUARD_DEF   := $(GEN_DIR)/improve_guardrails_default.txt
 GEN_GUARD_RW    := $(GEN_DIR)/improve_guardrails_rewrite.txt
 
-.PHONY: build install test test-integration lint clean fmt vet help bump-version generate check-generate
+.PHONY: build install test test-integration lint clean fmt vet help generate check-generate
 
 ## build: Build the dva binary
 build: generate
@@ -25,26 +25,8 @@ build: generate
 	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
 	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
 
-## bump-version: Bump micro version if there are changes or new commit
-bump-version:
-	@LAST_COMMIT=$$(cat .last_built_commit 2>/dev/null || echo ""); \
-	CURRENT_COMMIT=$$(git rev-parse HEAD 2>/dev/null || echo "none"); \
-	DIRTY=$$(git status --porcelain | grep -v 'internal/config/version.go'); \
-	if [ "$$CURRENT_COMMIT" != "$$LAST_COMMIT" ] || [ -n "$$DIRTY" ]; then \
-		echo "Changes or new commit detected, bumping version..."; \
-		CURRENT_VERSION=$$(grep 'Version =' internal/config/version.go | cut -d'"' -f2); \
-		MAJOR=$$(echo $$CURRENT_VERSION | cut -d. -f1); \
-		MINOR=$$(echo $$CURRENT_VERSION | cut -d. -f2); \
-		PATCH=$$(echo $$CURRENT_VERSION | cut -d. -f3); \
-		NEW_PATCH=$$(($$PATCH + 1)); \
-		NEW_VERSION="$$MAJOR.$$MINOR.$$NEW_PATCH"; \
-		sed -i.bak "s/Version = \"$$CURRENT_VERSION\"/Version = \"$$NEW_VERSION\"/" internal/config/version.go && rm -f internal/config/version.go.bak; \
-		echo "$$CURRENT_COMMIT" > .last_built_commit; \
-		echo "Version bumped to $$NEW_VERSION"; \
-	fi
-
-## install: Install dva to ~/.local/bin (bumps version if changes detected)
-install: bump-version build
+## install: Install dva to ~/.local/bin
+install: build
 	@mkdir -p $(HOME)/.local/bin
 	rm -f $(HOME)/.local/bin/$(BINARY)
 	cp $(BUILD_DIR)/$(BINARY) $(HOME)/.local/bin/$(BINARY)

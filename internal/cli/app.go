@@ -12,14 +12,21 @@ import (
 )
 
 var appCmd = &cobra.Command{
-	Use:   "app",
-	Short: "Manage applications",
-	Long:  "Manage application processes defined in the applications: section of dva.yml.",
+	Use:   "app [command]",
+	Short: "Manage application lifecycle (ls, build, stop, restart, log)",
+	Long: `Manage application processes defined in the 'applications' section of dva.yml.
+
+Use subcommands to list status, build, stop, restart, and view logs of applications.`,
+	Example: `  dva app ls              # List all applications and their status
+  dva app build myapp     # Build a specific application
+  dva app stop myapp      # Stop a specific application
+  dva app restart myapp   # Restart a specific application
+  dva app log myapp       # Show recent logs for an application`,
 }
 
 var appLsCmd = &cobra.Command{
 	Use:   "ls",
-	Short: "List applications and their status",
+	Short: "List all applications with status, health, and PID",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
@@ -38,7 +45,7 @@ var appLsCmd = &cobra.Command{
 
 var appStopCmd = &cobra.Command{
 	Use:   "stop [APP...]",
-	Short: "Stop applications",
+	Short: "Stop running applications (all if no name given)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
@@ -55,7 +62,7 @@ var appStopCmd = &cobra.Command{
 
 var appRestartCmd = &cobra.Command{
 	Use:   "restart [APP...]",
-	Short: "Restart applications",
+	Short: "Restart applications (stop then start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -81,7 +88,7 @@ var appRestartCmd = &cobra.Command{
 
 var appBuildCmd = &cobra.Command{
 	Use:   "build [APP...]",
-	Short: "Build applications",
+	Short: "Build applications (use --docker for container build)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -160,7 +167,7 @@ func boolToStrategy(docker bool) string {
 // appLogCmd prints app log file contents.
 var appLogCmd = &cobra.Command{
 	Use:   "log <APP>",
-	Short: "Show application logs",
+	Short: "Show recent logs for an application (last 100 lines)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
