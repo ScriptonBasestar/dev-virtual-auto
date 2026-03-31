@@ -101,7 +101,7 @@ DVA interaction의 `command:` 필드에는 이 실제 명령을 사용하세요 
 → **이 패턴이면:**
   - 빌드/테스트/린트 커맨드는 반드시 `runner: local` 사용 (`service` 생략)
   - Docker 인프라 기동은 `stack.compose`에 정의하고 `dva up`으로 실행
-  - `health_checks`에 네이티브 프로세스 정의 (start + start_hint 필수)
+  - `health_checks`에 네이티브 프로세스 정의 (`start` 사용, `start_hint`는 `start` 없을 때만)
 
 ## B. 컨테이너 내부 실행 패턴 (container-first)
 - 앱이 Docker 컨테이너 안에서만 빌드/실행됨
@@ -247,7 +247,7 @@ suggestion_ignore:
 ## 5. 안티패턴 검사
 - [ ] echo 더미 커맨드 없음
 - [ ] 기본 포트(5432, 6379 등) 미사용
-- [ ] health_checks에 start + start_hint 모두 존재
+- [ ] health_checks에 `start` 또는 `start_hint` 중 하나만 존재 (둘 다 설정하면 redundant 경고)
 - [ ] health_checks URL이 리터럴 값 (`${VAR:-DEFAULT}` 패턴 금지)
 - [ ] provision에서 `dva <command>` 미호출
 - [ ] 서비스에 tags 존재 (port metadata는 `endpoints:` 섹션에 선언)
