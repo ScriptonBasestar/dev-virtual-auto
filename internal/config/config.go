@@ -45,6 +45,7 @@ type DoctorCheck struct {
 	Path    string `yaml:"path"`     // for file_exists type
 	Command string `yaml:"command"`  // for command type
 	FixHint string `yaml:"fix_hint"` // suggestion shown when check fails
+	Fix     string `yaml:"fix"`      // shell command to auto-fix (used by dva doctor --fix)
 }
 
 // SubprojectConfig defines a sub-project reference.
@@ -357,8 +358,28 @@ func (c *Config) FileDir() string {
 	return filepath.Dir(c.filePath)
 }
 
+// LoadOption configures optional behavior for Load.
+type LoadOption func(*loadOptions)
+
+type loadOptions struct {
+	skipVersionCheck bool
+}
+
+// SkipVersionCheck returns a LoadOption that disables version compatibility checking.
+// Use this for commands like "config improve" that need to load outdated configs to fix them.
+func SkipVersionCheck() LoadOption {
+	return func(o *loadOptions) {
+		o.skipVersionCheck = true
+	}
+}
+
 // Load discovers and loads the dva.yml configuration.
-func Load(workDir string) (*Config, error) {
+func Load(workDir string, opts ...LoadOption) (*Config, error) {
+	var o loadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	filePath, err := findConfig(workDir)
 	if err != nil {
 		return nil, err
@@ -371,7 +392,7 @@ func Load(workDir string) (*Config, error) {
 	cfg.filePath = filePath
 
 	// Check version compatibility
-	if cfg.Version != "" {
+	if !o.skipVersionCheck && cfg.Version != "" {
 		if !isVersionCompatible(cfg.Version) {
 			return nil, fmt.Errorf("your dva version is `%s`, but config requires minimum version `%s`. Please upgrade dva", Version, cfg.Version)
 		}

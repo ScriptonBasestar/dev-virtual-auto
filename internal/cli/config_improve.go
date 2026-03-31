@@ -294,7 +294,7 @@ func generateAndPrintImprovePrompt() error {
 // buildImprovePrompt builds the unified prompt that includes both project exploration
 // and current DVA state analysis.
 func buildImprovePrompt() (string, error) {
-	c, err := config.Load(".")
+	c, err := config.Load(".", config.SkipVersionCheck())
 	if err != nil {
 		return "", fmt.Errorf("could not load current dva.yml: %w", err)
 	}
@@ -531,7 +531,7 @@ func runValidationFeedbackLoop(claudePath string, verbose bool) error {
 // fixVersionMismatch checks if dva.yml version matches the running DVA version.
 // If not, it directly updates the version field in the file (simple sed-like replacement).
 func fixVersionMismatch() error {
-	c, err := config.Load(".")
+	c, err := config.Load(".", config.SkipVersionCheck())
 	if err != nil {
 		return nil // can't load — skip
 	}
@@ -583,7 +583,7 @@ func captureValidateOutput() (string, error) {
 
 // buildValidationFixPrompt builds a focused prompt for the AI to fix validation errors.
 func buildValidationFixPrompt(validateOutput string) (string, error) {
-	c, err := config.Load(".")
+	c, err := config.Load(".", config.SkipVersionCheck())
 	if err != nil {
 		return "", fmt.Errorf("could not load dva.yml: %w", err)
 	}
