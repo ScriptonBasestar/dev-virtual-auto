@@ -33,6 +33,7 @@ var improveVerbose bool
 var improveRecursive bool
 var improveRewrite bool
 var improveInteractive bool
+var improveModel string
 
 var improveCmd = &cobra.Command{
 	Use:   "improve",
@@ -105,6 +106,9 @@ func runAIImprove() error {
 	fmt.Println()
 
 	claudeArgs := []string{"-p", "--allowedTools", "Edit,Write,Bash"}
+	if improveModel != "" {
+		claudeArgs = append(claudeArgs, "--model", improveModel)
+	}
 	if improveVerbose {
 		claudeArgs = append(claudeArgs, "--verbose")
 	}
@@ -181,6 +185,9 @@ func runAIImproveInteractive() error {
 	claudeArgs := []string{
 		"--append-system-prompt-file", promptFile,
 		initialPrompt,
+	}
+	if improveModel != "" {
+		claudeArgs = append(claudeArgs, "--model", improveModel)
 	}
 	if improveVerbose {
 		claudeArgs = append(claudeArgs, "--verbose")
@@ -460,6 +467,7 @@ func init() {
 	improveCmd.Flags().BoolVar(&improveRecursive, "recursive", false, "Also improve dva.yml in detected sub-projects")
 	improveCmd.Flags().BoolVar(&improveRewrite, "rewrite", false, "Rewrite dva.yml from scratch based on project analysis (ignores existing structure)")
 	improveCmd.Flags().BoolVarP(&improveInteractive, "interactive", "i", false, "Open Claude Code in interactive mode (session stays open for follow-up work)")
+	improveCmd.Flags().StringVar(&improveModel, "model", "sonnet", "Claude model to use (e.g. sonnet, opus, haiku)")
 	configCmd.AddCommand(improveCmd)
 }
 
@@ -499,6 +507,9 @@ func runValidationFeedbackLoop(claudePath string, verbose bool) error {
 		}
 
 		claudeArgs := []string{"-p", "--allowedTools", "Edit,Write,Bash"}
+		if improveModel != "" {
+			claudeArgs = append(claudeArgs, "--model", improveModel)
+		}
 		if verbose {
 			claudeArgs = append(claudeArgs, "--verbose")
 		}

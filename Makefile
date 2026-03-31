@@ -46,8 +46,9 @@ bump-version:
 ## install: Install dva to ~/.local/bin (bumps version if changes detected)
 install: bump-version build
 	@mkdir -p $(HOME)/.local/bin
+	rm -f $(HOME)/.local/bin/$(BINARY)
 	cp $(BUILD_DIR)/$(BINARY) $(HOME)/.local/bin/$(BINARY)
-	@GOBIN=$$(go env GOBIN); [ -n "$$GOBIN" ] && cp $(BUILD_DIR)/$(BINARY) "$$GOBIN/$(BINARY)" || true
+	@GOBIN=$$(go env GOBIN); [ -n "$$GOBIN" ] && { rm -f "$$GOBIN/$(BINARY)"; cp $(BUILD_DIR)/$(BINARY) "$$GOBIN/$(BINARY)"; } || true
 
 ## test: Run all tests
 test:
