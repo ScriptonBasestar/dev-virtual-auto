@@ -38,7 +38,7 @@
 - [ ] `backend` and `server` are not both used in the same project
 - [ ] Env names use standard names (dev, test, stg, prd) where applicable
 - [ ] If `provision:` defined, each profile has valid step entries
-- [ ] If `health_checks:` defined, each check has both `start` and `start_hint` (for native services)
+- [ ] If `health_checks:` defined, each check has `start` and/or `start_hint` (no identical duplicates)
 - [ ] If `health_checks:` defined, `start` command uses EXACT `[package] name` from Cargo.toml (NOT directory name — e.g., directory `db-orchestrator-api-rs` but package name may be `db-orchestrator-api`)
 - [ ] If `subprojects:` defined, each subproject `dva.yml` version matches root
 

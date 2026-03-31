@@ -161,13 +161,11 @@ health_checks:
     type: http
     url: http://localhost:8080/health
     start: "cargo run -p db-orchestrator-api"
-    start_hint: "Run: cargo run -p db-orchestrator-api"
     ready_timeout: 60
   worker:
     type: command
     command: "pgrep -f db-orchestrator-worker"
     start: "cargo run -p db-orchestrator-worker"
-    start_hint: "Run: cargo run -p db-orchestrator-worker"
     ready_timeout: 60
 
 interaction:

@@ -114,14 +114,12 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}/healthz"
     start: "cd {workspace} && cargo run -p {exact-package-name}"
-    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
     timeout: 5
     ready_timeout: 120    # Rust compilation needs longer
   worker:
     type: command
     command: "pgrep -f {binary-name}"
     start: "cd {workspace} && cargo run -p {exact-package-name}"
-    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
     timeout: 5
     ready_timeout: 120
 ```
@@ -274,7 +272,6 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}/health"
     start: "go run ./cmd/{binary}"
-    start_hint: "go run ./cmd/{binary}"
     timeout: 5
     ready_timeout: 60     # Go compiles faster than Rust
 
@@ -388,7 +385,6 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}"
     start: "pnpm dev"
-    start_hint: "pnpm dev"
     timeout: 5
     ready_timeout: 30
 

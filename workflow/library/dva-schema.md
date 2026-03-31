@@ -7,7 +7,7 @@
 1. **`modes:` NOT `profiles:`** — Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
-4. **`health_checks`: always provide BOTH `start` and `start_hint`** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is shown to users when auto-start is not available. If you know the start command, always set both.
+4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
@@ -342,23 +342,58 @@ dva up -M native -E stg  # Combined: native mode + staging env
 2. Merge `environment:` vars into compose context
 3. Can combine with `--mode` (both flags applied independently)
 
-## Health Checks — Auto-Start Pattern
+## Health Checks — Start & Hint Patterns
 
-When a service runs natively (not in Docker), define health checks with BOTH `start` and `start_hint`:
+When a service runs natively (not in Docker), use `start` and/or `start_hint` depending on the use case:
+
+### Pattern 1: Auto-start only (most common)
 
 ```yaml
 health_checks:
   api:
     type: http
     url: "http://localhost:11100/health/live"
-    start: "cd my-app && cargo run -p api-server"      # DVA auto-starts this
-    start_hint: "cd my-app && cargo run -p api-server"  # Shown to user
+    start: "cd my-app && cargo run -p api-server"  # DVA auto-starts this
     timeout: 5
-    ready_timeout: 120  # Rust/Go builds need longer timeouts
+    ready_timeout: 120
 ```
 
+DVA runs the command in background, tracks PID, logs to `.sb/dva/logs/{name}.log`. `dva down` kills PID-tracked processes. When the service is starting, `dva status` shows the log path instead of a hint text. If you want a human-readable hint shown when the service is not ready, add `start_hint` with different text (Pattern 2).
+
+### Pattern 2: Auto-start with different hint text
+
+```yaml
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:11100/health/live"
+    start: "cd my-app && cargo run -p api-server"
+    start_hint: "Run the API server from my-app/"  # Friendlier text for dva status
+    timeout: 5
+    ready_timeout: 120
+```
+
+Use this when you want `dva status` to show a human-friendly message that differs from the actual start command.
+
+### Pattern 3: Hint only (no auto-start)
+
+```yaml
+health_checks:
+  external-api:
+    type: http
+    url: "http://localhost:9090/health"
+    start_hint: "Start the external API manually: see docs/setup.md"
+    timeout: 5
+```
+
+No auto-start — DVA only displays the hint text when the service is not ready.
+
+### Rules
+
 - `start` → DVA runs this in background, tracks PID, logs to `.sb/dva/logs/{name}.log`
-- `start_hint` → displayed when `start` is absent or when user runs `dva status`
+- `start_hint` → displayed by `dva status` when the service is not ready
+- If `start` is set without `start_hint`, no hint text is shown (only log path while starting)
+- Setting both to identical values is redundant and triggers a validation warning
 - `dva down` automatically kills PID-tracked processes
 
 ## Interaction Patterns by Project Type

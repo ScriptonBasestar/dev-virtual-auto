@@ -298,6 +298,12 @@ health_checks:
 
 Health checks with `start:` field auto-start the service during `dva up`.
 
+- `start` (optional): DVA auto-start command
+- `start_hint` (optional): human-readable text shown when service is not ready
+- `start_hint` is only needed when it differs from `start` (e.g., friendlier wording)
+- Having both with identical values is redundant — use `start` only in that case
+- Neither field is mandatory
+
 ## Applications
 
 Long-running application processes managed separately from stack services:

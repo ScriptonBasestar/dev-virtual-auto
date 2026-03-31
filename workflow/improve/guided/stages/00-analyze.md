@@ -25,7 +25,7 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - Prefixed command workarounds: `app-build`, `app-clean` (should migrate to `build`/`clean` with `replace:` hooks)
    - Non-standard fields: `host_command`, `compose_up`, `compose_logs` in interaction
    - Missing sections: `modes:`, `environments:`, `checks:`, `env_file:`, `health_checks:`
-   - Missing `start_hint` in health_checks (both `start` and `start_hint` required)
+   - Missing `start` or `start_hint` in health_checks (at least one recommended for native services)
    - Subproject dva.yml files (**flag version mismatches** with root)
    - **Port metadata validation** — Extract default host port from `${VAR:-DEFAULT}` patterns. Cross-reference against dva.yml ports entries. Flag discrepancies.
    - **Development pattern detection** — container-first (Django, Rails) vs hybrid (Rust, Go) vs native (pure library)
@@ -79,7 +79,7 @@ Scan the user's TARGET project to identify existing configurations, docker usage
       version: string
       echo_wrapper_commands: [...]
       missing_sections: [...]
-      missing_start_hint: [health_check_names]
+      missing_start_or_hint: [health_check_names]
       subproject_dvas: [{ path, version, version_mismatch }]
 </output>
 

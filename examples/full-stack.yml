@@ -210,13 +210,11 @@ health_checks:
     type: tcp
     address: "localhost:5432"
     start: "pg_ctl -D /usr/local/var/postgres start"
-    start_hint: "Start PostgreSQL: pg_ctl -D /usr/local/var/postgres start"
     timeout: 3
   redis:
     type: tcp
     address: "localhost:6379"
     start: "redis-server --daemonize yes"
-    start_hint: "Start Redis: redis-server --daemonize yes"
     timeout: 2
   web_server:
     type: http

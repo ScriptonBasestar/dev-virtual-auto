@@ -30,7 +30,7 @@
 - [ ] User-facing ports declared in `endpoints:` section (not `services.ports`)
 
 ### Health Checks
-- [ ] All `health_checks` have both `start:` and `start_hint:`
+- [ ] All `health_checks` have `start:` and/or `start_hint:` (not both with identical values)
 - [ ] Health check URLs use literal values (no `${VAR:-DEFAULT}`)
 
 ### Applications (if project has long-running dev servers)

@@ -11,7 +11,7 @@
 2. **`modes:` required** — Always generate `modes:` for environment selection. Minimum: `infra` + one other (full-stack, hybrid, etc.).
 3. **`default_mode` required** — `dva up` (no mode flag) must start minimal infra only. Never include Redis Sentinel/Cluster, Kafka, monitoring, HA replicas in default mode.
 4. **`version:` field** — Must match the current DVA CLI version. Subproject versions must also match root.
-5. **`health_checks`: BOTH `start` and `start_hint`** — Always include both for native services.
+5. **`health_checks`: `start` and/or `start_hint`** — `start` is the auto-start command (optional). `start_hint` is human-readable hint text shown by `dva status` (optional). If `start` is set, `start_hint` is only needed when it differs from the start command. Do not set both to identical values (validation warning).
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
 7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
@@ -69,7 +69,7 @@
 - [ ] User-facing ports declared in `endpoints:` section (not `services.ports`)
 
 ### Health Checks
-- [ ] All `health_checks` have both `start:` and `start_hint:`
+- [ ] All `health_checks` have `start:` and/or `start_hint:` (not both with identical values)
 - [ ] Health check URLs use literal values (no `${VAR:-DEFAULT}`)
 
 ### Applications (if project has long-running dev servers)
@@ -104,7 +104,7 @@
 1. **`modes:` NOT `profiles:`** — Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
-4. **`health_checks`: always provide BOTH `start` and `start_hint`** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is shown to users when auto-start is not available. If you know the start command, always set both.
+4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
@@ -439,23 +439,58 @@ dva up -M native -E stg  # Combined: native mode + staging env
 2. Merge `environment:` vars into compose context
 3. Can combine with `--mode` (both flags applied independently)
 
-## Health Checks — Auto-Start Pattern
+## Health Checks — Start & Hint Patterns
 
-When a service runs natively (not in Docker), define health checks with BOTH `start` and `start_hint`:
+When a service runs natively (not in Docker), use `start` and/or `start_hint` depending on the use case:
+
+### Pattern 1: Auto-start only (most common)
 
 ```yaml
 health_checks:
   api:
     type: http
     url: "http://localhost:11100/health/live"
-    start: "cd my-app && cargo run -p api-server"      # DVA auto-starts this
-    start_hint: "cd my-app && cargo run -p api-server"  # Shown to user
+    start: "cd my-app && cargo run -p api-server"  # DVA auto-starts this
     timeout: 5
-    ready_timeout: 120  # Rust/Go builds need longer timeouts
+    ready_timeout: 120
 ```
 
+DVA runs the command in background, tracks PID, logs to `.sb/dva/logs/{name}.log`. `dva down` kills PID-tracked processes. When the service is starting, `dva status` shows the log path instead of a hint text. If you want a human-readable hint shown when the service is not ready, add `start_hint` with different text (Pattern 2).
+
+### Pattern 2: Auto-start with different hint text
+
+```yaml
+health_checks:
+  api:
+    type: http
+    url: "http://localhost:11100/health/live"
+    start: "cd my-app && cargo run -p api-server"
+    start_hint: "Run the API server from my-app/"  # Friendlier text for dva status
+    timeout: 5
+    ready_timeout: 120
+```
+
+Use this when you want `dva status` to show a human-friendly message that differs from the actual start command.
+
+### Pattern 3: Hint only (no auto-start)
+
+```yaml
+health_checks:
+  external-api:
+    type: http
+    url: "http://localhost:9090/health"
+    start_hint: "Start the external API manually: see docs/setup.md"
+    timeout: 5
+```
+
+No auto-start — DVA only displays the hint text when the service is not ready.
+
+### Rules
+
 - `start` → DVA runs this in background, tracks PID, logs to `.sb/dva/logs/{name}.log`
-- `start_hint` → displayed when `start` is absent or when user runs `dva status`
+- `start_hint` → displayed by `dva status` when the service is not ready
+- If `start` is set without `start_hint`, no hint text is shown (only log path while starting)
+- Setting both to identical values is redundant and triggers a validation warning
 - `dva down` automatically kills PID-tracked processes
 
 ## Interaction Patterns by Project Type
@@ -996,14 +1031,12 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}/healthz"
     start: "cd {workspace} && cargo run -p {exact-package-name}"
-    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
     timeout: 5
     ready_timeout: 120    # Rust compilation needs longer
   worker:
     type: command
     command: "pgrep -f {binary-name}"
     start: "cd {workspace} && cargo run -p {exact-package-name}"
-    start_hint: "cd {workspace} && cargo run -p {exact-package-name}"
     timeout: 5
     ready_timeout: 120
 ```
@@ -1156,7 +1189,6 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}/health"
     start: "go run ./cmd/{binary}"
-    start_hint: "go run ./cmd/{binary}"
     timeout: 5
     ready_timeout: 60     # Go compiles faster than Rust
 
@@ -1270,7 +1302,6 @@ health_checks:
     type: http
     url: "http://localhost:{PORT}"
     start: "pnpm dev"
-    start_hint: "pnpm dev"
     timeout: 5
     ready_timeout: 30
 

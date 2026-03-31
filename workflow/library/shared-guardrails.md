@@ -9,7 +9,7 @@
 2. **`modes:` required** — Always generate `modes:` for environment selection. Minimum: `infra` + one other (full-stack, hybrid, etc.).
 3. **`default_mode` required** — `dva up` (no mode flag) must start minimal infra only. Never include Redis Sentinel/Cluster, Kafka, monitoring, HA replicas in default mode.
 4. **`version:` field** — Must match the current DVA CLI version. Subproject versions must also match root.
-5. **`health_checks`: BOTH `start` and `start_hint`** — Always include both for native services.
+5. **`health_checks`: `start` and/or `start_hint`** — `start` is the auto-start command (optional). `start_hint` is human-readable hint text shown by `dva status` (optional). If `start` is set, `start_hint` is only needed when it differs from the start command. Do not set both to identical values (validation warning).
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
 7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
