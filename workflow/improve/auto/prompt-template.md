@@ -83,6 +83,8 @@ DVA interaction의 `command:` 필드에는 이 실제 명령을 사용하세요 
 ```
 
 ### 4. 환경 변수
+아래에는 감지된 env 파일 목록, 변수명 비교, 누락 변수 경고가 포함됩니다.
+`.env`에 누락된 변수가 있으면 compose 파일에서 `${VAR:?msg}` 패턴 사용 시 `dva up` 실행이 실패합니다.
 ```text
 %s
 ```
@@ -278,6 +280,14 @@ suggestion_ignore:
 
 ## 8. Compose 설정 제안
 서브프로젝트에 Docker Compose 파일이 없거나 부족한 경우, dva.yml 상단 주석에 `# TODO: ...` 형태로 제안하세요.
+
+## 9. 환경 변수 완비 검사 (MANDATORY)
+Phase 1 §4 "환경 변수"에 `.env` 누락 변수 경고(⚠)가 있으면 반드시 대응하세요:
+
+1. **`.env` 파일이 없는 경우**: `provision.default` 스텝에 `cp .env.example .env` 추가, `checks`에 `.env` file_exists + fix_hint 추가
+2. **`.env`에 누락 변수가 있는 경우**: `provision.default` 첫 번째 스텝에 `.env.example`에서 누락 변수를 보충하는 명령 추가 (예: `cp .env.example .env` 또는 `grep -v '^#' .env.example >> .env && sort -u -t= -k1,1 .env -o .env`)
+3. **compose 파일에서 `${VAR:?msg}` 패턴으로 필수 변수를 사용하는 경우**: `checks`에서 `.env` 존재 여부 검증 + `fix_hint` 안내
+4. `checks` 섹션의 `.env` 검사에 `fix_hint: "cp .env.example .env"` 추가 (없으면 생성)
 
 ---
 

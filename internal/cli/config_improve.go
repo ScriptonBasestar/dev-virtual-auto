@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"bufio"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -449,7 +451,7 @@ func detectMakeTargetsSummary() string {
 
 func detectEnvSummary() string {
 	envFiles := []string{}
-	for _, f := range []string{".env.example", ".env"} {
+	for _, f := range []string{".env.example", ".env", ".env.local", ".env.dev"} {
 		if _, err := os.Stat(f); err == nil {
 			envFiles = append(envFiles, f)
 		}
@@ -457,7 +459,78 @@ func detectEnvSummary() string {
 	if len(envFiles) == 0 {
 		return "None"
 	}
-	return strings.Join(envFiles, ", ")
+
+	var sb strings.Builder
+	sb.WriteString("Files: " + strings.Join(envFiles, ", ") + "\n")
+
+	// Extract variable names from each env file for comparison
+	exampleVars := extractEnvVarNames(".env.example")
+	dotenvVars := extractEnvVarNames(".env")
+
+	if len(exampleVars) > 0 {
+		sb.WriteString(fmt.Sprintf("\n.env.example variables (%d): %s\n", len(exampleVars), strings.Join(exampleVars, ", ")))
+	}
+	if len(dotenvVars) > 0 {
+		sb.WriteString(fmt.Sprintf(".env variables (%d): %s\n", len(dotenvVars), strings.Join(dotenvVars, ", ")))
+	}
+
+	// Show missing variables (.env.example has but .env doesn't)
+	if len(exampleVars) > 0 {
+		dotenvSet := make(map[string]bool, len(dotenvVars))
+		for _, v := range dotenvVars {
+			dotenvSet[v] = true
+		}
+		var missing []string
+		for _, v := range exampleVars {
+			if !dotenvSet[v] {
+				missing = append(missing, v)
+			}
+		}
+		if len(missing) > 0 {
+			sb.WriteString(fmt.Sprintf("\n⚠ .env MISSING variables (defined in .env.example but not in .env): %s\n", strings.Join(missing, ", ")))
+			sb.WriteString("  → Compose will fail if these are required (e.g., ${VAR:?msg} syntax)\n")
+		} else if len(dotenvVars) > 0 {
+			sb.WriteString("\n✅ .env covers all variables from .env.example\n")
+		}
+	}
+
+	// Warn if .env.example exists but .env doesn't
+	if len(exampleVars) > 0 && len(dotenvVars) == 0 {
+		if _, err := os.Stat(".env"); os.IsNotExist(err) {
+			sb.WriteString("\n⚠ .env file does NOT exist — must be created from .env.example before dva up\n")
+		}
+	}
+
+	return sb.String()
+}
+
+// extractEnvVarNames reads an env file and returns sorted variable names (KEY from KEY=VALUE lines).
+func extractEnvVarNames(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+
+	var vars []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if idx := strings.IndexByte(line, '='); idx > 0 {
+			key := strings.TrimSpace(line[:idx])
+			// Skip export prefix
+			key = strings.TrimPrefix(key, "export ")
+			key = strings.TrimSpace(key)
+			if key != "" {
+				vars = append(vars, key)
+			}
+		}
+	}
+	sort.Strings(vars)
+	return vars
 }
 
 func init() {
