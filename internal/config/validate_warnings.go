@@ -211,6 +211,7 @@ var heavyInfraTags = map[string]bool{
 	"monitoring": true,
 	"storage":    true,
 	"kafka":      true,
+	"queue":      true,
 	"search":     true,
 }
 
