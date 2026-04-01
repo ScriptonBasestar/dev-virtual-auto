@@ -29,32 +29,39 @@
 #### init (config init)
 
 ```bash
-dva config init              # 자동 감지 기반 dva.yml 생성
-dva init                     # 위와 동일 (backward compat alias)
-dva config init -t node      # 템플릿 지정 (minimal, rails, node, python, go)
-dva config init -p           # LLM용 프롬프트 출력
-dva config init --ai         # Claude Code CLI로 dva.yml 자동 생성
-dva config init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
-dva config init -v           # AI 생성 시 상세 진행 표시
+dva config init                  # 자동 감지 기반 dva.yml 생성
+dva init                         # 위와 동일 (backward compat alias)
+dva config init -t node          # 템플릿 지정 (minimal, rails, node, python, go)
+dva config init --recursive      # 서브프로젝트에도 dva.yml 생성
 dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
-dva config init --all        # 자동 감지 시 가능한 모든 기능 통합 활성화
+dva config init --all            # 가능한 모든 기능 통합 활성화 (devcontainer 등)
 ```
+
+생성 후 `dva config improve`로 AI 기반 최적화를 실행할 수 있습니다.
 
 #### config improve
 
 ```bash
-dva config improve           # Claude Code CLI로 개선 실행 (기본)
-dva config improve --print   # 프롬프트만 stdout 출력 (수동 빧여넣기용)
-dva config improve --docs-only  # CLAUDE.md/AGENTS.md만 갱신 (dva.yml 미변경)
+dva config improve                # Claude Code CLI로 개선 실행 (기본)
+dva config improve --print        # 프롬프트만 stdout 출력 (수동 붙여넣기용)
+dva config improve --docs-only    # CLAUDE.md/AGENTS.md만 갱신 (dva.yml 미변경)
+dva config improve --rewrite      # dva.yml을 처음부터 재작성
+dva config improve --interactive  # Claude Code 인터랙티브 모드 (세션 유지)
+dva config improve --recursive    # 서브프로젝트 dva.yml도 함께 개선
+dva config improve --model MODEL  # AI 모델 지정
+dva config improve -v             # 상세 진행 표시
 ```
+
+`--print`, `--docs-only`, `--interactive`는 상호 배타적입니다 (먼저 매칭된 것이 실행).
+`--interactive`와 `--recursive`는 동시 사용 불가합니다.
 
 #### run
 
 ```bash
 dva run shell             # interaction 커맨드 실행
 dva shell                 # 위와 동일 (run 생략)
-dva run -e test           # --dry-run 별칭으로 실행 계획 표시
-dva run -p 8080:80 web    # 포트 퍼블리시
+dva run -e test           # --explain: --dry-run 별칭으로 실행 계획 표시
+dva run -p 8080:80 web    # --publish: 포트 퍼블리시
 dva run --project api test  # 서브프로젝트 커맨드 실행
 dva api:test              # 위와 동일 (namespace 문법)
 ```
@@ -195,7 +202,7 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
 | `dva config validate` | dva.yml 스키마 + 시맨틱 검증 |
-| `dva doctor` | 환경 사전조건 및 설정 문제 진단 |
+| `dva doctor` | 환경 사전조건 및 설정 문제 진단 (`--fix` 자동 수정) |
 
 #### provision
 
@@ -205,11 +212,29 @@ dva provision setup       # 특정 프로필 실행
 dva provision --list      # 사용 가능한 프로필 목록
 ```
 
+#### doctor
+
+```bash
+dva doctor                # 환경 사전조건 체크 (Docker, compose 파일, .env 등)
+dva doctor --fix          # 수정 가능한 문제 자동 해결
+dva doctor --json         # JSON 출력
+```
+
+빌트인 체크 항목:
+- Docker 소켓 권한 및 데몬 접근 가능 여부
+- Compose 파일 존재 여부 및 project name 정합성
+- `.env` 파일 존재 여부
+- Stack 엔트리 참조 파일 존재 여부
+- `.sb/dva/`가 `.gitignore`에 포함되어 있는지
+- devcontainer 설정 시 `devcontainer.json` 존재 여부
+- `dva.yml`의 `checks` 섹션에 정의된 사용자 커스텀 체크
+
 #### config validate
 
 ```bash
-dva config validate       # 스키마 + 시맨틱 검증
-dva config validate --fix # compose 파일 project name 불일치 자동 수정
+dva config validate          # 스키마 + 시맨틱 검증
+dva config validate --fix    # compose 파일 project name 불일치 자동 수정
+dva config validate --strict # drift 경고 시에도 검증 실패 처리
 ```
 
 스키마 검증 외에 13개 시맨틱 경고를 검사합니다:
@@ -432,10 +457,11 @@ subprojects:
 
 DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제공합니다.
 
-- `dva config init --ai` — Claude Code CLI로 dva.yml 자동 생성
-- `dva config init -p` — LLM에게 전달할 프롬프트 출력
-- `dva config improve --print` — 기존 dva.yml 개선용 프롬프트 출력
+- `dva config improve` — Claude Code CLI로 dva.yml AI 개선
+- `dva config improve --print` — 기존 dva.yml 개선용 프롬프트 출력 (수동 붙여넣기용)
 - `dva config improve --docs-only` — CLAUDE.md/AGENTS.md만 갱신
+- `dva config improve --interactive` — Claude Code 인터랙티브 모드 (세션 유지)
+- `dva config improve --rewrite` — dva.yml을 처음부터 재작성
 - `dva manifest` — 구조화된 커맨드 매니페스트 (JSON/YAML)
 - `dva config show` — 병합된 최종 설정 출력
 - `--json` 글로벌 플래그 — 모든 출력을 JSON으로
