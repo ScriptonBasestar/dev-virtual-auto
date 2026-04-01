@@ -13,11 +13,12 @@ import (
 
 var appCmd = &cobra.Command{
 	Use:   "app [command]",
-	Short: "Manage application lifecycle (ls, build, stop, restart, log)",
+	Short: "Manage application lifecycle (ls, start, build, stop, restart, log)",
 	Long: `Manage application processes defined in the 'applications' section of dva.yml.
 
-Use subcommands to list status, build, stop, restart, and view logs of applications.`,
+Use subcommands to list status, start, build, stop, restart, and view logs of applications.`,
 	Example: `  dva app ls              # List all applications and their status
+  dva app start myapp     # Start a specific application
   dva app build myapp     # Build a specific application
   dva app stop myapp      # Stop a specific application
   dva app restart myapp   # Restart a specific application
@@ -57,6 +58,31 @@ var appStopCmd = &cobra.Command{
 		am := lifecycle.NewAppManager(c, e)
 		am.StopApps(args...)
 		return nil
+	},
+}
+
+var appStartCmd = &cobra.Command{
+	Use:   "start [APP...]",
+	Short: "Start applications (all if no name given)",
+	DisableFlagParsing: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+
+		if len(c.Applications) == 0 {
+			return fmt.Errorf("no applications defined in dva.yml")
+		}
+
+		mode, _, _, _, args := parseDvaFlags(args)
+		mode, _ = applyDefaultMode(c, mode)
+
+		am := lifecycle.NewAppManager(c, e)
+		return am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
+			Names:   args,
+			DevMode: true,
+			Wait:    true,
+			Mode:    mode,
+		})
 	},
 }
 
@@ -123,6 +149,7 @@ var appBuildCmd = &cobra.Command{
 
 func init() {
 	appCmd.AddCommand(appLsCmd)
+	appCmd.AddCommand(appStartCmd)
 	appCmd.AddCommand(appStopCmd)
 	appCmd.AddCommand(appRestartCmd)
 	appCmd.AddCommand(appBuildCmd)
