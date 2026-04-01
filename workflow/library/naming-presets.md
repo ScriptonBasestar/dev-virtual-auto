@@ -31,7 +31,7 @@
 | **Tier 1: Core Data** | 앱 실행에 필수 — 없으면 API가 시작 불가 | `data` | postgres, mysql, redis, memcached | **포함** |
 | **Tier 2: Event/Queue** | 비동기 처리에 필요 — API는 없어도 동작 가능 | `kafka`, `queue` | kafka, rabbitmq, nats, pulsar | **제외** (worker 모드에) |
 | **Tier 3: Observability** | 모니터링/추적 — 기능과 무관 | `monitoring` | prometheus, grafana, jaeger, alertmanager, loki, tempo | **제외** (full-stack에) |
-| **Tier 4: Storage** | 백업/파일 저장 — 대부분의 개발 흐름에 불필요 | `storage` | minio, s3, elasticsearch | **제외** (full-stack에) |
+| **Tier 4: Storage** | 백업/파일 저장 — 대부분의 개발 흐름에 불필요 | `storage` | minio, elasticsearch | **제외** (full-stack에) |
 
 **판단 기준:**
 1. 이 서비스 없이 `cargo run` / `go run` / `npm start`로 앱이 시작되는가?
