@@ -9,11 +9,11 @@ status: todo
 
 ## 범위
 
-- `warnChildOverridesParentCritical()` 함수 구현
-- `warnDeepSubcommandNesting()` 함수 구현
-- `warnUnreachableCommands()` 함수 구현 
-- `ValidateWarnings()` 연동
-- 관련 단위 테스트 추가
+- [x] `warnChildOverridesParentCritical()` 함수 구현
+- [x] `warnDeepSubcommandNesting()` 함수 구현
+- [x] `warnUnreachableCommands()` 함수 구현 
+- [x] `ValidateWarnings()` 연동
+- [x] 관련 단위 테스트 추가
 
 ## 참조
 - `tasks/_archive/interaction-inheritance-semantics.md`
