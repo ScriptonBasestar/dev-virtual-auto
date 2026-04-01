@@ -186,20 +186,21 @@ func Execute() {
 		errMsg := err.Error()
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 
-		// Suggest similar commands if unknown command
-		if len(args) > 0 && !isFlag(args[0]) {
+		// Only suggest similar commands for unknown/unrecognized commands, not execution failures
+		if len(args) > 0 && !isFlag(args[0]) && strings.Contains(errMsg, "unknown command") {
 			if suggestions := suggestCommands(args[0]); len(suggestions) > 0 {
 				fmt.Fprintf(os.Stderr, "\nDid you mean?\n")
 				for _, s := range suggestions {
 					fmt.Fprintf(os.Stderr, "  dva %s\n", s)
 				}
 			}
-
-			// Hint for dva init if no config found
-			if strings.Contains(errMsg, "could not find dva.yml") {
-				fmt.Fprintf(os.Stderr, "\nHint: run 'dva init' to create a dva.yml\n")
-			}
 		}
+
+		// Hint for dva init if no config found
+		if strings.Contains(errMsg, "could not find dva.yml") {
+			fmt.Fprintf(os.Stderr, "\nHint: run 'dva init' to create a dva.yml\n")
+		}
+
 		os.Exit(1)
 	}
 }

@@ -91,17 +91,7 @@ var statusCmd = &cobra.Command{
 		}
 
 		if len(c.Endpoints) > 0 {
-			var allHC []HealthCheckResult
-			if statusErr == nil {
-				for _, entry := range status.Entries {
-					for _, h := range entry.Health {
-						allHC = append(allHC, HealthCheckResult{
-							Name:  h.Name,
-							Ready: h.Ready,
-						})
-					}
-				}
-			}
+			allHC := checkEndpointHealth(c.Endpoints)
 			printEndpointTable(c.Endpoints, nil, allHC)
 		}
 
