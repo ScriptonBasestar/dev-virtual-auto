@@ -26,12 +26,16 @@
 - 향후 `stack_overrides` 같은 기능을 도입하려면 공통 merge semantics가 먼저 정리되어야 합니다.
 - 현재 병합 규칙이 문서화되어 있지 않아 사용자와 구현 모두 예측 가능성이 낮습니다.
 
-## 결정해야 할 것
+## 결정 사항
 
-- 어떤 top-level 섹션을 deep merge 대상으로 볼지
-- 어떤 필드는 scalar override, append, replace, merge 중 무엇으로 처리할지
-- `stack`와 `interaction` 내부 구조에서 nil/empty의 의미를 어떻게 정의할지
-- backward compatibility를 유지할지, 일부 케이스에서만 새 semantics를 허용할지
+다음 규칙으로 결정됨 (상세: `docs/30-config-merge-semantics.md`):
+
+- **기본 원칙**: map은 key별 deep merge, list는 replace, scalar는 replace
+- **nil/empty**: absent=상위값 유지, 명시적 빈값(`[]`, `""`, `{}`)=비움
+- **deep merge 대상**: `stack`, `interaction`, `modes`, `environments`, `applications`, `health_checks`, `endpoints` — 같은 key의 엔트리 내부 필드까지 재귀 merge
+- **override 금지 필드**: `stack.*.plugin`, `interaction.*.runner` — 변경 시 hard error
+- **기존 동작 유지**: `checks`는 append, `devcontainer`/`env_file`은 통째 교체
+- **하위호환**: 기존에 전체 엔트리를 다시 쓰던 사용자는 동작 차이 없음
 
 ## 범위
 
@@ -64,8 +68,14 @@
 
 ## 체크리스트
 
-- [ ] base/module/override merge 우선순위가 명시되어 있다.
-- [ ] nil과 empty collection의 의미가 정리되어 있다.
-- [ ] backward compatibility 위험이 적혀 있다.
-- [ ] 필요한 테스트 케이스 목록이 적혀 있다.
-- [ ] 문서 반영 대상 파일이 정리되어 있다.
+- [x] base/module/override merge 우선순위가 명시되어 있다. → `docs/30-config-merge-semantics.md`
+- [x] nil과 empty collection의 의미가 정리되어 있다. → `docs/30-config-merge-semantics.md`
+- [x] backward compatibility 위험이 적혀 있다. → `docs/30-config-merge-semantics.md`
+- [x] 필요한 테스트 케이스 목록이 적혀 있다. → `internal/config/merge_test.go`
+- [x] 문서 반영 대상 파일이 정리되어 있다.
+
+## 구현 대상 파일
+
+- `internal/config/config.go` — `mergeFrom()` deep merge 구현
+- `internal/config/merge.go` — deep merge 헬퍼 함수 (신규)
+- `internal/config/merge_test.go` — merge semantics 테스트 (신규)

@@ -29,14 +29,18 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 				if err != nil {
 					return nil, fmt.Errorf("loading subproject %q module %q: %w", name, mod, err)
 				}
-				cfg.mergeFrom(modCfg)
+				if err := cfg.mergeFrom(modCfg); err != nil {
+					return nil, fmt.Errorf("merging subproject %q module %q: %w", name, mod, err)
+				}
 			}
 		}
 
 		// Load sub-project override
 		overrideFile := filepath.Join(subPath, "dva.override.yml")
 		if overCfg, err := loadFile(overrideFile); err == nil {
-			cfg.mergeFrom(overCfg)
+			if err := cfg.mergeFrom(overCfg); err != nil {
+				return nil, fmt.Errorf("merging subproject %q override: %w", name, err)
+			}
 		}
 
 		result[name] = cfg

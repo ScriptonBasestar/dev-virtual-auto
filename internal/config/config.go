@@ -416,14 +416,18 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 			if len(modCfg.Modules) > 0 {
 				return nil, fmt.Errorf("nested modules are not supported")
 			}
-			cfg.mergeFrom(modCfg)
+			if err := cfg.mergeFrom(modCfg); err != nil {
+				return nil, fmt.Errorf("merging module %q: %w", mod, err)
+			}
 		}
 	}
 
 	// Load override (if exists)
 	overrideFile := strings.TrimSuffix(filePath, ".yml") + ".override.yml"
 	if overCfg, err := loadFile(overrideFile); err == nil {
-		cfg.mergeFrom(overCfg)
+		if err := cfg.mergeFrom(overCfg); err != nil {
+			return nil, fmt.Errorf("merging override: %w", err)
+		}
 	}
 
 	// Apply defaults
@@ -515,30 +519,38 @@ func loadFile(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// mergeFrom merges another config into this one (other values take precedence
-// for top-level scalars; maps are deep-merged).
-func (c *Config) mergeFrom(other *Config) {
-	// Merge environment
-	if other.Environment != nil {
-		if c.Environment == nil {
-			c.Environment = make(map[string]string)
-		}
-		for k, v := range other.Environment {
-			c.Environment[k] = v
-		}
-	}
+// mergeFrom merges another config into this one.
+//
+// Merge semantics (see docs/30-config-merge-semantics.md):
+//   - map sections: key-level deep merge (entries are field-merged, not replaced)
+//   - list fields: replace (later layer wins entirely)
+//   - scalar fields: replace (non-zero later value wins)
+//   - nil/absent: inherits from base; explicit empty clears
+//
+// Returns an error if a restricted field override is attempted.
+func (c *Config) mergeFrom(other *Config) error {
+	// environment: map merge (key-level)
+	c.Environment = mergeStringMap(c.Environment, other.Environment)
 
-	// Merge interaction
+	// interaction: deep merge per entry
 	if other.Interaction != nil {
 		if c.Interaction == nil {
 			c.Interaction = make(map[string]*InteractionCommand)
 		}
 		for k, v := range other.Interaction {
-			c.Interaction[k] = v
+			if existing, ok := c.Interaction[k]; ok {
+				merged, err := mergeInteractionCommand(existing, v)
+				if err != nil {
+					return fmt.Errorf("interaction %q: %w", k, err)
+				}
+				c.Interaction[k] = merged
+			} else {
+				c.Interaction[k] = v
+			}
 		}
 	}
 
-	// Merge provision
+	// provision: scalar replace + map key-level replace (profiles are step lists)
 	if other.Provision.DefaultProfile != "" {
 		c.Provision.DefaultProfile = other.Provision.DefaultProfile
 	}
@@ -551,27 +563,35 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge health checks
+	// health_checks: deep merge per entry (struct fields replace individually)
 	if other.HealthChecks != nil {
 		if c.HealthChecks == nil {
 			c.HealthChecks = make(map[string]HealthCheckConfig)
 		}
 		for k, v := range other.HealthChecks {
-			c.HealthChecks[k] = v
+			if existing, ok := c.HealthChecks[k]; ok {
+				c.HealthChecks[k] = mergeHealthCheckConfig(existing, v)
+			} else {
+				c.HealthChecks[k] = v
+			}
 		}
 	}
 
-	// Merge endpoints
+	// endpoints: deep merge per entry
 	if other.Endpoints != nil {
 		if c.Endpoints == nil {
 			c.Endpoints = make(map[string]EndpointConfig)
 		}
 		for k, v := range other.Endpoints {
-			c.Endpoints[k] = v
+			if existing, ok := c.Endpoints[k]; ok {
+				c.Endpoints[k] = mergeEndpointConfig(existing, v)
+			} else {
+				c.Endpoints[k] = v
+			}
 		}
 	}
 
-	// Merge infra
+	// infra: key-level replace (simple struct)
 	if other.Infra != nil {
 		if c.Infra == nil {
 			c.Infra = make(map[string]InfraConfig)
@@ -581,42 +601,55 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge default_mode
+	// default_mode: scalar replace
 	if other.DefaultMode != "" {
 		c.DefaultMode = other.DefaultMode
 	}
 
-	// Merge modes
+	// modes: deep merge per entry
 	if other.Modes != nil {
 		if c.Modes == nil {
 			c.Modes = make(map[string]ModeConfig)
 		}
 		for k, v := range other.Modes {
-			c.Modes[k] = v
+			if existing, ok := c.Modes[k]; ok {
+				c.Modes[k] = mergeModeConfig(existing, v)
+			} else {
+				c.Modes[k] = v
+			}
 		}
 	}
 
-	// Merge environments
+	// environments: deep merge per entry
 	if other.Environments != nil {
 		if c.Environments == nil {
 			c.Environments = make(map[string]EnvironmentProfile)
 		}
 		for k, v := range other.Environments {
-			c.Environments[k] = v
+			if existing, ok := c.Environments[k]; ok {
+				c.Environments[k] = mergeEnvironmentProfile(existing, v)
+			} else {
+				c.Environments[k] = v
+			}
 		}
 	}
 
-	// Merge ssh
+	// ssh: scalar replace
 	if other.Ssh.AgentImage != "" {
 		c.Ssh.AgentImage = other.Ssh.AgentImage
 	}
 
-	// Merge env_file (override takes precedence as a whole)
+	// suggestion_ignore: list replace
+	if other.SuggestionIgnore != nil {
+		c.SuggestionIgnore = other.SuggestionIgnore
+	}
+
+	// env_file: replace as a whole
 	if other.EnvFile != nil {
 		c.EnvFile = other.EnvFile
 	}
 
-	// Merge subprojects
+	// subprojects: key-level replace (simple struct)
 	if other.Subprojects != nil {
 		if c.Subprojects == nil {
 			c.Subprojects = make(map[string]SubprojectConfig)
@@ -626,35 +659,54 @@ func (c *Config) mergeFrom(other *Config) {
 		}
 	}
 
-	// Merge stack entries (map merge, key=name)
+	// stack: deep merge per entry
 	if len(other.Stack) > 0 {
 		if c.Stack == nil {
 			c.Stack = make(map[string]*LifecycleEntry)
 		}
 		for k, v := range other.Stack {
-			c.Stack[k] = v
+			// Resolve deferred plugin from entry name before merge
+			v.Name = k
+			if err := v.ResolvePluginFromName(); err != nil {
+				return err
+			}
+			if existing, ok := c.Stack[k]; ok {
+				merged, err := mergeLifecycleEntry(existing, v)
+				if err != nil {
+					return err
+				}
+				c.Stack[k] = merged
+			} else {
+				c.Stack[k] = v
+			}
 		}
 	}
 
-	// Merge applications
+	// applications: deep merge per entry
 	if other.Applications != nil {
 		if c.Applications == nil {
 			c.Applications = make(map[string]*ApplicationConfig)
 		}
 		for k, v := range other.Applications {
-			c.Applications[k] = v
+			if existing, ok := c.Applications[k]; ok {
+				c.Applications[k] = mergeApplicationConfig(existing, v)
+			} else {
+				c.Applications[k] = v
+			}
 		}
 	}
 
-	// Merge doctor checks
+	// doctor checks: append (existing behavior preserved)
 	if len(other.DoctorChecks) > 0 {
 		c.DoctorChecks = append(c.DoctorChecks, other.DoctorChecks...)
 	}
 
-	// Merge devcontainer (override takes precedence as a whole)
+	// devcontainer: replace as a whole
 	if other.Devcontainer != nil {
 		c.Devcontainer = other.Devcontainer
 	}
+
+	return nil
 }
 
 // isVersionCompatible checks if current DVA version >= required version.
