@@ -37,7 +37,10 @@
 - [ ] App servers (API, workers, web) declared in `applications:` section
 - [ ] Each app has at least `run:` or `dev:` exec path defined
 - [ ] Apps with HTTP endpoints have `health:` block
+- [ ] Apps with listening ports declare `port:` field (shown by `dva app ls`)
 - [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
+- [ ] `depends_on` has no circular references (cycles are handled but should be avoided)
+- [ ] `dir:` is set when app working directory differs from config root
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`

@@ -173,49 +173,58 @@ DVA-specific flags:
 	},
 }
 
+// teardownCommon resolves mode, applies env, and returns the parsed flags
+// for both down and stop commands. verb is "down" or "stop" for error messages.
+func teardownCommon(args []string, verb string) (*config.Config, *config.Environment, string, []string, []string, error) {
+	c := mustLoadConfig()
+	e := loadEnv(c)
+
+	mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
+	mode, isDefault := applyDefaultMode(c, mode)
+
+	if len(remaining) > 0 {
+		return nil, nil, "", nil, nil, fmt.Errorf("'dva %s' %ss all services. Use 'dva stack %s %s' or 'dva app %s %s' for selective %s",
+			verb, verb, verb, remaining[0], verb, remaining[0], verb)
+	}
+
+	if err := applyEnv(e, c, envName); err != nil {
+		return nil, nil, "", nil, nil, err
+	}
+
+	rm, err := resolveMode(c, mode)
+	if err != nil {
+		return nil, nil, "", nil, nil, err
+	}
+	if rm.Mode != nil {
+		if isDefault {
+			fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
+		} else {
+			fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
+		}
+		if len(rm.Mode.Environment) > 0 {
+			e.MergeVars(rm.Mode.Environment)
+		}
+	}
+
+	return c, e, mode, includeTags, excludeTags, nil
+}
+
 var downCmd = &cobra.Command{
 	Use:                "down [OPTIONS]",
 	Short:              "Stop and remove applications then stack infrastructure",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := mustLoadConfig()
-		e := loadEnv(c)
-
-		mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
-		mode, isDefault := applyDefaultMode(c, mode)
-
-		// dva down is an "all services" shortcut — use dva stack down <name> for selective teardown
-		if len(remaining) > 0 {
-			return fmt.Errorf("'dva down' tears down all services. Use 'dva stack down %s' or 'dva app down %s' for selective teardown",
-				remaining[0], remaining[0])
-		}
-
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
-		}
-
-		rm, err := resolveMode(c, mode)
+		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "down")
 		if err != nil {
 			return err
 		}
-		if rm.Mode != nil {
-			if isDefault {
-				fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
-			} else {
-				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
-			}
-			if len(rm.Mode.Environment) > 0 {
-				e.MergeVars(rm.Mode.Environment)
-			}
-		}
+		_, envName, _, _, _ := parseDvaFlags(args)
 
-		// Phase 1: App down first (apps depend on infra)
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
 			am.DownApps()
 		}
 
-		// Phase 2: Stack down (infrastructure)
 		orch := lifecycle.NewOrchestrator(c, e)
 		return orch.Down(context.Background(), lifecycle.DownOptions{
 			DryRun:      dryRun,
@@ -232,44 +241,17 @@ var stopCmd = &cobra.Command{
 	Short:              "Stop applications and stack without removing resources",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := mustLoadConfig()
-		e := loadEnv(c)
-
-		mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
-		mode, isDefault := applyDefaultMode(c, mode)
-
-		// dva stop is an "all services" shortcut — use dva stack stop <name> for selective stop
-		if len(remaining) > 0 {
-			return fmt.Errorf("'dva stop' stops all services. Use 'dva stack stop %s' or 'dva app stop %s' for selective stop",
-				remaining[0], remaining[0])
-		}
-
-		if err := applyEnv(e, c, envName); err != nil {
-			return err
-		}
-
-		rm, err := resolveMode(c, mode)
+		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "stop")
 		if err != nil {
 			return err
 		}
-		if rm.Mode != nil {
-			if isDefault {
-				fmt.Fprintf(os.Stderr, "[mode: %s (default)]\n", mode)
-			} else {
-				fmt.Fprintf(os.Stderr, "[mode: %s]\n", mode)
-			}
-			if len(rm.Mode.Environment) > 0 {
-				e.MergeVars(rm.Mode.Environment)
-			}
-		}
+		_, envName, _, _, _ := parseDvaFlags(args)
 
-		// Phase 1: App halt first (apps depend on infra)
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
 			am.HaltApps()
 		}
 
-		// Phase 2: Stack stop (infrastructure)
 		orch := lifecycle.NewOrchestrator(c, e)
 		return orch.Stop(context.Background(), lifecycle.StopOptions{
 			DryRun:      dryRun,
@@ -390,7 +372,7 @@ var cleanCmd = &cobra.Command{
 			}
 			fmt.Fprintf(os.Stderr, "%s.\nContinue? [y/N] ", msg)
 			var answer string
-			fmt.Scanln(&answer)
+			_, _ = fmt.Scanln(&answer)
 			answer = strings.ToLower(strings.TrimSpace(answer))
 			if answer != "y" && answer != "yes" {
 				fmt.Println("Aborted.")

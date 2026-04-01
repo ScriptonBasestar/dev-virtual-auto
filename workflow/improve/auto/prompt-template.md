@@ -11,7 +11,7 @@
 ## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
 다음 이름은 DVA 내장 커맨드로 예약되어 있습니다. `interaction:` 키로 사용하면 validation 에러가 발생합니다:
 
-**사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`
+**사용 금지**: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`
 
 **네임스페이스 prefix도 금지**: 예약 커맨드 이름을 콜론 앞 prefix로 사용하면 안 됩니다.
 - ❌ `app:build`, `app:run`, `app:clean` (prefix `app`이 예약 커맨드)

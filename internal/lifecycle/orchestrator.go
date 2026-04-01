@@ -28,8 +28,8 @@ type UpOptions struct {
 // DownOptions configures orchestrator Down behavior.
 type DownOptions struct {
 	DryRun       bool
-	Volumes      bool // also remove named volumes
-	RemoveImages bool // also remove locally built images
+	Volumes      bool     // also remove named volumes
+	RemoveImages bool     // also remove locally built images
 	Names        []string // specific stack entry names (empty = all)
 	IncludeTags  []string
 	ExcludeTags  []string
@@ -71,7 +71,10 @@ func NewOrchestrator(cfg *config.Config, env *config.Environment) *Orchestrator 
 
 // Up starts all matching lifecycle entries in order.
 func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
-	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	if err != nil {
+		return err
+	}
 	if len(filtered) == 0 {
 		fmt.Fprintln(os.Stderr, "[warn] no lifecycle entries matched filters")
 		return nil
@@ -152,10 +155,12 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	// Stop native processes
 	o.stopModeProcesses(opts.Mode)
 
-	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	if err != nil {
+		return err
+	}
 
 	// Reverse order for teardown
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -192,10 +197,12 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	// Halt native mode processes (SIGTERM, PID files preserved for restart)
 	o.haltModeProcesses(opts.Mode)
 
-	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	if err != nil {
+		return err
+	}
 
 	// Reverse order
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -278,7 +285,8 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 }
 
 // filterEntries returns lifecycle entries matching the given name, tag, mode, and env filters.
-func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, mode, env string) []config.LifecycleEntry {
+// It also applies StackOverrides for the given environment if configured.
+func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, mode, env string) ([]config.LifecycleEntry, error) {
 	entries := o.entries
 
 	// Filter by explicit entry names
@@ -360,7 +368,22 @@ func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, m
 		entries = filtered
 	}
 
-	return entries
+	// Apply overrides after filtering is complete
+	if env != "" {
+		if ep, ok := o.cfg.Environments[env]; ok && len(ep.StackOverrides) > 0 {
+			for i := range entries {
+				if override, exists := ep.StackOverrides[entries[i].Name]; exists {
+					merged, err := config.MergeLifecycleEntry(&entries[i], override)
+					if err != nil {
+						return nil, fmt.Errorf("applying env %q stack_override for %q: %w", env, entries[i].Name, err)
+					}
+					entries[i] = *merged
+				}
+			}
+		}
+	}
+
+	return entries, nil
 }
 
 // startModeProcesses launches native processes for mode health_checks that have a start command.
@@ -397,7 +420,7 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 		if data, err := os.ReadFile(pidFile); err == nil {
 			pidStr := strings.TrimSpace(string(data))
 			if pid := 0; true {
-				fmt.Sscanf(pidStr, "%d", &pid)
+				_, _ = fmt.Sscanf(pidStr, "%d", &pid)
 				if pid > 0 && IsProcessRunning(pid) {
 					fmt.Fprintf(os.Stderr, "[native] %s already running (pid %d)\n", hcName, pid)
 					continue
@@ -499,13 +522,13 @@ func (o *Orchestrator) signalModeProcesses(mode string, removePID bool) {
 		}
 
 		var pid int
-		fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
+		_, _ = fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
 		if pid > 0 {
 			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
 				fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", hcName, pid)
 			}
 			if removePID {
-				os.Remove(pidFile)
+				_ = os.Remove(pidFile)
 			}
 		}
 	}

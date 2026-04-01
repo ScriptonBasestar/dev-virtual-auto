@@ -93,7 +93,7 @@ func TestResolveNativeCommand_FallbackTodev(t *testing.T) {
 	}
 }
 
-func TestTopoSort_NoDeps(t *testing.T) {
+func TestTopoSortWaves_FlatNoDeps(t *testing.T) {
 	cfg := &config.Config{
 		Applications: map[string]*config.ApplicationConfig{
 			"api":    {},
@@ -103,13 +103,17 @@ func TestTopoSort_NoDeps(t *testing.T) {
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
 	am := NewAppManager(cfg, env)
 
-	result := am.topoSort(cfg.Applications)
-	if len(result) != 2 {
-		t.Fatalf("topoSort() returned %d items, want 2", len(result))
+	waves := am.topoSortWaves(cfg.Applications)
+	total := 0
+	for _, w := range waves {
+		total += len(w)
+	}
+	if total != 2 {
+		t.Fatalf("topoSortWaves() returned %d total items, want 2", total)
 	}
 }
 
-func TestTopoSort_WithDeps(t *testing.T) {
+func TestTopoSortWaves_FlatWithDeps(t *testing.T) {
 	cfg := &config.Config{
 		Applications: map[string]*config.ApplicationConfig{
 			"api":    {},
@@ -119,9 +123,14 @@ func TestTopoSort_WithDeps(t *testing.T) {
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
 	am := NewAppManager(cfg, env)
 
-	result := am.topoSort(cfg.Applications)
+	waves := am.topoSortWaves(cfg.Applications)
+	// Flatten and verify order
+	var result []string
+	for _, w := range waves {
+		result = append(result, w...)
+	}
 	if len(result) != 2 {
-		t.Fatalf("topoSort() returned %d items, want 2", len(result))
+		t.Fatalf("topoSortWaves() returned %d total items, want 2", len(result))
 	}
 	// api must come before worker
 	apiIdx, workerIdx := -1, -1

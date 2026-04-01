@@ -110,7 +110,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 				continue
 			}
 			// Stale PID file — process dead, clean up and restart
-			os.Remove(pidFile)
+			_ = os.Remove(pidFile)
 		}
 
 		wg.Add(1)
@@ -268,8 +268,8 @@ func (am *AppManager) DownApps(names ...string) {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err != nil {
 			// Malformed PID file — clean up both files
-			os.Remove(pidFile)
-			os.Remove(logFile)
+			_ = os.Remove(pidFile)
+			_ = os.Remove(logFile)
 			continue
 		}
 
@@ -279,8 +279,8 @@ func (am *AppManager) DownApps(names ...string) {
 			}
 		}
 
-		os.Remove(pidFile)
-		os.Remove(logFile)
+		_ = os.Remove(pidFile)
+		_ = os.Remove(logFile)
 	}
 }
 
@@ -363,21 +363,21 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return fmt.Errorf("start: %w", err)
 	}
 
 	pidPath := filepath.Join(pidDir, "app-"+name+".pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-		logFile.Close()
+		_ = logFile.Close()
 		return fmt.Errorf("save pid: %w", err)
 	}
 
-	logFile.Close()
+	_ = logFile.Close()
 
 	// Reap zombie in background goroutine
-	go cmd.Wait()
+	go func() { _ = cmd.Wait() }()
 
 	return nil
 }
@@ -512,16 +512,6 @@ func (am *AppManager) selectApps(names []string) map[string]*config.ApplicationC
 	return selected
 }
 
-// topoSort returns app names in dependency order (apps with no deps first).
-// Flattened from topoSortWaves for callers that need a simple list.
-func (am *AppManager) topoSort(apps map[string]*config.ApplicationConfig) []string {
-	waves := am.topoSortWaves(apps)
-	var result []string
-	for _, wave := range waves {
-		result = append(result, wave...)
-	}
-	return result
-}
 
 // topoSortWaves returns app names grouped into dependency waves.
 // Apps within the same wave have no mutual dependencies and can run concurrently.

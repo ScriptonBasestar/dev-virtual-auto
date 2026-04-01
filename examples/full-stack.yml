@@ -6,7 +6,12 @@
 #           subcommands, multiple runners, compose profiles, and infra management
 #
 # Usage:
-#   dva up                     # Start all services (default)
+#   dva up                     # Start all services (default mode)
+#   dva stack up               # Start infrastructure stack only
+#   dva stack status           # Show stack entry statuses
+#   dva app ls                 # List applications with status/health/port
+#   dva app up                 # Start all applications
+#   dva app up --dev           # Start apps in dev mode (hot-reload)
 #   dva up -M native           # Native mode: health checks only, no Docker
 #   dva up -M hybrid           # Databases in Docker, app natively
 #   dva up -M native -E stg   # Native mode with staging config
@@ -189,21 +194,87 @@ provision:
     - step: Precompiling assets
       run: dva rails assets:precompile
 
-# Modes: runtime strategy (--mode/-M) — HOW to run infrastructure
+# Applications: managed app processes with native/docker dual paths
+# Use `dva app ls` to see status, `dva app up/down/stop` to control.
+applications:
+  web:
+    description: "Rails API server"
+    tags: [app, api]
+    port: 3000
+    dir: "myapp"
+    run:
+      native: "bundle exec rails server -p 3000 -b 0.0.0.0"
+      docker:
+        service: web
+        profile: web
+    dev:
+      native: "bin/rails server -p 3000 -b 0.0.0.0"
+      docker: "docker compose --profile web up web"
+    build:
+      native: "bundle exec rails assets:precompile"
+      docker:
+        service: web
+        command: "bundle exec rails assets:precompile"
+    environment:
+      RAILS_LOG_TO_STDOUT: "true"
+      PORT: "3000"
+    health:
+      type: http
+      url: "http://localhost:3000/health"
+      start: "cd myapp && bundle exec rails server -p 3000 -d"
+      start_hint: "Start Rails: bundle exec rails server -p 3000"
+      timeout: 5
+      ready_timeout: 30
+
+  frontend:
+    description: "Node.js frontend"
+    tags: [app, ui]
+    port: 3001
+    dir: "frontend"
+    depends_on: [web]
+    run:
+      native: "npm run build && npm run start"
+      docker:
+        service: frontend
+        profile: frontend
+    dev:
+      native: "npm run dev -- --port 3001"
+      docker: "docker compose --profile frontend up frontend"
+    build:
+      native: "npm run build"
+      docker:
+        service: frontend
+        command: "npm run build"
+    health:
+      type: http
+      url: "http://localhost:3001"
+      timeout: 3
+      ready_timeout: 30
+
+# Modes: runtime strategy (--mode/-M) — HOW to run infrastructure and apps
 modes:
   native:
     description: Run without Docker (native services only)
     compose_services: []
     health_checks: [postgres, redis, web_server]
+    applications: native
 
   docker:
     description: Full Docker mode with all compose profiles activated
     compose_profiles: [web, development, frontend]
+    applications: docker
 
   hybrid:
     description: Databases in Docker, app runs natively
     compose_services: [db, redis]
     health_checks: [web_server]
+    applications:
+      web: native
+      frontend: native
+
+  full-stack:
+    description: "Everything running natively"
+    applications: native
 
 health_checks:
   postgres:
@@ -253,6 +324,27 @@ environments:
 
 # modules:
 #   - production
+
+endpoints:
+  web:
+    url: "http://localhost:3000"
+    label: "Rails API"
+    tags: [app, api]
+    paths:
+      /health: "Health check"
+      /api/v1: "API v1"
+  frontend:
+    url: "http://localhost:3001"
+    label: "Frontend"
+    tags: [app, ui]
+  db:
+    source: "db:5432"
+    label: "PostgreSQL"
+    tags: [infra, data]
+  redis:
+    source: "redis:6379"
+    label: "Redis"
+    tags: [infra, data]
 
 infra:
   redis:

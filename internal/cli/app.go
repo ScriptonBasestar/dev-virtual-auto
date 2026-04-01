@@ -211,7 +211,7 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 
 	fmt.Fprintln(os.Stderr, "Applications:")
 	w := tabwriter.NewWriter(os.Stderr, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  NAME\tSTATUS\tHEALTH\tPORT\tPID")
+	_, _ = fmt.Fprintln(w, "  NAME\tSTATUS\tHEALTH\tPORT\tPID")
 	for _, s := range statuses {
 		state := s.Strategy
 		if s.Running {
@@ -231,9 +231,9 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 		if s.PID > 0 {
 			pid = fmt.Sprintf("%d", s.PID)
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", s.Name, state, health, port, pid)
+		_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", s.Name, state, health, port, pid)
 	}
-	w.Flush()
+	_ = w.Flush()
 }
 
 func boolToStrategy(docker bool) string {

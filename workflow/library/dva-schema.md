@@ -6,7 +6,7 @@
 
 1. **`modes:` NOT `profiles:`** — Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
-3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
+3. **`version:` field** — Use the current DVA version (specified in the prompt's CRITICAL version section). Subprojects should match.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
@@ -27,7 +27,7 @@
 `version → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
-version: "0.1.29"
+version: "{CURRENT_DVA_VERSION}"   # Use the version from the prompt's CRITICAL section
 
 environment:                    # Global environment variables
   VAR_NAME: value
@@ -75,6 +75,7 @@ applications:                   # Long-running app processes (API servers, worke
   {app-name}:                   # Short name: api, worker, web, scheduler
     description: "{human-readable description}"
     tags: [app]                 # For filtering
+    port: 11200                 # Listening port (shown in dva app ls) — REQUIRED
     dir: "relative/path"        # Working directory (default: config dir)
     depends_on: [other-app]     # Startup dependency ordering
     environment:                # App-specific env vars
@@ -179,11 +180,13 @@ modes:                          # Operational modes (--mode/-M flag)
       VAR: value
     stack: [entry1, entry2]       # Stack entries to include for this mode
     provision: default            # Suggest provision profile on first run
-    applications: native          # App strategy: "native" (string) or per-app map
+    applications: native          # App strategy: "native"/"docker" (string) or per-app map
     # applications:               # Per-app strategy override:
     #   api: native
     #   worker: docker
     #   _default: native          # Fallback for unlisted apps
+    # NOTE: Without `applications:` field, apps will NOT auto-start in this mode.
+    # Modes that should start apps (hybrid, full-stack, etc.) MUST set this field.
 
 environments:                   # Environment configs (--env/-E flag)
   {env-name}:
@@ -598,7 +601,7 @@ The following fields are NOT valid in dva.yml. Use the correct equivalents:
 ### Subproject Consistency
 
 All subproject dva.yml files MUST follow the same rules as the root:
-- Version must match root (`"0.1.29"`)
+- Version must match root (use current DVA version)
 - Same format rules apply (stack, runner:local, no echo wrappers)
 
 ### Provision Step Fields
@@ -645,6 +648,87 @@ DVA_FILE=path/to/dva.yml dva validate
 # Validate against schema directly
 # Schema location: internal/config/schema.json
 ```
+
+## Lifecycle CLI Commands
+
+DVA has three levels of lifecycle management:
+
+### `dva up` / `dva down` — Top-level lifecycle (with hooks)
+
+```bash
+dva up                    # Start infra (default_mode) — runs before/replace/after hooks
+dva up -M full-stack      # Start all infra in Docker
+dva down                  # Stop and remove infra
+dva down -v               # Also remove volumes
+dva stop                  # Stop infra (preserve state for quick restart)
+dva restart               # Stop then start
+```
+
+`dva up` executes hook steps (before/replace/after from interaction section) then delegates to the stack orchestrator. This is the recommended entry point.
+
+### `dva stack` — Infrastructure orchestrator (no hooks)
+
+```bash
+dva stack up                    # Start all stack entries (bypasses hooks)
+dva stack up compose            # Start a specific stack entry by name
+dva stack up -T infra           # Filter by tag (--tags/-T)
+dva stack up -M hybrid          # Apply mode filtering
+dva stack stop                  # Stop all (preserve state — fast restart)
+dva stack down                  # Remove all stack resources
+dva stack down -v               # Also remove volumes
+dva stack status                # Show stack entry statuses
+dva stack status compose        # Status for specific entry
+dva stack log compose           # View logs for a stack entry
+```
+
+Stack entries are started in `order:` sequence. The orchestrator supports tag-based and mode-based filtering. Exports from earlier entries are available to later entries via environment accumulation.
+
+### `dva app` — Application process manager
+
+```bash
+dva app ls                      # List all applications with status/health/port/PID
+dva app up                      # Start all applications (dependency order)
+dva app up myapp                # Start specific application
+dva app up myapp --dev          # Start in dev mode (hot-reload)
+dva app stop myapp              # Stop (SIGTERM, preserves PID for quick restart)
+dva app down myapp              # Stop and remove PID/log files
+dva app restart myapp           # Stop then start
+dva app restart myapp --dev     # Restart in dev mode
+dva app build myapp             # Build application (native)
+dva app build myapp --docker    # Build application (docker)
+dva app log myapp               # Show last 100 lines of app log
+```
+
+**Startup order:** Applications with `depends_on` are started in topological waves — independent apps within the same wave launch concurrently. Health checks are evaluated after each app starts if `health:` is configured and `--wait` is not disabled.
+
+**Stop vs Down semantics:**
+
+| Command | Signal | PID file | Log file | Use case |
+|---------|--------|----------|----------|----------|
+| `dva app stop` | SIGTERM | preserved | preserved | Development iteration (quick restart) |
+| `dva app down` | SIGTERM | **deleted** | **deleted** | Full cleanup |
+
+Same semantics apply to `dva stack stop` vs `dva stack down`.
+
+### Typical Development Flow
+
+```bash
+dva up                   # 1. Start infrastructure (DB, Redis, etc.)
+dva app up --dev         # 2. Start app servers in dev mode
+# ... develop ...
+dva app restart api      # 3. Restart specific app after changes
+dva app stop             # 4. Stop apps (quick restart later)
+dva down                 # 5. Full infrastructure teardown
+```
+
+### `dva up` vs `dva stack up` — When to Use
+
+| Scenario | Command | Why |
+|----------|---------|-----|
+| Normal development startup | `dva up` | Runs hooks, applies default_mode |
+| Debugging orchestrator behavior | `dva stack up` | Bypasses hooks, direct control |
+| Starting specific entries | `dva stack up <name>` | Targeted infrastructure |
+| Tag-based filtering | `dva stack up -T infra` | Subset by tag |
 
 ## See Also
 

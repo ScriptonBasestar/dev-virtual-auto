@@ -264,18 +264,12 @@ func detectTemplateIn(dir string) string {
 	return "minimal"
 }
 
-// generateConfig produces the dva.yml content for the given template.
-// Detects compose files in the current working directory.
-func generateConfig(tmpl string) string {
-	return generateConfigIn(".", tmpl)
-}
-
 // generateConfigIn produces the dva.yml content for the given template,
 // detecting compose files relative to dir.
 func generateConfigIn(dir, tmpl string) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("version: \"%s\"\n\n", config.Version))
+	_, _ = fmt.Fprintf(&b, "version: \"%s\"\n\n", config.Version)
 
 	// Detect compose files relative to dir
 	composeFiles := detectComposeFilesIn(dir)
@@ -285,7 +279,7 @@ func generateConfigIn(dir, tmpl string) string {
 	b.WriteString("    files:\n")
 	if len(composeFiles) > 0 {
 		for _, f := range composeFiles {
-			b.WriteString(fmt.Sprintf("      - %s\n", f))
+			_, _ = fmt.Fprintf(&b, "      - %s\n", f)
 		}
 	} else {
 		b.WriteString("      - docker-compose.yml\n")
@@ -935,11 +929,11 @@ func detectSubprojects(prog *progress) string {
 
 	// Format output: structured multi-line per sub-project
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("%d sub-projects detected:\n", len(subs)))
+	_, _ = fmt.Fprintf(&b, "%d sub-projects detected:\n", len(subs))
 	for _, sp := range subs {
-		b.WriteString(fmt.Sprintf("  - %s/", sp.path))
+		_, _ = fmt.Fprintf(&b, "  - %s/", sp.path)
 		if sp.language != "" {
-			b.WriteString(fmt.Sprintf(" [%s]", sp.language))
+			_, _ = fmt.Fprintf(&b, " [%s]", sp.language)
 		}
 		if sp.hasDvaYml {
 			b.WriteString(" (has dva.yml)")
@@ -947,16 +941,16 @@ func detectSubprojects(prog *progress) string {
 		b.WriteString("\n")
 
 		if len(sp.composeFiles) > 0 {
-			b.WriteString(fmt.Sprintf("    compose: %s\n", strings.Join(sp.composeFiles, ", ")))
+			_, _ = fmt.Fprintf(&b, "    compose: %s\n", strings.Join(sp.composeFiles, ", "))
 		}
 		if len(sp.composeServices) > 0 {
-			b.WriteString(fmt.Sprintf("    services: %s\n", strings.Join(sp.composeServices, ", ")))
+			_, _ = fmt.Fprintf(&b, "    services: %s\n", strings.Join(sp.composeServices, ", "))
 		}
 		if sp.hasDockerfile {
 			b.WriteString("    dockerfile: yes\n")
 		}
 		if len(sp.buildFiles) > 0 {
-			b.WriteString(fmt.Sprintf("    build: %s\n", strings.Join(sp.buildFiles, ", ")))
+			_, _ = fmt.Fprintf(&b, "    build: %s\n", strings.Join(sp.buildFiles, ", "))
 		}
 	}
 	return b.String()

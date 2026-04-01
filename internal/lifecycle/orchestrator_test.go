@@ -51,7 +51,7 @@ func TestFilterEntries_ByIncludeTags(t *testing.T) {
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
-	filtered := orch.filterEntries(nil, []string{"infra"}, nil, "", "")
+	filtered, _ := orch.filterEntries(nil, []string{"infra"}, nil, "", "")
 
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 entries with tag 'infra', got %d", len(filtered))
@@ -71,7 +71,7 @@ func TestFilterEntries_ByExcludeTags(t *testing.T) {
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
-	filtered := orch.filterEntries(nil, nil, []string{"infra"}, "", "")
+	filtered, _ := orch.filterEntries(nil, nil, []string{"infra"}, "", "")
 
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 entry after excluding 'infra', got %d", len(filtered))
@@ -90,7 +90,7 @@ func TestFilterEntries_ByMode(t *testing.T) {
 
 	cfg := newTestConfig(entries)
 	orch := NewOrchestrator(cfg, newTestEnv())
-	filtered := orch.filterEntries(nil, nil, nil, "lite", "")
+	filtered, _ := orch.filterEntries(nil, nil, nil, "lite", "")
 
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 entry in mode 'lite', got %d", len(filtered))
@@ -107,7 +107,7 @@ func TestFilterEntries_NoFilters(t *testing.T) {
 	}
 
 	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
-	filtered := orch.filterEntries(nil, nil, nil, "", "")
+	filtered, _ := orch.filterEntries(nil, nil, nil, "", "")
 
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 entries with no filters, got %d", len(filtered))
@@ -129,7 +129,7 @@ func TestFilterEntries_CombinedTagAndMode(t *testing.T) {
 
 	orch := NewOrchestrator(cfg, newTestEnv())
 	// Mode "both" includes db+app, then exclude tag "app" → only db
-	filtered := orch.filterEntries(nil, nil, []string{"app"}, "both", "")
+	filtered, _ := orch.filterEntries(nil, nil, []string{"app"}, "both", "")
 
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 entry, got %d", len(filtered))
@@ -157,7 +157,7 @@ func TestFilterEntries_ByEnv(t *testing.T) {
 	orch := NewOrchestrator(cfg, newTestEnv())
 
 	// dev env → only compose
-	filtered := orch.filterEntries(nil, nil, nil, "", "dev")
+	filtered, _ := orch.filterEntries(nil, nil, nil, "", "dev")
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 entry in env 'dev', got %d", len(filtered))
 	}
@@ -166,7 +166,7 @@ func TestFilterEntries_ByEnv(t *testing.T) {
 	}
 
 	// stg env → helm + kubectl
-	filtered = orch.filterEntries(nil, nil, nil, "", "stg")
+	filtered, _ = orch.filterEntries(nil, nil, nil, "", "stg")
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 entries in env 'stg', got %d", len(filtered))
 	}
@@ -192,7 +192,7 @@ func TestFilterEntries_EnvAndModeCombined(t *testing.T) {
 	orch := NewOrchestrator(cfg, newTestEnv())
 
 	// env=stg (helm, kubectl) + mode=deploy (helm) → intersection → helm only
-	filtered := orch.filterEntries(nil, nil, nil, "deploy", "stg")
+	filtered, _ := orch.filterEntries(nil, nil, nil, "deploy", "stg")
 	if len(filtered) != 1 {
 		t.Fatalf("expected 1 entry for env+mode intersection, got %d", len(filtered))
 	}
@@ -217,7 +217,7 @@ func TestFilterEntries_EnvWithoutStack(t *testing.T) {
 	orch := NewOrchestrator(cfg, newTestEnv())
 
 	// env without stack field → no filtering, all entries pass through
-	filtered := orch.filterEntries(nil, nil, nil, "", "dev")
+	filtered, _ := orch.filterEntries(nil, nil, nil, "", "dev")
 	if len(filtered) != 2 {
 		t.Fatalf("expected 2 entries (env without stack = no filter), got %d", len(filtered))
 	}
@@ -351,5 +351,72 @@ func TestHasAnyTag(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("hasAnyTag(%v, %v) = %v, want %v", tt.tags, tt.tagSet, got, tt.want)
 		}
+	}
+}
+
+func TestFilterEntries_WithStackOverrides(t *testing.T) {
+	entries := map[string]*config.LifecycleEntry{
+		"compose": {Name: "compose", Order: 1, Docker: &config.DockerPluginConfig{Image: "base-image"}},
+		"kubectl": {Name: "kubectl", Order: 2, Kubectl: &config.KubectlPluginConfig{Namespace: "default"}},
+	}
+	for name, e := range entries {
+		e.ResolvePluginFromName()
+		entries[name] = e
+	}
+
+	cfg := &config.Config{
+		Stack: entries,
+		Environments: map[string]config.EnvironmentProfile{
+			"stg": {
+				Stack: []string{"kubectl"}, 
+				StackOverrides: map[string]*config.LifecycleEntry{
+					"kubectl": {
+						Kubectl: &config.KubectlPluginConfig{Namespace: "staging"},
+					},
+				},
+			},
+		},
+	}
+
+	orch := NewOrchestrator(cfg, newTestEnv())
+	filtered, err := orch.filterEntries(nil, nil, nil, "", "stg")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 entry (kubectl), got %d", len(filtered))
+	}
+	if filtered[0].Name != "kubectl" {
+		t.Errorf("expected kubectl, got %v", filtered[0].Name)
+	}
+	if filtered[0].Kubectl.Namespace != "staging" {
+		t.Errorf("expected overridden namespace 'staging', got %q", filtered[0].Kubectl.Namespace)
+	}
+}
+
+func TestFilterEntries_StackOverrides_ErrorOnPluginChange(t *testing.T) {
+	entries := map[string]*config.LifecycleEntry{
+		"kubectl": {Name: "kubectl", Order: 2, Plugin: "kubectl"},
+	}
+
+	cfg := &config.Config{
+		Stack: entries,
+		Environments: map[string]config.EnvironmentProfile{
+			"stg": {
+				Stack: []string{"kubectl"}, 
+				StackOverrides: map[string]*config.LifecycleEntry{
+					"kubectl": {
+						Plugin: "compose", // ILLEGAL restricted field override
+					},
+				},
+			},
+		},
+	}
+
+	orch := NewOrchestrator(cfg, newTestEnv())
+	_, err := orch.filterEntries(nil, nil, nil, "", "stg")
+	if err == nil {
+		t.Fatal("expected error when overriding plugin type, got nil")
 	}
 }

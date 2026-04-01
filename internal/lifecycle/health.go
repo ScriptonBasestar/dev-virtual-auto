@@ -106,7 +106,7 @@ func checkHTTP(url string, timeout time.Duration) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
@@ -115,7 +115,7 @@ func checkTCP(address string, timeout time.Duration) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
 

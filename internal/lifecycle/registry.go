@@ -48,23 +48,3 @@ func NewPlugin(name string) (LifecyclePlugin, error) {
 	}
 	return nil, fmt.Errorf("unknown lifecycle plugin %q (implemented: %v, planned: %v)", name, implemented, planned)
 }
-
-// ImplementedPlugins returns plugin types that have a working implementation.
-func ImplementedPlugins() []PluginType {
-	result := make([]PluginType, 0, len(registry))
-	for pt := range registry {
-		result = append(result, pt)
-	}
-	return result
-}
-
-// PlannedPlugins returns plugin types that are defined but not yet implemented.
-func PlannedPlugins() []PluginType {
-	var result []PluginType
-	for _, pt := range AllPluginTypes() {
-		if _, ok := registry[pt]; !ok {
-			result = append(result, pt)
-		}
-	}
-	return result
-}

@@ -129,7 +129,7 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		os.Remove(pidFile)
+		_ = os.Remove(pidFile)
 		return nil
 	}
 
@@ -139,8 +139,8 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 		}
 	}
 
-	os.Remove(pidFile)
-	os.Remove(logFile)
+	_ = os.Remove(pidFile)
+	_ = os.Remove(logFile)
 	return nil
 }
 
@@ -172,22 +172,22 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return fmt.Errorf("start: %w", err)
 	}
 
 	pidPath := filepath.Join(pidDir, name+".pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-		logFile.Close()
-		os.Remove(filepath.Join(logDir, name+".log"))
+		_ = logFile.Close()
+		_ = os.Remove(filepath.Join(logDir, name+".log"))
 		return fmt.Errorf("save pid: %w", err)
 	}
 
-	logFile.Close()
+	_ = logFile.Close()
 
 	// Reap zombie in background goroutine
-	go cmd.Wait()
+	go func() { _ = cmd.Wait() }()
 
 	return nil
 }

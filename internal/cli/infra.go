@@ -91,7 +91,7 @@ var infraUpdateCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "[warn] %s has uncommitted changes:\n%s\n", serviceName, string(statusOut))
 				fmt.Fprintf(os.Stderr, "Stash changes before updating? [y/N] ")
 				var answer string
-				fmt.Scanln(&answer)
+				_, _ = fmt.Scanln(&answer)
 				answer = strings.ToLower(strings.TrimSpace(answer))
 				if answer != "y" && answer != "yes" {
 					return fmt.Errorf("aborted: %s has uncommitted changes. Use 'git stash' manually or commit changes first", serviceName)

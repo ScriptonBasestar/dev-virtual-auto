@@ -133,9 +133,9 @@ func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) {
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		os.Remove(pidFile)
+		_ = os.Remove(pidFile)
 		return
 	}
-	syscall.Kill(-pid, syscall.SIGTERM)
-	os.Remove(pidFile)
+	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	_ = os.Remove(pidFile)
 }

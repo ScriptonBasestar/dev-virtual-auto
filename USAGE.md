@@ -38,6 +38,7 @@ dva config init --ai --no-ai-docs  # AI 생성 시 agent 문서 스킵
 dva config init -v           # AI 생성 시 상세 진행 표시
 dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
 dva config init --all        # 자동 감지 시 가능한 모든 기능 통합 활성화
+```
 
 #### config improve
 
@@ -71,7 +72,6 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 
 | Command | Description |
 |---------|-------------|
-| `dva add [FEATURE]` | 특정 통합 기능 추가 연동 (e.g., `devcontainer`) |
 | `dva show` | 설정 요약 (modes, environments, commands 등) |
 | `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
@@ -85,37 +85,80 @@ dva config show           # JSON 형식 (기본)
 dva config show -f yaml   # YAML 형식
 ```
 
-### Lifecycle (Stack Orchestration)
+### Lifecycle (Stack + App)
+
+#### dva stack — 인프라 관리
 
 `stack:` 섹션에 정의된 플러그인들을 `order` 순서대로 실행합니다.
 
 | Command | Description |
 |---------|-------------|
-| `dva up [SERVICE]` | stack 시작 (compose up, kubectl apply 등) |
-| `dva down` | stack 중지 및 제거 |
+| `dva stack up [NAME...]` | stack 엔트리 시작 (order 순서) |
+| `dva stack stop [NAME...]` | stack 엔트리 중지 (상태 보존) |
+| `dva stack down [NAME...]` | stack 엔트리 중지 및 제거 (역순) |
+| `dva stack status [NAME...]` | stack 엔트리 상태 표시 |
+| `dva stack log [NAME]` | stack 엔트리 로그 조회 |
+
+```bash
+dva stack up                    # 전체 stack 시작 (order 순서)
+dva stack up compose            # 특정 엔트리만
+dva stack up --force            # 강제 재시작
+dva stack up --no-wait          # 즉시 리턴
+dva stack up -M backend         # 모드별 stack 필터 적용
+dva stack up -T infra           # 태그 기반 필터
+dva stack up --exclude-tags db  # 태그 제외
+dva stack down -v               # + 볼륨 제거
+dva stack status                # 전체 상태 표시
+dva stack log compose           # compose 엔트리 로그
+```
+
+#### dva app — 애플리케이션 관리
+
+`applications:` 섹션에 정의된 앱 프로세스를 관리합니다.
+
+| Command | Description |
+|---------|-------------|
+| `dva app ls` | 앱 목록 (상태, 헬스, 포트, PID) |
+| `dva app up [APP...]` | 앱 시작 (의존성 순서, 동시 실행) |
+| `dva app stop [APP...]` | 앱 중지 (PID 보존, 빠른 재시작 가능) |
+| `dva app down [APP...]` | 앱 중지 및 리소스 제거 |
+| `dva app build [APP...]` | 앱 빌드 |
+| `dva app restart [APP...]` | 앱 재시작 (stop + start) |
+| `dva app log <APP>` | 앱 로그 (최근 100줄) |
+
+```bash
+dva app ls                      # 전체 앱 상태
+dva app up                      # 전체 앱 시작 (native 기본)
+dva app up api --dev            # dev 모드 (hot-reload)
+dva app up -M docker            # docker 전략으로 시작
+dva app build api               # 특정 앱 빌드
+dva app build --docker          # docker 빌드
+dva app stop api                # 앱 중지 (상태 보존)
+dva app down                    # 전체 앱 중지 + 리소스 제거
+dva app restart api --dev       # dev 모드로 재시작
+dva app log api                 # 앱 로그 조회
+```
+
+#### dva up/down (통합 명령)
+
+| Command | Description |
+|---------|-------------|
+| `dva up [SERVICE]` | stack + app 통합 시작 |
+| `dva down` | stack + app 통합 중지 |
 | `dva stop [SERVICE]` | 서비스 중지 (제거하지 않음) |
 | `dva restart [SERVICE]` | 서비스 재시작 (stop + start) |
 | `dva logs [SERVICE]` | 컨테이너 로그 보기 |
 | `dva build [SERVICE]` | 이미지 빌드 |
 | `dva clean` | 전체 정리 (containers, networks) |
 
-#### up
-
 ```bash
-dva up                    # stack 전체 시작 (order 순서)
-dva up postgres redis     # 특정 서비스만
-dva up -f                 # foreground 모드 (attached)
-dva up --force            # 헬스체크 무시, 강제 재시작
-dva up --no-wait          # 즉시 리턴 (wait 하지 않음)
-dva up -M backend         # 모드 적용 (mode.stack 엔트리만 실행)
+dva up                    # stack + app 전체 시작
+dva up -M backend         # 모드 적용
 dva up -E staging         # 환경 프리셋 적용
-dva up -T backend,ui      # 특정 태그 그룹만 실행 (--tag 별칭 허용)
-dva up --exclude-tags db  # 특정 태그 그룹 제외 (--exclude-tag 별칭 허용)
+dva up -T backend,ui      # 태그 필터 (--tag 별칭)
+dva up --exclude-tags db  # 태그 제외 (--exclude-tag 별칭)
 dva up -M backend -E staging  # 모드 + 환경 조합
 ```
-
-이미 모든 서비스가 running + healthy이면 자동으로 스킵하고 상태만 표시합니다.
-`--force`로 강제 재시작할 수 있습니다.
 
 #### clean
 
@@ -128,11 +171,11 @@ dva clean -f              # 확인 프롬프트 스킵
 
 #### --mode / --env / --tags 플래그
 
-`--mode`(`-M`), `--env`(`-E`), `--tags`(`-T`), `--exclude-tags`는 `up`, `down`, `stop`, `restart`에서 사용 가능합니다.
+`--mode`(`-M`), `--env`(`-E`), `--tags`(`-T`), `--exclude-tags`는 `stack`, `app`, `up`, `down`, `stop`, `restart`에서 사용 가능합니다.
 
-- `--mode`: `modes` 섹션에 정의된 운영 모드 적용 (compose profiles, 서비스 필터, 환경변수)
-- `--env`: `environments` 섹션에 정의된 환경변수 프리셋 적용
-- `--tags`: `tags` 속성 기반으로 특정 컨테이너 그룹만 선택 실행 (별칭: `--tag`)
+- `--mode`: `modes` 섹션에 정의된 운영 모드 적용 (compose profiles, 서비스 필터, 환경변수, 앱 전략)
+- `--env`: `environments` 섹션에 정의된 환경변수 프리셋 적용 (stack 엔트리 필터 포함)
+- `--tags`: `tags` 속성 기반으로 특정 컨테이너/앱 그룹만 선택 실행 (별칭: `--tag`)
 - `--exclude-tags`: 특정 태그 그룹 배제 (별칭: `--exclude-tag`)
 
 ### Integration Tools
@@ -151,10 +194,8 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva manifest` | LLM용 커맨드 매니페스트 출력 |
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
-| `dva config validate` | dva.yml 스키마 검증 |
-| `dva migrate` | 레거시 설정 포맷 감지 및 마이그레이션 가이드 출력 |
+| `dva config validate` | dva.yml 스키마 + 시맨틱 검증 |
 | `dva doctor` | 환경 사전조건 및 설정 문제 진단 |
-| `dva completion bash\|zsh\|fish` | 셸 자동완성 스크립트 생성 |
 
 #### provision
 
@@ -167,16 +208,23 @@ dva provision --list      # 사용 가능한 프로필 목록
 #### config validate
 
 ```bash
-dva config validate       # 스키마 + compose project name 검증
+dva config validate       # 스키마 + 시맨틱 검증
 dva config validate --fix # compose 파일 project name 불일치 자동 수정
 ```
+
+스키마 검증 외에 13개 시맨틱 경고를 검사합니다:
+- 중복 stack order, 다중 compose 엔트리 분할 권고
+- `default_mode` 누락, 기본 모드에 무거운 인프라 포함 경고
+- 미해결 환경변수 (`${MISSING_VAR}`), 비지원 셸 문법 감지
+- 깊은 서브커맨드 중첩 (5단계 초과), 도달 불가능 커맨드
+- 정규 섹션 순서 검증
 
 ## Configuration (`dva.yml`)
 
 ### 기본 구조
 
 ```yaml
-version: "0.1.26"         # 최소 DVA 버전
+version: "0.1.44"         # 최소 DVA 버전
 
 stack:
   compose:                 # 엔트리 이름으로 플러그인 자동추론
@@ -193,21 +241,26 @@ interaction:
 
 ### 설정 섹션 레퍼런스
 
+정규 섹션 순서 (validate에서 검증):
+
 | Section | Description |
 |---------|-------------|
-| `stack` | 인프라 오케스트레이션 파이프라인 (플러그인 기반) |
+| `version` | 최소 DVA 버전 |
 | `environment` | 글로벌 환경변수 |
 | `env_file` | .env 파일 로딩 |
-| `interaction` | 커맨드 정의 (service, command, subcommands 등) |
-| `provision` | 프로비저닝 프로필 및 스텝 정의 |
+| `stack` | 인프라 오케스트레이션 파이프라인 (플러그인 기반) |
+| `checks` | `dva doctor` 환경 사전조건 체크 |
+| `applications` | 앱 프로세스 정의 (native/docker 전략) |
+| `default_mode` | 기본 모드명 |
 | `modes` | 운영 모드 (`--mode` 플래그용) |
 | `environments` | 환경 프리셋 (`--env` 플래그용) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
-| `endpoints` | 사용자 노출 URL 정의 |
-| `checks` | `dva doctor` 환경 사전조건 체크 |
-| `subprojects` | 서브프로젝트 참조 (모노레포) |
-| `infra` | 공유 인프라 서비스 (git 기반) |
+| `interaction` | 커맨드 정의 (service, command, subcommands 등) |
+| `provision` | 프로비저닝 프로필 및 스텝 정의 |
 | `modules` | `.sb/dva/*.yml` 모듈 분리 |
+| `subprojects` | 서브프로젝트 참조 (모노레포) |
+| `endpoints` | 사용자 노출 URL 정의 |
+| `infra` | 공유 인프라 서비스 (git 기반) |
 | `ssh` | SSH agent 설정 |
 | `devcontainer` | devcontainer 통합 (실험적) |
 
@@ -261,12 +314,60 @@ modes:
     compose_services: [api, postgres, redis]
     health_checks: [api-server]
     stack: [compose]            # 특정 stack 엔트리만 실행
+    applications: native        # 앱 실행 전략 (문자열: 전체 적용)
     environment:
       LOG_LEVEL: debug
   native:
     description: "No compose, local services only"
     compose_services: []  # 빈 배열 = compose 스킵
     health_checks: [local-api]
+  hybrid:
+    description: "Mixed native/docker"
+    applications:              # 앱별 전략 맵
+      api: native
+      worker: docker
+      web: native
+```
+
+### applications
+
+`dva app` 명령으로 관리하는 앱 프로세스를 정의합니다.
+
+```yaml
+applications:
+  api:
+    description: "REST API server"
+    tags: [app, api]
+    port: 11200
+    dir: "rust-workspace"          # 작업 디렉토리
+    depends_on: []                 # 의존 앱/서비스 (토폴로지 정렬)
+    run:
+      native: "cargo run --release -p api-server"
+      docker:
+        service: api-rs
+        profile: rust
+    dev:                           # --dev 모드용 (hot-reload)
+      native: "cargo watch -x 'run -p api-server'"
+    build:
+      native: "cargo build -p api-server"
+      docker:
+        service: api-rs
+        command: "cargo build"
+    environment:
+      PORT: "11200"
+    health:
+      type: http                   # http, tcp, command
+      url: "http://localhost:11200/health"
+      timeout: 5
+      ready_timeout: 120
+```
+
+`run`, `dev`, `build`는 문자열 축약형도 지원합니다:
+
+```yaml
+  web:
+    run: "pnpm build && pnpm preview"   # = run.native
+    dev: "pnpm dev --port 11300"        # = dev.native
 ```
 
 ### environments (--env)
@@ -280,6 +381,7 @@ environments:
     environment:
       CI: "true"
       LOG_LEVEL: warn
+    stack: [compose]               # 특정 stack 엔트리만 실행 (선택)
 ```
 
 ### health_checks

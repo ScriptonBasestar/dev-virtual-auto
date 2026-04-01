@@ -63,8 +63,8 @@ environments:
 
 ## 선행 조건
 
-- config deep merge semantics 정리
-- execution plan에서 env 적용 순서 정리
+- [x] config deep merge semantics 정리 (`tasks/done/config-deep-merge-semantics.md` 로 완료됨)
+- [ ] execution plan에서 env 적용 순서 정리 (`execution-plan-resolution.md`)
 
 ## 범위
 
@@ -104,3 +104,23 @@ environments:
 - [ ] merge semantics 의존성이 명시되어 있다.
 - [ ] backward compatibility 위험이 적혀 있다.
 - [ ] 구현 전 필요한 테스트 시나리오가 정리되어 있다.
+
+## 구현 계획 (Implementation Plan)
+
+### 1단계: 스키마 및 모델 확장
+- `internal/config/schema.json`: `environments` 블록 아래에 `stack_overrides` 객체 정의를 추가합니다. 값은 임의의 구조체 형식을 허용합니다.
+- `internal/config/config.go`: `EnvironmentProfile` 구조체에 `StackOverrides map[string]interface{}` (또는 `yaml.Node`) 필드를 추가하여 파싱합니다.
+
+### 2단계: Merge Semantics의 적용 로직 구현
+- 앞서 완성한 `internal/config/merge.go`의 `mergeMaps()` 또는 헬퍼 함수를 재사용합니다.
+- `internal/lifecycle/orchestrator.go`의 `filterEntries()`(또는 실행 계획 적용부)에서 stack이 확정된 이후, 현재 활성화된 environment의 `StackOverrides`를 순회합니다.
+- 각 override key가 선택된 stack entry의 키와 일치하면, 해당 override 맵을 대상 stack entry 내부 필드에 deep merge 합니다.
+- **제약:** override 시도 중 플러그인 타입(`plugin`)이나 러너 타입(`runner`) 변경을 시도하면 즉시 에러를 반환합니다. (이는 기존 merge.go 로직에서 이미 방어하고 있을 수 있습니다)
+
+### 3단계: 테스트 시나리오 및 검증
+- `internal/config/environment_test.go` 또는 `internal/lifecycle/orchestrator_test.go`에 환경 기반 부분 override 테스트를 추가합니다.
+- 검증 케이스:
+  1. 단순 scalar override (`kubectl.namespace`)
+  2. array override (`helm.values_files`) - 배열은 통째 교체되는지 확인
+  3. 존재하지 않는 stack 항목에 override를 시도할 경우 (무시 또는 경고)
+  4. 금지 필드(`plugin`) override 시도 시 에러 발생

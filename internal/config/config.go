@@ -9,9 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DotDirName is the directory used for transient state and modules.
-const DotDirName = ".sb/dva"
-
+// ModulesDirExt is the extension for module files.
 // Config represents the parsed dva.yml configuration.
 type Config struct {
 	Version      string                         `yaml:"version"`
@@ -107,9 +105,10 @@ func (m *ModeConfig) StackEntries() []string {
 
 // EnvironmentProfile defines a named environment configuration for --env flag.
 type EnvironmentProfile struct {
-	Description string            `yaml:"description"`
-	Environment map[string]string `yaml:"environment"`
-	Stack       []string          `yaml:"stack"` // stack entry names to include (empty=all)
+	Description    string                     `yaml:"description"`
+	Environment    map[string]string          `yaml:"environment"`
+	Stack          []string                   `yaml:"stack"` // stack entry names to include (empty=all)
+	StackOverrides map[string]*LifecycleEntry `yaml:"stack_overrides"`
 }
 
 // StackEntries returns the stack entry names for environment filtering.
@@ -672,7 +671,7 @@ func (c *Config) mergeFrom(other *Config) error {
 				return err
 			}
 			if existing, ok := c.Stack[k]; ok {
-				merged, err := mergeLifecycleEntry(existing, v)
+				merged, err := MergeLifecycleEntry(existing, v)
 				if err != nil {
 					return err
 				}
@@ -728,7 +727,7 @@ func isVersionCompatible(required string) bool {
 func parseVersion(v string) [3]int {
 	var parts [3]int
 	v = strings.TrimPrefix(v, "v")
-	fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
+	_, _ = fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
 	return parts
 }
 

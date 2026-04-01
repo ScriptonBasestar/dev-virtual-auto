@@ -39,7 +39,7 @@ making it easy to onboard and manage projects.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(debug, jsonOutput)
 		if debug {
-			os.Setenv("DVA_DEBUG", "1")
+			_ = os.Setenv("DVA_DEBUG", "1")
 			dvaexec.Debug = true
 			slog.Debug("debug mode enabled", "json", jsonOutput)
 		}

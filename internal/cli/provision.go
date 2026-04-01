@@ -488,7 +488,7 @@ func clearProvisionMarkers(configDir string) {
 	}
 	for _, e := range entries {
 		if strings.HasPrefix(e.Name(), "provisioned-") {
-			os.Remove(filepath.Join(markerDir, e.Name()))
+			_ = os.Remove(filepath.Join(markerDir, e.Name()))
 		}
 	}
 }

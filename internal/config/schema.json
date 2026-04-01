@@ -938,6 +938,15 @@
               "type": "array",
               "items": { "type": "string" },
               "description": "Stack entry names to include when this environment is active (empty=all)"
+            },
+            "stack_overrides": {
+              "type": "object",
+              "description": "Lifecycle entry overrides to apply on top of the base stack when this environment is active",
+              "patternProperties": {
+                "^[\\w\\-.]+$": {
+                  "type": "object"
+                }
+              }
             }
           }
         }
@@ -1154,6 +1163,10 @@
               },
               "required": ["type"]
             },
+            "port": {
+              "type": "integer",
+              "description": "Listening port number (shown in dva app ls)"
+            },
             "depends_on": {
               "type": "array",
               "items": { "type": "string" },
@@ -1173,6 +1186,7 @@
         "api": {
           "description": "API Server",
           "tags": ["app", "backend"],
+          "port": 11200,
           "run": { "native": "cargo run --bin api", "docker": { "service": "api", "profile": "rust" } },
           "build": { "native": "cargo build --release --bin api" },
           "health": { "type": "http", "url": "http://localhost:11200/healthz", "ready_timeout": 120 },

@@ -40,23 +40,33 @@ Follow ALL rules from `library/shared-guardrails.md` (DVA Configuration Guardrai
    - Node.js → appropriate subsection
    - Do NOT copy placeholder values — use project-specific values.
 7. Generate `dva.yml` following shared guardrails section order and rules.
-8. **Interaction command rules:**
+8. **Applications section generation** — For each detected long-running app server (from `detected_applications` in analysis report):
+   - Declare in `applications:` with short lowercase name (api, worker, web, scheduler)
+   - Set `run:` with native and/or docker exec paths
+   - Set `dev:` for dev mode (hot-reload) if applicable
+   - Set `build:` with native and/or docker build commands
+   - Set `health:` block with type/url/timeout if HTTP endpoint exists
+   - Set `port:` for the app's listening port
+   - Set `depends_on:` for startup ordering (e.g., worker depends on api)
+   - Set `dir:` if app root differs from config root
+   - Migrate apps from `health_checks.start` to `applications:` (remove redundant health_check entries)
+9. **Interaction command rules:**
    - Container commands (db, redis, shell): `service:` field
    - Host commands (build, test, lint, fmt, check): `runner: local`
    - Reserved commands (build, clean, logs): `replace:` hooks
    - Never generate echo wrappers
-9. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
-10. **Endpoint completeness check** — Verify all user-facing compose ports are declared in `endpoints:` section.
-11. **Development pattern commands:**
+10. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
+11. **Endpoint completeness check** — Verify all user-facing compose ports are declared in `endpoints:` section.
+12. **Development pattern commands:**
     - container-first: commands use `service: {app-service}`
     - hybrid: commands use `runner: local`
-12. **Subproject cascade:**
+13. **Subproject cascade:**
     - Version must match root
     - Apply same upgrade rules
     - Subprojects use `exclude_tags: [infra]`
-13. Verify output against schema.
-14. **MANDATORY SELF-REVIEW** — Run through `library/shared-checklist.md` before finalizing.
-15. **Compose file existence check** — For each file in `stack.{entry}.files`, verify it exists with `ls`.
+14. Verify output against schema.
+15. **MANDATORY SELF-REVIEW** — Run through `library/shared-checklist.md` before finalizing.
+16. **Compose file existence check** — For each file in `stack.{entry}.files`, verify it exists with `ls`.
 </steps>
 
 <output>

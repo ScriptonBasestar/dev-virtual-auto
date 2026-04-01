@@ -180,6 +180,12 @@ func (p *ComposePlugin) queryServices(pctx *PluginContext) ([]ServiceStatus, err
 		return nil, fmt.Errorf("compose ps: %w", err)
 	}
 
+	return parseComposeServicesJSON(out)
+}
+
+// parseComposeServicesJSON parses docker compose ps JSON output (array or JSON-lines)
+// into ServiceStatus slice. Shared by ComposePlugin and PodmanComposePlugin.
+func parseComposeServicesJSON(out []byte) ([]ServiceStatus, error) {
 	trimmed := strings.TrimSpace(string(out))
 	if trimmed == "" {
 		return nil, nil

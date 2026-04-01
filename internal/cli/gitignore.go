@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +47,7 @@ func ensureGitignore(configDir string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to open .gitignore for appending: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if !strings.HasSuffix(content, "\n") {
 		if _, err := f.WriteString("\n"); err != nil {
@@ -105,18 +104,4 @@ func checkGitignoreForWarning(configDir string) {
 	fmt.Fprintf(os.Stderr, "         Run 'dva doctor --fix' to auto-fix or add '%s/' to .gitignore manually.\n\n", config.DotDirName)
 }
 
-// readGitignoreLines reads .gitignore and returns lines for scanning.
-func readGitignoreLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
 
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}

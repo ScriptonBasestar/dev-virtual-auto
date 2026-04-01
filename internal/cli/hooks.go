@@ -39,8 +39,8 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 		e := loadEnv(c)
 
 		// Set hook depth to prevent recursion in subprocesses
-		os.Setenv("DVA_HOOK_DEPTH", "1")
-		defer os.Unsetenv("DVA_HOOK_DEPTH")
+		_ = os.Setenv("DVA_HOOK_DEPTH", "1")
+		defer func() { _ = os.Unsetenv("DVA_HOOK_DEPTH") }()
 
 		// Phase 1: before hooks (fail-fast)
 		if len(ic.Before) > 0 {

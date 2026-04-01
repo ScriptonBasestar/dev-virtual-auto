@@ -13,6 +13,8 @@
 # Usage:
 #   dva doctor                    # Check environment prerequisites
 #   dva up                        # Start all services (shows related hints)
+#   dva stack up                  # Start infrastructure stack only
+#   dva stack status              # Show stack entry statuses
 #   dva up -M full-stack          # Start everything + provision suggestion
 #   dva provision setup           # Run initial setup (migrations, seeds)
 #

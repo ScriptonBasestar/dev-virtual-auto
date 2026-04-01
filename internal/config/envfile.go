@@ -40,7 +40,7 @@ func LoadEnvFile(envFileConfig any, basePath string, env *Environment) error {
 		}
 
 		vars, err := parseEnvFile(data)
-		data.Close()
+		_ = data.Close()
 		if err != nil {
 			return fmt.Errorf("parsing env file %s: %w", path, err)
 		}
@@ -73,7 +73,7 @@ func normalizeEnvFileConfig(config any) []EnvFileConfig {
 		}
 		return result
 	case map[string]any:
-		files, _ := v["files"]
+		files := v["files"]
 		required, _ := v["required"].(bool)
 		configs := normalizeEnvFileConfig(files)
 		for i := range configs {

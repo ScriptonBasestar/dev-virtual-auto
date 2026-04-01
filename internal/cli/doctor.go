@@ -257,7 +257,7 @@ func checkDockerSocketPermissions() DoctorResult {
 			FixHint: "Add user to docker group or use sudo",
 		}
 	}
-	f.Close()
+	_ = f.Close()
 
 	return DoctorResult{
 		Name:   "Docker socket permissions",

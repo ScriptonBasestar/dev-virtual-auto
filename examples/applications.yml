@@ -1,6 +1,20 @@
 # yaml-language-server: $schema=../internal/config/schema.json
 # Example: applications section — Rust workspace (api + worker) + Svelte frontend
 # Demonstrates native/docker strategies, depends_on, health checks, and mode integration.
+#
+# Usage:
+#   dva stack up                    # Start infrastructure (compose)
+#   dva stack status                # Show stack entry statuses
+#   dva app ls                      # List all applications with status/health/port/PID
+#   dva app up                      # Start all applications (native by default)
+#   dva app up api --dev            # Start 'api' in dev mode (hot-reload)
+#   dva app up -M docker            # Start apps with docker strategy
+#   dva app build api               # Build a specific application
+#   dva app stop api                # Stop app (preserves state for quick restart)
+#   dva app down                    # Stop and remove all app resources
+#   dva app restart api             # Restart a specific application
+#   dva app log api                 # Show recent logs for an application
+#   dva up -M full-stack            # Shortcut: start stack + all apps natively
 
 version: "0.1.44"
 

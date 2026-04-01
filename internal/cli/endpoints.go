@@ -101,7 +101,7 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 
 	var buf strings.Builder
 	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "  NAME\tSTATUS\tURL\n")
+	_, _ = fmt.Fprintf(tw, "  NAME\tSTATUS\tURL\n")
 
 	for _, name := range names {
 		ep := filtered[name]
@@ -116,7 +116,7 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 			}
 		}
 
-		fmt.Fprintf(tw, "  %s\t%s\t%s\n", ep.Label, status, ep.URL)
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", ep.Label, status, ep.URL)
 
 		// Sub-paths: combine with base URL so terminals render clickable links
 		if len(ep.Paths) > 0 {
@@ -134,15 +134,15 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 				fullURL := baseURL + subPath
 				desc := ep.Paths[p]
 				if desc != "" {
-					fmt.Fprintf(tw, "  \t\t  - %s (%s)\n", fullURL, desc)
+					_, _ = fmt.Fprintf(tw, "  \t\t  - %s (%s)\n", fullURL, desc)
 				} else {
-					fmt.Fprintf(tw, "  \t\t  - %s\n", fullURL)
+					_, _ = fmt.Fprintf(tw, "  \t\t  - %s\n", fullURL)
 				}
 			}
 		}
 	}
 
-	tw.Flush()
+	_ = tw.Flush()
 	fmt.Print(buf.String())
 	fmt.Println()
 }

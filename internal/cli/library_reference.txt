@@ -15,7 +15,7 @@
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
 7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
-9. **Reserved commands** — These are DVA built-in commands and MUST NOT appear as plain interaction keys: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`. Hookable commands (up/down/stop/restart/build/clean/logs/dev) use `replace:` hooks. Others must be renamed (e.g., `service-status`, `db-migrate`).
+9. **Reserved commands** — These are DVA built-in commands and MUST NOT appear as plain interaction keys: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`. Hookable commands (up/down/stop/restart/build/clean/logs) use `replace:` hooks. Others must be renamed (e.g., `service-status`, `db-migrate`). Canonical source: `internal/config/reserved.go`.
 10. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency). Use direct shell commands.
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
@@ -35,7 +35,11 @@
 26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Only allowed fields: `path`, `exclude_tags`.
 27. **`applications:` for long-running app processes** — Application servers (API, workers, web frontends) that the developer actively develops MUST be declared in the `applications:` section, NOT buried in `interaction:` or only in `health_checks.start`. The `applications:` section supports both native and docker execution strategies via `run:`, `dev:`, and `build:` paths.
 28. **`applications:` naming** — Use short lowercase names: `api`, `worker`, `web`, `scheduler`. These become the PID/log identifiers.
-29. **`applications:` health** — Each application SHOULD have a `health:` block for readiness checking. `dva dev` waits for health before reporting success.
+29. **`applications:` health** — Each application SHOULD have a `health:` block for readiness checking. `dva app up` waits for health before reporting success.
+30. **`applications:` port** — Each application with a listening port SHOULD declare `port:` for display in `dva app ls` status output.
+31. **`applications:` depends_on** — Use `depends_on` to express startup order. Apps are started in topological waves: independent apps within the same wave launch concurrently. Cycles are broken automatically but should be avoided.
+32. **`stop` vs `down` semantics** — `dva stack stop` / `dva app stop` sends SIGTERM but preserves state (PID files, volumes) for quick restart. `dva stack down` / `dva app down` sends SIGTERM AND removes resources (PID files, log files, optionally volumes with `-v`). Prefer `stop` during development iteration; use `down` for full cleanup.
+33. **`dva up` vs `dva stack up`** — `dva up` is the top-level lifecycle command that runs hook execution (before/replace/after) then delegates to the stack orchestrator. `dva stack up` directly controls the stack orchestrator without hooks. `dva app up` independently manages application processes. Typical flow: `dva up` (infra) → `dva app up` (apps).
 
 # DVA Configuration Self-Review Checklist (Shared)
 
@@ -76,7 +80,10 @@
 - [ ] App servers (API, workers, web) declared in `applications:` section
 - [ ] Each app has at least `run:` or `dev:` exec path defined
 - [ ] Apps with HTTP endpoints have `health:` block
+- [ ] Apps with listening ports declare `port:` field (shown by `dva app ls`)
 - [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
+- [ ] `depends_on` has no circular references (cycles are handled but should be avoided)
+- [ ] `dir:` is set when app working directory differs from config root
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`
@@ -103,7 +110,7 @@
 
 1. **`modes:` NOT `profiles:`** — Always use `modes:`.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
-3. **`version:` field** — Use the current DVA version: `"0.1.29"`. Subprojects should match.
+3. **`version:` field** — Use the current DVA version (specified in the prompt's CRITICAL version section). Subprojects should match.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
@@ -124,7 +131,7 @@
 `version → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
 
 ```yaml
-version: "0.1.29"
+version: "{CURRENT_DVA_VERSION}"   # Use the version from the prompt's CRITICAL section
 
 environment:                    # Global environment variables
   VAR_NAME: value
@@ -172,6 +179,7 @@ applications:                   # Long-running app processes (API servers, worke
   {app-name}:                   # Short name: api, worker, web, scheduler
     description: "{human-readable description}"
     tags: [app]                 # For filtering
+    port: 11200                 # Listening port (shown in dva app ls) — REQUIRED
     dir: "relative/path"        # Working directory (default: config dir)
     depends_on: [other-app]     # Startup dependency ordering
     environment:                # App-specific env vars
@@ -276,11 +284,13 @@ modes:                          # Operational modes (--mode/-M flag)
       VAR: value
     stack: [entry1, entry2]       # Stack entries to include for this mode
     provision: default            # Suggest provision profile on first run
-    applications: native          # App strategy: "native" (string) or per-app map
+    applications: native          # App strategy: "native"/"docker" (string) or per-app map
     # applications:               # Per-app strategy override:
     #   api: native
     #   worker: docker
     #   _default: native          # Fallback for unlisted apps
+    # NOTE: Without `applications:` field, apps will NOT auto-start in this mode.
+    # Modes that should start apps (hybrid, full-stack, etc.) MUST set this field.
 
 environments:                   # Environment configs (--env/-E flag)
   {env-name}:
@@ -695,7 +705,7 @@ The following fields are NOT valid in dva.yml. Use the correct equivalents:
 ### Subproject Consistency
 
 All subproject dva.yml files MUST follow the same rules as the root:
-- Version must match root (`"0.1.29"`)
+- Version must match root (use current DVA version)
 - Same format rules apply (stack, runner:local, no echo wrappers)
 
 ### Provision Step Fields
@@ -742,6 +752,87 @@ DVA_FILE=path/to/dva.yml dva validate
 # Validate against schema directly
 # Schema location: internal/config/schema.json
 ```
+
+## Lifecycle CLI Commands
+
+DVA has three levels of lifecycle management:
+
+### `dva up` / `dva down` — Top-level lifecycle (with hooks)
+
+```bash
+dva up                    # Start infra (default_mode) — runs before/replace/after hooks
+dva up -M full-stack      # Start all infra in Docker
+dva down                  # Stop and remove infra
+dva down -v               # Also remove volumes
+dva stop                  # Stop infra (preserve state for quick restart)
+dva restart               # Stop then start
+```
+
+`dva up` executes hook steps (before/replace/after from interaction section) then delegates to the stack orchestrator. This is the recommended entry point.
+
+### `dva stack` — Infrastructure orchestrator (no hooks)
+
+```bash
+dva stack up                    # Start all stack entries (bypasses hooks)
+dva stack up compose            # Start a specific stack entry by name
+dva stack up -T infra           # Filter by tag (--tags/-T)
+dva stack up -M hybrid          # Apply mode filtering
+dva stack stop                  # Stop all (preserve state — fast restart)
+dva stack down                  # Remove all stack resources
+dva stack down -v               # Also remove volumes
+dva stack status                # Show stack entry statuses
+dva stack status compose        # Status for specific entry
+dva stack log compose           # View logs for a stack entry
+```
+
+Stack entries are started in `order:` sequence. The orchestrator supports tag-based and mode-based filtering. Exports from earlier entries are available to later entries via environment accumulation.
+
+### `dva app` — Application process manager
+
+```bash
+dva app ls                      # List all applications with status/health/port/PID
+dva app up                      # Start all applications (dependency order)
+dva app up myapp                # Start specific application
+dva app up myapp --dev          # Start in dev mode (hot-reload)
+dva app stop myapp              # Stop (SIGTERM, preserves PID for quick restart)
+dva app down myapp              # Stop and remove PID/log files
+dva app restart myapp           # Stop then start
+dva app restart myapp --dev     # Restart in dev mode
+dva app build myapp             # Build application (native)
+dva app build myapp --docker    # Build application (docker)
+dva app log myapp               # Show last 100 lines of app log
+```
+
+**Startup order:** Applications with `depends_on` are started in topological waves — independent apps within the same wave launch concurrently. Health checks are evaluated after each app starts if `health:` is configured and `--wait` is not disabled.
+
+**Stop vs Down semantics:**
+
+| Command | Signal | PID file | Log file | Use case |
+|---------|--------|----------|----------|----------|
+| `dva app stop` | SIGTERM | preserved | preserved | Development iteration (quick restart) |
+| `dva app down` | SIGTERM | **deleted** | **deleted** | Full cleanup |
+
+Same semantics apply to `dva stack stop` vs `dva stack down`.
+
+### Typical Development Flow
+
+```bash
+dva up                   # 1. Start infrastructure (DB, Redis, etc.)
+dva app up --dev         # 2. Start app servers in dev mode
+# ... develop ...
+dva app restart api      # 3. Restart specific app after changes
+dva app stop             # 4. Stop apps (quick restart later)
+dva down                 # 5. Full infrastructure teardown
+```
+
+### `dva up` vs `dva stack up` — When to Use
+
+| Scenario | Command | Why |
+|----------|---------|-----|
+| Normal development startup | `dva up` | Runs hooks, applies default_mode |
+| Debugging orchestrator behavior | `dva stack up` | Bypasses hooks, direct control |
+| Starting specific entries | `dva stack up <name>` | Targeted infrastructure |
+| Tag-based filtering | `dva stack up -T infra` | Subset by tag |
 
 ## See Also
 
@@ -965,20 +1056,24 @@ modes:
 # =============================================================================
 ```
 
-## Section Order
+## Section Order (Canonical)
 
-모든 dva.yml은 이 순서를 따름:
+모든 dva.yml은 이 순서를 따름 (미사용 섹션은 생략 가능):
 
 1. `version:`
-2. `env_file:`
-3. `stack:` (services tags-only, NO ports)
-4. `checks:` (dva doctor)
-5. `modes:`
-6. `health_checks:` (native processes)
-7. `interaction:` (organized by category)
-8. `provision:` (default, full, reset)
-9. `subprojects:` (if devbox pattern)
-10. `endpoints:` (user-facing access URLs)
+2. `environment:` (선택)
+3. `env_file:`
+4. `stack:` (services tags-only, NO ports)
+5. `checks:` (dva doctor)
+6. `applications:` (앱 서버/워커 — port, run native/docker, dev, build, health)
+7. `default_mode:` (dva up 기본 모드)
+8. `suggestion_ignore:` (선택)
+9. `modes:` (applications 필드로 앱 전략 지정 가능)
+10. `health_checks:` (non-app 서비스 전용)
+11. `interaction:` (organized by category)
+12. `provision:` (default, full, reset)
+13. `subprojects:` (if devbox pattern)
+14. `endpoints:` (user-facing access URLs)
 
 ---
 
@@ -1052,22 +1147,62 @@ modes:
       REDIS_URL: "redis://localhost:{port}"
 ```
 
-### Health Checks
+### Applications (Rust hybrid — native dev servers)
 
 ```yaml
-health_checks:
+applications:
   api:
-    type: http
-    url: "http://localhost:{PORT}/healthz"
-    start: "cd {workspace} && cargo run -p {exact-package-name}"
-    timeout: 5
-    ready_timeout: 120    # Rust compilation needs longer
+    description: "REST API server"
+    tags: [app, api]
+    port: {PORT}
+    dir: "{workspace}"
+    run:
+      native: "cargo run --release -p {exact-package-name}"
+      docker:
+        service: {api-service}
+        profile: rust
+    dev:
+      native: "cargo watch -x 'run -p {exact-package-name}'"
+    build:
+      native: "cargo build --release -p {exact-package-name}"
+      docker:
+        service: {api-service}
+    health:
+      type: http
+      url: "http://localhost:{PORT}/healthz"
+      timeout: 5
+      ready_timeout: 120    # Rust compilation needs longer
+    depends_on: []           # No app dependencies (infra is in stack)
+    environment:
+      RUST_LOG: "info"
   worker:
-    type: command
-    command: "pgrep -f {binary-name}"
-    start: "cd {workspace} && cargo run -p {exact-package-name}"
+    description: "Background job processor"
+    tags: [app, worker]
+    dir: "{workspace}"
+    run: "cargo run -p {worker-package-name}"
+    dev: "cargo watch -x 'run -p {worker-package-name}'"
+    build: "cargo build -p {worker-package-name}"
+    health:
+      type: command
+      command: "pgrep -f {binary-name}"
+      timeout: 5
+      ready_timeout: 120
+    depends_on: [api]        # Worker starts after API
+```
+
+> **Migration note:** If health_checks already has `start:` commands for app servers, migrate them to `applications:` section. The `applications:` section provides richer lifecycle control (stop/down/restart/build/dev mode).
+
+### Health Checks (non-app services only)
+
+```yaml
+# health_checks is now primarily for external/non-app services.
+# App servers should use applications.{name}.health instead.
+health_checks:
+  external-api:
+    type: http
+    url: "http://localhost:{PORT}/health"
+    start_hint: "Start the external service: see docs/setup.md"
     timeout: 5
-    ready_timeout: 120
 ```
 
 ### Interaction
@@ -1209,18 +1344,32 @@ provision:
 
 Same structure as Rust section above — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
 
+### Applications (Go hybrid)
+
+```yaml
+applications:
+  api:
+    description: "HTTP API server"
+    tags: [app, api]
+    port: {PORT}
+    run:
+      native: "go run ./cmd/{binary}"
+      docker:
+        service: {api-service}
+    dev:
+      native: "air"                  # or: go run ./cmd/{binary} with fsnotify watcher
+    build:
+      native: "make build"          # or: go build -o bin/{name} ./cmd/{name}
+    health:
+      type: http
+      url: "http://localhost:{PORT}/health"
+      timeout: 5
+      ready_timeout: 60             # Go compiles faster than Rust
+```
+
 ### Key Differences from Rust
 
 ```yaml
-# Health checks — Go compiles faster
-health_checks:
-  api:
-    type: http
-    url: "http://localhost:{PORT}/health"
-    start: "go run ./cmd/{binary}"
-    timeout: 5
-    ready_timeout: 60     # Go compiles faster than Rust
-
 # Interaction — Go toolchain
 interaction:
   build:

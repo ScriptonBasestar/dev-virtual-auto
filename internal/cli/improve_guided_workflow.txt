@@ -165,7 +165,13 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - Are mode names from the standard set?
    - Are service tags from the standard set?
    - Flag non-standard names for migration
-10. Compile findings into `00-analysis-report.yaml`.
+10. **Application process detection** — Identify long-running application servers that should be declared in `applications:`:
+    - Scan for `cmd/*/main.go` (Go binaries), `Cargo.toml` `[[bin]]` targets, `package.json` `scripts.start`/`scripts.dev`, `pyproject.toml`/`setup.py` with uvicorn/gunicorn entrypoints
+    - Check if existing `health_checks` with `start:` commands represent app servers (should migrate to `applications:`)
+    - Detect HTTP server frameworks in code (actix-web, axum, gin, fiber, express, fastapi, django, rails, etc.)
+    - For each detected app: note binary name, likely port, run/dev/build commands, health endpoint
+    - Flag apps that are only in `interaction:` or `health_checks.start` but missing from `applications:`
+11. Compile findings into `00-analysis-report.yaml`.
 </steps>
 
 <output>
@@ -187,12 +193,22 @@ Scan the user's TARGET project to identify existing configurations, docker usage
   - `port_discrepancies`: [{ service, dva_port, compose_default }]
   - `naming_compliance`: { non_standard_modes: [], non_standard_tags: [] }
   - `package_names`: { ... }
+  - `detected_applications`:
+      - name: string           # binary/package name
+        type: api|worker|web   # role classification
+        port: int              # likely listening port (from code/config)
+        run_command: string    # detected run command
+        dev_command: string    # detected dev command (if any)
+        build_command: string  # detected build command
+        health_endpoint: string # HTTP health path (if detected)
+        currently_in: string   # "applications" | "health_checks" | "interaction" | "none"
   - `existing_dva`:
       found: bool
       version: string
       echo_wrapper_commands: [...]
       missing_sections: [...]
       missing_start_or_hint: [health_check_names]
+      apps_only_in_health_checks: [names]  # apps that should migrate to applications:
       subproject_dvas: [{ path, version, version_mismatch }]
 </output>
 
@@ -306,7 +322,15 @@ Follow ALL rules from `library/shared-guardrails.md` (DVA Configuration Guardrai
 3. **Load naming presets** from `library/naming-presets.md`.
 4. **Load reference example** from `library/reference-examples.md` — select matching section.
 5. Generate the primary `dva.yml` at the project root following shared guardrails section order and rules.
-6. Embed custom interactions:
+6. **Generate applications section** — For each detected long-running app server:
+   - Declare in `applications:` with short lowercase name (api, worker, web)
+   - Set `run:` / `dev:` / `build:` exec paths (native and/or docker)
+   - Set `health:` block for HTTP services (type: http, url, timeout, ready_timeout)
+   - Set `port:` for the app's listening port
+   - Set `depends_on:` for startup ordering
+   - Set `dir:` if working directory differs from project root
+   - Set `environment:` for app-specific env vars (e.g., PORT)
+7. Embed custom interactions:
    - **Container commands** (db, redis, shell): use `service:` field
    - **Host commands** (build, test, lint, fmt, check): use `runner: local`
    - **Reserved DVA commands** (build, clean): use `replace:` hooks
@@ -328,6 +352,8 @@ All items from `library/shared-checklist.md` must pass, plus:
 - [ ] `.env.example` created.
 - [ ] No common default ports used as host ports.
 - [ ] Services section is tags-only (no ports/label/http/paths).
+- [ ] `applications:` section includes all detected app servers.
+- [ ] Each application has `run:` or `dev:` exec path, `health:`, and `port:`.
 </gate>
 
 <return>
@@ -378,23 +404,33 @@ Follow ALL rules from `library/shared-guardrails.md` (DVA Configuration Guardrai
    - Node.js → appropriate subsection
    - Do NOT copy placeholder values — use project-specific values.
 7. Generate `dva.yml` following shared guardrails section order and rules.
-8. **Interaction command rules:**
+8. **Applications section generation** — For each detected long-running app server (from `detected_applications` in analysis report):
+   - Declare in `applications:` with short lowercase name (api, worker, web, scheduler)
+   - Set `run:` with native and/or docker exec paths
+   - Set `dev:` for dev mode (hot-reload) if applicable
+   - Set `build:` with native and/or docker build commands
+   - Set `health:` block with type/url/timeout if HTTP endpoint exists
+   - Set `port:` for the app's listening port
+   - Set `depends_on:` for startup ordering (e.g., worker depends on api)
+   - Set `dir:` if app root differs from config root
+   - Migrate apps from `health_checks.start` to `applications:` (remove redundant health_check entries)
+9. **Interaction command rules:**
    - Container commands (db, redis, shell): `service:` field
    - Host commands (build, test, lint, fmt, check): `runner: local`
    - Reserved commands (build, clean, logs): `replace:` hooks
    - Never generate echo wrappers
-9. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
-10. **Endpoint completeness check** — Verify all user-facing compose ports are declared in `endpoints:` section.
-11. **Development pattern commands:**
+10. **Compose overlay classification** — Include only primary files in stack. Document excluded overlays in comment.
+11. **Endpoint completeness check** — Verify all user-facing compose ports are declared in `endpoints:` section.
+12. **Development pattern commands:**
     - container-first: commands use `service: {app-service}`
     - hybrid: commands use `runner: local`
-12. **Subproject cascade:**
+13. **Subproject cascade:**
     - Version must match root
     - Apply same upgrade rules
     - Subprojects use `exclude_tags: [infra]`
-13. Verify output against schema.
-14. **MANDATORY SELF-REVIEW** — Run through `library/shared-checklist.md` before finalizing.
-15. **Compose file existence check** — For each file in `stack.{entry}.files`, verify it exists with `ls`.
+14. Verify output against schema.
+15. **MANDATORY SELF-REVIEW** — Run through `library/shared-checklist.md` before finalizing.
+16. **Compose file existence check** — For each file in `stack.{entry}.files`, verify it exists with `ls`.
 </steps>
 
 <output>
@@ -430,7 +466,8 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 2. **If DVA CLI is available:**
    a. Run `dva validate` in TARGET to assert `dva.yml` syntax parses correctly.
    b. Unless `--skip-execute` was passed, run `dva up --no-wait` (or `dva up --mode {mode} --no-wait` if `--mode` was provided).
-   c. Run `dva status` to confirm containers reached healthy/running state.
+   c. Run `dva stack status` to confirm stack entries reached healthy/running state.
+   d. If `applications:` section exists in dva.yml, run `dva app ls` to verify application configuration is valid (does not start apps — only lists declared apps).
 3. **If DVA CLI is NOT available (fallback):**
    a. Log: "DVA CLI not found — falling back to docker compose"
    b. Run `docker compose config` to validate compose syntax.
@@ -450,6 +487,7 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 - [ ] DVA CLI availability was checked and the correct execution path taken.
 - [ ] Configuration validation passed (`dva validate` or `docker compose config`).
 - [ ] Containers started successfully (unless `--skip-execute` was passed).
+- [ ] If `applications:` exists, `dva app ls` output is included in report.
 - [ ] Execution report artifact exists with CLI output.
 </gate>
 

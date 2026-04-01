@@ -157,14 +157,14 @@ func runAIImproveInteractive() error {
 	if err := os.WriteFile(promptFile, []byte(prompt), 0600); err != nil {
 		return fmt.Errorf("failed to write prompt file: %w", err)
 	}
-	defer os.Remove(promptFile)
+	defer func() { _ = os.Remove(promptFile) }()
 
 	// Extract guided improve workflow to a unique temp dir
 	workflowDir, err := os.MkdirTemp("", "dva-improve-guided-*")
 	if err != nil {
 		return fmt.Errorf("failed to create workflow temp dir: %w", err)
 	}
-	defer os.RemoveAll(workflowDir)
+	defer func() { _ = os.RemoveAll(workflowDir) }()
 	if err := extractGuidedWorkflow(workflowDir); err != nil {
 		return fmt.Errorf("failed to extract guided workflow: %w", err)
 	}
@@ -468,10 +468,10 @@ func detectEnvSummary() string {
 	dotenvVars := extractEnvVarNames(".env")
 
 	if len(exampleVars) > 0 {
-		sb.WriteString(fmt.Sprintf("\n.env.example variables (%d): %s\n", len(exampleVars), strings.Join(exampleVars, ", ")))
+		fmt.Fprintf(&sb, "\n.env.example variables (%d): %s\n", len(exampleVars), strings.Join(exampleVars, ", "))
 	}
 	if len(dotenvVars) > 0 {
-		sb.WriteString(fmt.Sprintf(".env variables (%d): %s\n", len(dotenvVars), strings.Join(dotenvVars, ", ")))
+		fmt.Fprintf(&sb, ".env variables (%d): %s\n", len(dotenvVars), strings.Join(dotenvVars, ", "))
 	}
 
 	// Show missing variables (.env.example has but .env doesn't)
@@ -487,7 +487,7 @@ func detectEnvSummary() string {
 			}
 		}
 		if len(missing) > 0 {
-			sb.WriteString(fmt.Sprintf("\n⚠ .env MISSING variables (defined in .env.example but not in .env): %s\n", strings.Join(missing, ", ")))
+			fmt.Fprintf(&sb, "\n⚠ .env MISSING variables (defined in .env.example but not in .env): %s\n", strings.Join(missing, ", "))
 			sb.WriteString("  → Compose will fail if these are required (e.g., ${VAR:?msg} syntax)\n")
 		} else if len(dotenvVars) > 0 {
 			sb.WriteString("\n✅ .env covers all variables from .env.example\n")
@@ -510,7 +510,7 @@ func extractEnvVarNames(path string) []string {
 	if err != nil {
 		return nil
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var vars []string
 	scanner := bufio.NewScanner(f)

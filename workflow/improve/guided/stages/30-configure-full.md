@@ -30,7 +30,15 @@ Follow ALL rules from `library/shared-guardrails.md` (DVA Configuration Guardrai
 3. **Load naming presets** from `library/naming-presets.md`.
 4. **Load reference example** from `library/reference-examples.md` — select matching section.
 5. Generate the primary `dva.yml` at the project root following shared guardrails section order and rules.
-6. Embed custom interactions:
+6. **Generate applications section** — For each detected long-running app server:
+   - Declare in `applications:` with short lowercase name (api, worker, web)
+   - Set `run:` / `dev:` / `build:` exec paths (native and/or docker)
+   - Set `health:` block for HTTP services (type: http, url, timeout, ready_timeout)
+   - Set `port:` for the app's listening port
+   - Set `depends_on:` for startup ordering
+   - Set `dir:` if working directory differs from project root
+   - Set `environment:` for app-specific env vars (e.g., PORT)
+7. Embed custom interactions:
    - **Container commands** (db, redis, shell): use `service:` field
    - **Host commands** (build, test, lint, fmt, check): use `runner: local`
    - **Reserved DVA commands** (build, clean): use `replace:` hooks
@@ -52,6 +60,8 @@ All items from `library/shared-checklist.md` must pass, plus:
 - [ ] `.env.example` created.
 - [ ] No common default ports used as host ports.
 - [ ] Services section is tags-only (no ports/label/http/paths).
+- [ ] `applications:` section includes all detected app servers.
+- [ ] Each application has `run:` or `dev:` exec path, `health:`, and `port:`.
 </gate>
 
 <return>

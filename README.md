@@ -27,7 +27,7 @@ sudo mv dva /usr/local/bin/
 프로젝트 루트에 `dva.yml` 생성:
 
 ```yaml
-version: "0.1.0"
+version: "0.1.44"
 
 stack:
   compose:
@@ -59,19 +59,33 @@ dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ## Commands
 
 ```bash
-dva ls                 # 사용 가능한 커맨드 목록
-dva shell              # = dva run shell (run 생략 가능)
-dva up                 # stack 시작 (order 순서대로)
-dva up -M backend      # 모드 적용
-dva up -T backend      # 특정 태그 그룹만 실행
-dva down               # stack 중지 및 제거
-dva status             # 워크스페이스 상태 확인
-dva show               # 설정 요약
-dva config validate    # dva.yml 검증
-dva provision          # 프로비저닝 실행
-dva config init --ai   # AI로 dva.yml 자동 생성
-dva doctor             # 환경 사전조건 진단
-dva migrate            # 레거시 설정 마이그레이션 가이드
+# Infrastructure (stack)
+dva stack up               # stack 시작 (order 순서대로)
+dva stack down             # stack 중지 및 제거
+dva stack status           # stack 엔트리별 상태
+
+# Applications
+dva app ls                 # 앱 목록 (상태, 포트, PID)
+dva app up                 # 전체 앱 시작 (의존성 순서)
+dva app up api --dev       # dev 모드 (hot-reload)
+dva app down               # 전체 앱 중지
+
+# Combined
+dva up                     # stack + app 통합 시작
+dva up -M backend          # 모드 적용
+dva down                   # stack + app 통합 중지
+
+# Interaction
+dva ls                     # 사용 가능한 커맨드 목록
+dva shell                  # = dva run shell (run 생략 가능)
+
+# Utilities
+dva status                 # 워크스페이스 상태 확인
+dva show                   # 설정 요약
+dva config validate        # dva.yml 스키마 + 시맨틱 검증
+dva provision              # 프로비저닝 실행
+dva config init --ai       # AI로 dva.yml 자동 생성
+dva doctor                 # 환경 사전조건 진단
 ```
 
 전체 커맨드 레퍼런스: **[USAGE.md](USAGE.md)**
@@ -99,15 +113,34 @@ stack:
 
 지원 플러그인: `compose`, `kubectl`, `helm`, `kustomize`, `tilt`, `skaffold`, `podman-compose`, `process`, `script`, `docker`, `vagrant`, `sam`, `serverless`, `multipass`
 
+### Applications (앱 프로세스 관리)
+
+`applications:` 섹션에서 네이티브/Docker 앱 프로세스를 정의하고 `dva app`으로 관리합니다:
+
+```yaml
+applications:
+  api:
+    description: "REST API server"
+    port: 11200
+    depends_on: []
+    run:
+      native: "cargo run --release -p api-server"
+      docker: { service: api-rs, profile: rust }
+    dev: "cargo watch -x 'run -p api-server'"
+    health:
+      type: http
+      url: "http://localhost:11200/health"
+```
+
 ### 기타 설정
 
-- **Modes** (`--mode/-M`): 운영 모드별 compose profiles + 서비스 필터 + 환경변수 + stack 엔트리 필터
-- **Environments** (`--env/-E`): 환경변수 프리셋
-- **Tags** (`--tags/-T`): 태그 기반 특정 서비스 그룹 필터링 (`--tag` 별칭 지원)
+- **Modes** (`--mode/-M`): 운영 모드별 compose profiles + 서비스 필터 + 환경변수 + stack 엔트리 필터 + 앱 전략
+- **Environments** (`--env/-E`): 환경변수 프리셋 + stack 엔트리 필터
+- **Tags** (`--tags/-T`): 태그 기반 특정 서비스/앱 그룹 필터링 (`--tag` 별칭 지원)
 - **Health Checks**: 비-compose 서비스 상태 확인 및 자동 시작
 - **Subprojects**: 모노레포 서브프로젝트 참조 (`dva api:test`)
 - **Modules**: `.sb/dva/*.yml` 파일로 설정 분리
-- **Override**: `dva.override.yml`로 로컬 오버라이드
+- **Override**: `dva.override.yml`로 로컬 오버라이드 (필드 레벨 deep merge)
 
 상세 설정 가이드: **[USAGE.md](USAGE.md)**
 

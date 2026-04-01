@@ -11,7 +11,8 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 2. **If DVA CLI is available:**
    a. Run `dva validate` in TARGET to assert `dva.yml` syntax parses correctly.
    b. Unless `--skip-execute` was passed, run `dva up --no-wait` (or `dva up --mode {mode} --no-wait` if `--mode` was provided).
-   c. Run `dva status` to confirm containers reached healthy/running state.
+   c. Run `dva stack status` to confirm stack entries reached healthy/running state.
+   d. If `applications:` section exists in dva.yml, run `dva app ls` to verify application configuration is valid (does not start apps — only lists declared apps).
 3. **If DVA CLI is NOT available (fallback):**
    a. Log: "DVA CLI not found — falling back to docker compose"
    b. Run `docker compose config` to validate compose syntax.
@@ -31,6 +32,7 @@ Ensure the newly constructed/adopted DVA environment validates structurally and 
 - [ ] DVA CLI availability was checked and the correct execution path taken.
 - [ ] Configuration validation passed (`dva validate` or `docker compose config`).
 - [ ] Containers started successfully (unless `--skip-execute` was passed).
+- [ ] If `applications:` exists, `dva app ls` output is included in report.
 - [ ] Execution report artifact exists with CLI output.
 </gate>
 

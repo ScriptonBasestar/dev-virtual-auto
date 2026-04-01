@@ -37,15 +37,15 @@ func PrintStatus(status *AggregatedStatus, configDir string) {
 		if len(entry.Services) > 0 {
 			var buf strings.Builder
 			tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-			fmt.Fprintf(tw, "  SERVICE\tSTATE\tHEALTH\n")
+			_, _ = fmt.Fprintf(tw, "  SERVICE\tSTATE\tHEALTH\n")
 			for _, s := range entry.Services {
 				health := s.Health
 				if health == "" {
 					health = "-"
 				}
-				fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Name, s.State, health)
+				_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Name, s.State, health)
 			}
-			tw.Flush()
+			_ = tw.Flush()
 			fmt.Print(buf.String())
 		}
 
@@ -65,7 +65,7 @@ func printHealthCheckResults(results []HealthCheckResult, configDir string) {
 
 	var buf strings.Builder
 	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "  SERVICE\tSTATUS\n")
+	_, _ = fmt.Fprintf(tw, "  SERVICE\tSTATUS\n")
 	for _, r := range results {
 		var status string
 		switch {
@@ -76,9 +76,9 @@ func printHealthCheckResults(results []HealthCheckResult, configDir string) {
 		default:
 			status = "not ready"
 		}
-		fmt.Fprintf(tw, "  %s\t%s\n", r.Name, status)
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\n", r.Name, status)
 	}
-	tw.Flush()
+	_ = tw.Flush()
 	fmt.Print(buf.String())
 
 	// Show hints for services that are not ready

@@ -19,20 +19,24 @@
 # =============================================================================
 ```
 
-## Section Order
+## Section Order (Canonical)
 
-모든 dva.yml은 이 순서를 따름:
+모든 dva.yml은 이 순서를 따름 (미사용 섹션은 생략 가능):
 
 1. `version:`
-2. `env_file:`
-3. `stack:` (services tags-only, NO ports)
-4. `checks:` (dva doctor)
-5. `modes:`
-6. `health_checks:` (native processes)
-7. `interaction:` (organized by category)
-8. `provision:` (default, full, reset)
-9. `subprojects:` (if devbox pattern)
-10. `endpoints:` (user-facing access URLs)
+2. `environment:` (선택)
+3. `env_file:`
+4. `stack:` (services tags-only, NO ports)
+5. `checks:` (dva doctor)
+6. `applications:` (앱 서버/워커 — port, run native/docker, dev, build, health)
+7. `default_mode:` (dva up 기본 모드)
+8. `suggestion_ignore:` (선택)
+9. `modes:` (applications 필드로 앱 전략 지정 가능)
+10. `health_checks:` (non-app 서비스 전용)
+11. `interaction:` (organized by category)
+12. `provision:` (default, full, reset)
+13. `subprojects:` (if devbox pattern)
+14. `endpoints:` (user-facing access URLs)
 
 ---
 
@@ -106,22 +110,62 @@ modes:
       REDIS_URL: "redis://localhost:{port}"
 ```
 
-### Health Checks
+### Applications (Rust hybrid — native dev servers)
 
 ```yaml
-health_checks:
+applications:
   api:
-    type: http
-    url: "http://localhost:{PORT}/healthz"
-    start: "cd {workspace} && cargo run -p {exact-package-name}"
-    timeout: 5
-    ready_timeout: 120    # Rust compilation needs longer
+    description: "REST API server"
+    tags: [app, api]
+    port: {PORT}
+    dir: "{workspace}"
+    run:
+      native: "cargo run --release -p {exact-package-name}"
+      docker:
+        service: {api-service}
+        profile: rust
+    dev:
+      native: "cargo watch -x 'run -p {exact-package-name}'"
+    build:
+      native: "cargo build --release -p {exact-package-name}"
+      docker:
+        service: {api-service}
+    health:
+      type: http
+      url: "http://localhost:{PORT}/healthz"
+      timeout: 5
+      ready_timeout: 120    # Rust compilation needs longer
+    depends_on: []           # No app dependencies (infra is in stack)
+    environment:
+      RUST_LOG: "info"
   worker:
-    type: command
-    command: "pgrep -f {binary-name}"
-    start: "cd {workspace} && cargo run -p {exact-package-name}"
+    description: "Background job processor"
+    tags: [app, worker]
+    dir: "{workspace}"
+    run: "cargo run -p {worker-package-name}"
+    dev: "cargo watch -x 'run -p {worker-package-name}'"
+    build: "cargo build -p {worker-package-name}"
+    health:
+      type: command
+      command: "pgrep -f {binary-name}"
+      timeout: 5
+      ready_timeout: 120
+    depends_on: [api]        # Worker starts after API
+```
+
+> **Migration note:** If health_checks already has `start:` commands for app servers, migrate them to `applications:` section. The `applications:` section provides richer lifecycle control (stop/down/restart/build/dev mode).
+
+### Health Checks (non-app services only)
+
+```yaml
+# health_checks is now primarily for external/non-app services.
+# App servers should use applications.{name}.health instead.
+health_checks:
+  external-api:
+    type: http
+    url: "http://localhost:{PORT}/health"
+    start_hint: "Start the external service: see docs/setup.md"
     timeout: 5
-    ready_timeout: 120
 ```
 
 ### Interaction
@@ -263,18 +307,32 @@ provision:
 
 Same structure as Rust section above — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
 
+### Applications (Go hybrid)
+
+```yaml
+applications:
+  api:
+    description: "HTTP API server"
+    tags: [app, api]
+    port: {PORT}
+    run:
+      native: "go run ./cmd/{binary}"
+      docker:
+        service: {api-service}
+    dev:
+      native: "air"                  # or: go run ./cmd/{binary} with fsnotify watcher
+    build:
+      native: "make build"          # or: go build -o bin/{name} ./cmd/{name}
+    health:
+      type: http
+      url: "http://localhost:{PORT}/health"
+      timeout: 5
+      ready_timeout: 60             # Go compiles faster than Rust
+```
+
 ### Key Differences from Rust
 
 ```yaml
-# Health checks — Go compiles faster
-health_checks:
-  api:
-    type: http
-    url: "http://localhost:{PORT}/health"
-    start: "go run ./cmd/{binary}"
-    timeout: 5
-    ready_timeout: 60     # Go compiles faster than Rust
-
 # Interaction — Go toolchain
 interaction:
   build:

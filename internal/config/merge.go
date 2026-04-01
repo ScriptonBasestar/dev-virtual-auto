@@ -17,9 +17,9 @@ func mergeStringMap(dst, src map[string]string) map[string]string {
 	return dst
 }
 
-// mergeLifecycleEntry deep-merges other into base.
+// MergeLifecycleEntry deep-merges other into base.
 // Returns an error if a restricted field (plugin) is changed.
-func mergeLifecycleEntry(base, other *LifecycleEntry) (*LifecycleEntry, error) {
+func MergeLifecycleEntry(base, other *LifecycleEntry) (*LifecycleEntry, error) {
 	if base == nil {
 		return other, nil
 	}
@@ -501,6 +501,28 @@ func mergeEnvironmentProfile(base, other EnvironmentProfile) EnvironmentProfile 
 
 	// Map merge
 	base.Environment = mergeStringMap(base.Environment, other.Environment)
+
+	// StackOverrides map merge (deep)
+	if len(other.StackOverrides) > 0 {
+		if base.StackOverrides == nil {
+			base.StackOverrides = make(map[string]*LifecycleEntry)
+		}
+		for k, v := range other.StackOverrides {
+			if existing, ok := base.StackOverrides[k]; ok {
+				merged, err := MergeLifecycleEntry(existing, v)
+				if err != nil {
+					// plugin type conflict in override is a config error;
+					// caller (mergeFrom) propagates it via mergeEnvironmentProfile
+					// but this function cannot return errors. Log and skip.
+					fmt.Printf("[warn] stack_override %q: %v\n", k, err)
+					continue
+				}
+				base.StackOverrides[k] = merged
+			} else {
+				base.StackOverrides[k] = v
+			}
+		}
+	}
 
 	return base
 }

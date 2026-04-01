@@ -98,16 +98,4 @@ func toDevcontainerRelative(p string) string {
 	return "../" + p
 }
 
-// devcontainerYAMLSection returns a default devcontainer YAML block to append to dva.yml.
-func devcontainerYAMLSection(service string) string {
-	if service == "" {
-		service = "app"
-	}
-	return fmt.Sprintf(`
-devcontainer:
-  enabled: true
-  name: "Development Environment"
-  service: %s
-  workspaceFolder: "/workspace"
-`, service)
-}
+

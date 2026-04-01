@@ -2,12 +2,9 @@ package lifecycle
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 )
@@ -119,43 +116,5 @@ func (p *PodmanComposePlugin) queryServices(pctx *PluginContext) ([]ServiceStatu
 		return nil, fmt.Errorf("podman-compose ps: %w", err)
 	}
 
-	trimmed := strings.TrimSpace(string(out))
-	if trimmed == "" {
-		return nil, nil
-	}
-
-	var infos []composeServiceInfo
-	if err := json.Unmarshal(out, &infos); err != nil {
-		// Try JSON lines format
-		for _, line := range strings.Split(trimmed, "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			var info composeServiceInfo
-			if err := json.Unmarshal([]byte(line), &info); err != nil {
-				fmt.Fprintf(os.Stderr, "[warn] failed to parse podman-compose service info: %v\n", err)
-				continue
-			}
-			infos = append(infos, info)
-		}
-	}
-
-	services := make([]ServiceStatus, 0, len(infos))
-	for _, info := range infos {
-		ports := make(map[int]int)
-		for _, pub := range info.Publishers {
-			if pub.PublishedPort > 0 {
-				ports[pub.PublishedPort] = pub.TargetPort
-			}
-		}
-		services = append(services, ServiceStatus{
-			Name:   info.Service,
-			State:  info.State,
-			Health: info.Health,
-			Ports:  ports,
-		})
-	}
-
-	return services, nil
+	return parseComposeServicesJSON(out)
 }

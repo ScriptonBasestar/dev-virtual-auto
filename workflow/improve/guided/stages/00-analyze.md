@@ -52,7 +52,13 @@ Scan the user's TARGET project to identify existing configurations, docker usage
    - Are mode names from the standard set?
    - Are service tags from the standard set?
    - Flag non-standard names for migration
-10. Compile findings into `00-analysis-report.yaml`.
+10. **Application process detection** — Identify long-running application servers that should be declared in `applications:`:
+    - Scan for `cmd/*/main.go` (Go binaries), `Cargo.toml` `[[bin]]` targets, `package.json` `scripts.start`/`scripts.dev`, `pyproject.toml`/`setup.py` with uvicorn/gunicorn entrypoints
+    - Check if existing `health_checks` with `start:` commands represent app servers (should migrate to `applications:`)
+    - Detect HTTP server frameworks in code (actix-web, axum, gin, fiber, express, fastapi, django, rails, etc.)
+    - For each detected app: note binary name, likely port, run/dev/build commands, health endpoint
+    - Flag apps that are only in `interaction:` or `health_checks.start` but missing from `applications:`
+11. Compile findings into `00-analysis-report.yaml`.
 </steps>
 
 <output>
@@ -74,12 +80,22 @@ Scan the user's TARGET project to identify existing configurations, docker usage
   - `port_discrepancies`: [{ service, dva_port, compose_default }]
   - `naming_compliance`: { non_standard_modes: [], non_standard_tags: [] }
   - `package_names`: { ... }
+  - `detected_applications`:
+      - name: string           # binary/package name
+        type: api|worker|web   # role classification
+        port: int              # likely listening port (from code/config)
+        run_command: string    # detected run command
+        dev_command: string    # detected dev command (if any)
+        build_command: string  # detected build command
+        health_endpoint: string # HTTP health path (if detected)
+        currently_in: string   # "applications" | "health_checks" | "interaction" | "none"
   - `existing_dva`:
       found: bool
       version: string
       echo_wrapper_commands: [...]
       missing_sections: [...]
       missing_start_or_hint: [health_check_names]
+      apps_only_in_health_checks: [names]  # apps that should migrate to applications:
       subproject_dvas: [{ path, version, version_mismatch }]
 </output>
 

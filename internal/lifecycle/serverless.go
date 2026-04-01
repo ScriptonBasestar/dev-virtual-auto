@@ -116,12 +116,12 @@ func (p *ServerlessPlugin) stopProcess(pctx *PluginContext) error {
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		os.Remove(pidFile)
+		_ = os.Remove(pidFile)
 		return nil
 	}
 	if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
 		fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
 	}
-	os.Remove(pidFile)
+	_ = os.Remove(pidFile)
 	return nil
 }
