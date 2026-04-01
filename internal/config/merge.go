@@ -470,6 +470,9 @@ func mergeApplicationConfig(base, other *ApplicationConfig) *ApplicationConfig {
 	if other.Health != nil {
 		base.Health = other.Health
 	}
+	if other.Port != 0 {
+		base.Port = other.Port
+	}
 
 	// List replace
 	if other.Tags != nil {

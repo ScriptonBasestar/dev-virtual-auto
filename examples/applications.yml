@@ -36,6 +36,7 @@ applications:
   api:
     description: "REST API server (Rust)"
     tags: [app, api]
+    port: 11200
     dir: "rust-workspace"
     run:
       native: "cargo run --release -p api-server"
@@ -63,6 +64,7 @@ applications:
   worker:
     description: "Background job worker (Rust)"
     tags: [app, worker]
+    port: 11201
     dir: "rust-workspace"
     depends_on: [api]
     run:
@@ -81,6 +83,7 @@ applications:
   web:
     description: "Svelte frontend"
     tags: [app, ui]
+    port: 11300
     dir: "frontend"
     run: "pnpm build && pnpm preview"
     dev: "pnpm dev --port 11300"

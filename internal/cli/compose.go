@@ -181,8 +181,14 @@ var downCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
+
+		// dva down is an "all services" shortcut — use dva stack down <name> for selective teardown
+		if len(remaining) > 0 {
+			return fmt.Errorf("'dva down' tears down all services. Use 'dva stack down %s' or 'dva app down %s' for selective teardown",
+				remaining[0], remaining[0])
+		}
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -229,8 +235,14 @@ var stopCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
+
+		// dva stop is an "all services" shortcut — use dva stack stop <name> for selective stop
+		if len(remaining) > 0 {
+			return fmt.Errorf("'dva stop' stops all services. Use 'dva stack stop %s' or 'dva app stop %s' for selective stop",
+				remaining[0], remaining[0])
+		}
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err

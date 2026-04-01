@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
@@ -213,14 +216,47 @@ var stackStatusCmd = &cobra.Command{
 
 var stackLogCmd = &cobra.Command{
 	Use:                "log [NAME] [OPTIONS]",
-	Short:              "View logs for a stack entry (compose logs passthrough)",
+	Short:              "View logs for a stack entry",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		// Delegate to compose logs for now
+
+		// If a name is given that matches a non-compose entry, show its log file
+		if len(args) > 0 {
+			if entry := c.FindStackEntry(args[0]); entry != nil {
+				plugin := entry.DetectPlugin()
+				switch plugin {
+				case "process", "script":
+					return showStackEntryLog(c, args[0])
+				case "compose", "podman-compose":
+					return execComposePassthroughForEntry(e, c, entry, append([]string{"logs"}, args[1:]...))
+				}
+			}
+		}
+
+		// Default: delegate to compose logs passthrough
 		return execComposePassthrough(e, c, append([]string{"logs"}, args...))
 	},
+}
+
+// showStackEntryLog reads and prints the log file for a non-compose stack entry.
+func showStackEntryLog(c *config.Config, name string) error {
+	logFile := filepath.Join(c.FileDir(), config.DotDirName, "logs", name+".log")
+	data, err := os.ReadFile(logFile)
+	if err != nil {
+		return fmt.Errorf("no log file for stack entry %q: %w", name, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	start := 0
+	if len(lines) > 100 {
+		start = len(lines) - 100
+	}
+	for _, line := range lines[start:] {
+		fmt.Println(line)
+	}
+	return nil
 }
 
 func init() {

@@ -38,18 +38,21 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 
 		if len(kubectlEntries) > 1 {
 			// Multiple entries: first arg must be entry name
+			matched := false
 			if len(args) > 0 {
 				if found := c.FindStackEntry(args[0]); found != nil && found.Kubectl != nil {
 					entry = found
 					passArgs = args[1:]
-				} else {
-					var names []string
-					for _, e := range kubectlEntries {
-						names = append(names, e.Name)
-					}
-					return fmt.Errorf("multiple kubectl entries: %s\nSpecify one: dva ktl <name> [args...]",
-						strings.Join(names, ", "))
+					matched = true
 				}
+			}
+			if !matched {
+				var names []string
+				for _, e := range kubectlEntries {
+					names = append(names, e.Name)
+				}
+				return fmt.Errorf("multiple kubectl entries: %s\nSpecify one: dva ktl <name> [args...]",
+					strings.Join(names, ", "))
 			}
 		}
 

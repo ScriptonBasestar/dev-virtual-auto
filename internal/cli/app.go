@@ -124,7 +124,7 @@ var appUpCmd = &cobra.Command{
 }
 
 var appRestartCmd = &cobra.Command{
-	Use:   "restart [APP...]",
+	Use:   "restart [APP...] [--dev]",
 	Short: "Restart applications (stop then start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -138,11 +138,21 @@ var appRestartCmd = &cobra.Command{
 		mode, _, _, _, args := parseDvaFlags(args)
 		mode, _ = applyDefaultMode(c, mode)
 
+		devMode := false
+		var appNames []string
+		for _, a := range args {
+			if a == "--dev" {
+				devMode = true
+			} else {
+				appNames = append(appNames, a)
+			}
+		}
+
 		am := lifecycle.NewAppManager(c, e)
-		am.HaltApps(args...)
+		am.HaltApps(appNames...)
 		return am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
-			Names:   args,
-			DevMode: true,
+			Names:   appNames,
+			DevMode: devMode,
 			Wait:    true,
 			Mode:    mode,
 		})
@@ -201,7 +211,7 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 
 	fmt.Fprintln(os.Stderr, "Applications:")
 	w := tabwriter.NewWriter(os.Stderr, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  NAME\tSTATUS\tHEALTH\tPID")
+	fmt.Fprintln(w, "  NAME\tSTATUS\tHEALTH\tPORT\tPID")
 	for _, s := range statuses {
 		state := s.Strategy
 		if s.Running {
@@ -213,11 +223,15 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 		} else if s.Running {
 			health = "unknown"
 		}
+		port := "-"
+		if s.Port > 0 {
+			port = fmt.Sprintf("%d", s.Port)
+		}
 		pid := "-"
 		if s.PID > 0 {
 			pid = fmt.Sprintf("%d", s.PID)
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", s.Name, state, health, pid)
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", s.Name, state, health, port, pid)
 	}
 	w.Flush()
 }

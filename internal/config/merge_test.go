@@ -264,6 +264,40 @@ func TestMergeApplicationConfigPartialOverride(t *testing.T) {
 	}
 }
 
+func TestMergeApplicationConfigPortOverride(t *testing.T) {
+	base := &ApplicationConfig{
+		Description: "api",
+		Port:        8080,
+	}
+	other := &ApplicationConfig{
+		Port: 11400,
+	}
+
+	merged := mergeApplicationConfig(base, other)
+
+	if merged.Port != 11400 {
+		t.Errorf("port = %d, want overridden to 11400", merged.Port)
+	}
+	if merged.Description != "api" {
+		t.Errorf("description = %q, want preserved", merged.Description)
+	}
+}
+
+func TestMergeApplicationConfigPortPreserved(t *testing.T) {
+	base := &ApplicationConfig{
+		Port: 8080,
+	}
+	other := &ApplicationConfig{
+		Description: "updated",
+	}
+
+	merged := mergeApplicationConfig(base, other)
+
+	if merged.Port != 8080 {
+		t.Errorf("port = %d, want preserved 8080", merged.Port)
+	}
+}
+
 func TestMergeEnvironmentProfile(t *testing.T) {
 	base := EnvironmentProfile{
 		Description: "staging",

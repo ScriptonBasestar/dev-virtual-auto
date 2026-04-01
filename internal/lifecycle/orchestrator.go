@@ -192,8 +192,8 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	// Stop native processes
-	o.stopModeProcesses(opts.Mode)
+	// Halt native mode processes (SIGTERM, PID files preserved for restart)
+	o.haltModeProcesses(opts.Mode)
 
 	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
@@ -463,8 +463,21 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 	return firstErr
 }
 
-// stopModeProcesses stops native processes that were started via mode health_checks.
+// haltModeProcesses sends SIGTERM to mode health_check processes but preserves
+// PID files so they can be restarted by the next `up` call (halt semantics).
+func (o *Orchestrator) haltModeProcesses(mode string) {
+	o.signalModeProcesses(mode, false)
+}
+
+// stopModeProcesses sends SIGTERM to mode health_check processes and removes
+// PID files (destroy semantics).
 func (o *Orchestrator) stopModeProcesses(mode string) {
+	o.signalModeProcesses(mode, true)
+}
+
+// signalModeProcesses terminates health_check native processes. When removePID
+// is true, the PID files are deleted after signalling (down semantics).
+func (o *Orchestrator) signalModeProcesses(mode string, removePID bool) {
 	if mode == "" {
 		return
 	}
@@ -491,7 +504,9 @@ func (o *Orchestrator) stopModeProcesses(mode string) {
 			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
 				fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", hcName, pid)
 			}
-			os.Remove(pidFile)
+			if removePID {
+				os.Remove(pidFile)
+			}
 		}
 	}
 }

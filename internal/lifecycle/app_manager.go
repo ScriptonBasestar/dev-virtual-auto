@@ -43,6 +43,7 @@ type AppStatus struct {
 	Running  bool
 	Healthy  bool
 	PID      int
+	Port     int
 	LogFile  string
 }
 
@@ -266,7 +267,9 @@ func (am *AppManager) DownApps(names ...string) {
 
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err != nil {
+			// Malformed PID file — clean up both files
 			os.Remove(pidFile)
+			os.Remove(logFile)
 			continue
 		}
 
@@ -288,6 +291,7 @@ func (am *AppManager) AppStatuses() []AppStatus {
 	for name, app := range am.cfg.Applications {
 		status := AppStatus{
 			Name:    name,
+			Port:    app.Port,
 			LogFile: am.logPath(name),
 		}
 

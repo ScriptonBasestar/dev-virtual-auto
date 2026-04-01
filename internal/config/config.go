@@ -155,6 +155,7 @@ type ServiceTagConfig struct {
 type ApplicationConfig struct {
 	Description string            `yaml:"description"`
 	Tags        []string          `yaml:"tags"`
+	Port        int               `yaml:"port"`  // listening port (shown in dva app ls)
 	Run         AppExecPaths      `yaml:"run"`
 	Build       AppExecPaths      `yaml:"build"`
 	Dev         AppExecPaths      `yaml:"dev"`

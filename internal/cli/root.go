@@ -312,7 +312,7 @@ func featuredLifecycleHint(cmd *cobra.Command) string {
 	case "app":
 		return "[apps] " + cmd.Short
 	case "down":
-		return "[stop] " + cmd.Short
+		return "[down] " + cmd.Short
 	default:
 		return cmd.Short
 	}
