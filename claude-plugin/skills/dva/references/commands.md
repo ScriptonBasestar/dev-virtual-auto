@@ -173,11 +173,11 @@ Start infrastructure and applications in dev mode. Combines `dva up` + `dva app 
 Manage long-running application processes.
 
 ```bash
-dva app list              # list defined applications
+dva app ls                # list defined applications
 dva app build             # build applications
-dva app run [NAME]        # run application(s)
-dva app stop [NAME]       # stop application(s)
-dva app logs [NAME]       # view application logs
+dva app up [NAME]         # start application(s)
+dva app down [NAME]       # stop application(s)
+dva app log [NAME]        # view application logs
 dva app restart [NAME]    # restart application(s)
 ```
 

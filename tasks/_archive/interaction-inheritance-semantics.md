@@ -1,3 +1,8 @@
+---
+archived-at: 2026-04-01T15:00:35+09:00
+verified-at: 2026-04-01T15:00:35+09:00
+verification-summary: "Review completed. Interaction merge semantics, map/struct inheritance rules, and runner determination logic are fully specified."
+---
 # Interaction Inheritance And Merge Semantics
 
 ## 배경

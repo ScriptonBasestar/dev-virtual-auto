@@ -1,3 +1,8 @@
+---
+archived-at: 2026-04-01T15:00:35+09:00
+verified-at: 2026-04-01T15:00:35+09:00
+verification-summary: "Review completed. Severity levels (Hard Error, Semantic Warning, Drift Warning, Suggestion Warning, Doctor Check) are strictly defined and categorizations are provided."
+---
 # Validation Severity Policy
 
 ## 배경

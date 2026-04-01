@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -384,6 +385,13 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 		return nil
 	}
 
+	type nativeProc struct {
+		name string
+		hc   config.HealthCheckConfig
+	}
+
+	// Collect startable processes
+	var procs []nativeProc
 	for _, hcName := range mode.HealthChecks {
 		hc, ok := o.cfg.HealthChecks[hcName]
 		if !ok || hc.Start == "" {
@@ -408,42 +416,62 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 			}
 		}
 
-		dir := o.cfg.FileDir()
-		pctx := &PluginContext{
-			Entry: &config.LifecycleEntry{
-				Name: hcName,
-			},
-			Env:       env,
-			ConfigDir: o.cfg.FileDir(),
-			DryRun:    opts.DryRun,
-			Logger:    o.logger.With("native", hcName),
-		}
-
-		fmt.Fprintf(os.Stderr, "[native] starting %s\n", hcName)
-		if err := startLocalProcess(hcName, hc.Start, dir, pctx); err != nil {
-			return fmt.Errorf("native start %s: %w", hcName, err)
-		}
-		fmt.Fprintf(os.Stderr, "[+] started %s\n", hcName)
-
-		// Wait for health check readiness if --wait
-		if opts.Wait {
-			checks := map[string]config.HealthCheckConfig{hcName: hc}
-			readyTimeout := time.Duration(hc.ReadyTimeout) * time.Second
-			if readyTimeout == 0 {
-				readyTimeout = 30 * time.Second
-			}
-			waitCtx, cancel := context.WithTimeout(ctx, readyTimeout)
-			results := o.hc.WaitUntilReady(waitCtx, checks)
-			cancel()
-			for _, r := range results {
-				if !r.Ready {
-					fmt.Fprintf(os.Stderr, "[warn] %s not ready after %s\n", hcName, readyTimeout)
-				}
-			}
-		}
+		procs = append(procs, nativeProc{name: hcName, hc: hc})
 	}
 
-	return nil
+	// Start all native processes concurrently
+	var mu sync.Mutex
+	var firstErr error
+	var wg sync.WaitGroup
+
+	for _, p := range procs {
+		wg.Add(1)
+		go func(p nativeProc) {
+			defer wg.Done()
+
+			dir := o.cfg.FileDir()
+			pctx := &PluginContext{
+				Entry: &config.LifecycleEntry{
+					Name: p.name,
+				},
+				Env:       env,
+				ConfigDir: o.cfg.FileDir(),
+				DryRun:    opts.DryRun,
+				Logger:    o.logger.With("native", p.name),
+			}
+
+			fmt.Fprintf(os.Stderr, "[native] starting %s\n", p.name)
+			if err := startLocalProcess(p.name, p.hc.Start, dir, pctx); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("native start %s: %w", p.name, err)
+				}
+				mu.Unlock()
+				return
+			}
+			fmt.Fprintf(os.Stderr, "[+] started %s\n", p.name)
+
+			// Wait for health check readiness if --wait
+			if opts.Wait {
+				checks := map[string]config.HealthCheckConfig{p.name: p.hc}
+				readyTimeout := time.Duration(p.hc.ReadyTimeout) * time.Second
+				if readyTimeout == 0 {
+					readyTimeout = 30 * time.Second
+				}
+				waitCtx, cancel := context.WithTimeout(ctx, readyTimeout)
+				results := o.hc.WaitUntilReady(waitCtx, checks)
+				cancel()
+				for _, r := range results {
+					if !r.Ready {
+						fmt.Fprintf(os.Stderr, "[warn] %s not ready after %s\n", p.name, readyTimeout)
+					}
+				}
+			}
+		}(p)
+	}
+
+	wg.Wait()
+	return firstErr
 }
 
 // stopModeProcesses stops native processes that were started via mode health_checks.

@@ -13,14 +13,14 @@ import (
 
 var appCmd = &cobra.Command{
 	Use:   "app [command]",
-	Short: "Manage application lifecycle (ls, start, build, stop, restart, log)",
+	Short: "Manage application lifecycle (ls, up, build, down, restart, log)",
 	Long: `Manage application processes defined in the 'applications' section of dva.yml.
 
 Use subcommands to list status, start, build, stop, restart, and view logs of applications.`,
 	Example: `  dva app ls              # List all applications and their status
-  dva app start myapp     # Start a specific application
+  dva app up myapp        # Start a specific application
   dva app build myapp     # Build a specific application
-  dva app stop myapp      # Stop a specific application
+  dva app down myapp      # Stop a specific application
   dva app restart myapp   # Restart a specific application
   dva app log myapp       # Show recent logs for an application`,
 }
@@ -44,8 +44,8 @@ var appLsCmd = &cobra.Command{
 	},
 }
 
-var appStopCmd = &cobra.Command{
-	Use:   "stop [APP...]",
+var appDownCmd = &cobra.Command{
+	Use:   "down [APP...]",
 	Short: "Stop running applications (all if no name given)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -61,8 +61,8 @@ var appStopCmd = &cobra.Command{
 	},
 }
 
-var appStartCmd = &cobra.Command{
-	Use:   "start [APP...]",
+var appUpCmd = &cobra.Command{
+	Use:   "up [APP...]",
 	Short: "Start applications (all if no name given)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -77,12 +77,19 @@ var appStartCmd = &cobra.Command{
 		mode, _ = applyDefaultMode(c, mode)
 
 		am := lifecycle.NewAppManager(c, e)
-		return am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
+		if err := am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
 			Names:   args,
 			DevMode: true,
 			Wait:    true,
 			Mode:    mode,
-		})
+		}); err != nil {
+			return err
+		}
+
+		fmt.Fprintln(os.Stderr)
+		statuses := am.AppStatuses()
+		printAppStatuses(statuses)
+		return nil
 	},
 }
 
@@ -149,8 +156,8 @@ var appBuildCmd = &cobra.Command{
 
 func init() {
 	appCmd.AddCommand(appLsCmd)
-	appCmd.AddCommand(appStartCmd)
-	appCmd.AddCommand(appStopCmd)
+	appCmd.AddCommand(appUpCmd)
+	appCmd.AddCommand(appDownCmd)
 	appCmd.AddCommand(appRestartCmd)
 	appCmd.AddCommand(appBuildCmd)
 }

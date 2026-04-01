@@ -138,6 +138,54 @@ func TestTopoSort_WithDeps(t *testing.T) {
 	}
 }
 
+func TestTopoSortWaves_NoDeps(t *testing.T) {
+	cfg := &config.Config{
+		Applications: map[string]*config.ApplicationConfig{
+			"api":    {},
+			"worker": {},
+			"web":    {},
+		},
+	}
+	env := config.NewEnvironment(nil, "/tmp", "/tmp")
+	am := NewAppManager(cfg, env)
+
+	waves := am.topoSortWaves(cfg.Applications)
+	if len(waves) != 1 {
+		t.Fatalf("topoSortWaves() returned %d waves, want 1 (all independent)", len(waves))
+	}
+	if len(waves[0]) != 3 {
+		t.Fatalf("wave[0] has %d apps, want 3", len(waves[0]))
+	}
+}
+
+func TestTopoSortWaves_WithDeps(t *testing.T) {
+	cfg := &config.Config{
+		Applications: map[string]*config.ApplicationConfig{
+			"db":     {},
+			"api":    {DependsOn: []string{"db"}},
+			"worker": {DependsOn: []string{"db"}},
+			"web":    {DependsOn: []string{"api"}},
+		},
+	}
+	env := config.NewEnvironment(nil, "/tmp", "/tmp")
+	am := NewAppManager(cfg, env)
+
+	waves := am.topoSortWaves(cfg.Applications)
+	// wave 0: db, wave 1: api+worker, wave 2: web
+	if len(waves) != 3 {
+		t.Fatalf("topoSortWaves() returned %d waves, want 3", len(waves))
+	}
+	if len(waves[0]) != 1 || waves[0][0] != "db" {
+		t.Errorf("wave[0] = %v, want [db]", waves[0])
+	}
+	if len(waves[1]) != 2 {
+		t.Errorf("wave[1] has %d apps, want 2 (api, worker)", len(waves[1]))
+	}
+	if len(waves[2]) != 1 || waves[2][0] != "web" {
+		t.Errorf("wave[2] = %v, want [web]", waves[2])
+	}
+}
+
 func TestSelectApps_All(t *testing.T) {
 	cfg := &config.Config{
 		Applications: map[string]*config.ApplicationConfig{

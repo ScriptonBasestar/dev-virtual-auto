@@ -1,3 +1,8 @@
+---
+archived-at: 2026-04-01T15:00:35+09:00
+verified-at: 2026-04-01T15:00:35+09:00
+verification-summary: "Review completed. Environment interpolation semantics, syntax exclusions, and testing scenarios are documented per completion criteria."
+---
 # Environment Interpolation Hardening
 
 ## 배경

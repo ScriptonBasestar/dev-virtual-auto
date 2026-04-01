@@ -1,3 +1,8 @@
+---
+archived-at: 2026-04-01T15:00:35+09:00
+verified-at: 2026-04-01T15:00:35+09:00
+verification-summary: "Review completed. Preflight check candidates and priorities clearly documented per completion criteria."
+---
 # Doctor Preflight Expansion
 
 ## 배경

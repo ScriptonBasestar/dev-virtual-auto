@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -54,16 +55,38 @@ func NewAppManager(cfg *config.Config, env *config.Environment) *AppManager {
 	}
 }
 
-// StartApps starts applications in dependency order.
+// StartApps starts applications in dependency order, with independent apps
+// launched concurrently within the same wave.
 func (am *AppManager) StartApps(ctx context.Context, opts AppStartOptions) error {
 	apps := am.selectApps(opts.Names)
 	if len(apps) == 0 {
 		return nil
 	}
 
-	ordered := am.topoSort(apps)
+	waves := am.topoSortWaves(apps)
 
-	for _, name := range ordered {
+	for _, wave := range waves {
+		if err := am.startWave(ctx, wave, opts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// startWave starts all apps in a wave concurrently, then waits for all to
+// complete startup (including health checks).
+func (am *AppManager) startWave(ctx context.Context, names []string, opts AppStartOptions) error {
+	type startErr struct {
+		name string
+		err  error
+	}
+
+	var mu sync.Mutex
+	var errs []startErr
+	var wg sync.WaitGroup
+
+	for _, name := range names {
 		app := am.cfg.Applications[name]
 		strategy := am.resolveStrategy(name, opts)
 		command := am.resolveCommand(app, strategy, opts.DevMode)
@@ -88,84 +111,120 @@ func (am *AppManager) StartApps(ctx context.Context, opts AppStartOptions) error
 			}
 		}
 
-		if strategy == "docker" {
-			if err := am.startDockerApp(ctx, name, app, command); err != nil {
-				return fmt.Errorf("app start %s (docker): %w", name, err)
-			}
-		} else {
-			if err := am.startNativeApp(name, app, command); err != nil {
-				return fmt.Errorf("app start %s (native): %w", name, err)
-			}
-		}
+		wg.Add(1)
+		go func(name, strategy, command string, app *config.ApplicationConfig) {
+			defer wg.Done()
 
-		fmt.Fprintf(os.Stderr, "[+] started app %s [%s]\n", name, strategy)
-
-		// Wait for health check readiness
-		if opts.Wait && app.Health != nil {
-			checks := map[string]config.HealthCheckConfig{name: *app.Health}
-			timeout := time.Duration(app.Health.ReadyTimeout) * time.Second
-			if timeout == 0 {
-				timeout = 30 * time.Second
+			var err error
+			if strategy == "docker" {
+				err = am.startDockerApp(ctx, name, app, command)
+			} else {
+				err = am.startNativeApp(name, app, command)
 			}
-			waitCtx, cancel := context.WithTimeout(ctx, timeout)
-			results := am.hc.WaitUntilReady(waitCtx, checks)
-			cancel()
-			for _, r := range results {
-				if !r.Ready {
-					fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
+
+			if err != nil {
+				mu.Lock()
+				errs = append(errs, startErr{name, fmt.Errorf("app start %s (%s): %w", name, strategy, err)})
+				mu.Unlock()
+				return
+			}
+
+			fmt.Fprintf(os.Stderr, "[+] started app %s [%s]\n", name, strategy)
+
+			// Wait for health check readiness
+			if opts.Wait && app.Health != nil {
+				checks := map[string]config.HealthCheckConfig{name: *app.Health}
+				timeout := time.Duration(app.Health.ReadyTimeout) * time.Second
+				if timeout == 0 {
+					timeout = 30 * time.Second
+				}
+				waitCtx, cancel := context.WithTimeout(ctx, timeout)
+				results := am.hc.WaitUntilReady(waitCtx, checks)
+				cancel()
+				for _, r := range results {
+					if !r.Ready {
+						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
+					}
 				}
 			}
-		}
+		}(name, strategy, command, app)
 	}
 
+	wg.Wait()
+
+	if len(errs) > 0 {
+		return errs[0].err
+	}
 	return nil
 }
 
 // BuildApps runs the build command for each selected application.
+// Independent apps within the same dependency wave are built concurrently.
 func (am *AppManager) BuildApps(ctx context.Context, opts AppStartOptions) error {
 	apps := am.selectApps(opts.Names)
 	if len(apps) == 0 {
 		return nil
 	}
 
-	ordered := am.topoSort(apps)
+	waves := am.topoSortWaves(apps)
 
-	for _, name := range ordered {
-		app := am.cfg.Applications[name]
-		strategy := am.resolveStrategy(name, opts)
+	for _, wave := range waves {
+		var mu sync.Mutex
+		var firstErr error
+		var wg sync.WaitGroup
 
-		var command string
-		if strategy == "docker" {
-			command = am.resolveDockerCommand(app, false)
-		} else {
-			command = app.Build.Native
+		for _, name := range wave {
+			app := am.cfg.Applications[name]
+			strategy := am.resolveStrategy(name, opts)
+
+			var command string
+			if strategy == "docker" {
+				command = am.resolveDockerCommand(app, false)
+			} else {
+				command = app.Build.Native
+			}
+
+			if command == "" {
+				am.logger.Info("no build command", "app", name, "strategy", strategy)
+				continue
+			}
+
+			if opts.DryRun {
+				fmt.Fprintf(os.Stderr, "[app] (dry-run) would build %s [%s]: %s\n", name, strategy, command)
+				continue
+			}
+
+			wg.Add(1)
+			go func(name, strategy, command string, app *config.ApplicationConfig) {
+				defer wg.Done()
+
+				fmt.Fprintf(os.Stderr, "[app] building %s [%s]...\n", name, strategy)
+				dir := am.resolveDir(app)
+
+				cmd := exec.CommandContext(ctx, "sh", "-c", command)
+				cmd.Dir = dir
+				cmd.Stdout = os.Stderr
+				cmd.Stderr = os.Stderr
+				if am.env != nil {
+					cmd.Env = am.env.EnvSlice()
+				}
+
+				if err := cmd.Run(); err != nil {
+					mu.Lock()
+					if firstErr == nil {
+						firstErr = fmt.Errorf("build %s: %w", name, err)
+					}
+					mu.Unlock()
+					return
+				}
+				fmt.Fprintf(os.Stderr, "[+] built %s\n", name)
+			}(name, strategy, command, app)
 		}
 
-		if command == "" {
-			am.logger.Info("no build command", "app", name, "strategy", strategy)
-			continue
+		wg.Wait()
+		if firstErr != nil {
+			return firstErr
 		}
-
-		if opts.DryRun {
-			fmt.Fprintf(os.Stderr, "[app] (dry-run) would build %s [%s]: %s\n", name, strategy, command)
-			continue
-		}
-
-		fmt.Fprintf(os.Stderr, "[app] building %s [%s]...\n", name, strategy)
-		dir := am.resolveDir(app)
-
-		cmd := exec.CommandContext(ctx, "sh", "-c", command)
-		cmd.Dir = dir
-		cmd.Stdout = os.Stderr
-		cmd.Stderr = os.Stderr
-		if am.env != nil {
-			cmd.Env = am.env.EnvSlice()
-		}
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("build %s: %w", name, err)
-		}
-		fmt.Fprintf(os.Stderr, "[+] built %s\n", name)
 	}
 
 	return nil
@@ -426,8 +485,20 @@ func (am *AppManager) selectApps(names []string) map[string]*config.ApplicationC
 }
 
 // topoSort returns app names in dependency order (apps with no deps first).
-// Simple Kahn's algorithm; cycles are broken by emitting remaining nodes.
+// Flattened from topoSortWaves for callers that need a simple list.
 func (am *AppManager) topoSort(apps map[string]*config.ApplicationConfig) []string {
+	waves := am.topoSortWaves(apps)
+	var result []string
+	for _, wave := range waves {
+		result = append(result, wave...)
+	}
+	return result
+}
+
+// topoSortWaves returns app names grouped into dependency waves.
+// Apps within the same wave have no mutual dependencies and can run concurrently.
+// Kahn's algorithm; cycles are broken by emitting remaining nodes in a final wave.
+func (am *AppManager) topoSortWaves(apps map[string]*config.ApplicationConfig) [][]string {
 	// Build in-degree map
 	inDegree := make(map[string]int)
 	for name := range apps {
@@ -436,13 +507,13 @@ func (am *AppManager) topoSort(apps map[string]*config.ApplicationConfig) []stri
 	for name, app := range apps {
 		for _, dep := range app.DependsOn {
 			if _, ok := apps[dep]; ok {
-				_ = name // dep edge: dep → name
+				_ = name
 				inDegree[name]++
 			}
 		}
 	}
 
-	// Collect nodes with 0 in-degree
+	// Collect initial wave: nodes with 0 in-degree
 	var queue []string
 	for name, deg := range inDegree {
 		if deg == 0 {
@@ -450,38 +521,46 @@ func (am *AppManager) topoSort(apps map[string]*config.ApplicationConfig) []stri
 		}
 	}
 
-	var result []string
-	for len(queue) > 0 {
-		node := queue[0]
-		queue = queue[1:]
-		result = append(result, node)
+	emitted := make(map[string]bool)
+	var waves [][]string
 
-		// Decrease in-degree for dependents
+	for len(queue) > 0 {
+		wave := queue
+		queue = nil
+		waves = append(waves, wave)
+
+		for _, node := range wave {
+			emitted[node] = true
+		}
+
+		// Decrease in-degree for dependents, collect next wave
 		for name, app := range apps {
+			if emitted[name] {
+				continue
+			}
 			for _, dep := range app.DependsOn {
-				if dep == node {
-					inDegree[name]--
-					if inDegree[name] == 0 {
-						queue = append(queue, name)
+				for _, node := range wave {
+					if dep == node {
+						inDegree[name]--
 					}
 				}
 			}
-		}
-	}
-
-	// Append any remaining (cycle) nodes
-	for name := range apps {
-		found := false
-		for _, r := range result {
-			if r == name {
-				found = true
-				break
+			if inDegree[name] == 0 {
+				queue = append(queue, name)
 			}
 		}
-		if !found {
-			result = append(result, name)
-		}
 	}
 
-	return result
+	// Append any remaining (cycle) nodes as a final wave
+	var remaining []string
+	for name := range apps {
+		if !emitted[name] {
+			remaining = append(remaining, name)
+		}
+	}
+	if len(remaining) > 0 {
+		waves = append(waves, remaining)
+	}
+
+	return waves
 }
