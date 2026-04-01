@@ -15,24 +15,58 @@ import (
 )
 
 var composeCmd = &cobra.Command{
-	Use:                "compose [ARGS...]",
-	Short:              "Execute raw Docker Compose commands",
+	Use:   "compose [ENTRY] [ARGS...]",
+	Short: "Execute raw Docker Compose commands",
+	Long: `Execute raw Docker Compose commands against a stack entry.
+
+If only one compose entry exists, the entry name can be omitted.
+If multiple compose entries exist, the first argument must be the entry name.`,
+	Example: `  dva compose ps                    # Single compose entry
+  dva compose main-db ps            # Multiple entries: specify name
+  dva compose main-db logs -f api   # Passthrough with entry name`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		return execComposePassthrough(e, c, args)
+
+		composeEntries := c.ComposeEntries()
+		if len(composeEntries) == 0 {
+			return fmt.Errorf("no compose entries in stack")
+		}
+
+		if len(composeEntries) == 1 {
+			// Single entry: name can be omitted, pass all args through
+			return execComposePassthroughForEntry(e, c, composeEntries[0], args)
+		}
+
+		// Multiple entries: first arg must be entry name
+		if len(args) > 0 {
+			if entry := c.FindStackEntry(args[0]); entry != nil && entry.Compose != nil {
+				return execComposePassthroughForEntry(e, c, entry, args[1:])
+			}
+		}
+
+		// No valid entry name provided — show available entries
+		var names []string
+		for _, entry := range composeEntries {
+			names = append(names, entry.Name)
+		}
+		return fmt.Errorf("multiple compose entries: %s\nSpecify one: dva compose <name> [args...]",
+			strings.Join(names, ", "))
 	},
 }
 
 var upCmd = &cobra.Command{
-	Use:   "up [OPTIONS] [SERVICE...]",
-	Short: "Create and start services",
-	Long: `Create and start services via lifecycle plugins.
+	Use:   "up [OPTIONS]",
+	Short: "Start stack infrastructure and applications",
+	Long: `Start stack infrastructure via lifecycle plugins, then start applications.
+Equivalent to running 'dva stack up' followed by 'dva app up'.
 
 DVA-specific flags:
   --force                   Force restart even if already running
   --no-wait                 Start services and return immediately without waiting
+  --dev                     Start applications in dev mode (hot-reload)
+  --docker                  Force docker strategy for applications
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -47,12 +81,18 @@ DVA-specific flags:
 
 		force := false
 		noWait := false
+		devMode := false
+		docker := false
 		for _, a := range args {
 			switch a {
 			case "--force":
 				force = true
 			case "--no-wait":
 				noWait = true
+			case "--dev":
+				devMode = true
+			case "--docker":
+				docker = true
 			}
 		}
 
@@ -78,6 +118,7 @@ DVA-specific flags:
 			}
 		}
 
+		// Phase 1: Stack up (infrastructure)
 		orch := lifecycle.NewOrchestrator(c, e)
 		upErr := orch.Up(context.Background(), lifecycle.UpOptions{
 			DryRun:      dryRun,
@@ -89,12 +130,35 @@ DVA-specific flags:
 			Env:         envName,
 		})
 
+		// Phase 2: App up (applications) — only if applications are defined
+		if upErr == nil && len(c.Applications) > 0 {
+			strategy := ""
+			if docker {
+				strategy = "docker"
+			}
+			am := lifecycle.NewAppManager(c, e)
+			if err := am.StartApps(context.Background(), lifecycle.AppStartOptions{
+				Strategy: strategy,
+				DevMode:  devMode,
+				DryRun:   dryRun,
+				Wait:     !noWait,
+				Mode:     mode,
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "[warn] app start: %v\n", err)
+			}
+		}
+
 		// Print status summary and endpoints regardless of up errors,
 		// so users can see connection info for services that did start.
 		fmt.Fprintln(os.Stderr)
 		status, statusErr := orch.Status(context.Background())
 		if statusErr == nil {
 			lifecycle.PrintStatus(status, c.FileDir())
+		}
+		if len(c.Applications) > 0 {
+			am := lifecycle.NewAppManager(c, e)
+			statuses := am.AppStatuses()
+			printAppStatuses(statuses)
 		}
 		if len(c.Endpoints) > 0 {
 			allHC := checkEndpointHealth(c.Endpoints)
@@ -111,7 +175,7 @@ DVA-specific flags:
 
 var downCmd = &cobra.Command{
 	Use:                "down [OPTIONS]",
-	Short:              "Stop and remove services",
+	Short:              "Stop and remove applications then stack infrastructure",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -139,6 +203,13 @@ var downCmd = &cobra.Command{
 			}
 		}
 
+		// Phase 1: App down first (apps depend on infra)
+		if len(c.Applications) > 0 {
+			am := lifecycle.NewAppManager(c, e)
+			am.DownApps()
+		}
+
+		// Phase 2: Stack down (infrastructure)
 		orch := lifecycle.NewOrchestrator(c, e)
 		return orch.Down(context.Background(), lifecycle.DownOptions{
 			DryRun:      dryRun,
@@ -151,8 +222,8 @@ var downCmd = &cobra.Command{
 }
 
 var stopCmd = &cobra.Command{
-	Use:                "stop [OPTIONS] [SERVICE...]",
-	Short:              "Stop running services without removing them",
+	Use:                "stop [OPTIONS]",
+	Short:              "Stop applications and stack without removing resources",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -180,6 +251,13 @@ var stopCmd = &cobra.Command{
 			}
 		}
 
+		// Phase 1: App halt first (apps depend on infra)
+		if len(c.Applications) > 0 {
+			am := lifecycle.NewAppManager(c, e)
+			am.HaltApps()
+		}
+
+		// Phase 2: Stack stop (infrastructure)
 		orch := lifecycle.NewOrchestrator(c, e)
 		return orch.Stop(context.Background(), lifecycle.StopOptions{
 			DryRun:      dryRun,
@@ -311,6 +389,12 @@ var cleanCmd = &cobra.Command{
 		// When removing volumes, also clear provision markers
 		if volumes {
 			clearProvisionMarkers(c.FileDir())
+		}
+
+		// App down first (apps depend on infra)
+		if len(c.Applications) > 0 {
+			am := lifecycle.NewAppManager(c, e)
+			am.DownApps()
 		}
 
 		// Orchestrator down for all lifecycle entries (with volume/image cleanup if requested)
@@ -511,6 +595,56 @@ func execComposePassthrough(e *config.Environment, c *config.Config, args []stri
 	}
 
 	return dvaexec.ExecReplace(e, composeCmd, composeArgs, false)
+}
+
+// execComposePassthroughForEntry runs docker compose against a specific stack entry.
+func execComposePassthroughForEntry(e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) error {
+	if forceSubprocess {
+		composeCmd, composeArgs := buildComposeArgsForEntry(e, c, entry, args)
+		if dvaexec.Debug {
+			fmt.Fprintf(os.Stderr, "[debug] compose subprocess [%s]: %s %v\n", entry.Name, composeCmd, composeArgs)
+		}
+		return dvaexec.ExecSubprocess(e, composeCmd, composeArgs, false)
+	}
+
+	composeCmd, composeArgs := buildComposeArgsForEntry(e, c, entry, args)
+	if dvaexec.Debug {
+		fmt.Fprintf(os.Stderr, "[debug] compose [%s]: %s %v\n", entry.Name, composeCmd, composeArgs)
+	}
+	return dvaexec.ExecReplace(e, composeCmd, composeArgs, false)
+}
+
+// buildComposeArgsForEntry builds docker compose arguments from a specific lifecycle entry.
+func buildComposeArgsForEntry(e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) (string, []string) {
+	composeCmd := "docker"
+	composeArgs := []string{"compose"}
+
+	cc := entry.Compose
+	if cc != nil {
+		if cc.Command != "" {
+			parts := dvaexec.SplitCommand(cc.Command)
+			composeCmd = parts[0]
+			if len(parts) > 1 {
+				composeArgs = parts[1:]
+			}
+		}
+
+		cfgDir := c.FileDir()
+		for _, f := range cc.Files {
+			f = e.Interpolate(f)
+			if !filepath.IsAbs(f) {
+				f = cfgDir + "/" + f
+			}
+			composeArgs = append(composeArgs, "-f", f)
+		}
+
+		if cc.ProjectName != "" {
+			composeArgs = append(composeArgs, "--project-name", e.Interpolate(cc.ProjectName))
+		}
+	}
+
+	composeArgs = append(composeArgs, args...)
+	return composeCmd, composeArgs
 }
 
 // buildComposeArgs builds docker compose arguments using config settings.

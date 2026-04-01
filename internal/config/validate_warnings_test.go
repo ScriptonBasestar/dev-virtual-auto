@@ -457,3 +457,177 @@ func TestValidateWarnings_Integration(t *testing.T) {
 		t.Errorf("expected at least 4 warnings, got %d: %v", len(warnings), warnings)
 	}
 }
+
+func TestWarnChildOverridesParentCritical(t *testing.T) {
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"app": {
+				Runner: "local",
+				Pod:    "app-pod",
+				Subcommands: map[string]*InteractionCommand{
+					"dev": {
+						Runner: "docker-compose",
+						Pod:    "dev-pod", // both overridden
+					},
+					"test": {
+						Runner: "local",
+						Pod:    "app-pod", // same as parent, no warning
+					},
+				},
+			},
+		},
+	}
+
+	warnings := c.warnChildOverridesParentCritical()
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d", len(warnings))
+	}
+
+	hasRunnerWarn := false
+	hasPodWarn := false
+	for _, w := range warnings {
+		if strings.Contains(w, "overrides parent runner") {
+			hasRunnerWarn = true
+		}
+		if strings.Contains(w, "overrides parent pod") {
+			hasPodWarn = true
+		}
+	}
+	if !hasRunnerWarn || !hasPodWarn {
+		t.Errorf("missing expected warnings: %v", warnings)
+	}
+}
+
+func TestWarnDeepSubcommandNesting(t *testing.T) {
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"level0": {
+				Subcommands: map[string]*InteractionCommand{
+					"level1": {
+						Subcommands: map[string]*InteractionCommand{
+							"level2": {
+								Subcommands: map[string]*InteractionCommand{
+									"level3": {
+										Subcommands: map[string]*InteractionCommand{
+											"level4": {
+												Subcommands: map[string]*InteractionCommand{
+													"level5": {
+														Subcommands: map[string]*InteractionCommand{
+															"level6": {
+																Command: "echo too deep",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			"shallow": {
+				Subcommands: map[string]*InteractionCommand{
+					"sub": {Command: "echo ok"},
+				},
+			},
+		},
+	}
+
+	warnings := c.warnDeepSubcommandNesting()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "nested 6 levels deep") {
+		t.Errorf("unexpected warning text: %s", warnings[0])
+	}
+}
+
+func TestWarnUnreachableCommands(t *testing.T) {
+	svc := "my-service"
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"unreachable": {
+				Subcommands: map[string]*InteractionCommand{
+					"sub": {Command: "echo ok"},
+				},
+			},
+			"reachable_with_cmd": {
+				Command: "echo hi",
+				Subcommands: map[string]*InteractionCommand{
+					"sub": {Command: "echo ok"},
+				},
+			},
+			"reachable_with_svc": {
+				Service: svc,
+				Subcommands: map[string]*InteractionCommand{
+					"sub": {Command: "echo ok"},
+				},
+			},
+			"reachable_without_subs": { // no subcommands -> no warning
+			},
+		},
+	}
+
+	warnings := c.warnUnreachableCommands()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "interaction.unreachable:") {
+		t.Errorf("unexpected warning text: %s", warnings[0])
+	}
+}
+
+func TestWarnUnresolvedEnvVars(t *testing.T) {
+	c := &Config{
+		Environment: map[string]string{
+			"OK":   "value",
+			"BAD":  "${MISSING_VAR}",
+			"NOPE": "$MISSING_VAR_TOO",
+			"GOOD": "${EXISTING_VAR}",
+		},
+	}
+	env := NewEnvironment(c.Environment, ".", ".")
+	env.Vars["EXISTING_VAR"] = "exists"
+
+	warnings := c.warnUnresolvedEnvVars(env)
+	if len(warnings) != 2 {
+		t.Fatalf("expected 2 warnings, got %d", len(warnings))
+	}
+	// Warnings are sorted
+	if !strings.Contains(warnings[0], "environment.BAD:") {
+		t.Errorf("unexpected warning text: %s", warnings[0])
+	}
+	if !strings.Contains(warnings[1], "environment.NOPE:") {
+		t.Errorf("unexpected warning text: %s", warnings[1])
+	}
+}
+
+func TestWarnSuspiciousEnvPatterns(t *testing.T) {
+	c := &Config{
+		Environment: map[string]string{
+			"DEFAULT": "${VAR:-default}",
+			"OP":      "${VAR:=ok}",
+			"SPECIAL": "count is $#",
+			"GOOD":    "${VAR} and $VAR2",
+		},
+	}
+
+	warnings := c.warnSuspiciousEnvPatterns()
+	// Should warn for DEFAULT, OP, SPECIAL
+	if len(warnings) != 3 {
+		t.Fatalf("expected 3 warnings, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "environment.DEFAULT:") {
+		t.Errorf("unexpected warning text: %s", warnings[0])
+	}
+	if !strings.Contains(warnings[1], "environment.OP:") {
+		t.Errorf("unexpected warning text: %s", warnings[1])
+	}
+	if !strings.Contains(warnings[2], "environment.SPECIAL:") {
+		t.Errorf("unexpected warning text: %s", warnings[2])
+	}
+}
+

@@ -76,8 +76,8 @@ func init() {
 	logsCmd.GroupID = "lifecycle"
 	buildCmd.GroupID = "lifecycle"
 	cleanCmd.GroupID = "lifecycle"
-	devCmd.GroupID = "lifecycle"
 	appCmd.GroupID = "lifecycle"
+	stackCmd.GroupID = "lifecycle"
 
 	composeCmd.GroupID = "integration"
 	ktlCmd.GroupID = "integration"
@@ -106,8 +106,8 @@ func init() {
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
-	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(appCmd)
+	rootCmd.AddCommand(stackCmd)
 
 	// Wrap hookable lifecycle commands with before/replace/after hook execution.
 	// hookableCommands (config.HookableCommands) is the single source of truth;
@@ -115,7 +115,7 @@ func init() {
 	hookableCmds := map[string]*cobra.Command{
 		"up": upCmd, "down": downCmd, "stop": stopCmd,
 		"restart": restartCmd, "build": buildCmd, "clean": cleanCmd,
-		"logs": logsCmd, "dev": devCmd,
+		"logs": logsCmd,
 	}
 	for name, cmd := range hookableCmds {
 		if !config.IsHookableCommand(name) {
@@ -293,7 +293,7 @@ func isFeaturedLifecycleCommand(cmd *cobra.Command) bool {
 		return false
 	}
 	switch cmd.Name() {
-	case "up", "dev", "app", "down":
+	case "up", "stack", "app", "down":
 		return true
 	default:
 		return false
@@ -307,8 +307,8 @@ func featuredLifecycleHint(cmd *cobra.Command) string {
 	switch cmd.Name() {
 	case "up":
 		return "[start] " + cmd.Short
-	case "dev":
-		return "[dev] " + cmd.Short
+	case "stack":
+		return "[infra] " + cmd.Short
 	case "app":
 		return "[apps] " + cmd.Short
 	case "down":
@@ -339,7 +339,7 @@ Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help")
   Recommended Flow
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "up"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
-{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "dev"))}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "stack"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "app"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}

@@ -16,18 +16,21 @@ var appCmd = &cobra.Command{
 	Short: "Manage application lifecycle (ls, up, build, down, restart, log)",
 	Long: `Manage application processes defined in the 'applications' section of dva.yml.
 
-Use subcommands to list status, start, build, stop, restart, and view logs of applications.`,
+Use subcommands to list status, up, build, down, restart, and view logs of applications.`,
 	Example: `  dva app ls              # List all applications and their status
   dva app up myapp        # Start a specific application
+  dva app up myapp --dev  # Start in dev mode (hot-reload)
+  dva app stop myapp      # Stop (preserves state for quick restart)
+  dva app down myapp      # Stop and remove PID/log files
   dva app build myapp     # Build a specific application
-  dva app down myapp      # Stop a specific application
   dva app restart myapp   # Restart a specific application
   dva app log myapp       # Show recent logs for an application`,
 }
 
 var appLsCmd = &cobra.Command{
-	Use:   "ls",
-	Short: "List all applications with status, health, and PID",
+	Use:     "ls",
+	Aliases: []string{"status"},
+	Short:   "List all applications with status, health, and PID",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
@@ -44,9 +47,9 @@ var appLsCmd = &cobra.Command{
 	},
 }
 
-var appDownCmd = &cobra.Command{
-	Use:   "down [APP...]",
-	Short: "Stop running applications (all if no name given)",
+var appStopCmd = &cobra.Command{
+	Use:   "stop [APP...]",
+	Short: "Stop applications without removing state (preserves PID for quick restart)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
@@ -56,13 +59,30 @@ var appDownCmd = &cobra.Command{
 		}
 
 		am := lifecycle.NewAppManager(c, e)
-		am.StopApps(args...)
+		am.HaltApps(args...)
+		return nil
+	},
+}
+
+var appDownCmd = &cobra.Command{
+	Use:   "down [APP...]",
+	Short: "Stop and remove application resources (PID files, logs)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+
+		if len(c.Applications) == 0 {
+			return fmt.Errorf("no applications defined in dva.yml")
+		}
+
+		am := lifecycle.NewAppManager(c, e)
+		am.DownApps(args...)
 		return nil
 	},
 }
 
 var appUpCmd = &cobra.Command{
-	Use:   "up [APP...]",
+	Use:   "up [APP...] [--dev]",
 	Short: "Start applications (all if no name given)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -76,10 +96,20 @@ var appUpCmd = &cobra.Command{
 		mode, _, _, _, args := parseDvaFlags(args)
 		mode, _ = applyDefaultMode(c, mode)
 
+		devMode := false
+		var appNames []string
+		for _, a := range args {
+			if a == "--dev" {
+				devMode = true
+			} else {
+				appNames = append(appNames, a)
+			}
+		}
+
 		am := lifecycle.NewAppManager(c, e)
 		if err := am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
-			Names:   args,
-			DevMode: true,
+			Names:   appNames,
+			DevMode: devMode,
 			Wait:    true,
 			Mode:    mode,
 		}); err != nil {
@@ -109,7 +139,7 @@ var appRestartCmd = &cobra.Command{
 		mode, _ = applyDefaultMode(c, mode)
 
 		am := lifecycle.NewAppManager(c, e)
-		am.StopApps(args...)
+		am.HaltApps(args...)
 		return am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
 			Names:   args,
 			DevMode: true,
@@ -157,6 +187,7 @@ var appBuildCmd = &cobra.Command{
 func init() {
 	appCmd.AddCommand(appLsCmd)
 	appCmd.AddCommand(appUpCmd)
+	appCmd.AddCommand(appStopCmd)
 	appCmd.AddCommand(appDownCmd)
 	appCmd.AddCommand(appRestartCmd)
 	appCmd.AddCommand(appBuildCmd)

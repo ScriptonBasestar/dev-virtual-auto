@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,8 +63,20 @@ func init() {
 func runDoctorChecks(c *config.Config) []DoctorResult {
 	var results []DoctorResult
 
+	// Built-in: Docker socket permissions
+	results = append(results, checkDockerSocketPermissions())
+
 	// Built-in: Docker daemon accessible
 	results = append(results, checkDocker())
+
+	// Built-in: Compose project name alignment
+	results = append(results, checkComposeProjectNameAlignment(c))
+
+	// Built-in: Environment files exist
+	results = append(results, checkEnvFiles(c)...)
+
+	// Built-in: Stack entry files exist
+	results = append(results, checkStackFiles(c)...)
 
 	// Built-in: compose files exist
 	for _, f := range c.AllComposeFiles() {
@@ -222,17 +233,115 @@ func checkDocker() DoctorResult {
 }
 
 func isDockerSocketAccessible() bool {
+	res := checkDockerSocketPermissions()
+	return res.Passed
+}
+
+func checkDockerSocketPermissions() DoctorResult {
 	sockPath := "/var/run/docker.sock"
-	if _, err := os.Stat(sockPath); err != nil {
-		return false
-	}
-	// Try connecting to verify it's alive
-	conn, err := net.DialTimeout("unix", sockPath, 2*time.Second)
+	_, err := os.Stat(sockPath)
 	if err != nil {
-		return false
+		return DoctorResult{
+			Name:    "Docker socket accessible",
+			Passed:  false,
+			FixHint: "Docker not running or socket path incorrect",
+		}
 	}
-	conn.Close()
-	return true
+
+	// Make sure current user can open it
+	f, err := os.Open(sockPath)
+	if err != nil {
+		return DoctorResult{
+			Name:    "Docker socket permissions",
+			Passed:  false,
+			FixHint: "Add user to docker group or use sudo",
+		}
+	}
+	f.Close()
+
+	return DoctorResult{
+		Name:   "Docker socket permissions",
+		Passed: true,
+	}
+}
+
+func checkComposeProjectNameAlignment(c *config.Config) DoctorResult {
+	warnings := c.ValidateComposeProjectNames()
+	if len(warnings) == 0 {
+		return DoctorResult{
+			Name:   "Compose project name alignment",
+			Passed: true,
+		}
+	}
+
+	w := warnings[0] // show first warning
+	msg := fmt.Sprintf("Compose file %s has %s", w.File,
+		condStr(w.ComposeName == "", "missing project name", fmt.Sprintf("name '%s'", w.ComposeName)))
+
+	return DoctorResult{
+		Name:    msg,
+		Passed:  false,
+		FixHint: fmt.Sprintf("Set 'name: %s' in %s", w.DvaName, w.File),
+		Fixable: true,
+		fixFunc: func() error { return c.FixComposeProjectName(w) },
+	}
+}
+
+func checkEnvFiles(c *config.Config) []DoctorResult {
+	var results []DoctorResult
+	cfgDir := c.FileDir()
+
+	for _, envFile := range c.AllEnvFiles() {
+		if envFile == "" {
+			continue
+		}
+		path := envFile
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(cfgDir, envFile)
+		}
+
+		passed := fileExists(path)
+		results = append(results, DoctorResult{
+			Name:    fmt.Sprintf("Environment file exists: %s", envFile),
+			Passed:  passed,
+			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", envFile)),
+		})
+	}
+
+	return results
+}
+
+func checkStackFiles(c *config.Config) []DoctorResult {
+	var results []DoctorResult
+	cfgDir := c.FileDir()
+
+	for name, entry := range c.Stack {
+		var files []string
+		if entry.Compose != nil {
+			files = entry.Compose.Files
+		} else if entry.Kubectl != nil {
+			files = []string{entry.Kubectl.Kubeconfig}
+		}
+
+		for _, f := range files {
+			if f == "" {
+				continue
+			}
+			path := f
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(cfgDir, f)
+			}
+
+			passed := fileExists(path)
+			results = append(results, DoctorResult{
+				Name:    fmt.Sprintf("Stack file exists: %s (%s)", name, f),
+				Passed:  passed,
+				FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
+			})
+		}
+	}
+
+	return results
 }
 
 func fileExists(path string) bool {
@@ -274,9 +383,12 @@ func printDoctorResults(results []DoctorResult) {
 	fmt.Println(summary)
 }
 
-func condStr(cond bool, s string) string {
+func condStr(cond bool, s string, fallback ...string) string {
 	if cond {
 		return s
+	}
+	if len(fallback) > 0 {
+		return fallback[0]
 	}
 	return ""
 }

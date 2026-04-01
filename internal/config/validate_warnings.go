@@ -39,6 +39,17 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnMultiStackComposeSplit()...)
 	warnings = append(warnings, c.warnMissingDefaultMode()...)
 	warnings = append(warnings, c.warnDefaultModeHeavyInfra()...)
+	warnings = append(warnings, c.warnChildOverridesParentCritical()...)
+	warnings = append(warnings, c.warnDeepSubcommandNesting()...)
+	warnings = append(warnings, c.warnUnreachableCommands()...)
+
+	// Build a contextual environment for accurate interpolation checks
+	env := NewEnvironment(c.Environment, c.FileDir(), c.FileDir())
+	_ = LoadEnvFile(c.EnvFile, c.FileDir(), env)
+
+	warnings = append(warnings, c.warnUnresolvedEnvVars(env)...)
+	warnings = append(warnings, c.warnSuspiciousEnvPatterns()...)
+
 	if c.filePath != "" {
 		warnings = append(warnings, validateCanonicalOrder(c.filePath)...)
 	}
@@ -325,4 +336,129 @@ func validateCanonicalOrder(filePath string) []string {
 		fmt.Sprintf("section order: found [%s] but canonical order is [%s]; consider reordering",
 			strings.Join(fileKeys, " → "), strings.Join(expected, " → ")),
 	}
+}
+
+// warnChildOverridesParentCritical warns when a child overrides its parent's runner or pod,
+// potentially altering the backend unexpectedly.
+//
+// Severity: Semantic Warning
+func (c *Config) warnChildOverridesParentCritical() []string {
+	var warnings []string
+
+	for name, cmd := range c.Interaction {
+		for subName, sub := range cmd.Subcommands {
+			if cmd.Runner != "" && sub.Runner != "" && cmd.Runner != sub.Runner {
+				warnings = append(warnings,
+					fmt.Sprintf("interaction.%s.subcommands.%s: overrides parent runner (%s → %s); this may change execution backend unexpectedly",
+						name, subName, cmd.Runner, sub.Runner))
+			}
+			if cmd.Pod != "" && sub.Pod != "" && cmd.Pod != sub.Pod {
+				warnings = append(warnings,
+					fmt.Sprintf("interaction.%s.subcommands.%s: overrides parent pod (%s → %s); this may change execution backend unexpectedly",
+						name, subName, cmd.Pod, sub.Pod))
+			}
+		}
+	}
+
+	return warnings
+}
+
+const MaxSubcommandDepth = 5
+
+// warnDeepSubcommandNesting warns when nested subcommands exceed a specific depth,
+// signifying overly complex DSL structure.
+//
+// Severity: Semantic Warning
+func (c *Config) warnDeepSubcommandNesting() []string {
+	var warnings []string
+
+	for name, cmd := range c.Interaction {
+		depth := calculateSubcommandDepth(cmd, 0)
+		if depth > MaxSubcommandDepth {
+			warnings = append(warnings,
+				fmt.Sprintf("interaction.%s: nested %d levels deep (max %d); consider flattening the command structure",
+					name, depth, MaxSubcommandDepth))
+		}
+	}
+
+	return warnings
+}
+
+func calculateSubcommandDepth(cmd *InteractionCommand, current int) int {
+	if len(cmd.Subcommands) == 0 {
+		return current
+	}
+
+	maxDepth := current + 1
+	for _, sub := range cmd.Subcommands {
+		depth := calculateSubcommandDepth(sub, current+1)
+		if depth > maxDepth {
+			maxDepth = depth
+		}
+	}
+
+	return maxDepth
+}
+
+// warnUnreachableCommands warns when a parent interaction has subcommands but lacks execution context
+// (e.g. no command, no service, no compose) itself, making it unreachable directly.
+//
+// Severity: Semantic Warning
+func (c *Config) warnUnreachableCommands() []string {
+	var warnings []string
+
+	for name, cmd := range c.Interaction {
+		if len(cmd.Subcommands) > 0 {
+			// A parent is essentially a "group" node if it has no execution directives.
+			// Calling it directly typically requires at least one execution target.
+			isCallable := cmd.Command != "" || cmd.Compose != nil || cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
+			if !isCallable {
+				warnings = append(warnings,
+					fmt.Sprintf("interaction.%s: has subcommands but is not directly callable; add an execution target or remove subcommands",
+						name))
+			}
+		}
+	}
+
+	return warnings
+}
+
+// warnUnresolvedEnvVars checks if any variables in the environment block remain unresolved
+// after config and OS interpolation, indicating a possible typo or missing variable.
+//
+// Severity: Semantic Warning
+func (c *Config) warnUnresolvedEnvVars(env *Environment) []string {
+	var warnings []string
+
+	for k, v := range c.Environment {
+		finalVal := env.Interpolate(v)
+		// Extract all remaining `${VAR}` or `$VAR` patterns
+		matches := varRegex.FindAllString(finalVal, -1)
+		if len(matches) > 0 {
+			warnings = append(warnings,
+				fmt.Sprintf("environment.%s: contains unresolved variable reference %v; verify variable name",
+					k, matches))
+		}
+	}
+
+	sort.Strings(warnings)
+	return warnings
+}
+
+// warnSuspiciousEnvPatterns warns when users try to use shell-specific interpolation semantics
+// like ${VAR:-default} or $#, which are not natively supported by the config parser.
+//
+// Severity: Semantic Warning
+func (c *Config) warnSuspiciousEnvPatterns() []string {
+	var warnings []string
+
+	for k, v := range c.Environment {
+		if strings.Contains(v, "$#") || (strings.Contains(v, "${") && strings.Contains(v, ":")) {
+			warnings = append(warnings,
+				fmt.Sprintf("environment.%s: contains shell-specific syntax that is not supported; use plain $VAR or ${VAR}", k))
+		}
+	}
+
+	sort.Strings(warnings)
+	return warnings
 }

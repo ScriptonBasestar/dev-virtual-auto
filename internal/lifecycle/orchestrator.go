@@ -18,6 +18,7 @@ type UpOptions struct {
 	DryRun      bool
 	Force       bool
 	Wait        bool
+	Names       []string // specific stack entry names (empty = all)
 	IncludeTags []string
 	ExcludeTags []string
 	Mode        string
@@ -29,6 +30,7 @@ type DownOptions struct {
 	DryRun       bool
 	Volumes      bool // also remove named volumes
 	RemoveImages bool // also remove locally built images
+	Names        []string // specific stack entry names (empty = all)
 	IncludeTags  []string
 	ExcludeTags  []string
 	Mode         string
@@ -38,6 +40,7 @@ type DownOptions struct {
 // StopOptions configures orchestrator Stop behavior.
 type StopOptions struct {
 	DryRun      bool
+	Names       []string // specific stack entry names (empty = all)
 	IncludeTags []string
 	ExcludeTags []string
 	Mode        string
@@ -68,7 +71,7 @@ func NewOrchestrator(cfg *config.Config, env *config.Environment) *Orchestrator 
 
 // Up starts all matching lifecycle entries in order.
 func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if len(filtered) == 0 {
 		fmt.Fprintln(os.Stderr, "[warn] no lifecycle entries matched filters")
 		return nil
@@ -144,38 +147,15 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		return err
 	}
 
-	// Start applications only if the active mode explicitly declares application strategies.
-	// Modes without an "applications" field (e.g., infra) skip app startup entirely.
-	if len(o.cfg.Applications) > 0 && opts.Mode != "" {
-		if m, ok := o.cfg.Modes[opts.Mode]; ok && m.HasApplications() {
-			am := NewAppManager(o.cfg, envClone)
-			strategy := m.AppStrategy("")
-			if err := am.StartApps(ctx, AppStartOptions{
-				Strategy: strategy,
-				Wait:     opts.Wait,
-				DryRun:   opts.DryRun,
-				Mode:     opts.Mode,
-			}); err != nil {
-				fmt.Fprintf(os.Stderr, "[warn] application start: %v\n", err)
-			}
-		}
-	}
-
 	return nil
 }
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	// Stop applications first (reverse of startup order)
-	if len(o.cfg.Applications) > 0 {
-		am := NewAppManager(o.cfg, o.env)
-		am.StopApps()
-	}
-
 	// Stop native processes
 	o.stopModeProcesses(opts.Mode)
 
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order for teardown
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -212,16 +192,10 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	// Stop applications first
-	if len(o.cfg.Applications) > 0 {
-		am := NewAppManager(o.cfg, o.env)
-		am.StopApps()
-	}
-
 	// Stop native processes
 	o.stopModeProcesses(opts.Mode)
 
-	filtered := o.filterEntries(opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
+	filtered := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 
 	// Reverse order
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -303,9 +277,24 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 	return status, nil
 }
 
-// filterEntries returns lifecycle entries matching the given tag, mode, and env filters.
-func (o *Orchestrator) filterEntries(includeTags, excludeTags []string, mode, env string) []config.LifecycleEntry {
+// filterEntries returns lifecycle entries matching the given name, tag, mode, and env filters.
+func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, mode, env string) []config.LifecycleEntry {
 	entries := o.entries
+
+	// Filter by explicit entry names
+	if len(names) > 0 {
+		nameSet := make(map[string]bool, len(names))
+		for _, n := range names {
+			nameSet[n] = true
+		}
+		var filtered []config.LifecycleEntry
+		for _, e := range entries {
+			if nameSet[e.Name] {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
+	}
 
 	// Filter by env (stack entry names)
 	if env != "" {

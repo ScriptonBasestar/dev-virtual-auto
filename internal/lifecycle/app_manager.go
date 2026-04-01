@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -77,13 +78,11 @@ func (am *AppManager) StartApps(ctx context.Context, opts AppStartOptions) error
 // startWave starts all apps in a wave concurrently, then waits for all to
 // complete startup (including health checks).
 func (am *AppManager) startWave(ctx context.Context, names []string, opts AppStartOptions) error {
-	type startErr struct {
-		name string
-		err  error
-	}
+	waveCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	var mu sync.Mutex
-	var errs []startErr
+	var errs []error
 	var wg sync.WaitGroup
 
 	for _, name := range names {
@@ -101,7 +100,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 			continue
 		}
 
-		// Check if already running
+		// Check if already running; clean stale PID files
 		pidFile := am.pidPath(name)
 		if data, err := os.ReadFile(pidFile); err == nil {
 			pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
@@ -109,6 +108,8 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 				fmt.Fprintf(os.Stderr, "[app] %s already running (pid %d)\n", name, pid)
 				continue
 			}
+			// Stale PID file — process dead, clean up and restart
+			os.Remove(pidFile)
 		}
 
 		wg.Add(1)
@@ -117,15 +118,16 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 
 			var err error
 			if strategy == "docker" {
-				err = am.startDockerApp(ctx, name, app, command)
+				err = am.startDockerApp(waveCtx, name, app, command)
 			} else {
 				err = am.startNativeApp(name, app, command)
 			}
 
 			if err != nil {
 				mu.Lock()
-				errs = append(errs, startErr{name, fmt.Errorf("app start %s (%s): %w", name, strategy, err)})
+				errs = append(errs, fmt.Errorf("app start %s (%s): %w", name, strategy, err))
 				mu.Unlock()
+				cancel()
 				return
 			}
 
@@ -138,9 +140,9 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 				if timeout == 0 {
 					timeout = 30 * time.Second
 				}
-				waitCtx, cancel := context.WithTimeout(ctx, timeout)
+				waitCtx, wCancel := context.WithTimeout(waveCtx, timeout)
 				results := am.hc.WaitUntilReady(waitCtx, checks)
-				cancel()
+				wCancel()
 				for _, r := range results {
 					if !r.Ready {
 						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
@@ -152,10 +154,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 
 	wg.Wait()
 
-	if len(errs) > 0 {
-		return errs[0].err
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // BuildApps runs the build command for each selected application.
@@ -230,12 +229,36 @@ func (am *AppManager) BuildApps(ctx context.Context, opts AppStartOptions) error
 	return nil
 }
 
-// StopApps stops the specified applications (or all if names is empty).
-func (am *AppManager) StopApps(names ...string) {
+// HaltApps sends SIGTERM but preserves PID files so apps can be
+// restarted quickly via `dva app up` (Vagrant halt semantics).
+func (am *AppManager) HaltApps(names ...string) {
 	apps := am.selectApps(names)
 
 	for name := range apps {
 		pidFile := am.pidPath(name)
+		data, err := os.ReadFile(pidFile)
+		if err != nil {
+			continue
+		}
+
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+		if pid > 0 && IsProcessRunning(pid) {
+			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+				fmt.Fprintf(os.Stderr, "[-] stopped app %s (pid %d)\n", name, pid)
+			}
+		}
+		// PID file preserved — app can be restarted by `dva app up`
+	}
+}
+
+// DownApps sends SIGTERM and removes PID/log files (Vagrant destroy semantics).
+func (am *AppManager) DownApps(names ...string) {
+	apps := am.selectApps(names)
+
+	for name := range apps {
+		pidFile := am.pidPath(name)
+		logFile := am.logPath(name)
+
 		data, err := os.ReadFile(pidFile)
 		if err != nil {
 			continue
@@ -247,13 +270,14 @@ func (am *AppManager) StopApps(names ...string) {
 			continue
 		}
 
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-			// Process already dead
-		} else {
-			fmt.Fprintf(os.Stderr, "[-] stopped app %s (pid %d)\n", name, pid)
+		if pid > 0 {
+			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+				fmt.Fprintf(os.Stderr, "[-] removed app %s (pid %d)\n", name, pid)
+			}
 		}
 
 		os.Remove(pidFile)
+		os.Remove(logFile)
 	}
 }
 

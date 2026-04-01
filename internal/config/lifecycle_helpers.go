@@ -40,6 +40,15 @@ func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 	return nil
 }
 
+// AllEnvFiles aggregates env file paths from the config.
+func (c *Config) AllEnvFiles() []string {
+	var paths []string
+	for _, cfg := range normalizeEnvFileConfig(c.EnvFile) {
+		paths = append(paths, cfg.Path)
+	}
+	return paths
+}
+
 // AllComposeFiles aggregates compose files from all lifecycle entries.
 func (c *Config) AllComposeFiles() []string {
 	var files []string
@@ -83,6 +92,45 @@ func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 		return best.Kubectl
 	}
 	return nil
+}
+
+// ComposeEntries returns all stack entries with a compose driver, sorted by order.
+func (c *Config) ComposeEntries() []*LifecycleEntry {
+	var entries []*LifecycleEntry
+	for _, e := range c.Stack {
+		if e.Compose != nil {
+			entries = append(entries, e)
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Order != entries[j].Order {
+			return entries[i].Order < entries[j].Order
+		}
+		return entries[i].Name < entries[j].Name
+	})
+	return entries
+}
+
+// KubectlEntries returns all stack entries with a kubectl driver, sorted by order.
+func (c *Config) KubectlEntries() []*LifecycleEntry {
+	var entries []*LifecycleEntry
+	for _, e := range c.Stack {
+		if e.Kubectl != nil {
+			entries = append(entries, e)
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Order != entries[j].Order {
+			return entries[i].Order < entries[j].Order
+		}
+		return entries[i].Name < entries[j].Name
+	})
+	return entries
+}
+
+// FindStackEntry finds a stack entry by name.
+func (c *Config) FindStackEntry(name string) *LifecycleEntry {
+	return c.Stack[name]
 }
 
 // ComposeServices returns the services map from the primary compose config.

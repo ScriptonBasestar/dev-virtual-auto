@@ -67,11 +67,11 @@ func (p *ProcessPlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 }
 
 func (p *ProcessPlugin) Down(ctx context.Context, pctx *PluginContext) error {
-	return p.stopProcess(pctx)
+	return p.removeProcess(pctx)
 }
 
 func (p *ProcessPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
-	return p.stopProcess(pctx)
+	return p.haltProcess(pctx)
 }
 
 func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
@@ -91,9 +91,36 @@ func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 	return []ServiceStatus{{Name: name, State: "stopped"}}, nil
 }
 
-func (p *ProcessPlugin) stopProcess(pctx *PluginContext) error {
+// haltProcess sends SIGTERM but preserves the PID file so the process
+// can be restarted quickly via `dva stack up` (Vagrant halt semantics).
+func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
 	name := pctx.Entry.Name
 	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
+
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return nil // not running
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return nil
+	}
+
+	if pid > 0 && IsProcessRunning(pid) {
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+			fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
+		}
+	}
+	// PID file preserved — process can be restarted by up
+	return nil
+}
+
+// removeProcess sends SIGTERM and removes PID/log files (Vagrant destroy semantics).
+func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
+	name := pctx.Entry.Name
+	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
+	logFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "logs", name+".log")
 
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
@@ -106,13 +133,14 @@ func (p *ProcessPlugin) stopProcess(pctx *PluginContext) error {
 		return nil
 	}
 
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-		// Process already dead
-	} else {
-		fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
+	if pid > 0 {
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+			fmt.Fprintf(os.Stderr, "[-] removed %s (pid %d)\n", name, pid)
+		}
 	}
 
 	os.Remove(pidFile)
+	os.Remove(logFile)
 	return nil
 }
 

@@ -39,7 +39,7 @@ var validateCmd = &cobra.Command{
 		// Semantic warnings (version, health checks, duplicate commands, etc.)
 		semanticWarnings := c.ValidateWarnings()
 		for _, w := range semanticWarnings {
-			fmt.Fprintf(os.Stderr, "[warn] %s\n", w)
+			fmt.Fprintf(os.Stderr, "[warn] semantic: %s\n", w)
 		}
 
 		driftWarnings := detectConfigDriftWarnings(c)
@@ -82,11 +82,11 @@ func init() {
 func printComposeNameWarnings(warnings []config.ComposeNameWarning) {
 	for _, w := range warnings {
 		if w.ComposeName == "" {
-			fmt.Fprintf(os.Stderr, "[warn] %s: missing top-level 'name: %s'\n", w.File, w.DvaName)
+			fmt.Fprintf(os.Stderr, "[warn] semantic: %s: missing top-level 'name: %s'\n", w.File, w.DvaName)
 			fmt.Fprintf(os.Stderr, "       Running 'docker compose up' directly will use the directory name as project,\n")
 			fmt.Fprintf(os.Stderr, "       causing port conflicts with dva. Fix: add 'name: %s' to %s\n", w.DvaName, w.File)
 		} else {
-			fmt.Fprintf(os.Stderr, "[warn] %s: name '%s' differs from dva.yml project_name '%s'\n", w.File, w.ComposeName, w.DvaName)
+			fmt.Fprintf(os.Stderr, "[warn] semantic: %s: name '%s' differs from dva.yml project_name '%s'\n", w.File, w.ComposeName, w.DvaName)
 			fmt.Fprintf(os.Stderr, "       Fix: change 'name: %s' to 'name: %s' in %s\n", w.ComposeName, w.DvaName, w.File)
 		}
 	}
