@@ -406,7 +406,7 @@ func shouldIgnoreMakefileTarget(name string) bool {
 		"help": true, "all": true, "default": true,
 		// DVA reserved commands — overlap with built-in DVA commands
 		"stop": true, "up": true, "down": true, "restart": true,
-		"ps": true, "run": true, "logs": true, "build": true, "clean": true,
+		"ps": true, "run": true, config.LogsDirName: true, "build": true, "clean": true,
 		// Generic infra targets that overlap with DVA modes/stack
 		"infra-up": true, "infra-down": true, "infra-start": true, "infra-stop": true,
 		// Generic setup/dependency targets handled by provision

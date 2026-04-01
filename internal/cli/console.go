@@ -41,7 +41,7 @@ var consoleInjectCmd = &cobra.Command{
 			return nil
 		}
 
-		prefix := os.Getenv("DVA_FUNC_PREFIX")
+		prefix := os.Getenv(config.EnvFuncPrefixKey)
 
 		var aliases []string
 		var out []string
@@ -52,7 +52,7 @@ var consoleInjectCmd = &cobra.Command{
 		}
 
 		// Add built-in shortcuts
-		builtins := []string{"compose", "up", "stop", "down", "provision", "build", "logs", "restart"}
+		builtins := []string{"compose", "up", "stop", "down", "provision", "build", config.LogsDirName, "restart"}
 		aliases = append(aliases, builtins...)
 
 		binPath, _ := os.Executable()

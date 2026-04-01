@@ -116,4 +116,3 @@ func printJSON(commands map[string]*runner.ResolvedCommand, keys []string) error
 func printYAML(commands map[string]*runner.ResolvedCommand, keys []string) error {
 	return output.PrintYAML(buildCommandEntries(commands, keys))
 }
-

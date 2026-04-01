@@ -10,7 +10,7 @@ func TestConsoleStartScript_ContainsRequiredParts(t *testing.T) {
 
 	required := []string{
 		"DVA_SHELL=1",
-		"DVA_PROMPT_TEXT",
+		config.EnvPromptTextKey,
 		"dva_clear",
 		"dva_inject",
 		"dva_reload",

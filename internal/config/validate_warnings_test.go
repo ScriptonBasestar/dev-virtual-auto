@@ -228,7 +228,7 @@ provision:
       run: make setup
 `
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dva.yml")
+	path := filepath.Join(dir, FileName)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ stack:
     order: 10
 `
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dva.yml")
+	path := filepath.Join(dir, FileName)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +268,7 @@ func TestCanonicalOrder_SingleSection(t *testing.T) {
 	content := `version: "0.1.29"
 `
 	dir := t.TempDir()
-	path := filepath.Join(dir, "dva.yml")
+	path := filepath.Join(dir, FileName)
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -630,4 +630,3 @@ func TestWarnSuspiciousEnvPatterns(t *testing.T) {
 		t.Errorf("unexpected warning text: %s", warnings[2])
 	}
 }
-

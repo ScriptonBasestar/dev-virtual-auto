@@ -156,4 +156,3 @@ func (p *DockerPlugin) buildRunArgs(pctx *PluginContext) []string {
 
 	return args
 }
-

@@ -26,7 +26,7 @@ func TestIsFlag(t *testing.T) {
 
 func TestIsTopLevelCommand(t *testing.T) {
 	// Known built-in commands should return true
-	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", "logs", "build", "restart", "clean", "validate", "manifest", "provision", "ssh", "console", "ls"}
+	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", config.LogsDirName, "build", "restart", "clean", "validate", "manifest", "provision", "ssh", "console", "ls"}
 	for _, cmd := range builtins {
 		if !isTopLevelCommand(cmd) {
 			t.Errorf("isTopLevelCommand(%q) = false, want true", cmd)
@@ -93,7 +93,7 @@ func TestLoadConfig_ValidConfig(t *testing.T) {
 	cfg = nil
 	defer func() { cfg = oldCfg }()
 
-	os.WriteFile("dva.yml", []byte("version: \"0.1.22\"\n"), 0644)
+	os.WriteFile(config.FileName, []byte("version: \"0.1.22\"\n"), 0644)
 
 	c, err := loadConfig()
 	if err != nil {
@@ -141,7 +141,7 @@ func TestLoadEnv(t *testing.T) {
 	env = nil
 	defer func() { cfg = oldCfg; env = oldEnv }()
 
-	os.WriteFile("dva.yml", []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
+	os.WriteFile(config.FileName, []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
 
 	c, _ := loadConfig()
 	e := loadEnv(c)

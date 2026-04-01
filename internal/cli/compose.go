@@ -412,7 +412,7 @@ var logsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		return execComposePassthrough(e, c, append([]string{"logs"}, args...))
+		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
 }
 

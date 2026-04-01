@@ -25,7 +25,7 @@ func makeEnv(t *testing.T) *config.Environment {
 func makeConfig(t *testing.T) *config.Config {
 	t.Helper()
 	dir := t.TempDir()
-	dvaFile := filepath.Join(dir, "dva.yml")
+	dvaFile := filepath.Join(dir, config.FileName)
 	if err := os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 stack:
   compose:
@@ -393,7 +393,7 @@ func TestExecComposePassthrough_ExecReplaceMode(t *testing.T) {
 	// override compose command with something that surely won't exist
 	// by using a custom config
 	dir := t.TempDir()
-	dvaFile := filepath.Join(dir, "dva.yml")
+	dvaFile := filepath.Join(dir, config.FileName)
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 stack:
   compose:
@@ -421,7 +421,7 @@ stack:
 
 func TestExecComposeSubprocess_NonexistentCmd(t *testing.T) {
 	dir := t.TempDir()
-	dvaFile := filepath.Join(dir, "dva.yml")
+	dvaFile := filepath.Join(dir, config.FileName)
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 stack:
   compose:
@@ -467,7 +467,7 @@ func TestExecComposePassthrough_Debug(t *testing.T) {
 	forceSubprocess = false
 
 	dir := t.TempDir()
-	dvaFile := filepath.Join(dir, "dva.yml")
+	dvaFile := filepath.Join(dir, config.FileName)
 	os.WriteFile(dvaFile, []byte(`version: "0.1.22"
 stack:
   compose:
@@ -495,11 +495,11 @@ func TestRunSubprojectCommand_SubprojectFoundButCommandMissing(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "subpkg")
 	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`version: "0.1.22"
+	os.WriteFile(filepath.Join(subDir, config.FileName), []byte(`version: "0.1.22"
 `), 0644)
 
 	// Parent config points to the sub-project
-	os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(`version: "0.1.22"
+	os.WriteFile(filepath.Join(dir, config.FileName), []byte(`version: "0.1.22"
 subprojects:
   subpkg:
     path: ./subpkg
@@ -523,13 +523,13 @@ func TestRunSubprojectCommand_DryRun(t *testing.T) {
 	dir := t.TempDir()
 	subDir := filepath.Join(dir, "subpkg")
 	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`version: "0.1.22"
+	os.WriteFile(filepath.Join(subDir, config.FileName), []byte(`version: "0.1.22"
 interaction:
   hello:
     run: echo hello
     type: local
 `), 0644)
-	os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(`version: "0.1.22"
+	os.WriteFile(filepath.Join(dir, config.FileName), []byte(`version: "0.1.22"
 subprojects:
   subpkg:
     path: ./subpkg

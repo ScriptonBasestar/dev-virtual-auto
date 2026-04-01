@@ -230,7 +230,7 @@ func runAIImproveRecursive() error {
 
 	var targets []string
 	for _, sp := range subs {
-		for _, name := range []string{"dva.yml", "dva.yaml"} {
+		for _, name := range []string{config.FileName, config.FileNameAlt} {
 			if _, err := os.Stat(filepath.Join(sp.path, name)); err == nil {
 				targets = append(targets, sp.path)
 				break
@@ -725,7 +725,7 @@ func extractGuidedWorkflow(targetDir string) error {
 // dvaConfigExists checks whether dva.yml or dva.yaml exists in the current directory only.
 // Unlike config.findConfig(), this does not walk up parent directories — scaffold targets cwd.
 func dvaConfigExists() bool {
-	for _, name := range []string{"dva.yml", "dva.yaml"} {
+	for _, name := range []string{config.FileName, config.FileNameAlt} {
 		if _, err := os.Stat(name); err == nil {
 			return true
 		}

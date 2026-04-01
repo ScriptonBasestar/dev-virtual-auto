@@ -39,7 +39,7 @@ making it easy to onboard and manage projects.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		logger.Init(debug, jsonOutput)
 		if debug {
-			_ = os.Setenv("DVA_DEBUG", "1")
+			_ = os.Setenv(config.EnvDebugKey, "1")
 			dvaexec.Debug = true
 			slog.Debug("debug mode enabled", "json", jsonOutput)
 		}
@@ -115,7 +115,7 @@ func init() {
 	hookableCmds := map[string]*cobra.Command{
 		"up": upCmd, "down": downCmd, "stop": stopCmd,
 		"restart": restartCmd, "build": buildCmd, "clean": cleanCmd,
-		"logs": logsCmd,
+		config.LogsDirName: logsCmd,
 	}
 	for name, cmd := range hookableCmds {
 		if !config.IsHookableCommand(name) {

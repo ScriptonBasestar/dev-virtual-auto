@@ -95,7 +95,7 @@ func TestDetectConfigDriftWarnings_ComposeFilesMismatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.override.yml"), []byte("services:\n  app:\n    environment:\n      FOO: bar\n"), 0644); err != nil {
 		t.Fatalf("write override: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
 		t.Fatalf("write compose: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestPrintConfigDriftWarnings(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte("services:\n  web:\n    image: nginx\n"), 0644); err != nil {
 		t.Fatalf("write compose: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte("version: \"0.1.0\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files:\n      - docker-compose.yml\ninteraction:\n  test:\n    service: app\n    command: go test ./...\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -202,7 +202,7 @@ func TestDetectConfigSuggestionWarnings_FromMakefileAndPackageJSON(t *testing.T)
 	if err := os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte(packageJSON), 0644); err != nil {
 		t.Fatalf("write package.json: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte("version: \"0.1.0\"\ninteraction:\n  build:\n    runner: local\n    command: make build\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte("version: \"0.1.0\"\ninteraction:\n  build:\n    runner: local\n    command: make build\n"), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -232,7 +232,7 @@ func TestShouldIgnoreMakefileTarget(t *testing.T) {
 	exactIgnored := []string{
 		"help", "all", "default",
 		"stop", "up", "down", "restart",
-		"ps", "run", "logs", "build", "clean",
+		"ps", "run", config.LogsDirName, "build", "clean",
 		"infra-up", "infra-down", "infra-start", "infra-stop",
 		"deps", "install", "prepare", "setup", "install-hooks",
 		"docs", "docs-build", "docs-serve",
@@ -334,7 +334,7 @@ func TestDetectConfigSuggestionWarnings_SubcommandCoverage(t *testing.T) {
 	}
 	// cargo:build has subcommands ce and ee — should suppress build-ce and build-ee warnings
 	dvaYml := "version: \"0.1.0\"\ninteraction:\n  cargo:build:\n    runner: local\n    command: cargo build\n    subcommands:\n      ce:\n        command: cargo build --features ce\n      ee:\n        command: cargo build --features ee\n"
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(dvaYml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(dvaYml), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
@@ -369,7 +369,7 @@ func TestDetectConfigSuggestionWarnings_SuggestionIgnore(t *testing.T) {
 		t.Fatalf("write Makefile: %v", err)
 	}
 	dvaYml := "version: \"0.1.0\"\nsuggestion_ignore:\n  - \"*-release\"\n  - \"clippy*\"\n"
-	if err := os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(dvaYml), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(dvaYml), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 

@@ -99,7 +99,7 @@ func init() {
 // scaffoldDvaYml creates a dva.yml in the given directory if one doesn't exist.
 // Returns true if a file was created.
 func scaffoldDvaYml(dir, tmpl string) (bool, error) {
-	target := filepath.Join(dir, "dva.yml")
+	target := filepath.Join(dir, config.FileName)
 	if _, err := os.Stat(target); err == nil {
 		fmt.Printf("⏭  dva.yml already exists in %s (skipped)\n", dir)
 		return false, nil
@@ -179,7 +179,7 @@ func scanForSubprojects(dir string, depth, maxDepth int, result *[]subInfo) {
 		isSubProject := false
 		lang := ""
 
-		for _, indicator := range []string{".git", "dva.yml", "dva.yaml"} {
+		for _, indicator := range []string{".git", config.FileName, config.FileNameAlt} {
 			if _, err := os.Stat(filepath.Join(childPath, indicator)); err == nil {
 				isSubProject = true
 				break
@@ -566,7 +566,6 @@ func extractMakefileTargets() string {
 	return strings.Join(targets, "\n")
 }
 
-
 // collectMakefileTargets recursively reads Makefile and included files,
 // extracting target names, descriptions, and recipe lines.
 func collectMakefileTargets(path string, seen map[string]bool, targets *[]string) {
@@ -819,7 +818,7 @@ func detectSubprojects(prog *progress) string {
 
 			// 2. Check for dva.yml or dva.yaml
 			if !isSubProject {
-				for _, df := range []string{"dva.yml", "dva.yaml"} {
+				for _, df := range []string{config.FileName, config.FileNameAlt} {
 					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
 						isSubProject = true
 						break
@@ -904,7 +903,7 @@ func detectSubprojects(prog *progress) string {
 				}
 
 				// Detect dva.yml / dva.yaml
-				for _, df := range []string{"dva.yml", "dva.yaml"} {
+				for _, df := range []string{config.FileName, config.FileNameAlt} {
 					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
 						sp.hasDvaYml = true
 						break

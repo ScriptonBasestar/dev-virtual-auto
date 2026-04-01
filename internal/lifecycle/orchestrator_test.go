@@ -368,7 +368,7 @@ func TestFilterEntries_WithStackOverrides(t *testing.T) {
 		Stack: entries,
 		Environments: map[string]config.EnvironmentProfile{
 			"stg": {
-				Stack: []string{"kubectl"}, 
+				Stack: []string{"kubectl"},
 				StackOverrides: map[string]*config.LifecycleEntry{
 					"kubectl": {
 						Kubectl: &config.KubectlPluginConfig{Namespace: "staging"},
@@ -404,7 +404,7 @@ func TestFilterEntries_StackOverrides_ErrorOnPluginChange(t *testing.T) {
 		Stack: entries,
 		Environments: map[string]config.EnvironmentProfile{
 			"stg": {
-				Stack: []string{"kubectl"}, 
+				Stack: []string{"kubectl"},
 				StackOverrides: map[string]*config.LifecycleEntry{
 					"kubectl": {
 						Plugin: "compose", // ILLEGAL restricted field override

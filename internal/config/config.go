@@ -12,25 +12,25 @@ import (
 // ModulesDirExt is the extension for module files.
 // Config represents the parsed dva.yml configuration.
 type Config struct {
-	Version      string                         `yaml:"version"`
-	Environment  map[string]string              `yaml:"environment"`
-	EnvFile      any                            `yaml:"env_file"`
-	Interaction  map[string]*InteractionCommand `yaml:"interaction"`
-	Provision    ProvisionConfig                `yaml:"provision"`
-	Infra        map[string]InfraConfig         `yaml:"infra"`
-	Modules      []string                       `yaml:"modules"`
-	Devcontainer map[string]any                 `yaml:"devcontainer"`
-	Subprojects  map[string]SubprojectConfig    `yaml:"subprojects"`
-	HealthChecks map[string]HealthCheckConfig   `yaml:"health_checks"`
-	Endpoints    map[string]EndpointConfig      `yaml:"endpoints"`
-	DefaultMode       string                          `yaml:"default_mode"`
-	SuggestionIgnore  []string                        `yaml:"suggestion_ignore"`
-	Modes             map[string]ModeConfig           `yaml:"modes"`
-	Environments map[string]EnvironmentProfile  `yaml:"environments"`
-	Ssh          SshConfig                      `yaml:"ssh"`
-	DoctorChecks []DoctorCheck                  `yaml:"checks"`
-	Stack        map[string]*LifecycleEntry    `yaml:"stack"`
-	Applications map[string]*ApplicationConfig `yaml:"applications"`
+	Version          string                         `yaml:"version"`
+	Environment      map[string]string              `yaml:"environment"`
+	EnvFile          any                            `yaml:"env_file"`
+	Interaction      map[string]*InteractionCommand `yaml:"interaction"`
+	Provision        ProvisionConfig                `yaml:"provision"`
+	Infra            map[string]InfraConfig         `yaml:"infra"`
+	Modules          []string                       `yaml:"modules"`
+	Devcontainer     map[string]any                 `yaml:"devcontainer"`
+	Subprojects      map[string]SubprojectConfig    `yaml:"subprojects"`
+	HealthChecks     map[string]HealthCheckConfig   `yaml:"health_checks"`
+	Endpoints        map[string]EndpointConfig      `yaml:"endpoints"`
+	DefaultMode      string                         `yaml:"default_mode"`
+	SuggestionIgnore []string                       `yaml:"suggestion_ignore"`
+	Modes            map[string]ModeConfig          `yaml:"modes"`
+	Environments     map[string]EnvironmentProfile  `yaml:"environments"`
+	Ssh              SshConfig                      `yaml:"ssh"`
+	DoctorChecks     []DoctorCheck                  `yaml:"checks"`
+	Stack            map[string]*LifecycleEntry     `yaml:"stack"`
+	Applications     map[string]*ApplicationConfig  `yaml:"applications"`
 
 	// Internal fields
 	filePath string
@@ -60,10 +60,10 @@ type ModeConfig struct {
 	HealthChecks    []string          `yaml:"health_checks"`
 	EndpointTags    []string          `yaml:"endpoint_tags"` // filter endpoints by tags (empty=show all)
 	Environment     map[string]string `yaml:"environment"`
-	Provision       string            `yaml:"provision"`  // provision profile to suggest on first run
-	Stack           []string          `yaml:"stack"`       // stack entry names to include (empty=all)
-	Build           string            `yaml:"build"`       // build strategy: "docker" (compose build), "native" (run command), or custom shell command
-	Run             string            `yaml:"run"`         // run strategy: "docker" (compose up), "native" (process via health_checks.start), or custom shell command
+	Provision       string            `yaml:"provision"`    // provision profile to suggest on first run
+	Stack           []string          `yaml:"stack"`        // stack entry names to include (empty=all)
+	Build           string            `yaml:"build"`        // build strategy: "docker" (compose build), "native" (run command), or custom shell command
+	Run             string            `yaml:"run"`          // run strategy: "docker" (compose up), "native" (process via health_checks.start), or custom shell command
 	Applications    any               `yaml:"applications"` // app strategy: "native"/"docker" (string) or per-app map[string]string
 }
 
@@ -152,16 +152,16 @@ type ServiceTagConfig struct {
 // ApplicationConfig declares a long-running application process with
 // native and docker execution paths.
 type ApplicationConfig struct {
-	Description string            `yaml:"description"`
-	Tags        []string          `yaml:"tags"`
-	Port        int               `yaml:"port"`  // listening port (shown in dva app ls)
-	Run         AppExecPaths      `yaml:"run"`
-	Build       AppExecPaths      `yaml:"build"`
-	Dev         AppExecPaths      `yaml:"dev"`
+	Description string             `yaml:"description"`
+	Tags        []string           `yaml:"tags"`
+	Port        int                `yaml:"port"` // listening port (shown in dva app ls)
+	Run         AppExecPaths       `yaml:"run"`
+	Build       AppExecPaths       `yaml:"build"`
+	Dev         AppExecPaths       `yaml:"dev"`
 	Health      *HealthCheckConfig `yaml:"health"`
-	DependsOn   []string          `yaml:"depends_on"` // compose services or other app names
-	Environment map[string]string `yaml:"environment"`
-	Dir         string            `yaml:"dir"` // working directory (default: config dir)
+	DependsOn   []string           `yaml:"depends_on"` // compose services or other app names
+	Environment map[string]string  `yaml:"environment"`
+	Dir         string             `yaml:"dir"` // working directory (default: config dir)
 }
 
 // AppExecPaths holds native and docker execution variants for an application.
@@ -213,21 +213,21 @@ func (p *AppExecPaths) HasDocker() bool {
 
 // InteractionCommand defines a command in the interaction section.
 type InteractionCommand struct {
-	Description       string                         `yaml:"description"`
-	Service           string                         `yaml:"service"`
-	Command           string                         `yaml:"command"`
-	Workdir           string                         `yaml:"workdir"`
-	User              string                         `yaml:"user"`
-	DefaultArgs       string                         `yaml:"default_args"`
-	Environment       map[string]string              `yaml:"environment"`
-	EnvFile           any                    `yaml:"env_file"`
-	Compose           *ComposeOptions                `yaml:"compose"`
-	Shell             *bool                          `yaml:"shell"`
-	Entrypoint        string                         `yaml:"entrypoint"`
-	Runner            string                         `yaml:"runner"`
-	Pod               string                         `yaml:"pod"`
+	Description string                         `yaml:"description"`
+	Service     string                         `yaml:"service"`
+	Command     string                         `yaml:"command"`
+	Workdir     string                         `yaml:"workdir"`
+	User        string                         `yaml:"user"`
+	DefaultArgs string                         `yaml:"default_args"`
+	Environment map[string]string              `yaml:"environment"`
+	EnvFile     any                            `yaml:"env_file"`
+	Compose     *ComposeOptions                `yaml:"compose"`
+	Shell       *bool                          `yaml:"shell"`
+	Entrypoint  string                         `yaml:"entrypoint"`
+	Runner      string                         `yaml:"runner"`
+	Pod         string                         `yaml:"pod"`
 	Subcommands map[string]*InteractionCommand `yaml:"subcommands"`
-	Tags              []string                       `yaml:"tags"`
+	Tags        []string                       `yaml:"tags"`
 
 	// Hook fields: extend or replace hookable built-in commands (up, down, build, etc.)
 	Before  []ProvisionItem `yaml:"before"`
@@ -423,7 +423,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 
 	// Load override (if exists)
-	overrideFile := strings.TrimSuffix(filePath, ".yml") + ".override.yml"
+	overrideFile := strings.TrimSuffix(filePath, ".yml") + OverrideExt
 	if overCfg, err := loadFile(overrideFile); err == nil {
 		if err := cfg.mergeFrom(overCfg); err != nil {
 			return nil, fmt.Errorf("merging override: %w", err)
@@ -469,7 +469,7 @@ var yamlDeprecationWarned bool
 // findConfig walks up from workDir to find dva.yml.
 func findConfig(workDir string) (string, error) {
 	// Check DVA_FILE env var first
-	if env := os.Getenv("DVA_FILE"); env != "" {
+	if env := os.Getenv(EnvFileKey); env != "" {
 		if _, err := os.Stat(env); err != nil {
 			return "", fmt.Errorf("DVA_FILE=%s: %w", env, err)
 		}
@@ -483,12 +483,12 @@ func findConfig(workDir string) (string, error) {
 
 	for {
 		// Prefer dva.yml (canonical name)
-		candidate := filepath.Join(dir, "dva.yml")
+		candidate := filepath.Join(dir, FileName)
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
 		}
 		// Fallback: accept dva.yaml with deprecation warning (once per process)
-		altCandidate := filepath.Join(dir, "dva.yaml")
+		altCandidate := filepath.Join(dir, FileNameAlt)
 		if _, err := os.Stat(altCandidate); err == nil {
 			if !yamlDeprecationWarned {
 				yamlDeprecationWarned = true
@@ -744,7 +744,7 @@ var nonHTTPServices = map[string]bool{
 	// Caches
 	"redis": true, "valkey": true,
 	"memcached": true,
-	"cache": true,
+	"cache":     true,
 	// Messaging
 	"kafka": true, "zookeeper": true,
 	"rabbitmq": true, "nats": true,

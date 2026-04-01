@@ -332,7 +332,7 @@ func TestMergeEnvironmentProfile(t *testing.T) {
 func TestLoadDeepMergeOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   compose:
     plugin: compose
@@ -451,7 +451,7 @@ modes:
 func TestLoadRestrictedFieldError(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   web:
     plugin: compose

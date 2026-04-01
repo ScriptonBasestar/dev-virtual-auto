@@ -38,7 +38,7 @@ func (p *TiltPlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, erro
 	}
 
 	// Check if already running
-	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
+	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")
 	if data, err := os.ReadFile(pidFile); err == nil {
 		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
 		if pid > 0 && IsProcessRunning(pid) {
@@ -95,7 +95,7 @@ func (p *TiltPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 
 func (p *TiltPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
 	name := pctx.Entry.Name
-	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
+	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")
 
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
@@ -126,7 +126,7 @@ func (p *TiltPlugin) resolveDir(pctx *PluginContext) string {
 // stopBackgroundProcess reads the PID file and kills the process group.
 func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) {
 	name := pctx.Entry.Name
-	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, "pids", name+".pid")
+	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
 		return

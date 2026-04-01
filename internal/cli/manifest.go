@@ -35,18 +35,18 @@ func init() {
 }
 
 type Manifest struct {
-	DvaVersion      string                        `json:"dva_version" yaml:"dva_version"`
-	SchemaVersion   string                        `json:"schema_version" yaml:"schema_version"`
-	GeneratedAt     string                        `json:"generated_at" yaml:"generated_at"`
-	ConfigFile      string                        `json:"config_file" yaml:"config_file"`
-	ProjectDir      string                        `json:"project_dir" yaml:"project_dir"`
-	ComposeFiles    []string                      `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
-	EnvKeys         []string                      `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
-	StaticCommands  map[string]ManifestCmd        `json:"static_commands" yaml:"static_commands"`
-	DynamicCommands map[string]ManifestDynCmd     `json:"dynamic_commands" yaml:"dynamic_commands"`
-	Runners         map[string]ManifestRunner     `json:"runners" yaml:"runners"`
-	Subprojects     map[string]ManifestSubproject     `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
-	HealthChecks    map[string]ManifestHealthCheck    `json:"health_checks,omitempty" yaml:"health_checks,omitempty"`
+	DvaVersion      string                         `json:"dva_version" yaml:"dva_version"`
+	SchemaVersion   string                         `json:"schema_version" yaml:"schema_version"`
+	GeneratedAt     string                         `json:"generated_at" yaml:"generated_at"`
+	ConfigFile      string                         `json:"config_file" yaml:"config_file"`
+	ProjectDir      string                         `json:"project_dir" yaml:"project_dir"`
+	ComposeFiles    []string                       `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
+	EnvKeys         []string                       `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
+	StaticCommands  map[string]ManifestCmd         `json:"static_commands" yaml:"static_commands"`
+	DynamicCommands map[string]ManifestDynCmd      `json:"dynamic_commands" yaml:"dynamic_commands"`
+	Runners         map[string]ManifestRunner      `json:"runners" yaml:"runners"`
+	Subprojects     map[string]ManifestSubproject  `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
+	HealthChecks    map[string]ManifestHealthCheck `json:"health_checks,omitempty" yaml:"health_checks,omitempty"`
 }
 
 // ManifestHealthCheck describes a health check in the manifest.
@@ -208,11 +208,11 @@ func buildManifest(c *config.Config) *Manifest {
 		m.HealthChecks = make(map[string]ManifestHealthCheck, len(c.HealthChecks))
 		for name, hc := range c.HealthChecks {
 			m.HealthChecks[name] = ManifestHealthCheck{
-				Type:      hc.Type,
-				URL:       hc.URL,
-				Address:   hc.Address,
-				Command:   hc.Command,
-				Start:     hc.Start,
+				Type:         hc.Type,
+				URL:          hc.URL,
+				Address:      hc.Address,
+				Command:      hc.Command,
+				Start:        hc.Start,
 				StartHint:    hc.StartHint,
 				ReadyTimeout: hc.ReadyTimeout,
 			}

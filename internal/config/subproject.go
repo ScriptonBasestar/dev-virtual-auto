@@ -13,7 +13,7 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 		if !filepath.IsAbs(subPath) {
 			subPath = filepath.Join(parentDir, subPath)
 		}
-		subCfgPath := filepath.Join(subPath, "dva.yml")
+		subCfgPath := filepath.Join(subPath, FileName)
 		cfg, err := loadFile(subCfgPath)
 		if err != nil {
 			return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)

@@ -38,13 +38,13 @@ func NewEnvironment(defaultVars map[string]string, workDir, cfgDir string) *Envi
 	}
 
 	// Set special variables
-	env.Vars["DVA_OS"] = runtime.GOOS
+	env.Vars[EnvRuntimeOS] = runtime.GOOS
 	if rel, err := filepath.Rel(cfgDir, workDir); err == nil {
-		env.Vars["DVA_WORK_DIR_REL_PATH"] = rel
+		env.Vars[EnvRuntimeWorkDirRelPath] = rel
 	}
 	if u, err := user.Current(); err == nil {
-		env.Vars["DVA_CURRENT_USER"] = u.Username
-		env.Vars["DVA_CURRENT_UID"] = u.Uid
+		env.Vars[EnvRuntimeCurrentUser] = u.Username
+		env.Vars[EnvRuntimeCurrentUID] = u.Uid
 	}
 
 	// Merge default vars from config

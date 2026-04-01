@@ -14,7 +14,7 @@ func TestFindConfigWalksUp(t *testing.T) {
 	os.MkdirAll(subDir, 0755)
 
 	// Write dva.yml in project root
-	dvaYml := filepath.Join(projectDir, "dva.yml")
+	dvaYml := filepath.Join(projectDir, FileName)
 	os.WriteFile(dvaYml, []byte("version: '0.1.0'\n"), 0644)
 
 	// Find from deep subdir
@@ -40,7 +40,7 @@ func TestFindConfigDVAFILE(t *testing.T) {
 	customFile := filepath.Join(tmpDir, "custom.yml")
 	os.WriteFile(customFile, []byte("version: '0.1.0'\n"), 0644)
 
-	t.Setenv("DVA_FILE", customFile)
+	t.Setenv(EnvFileKey, customFile)
 
 	found, err := findConfig(tmpDir)
 	if err != nil {
@@ -53,7 +53,7 @@ func TestFindConfigDVAFILE(t *testing.T) {
 
 func TestLoadConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `version: "0.1.0"
 stack:
@@ -112,7 +112,7 @@ func TestLoadConfigWithModules(t *testing.T) {
 	os.MkdirAll(dvaDir, 0755)
 
 	// Main config with module reference
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 modules:
   - extra
 
@@ -149,7 +149,7 @@ interaction:
 func TestLoadConfigWithOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   compose:
     plugin: compose
@@ -221,7 +221,7 @@ func TestParseVersion(t *testing.T) {
 
 func TestProvisionConfigParsing(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `provision:
   default_profile: setup
@@ -255,7 +255,7 @@ func TestProvisionConfigParsing(t *testing.T) {
 
 func TestProvisionConfigWithoutDefaultProfile(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `provision:
   setup:
@@ -280,7 +280,7 @@ func TestProvisionConfigWithoutDefaultProfile(t *testing.T) {
 func TestProvisionConfigMergeOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`provision:
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`provision:
   setup:
     - step: Install
       run: npm install
@@ -309,7 +309,7 @@ func TestProvisionConfigMergeOverride(t *testing.T) {
 
 func TestServiceRelatedFieldParsing(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `stack:
   compose:
@@ -346,7 +346,7 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 
 func TestDoctorChecksParsing(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `checks:
   - name: Docker accessible
@@ -384,7 +384,7 @@ func TestDoctorChecksParsing(t *testing.T) {
 
 func TestModeProvisionField(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `modes:
   full-stack:
@@ -413,7 +413,7 @@ provision:
 
 func TestEndpointsParsing(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `endpoints:
   api:
@@ -468,7 +468,7 @@ func TestEndpointsParsing(t *testing.T) {
 func TestEndpointsMergeOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`endpoints:
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`endpoints:
   api:
     url: http://localhost:8080
     label: "API"
@@ -507,7 +507,7 @@ func TestEndpointsMergeOverride(t *testing.T) {
 
 func TestModeEndpointTags(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `modes:
   dev:
@@ -532,7 +532,7 @@ func TestModeEndpointTags(t *testing.T) {
 
 func TestEmptyConfig(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	// Empty file
 	os.WriteFile(dvaYml, []byte(""), 0644)
@@ -649,7 +649,7 @@ func TestResolveEndpoints_InvalidSource(t *testing.T) {
 
 func TestResolveEndpoints_IntegrationWithLoad(t *testing.T) {
 	tmpDir := t.TempDir()
-	dvaYml := filepath.Join(tmpDir, "dva.yml")
+	dvaYml := filepath.Join(tmpDir, FileName)
 
 	content := `endpoints:
   app-http:

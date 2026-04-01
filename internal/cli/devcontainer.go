@@ -97,5 +97,3 @@ func toDevcontainerRelative(p string) string {
 	}
 	return "../" + p
 }
-
-

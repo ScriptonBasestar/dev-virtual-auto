@@ -44,11 +44,11 @@ type LifecycleEntry struct {
 	Helm    *HelmPluginConfig    `yaml:"helm,omitempty"`
 
 	// --- Tier 2: Extended ---
-	Kustomize     *KustomizePluginConfig    `yaml:"kustomize,omitempty"`
-	Tilt          *TiltPluginConfig         `yaml:"tilt,omitempty"`
-	Skaffold      *SkaffoldPluginConfig     `yaml:"skaffold,omitempty"`
+	Kustomize     *KustomizePluginConfig     `yaml:"kustomize,omitempty"`
+	Tilt          *TiltPluginConfig          `yaml:"tilt,omitempty"`
+	Skaffold      *SkaffoldPluginConfig      `yaml:"skaffold,omitempty"`
 	PodmanCompose *PodmanComposePluginConfig `yaml:"podman_compose,omitempty"`
-	Vagrant       *VagrantPluginConfig      `yaml:"vagrant,omitempty"`
+	Vagrant       *VagrantPluginConfig       `yaml:"vagrant,omitempty"`
 
 	// --- Tier 3: Niche ---
 	SAM        *SAMPluginConfig        `yaml:"sam,omitempty"`
@@ -428,8 +428,8 @@ type VagrantPluginConfig struct {
 
 // SAMPluginConfig holds AWS SAM local settings.
 type SAMPluginConfig struct {
-	Template string `yaml:"template"`
-	Port     int    `yaml:"port"`
+	Template string   `yaml:"template"`
+	Port     int      `yaml:"port"`
 	Args     []string `yaml:"args"`
 }
 

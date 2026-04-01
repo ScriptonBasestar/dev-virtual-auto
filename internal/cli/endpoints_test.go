@@ -9,8 +9,8 @@ import (
 
 func TestFilterEndpoints_NoTags(t *testing.T) {
 	endpoints := map[string]config.EndpointConfig{
-		"api":  {URL: "http://localhost:8080", Label: "API", Tags: []string{"app"}},
-		"db":   {URL: "localhost:5432", Label: "DB", Tags: []string{"infra"}},
+		"api": {URL: "http://localhost:8080", Label: "API", Tags: []string{"app"}},
+		"db":  {URL: "localhost:5432", Label: "DB", Tags: []string{"infra"}},
 	}
 	result := filterEndpoints(endpoints, nil)
 	if len(result) != 2 {

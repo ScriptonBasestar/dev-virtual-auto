@@ -61,19 +61,19 @@ func TestSpecialVars(t *testing.T) {
 	env := NewEnvironment(nil, "/tmp", "/tmp")
 
 	// DVA_OS should be set
-	dva_os := env.Vars["DVA_OS"]
+	dva_os := env.Vars[EnvRuntimeOS]
 	if dva_os == "" {
 		t.Error("DVA_OS should be set")
 	}
 
 	// DVA_CURRENT_USER should be set
-	uid := env.Vars["DVA_CURRENT_USER"]
+	uid := env.Vars[EnvRuntimeCurrentUser]
 	if uid == "" {
 		t.Error("DVA_CURRENT_USER should be set")
 	}
 
 	// DVA_CURRENT_UID should be set
-	uidNum := env.Vars["DVA_CURRENT_UID"]
+	uidNum := env.Vars[EnvRuntimeCurrentUID]
 	if uidNum == "" {
 		t.Error("DVA_CURRENT_UID should be set")
 	}

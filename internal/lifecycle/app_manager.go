@@ -331,8 +331,8 @@ func (am *AppManager) AppStatuses() []AppStatus {
 // same PID/log infrastructure as the process plugin.
 func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig, command string) error {
 	configDir := am.cfg.FileDir()
-	pidDir := filepath.Join(configDir, config.DotDirName, "pids")
-	logDir := filepath.Join(configDir, config.DotDirName, "logs")
+	pidDir := filepath.Join(configDir, config.DotDirName, config.PidsDirName)
+	logDir := filepath.Join(configDir, config.DotDirName, config.LogsDirName)
 
 	if err := os.MkdirAll(pidDir, 0755); err != nil {
 		return fmt.Errorf("create pid dir: %w", err)
@@ -489,12 +489,12 @@ func (am *AppManager) resolveDir(app *config.ApplicationConfig) string {
 
 // pidPath returns the PID file path for an app.
 func (am *AppManager) pidPath(name string) string {
-	return filepath.Join(am.cfg.FileDir(), config.DotDirName, "pids", "app-"+name+".pid")
+	return filepath.Join(am.cfg.FileDir(), config.DotDirName, config.PidsDirName, "app-"+name+".pid")
 }
 
 // logPath returns the log file path for an app.
 func (am *AppManager) logPath(name string) string {
-	return filepath.Join(am.cfg.FileDir(), config.DotDirName, "logs", "app-"+name+".log")
+	return filepath.Join(am.cfg.FileDir(), config.DotDirName, config.LogsDirName, "app-"+name+".log")
 }
 
 // selectApps returns the subset of configured applications matching the given names.
@@ -511,7 +511,6 @@ func (am *AppManager) selectApps(names []string) map[string]*config.ApplicationC
 	}
 	return selected
 }
-
 
 // topoSortWaves returns app names grouped into dependency waves.
 // Apps within the same wave have no mutual dependencies and can run concurrently.

@@ -190,7 +190,6 @@ func TestResolveMode_Found(t *testing.T) {
 	}
 }
 
-
 func TestApplyEnv_Empty(t *testing.T) {
 	e := config.NewEnvironment(nil, "/tmp", "/tmp")
 	c := &config.Config{}
@@ -248,7 +247,7 @@ func TestApplyEnv_MergesVars(t *testing.T) {
 func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
 	t.Helper()
 	tmpDir := t.TempDir()
-	dvaFile := filepath.Join(tmpDir, "dva.yml")
+	dvaFile := filepath.Join(tmpDir, config.FileName)
 	if err := os.WriteFile(dvaFile, []byte(yamlContent), 0644); err != nil {
 		t.Fatal(err)
 	}

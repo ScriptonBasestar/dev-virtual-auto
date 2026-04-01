@@ -12,7 +12,7 @@ func TestLoadSubprojects(t *testing.T) {
 
 	subDir := filepath.Join(parentDir, "engine")
 	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(subDir, FileName), []byte(`
 version: "0.1.0"
 stack:
   compose:
@@ -209,7 +209,7 @@ func TestLoadConfigWithSubprojects(t *testing.T) {
 
 	subDir := filepath.Join(tmpDir, "sub-app")
 	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(subDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(subDir, FileName), []byte(`
 version: "0.1.0"
 stack:
   compose:
@@ -223,7 +223,7 @@ interaction:
     command: "npm test"
 `), 0644)
 
-	os.WriteFile(filepath.Join(tmpDir, "dva.yml"), []byte(`
+	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 version: "0.1.0"
 stack:
   compose:

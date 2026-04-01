@@ -193,7 +193,7 @@ interaction:
     service: app
     command: go test ./...
 `
-	if err := os.WriteFile("dva.yml", []byte(dvaYAML), 0644); err != nil {
+	if err := os.WriteFile(config.FileName, []byte(dvaYAML), 0644); err != nil {
 		t.Fatalf("Failed to write dva.yml: %v", err)
 	}
 	if err := os.WriteFile("docker-compose.yml", []byte("services:\n  app:\n    image: golang:1.24\n"), 0644); err != nil {

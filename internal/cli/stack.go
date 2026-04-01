@@ -230,19 +230,19 @@ var stackLogCmd = &cobra.Command{
 				case "process", "script":
 					return showStackEntryLog(c, args[0])
 				case "compose", "podman-compose":
-					return execComposePassthroughForEntry(e, c, entry, append([]string{"logs"}, args[1:]...))
+					return execComposePassthroughForEntry(e, c, entry, append([]string{config.LogsDirName}, args[1:]...))
 				}
 			}
 		}
 
 		// Default: delegate to compose logs passthrough
-		return execComposePassthrough(e, c, append([]string{"logs"}, args...))
+		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
 }
 
 // showStackEntryLog reads and prints the log file for a non-compose stack entry.
 func showStackEntryLog(c *config.Config, name string) error {
-	logFile := filepath.Join(c.FileDir(), config.DotDirName, "logs", name+".log")
+	logFile := filepath.Join(c.FileDir(), config.DotDirName, config.LogsDirName, name+".log")
 	data, err := os.ReadFile(logFile)
 	if err != nil {
 		return fmt.Errorf("no log file for stack entry %q: %w", name, err)

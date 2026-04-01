@@ -132,7 +132,7 @@ func TestSAMPlugin_Status_NoPidFile(t *testing.T) {
 
 func TestSAMPlugin_Status_StalePid(t *testing.T) {
 	tmpDir := t.TempDir()
-	pidDir := filepath.Join(tmpDir, config.DotDirName, "pids")
+	pidDir := filepath.Join(tmpDir, config.DotDirName, config.PidsDirName)
 	os.MkdirAll(pidDir, 0755)
 
 	// Write a PID that doesn't exist (very high PID)
@@ -159,7 +159,7 @@ func TestSAMPlugin_Status_StalePid(t *testing.T) {
 
 func TestSAMPlugin_Status_RunningPid(t *testing.T) {
 	tmpDir := t.TempDir()
-	pidDir := filepath.Join(tmpDir, config.DotDirName, "pids")
+	pidDir := filepath.Join(tmpDir, config.DotDirName, config.PidsDirName)
 	os.MkdirAll(pidDir, 0755)
 
 	// Write our own PID — we are definitely running

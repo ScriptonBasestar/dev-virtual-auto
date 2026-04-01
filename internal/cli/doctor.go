@@ -17,11 +17,11 @@ import (
 
 // DoctorResult holds the outcome of a single doctor check.
 type DoctorResult struct {
-	Name    string `json:"name"`
-	Passed  bool   `json:"passed"`
-	FixHint string `json:"fix_hint,omitempty"`
-	Fixable bool   `json:"fixable,omitempty"`
-	Fixed   bool   `json:"fixed,omitempty"`
+	Name    string       `json:"name"`
+	Passed  bool         `json:"passed"`
+	FixHint string       `json:"fix_hint,omitempty"`
+	Fixable bool         `json:"fixable,omitempty"`
+	Fixed   bool         `json:"fixed,omitempty"`
 	fixFunc func() error // built-in fix function (unexported)
 }
 

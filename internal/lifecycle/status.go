@@ -92,7 +92,7 @@ func printHealthCheckResults(results []HealthCheckResult, configDir string) {
 			hasHints = true
 		}
 		if r.Started {
-			fmt.Printf("  %s -> log: %s\n", r.Name, filepath.Join(configDir, config.DotDirName, "logs", r.Name+".log"))
+			fmt.Printf("  %s -> log: %s\n", r.Name, filepath.Join(configDir, config.DotDirName, config.LogsDirName, r.Name+".log"))
 		} else if r.StartHint != "" {
 			fmt.Printf("  %s -> %s\n", r.Name, r.StartHint)
 		}

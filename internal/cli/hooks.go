@@ -21,7 +21,7 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 	original := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		// Recursion guard: skip hooks if already inside a hook execution
-		if depth, _ := strconv.Atoi(os.Getenv("DVA_HOOK_DEPTH")); depth > 0 {
+		if depth, _ := strconv.Atoi(os.Getenv(config.EnvHookDepthKey)); depth > 0 {
 			return original(cmd, args)
 		}
 
@@ -39,8 +39,8 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 		e := loadEnv(c)
 
 		// Set hook depth to prevent recursion in subprocesses
-		_ = os.Setenv("DVA_HOOK_DEPTH", "1")
-		defer func() { _ = os.Unsetenv("DVA_HOOK_DEPTH") }()
+		_ = os.Setenv(config.EnvHookDepthKey, "1")
+		defer func() { _ = os.Unsetenv(config.EnvHookDepthKey) }()
 
 		// Phase 1: before hooks (fail-fast)
 		if len(ic.Before) > 0 {

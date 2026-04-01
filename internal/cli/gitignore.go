@@ -81,7 +81,7 @@ func isDvaIgnored(content string) bool {
 // This is used for normal command execution.
 func checkGitignoreForWarning(configDir string) {
 	gitignorePath := filepath.Join(configDir, ".gitignore")
-	
+
 	// If .gitignore doesn't exist, we might not be in a git repo or user doesn't care.
 	// But if we have a .git directory, we should probably warn.
 	if _, err := os.Stat(filepath.Join(configDir, ".git")); os.IsNotExist(err) {
@@ -103,5 +103,3 @@ func checkGitignoreForWarning(configDir string) {
 	fmt.Fprintf(os.Stderr, "⚠️  [warn] %s/ is not in your .gitignore. Transient markers might be committed.\n", config.DotDirName)
 	fmt.Fprintf(os.Stderr, "         Run 'dva doctor --fix' to auto-fix or add '%s/' to .gitignore manually.\n\n", config.DotDirName)
 }
-
-

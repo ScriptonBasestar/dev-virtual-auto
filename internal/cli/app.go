@@ -82,8 +82,8 @@ var appDownCmd = &cobra.Command{
 }
 
 var appUpCmd = &cobra.Command{
-	Use:   "up [APP...] [--dev]",
-	Short: "Start applications (all if no name given)",
+	Use:                "up [APP...] [--dev]",
+	Short:              "Start applications (all if no name given)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -124,8 +124,8 @@ var appUpCmd = &cobra.Command{
 }
 
 var appRestartCmd = &cobra.Command{
-	Use:   "restart [APP...] [--dev]",
-	Short: "Restart applications (stop then start)",
+	Use:                "restart [APP...] [--dev]",
+	Short:              "Restart applications (stop then start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -160,8 +160,8 @@ var appRestartCmd = &cobra.Command{
 }
 
 var appBuildCmd = &cobra.Command{
-	Use:   "build [APP...]",
-	Short: "Build applications (use --docker for container build)",
+	Use:                "build [APP...]",
+	Short:              "Build applications (use --docker for container build)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
