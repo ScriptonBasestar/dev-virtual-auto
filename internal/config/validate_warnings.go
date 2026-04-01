@@ -38,6 +38,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnDuplicateStackOrder()...)
 	warnings = append(warnings, c.warnMultiStackComposeSplit()...)
 	warnings = append(warnings, c.warnMissingDefaultMode()...)
+	warnings = append(warnings, c.warnDefaultModeHeavyInfra()...)
 	if c.filePath != "" {
 		warnings = append(warnings, validateCanonicalOrder(c.filePath)...)
 	}
@@ -181,6 +182,86 @@ func (c *Config) warnMissingDefaultMode() []string {
 	return []string{
 		"modes are defined but default_mode is not set — dva up without -M will start all services from all compose files; set default_mode to a minimal infrastructure mode (e.g., 'infra')",
 	}
+}
+
+// heavyInfraServiceNames lists well-known service names that should NOT
+// appear in the default (minimal) mode. These are non-core infrastructure
+// services that consume significant resources.
+var heavyInfraServiceNames = map[string]bool{
+	"kafka":          true,
+	"zookeeper":      true,
+	"prometheus":     true,
+	"alertmanager":   true,
+	"grafana":        true,
+	"jaeger":         true,
+	"minio":          true,
+	"elasticsearch":  true,
+	"kibana":         true,
+	"logstash":       true,
+	"loki":           true,
+	"tempo":          true,
+	"otel-collector": true,
+	"zipkin":         true,
+	"rabbitmq":       true,
+	"nats":           true,
+}
+
+// heavyInfraTags lists service tags that indicate non-core infrastructure.
+var heavyInfraTags = map[string]bool{
+	"monitoring": true,
+	"storage":    true,
+	"kafka":      true,
+	"search":     true,
+}
+
+// warnDefaultModeHeavyInfra warns when the default mode includes heavy
+// infrastructure services (monitoring, event streaming, object storage, etc.)
+// that should be in separate modes to keep `dva up` fast and lightweight.
+func (c *Config) warnDefaultModeHeavyInfra() []string {
+	if c.DefaultMode == "" || len(c.Modes) == 0 {
+		return nil
+	}
+	mode, ok := c.Modes[c.DefaultMode]
+	if !ok || mode.ComposeServices == nil {
+		return nil
+	}
+
+	serviceTags := c.ComposeServices()
+
+	var heavy []string
+	for _, svc := range *mode.ComposeServices {
+		if isHeavyInfra(svc, serviceTags) {
+			heavy = append(heavy, svc)
+		}
+	}
+
+	if len(heavy) == 0 {
+		return nil
+	}
+
+	sort.Strings(heavy)
+	return []string{
+		fmt.Sprintf("default_mode %q includes non-core infrastructure services %v; "+
+			"consider moving them to a separate mode (e.g., full-stack, infra-full) — "+
+			"default mode should only include core data services (DB, cache)",
+			c.DefaultMode, heavy),
+	}
+}
+
+// isHeavyInfra checks whether a service is heavy infrastructure by its tags
+// (if declared) or by well-known name heuristics as fallback.
+func isHeavyInfra(svcName string, serviceTags map[string]ServiceTagConfig) bool {
+	if cfg, ok := serviceTags[svcName]; ok && len(cfg.Tags) > 0 {
+		for _, tag := range cfg.Tags {
+			if heavyInfraTags[tag] {
+				return true
+			}
+		}
+		// Service has tags but none are heavy — trust the tags
+		return false
+	}
+	// No tag info — fall back to name heuristic
+	return heavyInfraServiceNames[svcName]
 }
 
 // validateCanonicalOrder reads the YAML file and checks that top-level keys

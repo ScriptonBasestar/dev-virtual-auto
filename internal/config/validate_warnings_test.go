@@ -279,6 +279,114 @@ func TestCanonicalOrder_SingleSection(t *testing.T) {
 	}
 }
 
+func TestWarnDefaultModeHeavyInfra(t *testing.T) {
+	svcList := func(svcs ...string) *[]string { return &svcs }
+
+	// Default mode with kafka + monitoring → warning
+	c := &Config{
+		DefaultMode: "infra-only",
+		Modes: map[string]ModeConfig{
+			"infra-only": {
+				ComposeServices: svcList("postgres", "redis", "kafka", "prometheus", "grafana", "jaeger"),
+			},
+		},
+		Stack: map[string]*LifecycleEntry{
+			"compose": {
+				Compose: &ComposePluginConfig{
+					Services: map[string]ServiceTagConfig{
+						"postgres":   {Tags: []string{"infra", "data"}},
+						"redis":      {Tags: []string{"infra", "data"}},
+						"kafka":      {Tags: []string{"infra", "kafka"}},
+						"prometheus": {Tags: []string{"infra", "monitoring"}},
+						"grafana":    {Tags: []string{"infra", "monitoring"}},
+						"jaeger":     {Tags: []string{"infra", "monitoring"}},
+					},
+				},
+			},
+		},
+	}
+	warnings := c.warnDefaultModeHeavyInfra()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0], "non-core infrastructure") {
+		t.Errorf("unexpected warning: %s", warnings[0])
+	}
+	// Should list the heavy services
+	for _, svc := range []string{"kafka", "prometheus", "grafana", "jaeger"} {
+		if !strings.Contains(warnings[0], svc) {
+			t.Errorf("warning should mention %q: %s", svc, warnings[0])
+		}
+	}
+
+	// Default mode with only core services → no warning
+	c = &Config{
+		DefaultMode: "infra",
+		Modes: map[string]ModeConfig{
+			"infra": {
+				ComposeServices: svcList("postgres", "redis"),
+			},
+		},
+		Stack: map[string]*LifecycleEntry{
+			"compose": {
+				Compose: &ComposePluginConfig{
+					Services: map[string]ServiceTagConfig{
+						"postgres": {Tags: []string{"infra", "data"}},
+						"redis":    {Tags: []string{"infra", "data"}},
+					},
+				},
+			},
+		},
+	}
+	warnings = c.warnDefaultModeHeavyInfra()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings for core-only, got %d: %v", len(warnings), warnings)
+	}
+
+	// Name-based heuristic: no tags but heavy service names → warning
+	c = &Config{
+		DefaultMode: "infra",
+		Modes: map[string]ModeConfig{
+			"infra": {
+				ComposeServices: svcList("postgres", "redis", "kafka", "minio"),
+			},
+		},
+		Stack: map[string]*LifecycleEntry{
+			"compose": {Compose: &ComposePluginConfig{}},
+		},
+	}
+	warnings = c.warnDefaultModeHeavyInfra()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for name heuristic, got %d", len(warnings))
+	}
+	if !strings.Contains(warnings[0], "kafka") || !strings.Contains(warnings[0], "minio") {
+		t.Errorf("warning should mention kafka and minio: %s", warnings[0])
+	}
+
+	// No default mode → no warning
+	c = &Config{
+		Modes: map[string]ModeConfig{
+			"infra": {ComposeServices: svcList("postgres", "kafka")},
+		},
+	}
+	warnings = c.warnDefaultModeHeavyInfra()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings when no default_mode, got %d", len(warnings))
+	}
+
+	// compose_services nil (all services) → no warning (can't enumerate)
+	c = &Config{
+		DefaultMode: "infra",
+		Modes: map[string]ModeConfig{
+			"infra": {ComposeServices: nil},
+		},
+	}
+	warnings = c.warnDefaultModeHeavyInfra()
+	if len(warnings) != 0 {
+		t.Errorf("expected 0 warnings when compose_services is nil, got %d", len(warnings))
+	}
+}
+
 func TestWarnMultiStackComposeSplit(t *testing.T) {
 	// Multiple compose entries → warning
 	c := &Config{

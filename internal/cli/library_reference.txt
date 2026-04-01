@@ -772,6 +772,35 @@ DVA_FILE=path/to/dva.yml dva validate
 - 태그는 compose.services 와 interaction에 모두 적용
 - 프로젝트에 해당 역할이 없으면 해당 태그 생략
 
+## Infrastructure Tier Classification
+
+서비스를 기본 모드에 포함할지 결정하는 기준. `default_mode`는 Tier 1만 포함해야 한다.
+
+| Tier | Classification | Tags | Examples | default_mode |
+|------|---------------|------|----------|-------------|
+| **Tier 1: Core Data** | 앱 실행에 필수 — 없으면 API가 시작 불가 | `data` | postgres, mysql, redis, memcached | **포함** |
+| **Tier 2: Event/Queue** | 비동기 처리에 필요 — API는 없어도 동작 가능 | `kafka`, `queue` | kafka, rabbitmq, nats, pulsar | **제외** (worker 모드에) |
+| **Tier 3: Observability** | 모니터링/추적 — 기능과 무관 | `monitoring` | prometheus, grafana, jaeger, alertmanager, loki, tempo | **제외** (full-stack에) |
+| **Tier 4: Storage** | 백업/파일 저장 — 대부분의 개발 흐름에 불필요 | `storage` | minio, s3, elasticsearch | **제외** (full-stack에) |
+
+**판단 기준:**
+1. 이 서비스 없이 `cargo run` / `go run` / `npm start`로 앱이 시작되는가?
+2. API 코드에서 `Option<T>`으로 선언되어 있는가? → Tier 2 이상
+3. 앱 코드와 직접 통신하지 않는가? → Tier 3-4
+
+**모드별 포함 예시:**
+```yaml
+modes:
+  infra:                    # Tier 1 only
+    compose_services: [postgres, redis]
+  dev:                      # Tier 1 + 2 (worker 개발 시)
+    compose_services: [postgres, redis, kafka]
+  full-stack:               # Tier 1 + 2 + 3 + 4
+    compose_services: [postgres, redis, kafka, prometheus, grafana, jaeger, minio]
+```
+
+**DVA validation**: `dva config validate`가 default_mode에 Tier 2+ 서비스가 포함되면 경고를 발생시킨다.
+
 ## Mode Presets
 
 `--mode/-M` 플래그용. 어떤 서비스를 어떻게 실행할지 결정.
