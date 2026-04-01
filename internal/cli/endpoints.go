@@ -108,11 +108,11 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 		status := ""
 		if r, ok := hcMap[name]; ok {
 			if r.Ready {
-				status = "🟢"
+				status = "🟢 "
 			} else if r.Started {
-				status = "🟡"
+				status = "🟡 "
 			} else {
-				status = "🔴"
+				status = "🔴 "
 			}
 		}
 
@@ -132,7 +132,12 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 					subPath = "/" + subPath
 				}
 				fullURL := baseURL + subPath
-				fmt.Fprintf(tw, "  \t\t  %s  %s\n", fullURL, ep.Paths[p])
+				desc := ep.Paths[p]
+				if desc != "" {
+					fmt.Fprintf(tw, "  \t\t  - %s (%s)\n", fullURL, desc)
+				} else {
+					fmt.Fprintf(tw, "  \t\t  - %s\n", fullURL)
+				}
 			}
 		}
 	}

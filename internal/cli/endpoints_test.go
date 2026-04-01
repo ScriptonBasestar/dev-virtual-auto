@@ -84,6 +84,9 @@ func TestPrintEndpointTable_WithEndpoints(t *testing.T) {
 	if !strings.Contains(out, "/health") {
 		t.Error("expected sub-path /health")
 	}
+	if !strings.Contains(out, "(Health check)") {
+		t.Error("expected sub-path description in parentheses")
+	}
 }
 
 func TestPrintEndpointTable_WithHealthStatus(t *testing.T) {

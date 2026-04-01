@@ -98,7 +98,11 @@ DVA-specific flags:
 		}
 		if len(c.Endpoints) > 0 {
 			allHC := checkEndpointHealth(c.Endpoints)
-			printEndpointTable(c.Endpoints, nil, allHC)
+			var epTags []string
+			if rm.Mode != nil {
+				epTags = rm.Mode.EndpointTags
+			}
+			printEndpointTable(c.Endpoints, epTags, allHC)
 		}
 
 		return upErr
