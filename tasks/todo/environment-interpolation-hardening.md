@@ -23,13 +23,10 @@ DVA가 설정 오케스트레이터 역할을 하려면, interpolation 실패나
 - 향후 environment 기반 stack/plugin 설정 확장 시 표현력이 부족합니다.
 - interpolation 규칙이 문서와 validation에서 충분히 드러나지 않습니다.
 
-## 검토할 항목
+## 이번 작업의 목표
 
-- `${VAR:-default}` 지원 여부
-- `${VAR?message}` 또는 이에 준하는 required syntax 지원 여부
-- unresolved variable을 warning 또는 validation 대상으로 볼지
-- recursive interpolation과 cycle 방지 정책
-- OS env, config env, env_file 값의 우선순위와 문서화
+현재 구현 범위 안에서 interpolation semantics를 명확히 하고, 작은 범위 확장 또는 실패 노출 방식을 도입할 준비를 합니다.
+이 태스크는 "전체 셸 호환"이 아니라 DVA config에서 실제 필요한 규칙을 닫는 것이 목적입니다.
 
 ## 범위
 
@@ -50,6 +47,7 @@ DVA가 설정 오케스트레이터 역할을 하려면, interpolation 실패나
 - `internal/config/environment_test.go`
 - `internal/config/envfile_test.go`
 - `internal/config/schema.json`
+- 연관 태스크: `tasks/backlog/config-deep-merge-semantics.md`
 
 ## 완료 조건
 
