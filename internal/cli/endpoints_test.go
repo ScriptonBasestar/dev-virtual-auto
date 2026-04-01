@@ -97,8 +97,8 @@ func TestPrintEndpointTable_WithHealthStatus(t *testing.T) {
 	out := captureStdout(t, func() {
 		printEndpointTable(endpoints, nil, hcResults)
 	})
-	if !strings.Contains(out, "ready") {
-		t.Error("expected 'ready' status for api endpoint")
+	if !strings.Contains(out, "🟢") {
+		t.Error("expected green circle status icon for healthy api endpoint")
 	}
 }
 

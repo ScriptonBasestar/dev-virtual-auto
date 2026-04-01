@@ -101,22 +101,22 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 
 	var buf strings.Builder
 	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-	fmt.Fprintf(tw, "  NAME\tURL\tSTATUS\n")
+	fmt.Fprintf(tw, "  NAME\tSTATUS\tURL\n")
 
 	for _, name := range names {
 		ep := filtered[name]
 		status := ""
 		if r, ok := hcMap[name]; ok {
 			if r.Ready {
-				status = "ready"
+				status = "🟢"
 			} else if r.Started {
-				status = "starting"
+				status = "🟡"
 			} else {
-				status = "not ready"
+				status = "🔴"
 			}
 		}
 
-		fmt.Fprintf(tw, "  %s\t%s\t%s\n", ep.Label, ep.URL, status)
+		fmt.Fprintf(tw, "  %s\t%s\t%s\n", ep.Label, status, ep.URL)
 
 		// Sub-paths: combine with base URL so terminals render clickable links
 		if len(ep.Paths) > 0 {
@@ -132,7 +132,7 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 					subPath = "/" + subPath
 				}
 				fullURL := baseURL + subPath
-				fmt.Fprintf(tw, "  \t  %s\t%s\n", fullURL, ep.Paths[p])
+				fmt.Fprintf(tw, "  \t\t  %s  %s\n", fullURL, ep.Paths[p])
 			}
 		}
 	}

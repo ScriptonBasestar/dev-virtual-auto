@@ -69,6 +69,12 @@ type ModeConfig struct {
 	Applications    any               `yaml:"applications"` // app strategy: "native"/"docker" (string) or per-app map[string]string
 }
 
+// HasApplications returns true if this mode explicitly defines application strategies.
+// When false, applications should not be started in this mode.
+func (m *ModeConfig) HasApplications() bool {
+	return m.Applications != nil
+}
+
 // AppStrategy returns the execution strategy for a named application in this mode.
 // Returns "native", "docker", or "" (not specified / use default).
 func (m *ModeConfig) AppStrategy(appName string) string {

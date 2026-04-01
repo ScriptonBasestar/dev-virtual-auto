@@ -143,20 +143,20 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		return err
 	}
 
-	// Start applications if defined and a mode is active
+	// Start applications only if the active mode explicitly declares application strategies.
+	// Modes without an "applications" field (e.g., infra) skip app startup entirely.
 	if len(o.cfg.Applications) > 0 && opts.Mode != "" {
-		am := NewAppManager(o.cfg, envClone)
-		strategy := ""
-		if m, ok := o.cfg.Modes[opts.Mode]; ok {
-			strategy = m.AppStrategy("")
-		}
-		if err := am.StartApps(ctx, AppStartOptions{
-			Strategy: strategy,
-			Wait:     opts.Wait,
-			DryRun:   opts.DryRun,
-			Mode:     opts.Mode,
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "[warn] application start: %v\n", err)
+		if m, ok := o.cfg.Modes[opts.Mode]; ok && m.HasApplications() {
+			am := NewAppManager(o.cfg, envClone)
+			strategy := m.AppStrategy("")
+			if err := am.StartApps(ctx, AppStartOptions{
+				Strategy: strategy,
+				Wait:     opts.Wait,
+				DryRun:   opts.DryRun,
+				Mode:     opts.Mode,
+			}); err != nil {
+				fmt.Fprintf(os.Stderr, "[warn] application start: %v\n", err)
+			}
 		}
 	}
 
