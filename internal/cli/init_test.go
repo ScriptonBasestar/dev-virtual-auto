@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 func TestDetectTemplateIn(t *testing.T) {
@@ -54,7 +56,7 @@ func TestGenerateConfig(t *testing.T) {
 	// Create a dummy compose file so it gets detected
 	os.WriteFile("docker-compose.yml", []byte(""), 0644)
 
-	config := generateConfig("node")
+	config := generateConfigIn(".", "node")
 	if !strings.Contains(config, `npm run dev`) {
 		t.Errorf("Expected config to contain 'npm run dev', got:\n%s", config)
 	}
@@ -69,7 +71,7 @@ func TestGenerateConfig_Rails(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(oldDir)
 
-	got := generateConfig("rails")
+	got := generateConfigIn(".", "rails")
 	if !strings.Contains(got, "RAILS_ENV") {
 		t.Error("rails config should contain RAILS_ENV")
 	}
@@ -84,7 +86,7 @@ func TestGenerateConfig_Go(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(oldDir)
 
-	got := generateConfig("go")
+	got := generateConfigIn(".", "go")
 	if !strings.Contains(got, "go test ./...") {
 		t.Error("go config should contain go test")
 	}
@@ -96,7 +98,7 @@ func TestGenerateConfig_Python(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(oldDir)
 
-	got := generateConfig("python")
+	got := generateConfigIn(".", "python")
 	if !strings.Contains(got, "PYTHONDONTWRITEBYTECODE") {
 		t.Error("python config should contain PYTHONDONTWRITEBYTECODE")
 	}
@@ -111,7 +113,7 @@ func TestGenerateConfig_Minimal(t *testing.T) {
 	os.Chdir(tmpDir)
 	defer os.Chdir(oldDir)
 
-	got := generateConfig("minimal")
+	got := generateConfigIn(".", "minimal")
 	if !strings.Contains(got, "/bin/bash") {
 		t.Error("minimal config should contain shell command")
 	}
@@ -128,7 +130,7 @@ func TestGenerateConfig_NoComposeFiles(t *testing.T) {
 	defer os.Chdir(oldDir)
 
 	// No compose files on disk → should fallback to docker-compose.yml
-	got := generateConfig("minimal")
+	got := generateConfigIn(".", "minimal")
 	if !strings.Contains(got, "docker-compose.yml") {
 		t.Error("should fallback to docker-compose.yml when no compose files exist")
 	}

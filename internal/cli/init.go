@@ -759,17 +759,124 @@ func extractMakefileRecipes(lines []string) map[string][]string {
 // detectSubprojects recursively searches for sub-projects by finding .git directories
 // (up to maxDepth 3) and extracts rich metadata for each one:
 // - docker-compose services, Dockerfile, build files, scripts, dva.yml status
-func detectSubprojects(prog *progress) string {
-	type subProject struct {
-		path            string
-		composeServices []string
-		composeFiles    []string
-		buildFiles      []string
-		hasDockerfile   bool
-		hasDvaYml       bool
-		language        string
+
+type subProject struct {
+	path            string
+	composeServices []string
+	composeFiles    []string
+	buildFiles      []string
+	hasDockerfile   bool
+	hasDvaYml       bool
+	language        string
+}
+
+// scanSubProject inspects a directory and returns a populated subProject if it qualifies as one.
+func scanSubProject(childPath string) (*subProject, bool) {
+	isSubProject := false
+
+	// 1. Check for .git
+	if _, err := os.Stat(filepath.Join(childPath, ".git")); err == nil {
+		isSubProject = true
 	}
 
+	// 2. Check for dva.yml
+	if !isSubProject {
+		for _, df := range []string{config.FileName, config.FileNameAlt} {
+			if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+				isSubProject = true
+				break
+			}
+		}
+	}
+
+	// 3. Check for compose files
+	if !isSubProject {
+		childEntries, _ := os.ReadDir(childPath)
+		for _, ce := range childEntries {
+			cn := ce.Name()
+			if !ce.IsDir() && (strings.HasPrefix(cn, "docker-compose.") || strings.HasPrefix(cn, "compose.")) && (strings.HasSuffix(cn, ".yml") || strings.HasSuffix(cn, ".yaml")) {
+				isSubProject = true
+				break
+			}
+		}
+	}
+
+	// 4. Check for strong build files
+	if !isSubProject {
+		for _, bf := range []string{"package.json", "go.mod", "pyproject.toml", "Cargo.toml", "build.gradle"} {
+			if _, err := os.Stat(filepath.Join(childPath, bf)); err == nil {
+				isSubProject = true
+				break
+			}
+		}
+	}
+
+	if !isSubProject {
+		return nil, false
+	}
+
+	sp := &subProject{path: childPath}
+
+	// Detect compose files and extract service names
+	for _, cf := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
+		cfPath := filepath.Join(childPath, cf)
+		if _, err := os.Stat(cfPath); err == nil {
+			sp.composeFiles = append(sp.composeFiles, cf)
+			if services := extractComposeServices(cfPath); len(services) > 0 {
+				sp.composeServices = append(sp.composeServices, services...)
+			}
+		}
+	}
+	// Also detect additional compose files (tools, monitor, etc.)
+	if subEntries, err := os.ReadDir(childPath); err == nil {
+		for _, se := range subEntries {
+			n := se.Name()
+			if !se.IsDir() && strings.HasPrefix(n, "docker-compose.") &&
+				(strings.HasSuffix(n, ".yml") || strings.HasSuffix(n, ".yaml")) &&
+				!contains(sp.composeFiles, n) {
+				sp.composeFiles = append(sp.composeFiles, n)
+			}
+		}
+	}
+
+	// Detect build files and language
+	buildIndicators := []struct {
+		file string
+		lang string
+	}{
+		{"go.mod", "Go"}, {"package.json", "Node.js"}, {"pyproject.toml", "Python"},
+		{"requirements.txt", "Python"}, {"Gemfile", "Ruby"}, {"Cargo.toml", "Rust"},
+		{"pom.xml", "Java"}, {"build.gradle", "Java"}, {"Makefile", ""},
+	}
+	for _, bi := range buildIndicators {
+		if _, err := os.Stat(filepath.Join(childPath, bi.file)); err == nil {
+			sp.buildFiles = append(sp.buildFiles, bi.file)
+			if sp.language == "" && bi.lang != "" {
+				sp.language = bi.lang
+			}
+		}
+	}
+
+	// Detect Dockerfile
+	for _, df := range []string{"Dockerfile", "Dockerfile.dev", "Dockerfile.prod"} {
+		if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+			sp.hasDockerfile = true
+			break
+		}
+	}
+
+	// Detect dva.yml / dva.yaml
+	for _, df := range []string{config.FileName, config.FileNameAlt} {
+		if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
+			sp.hasDvaYml = true
+			break
+		}
+	}
+
+	return sp, true
+}
+
+func detectSubprojects(prog *progress) string {
 	skipDirs := map[string]bool{
 		"node_modules": true, "vendor": true, ".venv": true, "venv": true,
 		"dist": true, "target": true, "__pycache__": true, ".mypy_cache": true,
@@ -808,109 +915,11 @@ func detectSubprojects(prog *progress) string {
 
 			childPath := filepath.Join(dir, name)
 
-			// Determine if childPath is a sub-project root
-			isSubProject := false
-
-			// 1. Check for .git (strongest indicator)
-			if _, err := os.Stat(filepath.Join(childPath, ".git")); err == nil {
-				isSubProject = true
-			}
-
-			// 2. Check for dva.yml or dva.yaml
-			if !isSubProject {
-				for _, df := range []string{config.FileName, config.FileNameAlt} {
-					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
-						isSubProject = true
-						break
-					}
-				}
-			}
-
-			// 3. Check for compose files
-			if !isSubProject {
-				childEntries, _ := os.ReadDir(childPath)
-				for _, ce := range childEntries {
-					cn := ce.Name()
-					if !ce.IsDir() && (strings.HasPrefix(cn, "docker-compose.") || strings.HasPrefix(cn, "compose.")) && (strings.HasSuffix(cn, ".yml") || strings.HasSuffix(cn, ".yaml")) {
-						isSubProject = true
-						break
-					}
-				}
-			}
-
-			// 4. Check for strong build files (often used in monorepos without nested .git or compose)
-			if !isSubProject {
-				for _, bf := range []string{"package.json", "go.mod", "pyproject.toml", "Cargo.toml", "build.gradle"} {
-					if _, err := os.Stat(filepath.Join(childPath, bf)); err == nil {
-						isSubProject = true
-						break
-					}
-				}
-			}
-
-			if isSubProject {
+			if sp, isSubProject := scanSubProject(childPath); isSubProject {
 				if prog != nil {
 					prog.Update(fmt.Sprintf("Found sub-project: %s/", childPath))
 				}
-				sp := subProject{path: childPath}
-
-				// Detect compose files and extract service names
-				for _, cf := range []string{"docker-compose.yml", "docker-compose.yaml", "compose.yml", "compose.yaml"} {
-					cfPath := filepath.Join(childPath, cf)
-					if _, err := os.Stat(cfPath); err == nil {
-						sp.composeFiles = append(sp.composeFiles, cf)
-						if services := extractComposeServices(cfPath); len(services) > 0 {
-							sp.composeServices = append(sp.composeServices, services...)
-						}
-					}
-				}
-				// Also detect additional compose files (tools, monitor, etc.)
-				if subEntries, err := os.ReadDir(childPath); err == nil {
-					for _, se := range subEntries {
-						n := se.Name()
-						if !se.IsDir() && strings.HasPrefix(n, "docker-compose.") &&
-							(strings.HasSuffix(n, ".yml") || strings.HasSuffix(n, ".yaml")) &&
-							!contains(sp.composeFiles, n) {
-							sp.composeFiles = append(sp.composeFiles, n)
-						}
-					}
-				}
-
-				// Detect build files and language
-				buildIndicators := []struct {
-					file string
-					lang string
-				}{
-					{"go.mod", "Go"}, {"package.json", "Node.js"}, {"pyproject.toml", "Python"},
-					{"requirements.txt", "Python"}, {"Gemfile", "Ruby"}, {"Cargo.toml", "Rust"},
-					{"pom.xml", "Java"}, {"build.gradle", "Java"}, {"Makefile", ""},
-				}
-				for _, bi := range buildIndicators {
-					if _, err := os.Stat(filepath.Join(childPath, bi.file)); err == nil {
-						sp.buildFiles = append(sp.buildFiles, bi.file)
-						if sp.language == "" && bi.lang != "" {
-							sp.language = bi.lang
-						}
-					}
-				}
-
-				// Detect Dockerfile
-				for _, df := range []string{"Dockerfile", "Dockerfile.dev", "Dockerfile.prod"} {
-					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
-						sp.hasDockerfile = true
-						break
-					}
-				}
-
-				// Detect dva.yml / dva.yaml
-				for _, df := range []string{config.FileName, config.FileNameAlt} {
-					if _, err := os.Stat(filepath.Join(childPath, df)); err == nil {
-						sp.hasDvaYml = true
-						break
-					}
-				}
-
-				subs = append(subs, sp)
+				subs = append(subs, *sp)
 				// Don't recurse into sub-project (it's self-contained)
 				continue
 			}
@@ -955,8 +964,6 @@ func detectSubprojects(prog *progress) string {
 	return b.String()
 }
 
-// extractComposeServices reads a docker-compose file and returns service names.
-// Uses simple YAML line parsing to avoid heavy dependencies.
 func extractComposeServices(path string) []string {
 	data, err := os.ReadFile(path)
 	if err != nil {

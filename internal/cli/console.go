@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
+
 	"github.com/spf13/cobra"
 )
 

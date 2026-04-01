@@ -291,81 +291,31 @@ func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, m
 
 	// Filter by explicit entry names
 	if len(names) > 0 {
-		nameSet := make(map[string]bool, len(names))
-		for _, n := range names {
-			nameSet[n] = true
-		}
-		var filtered []config.LifecycleEntry
-		for _, e := range entries {
-			if nameSet[e.Name] {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
+		entries = filterByNames(entries, names)
 	}
 
 	// Filter by env (stack entry names)
 	if env != "" {
 		if ep, ok := o.cfg.Environments[env]; ok && len(ep.StackEntries()) > 0 {
-			nameSet := make(map[string]bool, len(ep.StackEntries()))
-			for _, name := range ep.StackEntries() {
-				nameSet[name] = true
-			}
-			var filtered []config.LifecycleEntry
-			for _, e := range entries {
-				if nameSet[e.Name] {
-					filtered = append(filtered, e)
-				}
-			}
-			entries = filtered
+			entries = filterByNames(entries, ep.StackEntries())
 		}
 	}
 
 	// Filter by mode (stack entry names) — narrows further if both env and mode specify
 	if mode != "" {
 		if m, ok := o.cfg.Modes[mode]; ok && len(m.StackEntries()) > 0 {
-			nameSet := make(map[string]bool, len(m.StackEntries()))
-			for _, name := range m.StackEntries() {
-				nameSet[name] = true
-			}
-			var filtered []config.LifecycleEntry
-			for _, e := range entries {
-				if nameSet[e.Name] {
-					filtered = append(filtered, e)
-				}
-			}
-			entries = filtered
+			entries = filterByNames(entries, m.StackEntries())
 		}
 	}
 
 	// Filter by include tags
 	if len(includeTags) > 0 {
-		tagSet := make(map[string]bool, len(includeTags))
-		for _, t := range includeTags {
-			tagSet[t] = true
-		}
-		var filtered []config.LifecycleEntry
-		for _, e := range entries {
-			if hasAnyTag(e.Tags, tagSet) {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
+		entries = filterByTags(entries, includeTags, false)
 	}
 
 	// Filter by exclude tags
 	if len(excludeTags) > 0 {
-		tagSet := make(map[string]bool, len(excludeTags))
-		for _, t := range excludeTags {
-			tagSet[t] = true
-		}
-		var filtered []config.LifecycleEntry
-		for _, e := range entries {
-			if !hasAnyTag(e.Tags, tagSet) {
-				filtered = append(filtered, e)
-			}
-		}
-		entries = filtered
+		entries = filterByTags(entries, excludeTags, true)
 	}
 
 	// Apply overrides after filtering is complete
@@ -384,6 +334,37 @@ func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, m
 	}
 
 	return entries, nil
+}
+
+// filterByNames retains only the entries whose names exist in targetNames.
+func filterByNames(entries []config.LifecycleEntry, targetNames []string) []config.LifecycleEntry {
+	nameSet := make(map[string]bool, len(targetNames))
+	for _, n := range targetNames {
+		nameSet[n] = true
+	}
+	var filtered []config.LifecycleEntry
+	for _, e := range entries {
+		if nameSet[e.Name] {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
+}
+
+// filterByTags retains entries based on tag matching. If exclude is true, matching entries are excluded.
+func filterByTags(entries []config.LifecycleEntry, tags []string, exclude bool) []config.LifecycleEntry {
+	tagSet := make(map[string]bool, len(tags))
+	for _, t := range tags {
+		tagSet[t] = true
+	}
+	var filtered []config.LifecycleEntry
+	for _, e := range entries {
+		hasMatch := hasAnyTag(e.Tags, tagSet)
+		if (exclude && !hasMatch) || (!exclude && hasMatch) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
 
 // startModeProcesses launches native processes for mode health_checks that have a start command.

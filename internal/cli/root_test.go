@@ -3,6 +3,8 @@ package cli
 import (
 	"os"
 	"testing"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 func TestIsFlag(t *testing.T) {

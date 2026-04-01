@@ -57,7 +57,7 @@ func TestMergeLifecycleEntryPartialOverride(t *testing.T) {
 		},
 	}
 
-	merged, err := mergeLifecycleEntry(base, other)
+	merged, err := MergeLifecycleEntry(base, other)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestMergeLifecycleEntryRestrictedPlugin(t *testing.T) {
 		Plugin: "helm",
 	}
 
-	_, err := mergeLifecycleEntry(base, other)
+	_, err := MergeLifecycleEntry(base, other)
 	if err == nil {
 		t.Fatal("expected error for restricted plugin change, got nil")
 	}
@@ -107,7 +107,7 @@ func TestMergeLifecycleEntryRestrictedPlugin(t *testing.T) {
 
 func TestMergeLifecycleEntryNilBase(t *testing.T) {
 	other := &LifecycleEntry{Plugin: "compose", Order: 5}
-	got, err := mergeLifecycleEntry(nil, other)
+	got, err := MergeLifecycleEntry(nil, other)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
