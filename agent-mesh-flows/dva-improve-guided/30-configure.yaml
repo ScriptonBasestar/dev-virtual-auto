@@ -32,23 +32,23 @@ steps:
 
   - id: load_guardrails
     type: read_file
-    src: "workflow/library/shared-guardrails.md"
+    src: "agent-mesh-flows/shared/library/shared-guardrails.md"
 
   - id: load_schema
     type: read_file
-    src: "workflow/library/dva-schema.md"
+    src: "agent-mesh-flows/shared/library/dva-schema.md"
 
   - id: load_naming
     type: read_file
-    src: "workflow/library/naming-presets.md"
+    src: "agent-mesh-flows/shared/library/naming-presets.md"
 
   - id: load_examples
     type: read_file
-    src: "workflow/library/reference-examples.md"
+    src: "agent-mesh-flows/shared/library/reference-examples.md"
 
   - id: load_checklist
     type: read_file
-    src: "workflow/library/shared-checklist.md"
+    src: "agent-mesh-flows/shared/library/shared-checklist.md"
 
   - id: detect_track
     type: context

@@ -127,7 +127,7 @@ steps:
   # ══════════════════════════════════════════════
   - id: load_guardrails
     type: read_file
-    src: "workflow/library/shared-guardrails.md"
+    src: "agent-mesh-flows/shared/library/shared-guardrails.md"
 
   - id: diagnose_and_fix
     type: llm
