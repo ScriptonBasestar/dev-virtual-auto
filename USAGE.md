@@ -280,7 +280,7 @@ interaction:
 | `modes` | 운영 모드 (`--mode` 플래그용) |
 | `environments` | 환경 프리셋 (`--env` 플래그용) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
-| `interaction` | 커맨드 정의 (service, command, subcommands 등) |
+| `interaction` | 커맨드 정의 (command, command list, script, script_file, steps, subcommands 등) |
 | `provision` | 프로비저닝 프로필 및 스텝 정의 |
 | `modules` | `.sb/dva/*.yml` 모듈 분리 |
 | `subprojects` | 서브프로젝트 참조 (모노레포) |

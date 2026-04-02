@@ -113,5 +113,50 @@ func SplitCommand(cmd string) []string {
 	return parts
 }
 
+// ExecSequential runs multiple commands as subprocesses in order.
+// Stops and returns an error on first failure.
+func ExecSequential(env *config.Environment, cmds []string, shell bool) error {
+	for _, cmd := range cmds {
+		cmd = strings.TrimSpace(cmd)
+		if cmd == "" {
+			continue
+		}
+		if err := ExecSubprocess(env, cmd, nil, shell); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ExecScriptInline writes the script content to a temporary file and executes it.
+// The temporary file is removed after execution.
+func ExecScriptInline(env *config.Environment, script string) error {
+	f, err := os.CreateTemp("", "dva-script-*.sh")
+	if err != nil {
+		return fmt.Errorf("creating temp script: %w", err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := f.WriteString(script); err != nil {
+		f.Close()
+		return fmt.Errorf("writing temp script: %w", err)
+	}
+	f.Close()
+
+	if err := os.Chmod(f.Name(), 0700); err != nil {
+		return fmt.Errorf("chmod temp script: %w", err)
+	}
+
+	return ExecSubprocess(env, f.Name(), nil, false)
+}
+
+// ExecScriptFile runs an external shell script file.
+func ExecScriptFile(env *config.Environment, path string) error {
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("script_file %q: %w", path, err)
+	}
+	return ExecSubprocess(env, path, nil, false)
+}
+
 // Debug enables debug logging for exec operations.
 var Debug bool

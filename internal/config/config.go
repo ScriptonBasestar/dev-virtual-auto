@@ -162,6 +162,19 @@ type ApplicationConfig struct {
 	DependsOn   []string           `yaml:"depends_on"` // compose services or other app names
 	Environment map[string]string  `yaml:"environment"`
 	Dir         string             `yaml:"dir"` // working directory (default: config dir)
+	Variants    map[string]*AppVariant `yaml:"variants"` // sub-components with own build/run/dev
+}
+
+// AppVariant defines a sub-component of an application that overrides
+// specific fields while inheriting the rest (dir, tags, depends_on) from the parent.
+type AppVariant struct {
+	Description string             `yaml:"description"`
+	Port        int                `yaml:"port"`
+	Run         AppExecPaths       `yaml:"run"`
+	Build       AppExecPaths       `yaml:"build"`
+	Dev         AppExecPaths       `yaml:"dev"`
+	Health      *HealthCheckConfig `yaml:"health"`
+	Environment map[string]string  `yaml:"environment"`
 }
 
 // AppExecPaths holds native and docker execution variants for an application.
@@ -215,7 +228,6 @@ func (p *AppExecPaths) HasDocker() bool {
 type InteractionCommand struct {
 	Description string                         `yaml:"description"`
 	Service     string                         `yaml:"service"`
-	Command     string                         `yaml:"command"`
 	Workdir     string                         `yaml:"workdir"`
 	User        string                         `yaml:"user"`
 	DefaultArgs string                         `yaml:"default_args"`
@@ -229,6 +241,18 @@ type InteractionCommand struct {
 	Subcommands map[string]*InteractionCommand `yaml:"subcommands"`
 	Tags        []string                       `yaml:"tags"`
 
+	// Command execution: one of the following should be set.
+	// command: string or []string — single command or list executed sequentially
+	Command string `yaml:"-"` // set by UnmarshalYAML from a scalar
+	// CommandLines holds multiple commands when command: is specified as a list.
+	CommandLines []string `yaml:"-"` // set by UnmarshalYAML from a sequence
+	// script: inline shell script block (multi-line heredoc / block scalar)
+	Script string `yaml:"script"`
+	// script_file: path to an external shell script (relative to dva.yml)
+	ScriptFile string `yaml:"script_file"`
+	// steps: named steps executed sequentially (reuses ProvisionItem)
+	Steps []ProvisionItem `yaml:"steps"`
+
 	// Hook fields: extend or replace hookable built-in commands (up, down, build, etc.)
 	Before  []ProvisionItem `yaml:"before"`
 	Replace []ProvisionItem `yaml:"replace"`
@@ -238,6 +262,121 @@ type InteractionCommand struct {
 // HasHooks reports whether the command defines any hook steps (before/replace/after).
 func (c *InteractionCommand) HasHooks() bool {
 	return len(c.Before) > 0 || len(c.Replace) > 0 || len(c.After) > 0
+}
+
+// HasSteps reports whether the command uses step-based execution.
+func (c *InteractionCommand) HasSteps() bool {
+	return len(c.Steps) > 0
+}
+
+// HasScript reports whether the command uses an inline script.
+func (c *InteractionCommand) HasScript() bool {
+	return c.Script != ""
+}
+
+// HasScriptFile reports whether the command references an external script file.
+func (c *InteractionCommand) HasScriptFile() bool {
+	return c.ScriptFile != ""
+}
+
+// HasMultiCommand reports whether the command was specified as a list.
+func (c *InteractionCommand) HasMultiCommand() bool {
+	return len(c.CommandLines) > 0
+}
+
+// EffectiveCommand returns the single command string.
+// For multi-command lists, returns a joined representation for display.
+func (c *InteractionCommand) EffectiveCommand() string {
+	if len(c.CommandLines) > 0 {
+		return strings.Join(c.CommandLines, " && ")
+	}
+	return c.Command
+}
+
+// UnmarshalYAML implements custom unmarshaling for InteractionCommand.
+// Handles the polymorphic `command` field (string or []string).
+// All other fields are decoded normally via a plain type alias.
+func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("interaction command: expected mapping node")
+	}
+
+	// Decode all non-command fields using the tag-based alias.
+	// We use a plain alias that has no UnmarshalYAML to avoid recursion.
+	type plain struct {
+		Description string                         `yaml:"description"`
+		Service     string                         `yaml:"service"`
+		Workdir     string                         `yaml:"workdir"`
+		User        string                         `yaml:"user"`
+		DefaultArgs string                         `yaml:"default_args"`
+		Environment map[string]string              `yaml:"environment"`
+		EnvFile     any                            `yaml:"env_file"`
+		Compose     *ComposeOptions                `yaml:"compose"`
+		Shell       *bool                          `yaml:"shell"`
+		Entrypoint  string                         `yaml:"entrypoint"`
+		Runner      string                         `yaml:"runner"`
+		Pod         string                         `yaml:"pod"`
+		Subcommands map[string]*InteractionCommand `yaml:"subcommands"`
+		Tags        []string                       `yaml:"tags"`
+		Script      string                         `yaml:"script"`
+		ScriptFile  string                         `yaml:"script_file"`
+		Steps       []ProvisionItem                `yaml:"steps"`
+		Before      []ProvisionItem                `yaml:"before"`
+		Replace     []ProvisionItem                `yaml:"replace"`
+		After       []ProvisionItem                `yaml:"after"`
+	}
+	var p plain
+	if err := node.Decode(&p); err != nil {
+		return err
+	}
+	c.Description = p.Description
+	c.Service = p.Service
+	c.Workdir = p.Workdir
+	c.User = p.User
+	c.DefaultArgs = p.DefaultArgs
+	c.Environment = p.Environment
+	c.EnvFile = p.EnvFile
+	c.Compose = p.Compose
+	c.Shell = p.Shell
+	c.Entrypoint = p.Entrypoint
+	c.Runner = p.Runner
+	c.Pod = p.Pod
+	c.Subcommands = p.Subcommands
+	c.Tags = p.Tags
+	c.Script = p.Script
+	c.ScriptFile = p.ScriptFile
+	c.Steps = p.Steps
+	c.Before = p.Before
+	c.Replace = p.Replace
+	c.After = p.After
+
+	// Manually find and parse the `command` key for polymorphism.
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value != "command" {
+			continue
+		}
+		valNode := node.Content[i+1]
+		switch valNode.Kind {
+		case yaml.ScalarNode:
+			c.Command = strings.TrimSpace(valNode.Value)
+		case yaml.SequenceNode:
+			var lines []string
+			if err := valNode.Decode(&lines); err != nil {
+				return fmt.Errorf("command: expected string or list of strings: %w", err)
+			}
+			for j, l := range lines {
+				lines[j] = strings.TrimSpace(l)
+			}
+			c.CommandLines = lines
+			if len(lines) > 0 {
+				c.Command = lines[0] // first line for display/backward-compat
+			}
+		default:
+			return fmt.Errorf("command: unsupported YAML type (expected string or sequence)")
+		}
+		break
+	}
+	return nil
 }
 
 // ShellEnabled returns whether shell mode is enabled (default: true).
@@ -362,6 +501,106 @@ func (c *Config) FilePath() string {
 // FileDir returns the directory containing the config file.
 func (c *Config) FileDir() string {
 	return filepath.Dir(c.filePath)
+}
+
+// ResolveApp resolves an application name (possibly with variant via dot notation)
+// to a fully merged ApplicationConfig. Supports "appname" and "appname.variant".
+func (c *Config) ResolveApp(name string) (string, *ApplicationConfig, error) {
+	// Direct lookup (no variant)
+	if app, ok := c.Applications[name]; ok {
+		return name, app, nil
+	}
+
+	// Try dot split for variant
+	parts := strings.SplitN(name, ".", 2)
+	if len(parts) != 2 {
+		return "", nil, fmt.Errorf("application %q not found", name)
+	}
+
+	parent, ok := c.Applications[parts[0]]
+	if !ok {
+		return "", nil, fmt.Errorf("application %q not found", parts[0])
+	}
+	if parent.Variants == nil {
+		return "", nil, fmt.Errorf("application %q has no variants", parts[0])
+	}
+
+	variant, ok := parent.Variants[parts[1]]
+	if !ok {
+		return "", nil, fmt.Errorf("variant %q not found in application %q", parts[1], parts[0])
+	}
+
+	resolved := ResolveVariant(parent, variant)
+	return name, resolved, nil
+}
+
+// ListAppNames returns all application names including variants (as "app.variant").
+func (c *Config) ListAppNames() []string {
+	var names []string
+	for name, app := range c.Applications {
+		names = append(names, name)
+		for vName := range app.Variants {
+			names = append(names, name+"."+vName)
+		}
+	}
+	return names
+}
+
+// resolveVariant creates a new ApplicationConfig by inheriting from parent
+// and overriding with variant-specific fields.
+func ResolveVariant(parent *ApplicationConfig, variant *AppVariant) *ApplicationConfig {
+	resolved := &ApplicationConfig{
+		Description: parent.Description,
+		Tags:        parent.Tags,
+		Dir:         parent.Dir,
+		DependsOn:   parent.DependsOn,
+		Port:        parent.Port,
+		Run:         parent.Run,
+		Build:       parent.Build,
+		Dev:         parent.Dev,
+		Health:      parent.Health,
+		Environment: copyStringMap(parent.Environment),
+	}
+
+	// Override with variant values
+	if variant.Description != "" {
+		resolved.Description = variant.Description
+	}
+	if variant.Port != 0 {
+		resolved.Port = variant.Port
+	}
+	if variant.Run.Native != "" || variant.Run.Docker.Service != "" || variant.Run.Docker.Command != "" {
+		resolved.Run = variant.Run
+	}
+	if variant.Build.Native != "" || variant.Build.Docker.Service != "" || variant.Build.Docker.Command != "" {
+		resolved.Build = variant.Build
+	}
+	if variant.Dev.Native != "" || variant.Dev.Docker.Service != "" || variant.Dev.Docker.Command != "" {
+		resolved.Dev = variant.Dev
+	}
+	if variant.Health != nil {
+		resolved.Health = variant.Health
+	}
+	// Merge environment: parent + variant (variant overrides)
+	for k, v := range variant.Environment {
+		if resolved.Environment == nil {
+			resolved.Environment = make(map[string]string)
+		}
+		resolved.Environment[k] = v
+	}
+
+	return resolved
+}
+
+func copyStringMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		result[k] = v
+	}
+	return result
 }
 
 // LoadOption configures optional behavior for Load.

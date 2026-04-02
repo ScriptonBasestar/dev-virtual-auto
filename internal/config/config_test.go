@@ -733,3 +733,244 @@ func TestDefaultMode_Empty(t *testing.T) {
 		t.Errorf("expected empty default_mode")
 	}
 }
+
+func TestResolveApp_DirectLookup(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {
+				Run:   AppExecPaths{Native: "cargo run -p api"},
+				Dir:   "services",
+				Port:  8080,
+				Tags:  []string{"backend"},
+			},
+		},
+	}
+
+	name, app, err := cfg.ResolveApp("api")
+	if err != nil {
+		t.Fatalf("ResolveApp() error: %v", err)
+	}
+	if name != "api" {
+		t.Errorf("name = %q, want %q", name, "api")
+	}
+	if app.Run.Native != "cargo run -p api" {
+		t.Errorf("run = %q, want %q", app.Run.Native, "cargo run -p api")
+	}
+}
+
+func TestResolveApp_VariantLookup(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"proxynd": {
+				Dir:   "nd-stack-rs",
+				Port:  11400,
+				Tags:  []string{"app", "ce"},
+				Run:   AppExecPaths{Native: "cargo run -p proxynd"},
+				Build: AppExecPaths{Native: "cargo build -p proxynd"},
+				Variants: map[string]*AppVariant{
+					"json": {
+						Port:  11401,
+						Run:   AppExecPaths{Native: "cargo run -p proxynd-json"},
+						Build: AppExecPaths{Native: "cargo build -p proxynd-json"},
+					},
+				},
+			},
+		},
+	}
+
+	name, app, err := cfg.ResolveApp("proxynd.json")
+	if err != nil {
+		t.Fatalf("ResolveApp() error: %v", err)
+	}
+	if name != "proxynd.json" {
+		t.Errorf("name = %q, want %q", name, "proxynd.json")
+	}
+	// Variant overrides run/build
+	if app.Run.Native != "cargo run -p proxynd-json" {
+		t.Errorf("run = %q, want %q", app.Run.Native, "cargo run -p proxynd-json")
+	}
+	if app.Build.Native != "cargo build -p proxynd-json" {
+		t.Errorf("build = %q, want %q", app.Build.Native, "cargo build -p proxynd-json")
+	}
+	// Variant overrides port
+	if app.Port != 11401 {
+		t.Errorf("port = %d, want %d", app.Port, 11401)
+	}
+	// Inherits from parent
+	if app.Dir != "nd-stack-rs" {
+		t.Errorf("dir = %q, want %q", app.Dir, "nd-stack-rs")
+	}
+	if len(app.Tags) != 2 || app.Tags[0] != "app" {
+		t.Errorf("tags = %v, want [app ce]", app.Tags)
+	}
+}
+
+func TestResolveApp_VariantInheritsDev(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {
+				Dev: AppExecPaths{Native: "cargo watch -x 'run -p api'"},
+				Variants: map[string]*AppVariant{
+					"worker": {
+						Run: AppExecPaths{Native: "cargo run -p api-worker"},
+					},
+				},
+			},
+		},
+	}
+
+	_, app, err := cfg.ResolveApp("api.worker")
+	if err != nil {
+		t.Fatalf("ResolveApp() error: %v", err)
+	}
+	// Variant doesn't override dev → inherits from parent
+	if app.Dev.Native != "cargo watch -x 'run -p api'" {
+		t.Errorf("dev = %q, want parent dev", app.Dev.Native)
+	}
+	// Variant overrides run
+	if app.Run.Native != "cargo run -p api-worker" {
+		t.Errorf("run = %q, want %q", app.Run.Native, "cargo run -p api-worker")
+	}
+}
+
+func TestResolveApp_NotFound(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {},
+		},
+	}
+
+	_, _, err := cfg.ResolveApp("web")
+	if err == nil {
+		t.Error("expected error for unknown app")
+	}
+}
+
+func TestResolveApp_VariantNotFound(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {
+				Variants: map[string]*AppVariant{
+					"worker": {},
+				},
+			},
+		},
+	}
+
+	_, _, err := cfg.ResolveApp("api.missing")
+	if err == nil {
+		t.Error("expected error for unknown variant")
+	}
+}
+
+func TestResolveApp_NoVariants(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {},
+		},
+	}
+
+	_, _, err := cfg.ResolveApp("api.worker")
+	if err == nil {
+		t.Error("expected error when app has no variants")
+	}
+}
+
+func TestListAppNames(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {
+				Variants: map[string]*AppVariant{
+					"worker": {},
+				},
+			},
+			"web": {},
+		},
+	}
+
+	names := cfg.ListAppNames()
+	if len(names) != 3 {
+		t.Errorf("ListAppNames() returned %d names, want 3: %v", len(names), names)
+	}
+
+	hasAPI := false
+	hasAPIWorker := false
+	hasWeb := false
+	for _, n := range names {
+		switch n {
+		case "api":
+			hasAPI = true
+		case "api.worker":
+			hasAPIWorker = true
+		case "web":
+			hasWeb = true
+		}
+	}
+	if !hasAPI || !hasAPIWorker || !hasWeb {
+		t.Errorf("missing names: api=%v api.worker=%v web=%v", hasAPI, hasAPIWorker, hasWeb)
+	}
+}
+
+func TestResolveApp_VariantWithHyphen(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"proxynd": {
+				Dir: "nd-stack-rs",
+				Variants: map[string]*AppVariant{
+					"inline-html": {
+						Run: AppExecPaths{Native: "cargo run -p proxynd-inline-html"},
+					},
+				},
+			},
+		},
+	}
+
+	name, app, err := cfg.ResolveApp("proxynd.inline-html")
+	if err != nil {
+		t.Fatalf("ResolveApp() error: %v", err)
+	}
+	if name != "proxynd.inline-html" {
+		t.Errorf("name = %q, want %q", name, "proxynd.inline-html")
+	}
+	if app.Run.Native != "cargo run -p proxynd-inline-html" {
+		t.Errorf("run = %q, want variant run", app.Run.Native)
+	}
+	if app.Dir != "nd-stack-rs" {
+		t.Errorf("dir = %q, want inherited dir", app.Dir)
+	}
+}
+
+func TestResolveApp_VariantEnvironmentMerge(t *testing.T) {
+	cfg := &Config{
+		Applications: map[string]*ApplicationConfig{
+			"api": {
+				Environment: map[string]string{
+					"LOG_LEVEL": "debug",
+					"PORT":      "8080",
+				},
+				Variants: map[string]*AppVariant{
+					"worker": {
+						Environment: map[string]string{
+							"PORT":   "8081",
+							"WORKER": "true",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, app, err := cfg.ResolveApp("api.worker")
+	if err != nil {
+		t.Fatalf("ResolveApp() error: %v", err)
+	}
+	if app.Environment["LOG_LEVEL"] != "debug" {
+		t.Errorf("LOG_LEVEL = %q, want %q", app.Environment["LOG_LEVEL"], "debug")
+	}
+	if app.Environment["PORT"] != "8081" {
+		t.Errorf("PORT = %q, want %q (overridden by variant)", app.Environment["PORT"], "8081")
+	}
+	if app.Environment["WORKER"] != "true" {
+		t.Errorf("WORKER = %q, want %q", app.Environment["WORKER"], "true")
+	}
+}

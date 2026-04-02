@@ -332,6 +332,23 @@ func mergeInteractionCommand(base, other *InteractionCommand) (*InteractionComma
 	}
 	if other.Command != "" {
 		base.Command = other.Command
+		// When command is overridden as a scalar, clear multi-command list
+		base.CommandLines = nil
+	}
+	if other.CommandLines != nil {
+		base.CommandLines = other.CommandLines
+		if len(other.CommandLines) > 0 {
+			base.Command = other.CommandLines[0]
+		}
+	}
+	if other.Script != "" {
+		base.Script = other.Script
+	}
+	if other.ScriptFile != "" {
+		base.ScriptFile = other.ScriptFile
+	}
+	if other.Steps != nil {
+		base.Steps = other.Steps
 	}
 	if other.Workdir != "" {
 		base.Workdir = other.Workdir
@@ -483,6 +500,61 @@ func mergeApplicationConfig(base, other *ApplicationConfig) *ApplicationConfig {
 	}
 
 	// Map merge
+	base.Environment = mergeStringMap(base.Environment, other.Environment)
+
+	// Variants: merge per entry
+	if other.Variants != nil {
+		if base.Variants == nil {
+			base.Variants = make(map[string]*AppVariant)
+		}
+		for k, v := range other.Variants {
+			if existing, ok := base.Variants[k]; ok {
+				base.Variants[k] = mergeAppVariant(existing, v)
+			} else {
+				base.Variants[k] = v
+			}
+		}
+	}
+
+	return base
+}
+
+// mergeAppVariant deep-merges other into base.
+func mergeAppVariant(base, other *AppVariant) *AppVariant {
+	if base == nil {
+		return other
+	}
+	if other == nil {
+		return base
+	}
+
+	if other.Description != "" {
+		base.Description = other.Description
+	}
+	if other.Port != 0 {
+		base.Port = other.Port
+	}
+	if other.Run.Native != "" {
+		base.Run.Native = other.Run.Native
+	}
+	if other.Run.Docker.Service != "" || other.Run.Docker.Command != "" {
+		base.Run.Docker = other.Run.Docker
+	}
+	if other.Build.Native != "" {
+		base.Build.Native = other.Build.Native
+	}
+	if other.Build.Docker.Service != "" || other.Build.Docker.Command != "" {
+		base.Build.Docker = other.Build.Docker
+	}
+	if other.Dev.Native != "" {
+		base.Dev.Native = other.Dev.Native
+	}
+	if other.Dev.Docker.Service != "" || other.Dev.Docker.Command != "" {
+		base.Dev.Docker = other.Dev.Docker
+	}
+	if other.Health != nil {
+		base.Health = other.Health
+	}
 	base.Environment = mergeStringMap(base.Environment, other.Environment)
 
 	return base

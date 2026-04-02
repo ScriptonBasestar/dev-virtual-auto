@@ -231,6 +231,63 @@ func TestSelectApps_Named(t *testing.T) {
 	}
 }
 
+func TestSelectApps_VariantName(t *testing.T) {
+	cfg := &config.Config{
+		Applications: map[string]*config.ApplicationConfig{
+			"proxynd": {
+				Dir:   "nd-stack-rs",
+				Run:   config.AppExecPaths{Native: "cargo run -p proxynd"},
+				Variants: map[string]*config.AppVariant{
+					"json": {
+						Port: 11401,
+						Run:  config.AppExecPaths{Native: "cargo run -p proxynd-json"},
+					},
+				},
+			},
+		},
+	}
+	env := config.NewEnvironment(nil, "/tmp", "/tmp")
+	am := NewAppManager(cfg, env)
+
+	result := am.selectApps([]string{"proxynd.json"})
+	if len(result) != 1 {
+		t.Fatalf("selectApps([proxynd.json]) returned %d apps, want 1", len(result))
+	}
+	app, ok := result["proxynd.json"]
+	if !ok {
+		t.Fatal("expected proxynd.json in result")
+	}
+	if app.Run.Native != "cargo run -p proxynd-json" {
+		t.Errorf("run = %q, want variant run command", app.Run.Native)
+	}
+	if app.Dir != "nd-stack-rs" {
+		t.Errorf("dir = %q, want inherited dir", app.Dir)
+	}
+}
+
+func TestSelectApps_AllWithVariants(t *testing.T) {
+	cfg := &config.Config{
+		Applications: map[string]*config.ApplicationConfig{
+			"api": {
+				Run: config.AppExecPaths{Native: "cargo run -p api"},
+				Variants: map[string]*config.AppVariant{
+					"worker": {
+						Run: config.AppExecPaths{Native: "cargo run -p api-worker"},
+					},
+				},
+			},
+		},
+	}
+	env := config.NewEnvironment(nil, "/tmp", "/tmp")
+	am := NewAppManager(cfg, env)
+
+	// Empty names = all apps including expanded variants
+	result := am.selectApps(nil)
+	if len(result) != 2 {
+		t.Errorf("selectApps(nil) returned %d apps, want 2 (api + api.worker)", len(result))
+	}
+}
+
 func TestBuildDockerCommand(t *testing.T) {
 	cfg := &config.Config{}
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")

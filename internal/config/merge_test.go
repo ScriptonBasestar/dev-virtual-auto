@@ -298,6 +298,72 @@ func TestMergeApplicationConfigPortPreserved(t *testing.T) {
 	}
 }
 
+func TestMergeApplicationConfig_Variants(t *testing.T) {
+	base := &ApplicationConfig{
+		Description: "api server",
+		Run:         AppExecPaths{Native: "cargo run -p api"},
+		Variants: map[string]*AppVariant{
+			"worker": {
+				Run:  AppExecPaths{Native: "cargo run -p api-worker"},
+				Port: 8081,
+			},
+		},
+	}
+
+	other := &ApplicationConfig{
+		Variants: map[string]*AppVariant{
+			"web": {
+				Run:  AppExecPaths{Native: "cargo run -p api-web"},
+				Port: 8082,
+			},
+		},
+	}
+
+	merged := mergeApplicationConfig(base, other)
+
+	// Existing variant preserved
+	if merged.Variants["worker"].Run.Native != "cargo run -p api-worker" {
+		t.Errorf("existing variant should be preserved")
+	}
+	// New variant added
+	if merged.Variants["web"].Run.Native != "cargo run -p api-web" {
+		t.Errorf("new variant should be added")
+	}
+	if len(merged.Variants) != 2 {
+		t.Errorf("variants count = %d, want 2", len(merged.Variants))
+	}
+}
+
+func TestMergeApplicationConfig_VariantOverride(t *testing.T) {
+	base := &ApplicationConfig{
+		Variants: map[string]*AppVariant{
+			"worker": {
+				Port: 8081,
+				Run:  AppExecPaths{Native: "old"},
+			},
+		},
+	}
+
+	other := &ApplicationConfig{
+		Variants: map[string]*AppVariant{
+			"worker": {
+				Run: AppExecPaths{Native: "new"},
+			},
+		},
+	}
+
+	merged := mergeApplicationConfig(base, other)
+
+	// Run overridden
+	if merged.Variants["worker"].Run.Native != "new" {
+		t.Errorf("variant run = %q, want %q", merged.Variants["worker"].Run.Native, "new")
+	}
+	// Port preserved (not overridden)
+	if merged.Variants["worker"].Port != 8081 {
+		t.Errorf("variant port = %d, want 8081", merged.Variants["worker"].Port)
+	}
+}
+
 func TestMergeEnvironmentProfile(t *testing.T) {
 	base := EnvironmentProfile{
 		Description: "staging",

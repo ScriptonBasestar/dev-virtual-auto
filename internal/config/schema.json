@@ -1176,6 +1176,37 @@
             "dir": {
               "type": "string",
               "description": "Working directory for the application (default: config dir)"
+            },
+            "variants": {
+              "type": "object",
+              "description": "Sub-components with their own build/run/dev paths. Access via dot notation: dva app build proxynd.json",
+              "patternProperties": {
+                "^[\\w\\-.]+$": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": { "type": "string" },
+                    "port": { "type": "integer", "description": "Variant-specific port" },
+                    "run": { "$ref": "#/definitions/app_exec_paths" },
+                    "build": { "$ref": "#/definitions/app_exec_paths" },
+                    "dev": { "$ref": "#/definitions/app_exec_paths" },
+                    "health": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "type": { "type": "string", "enum": ["http", "tcp", "command"] },
+                        "url": { "type": "string" },
+                        "address": { "type": "string" },
+                        "command": { "type": "string" },
+                        "timeout": { "type": "integer", "default": 2 },
+                        "ready_timeout": { "type": "integer", "default": 30 }
+                      },
+                      "required": ["type"]
+                    },
+                    "environment": { "$ref": "#/definitions/environment_vars" }
+                  }
+                }
+              }
             }
           },
           "required": ["run"]

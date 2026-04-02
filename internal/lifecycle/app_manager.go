@@ -68,7 +68,7 @@ func (am *AppManager) StartApps(ctx context.Context, opts AppStartOptions) error
 	waves := am.topoSortWaves(apps)
 
 	for _, wave := range waves {
-		if err := am.startWave(ctx, wave, opts); err != nil {
+		if err := am.startWave(ctx, wave, apps, opts); err != nil {
 			return err
 		}
 	}
@@ -78,7 +78,7 @@ func (am *AppManager) StartApps(ctx context.Context, opts AppStartOptions) error
 
 // startWave starts all apps in a wave concurrently, then waits for all to
 // complete startup (including health checks).
-func (am *AppManager) startWave(ctx context.Context, names []string, opts AppStartOptions) error {
+func (am *AppManager) startWave(ctx context.Context, names []string, apps map[string]*config.ApplicationConfig, opts AppStartOptions) error {
 	waveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -87,7 +87,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, opts AppSta
 	var wg sync.WaitGroup
 
 	for _, name := range names {
-		app := am.cfg.Applications[name]
+		app := apps[name]
 		strategy := am.resolveStrategy(name, opts)
 		command := am.resolveCommand(app, strategy, opts.DevMode)
 
@@ -174,7 +174,7 @@ func (am *AppManager) BuildApps(ctx context.Context, opts AppStartOptions) error
 		var wg sync.WaitGroup
 
 		for _, name := range wave {
-			app := am.cfg.Applications[name]
+			app := apps[name]
 			strategy := am.resolveStrategy(name, opts)
 
 			var command string
@@ -322,6 +322,44 @@ func (am *AppManager) AppStatuses() []AppStatus {
 		}
 
 		statuses = append(statuses, status)
+
+		// Add variant entries
+		for vName, variant := range app.Variants {
+			fullName := name + "." + vName
+			vApp := config.ResolveVariant(app, variant)
+			vStatus := AppStatus{
+				Name:    fullName,
+				Port:    vApp.Port,
+				LogFile: am.logPath(fullName),
+			}
+
+			vPidFile := am.pidPath(fullName)
+			vData, vErr := os.ReadFile(vPidFile)
+			if vErr == nil {
+				pid, _ := strconv.Atoi(strings.TrimSpace(string(vData)))
+				if pid > 0 && IsProcessRunning(pid) {
+					vStatus.Running = true
+					vStatus.PID = pid
+					vStatus.Strategy = "native"
+				}
+			}
+
+			if !vStatus.Running {
+				vStatus.Strategy = "stopped"
+			}
+
+			if vStatus.Running && vApp.Health != nil {
+				checks := map[string]config.HealthCheckConfig{fullName: *vApp.Health}
+				results := am.hc.Check(checks)
+				for _, r := range results {
+					if r.Ready {
+						vStatus.Healthy = true
+					}
+				}
+			}
+
+			statuses = append(statuses, vStatus)
+		}
 	}
 
 	return statuses
@@ -498,18 +536,35 @@ func (am *AppManager) logPath(name string) string {
 }
 
 // selectApps returns the subset of configured applications matching the given names.
-// If names is empty, returns all applications.
+// Supports "app.variant" dot notation for variant resolution.
+// If names is empty, returns all applications (including expanded variants).
 func (am *AppManager) selectApps(names []string) map[string]*config.ApplicationConfig {
 	if len(names) == 0 {
-		return am.cfg.Applications
+		return am.expandAllApps()
 	}
 	selected := make(map[string]*config.ApplicationConfig)
 	for _, n := range names {
-		if app, ok := am.cfg.Applications[n]; ok {
-			selected[n] = app
+		resolvedName, app, err := am.cfg.ResolveApp(n)
+		if err != nil {
+			am.logger.Debug("app not found", "name", n, "err", err)
+			continue
 		}
+		selected[resolvedName] = app
 	}
 	return selected
+}
+
+// expandAllApps returns all applications with variants expanded as separate entries.
+func (am *AppManager) expandAllApps() map[string]*config.ApplicationConfig {
+	result := make(map[string]*config.ApplicationConfig)
+	for name, app := range am.cfg.Applications {
+		result[name] = app
+		for vName, variant := range app.Variants {
+			fullName := name + "." + vName
+			result[fullName] = config.ResolveVariant(app, variant)
+		}
+	}
+	return result
 }
 
 // topoSortWaves returns app names grouped into dependency waves.

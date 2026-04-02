@@ -8,20 +8,24 @@ import (
 
 // ResolvedCommand is the result of InteractionTree.Find().
 type ResolvedCommand struct {
-	Name        string
-	Description string
-	Service     string
-	Command     string
-	Workdir     string
-	User        string
-	DefaultArgs string
-	Environment map[string]string
-	Shell       bool
-	Entrypoint  string
-	RunnerName  string
-	Pod         string
-	Compose     ComposeOpts
-	Argv        []string
+	Name         string
+	Description  string
+	Service      string
+	Command      string
+	CommandLines []string // non-nil when command: was a YAML list
+	Script       string   // inline shell script block
+	ScriptFile   string   // path to external shell script
+	Steps        []config.ProvisionItem // named steps (sequential)
+	Workdir      string
+	User         string
+	DefaultArgs  string
+	Environment  map[string]string
+	Shell        bool
+	Entrypoint   string
+	RunnerName   string
+	Pod          string
+	Compose      ComposeOpts
+	Argv         []string
 }
 
 // ComposeOpts holds normalized compose options for a command.
@@ -97,18 +101,22 @@ func (t *InteractionTree) expandInto(name string, entry *config.InteractionComma
 // buildResolved converts InteractionCommand to ResolvedCommand.
 func buildResolved(name string, entry *config.InteractionCommand) *ResolvedCommand {
 	cmd := &ResolvedCommand{
-		Name:        name,
-		Description: entry.Description,
-		Service:     entry.Service,
-		Command:     strings.TrimSpace(entry.Command),
-		Workdir:     entry.Workdir,
-		User:        entry.User,
-		DefaultArgs: strings.TrimSpace(entry.DefaultArgs),
-		Environment: entry.Environment,
-		Shell:       entry.ShellEnabled(),
-		Entrypoint:  entry.Entrypoint,
-		RunnerName:  entry.Runner,
-		Pod:         entry.Pod,
+		Name:         name,
+		Description:  entry.Description,
+		Service:      entry.Service,
+		Command:      strings.TrimSpace(entry.Command),
+		CommandLines: entry.CommandLines,
+		Script:       entry.Script,
+		ScriptFile:   entry.ScriptFile,
+		Steps:        entry.Steps,
+		Workdir:      entry.Workdir,
+		User:         entry.User,
+		DefaultArgs:  strings.TrimSpace(entry.DefaultArgs),
+		Environment:  entry.Environment,
+		Shell:        entry.ShellEnabled(),
+		Entrypoint:   entry.Entrypoint,
+		RunnerName:   entry.Runner,
+		Pod:          entry.Pod,
 	}
 
 	if cmd.Environment == nil {
@@ -156,18 +164,22 @@ func normalizeRunOptions(options []string) []string {
 // mergeInteraction merges a parent interaction with a subcommand entry.
 func mergeInteraction(parent, child *config.InteractionCommand) *config.InteractionCommand {
 	merged := &config.InteractionCommand{
-		Description: parent.Description,
-		Service:     parent.Service,
-		Command:     parent.Command,
-		Workdir:     parent.Workdir,
-		User:        parent.User,
-		DefaultArgs: parent.DefaultArgs,
-		Environment: copyMap(parent.Environment),
-		Shell:       parent.Shell,
-		Entrypoint:  parent.Entrypoint,
-		Runner:      parent.Runner,
-		Pod:         parent.Pod,
-		Compose:     parent.Compose,
+		Description:  parent.Description,
+		Service:      parent.Service,
+		Command:      parent.Command,
+		CommandLines: parent.CommandLines,
+		Script:       parent.Script,
+		ScriptFile:   parent.ScriptFile,
+		Steps:        parent.Steps,
+		Workdir:      parent.Workdir,
+		User:         parent.User,
+		DefaultArgs:  parent.DefaultArgs,
+		Environment:  copyMap(parent.Environment),
+		Shell:        parent.Shell,
+		Entrypoint:   parent.Entrypoint,
+		Runner:       parent.Runner,
+		Pod:          parent.Pod,
+		Compose:      parent.Compose,
 	}
 
 	// Override with child values
@@ -179,6 +191,22 @@ func mergeInteraction(parent, child *config.InteractionCommand) *config.Interact
 	}
 	if child.Command != "" {
 		merged.Command = child.Command
+		merged.CommandLines = nil // scalar overrides list
+	}
+	if child.CommandLines != nil {
+		merged.CommandLines = child.CommandLines
+		if len(child.CommandLines) > 0 {
+			merged.Command = child.CommandLines[0]
+		}
+	}
+	if child.Script != "" {
+		merged.Script = child.Script
+	}
+	if child.ScriptFile != "" {
+		merged.ScriptFile = child.ScriptFile
+	}
+	if child.Steps != nil {
+		merged.Steps = child.Steps
 	}
 	if child.Workdir != "" {
 		merged.Workdir = child.Workdir

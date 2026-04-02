@@ -19,6 +19,20 @@ type DockerComposeRunner struct {
 
 // Execute builds and runs the docker compose command.
 func (r *DockerComposeRunner) Execute(env *config.Environment) error {
+	cmd := r.Cmd
+
+	// steps: run each step as a separate docker compose exec
+	if len(cmd.Steps) > 0 {
+		return r.executeSteps(env, cmd.Steps)
+	}
+
+	// script/script_file in docker context: not supported natively;
+	// fall back to local execution as a convenience.
+	if cmd.Script != "" || cmd.ScriptFile != "" {
+		local := &LocalRunner{Cmd: r.Cmd, Opts: r.Opts}
+		return local.Execute(env)
+	}
+
 	// Auto-detect if container is running → switch run to exec
 	r.autoDetectComposeMethod()
 
@@ -39,6 +53,56 @@ func (r *DockerComposeRunner) Execute(env *config.Environment) error {
 	args = append(args, r.composeArguments(env)...)
 
 	return execCompose(env, r.Opts.Config, args)
+}
+
+// executeSteps runs each step as a separate docker compose exec command.
+func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []config.ProvisionItem) error {
+	for i, step := range steps {
+		label := step.Step
+		if label == "" {
+			label = fmt.Sprintf("step %d", i+1)
+		}
+		if step.Note != "" {
+			fmt.Printf("  → %s: %s\n", label, step.Note)
+			continue
+		}
+		cmds := step.RunCommands()
+		if len(cmds) == 0 && step.Raw != "" {
+			cmds = []string{step.Raw}
+		}
+		if len(cmds) == 0 {
+			continue
+		}
+		fmt.Printf("  → %s\n", label)
+		for _, c := range cmds {
+			c = strings.TrimSpace(c)
+			if c == "" {
+				continue
+			}
+			// Temporarily set command and use compose exec
+			origCmd := r.Cmd.Command
+			origMethod := r.Cmd.Compose.Method
+			r.Cmd.Command = c
+			r.Cmd.Compose.Method = "exec"
+			r.autoDetectComposeMethod()
+
+			var args []string
+			if r.detectedProject != "" {
+				args = append(args, "--project-name", r.detectedProject)
+			}
+			args = append(args, r.Cmd.Compose.Method)
+			args = append(args, r.composeArguments(env)...)
+
+			if err := execCompose(env, r.Opts.Config, args); err != nil {
+				r.Cmd.Command = origCmd
+				r.Cmd.Compose.Method = origMethod
+				return fmt.Errorf("step %q failed: %w", label, err)
+			}
+			r.Cmd.Command = origCmd
+			r.Cmd.Compose.Method = origMethod
+		}
+	}
+	return nil
 }
 
 func (r *DockerComposeRunner) composeProfiles() []string {

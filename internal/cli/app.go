@@ -283,7 +283,12 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 		if s.PID > 0 {
 			pid = fmt.Sprintf("%d", s.PID)
 		}
-		_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", s.Name, strategy, state, health, url, pid)
+		// Indent variant names (contain a dot after the first segment)
+		displayName := s.Name
+		if strings.Contains(displayName, ".") {
+			displayName = "  └ " + displayName
+		}
+		_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", displayName, strategy, state, health, url, pid)
 	}
 	_ = w.Flush()
 }
