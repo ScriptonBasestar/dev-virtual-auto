@@ -1,0 +1,540 @@
+# yaml-language-server: $schema=../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve
+description: "AI-assisted dva.yml improvement — scan project, detect drift, optimize configuration"
+contract:
+  goal: "프로젝트 구조를 분석하여 dva.yml을 최적화하고 검증까지 완료한다"
+  expected_results:
+    - "dva.yml이 프로젝트 현재 상태와 동기화된다"
+    - "누락된 필수 섹션이 추가된다"
+    - "dva config validate가 ERROR 0으로 통과한다"
+    - "버전이 현재 DVA CLI 버전과 일치한다"
+  success_criteria:
+    - "DVA CLI가 설치되어 있어야 한다"
+    - "dva config validate 통과 (최대 3회 재시도)"
+    - "기존 interaction 이름과 구조가 보존된다 (preserve 모드)"
+pipeline_role: worker
+default_backend: smart
+
+imports:
+  profiles:
+    - dva-common
+
+default_profile: dva_improver
+
+parameters:
+  - name: mode
+    description: "Improve mode: preserve (minimal changes) or rewrite (rebuild from scratch)"
+    default: "preserve"
+    enum: [preserve, rewrite]
+  - name: model
+    description: "Claude model to use"
+    default: "sonnet"
+    enum: [haiku, sonnet, opus]
+  - name: target
+    description: "Target directory"
+    default: "."
+
+interactive:
+  confirm_before: [improve]
+
+steps:
+  # ══════════════════════════════════════════════
+  # Phase 0: Prerequisites
+  # ══════════════════════════════════════════════
+  - id: check_prerequisites
+    type: context
+    context:
+      dva_available: |
+        if command -v dva >/dev/null 2>&1; then
+          echo "yes"
+        else
+          echo "DVA CLI not found. Install:" >&2
+          echo "  go install github.com/ScriptonBasestar/dva@latest" >&2
+          echo ""
+        fi
+      dva_version: "dva version --short 2>/dev/null || echo 'unknown'"
+      dva_version_json: "dva version --json 2>/dev/null || echo '{\"version\": \"unknown\"}'"
+    exit_if_empty: dva_available
+
+  - id: check_config
+    type: context
+    depends_on: [check_prerequisites]
+    context:
+      has_dva_yml: |
+        cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
+      config_path: |
+        cd '{{param.target}}' && { [ -f 'dva.yml' ] && echo 'dva.yml' || { [ -f 'dva.yaml' ] && echo 'dva.yaml' || echo ''; }; }
+
+  # Scaffold dva.yml if missing
+  - id: scaffold
+    type: shell
+    depends_on: [check_config]
+    when: "{{check_config.has_dva_yml | trim}} != true"
+    action: |
+      cd '{{param.target}}'
+      echo "--- Scaffolding initial dva.yml ---"
+      dva init 2>&1 | tail -20
+      echo "--- scaffold complete ---"
+
+  # ══════════════════════════════════════════════
+  # Phase 1: Project Exploration (replaces Go detectXxxSummary functions)
+  # ══════════════════════════════════════════════
+  - id: scan_compose
+    type: context
+    depends_on: [scaffold]
+    context:
+      # Root compose files + services
+      root_compose: |
+        cd '{{param.target}}'
+        files=$(ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null)
+        if [ -z "$files" ]; then echo "None"; exit 0; fi
+        echo "$files"
+        for f in $files; do
+          echo "=== $f services ==="
+          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -30
+        done
+      # Infra directory compose files
+      infra_compose: |
+        cd '{{param.target}}'
+        files=$(ls infra/compose*.y*ml docker/compose*.y*ml compose/compose*.y*ml infrastructure/compose*.y*ml \
+                   compose.*.yaml compose.*.yml docker-compose.*.yml docker-compose.*.yaml 2>/dev/null)
+        if [ -z "$files" ]; then echo "None"; exit 0; fi
+        for f in $files; do
+          echo "=== $f ==="
+          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -20
+        done
+
+  - id: scan_build
+    type: context
+    depends_on: [scaffold]
+    context:
+      build_tools: |
+        cd '{{param.target}}'
+        found=""
+        for f in Makefile package.json build.gradle pom.xml pyproject.toml Gemfile go.mod Cargo.toml; do
+          [ -f "$f" ] && found="$found $f"
+        done
+        echo "${found:-None}"
+      makefile_targets: |
+        cd '{{param.target}}'
+        if [ ! -f 'Makefile' ]; then echo "None"; exit 0; fi
+        # Extract targets with ## comments + recipe lines
+        grep -E '^[a-zA-Z_-]+:.*##' Makefile 2>/dev/null | head -40
+        for inc in $(grep -E '^-?include ' Makefile 2>/dev/null | sed 's/^-\?include //' | head -10); do
+          resolved=$(eval echo "$inc" 2>/dev/null)
+          for f in $resolved; do
+            [ -f "$f" ] && grep -E '^[a-zA-Z_-]+:.*##' "$f" 2>/dev/null | head -20
+          done
+        done
+
+  - id: scan_env
+    type: context
+    depends_on: [scaffold]
+    context:
+      env_summary: |
+        cd '{{param.target}}'
+        env_files=$(ls .env .env.example .env.local .env.dev 2>/dev/null)
+        if [ -z "$env_files" ]; then echo "None"; exit 0; fi
+        echo "Files: $env_files"
+        # Compare .env.example vs .env
+        if [ -f '.env.example' ]; then
+          example_vars=$(grep -v '^#' .env.example 2>/dev/null | grep '=' | cut -d= -f1 | sed 's/^export //' | sort)
+          echo ""
+          echo ".env.example variables ($(echo "$example_vars" | wc -l)): $(echo $example_vars | tr '\n' ', ')"
+          if [ -f '.env' ]; then
+            env_vars=$(grep -v '^#' .env 2>/dev/null | grep '=' | cut -d= -f1 | sed 's/^export //' | sort)
+            missing=$(comm -23 <(echo "$example_vars") <(echo "$env_vars") 2>/dev/null)
+            if [ -n "$missing" ]; then
+              echo "WARNING: .env MISSING variables: $missing"
+            else
+              echo "OK: .env covers all variables from .env.example"
+            fi
+          else
+            echo "WARNING: .env file does NOT exist — must be created from .env.example before dva up"
+          fi
+        fi
+
+  - id: scan_subprojects
+    type: context
+    depends_on: [scaffold]
+    context:
+      subprojects: |
+        cd '{{param.target}}'
+        for d in */; do
+          [ -d "$d" ] || continue
+          base=$(basename "$d")
+          case "$base" in
+            node_modules|vendor|.git|.idea|.vscode|tmp|build|dist|target|compose|docker|infra|infrastructure|scripts|docs|monitoring|k8s|data|specs|reports|agent-mesh-flows) continue ;;
+          esac
+          markers=""
+          [ -f "$d/package.json" ] && markers="$markers package.json"
+          [ -f "$d/go.mod" ] && markers="$markers go.mod"
+          [ -f "$d/pyproject.toml" ] && markers="$markers pyproject.toml"
+          [ -f "$d/Cargo.toml" ] && markers="$markers Cargo.toml"
+          [ -f "$d/Gemfile" ] && markers="$markers Gemfile"
+          { [ -f "$d/dva.yml" ] || [ -f "$d/dva.yaml" ]; } && markers="$markers dva.yml"
+          { [ -f "$d/compose.yaml" ] || [ -f "$d/docker-compose.yml" ]; } && markers="$markers compose"
+          [ -n "$markers" ] && echo "$base:$markers"
+        done
+
+  # ══════════════════════════════════════════════
+  # Phase 2: Current DVA State (replaces Go config.Load + validation)
+  # ══════════════════════════════════════════════
+  - id: dva_state
+    type: context
+    depends_on: [scaffold]
+    context:
+      raw_config: "cat {{param.target}}/dva.yml 2>/dev/null || cat {{param.target}}/dva.yaml 2>/dev/null || echo ''"
+      manifest: |
+        cd '{{param.target}}' && dva manifest -f json 2>/dev/null || echo '{}'
+      resolved_config: |
+        cd '{{param.target}}' && dva config show -f yaml 2>/dev/null | head -300 || echo ''
+      validation: |
+        cd '{{param.target}}' && dva config validate 2>&1 || true
+      validation_strict: |
+        cd '{{param.target}}' && dva config validate --strict 2>&1 || true
+
+  # ══════════════════════════════════════════════
+  # Phase 3: Load Library Reference (static knowledge)
+  # ══════════════════════════════════════════════
+  - id: load_guardrails
+    type: read_file
+    src: "workflow/library/shared-guardrails.md"
+
+  - id: load_checklist
+    type: read_file
+    src: "workflow/library/shared-checklist.md"
+
+  - id: load_schema
+    type: read_file
+    src: "workflow/library/dva-schema.md"
+
+  - id: load_naming
+    type: read_file
+    src: "workflow/library/naming-presets.md"
+
+  - id: load_examples
+    type: read_file
+    src: "workflow/library/reference-examples.md"
+
+  - id: load_guardrails_mode
+    type: read_file
+    src: "workflow/improve/auto/guardrails-{{param.mode}}.md"
+
+  # ══════════════════════════════════════════════
+  # Phase 4: AI Improve (replaces Claude Code -p invocation)
+  # ══════════════════════════════════════════════
+  - id: improve
+    type: llm
+    depends_on:
+      - scan_compose
+      - scan_build
+      - scan_env
+      - scan_subprojects
+      - dva_state
+      - load_guardrails
+      - load_checklist
+      - load_schema
+      - load_naming
+      - load_examples
+      - load_guardrails_mode
+    agent: claude
+    profile: dva_improver
+    instruction: |
+      # Role & Objective
+      당신은 DVA(Dev Virtual Auto) 설정 전문가입니다.
+      프로젝트 구조를 분석하여, 개발자가 복잡한 Docker Compose나 스크립트 명령어 대신
+      단순한 `dva [cmd]` 형식으로 작업할 수 있도록 `dva.yml`을 최적화하는 것이 목표입니다.
+
+      ## Mode: {{param.mode}}
+      {{load_guardrails_mode.output}}
+
+      ## DVA Configuration Guardrails
+      {{load_guardrails.output}}
+
+      ## CRITICAL: version 필드
+      - `version` 필드는 반드시 **현재 DVA 버전 `{{check_prerequisites.dva_version | trim}}`**로 설정하세요.
+
+      ## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
+      다음 이름은 DVA 내장 커맨드로 예약되어 있습니다:
+      `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`,
+      `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`,
+      `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`
+
+      ---
+
+      # Phase 1: Project Exploration
+
+      ### 1-1. Docker 설정 (루트)
+      ```text
+      {{scan_compose.root_compose}}
+      ```
+
+      ### 1-2. Docker 설정 (인프라 하위 디렉토리)
+      ```text
+      {{scan_compose.infra_compose}}
+      ```
+
+      ### 2. 빌드/실행 환경
+      ```text
+      {{scan_build.build_tools}}
+      ```
+
+      ### 3. Makefile 타겟
+      ```text
+      {{scan_build.makefile_targets}}
+      ```
+
+      ### 4. 환경 변수
+      ```text
+      {{scan_env.env_summary}}
+      ```
+
+      ### 5. 서브프로젝트
+      ```text
+      {{scan_subprojects.subprojects}}
+      ```
+
+      ---
+
+      # Phase 2: 프로젝트 패턴 분류
+
+      위 탐색 결과에서 아래 중 하나를 판단하세요:
+
+      ## A. 호스트 빌드 + Docker 인프라 패턴 (hybrid)
+      - 앱은 호스트에서 빌드/실행, Docker는 인프라만
+      → `runner: local`, `stack.compose`에 인프라 정의
+
+      ## B. 컨테이너 내부 실행 패턴 (container-first)
+      - 앱이 Docker 컨테이너 내에서 빌드/실행
+      → `service: <app-service>` 지정
+
+      ## C. devbox(부모) 패턴
+      - 루트에 여러 서브프로젝트 + 공유 인프라
+      → `subprojects` 섹션 + 각 서브프로젝트 자체 dva.yml
+
+      ---
+
+      # Phase 3: Current DVA State
+
+      ## Current dva.yml
+      ```yaml
+      {{dva_state.raw_config}}
+      ```
+
+      ## Current Manifest
+      ```json
+      {{dva_state.manifest}}
+      ```
+
+      ## Resolved Config
+      ```yaml
+      {{dva_state.resolved_config}}
+      ```
+
+      ## Validation Output
+      ```text
+      {{dva_state.validation}}
+      ```
+
+      ## Strict Validation (drift + semantic warnings)
+      ```text
+      {{dva_state.validation_strict}}
+      ```
+
+      ---
+
+      # Phase 4: Review Tasks
+
+      ## 0. MANDATORY: version 업데이트
+      `version` 필드를 반드시 `{{check_prerequisites.dva_version | trim}}`로 설정하세요.
+
+      ## 1. 드리프트 검출
+      Phase 1 탐색 결과와 dva.yml 사이의 드리프트를 찾으세요.
+
+      ## 2. Makefile/package.json 매핑
+      핵심 워크플로우만 DVA interaction으로 노출.
+      prefix 기반 subcommand 그루핑 적용.
+
+      ## 3. 네이밍 프리셋 준수
+      {{load_naming.output}}
+
+      ## 4. 누락 섹션 검사 (MANDATORY)
+      - [ ] `stack.compose` 섹션
+      - [ ] `default_mode` 필드
+      - [ ] `modes` 섹션 (최소 infra + 1)
+      - [ ] `checks` 섹션 (docker_socket + .env)
+      - [ ] `env_file` 섹션
+      - [ ] `applications` 섹션 (앱 서버가 있을 때)
+      - [ ] `health_checks` 섹션
+      - [ ] `provision`에 default + reset
+      - [ ] `endpoints` 섹션
+      - [ ] `subprojects` 섹션 (서브프로젝트 감지 시)
+
+      ## 5. 안티패턴 검사
+      - echo 더미 없음, 기본 포트 미사용, 예약 커맨드 미사용
+
+      ---
+
+      # DVA Schema Reference
+      {{load_schema.output}}
+
+      # DVA Reference Examples
+      {{load_examples.output}}
+
+      ---
+
+      # Expected Output
+
+      1. 발견한 문제를 우선순위대로 정리
+      2. dva.yml을 직접 수정
+      3. 변경 요약
+      4. **필수 검증**: `dva config validate` 실행 → ERROR 0까지 수정 반복 (최대 3회)
+      5. `dva.yml is valid` 확인 후 완료
+
+      # MANDATORY SELF-REVIEW
+      {{load_checklist.output}}
+
+      추가 확인:
+      - [ ] `version` 필드가 `{{check_prerequisites.dva_version | trim}}`인가?
+      - [ ] `dva config validate` ERROR 0인가?
+
+  # ══════════════════════════════════════════════
+  # Phase 5: Post-improve Validation Loop
+  # ══════════════════════════════════════════════
+  - id: validate_pass1
+    type: context
+    depends_on: [improve]
+    context:
+      result: |
+        cd '{{param.target}}' && dva config validate 2>&1 || true
+      is_valid: |
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+
+  # Retry 1: fix validation errors
+  - id: fix_validation_1
+    type: llm
+    depends_on: [validate_pass1]
+    when: "{{validate_pass1.is_valid | trim}} != true"
+    agent: claude
+    profile: dva_validator
+    instruction: |
+      # DVA Validation Fix (Retry 1/2)
+
+      dva.yml에서 검출된 validation 에러를 수정하세요.
+
+      ## Current dva.yml
+      ```yaml
+      {{dva_state.raw_config}}
+      ```
+
+      ## Validation Output
+      ```text
+      {{validate_pass1.result}}
+      ```
+
+      ## Instructions
+      1. 에러/경고를 수정하세요. **최소 변경만** — 에러 수정에 집중.
+      2. 기존 interaction 이름, 구조 유지.
+      3. DVA schema {{check_prerequisites.dva_version | trim}} 호환 필수.
+
+      ## DVA Guardrails Reference
+      {{load_guardrails.output}}
+
+  - id: validate_pass2
+    type: context
+    depends_on: [fix_validation_1]
+    when: "{{validate_pass1.is_valid | trim}} != true"
+    context:
+      result: |
+        cd '{{param.target}}' && dva config validate 2>&1 || true
+      is_valid: |
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+
+  # Retry 2: fix remaining errors
+  - id: fix_validation_2
+    type: llm
+    depends_on: [validate_pass2]
+    when: "{{validate_pass2.is_valid | trim}} != true"
+    agent: claude
+    profile: dva_validator
+    instruction: |
+      # DVA Validation Fix (Retry 2/2)
+
+      dva.yml validation이 여전히 실패합니다. 남은 에러를 수정하세요.
+
+      ## Validation Output
+      ```text
+      {{validate_pass2.result}}
+      ```
+
+      ## Instructions
+      1. 남은 에러만 수정. 최소 변경.
+      2. `dva config validate` 실행하여 ERROR 0 확인.
+
+      ## DVA Guardrails Reference
+      {{load_guardrails.output}}
+
+  - id: validate_final
+    type: context
+    depends_on: [fix_validation_2, validate_pass1]
+    context:
+      result: |
+        cd '{{param.target}}' && dva config validate 2>&1 || true
+      is_valid: |
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+
+  # ══════════════════════════════════════════════
+  # Phase 6: Version Fix (deterministic, no LLM needed)
+  # ══════════════════════════════════════════════
+  - id: fix_version
+    type: shell
+    depends_on: [validate_final]
+    action: |
+      cd '{{param.target}}'
+      DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
+      EXPECTED="{{check_prerequisites.dva_version | trim}}"
+      CURRENT=$(grep -E '^version:' "$DVA_FILE" 2>/dev/null | head -1 | sed 's/version: *"\?\([^"]*\)"\?/\1/')
+
+      if [ "$CURRENT" = "$EXPECTED" ]; then
+        echo "Version OK: $EXPECTED"
+        exit 0
+      fi
+
+      echo "Fixing version: $CURRENT → $EXPECTED"
+      sed -i "s/^version: *\".*\"/version: \"$EXPECTED\"/" "$DVA_FILE"
+      sed -i "s/^version: *[0-9].*/version: \"$EXPECTED\"/" "$DVA_FILE"
+      echo "Version updated to $EXPECTED"
+
+  # ══════════════════════════════════════════════
+  # Phase 7: Final Summary
+  # ══════════════════════════════════════════════
+  - id: final_state
+    type: context
+    depends_on: [fix_version]
+    context:
+      dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
+      dva_validate: "cd '{{param.target}}' && dva config validate 2>&1 || true"
+      dva_commands: "cd '{{param.target}}' && dva ls -f json 2>/dev/null || echo '[]'"
+
+  - id: print_summary
+    type: llm
+    depends_on: [final_state]
+    backend: fast
+    instruction: |
+      DVA improve 결과를 markdown으로 요약하라.
+
+      ## 포함할 내용
+      - 모드: {{param.mode}}
+      - 최종 validation 결과
+      - 변경된 주요 항목 (modes, interactions, applications 등)
+      - 남은 경고 사항
+
+      [VALIDATION]
+      {{final_state.dva_validate}}
+
+      [DVA COMMANDS]
+      {{final_state.dva_commands}}
+
+      [DVA SHOW]
+      {{final_state.dva_show}}

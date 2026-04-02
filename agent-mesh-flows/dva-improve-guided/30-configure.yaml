@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided/30-configure
+description: "Stage 30: Generate or improve dva.yml based on track (fresh/adopt/upgrade)"
+contract:
+  goal: "분석 리포트와 승인된 계획에 따라 dva.yml을 생성/개선한다"
+  expected_results:
+    - "dva.yml이 생성 또는 개선된다"
+    - "모든 필수 섹션이 포함된다"
+    - "dva config validate가 통과한다"
+  success_criteria:
+    - "shared-guardrails의 모든 규칙을 준수한다"
+    - "setup_track에 따라 적절한 전략을 사용한다"
+    - "기존 구조를 최대한 보존한다 (adopt/upgrade)"
+pipeline_role: worker
+default_backend: smart
+
+imports:
+  profiles:
+    - dva-common
+
+default_profile: dva_improver
+
+parameters:
+  - name: target
+    description: "Target directory"
+    default: "."
+
+steps:
+  - id: load_proposal
+    type: read_file
+    src: "tmp/improve-guided/10-proposal-approved.json"
+
+  - id: load_guardrails
+    type: read_file
+    src: "workflow/library/shared-guardrails.md"
+
+  - id: load_schema
+    type: read_file
+    src: "workflow/library/dva-schema.md"
+
+  - id: load_naming
+    type: read_file
+    src: "workflow/library/naming-presets.md"
+
+  - id: load_examples
+    type: read_file
+    src: "workflow/library/reference-examples.md"
+
+  - id: load_checklist
+    type: read_file
+    src: "workflow/library/shared-checklist.md"
+
+  - id: detect_track
+    type: context
+    depends_on: [load_proposal]
+    context:
+      track: "echo '{{load_proposal.output}}' | jq -r '.setup_track // \"adopt\"' 2>/dev/null || echo 'adopt'"
+      dva_version: "dva version --short 2>/dev/null || echo 'unknown'"
+
+  - id: configure
+    type: llm
+    depends_on:
+      - load_proposal
+      - load_guardrails
+      - load_schema
+      - load_naming
+      - load_examples
+      - load_checklist
+      - detect_track
+    agent: claude
+    instruction: |
+      # Stage 30: Configure DVA
+
+      승인된 계획에 따라 dva.yml을 생성/개선하라.
+
+      ## Setup Track: {{detect_track.track | trim}}
+      - **fresh**: compose.yml + dva.yml 모두 신규 생성
+      - **adopt**: 기존 compose 기반으로 dva.yml만 생성
+      - **upgrade**: 기존 dva.yml을 개선
+
+      ## DVA Version
+      version 필드는 반드시 `{{detect_track.dva_version | trim}}`로 설정.
+
+      ## Guardrails
+      {{load_guardrails.output}}
+
+      ## Schema Reference
+      {{load_schema.output}}
+
+      ## Naming Presets
+      {{load_naming.output}}
+
+      ## Reference Examples
+      {{load_examples.output}}
+
+      ## Approved Proposal
+      {{load_proposal.output}}
+
+      ## Instructions
+
+      ### adopt/upgrade track:
+      1. 기존 dva.yml 로드 (있으면)
+      2. 안티패턴 변환 (echo 래퍼 → 실제 명령, 프리픽스 커맨드 → replace 훅)
+      3. 누락 필수 섹션 추가
+      4. applications 섹션 생성 (감지된 앱 서버)
+      5. interaction 매핑 (Makefile/package.json → dva commands)
+      6. endpoints 완비
+
+      ### fresh track:
+      1. compose.yml 생성 (인프라 서비스)
+      2. dva.yml 신규 생성 (전체 구조)
+      3. 위 adopt 규칙 동일 적용
+
+      ## Post-configure
+      1. `dva config validate` 실행 → ERROR 0까지 수정
+      2. 결과를 `tmp/improve-guided/30-configure-report.txt`에 저장
+
+      ## Self-Review Checklist
+      {{load_checklist.output}}
+
+  - id: validate
+    type: shell
+    depends_on: [configure]
+    action: |
+      cd '{{param.target}}'
+      echo "=== dva config validate ==="
+      RESULT=$(dva config validate 2>&1) || true
+      echo "$RESULT"
+
+      REPORT_DIR="tmp/improve-guided"
+      mkdir -p "$REPORT_DIR"
+      echo "$RESULT" > "$REPORT_DIR/30-configure-report.txt"
+
+      if echo "$RESULT" | grep -q "dva.yml is valid"; then
+        echo "VALIDATION: PASS"
+      else
+        echo "VALIDATION: WARN — review configure-report.txt"
+      fi

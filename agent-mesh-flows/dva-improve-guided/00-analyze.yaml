@@ -1,0 +1,203 @@
+# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided/00-analyze
+description: "Stage 00: Scan target project, detect patterns, classify track"
+contract:
+  goal: "프로젝트 구조를 분석하여 DVA 설정 계획을 수립한다"
+  expected_results:
+    - "DVA 필요 여부가 판단된다"
+    - "setup_track(fresh/adopt/upgrade)이 분류된다"
+    - "분석 리포트가 JSON으로 저장된다"
+  success_criteria:
+    - "DVA CLI가 설치되어 있어야 한다"
+    - "분석은 compose, Dockerfile, 빌드 도구, 패키지 매니페스트에 근거한다"
+pipeline_role: analyzer
+default_backend: smart
+
+imports:
+  profiles:
+    - dva-common
+
+default_profile: dva_analyzer
+
+parameters:
+  - name: target
+    description: "Target directory to scan"
+    default: "."
+
+steps:
+  - id: check_dva
+    type: context
+    context:
+      dva_available: |
+        command -v dva >/dev/null 2>&1 && echo "yes" || echo ""
+      dva_version: "dva version --short 2>/dev/null || echo 'unknown'"
+      docker_available: "command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 && echo 'yes' || echo 'no'"
+    exit_if_empty: dva_available
+
+  - id: detect_basics
+    type: context
+    depends_on: [check_dva]
+    context:
+      has_dva_yml: |
+        cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
+      has_compose: |
+        cd '{{param.target}}' && ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null >/dev/null && printf true || printf false
+      has_dockerfile: |
+        cd '{{param.target}}' && ls Dockerfile Dockerfile.* */Dockerfile 2>/dev/null >/dev/null && printf true || printf false
+      has_makefile: "[ -f '{{param.target}}/Makefile' ] && printf true || printf false"
+      build_tools: |
+        cd '{{param.target}}'
+        found=""
+        for f in Makefile package.json pyproject.toml go.mod Cargo.toml Gemfile build.gradle pom.xml; do
+          [ -f "$f" ] && found="$found $f"
+        done
+        echo "${found:-None}"
+
+  - id: dva_cli_data
+    type: context
+    depends_on: [detect_basics]
+    when: "{{detect_basics.has_dva_yml | trim}} == true"
+    context:
+      dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
+      dva_doctor: "cd '{{param.target}}' && dva doctor --json 2>/dev/null || echo '{\"checks\":[]}'"
+      dva_manifest: "cd '{{param.target}}' && dva manifest -f json 2>/dev/null || echo '{}'"
+      dva_validate: "cd '{{param.target}}' && dva config validate --strict 2>&1 || true"
+      dva_config: "cd '{{param.target}}' && dva config show -f yaml 2>/dev/null | head -300 || echo ''"
+
+  - id: scan_project
+    type: context
+    depends_on: [detect_basics]
+    context:
+      compose_files: |
+        cd '{{param.target}}'
+        ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml \
+           compose.*.yaml compose.*.yml docker-compose.*.yml docker-compose.*.yaml \
+           infra/compose*.y*ml docker/compose*.y*ml compose/compose*.y*ml 2>/dev/null || echo 'none'
+      compose_services: |
+        cd '{{param.target}}'
+        for f in $(ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null); do
+          echo "=== $f ==="
+          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -30
+        done
+      existing_dva: "cat {{param.target}}/dva.yml 2>/dev/null || cat {{param.target}}/dva.yaml 2>/dev/null || echo ''"
+      makefile_targets: |
+        cd '{{param.target}}'
+        [ -f 'Makefile' ] && grep -E '^[a-zA-Z_-]+:.*##' Makefile 2>/dev/null | head -40 || echo 'no Makefile'
+      env_files: "ls {{param.target}}/.env {{param.target}}/.env.example {{param.target}}/.env.* 2>/dev/null || echo 'none'"
+      port_mappings: |
+        cd '{{param.target}}'
+        for f in $(ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null); do
+          grep -E 'ports:' -A 10 "$f" 2>/dev/null | grep -E '"[0-9]+:[0-9]+"' | head -20
+        done
+      subprojects: |
+        cd '{{param.target}}'
+        for d in */; do
+          [ -d "$d" ] || continue
+          base=$(basename "$d")
+          case "$base" in
+            node_modules|vendor|.git|.idea|.vscode|tmp|build|dist|target|compose|docker|infra|infrastructure|scripts|docs|monitoring|k8s|data|specs|reports|agent-mesh-flows) continue ;;
+          esac
+          markers=""
+          [ -f "$d/package.json" ] && markers="$markers package.json"
+          [ -f "$d/go.mod" ] && markers="$markers go.mod"
+          [ -f "$d/pyproject.toml" ] && markers="$markers pyproject.toml"
+          [ -f "$d/Cargo.toml" ] && markers="$markers Cargo.toml"
+          [ -n "$markers" ] && echo "$base:$markers"
+        done
+      package_names: |
+        cd '{{param.target}}'
+        # Go
+        [ -f go.mod ] && echo "go: $(head -1 go.mod | sed 's/module //')"
+        # Rust
+        [ -f Cargo.toml ] && grep -A2 '^\[package\]' Cargo.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/rust: \1/'
+        # Node
+        [ -f package.json ] && echo "node: $(grep '"name"' package.json 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
+        # Python
+        [ -f pyproject.toml ] && grep -A2 '^\[project\]' pyproject.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/python: \1/'
+      dir_tree: "find {{param.target}} -maxdepth 3 -not -path '*/\\.*' -not -path '*/vendor/*' -not -path '*/node_modules/*' -not -path '*/target/*' 2>/dev/null | head -80"
+
+  - id: analyze
+    type: llm
+    depends_on: [detect_basics, dva_cli_data, scan_project]
+    json_mode: true
+    instruction: |
+      프로젝트를 분석하여 DVA 설정 계획을 JSON으로 생성하라.
+
+      ## DVA CLI 정보
+      - DVA 버전: {{check_dva.dva_version}}
+      - Docker: {{check_dva.docker_available | trim}}
+
+      ## 탐지 결과
+      - 기존 dva.yml: {{detect_basics.has_dva_yml | trim}}
+      - 기존 compose: {{detect_basics.has_compose | trim}}
+      - Dockerfile: {{detect_basics.has_dockerfile | trim}}
+      - Build tools: {{detect_basics.build_tools}}
+
+      ## DVA Necessity Check
+      - compose 없고, Dockerfile 없고, 인프라 의존성 없으면 → dva_needed: false
+      - 순수 ops/docs 프로젝트면 → dva_needed: false
+
+      ## Track 분류
+      - **fresh**: compose 없음 → dva.yml + compose.yaml 신규 생성
+      - **adopt**: compose 있음, dva.yml 없음 → dva.yml 생성
+      - **upgrade**: dva.yml 있음 → 업그레이드
+
+      ## DVA CLI 데이터 (upgrade track)
+      {{dva_cli_data.dva_show}}
+      {{dva_cli_data.dva_validate}}
+      {{dva_cli_data.dva_config}}
+
+      ## 프로젝트 스캔
+      [COMPOSE FILES] {{scan_project.compose_files}}
+      [COMPOSE SERVICES] {{scan_project.compose_services}}
+      [EXISTING DVA] {{scan_project.existing_dva}}
+      [MAKEFILE] {{scan_project.makefile_targets}}
+      [ENV FILES] {{scan_project.env_files}}
+      [PORTS] {{scan_project.port_mappings}}
+      [SUBPROJECTS] {{scan_project.subprojects}}
+      [PACKAGES] {{scan_project.package_names}}
+      [TREE] {{scan_project.dir_tree}}
+
+      ## Output Format
+      ```json
+      {
+        "dva_needed": true,
+        "dva_not_needed_reason": "",
+        "setup_track": "fresh|adopt|upgrade",
+        "development_pattern": "hybrid|container-first|devbox",
+        "project_archetype": "web-app|service-daemon|microservices|simple-app",
+        "stack": ["detected technologies"],
+        "package_names": {"lang": "name"},
+        "service_groups": [{"name": "svc", "tags": ["infra"]}],
+        "recommended_modes": ["infra", "full-stack"],
+        "detected_applications": [{"name": "api", "port": 8080, "framework": "..."}],
+        "compose_issues": ["issues"],
+        "port_discrepancies": [],
+        "naming_compliance": {"issues": []},
+        "changes": [
+          {"id": "C001", "action": "create|modify", "path": "dva.yml", "reason": "why", "risk": "low"}
+        ],
+        "summary": {"total": 0, "create": 0, "modify": 0}
+      }
+      ```
+
+  - id: save_report
+    type: shell
+    depends_on: [analyze]
+    action: |
+      REPORT_DIR="tmp/improve-guided"
+      mkdir -p "$REPORT_DIR"
+      cat <<'REPORT_EOF' > "$REPORT_DIR/00-analysis-report.json"
+      {{analyze.output}}
+      REPORT_EOF
+      echo "Report saved: $REPORT_DIR/00-analysis-report.json"
+
+  - id: print_summary
+    type: llm
+    depends_on: [analyze]
+    backend: fast
+    instruction: |
+      분석 리포트를 markdown 요약으로 변환.
+      포함: DVA 필요 여부, track, 패턴, 서비스 그룹, 변경 계획.
+
+      {{analyze.output}}

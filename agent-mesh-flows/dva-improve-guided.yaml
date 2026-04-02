@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided
+description: "Interactive 5-stage DVA setup pipeline with user approval gate"
+contract:
+  goal: "프로젝트 분석 → 사용자 승인 → 디렉토리 정리 → dva.yml 생성/개선 → 실행 검증까지 완료"
+  expected_results:
+    - "프로젝트 분석 리포트가 생성된다"
+    - "사용자가 변경 계획을 승인한다"
+    - "dva.yml이 생성 또는 개선된다"
+    - "dva config validate가 통과한다"
+    - "dva up이 성공한다 (--skip-execute가 아닌 경우)"
+  success_criteria:
+    - "Stage 10에서 사용자 승인을 받아야 한다"
+    - "모든 stage가 gate PASS로 완료되어야 한다"
+    - "DVA CLI가 설치되어 있어야 한다"
+pipeline_role: orchestrator
+default_backend: smart
+
+parameters:
+  - name: target
+    description: "Target directory to analyze and configure"
+    default: "."
+  - name: skip_execute
+    description: "Stop after configure stage (no dva up)"
+    default: "false"
+    enum: [true, false]
+  - name: mode
+    description: "DVA mode to use for execution (e.g., infra)"
+    default: ""
+
+steps:
+  # ── Stage 00: Analyze ──
+  - id: analyze
+    type: pipeline
+    run_pipeline: dva-improve-guided/00-analyze
+    pipeline_params:
+      target: "{{param.target}}"
+
+  # ── Stage 10: Verify (USER GATE) ──
+  - id: verify
+    type: pipeline
+    depends_on: [analyze]
+    run_pipeline: dva-improve-guided/10-verify
+    pipeline_params:
+      target: "{{param.target}}"
+
+  # ── Stage 20: Transform ──
+  - id: transform
+    type: pipeline
+    depends_on: [verify]
+    run_pipeline: dva-improve-guided/20-transform
+    pipeline_params:
+      target: "{{param.target}}"
+
+  # ── Stage 30: Configure ──
+  # Track routing is handled inside the configure flow based on analysis report
+  - id: configure
+    type: pipeline
+    depends_on: [transform]
+    run_pipeline: dva-improve-guided/30-configure
+    pipeline_params:
+      target: "{{param.target}}"
+
+  # ── Stage 40: Execute ──
+  - id: execute
+    type: pipeline
+    depends_on: [configure]
+    when: "{{param.skip_execute}} != true"
+    run_pipeline: dva-improve-guided/40-execute
+    pipeline_params:
+      target: "{{param.target}}"
+      mode: "{{param.mode}}"

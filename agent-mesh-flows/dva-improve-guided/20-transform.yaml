@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided/20-transform
+description: "Stage 20: Migrate directory structure to DVA standard layout"
+contract:
+  goal: "프로젝트 디렉토리 구조를 DVA 표준에 맞게 정리한다"
+  expected_results:
+    - "compose 파일이 표준 위치로 이동된다 (필요 시)"
+    - "불필요한 docker-compose 래퍼가 정리된다"
+    - "디렉토리 변환 리포트가 저장된다"
+  success_criteria:
+    - "기존 파일이 삭제되지 않고 이동만 된다"
+    - "compose 파일 내용은 수정하지 않는다 (name, version 제외)"
+pipeline_role: worker
+default_backend: smart
+
+imports:
+  profiles:
+    - dva-common
+
+parameters:
+  - name: target
+    description: "Target directory"
+    default: "."
+
+steps:
+  - id: load_proposal
+    type: read_file
+    src: "tmp/improve-guided/10-proposal-approved.json"
+
+  - id: transform
+    type: llm
+    depends_on: [load_proposal]
+    agent: claude
+    profile: dva_improver
+    instruction: |
+      승인된 계획에 따라 디렉토리 구조를 정리하라.
+
+      ## Rules
+      1. compose 파일에 `name:` 없으면 추가
+      2. compose 파일에 `version:` 있으면 제거
+      3. docker-compose.yml → compose.yml 이름 변경 (필요 시)
+      4. 기존 파일 삭제 금지 — 이동만 허용
+      5. compose 서비스 정의는 수정하지 않음
+
+      ## 변환 완료 후
+      - 변경 사항을 `tmp/improve-guided/20-transform-report.txt`에 저장
+      - 변경 없으면 "No transformation needed" 기록
+
+      [PROPOSAL]
+      {{load_proposal.output}}
+
+  - id: save_report
+    type: shell
+    depends_on: [transform]
+    action: |
+      REPORT_DIR="tmp/improve-guided"
+      mkdir -p "$REPORT_DIR"
+      if [ ! -f "$REPORT_DIR/20-transform-report.txt" ]; then
+        echo "No transformation needed" > "$REPORT_DIR/20-transform-report.txt"
+      fi
+      echo "Transform stage complete."

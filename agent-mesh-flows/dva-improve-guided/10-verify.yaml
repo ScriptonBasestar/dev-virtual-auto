@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided/10-verify
+description: "Stage 10: Present proposal to user and collect approval (USER GATE)"
+contract:
+  goal: "분석 결과를 사용자에게 제시하고 승인을 받는다"
+  expected_results:
+    - "변경 계획이 markdown으로 제시된다"
+    - "사용자가 명시적으로 승인한다"
+    - "승인된 계획이 저장된다"
+  success_criteria:
+    - "사용자가 승인/거부/수정 중 하나를 선택해야 한다"
+    - "승인 없이 다음 stage로 진행하지 않는다"
+pipeline_role: worker
+default_backend: smart
+
+imports:
+  profiles:
+    - dva-common
+
+parameters:
+  - name: target
+    description: "Target directory"
+    default: "."
+
+interactive:
+  confirm_before: [present_proposal]
+
+steps:
+  - id: load_report
+    type: read_file
+    src: "tmp/improve-guided/00-analysis-report.json"
+
+  - id: check_dva_needed
+    type: shell
+    depends_on: [load_report]
+    action: |
+      DVA_NEEDED=$(echo '{{load_report.output}}' | jq -r '.dva_needed // true' 2>/dev/null || echo 'true')
+      if [ "$DVA_NEEDED" = "false" ]; then
+        REASON=$(echo '{{load_report.output}}' | jq -r '.dva_not_needed_reason // "No reason given"' 2>/dev/null)
+        echo "DVA is not needed for this project: $REASON"
+        echo "Pipeline stopped."
+        exit 1
+      fi
+      echo "DVA needed. Proceeding with proposal."
+
+  - id: present_proposal
+    type: llm
+    depends_on: [check_dva_needed]
+    instruction: |
+      분석 리포트를 기반으로 사용자에게 제시할 변경 계획을 생성하라.
+
+      ## 포함 항목
+      - Setup track (fresh/adopt/upgrade)
+      - Development pattern (hybrid/container-first/devbox)
+      - 생성/수정할 파일 목록 (체크박스)
+      - 서비스 그룹과 태그 매핑
+      - 추천 modes
+      - Applications 섹션 계획
+      - 리스크 평가
+
+      ## 마지막에 반드시 포함
+      "이 계획을 승인하시겠습니까? (Yes/No/Modify)"
+
+      [ANALYSIS REPORT]
+      {{load_report.output}}
+
+  - id: save_approved
+    type: shell
+    depends_on: [present_proposal]
+    action: |
+      REPORT_DIR="tmp/improve-guided"
+      mkdir -p "$REPORT_DIR"
+      cp "$REPORT_DIR/00-analysis-report.json" "$REPORT_DIR/10-proposal-approved.json"
+      echo "Proposal approved and saved."

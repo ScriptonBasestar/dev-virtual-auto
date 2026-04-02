@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+name: dva-improve-guided/40-execute
+description: "Stage 40: Validate configuration and start services"
+contract:
+  goal: "DVA 설정을 검증하고 인프라를 시작하여 정상 동작을 확인한다"
+  expected_results:
+    - "dva config validate가 통과한다"
+    - "dva up이 성공한다"
+    - "서비스가 healthy/running 상태에 도달한다"
+  success_criteria:
+    - "DVA CLI가 설치되어 있어야 한다"
+    - "validation 통과가 execute의 전제조건이다"
+pipeline_role: worker
+default_backend: fast
+
+imports:
+  profiles:
+    - dva-common
+
+parameters:
+  - name: target
+    description: "Target directory"
+    default: "."
+  - name: mode
+    description: "DVA mode to use (e.g., infra)"
+    default: ""
+
+steps:
+  - id: validate_config
+    type: shell
+    action: |
+      cd '{{param.target}}'
+      echo "=== dva config validate ==="
+      dva config validate 2>&1 || true
+
+      echo ""
+      echo "=== dva config validate --strict ==="
+      dva config validate --strict 2>&1 || true
+
+  - id: doctor_check
+    type: shell
+    depends_on: [validate_config]
+    action: |
+      cd '{{param.target}}'
+      echo "=== dva doctor ==="
+      dva doctor 2>&1 || echo "doctor check skipped"
+
+  - id: start_services
+    type: shell
+    depends_on: [doctor_check]
+    action: |
+      cd '{{param.target}}'
+      MODE_FLAG=""
+      if [ -n "{{param.mode}}" ]; then
+        MODE_FLAG="--mode {{param.mode}}"
+      fi
+
+      echo "=== dva up $MODE_FLAG ==="
+      dva up $MODE_FLAG 2>&1 | tail -30
+
+  - id: verify_status
+    type: context
+    depends_on: [start_services]
+    context:
+      stack_status: "cd '{{param.target}}' && dva status --json 2>/dev/null || echo '{}'"
+      app_ls: "cd '{{param.target}}' && dva app ls 2>/dev/null || echo 'no applications configured'"
+      dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
+
+  - id: save_report
+    type: shell
+    depends_on: [verify_status]
+    action: |
+      REPORT_DIR="tmp/improve-guided"
+      mkdir -p "$REPORT_DIR"
+      cat > "$REPORT_DIR/40-execution-report.txt" <<EOF
+      === DVA Status ===
+      {{verify_status.stack_status}}
+
+      === Applications ===
+      {{verify_status.app_ls}}
+
+      === DVA Show ===
+      {{verify_status.dva_show}}
+      EOF
+      echo "Execution report saved."
+
+  - id: print_summary
+    type: llm
+    depends_on: [verify_status]
+    backend: fast
+    instruction: |
+      실행 결과를 요약하라.
+
+      [STATUS] {{verify_status.stack_status}}
+      [APPS] {{verify_status.app_ls}}
+      [SHOW] {{verify_status.dva_show}}

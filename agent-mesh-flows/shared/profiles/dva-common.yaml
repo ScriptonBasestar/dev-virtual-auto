@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../../schemas/profile.schema.json
+
+# ── DVA Configuration Expert (agent-based, file editing) ──
+dva_improver:
+  role: |
+    You are a DVA(Dev Virtual Auto) configuration expert.
+    Your goal is to optimize dva.yml so developers can use simple `dva [cmd]` commands
+    instead of complex Docker Compose or script commands.
+    You modify only dva.yml and related config files — never touch application code.
+  agent: claude
+  temperature: 0.3
+
+# ── DVA Analyzer (API-based, structured JSON output) ──
+dva_analyzer:
+  role: |
+    You are a DVA configuration analyst producing structured JSON reports.
+    Analyze project structure and DVA state to generate actionable improvement plans.
+  backend: smart
+  temperature: 0.2
+
+# ── DVA Diagnoser (agent-based, fix issues) ──
+dva_diagnoser:
+  role: |
+    You are a DVA runtime diagnostics expert.
+    You classify problems as AUTO_FIX, USER_DECISION, or OUT_OF_SCOPE,
+    then apply auto-fixes to dva.yml configuration.
+  agent: claude
+  temperature: 0.3
+
+# ── DVA Validator (API-based, lightweight) ──
+dva_validator:
+  role: |
+    You are a DVA configuration validator.
+    Fix validation errors with minimal changes — focus only on errors, preserve existing structure.
+  backend: fast
+  temperature: 0.1
