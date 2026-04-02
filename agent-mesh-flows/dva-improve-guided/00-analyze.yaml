@@ -104,6 +104,27 @@ steps:
           [ -f "$d/Cargo.toml" ] && markers="$markers Cargo.toml"
           [ -n "$markers" ] && echo "$base:$markers"
         done
+      workspace_map: |
+        cd '{{param.target}}'
+        if [ -f 'pnpm-workspace.yaml' ]; then
+          echo "=== pnpm-workspace.yaml ==="; cat pnpm-workspace.yaml
+        elif [ -f 'pnpm-workspace.yml' ]; then
+          echo "=== pnpm-workspace.yml ==="; cat pnpm-workspace.yml
+        fi
+        if [ -f 'package.json' ]; then
+          ws=$(grep -A 20 '"workspaces"' package.json 2>/dev/null | head -20)
+          [ -n "$ws" ] && echo "=== package.json workspaces ===$ws"
+        fi
+        if [ -f 'Cargo.toml' ]; then
+          members=$(awk '/^\[workspace\]/,/^\[/' Cargo.toml 2>/dev/null | grep 'members' -A 20 | head -20)
+          [ -n "$members" ] && echo "=== Cargo.toml [workspace.members] ==="
+          [ -n "$members" ] && echo "$members"
+        fi
+        if [ -f 'go.work' ]; then
+          echo "=== go.work ==="; cat go.work
+        fi
+        [ ! -f 'pnpm-workspace.yaml' ] && [ ! -f 'pnpm-workspace.yml' ] && \
+        [ ! -f 'Cargo.toml' ] && [ ! -f 'go.work' ] && echo "None"
       k8s_manifests: |
         cd '{{param.target}}'
         # Detect Kubernetes manifests in common directories
@@ -185,6 +206,7 @@ steps:
       [ENV FILES] {{scan_project.env_files}}
       [PORTS] {{scan_project.port_mappings}}
       [SUBPROJECTS] {{scan_project.subprojects}}
+      [WORKSPACE MAP] {{scan_project.workspace_map}}
       [PACKAGES] {{scan_project.package_names}}
       [K8S MANIFESTS] {{scan_project.k8s_manifests}}
       [HELM CHARTS] {{scan_project.helm_charts}}
