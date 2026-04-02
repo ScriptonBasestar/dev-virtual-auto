@@ -1,3 +1,8 @@
+---
+archived-at: "2026-04-02T11:05:00+09:00"
+verified-at: "2026-04-02T11:05:00+09:00"
+verification-summary: "Verified completion of execution plan documentation via docs/31-execution-plan-resolution.md. Explains mode, env, and applications conflict processing order clearly."
+---
 # Execution Plan Resolution For Mode And Environment
 
 ## 배경

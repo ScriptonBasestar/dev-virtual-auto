@@ -1,3 +1,8 @@
+---
+archived-at: "2026-04-02T11:05:00+09:00"
+verified-at: "2026-04-02T11:05:00+09:00"
+verification-summary: "Verified implementation of config deep merge semantics in merge.go, docs added in 30-config-merge-semantics.md, and all unit tests passed."
+---
 # Config Deep Merge Semantics
 
 ## 배경

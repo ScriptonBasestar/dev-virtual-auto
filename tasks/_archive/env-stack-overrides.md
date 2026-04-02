@@ -1,3 +1,8 @@
+---
+archived-at: "2026-04-02T11:05:00+09:00"
+verified-at: "2026-04-02T11:05:00+09:00"
+verification-summary: "Verified StackOverrides field addition in configuration schemas, config parsing, and application logic in orchestrator runtime. Checklist in the task was retroactively verified and tests passed."
+---
 # Environment Stack Overrides
 
 ## 배경
