@@ -456,10 +456,49 @@ steps:
       is_valid: |
         cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
 
+  # Deterministic pre-screen before Retry 1 (catches structural issues yq can verify)
+  - id: deterministic_check_1
+    type: context
+    depends_on: [validate_pass1]
+    when: "{{validate_pass1.is_valid | trim}} != true"
+    context:
+      structural_errors: |
+        cd '{{param.target}}'
+        DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
+        ERRORS=""
+
+        # Rule: run.native and run.docker must be YAML objects (not strings)
+        for path in interaction; do
+          if yq e ".${path} | keys | .[]" "$DVA_FILE" 2>/dev/null | while read key; do
+            native=$(yq e ".${path}[\"${key}\"].run.native | type" "$DVA_FILE" 2>/dev/null)
+            docker=$(yq e ".${path}[\"${key}\"].run.docker | type" "$DVA_FILE" 2>/dev/null)
+            [ "$native" = "!!str" ] && echo "ERROR: interaction.${key}.run.native is a string — must be a YAML object {cmd: ...}"
+            [ "$docker" = "!!str" ] && echo "ERROR: interaction.${key}.run.docker is a string — must be a YAML object {cmd: ...}"
+          done; then :; fi
+        done 2>/dev/null || true
+
+        # Rule: stack section must not be empty if compose/kubectl/helm files detected
+        stack_keys=$(yq e '.stack | keys | length' "$DVA_FILE" 2>/dev/null || echo 0)
+        [ "$stack_keys" = "0" ] && ERRORS="$ERRORS\nERROR: .stack section is empty or missing — add at least one plugin entry"
+
+        # Rule: version field must exist
+        ver=$(yq e '.version' "$DVA_FILE" 2>/dev/null || echo "")
+        [ -z "$ver" ] || [ "$ver" = "null" ] && ERRORS="$ERRORS\nERROR: .version field is missing"
+
+        # Rule: default_mode must exist
+        dm=$(yq e '.default_mode' "$DVA_FILE" 2>/dev/null || echo "")
+        [ -z "$dm" ] || [ "$dm" = "null" ] && ERRORS="$ERRORS\nERROR: .default_mode is missing"
+
+        if [ -z "$ERRORS" ]; then
+          echo "OK — no structural rule violations detected"
+        else
+          printf "%b\n" "$ERRORS"
+        fi
+
   # Retry 1: fix validation errors
   - id: fix_validation_1
     type: llm
-    depends_on: [validate_pass1]
+    depends_on: [deterministic_check_1]
     when: "{{validate_pass1.is_valid | trim}} != true"
     agent: claude
     profile: dva_validator
@@ -478,10 +517,16 @@ steps:
       {{validate_pass1.result}}
       ```
 
+      ## Deterministic Structural Check (fix these FIRST)
+      ```text
+      {{deterministic_check_1.structural_errors}}
+      ```
+
       ## Instructions
-      1. 에러/경고를 수정하세요. **최소 변경만** — 에러 수정에 집중.
-      2. 기존 interaction 이름, 구조 유지.
-      3. DVA schema {{check_prerequisites.dva_version | trim}} 호환 필수.
+      1. **Deterministic 에러를 최우선으로 수정** — 타입 오류, 누락 필드 등 위 구조적 지적을 먼저 처리.
+      2. 에러/경고를 수정하세요. **최소 변경만** — 에러 수정에 집중.
+      3. 기존 interaction 이름, 구조 유지.
+      4. DVA schema {{check_prerequisites.dva_version | trim}} 호환 필수.
 
       ## DVA Guardrails Reference
       {{load_guardrails.output}}
@@ -496,10 +541,31 @@ steps:
       is_valid: |
         cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
 
+  - id: deterministic_check_2
+    type: context
+    depends_on: [validate_pass2]
+    when: "{{validate_pass2.is_valid | trim}} != true"
+    context:
+      structural_errors: |
+        cd '{{param.target}}'
+        DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
+        ERRORS=""
+        for path in interaction; do
+          if yq e ".${path} | keys | .[]" "$DVA_FILE" 2>/dev/null | while read key; do
+            native=$(yq e ".${path}[\"${key}\"].run.native | type" "$DVA_FILE" 2>/dev/null)
+            docker=$(yq e ".${path}[\"${key}\"].run.docker | type" "$DVA_FILE" 2>/dev/null)
+            [ "$native" = "!!str" ] && echo "ERROR: interaction.${key}.run.native is a string — must be a YAML object {cmd: ...}"
+            [ "$docker" = "!!str" ] && echo "ERROR: interaction.${key}.run.docker is a string — must be a YAML object {cmd: ...}"
+          done; then :; fi
+        done 2>/dev/null || true
+        stack_keys=$(yq e '.stack | keys | length' "$DVA_FILE" 2>/dev/null || echo 0)
+        [ "$stack_keys" = "0" ] && ERRORS="$ERRORS\nERROR: .stack section is empty or missing"
+        if [ -z "$ERRORS" ]; then echo "OK"; else printf "%b\n" "$ERRORS"; fi
+
   # Retry 2: fix remaining errors
   - id: fix_validation_2
     type: llm
-    depends_on: [validate_pass2]
+    depends_on: [deterministic_check_2]
     when: "{{validate_pass2.is_valid | trim}} != true"
     agent: claude
     profile: dva_validator
@@ -513,9 +579,15 @@ steps:
       {{validate_pass2.result}}
       ```
 
+      ## Deterministic Structural Check
+      ```text
+      {{deterministic_check_2.structural_errors}}
+      ```
+
       ## Instructions
-      1. 남은 에러만 수정. 최소 변경.
-      2. `dva config validate` 실행하여 ERROR 0 확인.
+      1. **Deterministic 에러 최우선 수정** — 구체적인 타입/경로 오류 먼저.
+      2. 남은 에러만 수정. 최소 변경.
+      3. `dva config validate` 실행하여 ERROR 0 확인.
 
       ## DVA Guardrails Reference
       {{load_guardrails.output}}
