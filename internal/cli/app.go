@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
@@ -39,6 +40,9 @@ var appLsCmd = &cobra.Command{
 			fmt.Fprintln(os.Stderr, "No applications defined in dva.yml")
 			return nil
 		}
+
+		// Show active mode info (default mode only, no flag parsing for ls)
+		printAppModeHeader(c)
 
 		am := lifecycle.NewAppManager(c, e)
 		statuses := am.AppStatuses()
@@ -94,7 +98,7 @@ var appUpCmd = &cobra.Command{
 		}
 
 		mode, _, _, _, args := parseDvaFlags(args)
-		mode, _ = applyDefaultMode(c, mode)
+		mode, isDefault := applyDefaultMode(c, mode)
 
 		devMode := false
 		var appNames []string
@@ -103,6 +107,25 @@ var appUpCmd = &cobra.Command{
 				devMode = true
 			} else {
 				appNames = append(appNames, a)
+			}
+		}
+
+		// Show mode header
+		rm, err := resolveMode(c, mode)
+		if err != nil {
+			return err
+		}
+		if rm.Mode != nil {
+			if isDefault {
+				fmt.Fprintf(os.Stderr, "[mode: %s (default)] %s\n", mode, rm.Mode.Description)
+			} else {
+				fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+			}
+			if len(rm.Mode.Environment) > 0 {
+				e.MergeVars(rm.Mode.Environment)
+			}
+			if rm.Mode.Provision != "" {
+				suggestProvision(c, rm.Mode.Provision)
 			}
 		}
 
@@ -119,6 +142,17 @@ var appUpCmd = &cobra.Command{
 		fmt.Fprintln(os.Stderr)
 		statuses := am.AppStatuses()
 		printAppStatuses(statuses)
+
+		// Show endpoints with health status
+		if len(c.Endpoints) > 0 {
+			allHC := checkEndpointHealth(c.Endpoints)
+			var epTags []string
+			if rm.Mode != nil {
+				epTags = rm.Mode.EndpointTags
+			}
+			printEndpointTable(c.Endpoints, epTags, allHC)
+		}
+
 		return nil
 	},
 }
@@ -203,6 +237,23 @@ func init() {
 	appCmd.AddCommand(appBuildCmd)
 }
 
+// printAppModeHeader shows the active mode description if a default mode is configured.
+func printAppModeHeader(c *config.Config) {
+	mode, isDefault := applyDefaultMode(c, "")
+	if mode == "" {
+		return
+	}
+	rm, err := resolveMode(c, mode)
+	if err != nil || rm.Mode == nil {
+		return
+	}
+	if isDefault {
+		fmt.Fprintf(os.Stderr, "[mode: %s (default)] %s\n", mode, rm.Mode.Description)
+	} else {
+		fmt.Fprintf(os.Stderr, "[mode: %s] %s\n", mode, rm.Mode.Description)
+	}
+}
+
 // printAppStatuses prints a formatted table of application statuses.
 func printAppStatuses(statuses []lifecycle.AppStatus) {
 	if len(statuses) == 0 {
@@ -211,9 +262,10 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 
 	fmt.Fprintln(os.Stderr, "Applications:")
 	w := tabwriter.NewWriter(os.Stderr, 0, 0, 2, ' ', 0)
-	_, _ = fmt.Fprintln(w, "  NAME\tSTATUS\tHEALTH\tPORT\tPID")
+	_, _ = fmt.Fprintln(w, "  NAME\tSTRATEGY\tSTATUS\tHEALTH\tURL\tPID")
 	for _, s := range statuses {
-		state := s.Strategy
+		strategy := s.Strategy
+		state := "stopped"
 		if s.Running {
 			state = "running"
 		}
@@ -223,15 +275,15 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 		} else if s.Running {
 			health = "unknown"
 		}
-		port := "-"
+		url := "-"
 		if s.Port > 0 {
-			port = fmt.Sprintf("%d", s.Port)
+			url = fmt.Sprintf("http://localhost:%d", s.Port)
 		}
 		pid := "-"
 		if s.PID > 0 {
 			pid = fmt.Sprintf("%d", s.PID)
 		}
-		_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n", s.Name, state, health, port, pid)
+		_, _ = fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\t%s\n", s.Name, strategy, state, health, url, pid)
 	}
 	_ = w.Flush()
 }

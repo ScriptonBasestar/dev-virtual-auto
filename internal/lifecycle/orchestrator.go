@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -266,7 +267,10 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
-		services, _ := plugin.Status(ctx, pctx)
+		services, err := plugin.Status(ctx, pctx)
+		if err != nil {
+			o.logger.Warn("plugin status query failed", "entry", entry.Name, "plugin", pluginType, "error", err)
+		}
 
 		var healthResults []HealthCheckResult
 		if len(entry.HealthChecks) > 0 {
@@ -397,7 +401,7 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 		}
 
 		// Check if already running
-		pidFile := fmt.Sprintf("%s/%s/pids/%s.pid", o.cfg.FileDir(), config.DotDirName, hcName)
+		pidFile := filepath.Join(o.cfg.FileDir(), config.DotDirName, config.PidsDirName, hcName+".pid")
 		if data, err := os.ReadFile(pidFile); err == nil {
 			pidStr := strings.TrimSpace(string(data))
 			if pid := 0; true {
@@ -496,7 +500,7 @@ func (o *Orchestrator) signalModeProcesses(mode string, removePID bool) {
 			continue
 		}
 
-		pidFile := fmt.Sprintf("%s/%s/pids/%s.pid", o.cfg.FileDir(), config.DotDirName, hcName)
+		pidFile := filepath.Join(o.cfg.FileDir(), config.DotDirName, config.PidsDirName, hcName+".pid")
 		data, err := os.ReadFile(pidFile)
 		if err != nil {
 			continue

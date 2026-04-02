@@ -7,6 +7,7 @@ GOFLAGS     := -trimpath
 WF_LIBRARY  := workflow/library
 WF_AUTO     := workflow/improve/auto
 WF_GUIDED   := workflow/improve/guided
+WF_DIAGNOSE := workflow/improve/diagnose
 
 # Generated embeddable files (output of make generate)
 GEN_DIR         := internal/cli
@@ -15,6 +16,7 @@ GEN_WORKFLOW    := $(GEN_DIR)/improve_guided_workflow.txt
 GEN_PROMPT      := $(GEN_DIR)/improve_prompt_template.txt
 GEN_GUARD_DEF   := $(GEN_DIR)/improve_guardrails_default.txt
 GEN_GUARD_RW    := $(GEN_DIR)/improve_guardrails_rewrite.txt
+GEN_DIAGNOSE    := $(GEN_DIR)/diagnose_prompt_template.txt
 
 .PHONY: build install test test-integration lint clean fmt vet help generate check-generate
 
@@ -90,11 +92,13 @@ generate:
 	@cp $(WF_AUTO)/prompt-template.md $(GEN_PROMPT)
 	@cp $(WF_AUTO)/guardrails-default.md $(GEN_GUARD_DEF)
 	@cp $(WF_AUTO)/guardrails-rewrite.md $(GEN_GUARD_RW)
-	@echo "Generated: $(GEN_LIBRARY) $(GEN_WORKFLOW) $(GEN_PROMPT) $(GEN_GUARD_DEF) $(GEN_GUARD_RW)"
+	@# Diagnose prompt template
+	@cp $(WF_DIAGNOSE)/prompt-template.md $(GEN_DIAGNOSE)
+	@echo "Generated: $(GEN_LIBRARY) $(GEN_WORKFLOW) $(GEN_PROMPT) $(GEN_GUARD_DEF) $(GEN_GUARD_RW) $(GEN_DIAGNOSE)"
 
 ## check-generate: Verify generated files are up-to-date (CI)
 check-generate: generate
-	@git diff --exit-code $(GEN_LIBRARY) $(GEN_WORKFLOW) $(GEN_PROMPT) $(GEN_GUARD_DEF) $(GEN_GUARD_RW) \
+	@git diff --exit-code $(GEN_LIBRARY) $(GEN_WORKFLOW) $(GEN_PROMPT) $(GEN_GUARD_DEF) $(GEN_GUARD_RW) $(GEN_DIAGNOSE) \
 		|| { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
 ## help: Show this help
