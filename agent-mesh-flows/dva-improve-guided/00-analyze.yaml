@@ -104,6 +104,36 @@ steps:
           [ -f "$d/Cargo.toml" ] && markers="$markers Cargo.toml"
           [ -n "$markers" ] && echo "$base:$markers"
         done
+      k8s_manifests: |
+        cd '{{param.target}}'
+        # Detect Kubernetes manifests in common directories
+        found=$(find . \( -path '*/node_modules' -o -path '*/.git' -o -path '*/vendor' \) -prune -o \
+          \( -name '*.yaml' -o -name '*.yml' \) -print 2>/dev/null | \
+          xargs grep -l '^kind:' 2>/dev/null | head -20)
+        if [ -n "$found" ]; then
+          echo "K8s manifest files:"
+          echo "$found"
+          # Summarize kinds
+          echo "\nKinds detected:"
+          echo "$found" | xargs grep -h '^kind:' 2>/dev/null | sort | uniq -c | sort -rn | head -15
+        else
+          echo "None"
+        fi
+      helm_charts: |
+        cd '{{param.target}}'
+        # Detect Helm Chart.yaml files
+        charts=$(find . \( -path '*/node_modules' -o -path '*/.git' \) -prune -o -name 'Chart.yaml' -print 2>/dev/null | head -10)
+        if [ -n "$charts" ]; then
+          echo "Helm charts found:"
+          for c in $charts; do
+            dir=$(dirname "$c")
+            name=$(grep '^name:' "$c" 2>/dev/null | head -1)
+            version=$(grep '^version:' "$c" 2>/dev/null | head -1)
+            echo "  $dir — $name $version"
+          done
+        else
+          echo "None"
+        fi
       package_names: |
         cd '{{param.target}}'
         # Go
@@ -156,7 +186,16 @@ steps:
       [PORTS] {{scan_project.port_mappings}}
       [SUBPROJECTS] {{scan_project.subprojects}}
       [PACKAGES] {{scan_project.package_names}}
+      [K8S MANIFESTS] {{scan_project.k8s_manifests}}
+      [HELM CHARTS] {{scan_project.helm_charts}}
       [TREE] {{scan_project.dir_tree}}
+
+      ## Kubernetes/Helm Stack Inference
+      - K8s manifests detected (k8s_manifests != None) → suggest `stack.kubectl` with `dir:` pointing to manifest directory.
+      - Helm charts detected (helm_charts != None) → suggest `stack.helm` with appropriate `chart:` and `release:` fields.
+      - Both present → suggest `stack.kubectl` for raw manifests AND `stack.helm` for charts.
+      - If K8s/Helm + compose both detected → recommend `modes:` with local=compose, staging/prod=kubectl or helm.
+      - Do NOT force `stack.compose` when the primary infra is Kubernetes-native.
 
       ## Output Format
       ```json
