@@ -84,31 +84,61 @@ endpoints:
 ### Modes
 
 ```yaml
-default_mode: infra-only    # dva up → minimal infra only
+default_mode: hybrid    # dva up → infra Docker + apps native (most common dev workflow)
 
 modes:
+  # Pure native: no Docker at all (e.g., SQLite for local-only dev)
+  native:
+    description: "All natively, no Docker (SQLite/in-memory)"
+    stack: []                     # Skip ALL Docker infrastructure
+    applications: native          # All apps run natively
+    environment:
+      DB_TYPE: sqlite
+      DATABASE_URL: "sqlite:./dev.db"
+
+  # Hybrid: infrastructure in Docker, applications native (DEFAULT for most devbox)
+  hybrid:
+    description: "Infra in Docker, apps run natively"
+    stack: [compose]              # Start Docker infra
+    applications: native          # All apps run natively
+    compose_services: [postgres, redis]
+    environment:
+      DB_TYPE: postgres
+      DATABASE_URL: "postgresql://{user}:{pass}@localhost:{port}/{db}"
+      REDIS_URL: "redis://localhost:{port}"
+    provision: default
+
+  # Per-app mixed strategy: some native, some Docker
+  hybrid-mixed:
+    description: "IDP in Docker, frontend natively"
+    stack: [compose]
+    applications:                 # Per-app strategy map
+      api: docker                 # API runs as Docker service
+      frontend: native            # Frontend runs natively (hot-reload)
+      _default: native            # Fallback for unlisted apps
+    environment:
+      API_URL: "http://localhost:{port}"
+
+  # All Docker: production-like environment
+  docker:
+    description: "All services in Docker"
+    stack: [compose]
+    applications: docker          # All apps run as Docker services
+    compose_profiles: [app]
+    provision: default
+
+  # Infrastructure only: for CI or shared infra testing
   infra-only:
     description: "Infrastructure only (DB, Redis)"
     compose_services: [postgres, redis]
-  full-stack:
-    description: "All services in Docker"
-    compose_profiles: [rust]
-    provision: default
-  hybrid:
-    description: "Infra in Docker, app runs natively"
-    compose_services: [postgres, redis]
-    health_checks: [api, worker]
-    environment:
-      DATABASE_URL: "postgresql://{user}:{pass}@localhost:{port}/{db}"
-      REDIS_URL: "redis://localhost:{port}"
-  dev:
-    description: "Minimal infra for fast native development"
-    compose_services: [postgres, redis]
-    health_checks: [api]
-    environment:
-      DATABASE_URL: "postgresql://{user}:{pass}@localhost:{port}/{db}"
-      REDIS_URL: "redis://localhost:{port}"
 ```
+
+> **Key pattern:** `applications:` in mode can be:
+> - String: `native` or `docker` (applies to all apps)
+> - Map: `{ api: docker, frontend: native, _default: native }` (per-app)
+> 
+> **Environment switching:** Native apps connect via `localhost:{host_port}`.
+> Docker apps use internal service names (e.g., `postgres:5432`).
 
 ### Applications (Rust hybrid — native dev servers)
 

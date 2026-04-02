@@ -36,11 +36,13 @@
 ### Applications (if project has long-running dev servers)
 - [ ] App servers (API, workers, web) declared in `applications:` section
 - [ ] Each app has at least `run:` or `dev:` exec path defined
+- [ ] Each app has BOTH `run.native` AND `run.docker` paths (dual-path rule #34)
 - [ ] Apps with HTTP endpoints have `health:` block
 - [ ] Apps with listening ports declare `port:` field (shown by `dva app ls`)
 - [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
 - [ ] `depends_on` has no circular references (cycles are handled but should be avoided)
 - [ ] `dir:` is set when app working directory differs from config root
+- [ ] NO application code placed only in `stack.compose.services` without `applications:` entry
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`
@@ -55,6 +57,13 @@
 - [ ] Subproject `version` matches root
 - [ ] Subprojects use `exclude_tags: [infra]`
 - [ ] No `description:` field in subprojects (only `path`, `exclude_tags`)
+
+### Modes & Native/Docker Strategy
+- [ ] At least 3 modes defined for dual-path projects: `native`, `hybrid`, `docker`
+- [ ] Each mode with `applications: native` has `environment:` overrides for DB/service URLs
+- [ ] Pure-native mode uses `stack: []` to skip Docker infrastructure (when applicable)
+- [ ] `modes.{mode}.applications` uses proper form: string (`native`/`docker`) or per-app map
+- [ ] Mode environment overrides distinguish `localhost` (native) vs Docker service names (docker)
 
 ### Final Validation
 - [ ] `dva config validate` exits with ERROR 0
