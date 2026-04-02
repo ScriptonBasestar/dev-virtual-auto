@@ -130,12 +130,19 @@ func ExecSequential(env *config.Environment, cmds []string, shell bool) error {
 
 // ExecScriptInline writes the script content to a temporary file and executes it.
 // The temporary file is removed after execution.
+// If the script does not begin with a shebang (#!), #!/bin/sh is prepended automatically.
 func ExecScriptInline(env *config.Environment, script string) error {
 	f, err := os.CreateTemp("", "dva-script-*.sh")
 	if err != nil {
 		return fmt.Errorf("creating temp script: %w", err)
 	}
 	defer os.Remove(f.Name())
+
+	// Auto-prepend shebang when absent so the script is always executable
+	// regardless of which shell the user happens to be running.
+	if !strings.HasPrefix(strings.TrimSpace(script), "#!") {
+		script = "#!/bin/sh\n" + script
+	}
 
 	if _, err := f.WriteString(script); err != nil {
 		f.Close()

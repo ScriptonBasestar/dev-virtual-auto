@@ -56,7 +56,11 @@ func (r *DockerComposeRunner) Execute(env *config.Environment) error {
 }
 
 // executeSteps runs each step as a separate docker compose exec command.
+// Does NOT mutate r.Cmd; constructs args independently per command.
 func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []config.ProvisionItem) error {
+	// Ensure container state is detected once up front.
+	r.autoDetectComposeMethod()
+
 	for i, step := range steps {
 		label := step.Step
 		if label == "" {
@@ -79,30 +83,40 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			if c == "" {
 				continue
 			}
-			// Temporarily set command and use compose exec
-			origCmd := r.Cmd.Command
-			origMethod := r.Cmd.Compose.Method
-			r.Cmd.Command = c
-			r.Cmd.Compose.Method = "exec"
-			r.autoDetectComposeMethod()
-
-			var args []string
-			if r.detectedProject != "" {
-				args = append(args, "--project-name", r.detectedProject)
-			}
-			args = append(args, r.Cmd.Compose.Method)
-			args = append(args, r.composeArguments(env)...)
-
+			args := r.buildStepArgs(env, c)
 			if err := execCompose(env, r.Opts.Config, args); err != nil {
-				r.Cmd.Command = origCmd
-				r.Cmd.Compose.Method = origMethod
 				return fmt.Errorf("step %q failed: %w", label, err)
 			}
-			r.Cmd.Command = origCmd
-			r.Cmd.Compose.Method = origMethod
 		}
 	}
 	return nil
+}
+
+// buildStepArgs builds docker compose exec args for a single command string.
+// Does NOT mutate r.Cmd state.
+func (r *DockerComposeRunner) buildStepArgs(env *config.Environment, cmd string) []string {
+	var args []string
+	if r.detectedProject != "" {
+		args = append(args, "--project-name", r.detectedProject)
+	}
+	// Always use exec for steps (container must be running)
+	args = append(args, "exec")
+	// User / workdir overrides
+	if r.Cmd.User != "" {
+		args = append(args, "--user", r.Cmd.User)
+	}
+	if r.Cmd.Workdir != "" {
+		args = append(args, "--workdir", r.Cmd.Workdir)
+	}
+	// Service
+	args = append(args, r.Cmd.Service)
+	// Command
+	if r.Cmd.Shell {
+		args = append(args, "sh", "-c", cmd)
+	} else {
+		args = append(args, dvaexec.SplitCommand(cmd)...)
+	}
+	return args
 }
 
 func (r *DockerComposeRunner) composeProfiles() []string {
