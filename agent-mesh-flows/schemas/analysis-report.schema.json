@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/analysis-report.json",
+  "title": "Analysis Report Schema",
+  "description": "Standardized output format for analyze-phase flows. Each change includes WHY (reason) for traceability.",
+  "type": "object",
+  "required": ["flow", "generated_at", "target", "changes", "summary"],
+  "properties": {
+    "flow": {
+      "type": "string",
+      "description": "Flow name that generated this report (e.g. 'doc-cleanup', 'setup-makefile')."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of report generation."
+    },
+    "target": {
+      "type": "string",
+      "description": "Target path that was analyzed."
+    },
+    "parameters": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Parameters used during analysis (for reproducibility)."
+    },
+    "context": {
+      "type": "object",
+      "description": "Detected environment context (language, platform, existing files, etc.).",
+      "properties": {
+        "language": { "type": "string" },
+        "platform": { "type": "string" },
+        "existing_files": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "changes": {
+      "type": "array",
+      "description": "Ordered list of proposed changes with reasoning.",
+      "items": { "$ref": "#/definitions/Change" }
+    },
+    "summary": {
+      "$ref": "#/definitions/Summary"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Change": {
+      "type": "object",
+      "required": ["id", "action", "path", "reason"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^C[0-9]{3}$",
+          "description": "Change identifier (C001, C002, ...)."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["create", "modify", "delete", "move", "merge", "skip"],
+          "description": "Type of change to perform."
+        },
+        "path": {
+          "type": "string",
+          "description": "Target file path."
+        },
+        "reason": {
+          "type": "string",
+          "description": "WHY this change is needed. This is the key traceability field."
+        },
+        "detail": {
+          "type": "string",
+          "description": "Specific change content or instruction."
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high"],
+          "default": "low",
+          "description": "Risk level of this change."
+        },
+        "recovery": {
+          "type": "string",
+          "description": "How to recover/rollback this change if needed."
+        },
+        "category": {
+          "type": "string",
+          "description": "Flow-specific category (e.g. 'binaries', 'logs' for doc-cleanup)."
+        },
+        "content_preview": {
+          "type": "string",
+          "description": "Preview of generated content (for create/modify actions, max 20 lines)."
+        },
+        "source": {
+          "type": "string",
+          "description": "Source file path (for move/merge actions)."
+        },
+        "destination": {
+          "type": "string",
+          "description": "Destination path (for move actions)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Summary": {
+      "type": "object",
+      "required": ["total"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "create": { "type": "integer", "minimum": 0 },
+        "modify": { "type": "integer", "minimum": 0 },
+        "delete": { "type": "integer", "minimum": 0 },
+        "move": { "type": "integer", "minimum": 0 },
+        "merge": { "type": "integer", "minimum": 0 },
+        "skip": { "type": "integer", "minimum": 0 },
+        "high_risk": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    }
+  }
+}

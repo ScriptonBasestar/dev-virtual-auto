@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/context-pack-1.json",
+  "title": "Agent Mesh Context Pack Schema",
+  "description": "LLM-friendly context pack for Planner input",
+  "type": "object",
+  "required": ["version", "links", "summary", "constraints", "glossary"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Context pack format version"
+    },
+    "links": {
+      "type": "array",
+      "description": "References to relevant documents",
+      "items": {
+        "type": "object",
+        "required": ["id", "type", "title"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "KnowChain document ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "adr",
+              "prd",
+              "convention",
+              "structure",
+              "guide",
+              "api",
+              "troubleshooting",
+              "glossary",
+              "other"
+            ],
+            "description": "Document type"
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title"
+          },
+          "url": {
+            "type": ["string", "null"],
+            "description": "Document URL"
+          },
+          "summary": {
+            "type": ["string", "null"],
+            "description": "Short document summary"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Short summary of aggregated context"
+    },
+    "constraints": {
+      "type": "array",
+      "description": "Must/must-not rules from conventions",
+      "items": {
+        "type": "string"
+      }
+    },
+    "glossary": {
+      "type": "object",
+      "description": "Term definitions relevant to the task",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "organization_id": {
+      "type": ["string", "null"],
+      "description": "Organization ID"
+    },
+    "workspace_id": {
+      "type": ["string", "null"],
+      "description": "Workspace ID"
+    },
+    "generated_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Generation timestamp"
+    },
+    "token_estimate": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Estimated token count for LLM input"
+    }
+  },
+  "additionalProperties": false
+}

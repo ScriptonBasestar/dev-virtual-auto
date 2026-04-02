@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../agent-mesh-flows/schemas/flow.schema.json
+# yaml-language-server: $schema=schemas/flow.schema.json
 name: dva-diagnose
 description: "Run dva up, collect errors, diagnose and auto-fix dva.yml configuration issues"
 contract:

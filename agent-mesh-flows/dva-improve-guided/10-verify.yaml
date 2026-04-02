@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+# yaml-language-server: $schema=../schemas/flow.schema.json
 name: dva-improve-guided/10-verify
 description: "Stage 10: Present proposal to user and collect approval (USER GATE)"
 contract:

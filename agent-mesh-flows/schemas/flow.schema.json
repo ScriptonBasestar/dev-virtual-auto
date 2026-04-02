@@ -1,0 +1,742 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/flow-v2.json",
+  "title": "Agent Mesh V2 Flow Pipeline Schema",
+  "description": "YAML-based Pipeline definition for 'am run'. Matches internal/engine/types.go Pipeline struct.",
+  "type": "object",
+  "required": ["steps", "pipeline_role"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Pipeline identifier. Defaults to the YAML filename if omitted."
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema or pipeline version string."
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this pipeline."
+    },
+    "default_backend": {
+      "type": "string",
+      "enum": ["micro", "fast", "smart", "deep"],
+      "description": "Default backend tier for all LLM steps. Must be a standard tier for portability across environments. Users customize tier resolution via tier_routing in their local config.yaml.",
+      "examples": ["fast", "smart"]
+    },
+    "contract": {
+      "$ref": "#/definitions/FlowContract",
+      "description": "Non-executable intent declaration: why this flow exists, what output is expected, and what success looks like."
+    },
+    "imports": {
+      "$ref": "#/definitions/ImportConfig",
+      "description": "External resources (e.g. shared profile files) to merge into this pipeline."
+    },
+    "parameters": {
+      "type": "array",
+      "description": "Input arguments for the pipeline. Prompted in interactive mode, use --param in batch mode.",
+      "items": { "$ref": "#/definitions/Parameter" }
+    },
+    "variables": {
+      "type": "array",
+      "description": "Pipeline-scoped constants or computed values.",
+      "items": { "$ref": "#/definitions/Variable" }
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Named reusable LLM settings (persona, backend/agent, temperature). Steps reference profiles by name.",
+      "additionalProperties": { "$ref": "#/definitions/Profile" }
+    },
+    "default_profile": {
+      "type": "string",
+      "description": "Profile name applied to all steps that don't specify their own profile."
+    },
+    "interactive": {
+      "$ref": "#/definitions/Interactive",
+      "description": "Interactive-mode behavior configuration. Ignored in batch mode (-y)."
+    },
+    "shell_policy": {
+      "$ref": "#/definitions/ShellPolicy",
+      "description": "Execution restrictions for shell commands in this pipeline."
+    },
+    "pipeline_role": {
+      "type": "string",
+      "enum": ["orchestrator", "worker", "analyzer", "handler"],
+      "description": "Restricts which step types the pipeline may contain. orchestrator: pipeline/shell/context only (no LLM). worker/analyzer: llm/shell/context only (no run_pipeline). handler: invoked by state machine engine, same constraints as worker. Defaults to worker if omitted."
+    },
+    "mcp_config": {
+      "type": "string",
+      "description": "Default MCP configuration for all LLM steps. File path or profile name from .agent-mesh/mcp-profiles/. Step-level claude_code.mcp_config overrides this."
+    },
+    "steps": {
+      "type": "array",
+      "description": "Ordered list of steps to execute sequentially.",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/Step" }
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "FlowContract": {
+      "type": "object",
+      "description": "Non-executable intent contract: answers why the flow exists, what output is expected, and what success looks like.",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "description": "One-line statement of why this flow exists and what problem it solves."
+        },
+        "expected_results": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Observable outcomes that should be produced when the flow succeeds."
+        },
+        "success_criteria": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Conditions that must hold true for the output to be considered acceptable."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Step": {
+      "type": "object",
+      "required": ["id", "type"],
+      "description": "A single unit of work: gather context → call LLM/tool → execute action.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Unique step identifier within the pipeline."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["shell", "llm", "pipeline", "context", "file", "apply", "frontmatter", "move", "read_file", "worktree"],
+          "description": "Execution category. Determines which fields are valid: shell (requires action), llm (requires instruction/profile), pipeline (requires run_pipeline), context (requires context map), file (requires file config), apply (requires apply config), frontmatter (requires frontmatter config), move (requires src/dest_dir), read_file (requires src), worktree (requires worktree config)."
+        },
+        "backend": {
+          "description": "LLM backend target. Can be a tier ('fast'), provider ('groq'), named target ('anthropic/smart'), or a list for inline fallback.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ],
+          "examples": ["fast", "smart", "groq", "anthropic/smart", ["groq", "anthropic/smart"]]
+        },
+        "agent": {
+          "description": "Agent tool target. Stateful CLI tool with file/shell access (e.g. 'claude', 'gemini', 'aider'). Can be a string or list for fallback.",
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ],
+          "examples": ["claude", "gemini", "aider", ["claude", "gemini"]]
+        },
+        "profile": {
+          "type": "string",
+          "description": "Named profile from the pipeline's 'profiles' map. Fills in empty step fields (backend, agent, role, system_prompt, temperature)."
+        },
+        "depends_on": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Step IDs whose context/output this step inherits."
+        },
+        "context": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of key → shell command. Output stored as {{id.key}} in the state map."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Core persona and rules. Can be literal text or a filename (e.g. 'code-reviewer.md') from .agent-mesh/prompts/ or ~/.agent-mesh/prompts/."
+        },
+        "role": {
+          "type": "string",
+          "description": "Specific identity (e.g. 'You are a Senior SRE'). Prepended to system_prompt."
+        },
+        "instruction": {
+          "type": "string",
+          "description": "The actual user task/prompt. Supports interpolation: {{step_id.key}}, {{output}}, {{param.name}}."
+        },
+        "action": {
+          "type": "string",
+          "description": "Shell command to run after the LLM responds. Use {{output}} to inject the LLM result."
+        },
+        "exit_if_empty": {
+          "type": "string",
+          "description": "If the named context key is empty after gathering, the entire pipeline exits successfully."
+        },
+        "when": {
+          "type": "string",
+          "description": "Condition expression. Step is skipped if evaluation is false. Example: '{{prev.status}} == true'."
+        },
+        "ignore_error": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, pipeline continues even if this step fails (overrides fail-fast)."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "LLM creativity setting (0.0–2.0). Default: 0.2."
+        },
+        "json_mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force LLM to output valid JSON. Not all models support this."
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory for all shell commands in this step."
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Time limit for LLM or shell commands in this step."
+        },
+        "loop": {
+          "$ref": "#/definitions/LoopConfig",
+          "description": "Foreach iteration config. Used with run_pipeline for batch processing."
+        },
+        "parallel": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and run_pipeline is set, sub-pipelines run concurrently via goroutines."
+        },
+        "run_pipeline": {
+          "type": "string",
+          "description": "Delegate to another pipeline YAML by name. Cannot be mixed with action or instruction."
+        },
+        "pipeline_params": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Explicit parameters to pass to the sub-pipeline. Values support interpolation (e.g. '{{loop.file}}'). Overrides inherited parent params."
+        },
+        "claude_code": {
+          "$ref": "#/definitions/ClaudeCodeConfig",
+          "description": "Claude Code CLI flags. Only valid when agent resolves to 'claude'."
+        },
+        "gemini": {
+          "$ref": "#/definitions/GeminiConfig",
+          "description": "Gemini CLI flags. Only valid when agent resolves to 'gemini'."
+        },
+        "file": {
+          "$ref": "#/definitions/FileConfig",
+          "description": "File operation config. Required for type: file."
+        },
+        "apply": {
+          "$ref": "#/definitions/ApplyConfig",
+          "description": "Apply LLM output as file changes. Required for type: apply."
+        },
+        "src": {
+          "type": "string",
+          "description": "Source file path. Required for type: move and type: read_file. Supports interpolation."
+        },
+        "dest_dir": {
+          "type": "string",
+          "description": "Destination directory. Required for type: move. Relative paths resolve from scope root (parent of src's parent)."
+        },
+        "frontmatter": {
+          "$ref": "#/definitions/FrontmatterStepConfig",
+          "description": "Frontmatter manipulation config. Required for type: frontmatter."
+        },
+        "worktree": {
+          "$ref": "#/definitions/WorktreeConfig",
+          "description": "Git worktree lifecycle config. Required for type: worktree."
+        },
+        "on_error": {
+          "$ref": "#/definitions/OnErrorConfig",
+          "description": "Cleanup actions to run if this step fails. Supports frontmatter and move sub-actions."
+        }
+      },
+      "additionalProperties": false
+    },
+    "LoopConfig": {
+      "type": "object",
+      "required": ["items"],
+      "description": "Foreach iteration over a list of items.",
+      "properties": {
+        "items": {
+          "type": "string",
+          "description": "JSON array or newline-delimited list to iterate over. Supports interpolation."
+        },
+        "item_var": {
+          "type": "string",
+          "default": "item",
+          "description": "Variable name for the current item. Access via {{loop.<item_var>}}."
+        },
+        "index_var": {
+          "type": "string",
+          "default": "index",
+          "description": "Variable name for the current index."
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "default": 100,
+          "description": "Safety cap to prevent runaway loops."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Parameter": {
+      "type": "object",
+      "required": ["name"],
+      "description": "Input argument. Prompted in interactive mode; defaults or errors in batch.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Parameter name. Referenced as {{param.<name>}} in templates."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type hint (e.g. string, int, bool)."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, errors in batch mode when unset."
+        },
+        "default": {
+          "type": "string",
+          "description": "Default value when not provided."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description. Shown as prompt text in interactive mode."
+        },
+        "enum": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed values for this parameter."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Variable": {
+      "type": "object",
+      "required": ["name"],
+      "description": "Pipeline-scoped constant or computed value.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Variable name. Referenced as {{var.<name>}}."
+        },
+        "type": {
+          "type": "string",
+          "description": "Type hint."
+        },
+        "value": {
+          "type": "string",
+          "description": "Static value or interpolated expression."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description."
+        }
+      },
+      "additionalProperties": false
+    },
+    "Profile": {
+      "type": "object",
+      "description": "Reusable LLM settings. Steps reference by name; profile fields act as defaults.",
+      "properties": {
+        "backend": {
+          "type": "string",
+          "description": "Default LLM backend for steps using this profile.",
+          "examples": ["fast", "smart", "groq"]
+        },
+        "agent": {
+          "type": "string",
+          "description": "Default agent tool for steps using this profile.",
+          "examples": ["claude", "gemini", "aider"]
+        },
+        "role": {
+          "type": "string",
+          "description": "Default role text."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Default system prompt. Can be a file reference."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "Default temperature."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ImportConfig": {
+      "type": "object",
+      "description": "External resources to merge into the pipeline.",
+      "properties": {
+        "profiles": {
+          "type": "array",
+          "description": "List of external profile files to import. Can be plain strings or objects with path/as.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Relative path or name of the profile file (without .yaml extension)."
+              },
+              {
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "File path (relative to pipeline YAML or searched in .agent-mesh/profiles/)."
+                  },
+                  "as": {
+                    "type": "string",
+                    "description": "Explicit namespace alias. Default: base filename."
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Interactive": {
+      "type": "object",
+      "description": "Interactive-mode behavior. All fields are ignored in batch mode (-y).",
+      "properties": {
+        "prompt": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Map of parameter name → human-readable prompt text."
+        },
+        "confirm_before": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Step IDs that require user confirmation before execution."
+        },
+        "auto_decide": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Step IDs whose LLM output should be reviewed by the user."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ShellPolicy": {
+      "type": "object",
+      "description": "Execution restrictions for shell commands. Supports allowlist, blocklist, or unrestricted modes.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["allowlist", "blocklist", "unrestricted"],
+          "description": "Enforcement strategy. allowlist: only Allow commands permitted. blocklist: Deny commands blocked. unrestricted: no restrictions (default)."
+        },
+        "inherit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to merge the global sandbox config. Set false to ignore global config entirely."
+        },
+        "allow": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command names permitted for execution (used in allowlist mode)."
+        },
+        "deny": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command names blocked from execution (used in blocklist mode)."
+        },
+        "deny_patterns": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Regex patterns matched against the full command string. Applies in both allowlist and blocklist modes."
+        }
+      },
+      "additionalProperties": false
+    },
+    "FileConfig": {
+      "type": "object",
+      "required": ["op"],
+      "description": "Configuration for type: file steps. Deterministic file operations.",
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": ["read", "write", "edit", "move", "copy", "delete", "mkdir"],
+          "description": "File operation to perform."
+        },
+        "path": {
+          "type": "string",
+          "description": "Target file/directory path. Required for read, write, edit, delete, mkdir."
+        },
+        "from": {
+          "type": "string",
+          "description": "Source path. Required for move, copy."
+        },
+        "to": {
+          "type": "string",
+          "description": "Destination path. Required for move, copy."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to write. Required for write."
+        },
+        "edits": {
+          "type": "array",
+          "description": "Search/replace pairs. Required for edit.",
+          "items": {
+            "type": "object",
+            "required": ["search", "replace"],
+            "properties": {
+              "search": { "type": "string", "description": "Text to find (exact match)." },
+              "replace": { "type": "string", "description": "Replacement text." }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ApplyConfig": {
+      "type": "object",
+      "required": ["format", "source"],
+      "description": "Configuration for type: apply steps. Bridges LLM output to file modifications.",
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["search-replace", "full-file"],
+          "description": "How to parse LLM output. search-replace: <<<SEARCH/>>>REPLACE blocks. full-file: entire content replacement."
+        },
+        "source": {
+          "type": "string",
+          "description": "LLM output to parse. Supports interpolation (e.g. '{{implement.output}}')."
+        },
+        "target": {
+          "type": "string",
+          "description": "Default target file path. Can be overridden per block in search-replace format."
+        }
+      },
+      "additionalProperties": false
+    },
+    "FrontmatterStepConfig": {
+      "type": "object",
+      "required": ["file"],
+      "description": "Configuration for type: frontmatter steps. Reads YAML frontmatter, applies mutations, writes back.",
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Path to the file whose frontmatter will be modified. Supports interpolation."
+        },
+        "set": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Key-value pairs to set in the frontmatter. Values support interpolation and are auto-typed (int/bool/string)."
+        },
+        "increment": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "description": "Keys to increment by the given delta. Creates the key with delta value if missing."
+        },
+        "remove": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Keys to remove from the frontmatter."
+        },
+        "append": {
+          "type": "object",
+          "description": "Maps field names to values (primitives or objects) to append to the list. Truncates history to 20 items."
+        }
+      },
+      "additionalProperties": false
+    },
+    "OnErrorConfig": {
+      "type": "object",
+      "description": "Cleanup actions executed when a step fails. Runs in isolated state with {{error.message}} available.",
+      "properties": {
+        "frontmatter": {
+          "$ref": "#/definitions/FrontmatterStepConfig",
+          "description": "Frontmatter mutation to apply on error (e.g. record error timestamp)."
+        },
+        "move": {
+          "type": "object",
+          "properties": {
+            "src": {
+              "type": "string",
+              "description": "Source file path. Supports interpolation."
+            },
+            "dest_dir": {
+              "type": "string",
+              "description": "Destination directory. Supports interpolation."
+            }
+          },
+          "required": ["src", "dest_dir"],
+          "additionalProperties": false,
+          "description": "Move action to execute on error (e.g. move task to error queue)."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ClaudeCodeConfig": {
+      "type": "object",
+      "description": "Claude Code CLI flags for tool-based LLM execution. Maps to internal/engine/types.go ClaudeCodeConfig.",
+      "properties": {
+        "lightweight": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run in lightweight mode (--disable-slash-commands, --strict-mcp-config, default setting_sources=project)."
+        },
+        "setting_sources": {
+          "type": "string",
+          "description": "Which settings to load (e.g. 'project')."
+        },
+        "permission_mode": {
+          "type": "string",
+          "enum": ["default", "auto", "acceptEdits", "bypassPermissions", "plan"],
+          "description": "Permission mode for tool execution."
+        },
+        "mcp_config": {
+          "type": "string",
+          "description": "Path to MCP configuration file or profile name."
+        },
+        "model": {
+          "type": "string",
+          "description": "Model selection (e.g. 'claude-sonnet-4-6')."
+        },
+        "fallback_model": {
+          "type": "string",
+          "description": "Fallback model if primary is unavailable."
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicit tool type allowlist (e.g. [Read, Edit, Bash])."
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tool glob patterns that bypass approval (--allowedTools)."
+        },
+        "disallowed_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tool glob patterns to block (--disallowedTools)."
+        },
+        "work_dir": {
+          "type": "string",
+          "description": "Working directory for the Claude CLI process."
+        },
+        "add_dirs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional directories to add to the workspace (--add-dir)."
+        },
+        "output_format": {
+          "type": "string",
+          "description": "Response format (e.g. 'json', 'stream-json')."
+        },
+        "max_turns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum conversation turns (--max-turns)."
+        },
+        "max_budget_usd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Cost cap in USD (--max-budget-usd)."
+        },
+        "backend": {
+          "type": "string",
+          "enum": ["anthropic", "zai"],
+          "description": "API backend. 'anthropic' (default) or 'zai' (Z.AI proxy, requires ZAI_API_KEY)."
+        },
+        "fallback_backend": {
+          "type": "string",
+          "enum": ["anthropic", "zai"],
+          "description": "Retry backend on quota/auth errors from primary."
+        },
+        "experimental_agent_teams": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Claude Code multi-agent team orchestration."
+        }
+      },
+      "additionalProperties": false
+    },
+    "GeminiConfig": {
+      "type": "object",
+      "description": "Gemini CLI flags for tool-based LLM execution.",
+      "properties": {
+        "approval_mode": {
+          "type": "string",
+          "enum": ["default", "auto_edit", "yolo", "plan"],
+          "description": "Tool execution approval mode."
+        },
+        "sandbox": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable Docker-based sandboxed execution."
+        },
+        "model": {
+          "type": "string",
+          "description": "Gemini model (e.g. 'gemini-2.5-flash', 'gemini-2.5-pro')."
+        },
+        "include_dirs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Additional directories to include in workspace context."
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tools that bypass approval confirmation."
+        },
+        "output_format": {
+          "type": "string",
+          "description": "Response format: 'json' or 'stream-json'."
+        },
+        "work_dir": {
+          "type": "string",
+          "description": "Working directory for the Gemini CLI process."
+        }
+      },
+      "additionalProperties": false
+    },
+    "WorktreeConfig": {
+      "type": "object",
+      "required": ["action"],
+      "description": "Git worktree lifecycle configuration for type: worktree steps.",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["open", "close"],
+          "description": "Lifecycle operation. open: create worktree + branch. close: merge back + cleanup."
+        },
+        "branch": {
+          "type": "string",
+          "description": "New branch name (open only). Supports interpolation."
+        },
+        "base": {
+          "type": "string",
+          "description": "Base ref to branch from (open only). Defaults to HEAD."
+        },
+        "merge": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to merge the worktree branch back on close."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": ["squash", "rebase", "merge"],
+          "default": "squash",
+          "description": "Merge strategy. squash: single commit. rebase: linear. merge: standard."
+        },
+        "cleanup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Remove worktree directory on close."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

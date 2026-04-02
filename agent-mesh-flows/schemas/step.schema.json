@@ -1,0 +1,380 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/step-2.json",
+  "title": "Agent Mesh Step Schema",
+  "description": "Step represents a single tool execution unit within a Run",
+  "type": "object",
+  "required": ["step_id", "run_id", "order", "tool", "intent", "status", "schema_version"],
+  "properties": {
+    "step_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*(?:\\[[0-9]+\\])?(?:#[a-z0-9-]+)?(?:-retry[0-9]+)?$",
+      "description": "Unique identifier for the Step (e.g., step-003, step-003-retry1, unit-step-001)"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]{8}-[0-9]{3}$",
+      "description": "Parent Run ID"
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Execution order within the Run"
+    },
+    "tool": {
+      "type": "string",
+      "enum": ["codex", "claude", "gemini", "opencode", "git", "shell", "docker", "ollama", "kubernetes", "helm", "argocd", "github", "jira", "gitlab", "mcp"],
+      "description": "Connector tool identifier"
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "refactor", "analyze", "test", "edit", "commit", "diff", "status", "deploy",
+        "branch_create", "branch_switch", "switch_repo", "clone_repo", "sync_repos", "cross_repo_diff",
+        "merge", "branch_delete", "stash", "stash_pop",
+        "build", "run", "exec",
+        "apply", "get", "describe", "logs", "port_forward", "delete", "rollout", "scale",
+        "install", "upgrade", "uninstall", "list", "rollback", "template",
+        "sync", "refresh", "wait", "create",
+        "trigger", "cancel",
+        "call_tool", "list_tools", "list_resources", "read_resource", "list_prompts", "get_prompt",
+        "search", "comment", "transition"
+      ],
+      "description": "Purpose of the Step execution"
+    },
+    "args": {
+      "type": "object",
+      "description": "Tool-specific arguments",
+      "properties": {
+        "command": {
+          "type": ["string", "null"],
+          "description": "Command to execute"
+        },
+        "cwd": {
+          "type": ["string", "null"],
+          "description": "Working directory path"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Target files for operation"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Tool-specific options"
+        }
+      },
+      "additionalProperties": true
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 600
+        }
+      },
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "validating", "retrying", "waiting_for_user", "success", "failed", "rolled_back"],
+      "description": "Current status of the Step"
+    },
+    "started_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when execution started"
+    },
+    "finished_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when execution finished"
+    },
+    "output": {
+      "anyOf": [
+        { "$ref": "#/definitions/connector_output" },
+        { "type": "null" }
+      ]
+    },
+    "validation": {
+      "anyOf": [
+        { "$ref": "#/definitions/validation_result" },
+        { "type": "null" }
+      ]
+    },
+    "retry_history": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/retry_attempt"
+      }
+    },
+    "policy_metadata": {
+      "anyOf": [
+        { "$ref": "#/definitions/policy_metadata" },
+        { "type": "null" }
+      ]
+    },
+    "model_info": {
+      "anyOf": [
+        { "$ref": "#/definitions/model_info" },
+        { "type": "null" }
+      ]
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "step-2",
+      "description": "Schema version identifier"
+    }
+  },
+  "definitions": {
+    "connector_output": {
+      "type": "object",
+      "required": ["success", "exit_code"],
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Overall execution success"
+        },
+        "stdout": {
+          "type": "string",
+          "description": "Standard output from the tool"
+        },
+        "stderr": {
+          "type": "string",
+          "description": "Standard error from the tool"
+        },
+        "exit_code": {
+          "type": "integer",
+          "description": "Process exit code"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Artifact ID reference"
+              },
+              {
+                "type": "object",
+                "required": ["type", "path"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["diff", "file", "json", "log", "metrics", "model_output"]
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          "description": "List of Artifact IDs generated"
+        },
+        "parse_error": {
+          "type": "boolean",
+          "description": "True if LLM output was malformed JSON"
+        },
+        "meta": {
+          "type": "object",
+          "properties": {
+            "duration_seconds": {
+              "type": "number",
+              "minimum": 0
+            },
+            "raw": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        },
+        "schema_version": {
+          "type": "string",
+          "description": "Schema version identifier (validated separately by Supervisor)"
+        }
+      }
+    },
+    "validation_result": {
+      "type": "object",
+      "properties": {
+        "json_valid": {
+          "type": "boolean",
+          "description": "LLM output is valid JSON"
+        },
+        "patch_valid": {
+          "type": "boolean",
+          "description": "Git patch applies cleanly"
+        },
+        "schema_valid": {
+          "type": "boolean",
+          "description": "Output matches expected schema"
+        },
+        "no_unintended_changes": {
+          "type": "boolean",
+          "description": "No unexpected file modifications"
+        },
+        "required_fields_present": {
+          "type": "boolean",
+          "description": "All required fields exist"
+        },
+        "requires_retry": {
+          "type": "boolean",
+          "description": "Step should be retried"
+        },
+        "retry_reason": {
+          "type": ["string", "null"],
+          "description": "Reason for retry if required"
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Validation notes and warnings"
+        }
+      }
+    },
+    "retry_attempt": {
+      "type": "object",
+      "required": ["attempt_number", "timestamp", "strategy", "reason", "success"],
+      "properties": {
+        "attempt_number": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Retry attempt number (1=first retry)"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the retry was attempted"
+        },
+        "strategy": {
+          "type": "string",
+          "description": "Retry strategy used (simple_retry, llm_fix_prompt, etc.)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the retry"
+        },
+        "correction_prompt": {
+          "type": ["string", "null"],
+          "description": "Correction prompt used for LLM fix (if applicable)"
+        },
+        "success": {
+          "type": "boolean",
+          "description": "Whether the retry succeeded"
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/connector_output"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "policy_metadata": {
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "string",
+          "enum": ["plan", "execute", "verify"],
+          "description": "Execution phase (plan/execute/verify)"
+        },
+        "risk_level": {
+          "type": "string",
+          "enum": ["low", "normal", "high"],
+          "description": "Risk level affecting model selection"
+        },
+        "task_type": {
+          "type": "string",
+          "enum": [
+            "bugfix", "refactor", "feature", "doc", "test_generation",
+            "code_review", "security_audit", "infra", "other"
+          ],
+          "description": "Task type hint for model selection"
+        },
+        "path_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File path patterns this step operates on"
+        },
+        "language": {
+          "type": ["string", "null"],
+          "description": "Primary language"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional tags for policy matching"
+        }
+      },
+      "additionalProperties": true
+    },
+    "model_info": {
+      "type": "object",
+      "properties": {
+        "logical_model": {
+          "type": ["string", "null"]
+        },
+        "actual_model": {
+          "type": ["string", "null"]
+        },
+        "connector": {
+          "type": ["string", "null"]
+        },
+        "prompt_tokens": {
+          "type": ["integer", "null"]
+        },
+        "response_tokens": {
+          "type": ["integer", "null"]
+        },
+        "estimated_cost": {
+          "type": ["number", "null"]
+        },
+        "fallback_used": {
+          "type": "boolean"
+        },
+        "escalation_reason": {
+          "type": ["string", "null"]
+        },
+        "provider_name": {
+          "type": ["string", "null"],
+          "description": "Provider name used (v0.5.0)"
+        },
+        "fallback_chain": {
+          "type": ["string", "null"],
+          "description": "Fallback chain used (v0.5.0)"
+        },
+        "fallback_index": {
+          "type": "integer",
+          "default": 0,
+          "description": "Position in fallback chain (0 = primary, v0.5.0)"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

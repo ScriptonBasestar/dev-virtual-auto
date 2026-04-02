@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../../schemas/profile.schema.json
+# yaml-language-server: $schema=../../schemas/profile.schema.json
 
 # ── DVA Configuration Expert (agent-based, file editing) ──
 dva_improver:

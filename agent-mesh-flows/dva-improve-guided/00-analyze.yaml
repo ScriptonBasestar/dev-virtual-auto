@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+# yaml-language-server: $schema=../schemas/flow.schema.json
 name: dva-improve-guided/00-analyze
 description: "Stage 00: Scan target project, detect patterns, classify track"
 contract:

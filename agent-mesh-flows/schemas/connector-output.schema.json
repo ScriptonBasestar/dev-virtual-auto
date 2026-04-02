@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/connector-output-1.json",
+  "title": "Agent Mesh Connector Output Schema",
+  "description": "Common output structure from Connector to Runner",
+  "type": "object",
+  "required": ["success", "exit_code", "schema_version"],
+  "properties": {
+    "success": {
+      "type": "boolean",
+      "description": "Overall execution success (default: exit_code == 0)"
+    },
+    "stdout": {
+      "type": "string",
+      "default": "",
+      "description": "Standard output from the tool"
+    },
+    "stderr": {
+      "type": "string",
+      "default": "",
+      "description": "Standard error from the tool"
+    },
+    "exit_code": {
+      "type": "integer",
+      "description": "Process exit code (0 = success)"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string",
+            "description": "Artifact ID reference"
+          },
+          {
+            "type": "object",
+            "required": ["type", "path"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["diff", "file", "json", "log", "metrics", "model_output"]
+              },
+              "path": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "default": [],
+      "description": "Generated artifacts (IDs or inline objects)"
+    },
+    "parse_error": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if LLM output was malformed JSON that couldn't be parsed"
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "start_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Execution start timestamp"
+        },
+        "end_time": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Execution end timestamp"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total execution duration"
+        },
+        "tool": {
+          "type": "string",
+          "enum": ["codex", "claude", "gemini", "opencode", "git", "shell", "docker", "ollama", "kubernetes", "helm", "argocd", "github", "jira", "gitlab", "mcp"],
+          "description": "Tool that produced this output"
+        },
+        "intent": {
+          "type": "string",
+          "enum": [
+            "refactor", "analyze", "test", "edit", "commit", "diff", "status", "deploy",
+        "branch_create", "branch_switch", "switch_repo", "clone_repo", "sync_repos", "cross_repo_diff",
+        "merge", "branch_delete", "stash", "stash_pop",
+            "build", "run", "exec",
+            "apply", "get", "describe", "logs", "port_forward", "delete", "rollout", "scale",
+            "install", "upgrade", "uninstall", "list", "rollback", "template",
+            "sync", "refresh", "wait", "create",
+            "trigger", "cancel",
+            "call_tool", "list_tools", "list_resources", "read_resource", "list_prompts", "get_prompt",
+            "search", "comment", "transition"
+          ],
+          "description": "Intent that was executed"
+        },
+        "raw": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Tool-specific raw data (includes unparsed output if parse_error=true)"
+        }
+      },
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version identifier (validated separately by Supervisor)"
+    }
+  },
+  "additionalProperties": false
+}

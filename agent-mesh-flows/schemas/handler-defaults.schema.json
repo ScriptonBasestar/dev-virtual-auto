@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/handler-defaults-v1.json",
+  "title": "Agent Mesh Handler Defaults Schema",
+  "description": "Directory-level default settings for handler pipelines. Loaded from _defaults.yaml. Merge priority: Profile < HandlerDefaults < Step.",
+  "type": "object",
+  "properties": {
+    "agent": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Default agent tool(s). Can be a single string or a fallback list.",
+      "examples": ["claude", ["claude", "codex"]]
+    },
+    "backend": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Default LLM backend(s).",
+      "examples": ["fast", ["groq", "anthropic"]]
+    },
+    "claude_code": {
+      "$ref": "#/definitions/ClaudeCodeConfig"
+    },
+    "codex": {
+      "$ref": "#/definitions/CodexConfig"
+    },
+    "gemini": {
+      "$ref": "#/definitions/GeminiConfig"
+    },
+    "role": {
+      "type": "string",
+      "description": "Default role text. Prefer profiles for this field."
+    },
+    "system_prompt": {
+      "type": "string",
+      "description": "Default system prompt. Prefer profiles for this field."
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 2.0,
+      "description": "Default temperature. Prefer profiles for this field."
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "ClaudeCodeConfig": {
+      "type": "object",
+      "description": "Claude Code CLI flags for tool-based execution.",
+      "properties": {
+        "lightweight": { "type": "boolean", "description": "Enable lightweight mode (project-only settings, no slash commands)." },
+        "setting_sources": { "type": "string" },
+        "permission_mode": { "type": "string", "enum": ["default", "plan", "bypassPermissions"] },
+        "mcp_config": { "type": "string" },
+        "skip_permissions": { "type": "boolean" },
+        "model": { "type": "string" },
+        "fallback_model": { "type": "string" },
+        "tools": { "type": "array", "items": { "type": "string" }, "description": "Allowed tools list.", "examples": [["Read", "Edit", "Write", "Grep", "Glob", "Bash"]] },
+        "allowed_tools": { "type": "array", "items": { "type": "string" } },
+        "disallowed_tools": { "type": "array", "items": { "type": "string" } },
+        "work_dir": { "type": "string" },
+        "add_dirs": { "type": "array", "items": { "type": "string" } },
+        "output_format": { "type": "string" },
+        "max_turns": { "type": "integer", "minimum": 1 },
+        "max_budget_usd": { "type": "number", "minimum": 0 },
+        "backend": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodexConfig": {
+      "type": "object",
+      "description": "Codex CLI flags for tool-based execution.",
+      "properties": {
+        "model": { "type": "string" },
+        "provider": { "type": "string" },
+        "approval_mode": { "type": "string", "enum": ["suggest", "auto-edit", "full-auto"] },
+        "sandbox": { "type": "string", "enum": ["read-only", "workspace-write", "danger-full-access"] },
+        "add_dirs": { "type": "array", "items": { "type": "string" } },
+        "mcp_config": { "type": "string" },
+        "work_dir": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "GeminiConfig": {
+      "type": "object",
+      "description": "Gemini CLI flags for tool-based execution.",
+      "properties": {
+        "approval_mode": { "type": "string" },
+        "sandbox": { "type": "boolean" },
+        "model": { "type": "string" },
+        "include_dirs": { "type": "array", "items": { "type": "string" } },
+        "allowed_tools": { "type": "array", "items": { "type": "string" } },
+        "output_format": { "type": "string" },
+        "work_dir": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

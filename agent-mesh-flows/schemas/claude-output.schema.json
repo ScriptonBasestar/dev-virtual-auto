@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/claude-output-1.json",
+  "title": "Agent Mesh Claude Connector Output Schema",
+  "description": "Extended output schema for ClaudeCodeConnector with LLM-specific fields",
+  "allOf": [
+    {
+      "$ref": "connector-output.schema.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "meta": {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "const": "claude"
+            },
+            "raw": {
+              "type": "object",
+              "properties": {
+                "files_changed": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Number of files modified"
+                },
+                "edits": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "type": "string"
+                      },
+                      "action": {
+                        "type": "string",
+                        "enum": ["create", "modify", "delete"]
+                      }
+                    }
+                  },
+                  "description": "List of file edits performed"
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "LLM-generated summary of changes"
+                },
+                "parse_error": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "JSON parsing failed flag"
+                },
+                "model": {
+                  "type": "string",
+                  "description": "Model used (e.g., claude-3.5-sonnet)"
+                },
+                "tokens_used": {
+                  "type": "object",
+                  "properties": {
+                    "input": {
+                      "type": "integer"
+                    },
+                    "output": {
+                      "type": "integer"
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "stop_reason": {
+                  "type": "string",
+                  "enum": ["end_turn", "max_tokens", "stop_sequence"],
+                  "description": "Reason for completion"
+                }
+              },
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    }
+  ]
+}

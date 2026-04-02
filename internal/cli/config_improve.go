@@ -186,20 +186,22 @@ func runAmImproveRecursive() error {
 
 // printAmRunCommand outputs the am run command that would be executed.
 func printAmRunCommand() error {
-	mode := "preserve"
-	if improveRewrite {
-		mode = "rewrite"
-	}
+	var flowName string
+	var params map[string]string
 
-	flowName := "dva-improve"
 	if improveInteractive {
 		flowName = "dva-improve-guided"
+		params = nil
+	} else {
+		mode := "preserve"
+		if improveRewrite {
+			mode = "rewrite"
+		}
+		flowName = "dva-improve"
+		params = map[string]string{"mode": mode}
 	}
 
-	amArgs := buildAmArgs(flowName, map[string]string{
-		"mode": mode,
-	})
-
+	amArgs := buildAmArgs(flowName, params)
 	fmt.Printf("am %s\n", strings.Join(amArgs, " "))
 	return nil
 }
@@ -210,7 +212,7 @@ func printAmRunCommand() error {
 func findAmCLI() (string, error) {
 	amPath, err := exec.LookPath("am")
 	if err != nil {
-		return "", fmt.Errorf("agent-mesh CLI (am) not found in PATH.\n  Install: https://github.com/user/agent-mesh\n  Or use 'dva config improve --print' to see the command")
+		return "", fmt.Errorf("agent-mesh CLI (am) not found in PATH.\n  Install: https://gitlab.polypia.net/devbox/flow-agent-mesh-devbox\n  Or use 'dva config improve --print' to see the flow command")
 	}
 	return amPath, nil
 }
@@ -227,6 +229,10 @@ func buildAmArgs(flowName string, params map[string]string) []string {
 		if v != "" {
 			args = append(args, fmt.Sprintf("param.%s=%s", k, v))
 		}
+	}
+
+	if improveModel != "" {
+		args = append(args, fmt.Sprintf("param.model=%s", improveModel))
 	}
 
 	return args

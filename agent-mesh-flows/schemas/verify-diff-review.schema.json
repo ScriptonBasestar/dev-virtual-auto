@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "VerifyDiffReview",
+  "type": "object",
+  "required": ["review_status", "summary", "issues", "next_actions"],
+  "properties": {
+    "review_status": {
+      "type": "string",
+      "enum": ["pass", "needs_followup", "blocked"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "category", "description"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "normal", "low"]
+          },
+          "category": {
+            "type": "string",
+            "enum": ["bug", "test", "security", "performance", "style", "scope", "other"]
+          },
+          "file": {
+            "type": ["string", "null"]
+          },
+          "description": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": ["string", "null"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["action", "rationale"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "add_tests",
+              "run_tests",
+              "fix_code",
+              "rollback",
+              "request_human_approval",
+              "escalate_model"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "suggested_step": {
+            "type": "object",
+            "required": ["tool", "intent", "input"],
+            "properties": {
+              "tool": {
+                "type": "string",
+                "enum": ["git", "shell", "codex", "claude"]
+              },
+              "intent": {
+                "type": "string",
+                "enum": ["diff", "test", "analyze", "edit", "refactor", "commit"]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "command": { "type": ["string", "null"] },
+                  "cwd": { "type": ["string", "null"] },
+                  "files": { "type": "array", "items": { "type": "string" } },
+                  "options": { "type": "object" }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

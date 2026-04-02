@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/connector-input-1.json",
+  "title": "Agent Mesh Connector Input Schema",
+  "description": "Common input structure from Runner to Connector",
+  "type": "object",
+  "required": ["tool", "intent", "args", "context", "schema_version"],
+  "properties": {
+    "tool": {
+      "type": "string",
+      "enum": ["codex", "claude", "gemini", "opencode", "git", "shell", "docker", "ollama", "kubernetes", "helm", "argocd", "github", "jira", "gitlab", "mcp"],
+      "description": "Connector tool identifier"
+    },
+    "intent": {
+      "type": "string",
+      "enum": [
+        "refactor", "analyze", "test", "edit", "commit", "diff", "status", "deploy",
+        "branch_create", "branch_switch", "switch_repo", "clone_repo", "sync_repos", "cross_repo_diff",
+        "merge", "branch_delete", "stash", "stash_pop",
+        "build", "run", "exec",
+        "apply", "get", "describe", "logs", "port_forward", "delete", "rollout", "scale",
+        "install", "upgrade", "uninstall", "list", "rollback", "template",
+        "sync", "refresh", "wait", "create",
+        "trigger", "cancel",
+        "call_tool", "list_tools", "list_resources", "read_resource", "list_prompts", "get_prompt",
+        "search", "comment", "transition"
+      ],
+      "description": "Purpose of the execution"
+    },
+    "args": {
+      "type": "object",
+      "description": "Tool-specific arguments",
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to execute"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "Working directory path"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Target files for operation"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Tool-specific options"
+        }
+      },
+      "additionalProperties": true
+    },
+    "context": {
+      "type": "object",
+      "required": ["run_id", "step_id"],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "pattern": "^run-[0-9]{8}-[0-9]{3}$",
+          "description": "Parent Run ID"
+        },
+        "step_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*(?:\\[[0-9]+\\])?(?:#[a-z0-9-]+)?(?:-retry[0-9]+)?$",
+          "description": "Current Step ID"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600,
+          "default": 600,
+          "description": "Execution timeout in seconds"
+        }
+      },
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "connector-input-1",
+      "description": "Schema version identifier"
+    },
+    "model_selection": {
+      "type": "object",
+      "description": "Model selection metadata (LLM connectors)",
+      "properties": {
+        "logical_model": {
+          "type": "string"
+        },
+        "actual_model": {
+          "type": "string"
+        },
+        "connector": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

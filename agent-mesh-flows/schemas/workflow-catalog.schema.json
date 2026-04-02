@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-mesh.io/schemas/workflow-catalog.schema.json",
+  "title": "Public Workflow Catalog",
+  "description": "Signed index of publicly distributed Agent Mesh workflows.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "catalog_version",
+    "created_at",
+    "signing",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "workflow-catalog-1"
+    },
+    "catalog_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "signing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "signature_file"],
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": ["cosign-key-pair-v1"]
+        },
+        "signature_file": {
+          "type": "string",
+          "const": "catalog.json.sig"
+        },
+        "public_key_file": {
+          "type": "string",
+          "const": "catalog.json.pub"
+        }
+      }
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/catalog_entry"
+      }
+    }
+  },
+  "definitions": {
+    "catalog_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workflow_id",
+        "version",
+        "download_url",
+        "sha256"
+      ],
+      "properties": {
+        "workflow_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+$"
+        },
+        "download_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-mesh.io/schemas/public-workflow-manifest.schema.json",
+  "title": "Public Workflow Manifest",
+  "description": "Per-workflow metadata and signature used by clients before execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "workflow_id",
+    "workflow_version",
+    "flow_schema",
+    "source",
+    "integrity"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "public-workflow-manifest-1"
+    },
+    "workflow_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+    },
+    "workflow_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "flow_schema": {
+      "type": "string",
+      "const": "flow-1"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["download_url", "published_at"],
+      "properties": {
+        "download_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "published_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sha256", "signature", "signature_alg"],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/=._:-]{32,256}$"
+        },
+        "signature_alg": {
+          "type": "string",
+          "enum": ["cosign-key-pair-v1", "hmac-sha256"]
+        }
+      }
+    }
+  }
+}

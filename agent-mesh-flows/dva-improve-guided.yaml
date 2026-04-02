@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../agent-mesh-flows/schemas/flow.schema.json
+# yaml-language-server: $schema=schemas/flow.schema.json
 name: dva-improve-guided
 description: "Interactive 5-stage DVA setup pipeline with user approval gate"
 contract:

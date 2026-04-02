@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../../agent-mesh-flows/schemas/flow.schema.json
+# yaml-language-server: $schema=../schemas/flow.schema.json
 name: dva-improve-guided/40-execute
 description: "Stage 40: Validate configuration and start services"
 contract:

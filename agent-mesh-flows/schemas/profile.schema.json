@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/profile-v2.json",
+  "title": "Agent Mesh V2 Profile File Schema",
+  "description": "Shared profile definitions imported by flow pipelines via 'imports.profiles'.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/Profile"
+  },
+  "definitions": {
+    "Profile": {
+      "type": "object",
+      "description": "Reusable LLM settings. Steps reference by name; profile fields act as defaults the step can override.",
+      "properties": {
+        "backend": {
+          "type": "string",
+          "description": "Default LLM backend for steps using this profile.",
+          "examples": ["fast", "smart", "groq"]
+        },
+        "agent": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" } }
+          ],
+          "description": "Default agent tool(s) for steps using this profile. Can be a single string or a fallback list.",
+          "examples": ["claude", ["claude", "codex"]]
+        },
+        "role": {
+          "type": "string",
+          "description": "Default role text prepended to system prompt."
+        },
+        "system_prompt": {
+          "type": "string",
+          "description": "Default system prompt. Can be a file reference or literal text."
+        },
+        "temperature": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "description": "Default temperature (0.0–2.0)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

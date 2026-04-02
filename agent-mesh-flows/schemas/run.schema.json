@@ -1,0 +1,220 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-mesh.dev/schemas/run-1.json",
+  "title": "Agent Mesh Run Schema",
+  "description": "Run represents a single user session or long-running task",
+  "type": "object",
+  "required": ["run_id", "created_at", "status", "steps", "schema_version"],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "pattern": "^run-[0-9]{8}-[0-9]{3}$",
+      "description": "Unique identifier for the Run (e.g., run-20250101-001)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the Run was created"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the Run was last updated"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "paused", "waiting_for_user", "completed", "failed", "partial_success"],
+      "description": "Current status of the Run"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of Step IDs belonging to this Run"
+    },
+    "planner_calls": {
+      "type": "array",
+      "description": "History of Planner LLM calls (v0.2+)",
+      "items": {
+        "type": "object",
+        "required": ["call_id", "timestamp", "prompt", "response", "success"],
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "description": "Unique call ID (e.g., planner-001)"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the call was made"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Prompt sent to the Planner"
+          },
+          "response": {
+            "type": "string",
+            "description": "Raw LLM response"
+          },
+          "step_generated": {
+            "type": ["string", "null"],
+            "description": "Step ID that was generated"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the call succeeded"
+          },
+          "error": {
+            "type": ["string", "null"],
+            "description": "Error message if failed"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "initiator": {
+          "type": "string",
+          "description": "Who initiated the Run (e.g., user/system/test)"
+        },
+        "trigger": {
+          "type": "string",
+          "enum": ["manual", "api", "schedule"],
+          "default": "manual",
+          "description": "What triggered this Run (FR11)"
+        },
+        "project_path": {
+          "type": ["string", "null"],
+          "description": "Working directory path"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "User-defined tags for categorization"
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "Human-readable description of the Run"
+        },
+        "execution_mode": {
+          "type": "string",
+          "enum": ["patch", "feature_branch"],
+          "default": "patch",
+          "description": "Execution mode (v0.2: patch only)"
+        },
+        "workspace_isolation": {
+          "type": "string",
+          "enum": ["shared", "worktree_per_run"],
+          "default": "shared",
+          "description": "Workspace isolation mode for the run"
+        },
+        "workspace_cleanup": {
+          "type": "string",
+          "enum": ["keep", "on_success", "on_failure", "always"],
+          "default": "keep",
+          "description": "Workspace cleanup policy after run completion"
+        },
+        "workspace_cleanup_branches": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to prune worktree branches during cleanup"
+        },
+        "workspace_base_path": {
+          "type": ["string", "null"],
+          "description": "Original project path before workspace isolation"
+        },
+        "workspace_root": {
+          "type": ["string", "null"],
+          "description": "Root path for the isolated workspace (worktree root)"
+        },
+        "workspace_path": {
+          "type": ["string", "null"],
+          "description": "Resolved workspace path used for step execution"
+        },
+        "workspace_branch": {
+          "type": ["string", "null"],
+          "description": "Branch name used for worktree isolation"
+        },
+        "base_commit": {
+          "type": ["string", "null"],
+          "description": "Git commit SHA at Run start"
+        },
+        "base_branch": {
+          "type": ["string", "null"],
+          "description": "Git branch name at Run start"
+        },
+        "branch_metadata": {
+          "type": ["object", "null"],
+          "description": "Branch metadata for Feature-Branch Mode (v0.3+)",
+          "properties": {
+            "feature_branch": { "type": ["string", "null"] },
+            "branch_strategy": { "type": "string", "enum": ["branch_per_run", "branch_per_step"] },
+            "merge_strategy": { "type": "string", "enum": ["merge", "squash", "rebase"] },
+            "pr_url": { "type": ["string", "null"] },
+            "pr_number": { "type": ["integer", "null"] },
+            "cleanup_on_success": { "type": "boolean" },
+            "cleanup_on_failure": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        },
+        "budget_mode": {
+          "type": "string",
+          "enum": ["low_cost", "balanced", "high_quality"],
+          "default": "balanced",
+          "description": "Budget mode for model selection (v0.4.1+)"
+        },
+        "parent_run_id": {
+          "type": ["string", "null"],
+          "pattern": "^run-[0-9]{8}-[0-9]{3}$",
+          "description": "Optional parent Run ID when this Run was split/forked from another (FR11)"
+        },
+        "linked_run_ids": {
+          "type": "array",
+          "description": "Other related Run IDs (FR11)",
+          "items": {
+            "type": "string",
+            "pattern": "^run-[0-9]{8}-[0-9]{3}$"
+          }
+        },
+        "context_profile": {
+          "type": ["object", "null"],
+          "description": "Explicit context construction rules (fresh context + selected sources) (FR11)",
+          "properties": {
+            "fresh_context": { "type": "boolean", "default": true },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": { "type": "string", "enum": ["files", "git_diff", "run_summary"] }
+                },
+                "additionalProperties": true
+              }
+            },
+            "budget": {
+              "type": ["object", "null"],
+              "properties": {
+                "max_tokens": { "type": ["integer", "null"], "minimum": 256 }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "schema_version": {
+      "type": "string",
+      "const": "run-1",
+      "description": "Schema version identifier"
+    }
+  },
+  "additionalProperties": false
+}
