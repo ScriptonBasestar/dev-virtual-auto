@@ -1,9 +1,6 @@
 package cli
 
 import (
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -29,51 +26,57 @@ func TestImproveAllFlagsRegistered(t *testing.T) {
 	}
 }
 
-func TestExtractGuidedWorkflow(t *testing.T) {
-	if improveGuidedWorkflowText == "" {
-		t.Fatal("improve_guided_workflow.txt not embedded")
+func TestBuildAmArgs(t *testing.T) {
+	// Reset global state for test
+	origVerbose := improveVerbose
+	defer func() { improveVerbose = origVerbose }()
+
+	improveVerbose = false
+	args := buildAmArgs("dva-improve", map[string]string{
+		"mode": "preserve",
+	})
+	if len(args) < 2 {
+		t.Fatal("expected at least 2 args")
+	}
+	if args[0] != "run" {
+		t.Errorf("expected first arg 'run', got %q", args[0])
+	}
+	if args[1] != "dva-improve" {
+		t.Errorf("expected second arg 'dva-improve', got %q", args[1])
 	}
 
-	targetDir := t.TempDir()
-	if err := extractGuidedWorkflow(targetDir); err != nil {
-		t.Fatalf("extractGuidedWorkflow failed: %v", err)
-	}
-
-	expectedFiles := []string{
-		"orchestrator.md",
-		"stages/00-analyze.md",
-		"stages/10-verify.md",
-		"stages/20-transform.md",
-		"stages/30-configure-full.md",
-		"stages/30-configure-adopt.md",
-		"stages/40-execute.md",
-		"verify/checklist.md",
-	}
-
-	for _, f := range expectedFiles {
-		path := filepath.Join(targetDir, f)
-		info, err := os.Stat(path)
-		if err != nil {
-			t.Errorf("expected file %s not found: %v", f, err)
-			continue
+	// Check param is included
+	found := false
+	for _, a := range args {
+		if a == "param.mode=preserve" {
+			found = true
 		}
-		if info.Size() == 0 {
-			t.Errorf("expected file %s to be non-empty", f)
-		}
+	}
+	if !found {
+		t.Errorf("expected param.mode=preserve in args: %v", args)
 	}
 }
 
-func TestExtractGuidedWorkflowContent(t *testing.T) {
-	targetDir := t.TempDir()
-	if err := extractGuidedWorkflow(targetDir); err != nil {
-		t.Fatalf("extractGuidedWorkflow failed: %v", err)
-	}
+func TestBuildAmArgsVerbose(t *testing.T) {
+	origVerbose := improveVerbose
+	defer func() { improveVerbose = origVerbose }()
 
-	content, err := os.ReadFile(filepath.Join(targetDir, "orchestrator.md"))
-	if err != nil {
-		t.Fatal(err)
+	improveVerbose = true
+	args := buildAmArgs("dva-improve", nil)
+
+	found := false
+	for _, a := range args {
+		if a == "--verbose" {
+			found = true
+		}
 	}
-	if !strings.Contains(string(content), "improve-guided") {
-		t.Error("orchestrator.md should reference improve-guided")
+	if !found {
+		t.Errorf("expected --verbose in args: %v", args)
 	}
+}
+
+func TestDvaConfigExists(t *testing.T) {
+	// In test context without dva.yml, should return false
+	// (depends on working directory, so just verify it doesn't panic)
+	_ = dvaConfigExists()
 }

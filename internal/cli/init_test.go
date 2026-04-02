@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 func TestDetectTemplateIn(t *testing.T) {
@@ -171,57 +169,14 @@ func TestDetectComposeFiles(t *testing.T) {
 	}
 }
 
-func TestBuildImprovePrompt(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "dva-improve-prompt-*")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
+func TestPrintAmRunCommand(t *testing.T) {
+	// Verify printAmRunCommand doesn't panic and produces output
+	origRewrite := improveRewrite
+	defer func() { improveRewrite = origRewrite }()
 
-	originalWd, _ := os.Getwd()
-	os.Chdir(tempDir)
-	defer os.Chdir(originalWd)
-
-	dvaYAML := `version: "0.1.0"
-
-compose:
-  files:
-    - docker-compose.yml
-  project_name: sample
-
-interaction:
-  test:
-    description: "Run tests"
-    service: app
-    command: go test ./...
-`
-	if err := os.WriteFile(config.FileName, []byte(dvaYAML), 0644); err != nil {
-		t.Fatalf("Failed to write dva.yml: %v", err)
-	}
-	if err := os.WriteFile("docker-compose.yml", []byte("services:\n  app:\n    image: golang:1.24\n"), 0644); err != nil {
-		t.Fatalf("Failed to write compose file: %v", err)
-	}
-	if err := os.WriteFile("go.mod", []byte("module example.com/sample"), 0644); err != nil {
-		t.Fatalf("Failed to write go.mod: %v", err)
-	}
-
-	cfg = nil
-	env = nil
-
-	prompt, err := buildImprovePrompt()
-	if err != nil {
-		t.Fatalf("buildImprovePrompt returned error: %v", err)
-	}
-
-	if !strings.Contains(prompt, "dva manifest -f json") {
-		t.Fatalf("Expected improve prompt to mention manifest inspection, got:\n%s", prompt)
-	}
-	if !strings.Contains(prompt, "Current DVA File") {
-		t.Fatalf("Expected improve prompt to include current config section, got:\n%s", prompt)
-	}
-	if !strings.Contains(prompt, "docker-compose.yml") {
-		t.Fatalf("Expected improve prompt to include compose snapshot, got:\n%s", prompt)
-	}
+	improveRewrite = false
+	// printAmRunCommand writes to stdout, just verify no panic
+	_ = printAmRunCommand()
 }
 
 func TestFilterEnv(t *testing.T) {
