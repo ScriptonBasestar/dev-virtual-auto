@@ -143,14 +143,13 @@ var appUpCmd = &cobra.Command{
 		statuses := am.AppStatuses()
 		printAppStatuses(statuses)
 
-		// Show endpoints with health status
+		// Show only app-related endpoints
 		if len(c.Endpoints) > 0 {
-			allHC := checkEndpointHealth(c.Endpoints)
-			var epTags []string
-			if rm.Mode != nil {
-				epTags = rm.Mode.EndpointTags
+			appEPs := filterEndpointsByApps(c.Endpoints, appNames, c.Applications)
+			if len(appEPs) > 0 {
+				allHC := checkEndpointHealth(appEPs)
+				printEndpointTable(appEPs, nil, allHC)
 			}
-			printEndpointTable(c.Endpoints, epTags, allHC)
 		}
 
 		return nil
@@ -235,6 +234,7 @@ func init() {
 	appCmd.AddCommand(appDownCmd)
 	appCmd.AddCommand(appRestartCmd)
 	appCmd.AddCommand(appBuildCmd)
+	appCmd.AddCommand(appLogCmd)
 }
 
 // printAppModeHeader shows the active mode description if a default mode is configured.
@@ -331,8 +331,4 @@ var appLogCmd = &cobra.Command{
 
 		return fmt.Errorf("application '%s' not found", args[0])
 	},
-}
-
-func init() {
-	appCmd.AddCommand(appLogCmd)
 }
