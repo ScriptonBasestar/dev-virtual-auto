@@ -144,6 +144,22 @@ steps:
           [ -f "$f" ] && found="$found $f"
         done
         echo "${found:-None}"
+      package_json_scripts: |
+        cd '{{param.target}}'
+        if [ ! -f 'package.json' ]; then echo "None"; exit 0; fi
+        if command -v jq >/dev/null 2>&1; then
+          scripts=$(jq -r '.scripts // {} | to_entries[] | "  \(.key): \(.value)"' package.json 2>/dev/null)
+          if [ -n "$scripts" ]; then
+            echo "package.json scripts:"
+            echo "$scripts"
+          else
+            echo "package.json has no scripts"
+          fi
+        else
+          # Fallback: grep if jq not available
+          echo "package.json scripts (raw):"
+          grep -A 50 '"scripts"' package.json 2>/dev/null | grep -E '^\s+"[^"]+":' | head -30
+        fi
       makefile_targets: |
         cd '{{param.target}}'
         if [ ! -f 'Makefile' ]; then echo "None"; exit 0; fi
@@ -352,6 +368,14 @@ steps:
       ```text
       {{scan_build.makefile_targets}}
       ```
+
+      ### 3-1. package.json Scripts (명시적 migration 대상)
+      ```text
+      {{scan_build.package_json_scripts}}
+      ```
+      > **Instruction**: 위 스크립트를 DVA interaction으로 1:1 매핑하세요.
+      > 접두사 기반 그루핑 (`test:*` → `test` subcommands, `build:*` → `build` subcommands).
+      > `npm run <script>` 형식으로 `run.native.cmd`와 `run.docker.cmd`에 사용.
 
       ### 4. 환경 변수
       ```text

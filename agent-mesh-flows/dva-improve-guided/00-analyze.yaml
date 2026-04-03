@@ -83,6 +83,16 @@ steps:
       makefile_targets: |
         cd '{{param.target}}'
         [ -f 'Makefile' ] && grep -E '^[a-zA-Z_-]+:.*##' Makefile 2>/dev/null | head -40 || echo 'no Makefile'
+      package_json_scripts: |
+        cd '{{param.target}}'
+        if [ ! -f 'package.json' ]; then echo "None"; exit 0; fi
+        if command -v jq >/dev/null 2>&1; then
+          scripts=$(jq -r '.scripts // {} | to_entries[] | "  \(.key): \(.value)"' package.json 2>/dev/null)
+          [ -n "$scripts" ] && echo "package.json scripts:" && echo "$scripts" || echo "package.json has no scripts"
+        else
+          echo "package.json scripts (raw):"
+          grep -A 50 '"scripts"' package.json 2>/dev/null | grep -E '^\s+"[^"]+":' | head -30
+        fi
       env_files: "ls {{param.target}}/.env {{param.target}}/.env.example {{param.target}}/.env.* 2>/dev/null || echo 'none'"
       port_mappings: |
         cd '{{param.target}}'
@@ -203,6 +213,7 @@ steps:
       [COMPOSE SERVICES] {{scan_project.compose_services}}
       [EXISTING DVA] {{scan_project.existing_dva}}
       [MAKEFILE] {{scan_project.makefile_targets}}
+      [PACKAGE_JSON_SCRIPTS] {{scan_project.package_json_scripts}}
       [ENV FILES] {{scan_project.env_files}}
       [PORTS] {{scan_project.port_mappings}}
       [SUBPROJECTS] {{scan_project.subprojects}}
