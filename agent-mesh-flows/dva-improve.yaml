@@ -435,12 +435,14 @@ steps:
       {{dva_state.resolved_config}}
       ```
 
-      ## Validation Output
+      ## Validation Output (Hard Errors — must fix to ERROR 0)
       ```text
       {{dva_state.validation}}
       ```
 
-      ## Strict Validation (drift + semantic warnings)
+      ## Strict Validation (Semantic drift + suggestions — REFERENCE ONLY)
+      > ⚠️ **Do NOT change structural configuration solely to silence these warnings.**
+      > Hard errors above take priority. Semantic warnings are handled in a separate triage phase after validation passes.
       ```text
       {{dva_state.validation_strict}}
       ```
@@ -685,11 +687,62 @@ steps:
       echo "Version updated to $EXPECTED"
 
   # ══════════════════════════════════════════════
+  # Phase 6.5: Semantic Warning Triage (non-destructive)
+  # Strict warnings are SEPARATE from hard validation errors.
+  # They are surfaced as suggestions only — the LLM MUST NOT
+  # change structural fields just to silence them.
+  # ══════════════════════════════════════════════
+  - id: semantic_triage_state
+    type: context
+    depends_on: [fix_version]
+    context:
+      strict_result: |
+        cd '{{param.target}}' && dva config validate --strict 2>&1 || true
+      hard_result: |
+        cd '{{param.target}}' && dva config validate 2>&1 || true
+      is_hard_valid: |
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+
+  - id: semantic_triage
+    type: llm
+    depends_on: [semantic_triage_state]
+    backend: fast
+    instruction: |
+      # Phase 6.5: Semantic Warning Triage
+
+      Hard validation (ERROR 0 required) 결과:
+      ```text
+      {{semantic_triage_state.hard_result}}
+      ```
+
+      Strict validation (semantic drift warnings) 결과:
+      ```text
+      {{semantic_triage_state.strict_result}}
+      ```
+
+      ## 역할
+      dva.yml의 hard validation은 이미 통과했습니다.
+      아래 기준으로 strict 경고를 분류하고, 사용자에게 보고만 하세요.
+      **직접 파일을 수정하지 마세요.**
+
+      ## 분류 기준
+      - **[IGNORE]** — DVA가 자동 처리하거나 의도된 설정 (e.g., 기본 포트, 단순 구조)
+      - **[SUGGEST]** — 가능하면 개선 권장, 하지만 필수 아님 (e.g., 명명 규칙, 누락 endpoints)
+      - **[REVIEW]** — 사용자가 직접 결정해야 할 설계 선택 (e.g., mode 전략, health_check 방식)
+
+      ## Output Format
+      분류된 경고 목록을 markdown 테이블로 출력:
+      | Warning | Category | Rationale |
+      |---------|----------|-----------|
+
+      마지막에 한 줄 요약: `Hard Errors: 0 | Semantic Suggestions: N`
+
+  # ══════════════════════════════════════════════
   # Phase 7: Final Summary
   # ══════════════════════════════════════════════
   - id: final_state
     type: context
-    depends_on: [fix_version]
+    depends_on: [semantic_triage]
     context:
       dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
       dva_validate: "cd '{{param.target}}' && dva config validate 2>&1 || true"
@@ -704,12 +757,15 @@ steps:
 
       ## 포함할 내용
       - 모드: {{param.mode}}
-      - 최종 validation 결과
+      - 최종 validation 결과 (Hard errors: 반드시 0)
       - 변경된 주요 항목 (modes, interactions, applications 등)
-      - 남은 경고 사항
+      - Semantic 경고는 "Suggestions" 섹션으로 별도 구분 (선택적 개선사항임을 명시)
 
-      [VALIDATION]
+      [VALIDATION - HARD]
       {{final_state.dva_validate}}
+
+      [SEMANTIC TRIAGE]
+      {{semantic_triage.output}}
 
       [DVA COMMANDS]
       {{final_state.dva_commands}}
