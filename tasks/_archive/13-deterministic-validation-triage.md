@@ -3,7 +3,11 @@ title: "Deterministic Validation Triage & JQ Feedback"
 priority: P1
 effort: M
 created: 2026-04-02
-status: todo
+status: archived
+completed-at: 2026-04-02
+verified-at: 2026-04-03
+archived-at: 2026-04-03
+verification-summary: "Verified deterministic check additions via yq (check 1 & 2) for missing fields and type errors to feed back to fix_validation steps."
 ---
 
 # Deterministic Validation Triage & JQ Feedback

@@ -3,7 +3,11 @@ title: "Separate Drift/Semantic Warnings from Hard Errors"
 priority: P2
 effort: M
 created: 2026-04-02
-status: todo
+status: archived
+completed-at: 2026-04-02
+verified-at: 2026-04-03
+archived-at: 2026-04-03
+verification-summary: "Verified partitioning of validate (hard) and validate --strict (semantic) in dva-improve, with explicit LLM triage step added."
 ---
 
 # Separate Drift/Semantic Warnings from Hard Errors

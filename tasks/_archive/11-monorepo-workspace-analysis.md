@@ -3,7 +3,11 @@ title: "Monorepo Workspace Analysis for Subprojects"
 priority: P2
 effort: M
 created: 2026-04-02
-status: todo
+status: archived
+completed-at: 2026-04-02
+verified-at: 2026-04-03
+archived-at: 2026-04-03
+verification-summary: "Verified pnpm-workspace, Cargo.toml, and go.work scanning in scan_subprojects context for dva-improve and 00-analyze workflows."
 ---
 
 # Monorepo Workspace Analysis for Subprojects

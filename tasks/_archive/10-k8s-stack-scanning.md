@@ -3,7 +3,11 @@ title: "Kubernetes (kubectl/helm) Stack Coverage Scanning"
 priority: P1
 effort: S
 created: 2026-04-02
-status: todo
+status: archived
+completed-at: 2026-04-02
+verified-at: 2026-04-03
+archived-at: 2026-04-03
+verification-summary: "Verified Kubernetes manifests and Helm charts detection steps in dva-improve.yaml and dva-improve-guided/00-analyze.yaml"
 ---
 
 # Kubernetes (kubectl/helm) Stack Coverage Scanning

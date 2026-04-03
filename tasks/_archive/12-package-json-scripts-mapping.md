@@ -3,7 +3,11 @@ title: "Enhance package.json Scripts Mapping"
 priority: P2
 effort: S
 created: 2026-04-02
-status: todo
+status: archived
+completed-at: 2026-04-02
+verified-at: 2026-04-03
+archived-at: 2026-04-03
+verification-summary: "Verified package.json scripts explicit mapping logic extraction via jq and explicit instruction to route to CLI interactions."
 ---
 
 # Enhance package.json Scripts Mapping
