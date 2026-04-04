@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
@@ -24,12 +24,7 @@ var lsCmd = &cobra.Command{
 		tree := runner.NewInteractionTree(c.Interaction)
 		commands := tree.List()
 
-		// Sort keys
-		keys := make([]string, 0, len(commands))
-		for k := range commands {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
+		keys := sortedKeys(commands)
 
 		if jsonOutput {
 			lsFormat = "json"
@@ -37,11 +32,11 @@ var lsCmd = &cobra.Command{
 
 		switch lsFormat {
 		case "json":
-			return printJSON(commands, keys)
+			return printJSON(c, commands, keys)
 		case "yaml":
-			return printYAML(commands, keys)
+			return printYAML(c, commands, keys)
 		default:
-			return printTable(commands, keys)
+			return printTable(c, commands, keys)
 		}
 	},
 }
@@ -51,7 +46,7 @@ func init() {
 	lsCmd.Flags().BoolVarP(&lsDetailed, "detailed", "d", false, "Show detailed information")
 }
 
-func printTable(commands map[string]*runner.ResolvedCommand, keys []string) error {
+func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
 	// Calculate max width for alignment
 	maxName := 0
 	for _, k := range keys {
@@ -82,6 +77,25 @@ func printTable(commands map[string]*runner.ResolvedCommand, keys []string) erro
 			}
 		}
 	}
+
+	if len(c.Plans) > 0 {
+		planKeys := sortedKeys(c.Plans)
+		fmt.Println()
+		fmt.Println("Plans (dva up <name>):")
+		maxLen := maxKeyLen(planKeys)
+		for _, name := range planKeys {
+			plan := c.Plans[name]
+			desc := plan.Description
+			if desc == "" {
+				entryNames := make([]string, 0, len(plan.Entries))
+				for _, e := range plan.Entries {
+					entryNames = append(entryNames, e.Name)
+				}
+				desc = strings.Join(entryNames, " → ")
+			}
+			fmt.Printf("  %-*s  # %s\n", maxLen, name, desc)
+		}
+	}
 	return nil
 }
 
@@ -109,10 +123,62 @@ func buildCommandEntries(commands map[string]*runner.ResolvedCommand, keys []str
 	return entries
 }
 
-func printJSON(commands map[string]*runner.ResolvedCommand, keys []string) error {
-	return output.PrintJSON(buildCommandEntries(commands, keys))
+func printJSON(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
+	entries := buildCommandEntries(commands, keys)
+	if len(c.Plans) == 0 {
+		return output.PrintJSON(entries)
+	}
+
+	plans := make(map[string]any, len(c.Plans))
+	for _, name := range sortedKeys(c.Plans) {
+		p := c.Plans[name]
+		if p == nil {
+			continue
+		}
+		entryNames := make([]string, 0, len(p.Entries))
+		for _, e := range p.Entries {
+			entryNames = append(entryNames, e.Name)
+		}
+		plans[name] = map[string]any{
+			"description": p.Description,
+			"environment": p.Environment,
+			"site":        p.Site,
+			"entries":     entryNames,
+		}
+	}
+
+	return output.PrintJSON(map[string]any{
+		"interaction_commands": entries,
+		"plans":                plans,
+	})
 }
 
-func printYAML(commands map[string]*runner.ResolvedCommand, keys []string) error {
-	return output.PrintYAML(buildCommandEntries(commands, keys))
+func printYAML(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
+	entries := buildCommandEntries(commands, keys)
+	if len(c.Plans) == 0 {
+		return output.PrintYAML(entries)
+	}
+
+	plans := make(map[string]any, len(c.Plans))
+	for _, name := range sortedKeys(c.Plans) {
+		p := c.Plans[name]
+		if p == nil {
+			continue
+		}
+		entryNames := make([]string, 0, len(p.Entries))
+		for _, e := range p.Entries {
+			entryNames = append(entryNames, e.Name)
+		}
+		plans[name] = map[string]any{
+			"description": p.Description,
+			"environment": p.Environment,
+			"site":        p.Site,
+			"entries":     entryNames,
+		}
+	}
+
+	return output.PrintYAML(map[string]any{
+		"interaction_commands": entries,
+		"plans":                plans,
+	})
 }

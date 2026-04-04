@@ -69,7 +69,75 @@ func showText(c *config.Config) error {
 		maxLen := maxKeyLen(names)
 		for _, name := range names {
 			ep := c.Environments[name]
-			fmt.Printf("  %-*s  %s\n", maxLen, name, ep.Description)
+			desc := ep.Description
+			var parts []string
+			if len(ep.Environment) > 0 {
+				parts = append(parts, fmt.Sprintf("%d vars", len(ep.Environment)))
+			}
+			if len(ep.Stack) > 0 {
+				parts = append(parts, fmt.Sprintf("%d stack filters", len(ep.Stack)))
+			}
+			if len(parts) > 0 {
+				if desc != "" {
+					desc += " "
+				}
+				desc += "(" + strings.Join(parts, ", ") + ")"
+			}
+			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
+		}
+	}
+
+	if len(c.Plans) > 0 {
+		fmt.Println()
+		fmt.Println("Plans (dva up <name>):")
+		names := sortedKeys(c.Plans)
+		maxLen := maxKeyLen(names)
+		for _, name := range names {
+			plan := c.Plans[name]
+			if plan == nil {
+				continue
+			}
+			var parts []string
+			if plan.Environment != "" {
+				parts = append(parts, "env:"+plan.Environment)
+			}
+			if plan.Site != "" {
+				parts = append(parts, "site:"+plan.Site)
+			}
+			if len(plan.Entries) > 0 {
+				parts = append(parts, fmt.Sprintf("%d entries", len(plan.Entries)))
+			}
+			desc := plan.Description
+			if len(parts) > 0 {
+				if desc == "" {
+					desc = "[" + strings.Join(parts, ", ") + "]"
+				} else {
+					desc += " [" + strings.Join(parts, ", ") + "]"
+				}
+			}
+			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
+		}
+	}
+
+	if len(c.Sites) > 0 {
+		fmt.Println()
+		fmt.Println("Sites:")
+		names := sortedKeys(c.Sites)
+		maxLen := maxKeyLen(names)
+		for _, name := range names {
+			site := c.Sites[name]
+			if site == nil {
+				continue
+			}
+			desc := site.Description
+			if len(site.Vars) > 0 {
+				if desc == "" {
+					desc = fmt.Sprintf("(%d vars)", len(site.Vars))
+				} else {
+					desc += fmt.Sprintf(" (%d vars)", len(site.Vars))
+				}
+			}
+			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
 		}
 	}
 
@@ -203,11 +271,49 @@ func showJSON(c *config.Config) error {
 	}
 
 	if len(c.Environments) > 0 {
-		envs := make(map[string]string, len(c.Environments))
+		envs := make(map[string]any, len(c.Environments))
 		for k, v := range c.Environments {
-			envs[k] = v.Description
+			envs[k] = map[string]any{
+				"description": v.Description,
+				"vars_count":  len(v.Environment),
+				"stack_count": len(v.Stack),
+			}
 		}
 		data["environments"] = envs
+	}
+
+	if len(c.Plans) > 0 {
+		plans := make(map[string]any, len(c.Plans))
+		for k, v := range c.Plans {
+			if v == nil {
+				continue
+			}
+			entryNames := make([]string, 0, len(v.Entries))
+			for _, e := range v.Entries {
+				entryNames = append(entryNames, e.Name)
+			}
+			plans[k] = map[string]any{
+				"description": v.Description,
+				"environment": v.Environment,
+				"site":        v.Site,
+				"entries":     entryNames,
+			}
+		}
+		data["plans"] = plans
+	}
+
+	if len(c.Sites) > 0 {
+		sites := make(map[string]any, len(c.Sites))
+		for k, v := range c.Sites {
+			if v == nil {
+				continue
+			}
+			sites[k] = map[string]any{
+				"description": v.Description,
+				"vars_count":  len(v.Vars),
+			}
+		}
+		data["sites"] = sites
 	}
 
 	if len(c.Applications) > 0 {

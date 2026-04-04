@@ -75,6 +75,9 @@ DVA-specific flags:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			return runPlanUp(c, e, planName, extraArgs)
+		}
 
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
@@ -214,6 +217,12 @@ var downCmd = &cobra.Command{
 	Short:              "Stop and remove applications then stack infrastructure",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			return runPlanDown(c, e, planName, extraArgs)
+		}
+
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "down")
 		if err != nil {
 			return err
@@ -241,6 +250,12 @@ var stopCmd = &cobra.Command{
 	Short:              "Stop applications and stack without removing resources",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
+		e := loadEnv(c)
+		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			return runPlanStop(c, e, planName, extraArgs)
+		}
+
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "stop")
 		if err != nil {
 			return err

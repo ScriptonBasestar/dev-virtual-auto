@@ -13,10 +13,16 @@ import (
 )
 
 var statusCmd = &cobra.Command{
-	Use:   "status",
+	Use:   "status [NAME]",
 	Short: "Display workspace status (config, lifecycle entries, services)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
+		if err == nil {
+			e := loadEnv(c)
+			if planName, _, ok := detectPlanRoute(c, args); ok {
+				return runPlanStatus(c, e, planName)
+			}
+		}
 
 		if jsonOutput {
 			statusData := map[string]any{
