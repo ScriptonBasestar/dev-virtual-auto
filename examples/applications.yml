@@ -1,209 +1,176 @@
 # yaml-language-server: $schema=../internal/config/schema.json
-# Example: applications section — Rust workspace (api + worker) + Svelte frontend
-# Demonstrates native/docker strategies, depends_on, health checks, and mode integration.
+#
+# Example: Multi-Runner Application Stack
+# Use Case: Rust API + worker + Svelte frontend
+# Features: multi-runner stack entries, compose infra bundle, plans, site overrides
 #
 # Usage:
-#   dva stack up                    # Start infrastructure (compose)
-#   dva stack status                # Show stack entry statuses
-#   dva app ls                      # List all applications with status/health/port/PID
-#   dva app up                      # Start all applications (native by default)
-#   dva app up api --dev            # Start 'api' in dev mode (hot-reload)
-#   dva app up -M docker            # Start apps with docker strategy
-#   dva app build api               # Build a specific application
-#   dva app stop api                # Stop app (preserves state for quick restart)
-#   dva app down                    # Stop and remove all app resources
-#   dva app restart api             # Restart a specific application
-#   dva app log api                 # Show recent logs for an application
-#   dva up -M full-stack            # Shortcut: start stack + all apps natively
+#   dva ls
+#   dva up local-backend
+#   dva up local-full
+#   dva show local-full
+#   dva run test
 
 version: "0.1.44"
 
-environment:
+env_file:
+  - .env.example
+  - .env
+
+vars:
   DATABASE_URL: "postgres://dev:dev@localhost:15432/myapp"
   REDIS_URL: "redis://localhost:16379"
 
-env_file:
-  files:
-    - path: .env.example
-      required: true
-    - path: .env
-      required: false
-  interpolate: true
-
 stack:
-  compose:
-    order: 10
-    files:
-      - compose.yml
-    project_name: myapp
-    up_options: ["-d", "--wait"]
-    tags: [infra]
-    services:
-      postgres: { tags: [infra, data] }
-      redis:    { tags: [infra, data] }
+  infra:
+    description: PostgreSQL and Redis infrastructure
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - compose.yml
+        project_name: myapp
+        up_options: ["-d", "--wait"]
 
-checks:
-  - name: Docker socket accessible
-    type: docker_socket
-
-applications:
   api:
-    description: "REST API server (Rust)"
-    tags: [app, api]
-    port: 11200
-    dir: "rust-workspace"
-    run:
-      native: "cargo run --release -p api-server"
+    description: REST API server
+    default_runner: native
+    runners:
+      native:
+        dir: rust-workspace
+        build: cargo build -p api-server
+        run: cargo run --release -p api-server
       docker:
-        service: api-rs
-        profile: rust
-    dev:
-      native: "cargo watch -x 'run -p api-server'"
-      docker: "docker compose --profile rust up api-rs"
-    build:
-      native: "cargo build -p api-server"
-      docker:
-        service: api-rs
-        command: "cargo build"
-    environment:
-      PORT: "11200"
-      RUST_LOG: "info"
-    health:
-      type: http
-      url: "http://localhost:11200/health"
-      start: "cd rust-workspace && cargo run --release -p api-server"
-      timeout: 5
-      ready_timeout: 120
+        image: myorg/api-rs:dev
+        run: docker run --rm --name api-rs myorg/api-rs:dev
 
   worker:
-    description: "Background job worker (Rust)"
-    tags: [app, worker]
-    port: 11201
-    dir: "rust-workspace"
-    depends_on: [api]
-    run:
-      native: "cargo run --release -p worker"
-    dev:
-      native: "cargo watch -x 'run -p worker'"
-    build:
-      native: "cargo build -p worker"
-    health:
-      type: command
-      command: "curl -sf http://localhost:11201/health || exit 1"
-      start: "cd rust-workspace && cargo run --release -p worker"
-      timeout: 5
-      ready_timeout: 120
+    description: Background worker
+    default_runner: native
+    runners:
+      native:
+        dir: rust-workspace
+        build: cargo build -p worker
+        run: cargo run --release -p worker
+      docker:
+        image: myorg/worker-rs:dev
+        run: docker run --rm --name worker-rs myorg/worker-rs:dev
 
   web:
-    description: "Svelte frontend"
-    tags: [app, ui]
-    port: 11300
-    dir: "frontend"
-    run: "pnpm build && pnpm preview"
-    dev: "pnpm dev --port 11300"
-    build:
-      native: "pnpm build"
-    health:
-      type: http
-      url: "http://localhost:11300"
-      start: "cd frontend && pnpm build && pnpm preview"
-      start_hint: "Start frontend: cd frontend && pnpm dev --port 11300"
-      timeout: 3
-      ready_timeout: 30
+    description: Svelte frontend
+    default_runner: native
+    runners:
+      native:
+        dir: frontend
+        build: pnpm build
+        run: pnpm build && pnpm preview
+      docker:
+        image: myorg/web-ui:dev
+        run: docker run --rm --name web-ui myorg/web-ui:dev
 
-default_mode: infra
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+      LOG_LEVEL: debug
 
-modes:
-  infra:
-    description: "Core infrastructure only (DB + cache)"
-    compose_services: [postgres, redis]
+  stg:
+    vars:
+      APP_ENV: stg
+      LOG_LEVEL: info
 
-  backend:
-    description: "Infra + Rust API and worker (native)"
-    compose_services: [postgres, redis]
-    applications: native
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      api:
+        runner: native
+      worker:
+        runner: native
+      web:
+        runner: native
 
-  full-stack:
-    description: "Everything running natively"
-    applications: native
+  docker-host:
+    vars:
+      DVA_SITE: docker-host
+    entry_overrides:
+      api:
+        runner: docker
+      worker:
+        runner: docker
+      web:
+        runner: docker
 
-  docker:
-    description: "Everything in Docker"
-    compose_profiles: [rust]
-    applications: docker
+plans:
+  local-backend:
+    description: Infra + API + worker
+    environment: dev
+    site: local
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [infra]
+      - name: worker
+        runner: native
+        order: 30
+        depends_on: [api]
 
-  hybrid:
-    description: "API native, worker in Docker"
-    compose_services: [postgres, redis]
-    applications:
-      api: native
-      worker: docker
-      web: native
-
-health_checks:
-  postgres:
-    type: tcp
-    address: "localhost:15432"
-    timeout: 3
-  redis:
-    type: tcp
-    address: "localhost:16379"
-    timeout: 2
+  local-full:
+    description: Full stack on local machine
+    environment: dev
+    site: local
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [infra]
+      - name: worker
+        runner: native
+        order: 30
+        depends_on: [api]
+      - name: web
+        runner: native
+        order: 40
+        depends_on: [api]
 
 interaction:
   db:
-    description: "Database management"
+    description: Database management
     subcommands:
       shell:
-        description: "PostgreSQL interactive console"
+        description: PostgreSQL interactive console
         service: postgres
         command: psql -U dev -d myapp
       migrate:
-        description: "Run database migrations"
-        command: "cargo run -p migration"
+        description: Run database migrations
+        command: cargo run -p migration
         runner: local
 
   test:
-    description: "Run all tests"
-    command: "cargo test"
+    description: Run all Rust tests
+    command: cargo test
     runner: local
-    tags: [test]
 
   lint:
-    description: "Run clippy"
-    command: "cargo clippy --all-targets -- -D warnings"
+    description: Run clippy
+    command: cargo clippy --all-targets -- -D warnings
     runner: local
-    tags: [quality]
 
 provision:
   default:
-    - step: "Start infrastructure"
-      run: "docker compose up -d --wait"
-    - step: "Run database migrations"
-      run: "cargo run -p migration"
-    - step: "Install frontend dependencies"
-      run: "cd frontend && pnpm install"
-  reset:
-    - step: "Stop all services"
-      run: "docker compose down -v"
-    - step: "Restart infrastructure"
-      run: "docker compose up -d --wait"
-    - step: "Re-run migrations"
-      run: "cargo run -p migration"
-
-endpoints:
-  api:
-    url: "http://localhost:11200"
-    label: "REST API"
-    tags: [app, api]
-    paths:
-      /health: "Health check"
-      /api/v1: "API v1"
-  web:
-    url: "http://localhost:11300"
-    label: "Frontend"
-    tags: [app, ui]
-  db:
-    source: "postgres:15432"
-    label: "PostgreSQL"
-    tags: [infra, data]
+    - step: Start infrastructure
+      run: docker compose -f compose.yml up -d --wait
+    - step: Run migrations
+      run: cargo run -p migration
+    - step: Install frontend dependencies
+      run: cd frontend && pnpm install

@@ -47,7 +47,7 @@ services:
 dva provision
 
 # Or manually
-dva compose up -d
+dva up local-discourse
 dva bundle install
 dva rails db:create db:migrate
 ```
@@ -118,18 +118,40 @@ gorisa-plugins/
 Minimal version for quick setup:
 
 ```yaml
-version: '0.1.44'
+version: "0.1.44"
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
+  discourse-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-discourse:
+    environment: dev
+    site: local
+    entries:
+      - name: discourse-compose
+        runner: compose
+        order: 10
+        services: [discourse, postgres, redis]
 
 interaction:
   rails:
     description: Run Rails commands
-    service: discourse  # Change if your service name is different
+    service: discourse
     command: bundle exec rails
 
   bundle:
@@ -141,11 +163,6 @@ interaction:
     description: Open shell
     service: discourse
     command: bash
-
-provision:
-  - dva compose up -d postgres redis
-  - dva bundle install
-  - dva rails db:create db:migrate
 ```
 
 ## Common Workflows
@@ -154,7 +171,7 @@ provision:
 
 ```bash
 # Start environment
-dva compose up -d
+dva up local-discourse
 
 # Open console to test
 dva rails console
@@ -162,11 +179,8 @@ dva rails console
 # Run migrations after changes
 dva rails db:migrate
 
-# Restart Rails (if needed)
-dva compose restart discourse
-
 # View logs
-dva compose logs -f discourse
+dva logs local-discourse
 ```
 
 ### Plugin Development

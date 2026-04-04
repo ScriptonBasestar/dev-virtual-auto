@@ -2,6 +2,15 @@
 
 This directory contains comprehensive examples of DVA configurations for various use cases and project types. Each example demonstrates different features and best practices.
 
+## Status
+
+These examples now follow the newer `stack + plans + environments + sites` structure.
+
+- Canonical design docs:
+  - [`../docs/40-declarative-stack-and-plans.md`](../docs/40-declarative-stack-and-plans.md)
+  - [`../docs/31-execution-plan-resolution.md`](../docs/31-execution-plan-resolution.md)
+  - [`../docs/30-config-merge-semantics.md`](../docs/30-config-merge-semantics.md)
+
 ## Quick Start
 
 If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the essential commands you'll need for a simple Rails project.
@@ -148,56 +157,64 @@ dva validate -c examples/basic.yml
 All examples follow this general structure:
 
 ```yaml
-version: '0.1.44'             # Minimum required dva version
+version: "0.1.44"
 
-environment:                  # Environment variables
-  VAR_NAME: value
+env_file:
+  - .env
 
-stack:                        # Infrastructure stack
-  compose:                    # Docker Compose (auto-inferred)
-    order: 10
-    files:
-      - docker-compose.yml
-    project_name: myapp
-  kubectl:                    # Kubernetes (auto-inferred)
-    order: 20
-    namespace: myapp-dev
+vars:
+  APP_ENV: development
 
-interaction:                  # Interactive commands
-  command-name:
-    description: What this does
-    service: container-name
-    command: actual command
-    subcommands:              # Optional nested commands
-      sub-name:
-        command: sub command
+stack:
+  app-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
 
-provision:                    # Setup automation
-  profile-name:
-    - command 1
-    - command 2
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
 
-modules:                      # Module imports (optional)
-  - module-name
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
-infra:                        # Infrastructure services (optional)
-  service-name:
-    git: repo-url
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    entries:
+      - name: app-compose
+        runner: compose
+        order: 10
+
+interaction:
+  shell:
+    description: Open shell
+    service: app
+    command: /bin/bash
+
+provision:
+  default:
+    - step: Setup
+      run: dva shell
 ```
 
 ## Common Patterns
 
-### Environment Variables
+### Vars And env_file
 
 ```yaml
-environment:
-  # Static values
+env_file:
+  - .env
+
+vars:
   RAILS_ENV: development
-
-  # With defaults
   PORT: ${PORT:-3000}
-
-  # References
   DATABASE_URL: postgres://user:password@db:5432/myapp_development
 ```
 

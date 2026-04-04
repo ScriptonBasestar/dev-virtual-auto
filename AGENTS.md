@@ -2,7 +2,15 @@
 
 ## Overview
 
-DVA는 개발 환경 오케스트레이터입니다. `dva.yml`의 `stack:` 섹션에 정의된 플러그인들을 `order` 순서대로 실행하며, `interaction:` 섹션의 커맨드를 간단하게 실행합니다.
+DVA는 개발 환경 오케스트레이터입니다. 핵심 방향은 `stack:`을 선언 저장소로 두고, 실제 실행은 이름 있는 실행 계획을 통해 수행하는 것입니다.
+
+- `stack` = 재사용 가능한 실행 대상 선언
+- `plans` = 실제 실행 가능한 이름
+- `environments` = `dev/stg/prd` 같은 환경 차이
+- `sites` = `local/office/remote/cloud` 같은 실행 host 차이
+- `env_file` = 공통 로컬/비밀값 입력
+- `interactions` = 단발성 편의 명령
+- `provision` = 준비/초기화 절차
 
 ## Architecture
 
@@ -10,21 +18,21 @@ DVA는 개발 환경 오케스트레이터입니다. `dva.yml`의 `stack:` 섹�
 cmd/dva/main.go                → Entry point
 internal/cli/                  → Cobra commands
   root.go                      → Dynamic routing (interaction → run)
-  stack.go                     → dva stack up/stop/down/status/log
-  app.go                       → dva app ls/up/stop/down/build/restart/log
-  compose.go                   → upCmd/downCmd/stopCmd etc. (stack + app 통합 실행)
+  stack.go                     → stack declaration inspection / legacy compatibility area
+  app.go                       → legacy app lifecycle area (migration target)
+  compose.go                   → legacy up/down/stop integration area (migration target)
   run.go, ls.go, show.go       → Core commands
   validate.go                  → dva config validate (schema + semantic warnings)
 internal/config/               → dva.yml loading, env interpolation, schema validation
-  config.go                    → Config struct (Stack, Interaction, Modes, Applications, etc.)
+  config.go                    → Config struct (Stack, Plans, Environments, Sites, Interaction, etc.)
   lifecycle.go                 → LifecycleEntry, plugin config types (Compose, Kubectl, Helm, ...)
   lifecycle_helpers.go         → SortedStack(), PrimaryComposeEntry(), ComposeEntries(), etc.
   merge.go                     → Field-level deep merge (modules/override 적용)
   validate_warnings.go         → 13 semantic warning checks (non-fatal)
   reserved.go                  → Reserved/restricted field definitions
-internal/lifecycle/            → Stack + App orchestration
-  orchestrator.go              → Stack Up/Down/Stop with tag/mode/env filtering
-  app_manager.go               → App lifecycle (topo-sort, concurrent start, health, PID tracking)
+internal/lifecycle/            → Execution plan resolution + runtime orchestration
+  orchestrator.go              → Resolved entry execution and teardown
+  app_manager.go               → legacy app lifecycle area (migration target)
   process.go                   → Process execution and signal handling
 internal/runner/               → Interaction execution (DockerCompose, Kubectl, Local)
 internal/exec/                 → Process execution (syscall.Exec, subprocess)
@@ -32,28 +40,29 @@ internal/exec/                 → Process execution (syscall.Exec, subprocess)
 
 ## Key Flows
 
-### Stack Lifecycle (dva stack up/down)
+### Plan Lifecycle (`dva up/down/stop/status <name>`)
 
-1. `cli/stack.go`: Parses `--mode`, `--tags`, `--exclude-tags`, `--force`, `--no-wait` flags
-2. `lifecycle/orchestrator.go`: `NewOrchestrator()` → `cfg.SortedStack()` (order 정렬)
-3. 각 `LifecycleEntry`의 `DetectPlugin()`으로 플러그인 타입 결정
-4. 플러그인별 Up/Down 실행 (compose → `docker compose up`, kubectl → `kubectl apply` 등)
-5. Down은 역순 teardown (LIFO)
+1. CLI는 실행 이름을 받음. 예: `local-dev`, `backend/local-dev`
+2. Resolver가 `plans`, `environments`, `sites`, `env_file`, 전역 `vars`를 결합해 immutable `ExecutionPlan` 생성
+3. plan의 `entries`가 `stack` 선언을 참조
+4. 각 resolved entry는 `default_runner`, site override, plan override를 거쳐 최종 runner를 결정
+5. `depends_on` + `order`로 wave 계산
+6. runtime은 계산된 순서대로 Up/Down/Stop 실행
+7. Down은 역순 teardown (LIFO)
 
-### App Lifecycle (dva app up/down)
+### Interaction Execution (`dva run ...`)
 
-1. `cli/app.go`: Parses `--dev`, `--docker` flags, resolves mode strategy
-2. `lifecycle/app_manager.go`: `StartApps()` → `topoSortWaves()` (의존성 기반 웨이브)
-3. 각 웨이브 내 앱들을 동시 시작 (goroutine)
-4. Strategy 결정: mode 설정 → 글로벌 전략 → 앱 기본값
-5. PID 파일로 프로세스 추적, `.sb/dva/logs/` 에 앱별 로그 저장
+1. `cli/root.go`: Built-in command가 아니면서 `interaction`에 있으면 `run`으로 라우팅
+2. `cli/run.go`: `InteractionTree`로 명령 resolve
+3. subproject import인 경우 canonical name (`backend/shell`) resolve
+4. subproject interaction은 해당 subproject root 기준으로 실행
+5. `runner/runner.go`가 `DockerComposeRunner`, `KubectlRunner`, `LocalRunner` 중 선택
 
-### Command Execution (dva run/shell/...)
+### Provision Execution (`dva provision ...`)
 
-1. `cli/root.go`: Dynamic routing — if arg is not a built-in command but exists in `interaction`, prepend `run`
-2. `cli/run.go`: Uses `InteractionTree.Find()` to resolve command from config
-3. `runner/runner.go`: Factory creates `DockerComposeRunner` (service:), `KubectlRunner` (pod:), or `LocalRunner`
-4. `exec/exec.go`: `ExecReplace` (syscall.Exec) replaces process; `ExecSubprocess` spawns child
+1. provision은 준비/초기화 절차를 담당
+2. subproject import인 경우 canonical name (`backend/setup`) resolve
+3. subproject provision 역시 해당 subproject root 기준으로 실행
 
 ### Config Loading
 
@@ -61,33 +70,43 @@ internal/exec/                 → Process execution (syscall.Exec, subprocess)
 2. Merge `.sb/dva/*.yml` modules
 3. Merge `dva.override.yml`
 4. Validate against embedded `schema.json`
-5. Resolve plugin types from entry names (auto-inference)
+5. Resolve stack declarations, plans, environments, sites, subprojects
 
-### Stack Plugin Resolution (3가지 방식)
+### Stack Declaration Principle
 
 ```yaml
-# 1. Nested (legacy): 플러그인 서브키
-compose:
-  compose:
-    files: [docker-compose.yml]
+stack:
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml, docker-compose.dev.yml]
 
-# 2. Flat + explicit plugin:
-my-compose:
-  plugin: compose
-  files: [docker-compose.yml]
-
-# 3. Flat + auto-inference (엔트리 이름 = 플러그인명)
-compose:
-  files: [docker-compose.yml]
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis]
 ```
+
+원칙:
+
+- `stack`은 선언 저장소
+- `stack` 엔트리는 multi-runner logical unit이 될 수 있음
+- compose의 부분 서비스 선택은 `plans.entries[].services` 에서 수행
+- 최종 runner는 선언된 runner 중에서만 선택 가능
+- 실행 순서는 `plans.entries[].order` 와 `depends_on` 에서 결정
 
 ### Config Merge (modules/override 적용)
 
 1. `config/merge.go`: `mergeFrom()` — base config에 overlay 적용
-2. Map 섹션 (stack, interaction, modes 등): key별 deep merge
+2. Map 섹션 (stack, plans, environments, sites, interaction 등): key별 deep merge
 3. List/Scalar: replace (나중 레이어 우선)
 4. 구조적 필드 (`plugin`, `runner`): override 시 hard error
-5. 상세 규칙: `docs/30-config-merge-semantics.md`
+5. 상세 규칙은 `docs/30-config-merge-semantics.md` 와 새 구조 문서들에 정리
 
 ## File Map
 
@@ -97,14 +116,15 @@ compose:
 | Add new stack plugin | `internal/config/lifecycle.go` (config type) + `internal/lifecycle/` (executor) |
 | Add new runner | `internal/runner/` + update `NewRunner()` factory |
 | Modify config schema | `internal/config/schema.json` + `config.go` structs |
+| Add/modify plan resolution | `docs/31-execution-plan-resolution.md` + `internal/lifecycle/` resolver/orchestrator |
 | Fix env interpolation | `internal/config/environment.go` |
 | Modify compose behavior | `internal/runner/docker_compose.go` |
-| Stack orchestration | `internal/lifecycle/orchestrator.go` |
-| App lifecycle | `internal/lifecycle/app_manager.go` |
+| Plan orchestration | `internal/lifecycle/orchestrator.go` |
+| Legacy app lifecycle migration | `internal/lifecycle/app_manager.go` |
 | Config merge logic | `internal/config/merge.go` |
 | Validation warnings | `internal/config/validate_warnings.go` |
-| Stack CLI commands | `internal/cli/stack.go` |
-| App CLI commands | `internal/cli/app.go` |
+| Stack declaration inspection | `internal/cli/stack.go` |
+| Legacy app CLI migration | `internal/cli/app.go` |
 
 ## Build & Test
 

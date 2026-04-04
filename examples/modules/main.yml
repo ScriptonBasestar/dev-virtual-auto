@@ -1,46 +1,49 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../../internal/config/schema.json
 #
 # Example: Modular DVA Configuration with Modules
-# Use Case: Large projects with shared configurations across teams
-# Features: Module system for reusable command sets
-#
-# This example demonstrates how to split your dva configuration into modules.
-# Modules allow you to:
-# - Share common commands across multiple projects
-# - Organize large configurations
-# - Enable/disable feature sets easily
-# - Maintain team-specific tooling separately
-#
-# Usage:
-#   dva rails console          # From main config
-#   dva rubocop                # From sast module
-#   dva rspec                  # From testing module
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.44'
+version: "0.1.44"
 
-environment:
+vars:
   RAILS_ENV: development
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
+  rails-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
 
-# Import modules from .dva/ directory
 modules:
-  - sast      # Static analysis security testing tools
-  - testing   # Testing frameworks and tools
+  - sast
+  - testing
 
-# Main application commands
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-modules:
+    environment: dev
+    site: local
+    entries:
+      - name: rails-compose
+        runner: compose
+        order: 10
+        services: [web, db]
+
 interaction:
   shell:
     description: Start a shell in the web container
     service: web
     command: /bin/bash
-
   rails:
     description: Run Rails commands
     service: web
@@ -52,14 +55,14 @@ interaction:
       server:
         description: Start Rails server
         command: server -b 0.0.0.0
-
   bundle:
     description: Run bundle commands
     service: web
     command: bundle
 
 provision:
-  # Note: Run 'dva up' first to start containers
   default:
-    - dva bundle install
-    - dva rails db:create db:migrate db:seed
+    - step: Install dependencies
+      run: dva bundle install
+    - step: Prepare database
+      run: dva rails db:create db:migrate db:seed

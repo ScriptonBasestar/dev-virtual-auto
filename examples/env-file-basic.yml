@@ -1,64 +1,51 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
 #
 # Example: Basic env_file Usage
-# Use Case: Separate secrets from configuration
-# Features: Simple .env file loading, git-ignored secrets
-#
-# Setup:
-#   1. Copy this to dva.yml
-#   2. Create .env file with secrets (don't commit!)
-#   3. Run: dva rails console
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.44'
+version: "0.1.44"
 
-# Load environment variables from .env file
-# .env file should be git-ignored
-env_file: .env
+env_file:
+  - .env
 
-# Public configuration (committed to git)
-environment:
+vars:
   RAILS_ENV: development
   DATABASE_HOST: postgres
-  DATABASE_PORT: 5432
+  DATABASE_PORT: "5432"
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
+  rails-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    entries:
+      - name: rails-compose
+        runner: compose
+        order: 10
+        services: [web, postgres]
 
 interaction:
   rails:
     description: Run Rails commands
     service: web
     command: bundle exec rails
-
   shell:
     description: Open bash shell
     service: web
     command: bash
-
-provision:
-  default:
-    - step: Setting up database
-      run:
-        - dva rails db:create
-        - dva rails db:migrate
-        - dva rails db:seed
-
-# Example .env file (create this, don't commit):
-# ---------------------------------------------------
-# # .env - Put this in .gitignore!
-# DATABASE_PASSWORD=super_secret_password
-# SECRET_KEY_BASE=long_random_string_here
-# AWS_ACCESS_KEY_ID=AKIA...
-# AWS_SECRET_ACCESS_KEY=secret...
-# ---------------------------------------------------
-#
-# Priority: System ENV > environment: > env_file
-# This means:
-#   - env_file loaded first
-#   - environment: can override env_file values
-#   - System ENV variables override everything

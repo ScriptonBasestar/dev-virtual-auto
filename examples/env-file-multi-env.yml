@@ -1,114 +1,58 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
 #
 # Example: Multi-Environment with env_file
-# Use Case: Support development, staging, production environments
-# Features: Environment-specific .env files, variable interpolation
-#
-# Usage:
-#   # Development (default)
-#   dva rails server
-#
-#   # Staging
-#   ENV=staging dva rails server
-#
-#   # Production
-#   ENV=production dva rails server
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
 
-version: '0.1.44'
+version: "0.1.44"
 
-# Load environment-specific .env file
-# Uses $ENV variable (defaults to "development")
 env_file:
   - .env.${ENV:-development}
-  - .env.local  # Local overrides (always loaded)
+  - .env.local
 
-environment:
+vars:
   NODE_ENV: ${ENV:-development}
   RAILS_ENV: ${ENV:-development}
   APP_NAME: myapp
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
-      - docker-compose.${ENV:-development}.yml
+  compose-bundle:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+          - docker-compose.${ENV:-development}.yml
+
+environments:
+  development:
+    vars:
+      APP_ENV: development
+  staging:
+    vars:
+      APP_ENV: staging
+  production:
+    vars:
+      APP_ENV: production
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  env-aware:
+    environment: ${ENV:-development}
+    site: local
+    entries:
+      - name: compose-bundle
+        runner: compose
+        order: 10
 
 interaction:
   rails:
     description: Run Rails commands
     service: web
     command: bundle exec rails
-    subcommands:
-      server:
-        description: Start Rails server
-        command: server -b 0.0.0.0
-
-  console:
-    description: Open Rails console
-    service: web
-    command: bundle exec rails console
-
   shell:
     description: Open bash shell
     service: web
     command: bash
-
-provision:
-  default:
-    - step: Setting up database
-      run:
-        - dva rails db:create
-        - dva rails db:migrate
-
-# Example file structure:
-# ---------------------------------------------------
-# .env.development (committed - dev defaults)
-# API_URL=http://localhost:3000
-# LOG_LEVEL=debug
-# ENABLE_CACHE=false
-# DATABASE_HOST=postgres
-# DATABASE_PORT=5432
-# DATABASE_NAME=myapp_development
-#
-# .env.staging (committed - staging config)
-# API_URL=https://staging.example.com
-# LOG_LEVEL=info
-# ENABLE_CACHE=true
-# DATABASE_HOST=staging-db.example.com
-# DATABASE_PORT=5432
-# DATABASE_NAME=myapp_staging
-#
-# .env.production (committed - production config, no secrets!)
-# API_URL=https://api.example.com
-# LOG_LEVEL=warn
-# ENABLE_CACHE=true
-# DATABASE_HOST=prod-db.example.com
-# DATABASE_PORT=5432
-# DATABASE_NAME=myapp_production
-#
-# .env.local (git-ignored - secrets and local overrides)
-# # Development secrets
-# DATABASE_PASSWORD=dev_password
-# SECRET_KEY_BASE=dev_secret_key
-#
-# # Or staging secrets (when ENV=staging)
-# DATABASE_PASSWORD=staging_password
-# SECRET_KEY_BASE=staging_secret_key
-# ---------------------------------------------------
-#
-# Variable interpolation example:
-# In .env file:
-#   DATABASE_URL=postgres://${DATABASE_USER}:${DATABASE_PASSWORD}@${DATABASE_HOST}:${DATABASE_PORT}/${DATABASE_NAME}
-#
-# .gitignore:
-#   .env.local
-#   .env.*.local
-#
-# Usage examples:
-#   dva rails console                    # Development
-#   ENV=staging dva rails console        # Staging
-#   ENV=production dva rails console     # Production
-#   LOG_LEVEL=debug dva rails server     # Override LOG_LEVEL

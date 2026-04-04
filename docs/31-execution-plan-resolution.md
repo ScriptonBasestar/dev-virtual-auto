@@ -1,122 +1,345 @@
-# Execution Plan Resolution For Mode And Environment
+# Execution Plan Resolution
 
-이 문서는 DVA 환경 파라미터(`mode`, `env`, `tags` 등)가 실행 계획(Execution Plan)으로 결합되고 해석되는 원칙과 책임 경계를 정의합니다.
-이를 통해 향후 `internal/lifecycle` 리팩터링 및 `dva plan` 명령과 같은 기능 확장을 원활하게 합니다.
+이 문서는 DVA의 새 실행 해석 모델을 정의합니다.
+핵심은 `stack`을 선언 저장소로 유지하고, 실제 실행은 이름 있는 실행 계획을 통해 수행하는 것입니다.
 
-## 1. 해석 순서 (Resolution Order)
+관련 배경과 용어는 [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)를 기준 문서로 삼습니다.
 
-모든 실행 명령(`dva up`, `dva down`, `dva restart`, ...)은 다음 순서로 해석되어야 합니다.
+## 1. 목표
 
-### 1-1. 모드 (`mode`) 결정 우선순위
-1. CLI 플래그: `--mode`, `-M`
-2. Config 기본값: `dva.yml` 내의 `default_mode` 명시 값. (명시된 값이 없으면 모드 미적용)
+새 해석 모델의 목적은 아래와 같습니다.
 
-### 1-2. 환경 (`env`) 결정 우선순위
-1. CLI 플래그: `--env`, `-E` (여러 개 지정 불가, 단일 값)
-2. 환경 미지정 시: 베이스 `dva.yml` 및 `dva.override.yml`에 정의된 기본 동작 수행
+- 선언과 실행 계획을 분리
+- `mode`에 섞여 있던 책임을 분해
+- runner 다양성을 유지하면서 예측 가능성 확보
+- CLI와 runtime 레이어의 책임 분리
 
-### 1-3. 환경 변수 (Environment Variable) 합병 우선순위
-동일한 키의 환경 변수가 충돌할 경우 위에서 아래 순으로 덮어씁니다. (아래가 가장 높은 우선순위)
-1. **호스트 OS Env**: DVA를 실행하는 현재 프로세스의 쉘 환경.
-2. **`env_file`**: `dva.yml`에 선언된 공통 `.env` 파일들의 내용. (선언된 배열 순서대로 합병)
-3. **기본 env (`environment`)**: `dva.yml` 최상위에 선언된 기본 환경 변수 블록.
-4. **환경별 env (`environments[env].environment`)**: `--env`로 활성화된 특정 환경의 변수 모음.
-5. **모드별 env (`modes[mode].environment`)**: 활성화된 `mode`에 종속적인 변수 모음 (실행 전략에 직접적인 영향을 주기 때문에 환경보다 더 높은 우선순위 부여).
+## 2. 실행 대상
 
-### 1-4. 스택 엔트리 필터링 (`Lifecycle` Filtering)
-`Stack` 필터링은 다음 조건들을 모두 평가한 교집합(`AND`) 형태로 적용됩니다. `excludeTags`는 나중에 차감(-)되어 최종 엔트리를 결정합니다.
-1. 명시적 대상(Names): 명령어 인자로 들어온 특정 컴포넌트 이름 목록.
-2. 환경 스택: `--env`에서 지정한 `stack` 목록.
-3. 모드 스택: `--mode`에서 지정한 `stack` 목록.
-4. 포함 태그(`includeTags`): `--tag`를 만족하는 엔트리.
-5. 제외 태그(`excludeTags`): `--exclude-tag`에 포함되면 무조건 최종 목록에서 **제거**.
-6. **동적 오버라이드 매핑 (`stack_overrides`)**: 필터링을 통과한 엔트리에 한해서, 활성화된 `--env`의 `stack_overrides` 내용을 Deep Merge하여 플러그인 속성값을 교체합니다.
+실행 명령의 직접 대상은 `stack`이 아닙니다.
+실행 명령의 대상은 이름 있는 실행 계획입니다.
 
-> **💡 주의**: `stack_overrides` 적용 시 `plugin` 타입 속성의 변경은 아키텍처 상 치명적 오류를 유발하므로 런타임 이전에 검출되어 중단되어야 합니다(Fail-Fast).
+예:
 
-### 1-5. 애플리케이션 필터링 (`Application` Filtering)
-어플리케이션이 구동될 Strategy("native" | "docker")는 다음 우선순위를 갖습니다.
-1. `--docker` 등의 CLI 명시적인 전역 Flag Strategy.
-2. `--mode`에 정의된 개별 어플리케이션 Strategy (`modes[mode].app_strategy[name]`).
-3. App 기본 설정: `native`가 기본값. (`devMode` 플래그에 따라 `run` 또는 `dev` 명령어 경로 선택).
+```bash
+dva up local-dev
+dva down local-dev
+dva stop local-dev
+dva status local-dev
+```
 
----
+여기서 `local-dev`는 `plans.<name>`에 해당하는 논리적 실행 이름입니다.
 
-## 2. 책임 경계 (Responsibility Boundaries)
+## 3. 입력 모델
 
-기존 파편화된 파싱 로직을 모으고, CLI와 Orchestrator 간 책임을 완벽히 분리합니다.
+실행 계획 해석에 사용되는 주요 입력은 아래와 같습니다.
 
-### 2-1. CLI Layer (`internal/cli`)
-사용자와 상호작용 및 플래그 파싱에 집중합니다.
-- 사용자의 명령줄 인자(`--mode`, `--env`, `--tag`, `--exclude-tag` 등)를 파싱합니다.
-- 참조된 `mode`나 `env`가 `dva.yml`에 존재하지 않으면 **입력 검증(Validation)** 단계에서 즉시 안내 메시지를 출력하고 종료합니다.
-- 모든 컨텍스트가 수집되면, `Resolver`를 호출하여 결정론적이고 불변(Immutable) 상태인 `ExecutionPlan` 객체를 생성합니다.
-- `ExecutionPlan` 객체를 `internal/lifecycle`의 Orchestrator/AppManager로 전달하여 실행을 요구합니다.
+- `stack`
+- `plans`
+- `environments`
+- `sites`
+- `env_file`
+- 전역 `vars`
+- CLI override
 
-### 2-2. Orchestrator Layer (`internal/lifecycle`)
-계산된 계획을 단순 수행하는 역할에 집중합니다.
-- 더 이상 환경 변수를 동적으로 찾아 참조하거나, `filterEntries` 등의 긴 필터 판단 알고리즘을 소유하지 않습니다.
-- 전달받은 `ExecutionPlan` 구조체 내에 정리된 `StackEntries`, `EnvVars`, `Applications` 정보만 순회하며 단순 실행 및 생명주기를 관리합니다.
+보조 레이어:
 
----
+- `subprojects`
+- `interactions`
+- `provision`
 
-## 3. ExecutionPlan 구조체 초안
+## 4. 해석 순서
 
-향후 `dva plan` 등의 플러그인 시뮬레이션 및 Explain 출력을 위한 `internal/config` 또는 `internal/lifecycle/resolver` 모델의 초안입니다.
+모든 실행 명령은 아래 순서로 해석되어야 합니다.
+
+### 4-1. 실행 이름 결정
+
+1. CLI 인자로 `<name>`을 받음
+2. `plans.<name>` 또는 import된 canonical name을 조회
+3. 없으면 즉시 validation error
+
+예:
+
+- `local-dev`
+- `backend/local-dev`
+
+### 4-2. plan 본문 로드
+
+선택된 plan에서 아래를 로드합니다.
+
+- `environment`
+- `site`
+- `vars`
+- `entries`
+
+### 4-3. vars 병합
+
+같은 키가 충돌하면 뒤의 값이 우선합니다.
+
+1. OS 환경 변수
+2. `env_file`
+3. 전역 `vars`
+4. `environments.<name>.vars`
+5. `sites.<name>.vars`
+6. `plans.<name>.vars`
+7. CLI 일회성 override
+
+즉:
+
+```text
+OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars
+```
+
+### 4-4. stack entry 매핑
+
+plan의 각 `entries[].name`은 `stack.<name>` 선언을 참조합니다.
+
+이 단계에서:
+
+- 존재하지 않는 stack 참조 검증
+- runner별 설정 로드
+- subproject import인 경우 source config dir 추적
+
+### 4-5. runner 결정
+
+각 plan entry는 최종 runner를 결정해야 합니다.
+
+권장 우선순위:
+
+1. `stack.<name>.default_runner`
+2. `sites.<site>.entry_overrides.<name>.runner`
+3. `plans.<plan>.entries[].runner`
+
+같은 key가 있으면 뒤의 값이 우선합니다.
+단, 최종 runner는 반드시 해당 `stack.<name>.runners` 안에 선언된 key여야 합니다.
+
+즉:
+
+```text
+default_runner < site.entry_overrides.runner < plan.entries[].runner
+```
+
+정의되지 않은 runner 선택은 validation error입니다.
+
+### 4-6. plan-level override 적용
+
+실행 계획에서 선언 위에 덧씌울 수 있는 값은 아래로 제한합니다.
+
+- `services`
+- `order`
+- `depends_on`
+- runner 선택 override
+- 추가 `vars`
+
+원칙:
+
+- 선언 자체의 정체성을 바꾸는 override는 제한
+- 실행 계획에 필요한 선택과 순서만 허용
+
+### 4-7. 순서 계산
+
+최종 실행 순서는 아래 규칙으로 계산합니다.
+
+1. `depends_on` 기반 DAG 생성
+2. 순환 dependency 검증
+3. 같은 레벨에서는 `order` 오름차순
+4. 여전히 동률이면 이름 정렬
+5. 독립 항목은 같은 wave에서 병렬 실행
+
+`down` / `stop`은 역순으로 처리합니다.
+
+## 5. compose 특별 규칙
+
+`compose`는 묶음 단위 실행이 가능하므로 별도 규칙이 필요합니다.
+
+`stack`의 compose 엔트리는 보통 compose 프로젝트 선언입니다.
+
+예:
+
+```yaml
+stack:
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+          - docker-compose.dev.yml
+```
+
+plan에서는 아래를 선택할 수 있습니다.
+
+- compose 전체 실행
+- 특정 service subset만 실행
+
+예:
+
+```yaml
+plans:
+  local-dev:
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis]
+```
+
+즉 compose 서비스 선택은 선언이 아니라 실행 계획 책임입니다.
+
+## 6. subproject resolution
+
+subproject에서 import된 실행 entrypoint는 canonical namespace 이름을 가집니다.
+
+예:
+
+- `backend/local-dev`
+- `backend/shell`
+- `backend/setup`
+
+규칙:
+
+- canonical name은 항상 `subproject/name`
+- parent top-level로 자동 flatten 하지 않음
+- alias는 명시적으로만 허용
+- 충돌은 hard error
+
+## 7. subproject execution path
+
+subproject의 `interactions`와 `provision`은 parent 기준이 아니라, 해당 subproject 설정 파일이 있는 디렉터리 기준으로 실행합니다.
+
+즉:
+
+- command resolution 기준 = subproject config
+- relative path 기준 = subproject config dir
+- default working directory = subproject root
+
+이 원칙은 parent에서 import해도 subproject가 독립 실행될 때와 동일한 의미를 보장합니다.
+
+## 8. 책임 경계
+
+### 8-1. CLI Layer
+
+CLI는 아래를 담당합니다.
+
+- 실행 이름 파싱
+- `--var` 같은 명시적 override 수집
+- 대상 이름 존재 여부 validation
+- Resolver 호출
+
+CLI는 더 이상 raw `stack` 필터링 로직을 직접 가지지 않습니다.
+
+### 8-2. Resolver Layer
+
+Resolver는 아래를 담당합니다.
+
+- plan 로드
+- environment/site/profile 확장
+- vars 병합
+- stack 참조 해석
+- dependency/order 계산
+- 실행 가능한 immutable plan 생성
+
+### 8-3. Runtime Layer
+
+runtime/orchestrator는 아래만 담당합니다.
+
+- 전달받은 resolved entry 실행
+- health check 수행
+- reverse teardown 수행
+
+runtime은 raw config 의미 해석을 소유하지 않습니다.
+
+## 9. ExecutionPlan 초안
 
 ```go
 package lifecycle
 
 import "github.com/ScriptonBasestar/dva/internal/config"
 
-// ExecutionPlanBuilder resolves configuration and flags into a distinct, immutable execution plan.
-// It removes the need for lifecycle packages to parse raw input strings.
 type ExecutionPlan struct {
-	// 1. Meta Context
-	Mode       *config.ModeConfig
-	EnvProfile *config.EnvironmentProfile
+	Name string
 
-	// 2. Resolved Environment
-	// All merged OS + File + Config + Overrides mapping.
+	EnvironmentName string
+	SiteName        string
+
 	EnvVars map[string]string
 
-	// 3. Determined Stacks
-	// The exact ordered list of stack entries to spin up/down,
-	// with all their `stack_overrides` deep-merged properly.
-	StackEntries []config.LifecycleEntry
+	Entries []ResolvedEntry
 
-	// 4. Determined Applications
-	// The final strategies resolved to start targeted applications.
-	Applications []AppExecution
-
-	// 5. Audit Log (Optional)
-	// A human-readable step-by-step resolution trace for 'dva plan' debugging.
 	ResolutionTrace []string
 }
 
-// AppExecution pairs an Application with its final resolved execution strategy.
-type AppExecution struct {
-	App      *config.ApplicationConfig
-	Strategy string
-	Command  string
+type ResolvedEntry struct {
+	Name       string
+	Source     *config.LifecycleEntry
+	Runner     string
+	Order      int
+	DependsOn  []string
+	Services   []string
+	WorkingDir string
 }
 ```
 
-### 3-1. Resolver 구상
-CLI는 다음과 같이 하나의 호출로 ExecutionPlan을 도출하게 됩니다.
+## 10. 예시
 
-```go
-plan, err := lifecycle.ResolveExecutionPlan(cfg, env, lifecycle.ResolveOptions{
-    Mode:        "lite",
-    Env:         "stg",
-    IncludeTags: []string{"infra"},
-    ExcludeTags: []string{"cache"},
-    TargetNames: []string{}, // all matched
-    GlobalStrategy: "docker",
-})
-if err != nil {
-    return fmt.Errorf("invalid execution plan requested: %w", err)
-}
+```yaml
+vars:
+  LOG_FORMAT: text
+
+env_file:
+  - .env
+
+stack:
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml, docker-compose.dev.yml]
+
+  api:
+    default_runner: native
+    runners:
+      native:
+        dir: apps/api
+        run: go run ./cmd/api
+      docker:
+        image: myorg/api:dev
+        run: docker run --rm myorg/api:dev
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    vars:
+      LOG_LEVEL: debug
+    entries:
+      - name: core-compose
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [core-compose]
 ```
 
-이 규칙과 기반 아키텍처 문서는 이후의 모든 플로우 통폐합에 있어서 필수적 기초 자료로 활용됩니다.
+`dva up local-dev` 해석 결과:
+
+1. `plans.local-dev` 선택
+2. `env_file` 적용
+3. `environments.dev.vars` 적용
+4. `sites.local.vars` 적용
+5. `plans.local-dev.vars` 적용
+6. `core-compose`, `api`를 `stack`에서 resolve
+7. 각 entry의 최종 runner 결정
+8. `depends_on` + `order`로 wave 계산
+9. 실행

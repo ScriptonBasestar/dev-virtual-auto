@@ -1,21 +1,43 @@
-# dva.yml - Example configuration for Makefile integration
-# This demonstrates DVA commands used in Makefile.dev.mk examples
+# yaml-language-server: $schema=../internal/config/schema.json
+#
+# Example: Makefile Integration
 
-version: '0.1.44'
+version: "0.1.44"
 
-environment:
+vars:
   COMPOSE_EXT: development
   RAILS_ENV: development
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
-    project_name: myapp
+  make-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: myapp
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-make:
+    environment: dev
+    site: local
+    entries:
+      - name: make-compose
+        runner: compose
+        order: 10
+        services: [app, postgres]
 
 interaction:
-  # Rails console - used by 'make dva-console'
   rails:
     description: Run Rails commands
     service: app
@@ -24,47 +46,29 @@ interaction:
       console:
         description: Open Rails console
         command: bundle exec rails console
-
       db:migrate:
         description: Run database migrations
         command: bundle exec rails db:migrate
-
-      db:seed:
-        description: Seed database
-        command: bundle exec rails db:seed
-
-  # RSpec tests - used by 'make dva-test'
   rspec:
     description: Run RSpec tests
     service: app
+    command: bundle exec rspec
     environment:
       RAILS_ENV: test
-    command: bundle exec rspec
-
-  # Shell access
   shell:
     description: Open bash shell in app container
     service: app
     command: bash
-
-  # Database console
-  psql:
-    description: Open PostgreSQL console
-    service: app
-    command: psql -h postgres -U myapp_user myapp_development
-
-  # Bundler
   bundle:
     description: Run Bundler commands
     service: app
     command: bundle
 
-# Provisioning - used by 'make dva-provision'
 provision:
   default:
-    # Note: Run 'dva up' first to start containers
-    - dva bundle install
-    - dva rails db:create
-    - dva rails db:migrate
-    - dva rails db:seed
-    - echo "✓ Provisioning complete"
+    - step: Install dependencies
+      run: dva bundle install
+    - step: Create database
+      run: dva rails db:create
+    - step: Run migrations
+      run: dva rails db:migrate

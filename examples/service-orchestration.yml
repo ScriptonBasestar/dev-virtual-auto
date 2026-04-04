@@ -1,181 +1,165 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
 #
-# Example: Service Orchestration & Environment Diagnostics
-# Use Case: Microservice project with API + Worker + Frontend
-# Features: Related service hints, doctor checks, profile-driven provision
-#
-# New Features Demonstrated:
-#   - compose.services.*.related   — Hint when companion services aren't running
-#   - compose.services.*.hint      — Human-readable reason why they're needed
-#   - checks                       — Environment prerequisites for `dva doctor`
-#   - profiles.*.provision         — Auto-suggest provision on first `dva up`
+# Example: Service Orchestration & Diagnostics
+# Use Case: API + Worker + Frontend microservice project
+# Features: compose service subsets, doctor checks, endpoints, environments, sites
 #
 # Usage:
-#   dva doctor                    # Check environment prerequisites
-#   dva up                        # Start all services (shows related hints)
-#   dva stack up                  # Start infrastructure stack only
-#   dva stack status              # Show stack entry statuses
-#   dva up -M full-stack          # Start everything + provision suggestion
-#   dva provision setup           # Run initial setup (migrations, seeds)
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+#   dva doctor
+#   dva ls
+#   dva up local-infra
+#   dva up local-full
+#   dva provision setup
 
-version: '0.1.44'
+version: "0.1.44"
 
-stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
-    project_name: db-orchestrator
-    services:
-      api:
-        tags: [app]
-        related: [worker]
-        hint: "Worker is required for async DB provisioning — without it, databases stay in 'Provisioning' state"
-        ports:
-          8080:
-            label: "API"
-            http: true
-            paths:
-              /health: "Health check"
-              /api/v1/databases: "Database management"
-      worker:
-        tags: [app]
-        related: [api]
-        hint: "API server accepts requests; worker processes them"
-      postgres:
-        tags: [infra]
-        ports:
-          5432:
-            label: "PostgreSQL"
-      kafka:
-        tags: [infra]
-        ports:
-          9092:
-            label: "Kafka"
-      frontend:
-        tags: [ui]
-        related: [api]
-        hint: "Frontend needs the API server for data"
-        ports:
-          3000:
-            label: "Web UI"
-            http: true
+env_file:
+  - .env
 
-# Endpoints — user-facing URLs for the project
-# Compose service ports (above) are shown automatically.
-# Use endpoints for non-compose services (local processes, external services).
-# Keys matching health_check names are auto-linked for status display.
-endpoints:
-  api:
-    url: http://localhost:8080
-    label: "API Server"
-    tags: [app]
-    paths:
-      /health: "Health check"
-      /api/v1/databases: "Database management"
-  worker:
-    url: http://localhost:8081
-    label: "Worker Metrics"
-    tags: [app]
-    paths:
-      /metrics: "Prometheus metrics"
-  frontend-dev:
-    url: http://localhost:3001
-    label: "Frontend Dev Server"
-    tags: [ui]
-
-# Environment checks — run with `dva doctor`
-checks:
-  - name: Docker daemon accessible
-    type: docker_socket
-    fix_hint: "Start Docker Desktop or ensure dockerd is running"
-
-  - name: .env file exists
-    type: file_exists
-    path: .env
-    fix_hint: "cp .env.example .env"
-
-  - name: Docker Compose files exist
-    type: file_exists
-    path: docker-compose.yml
-    fix_hint: "Check project structure"
-
-  - name: Database migrations applied
-    type: command
-    command: "make migrate-status 2>&1 | grep -qv pending"
-    fix_hint: "Run: dva provision setup"
-
-environment:
+vars:
   ENABLE_AUTH: "false"
-  RUST_LOG: "info"
+  RUST_LOG: info
   DATABASE_URL: postgresql://db_orchestrator:password@postgres:5432/db_orchestrator
   KAFKA_BROKERS: kafka:29092
 
-# Modes with provision auto-suggestion
-modes:
-  infra-only:
-    description: "Infrastructure services only (DB, Kafka)"
-    compose_services: [postgres, kafka]
+stack:
+  infra-compose:
+    description: PostgreSQL and Kafka infrastructure
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: db-orchestrator
 
-  full-stack:
-    description: "All services: infra + API + worker + frontend"
-    compose_profiles: [rust]
-    provision: setup
+  api:
+    description: API server
+    default_runner: native
+    runners:
+      native:
+        dir: .
+        run: cargo run -p db-orchestrator-api
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: db-orchestrator
 
+  worker:
+    description: Worker process
+    default_runner: native
+    runners:
+      native:
+        dir: .
+        run: cargo run -p db-orchestrator-worker
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: db-orchestrator
+
+  frontend:
+    description: Frontend UI
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: db-orchestrator
+
+checks:
+  - name: Docker daemon accessible
+    type: docker_socket
+    fix_hint: Start Docker Desktop or ensure dockerd is running
+  - name: .env file exists
+    type: file_exists
+    path: .env
+    fix_hint: cp .env.example .env
+  - name: Docker Compose files exist
+    type: file_exists
+    path: docker-compose.yml
+
+endpoints:
+  api:
+    url: http://localhost:8080
+    label: API Server
+    tags: [app]
+    paths:
+      /health: Health check
+  frontend:
+    url: http://localhost:3000
+    label: Web UI
+    tags: [ui]
+
+environments:
   dev:
-    description: "Infra in Docker, app runs natively"
-    compose_services: [postgres, kafka]
-    health_checks: [api, worker]
-    endpoint_tags: [app]
-    environment:
-      DATABASE_URL: postgresql://db_orchestrator:password@localhost:5432/db_orchestrator
-      KAFKA_BROKERS: localhost:9092
+    vars:
+      APP_ENV: dev
+  stg:
+    vars:
+      APP_ENV: stg
+      ENABLE_AUTH: "true"
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      api:
+        runner: native
+      worker:
+        runner: native
+
+plans:
+  local-infra:
+    description: Infrastructure services only
+    environment: dev
+    site: local
+    entries:
+      - name: infra-compose
+        runner: compose
+        order: 10
+        services: [postgres, kafka]
+
+  local-full:
+    description: Infra + native app processes + frontend
+    environment: dev
+    site: local
+    entries:
+      - name: infra-compose
+        runner: compose
+        order: 10
+        services: [postgres, kafka]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [infra-compose]
+      - name: worker
+        runner: native
+        order: 30
+        depends_on: [api]
+      - name: frontend
+        runner: compose
+        order: 40
+        depends_on: [api]
+        services: [frontend]
 
 provision:
   default_profile: setup
   setup:
     - step: Starting infrastructure
-      compose_up: [postgres, kafka]
-
+      run: docker compose up -d postgres kafka
     - step: Waiting for database
-      compose_exec: "postgres pg_isready -U db_orchestrator"
-
+      run: docker compose exec postgres pg_isready -U db_orchestrator
     - step: Running migrations
       run: make migrate
-
     - step: Seeding initial data
       run: make seed
 
-  reset:
-    - step: Stopping all services
-      run: dva down
-
-    - step: Removing volumes
-      run: dva clean -v -f
-
-    - step: Full setup
-      run: dva provision setup
-
-health_checks:
-  api:
-    type: http
-    url: http://localhost:8080/health
-    start: "cargo run -p db-orchestrator-api"
-    ready_timeout: 60
-  worker:
-    type: command
-    command: "pgrep -f db-orchestrator-worker"
-    start: "cargo run -p db-orchestrator-worker"
-    ready_timeout: 60
-
 interaction:
   api-logs:
-    description: "View API server logs"
+    description: View API server logs
     service: api
     command: tail -f /var/log/api.log
   worker-logs:
-    description: "View worker logs"
+    description: View worker logs
     service: worker
     command: tail -f /var/log/worker.log

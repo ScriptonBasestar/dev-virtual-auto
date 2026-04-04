@@ -1,52 +1,57 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
 #
-# Example: Provision Profiles Configuration
-# Use Case: Demonstrates the power of provision profiles for different scenarios
-# Features: Multiple named provision profiles for setup, reset, testing, deployment
-#
-# Usage:
-#   dva provision              # Run default setup (alias for 'default' profile)
-#   dva provision default      # Full project setup from scratch
-#   dva provision reset        # Clean rebuild of everything
-#   dva provision seed         # Re-seed database only
-#   dva provision test         # Setup test environment
-#   dva provision ci           # CI/CD pipeline setup
-#   dva provision deploy       # Production deployment preparation
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+# Example: Provision Profiles
 
-version: '0.1.44'
+version: "0.1.44"
 
-environment:
+vars:
   RAILS_ENV: development
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
+  rails-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+
+plans:
+  local-rails:
+    environment: dev
+    site: local
+    entries:
+      - name: rails-compose
+        runner: compose
+        order: 10
+        services: [web, db]
 
 interaction:
   shell:
     description: Start a shell
     service: web
     command: /bin/bash
-
   rails:
     description: Run Rails commands
     service: web
     command: bundle exec rails
-
   bundle:
     description: Run bundle commands
     service: web
     command: bundle
-
   rake:
     description: Run Rake tasks
     service: web
     command: bundle exec rake
-
   rspec:
     description: Run RSpec tests
     service: web
@@ -55,119 +60,23 @@ interaction:
       RAILS_ENV: test
 
 provision:
-  # Note: Containers will auto-start if needed (since v9.1.3)
-  # Default: Full setup for new developers
   default:
     - step: Installing dependencies
       run: dva bundle install
-
     - step: Setting up database
       run:
         - dva rails db:create
         - dva rails db:migrate
         - dva rails db:seed
-
-    - step: Setup complete
-      note: |
-        ✅ Setup complete!
-        Run 'dva rails server' to start the app
-
-  # Reset: Nuclear option - rebuild everything from scratch
   reset:
     - step: Cleaning temporary files
       run:
         - rm -rf tmp/ log/*.log
-
     - step: Rebuilding containers
-      run: dva compose build --no-cache
-
-    - step: Reinstalling dependencies
-      run: dva bundle install
-
-    - step: Recreating database
-      run: dva rails db:drop db:create db:migrate db:seed
-
-    - step: Rebuilding assets
-      run: dva rails assets:clobber assets:precompile
-
-    - step: Reset complete
-      note: Complete reset done!
-
-  # Seed: Re-seed database without destroying data
+      run: docker compose build --no-cache
   seed:
     - step: Seeding database
       run: dva rails db:seed
-
-  # Update: Pull latest changes and update dependencies
-  update:
-    - step: Pulling latest changes
-      run:
-        - git pull origin main
-        - dva compose pull
-
-    - step: Updating dependencies
-      run: dva bundle install
-
-    - step: Running migrations
-      run: dva rails db:migrate
-
-    - step: Precompiling assets
-      run: dva rails assets:precompile
-
-    - step: Update complete
-      note: Updated to latest version
-
-  # Test: Setup test environment
-  test:
-    - step: Installing test dependencies
-      run: RAILS_ENV=test dva bundle install
-
-    - step: Setting up test database
-      run: RAILS_ENV=test dva rails db:create db:migrate
-
-    - step: Test environment ready
-      note: Run 'dva rspec' to run tests
-
-  # CI: Continuous Integration setup
   ci:
     - step: Installing dependencies
       run: dva bundle install --jobs 4 --retry 3
-
-    - step: Loading database schema
-      run: dva rails db:create db:schema:load
-
-    - step: Precompiling assets
-      run: dva rails assets:precompile
-
-  # Deploy: Production deployment preparation
-  deploy:
-    - step: Building containers
-      run: dva compose build
-
-    - step: Running migrations
-      run: dva rails db:migrate
-
-    - step: Managing assets
-      run:
-        - dva rails assets:precompile
-        - dva rails assets:clean
-
-    - step: Ready for deployment
-      note: Deployment preparation complete
-
-  # Quick: Fast setup for minor updates
-  quick:
-    - step: Installing dependencies
-      run: dva bundle install
-
-    - step: Running migrations
-      run: dva rails db:migrate
-
-  # Clean: Clean up temporary files and caches
-  clean:
-    - step: Cleaning temporary files
-      run:
-        - rm -rf tmp/cache/*
-        - rm -rf public/assets
-        - rm -rf log/*.log
-        - dva rails tmp:clear

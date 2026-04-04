@@ -1,8 +1,8 @@
 # DVA 사용 가이드
 
 > DVA CLI 전체 커맨드 레퍼런스 및 설정 가이드.
-> DVA는 개발 환경 오케스트레이터 — Docker Compose, Kubernetes, Helm 등 여러 인프라 도구를 `stack:` 파이프라인으로 통합 관리합니다.
-> 빠른 시작은 [README.md](README.md) 참조.
+> 현재 권장 모델은 `stack`을 선언 저장소로 두고, 실제 실행은 `plans`의 이름을 대상으로 수행하는 구조입니다.
+> 빠른 시작은 [README.md](README.md), 설계 배경은 [docs/40-declarative-stack-and-plans.md](docs/40-declarative-stack-and-plans.md) 참조.
 
 ## Global Flags
 
@@ -21,7 +21,12 @@
 | `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
 | `dva config discover` | 프로젝트를 분석해 가능한 DVA 옵션 후보 출력 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
-| `dva ls` | 사용 가능한 interaction 커맨드 목록 |
+| `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
+| `dva show <NAME>` | 특정 실행 이름 또는 설정 개요 표시 |
+| `dva up <NAME>` | named execution entry 실행 |
+| `dva down <NAME>` | named execution entry teardown |
+| `dva stop <NAME>` | named execution entry 중지 |
+| `dva status [NAME]` | 실행 상태 표시 |
 | `dva version` | 버전 표시 |
 
 `dva run`은 생략 가능합니다. `dva shell`은 `dva run shell`과 동일합니다.
@@ -52,8 +57,8 @@ dva config discover -f yaml  # YAML 형식으로 출력
 - 감지된 compose 파일과 서비스
 - package.json / Makefile 기반 실행 커맨드
 - 앱 후보와 native/docker 실행 경로
-- 추천 mode (`native`, `docker`, `hybrid`, `local-test` 등)
-- 추천 environment (`dev`, `local-test` 등)
+- 추천 `stack` logical unit 후보
+- 추천 `plans` / `environments` / `sites` 후보
 
 권장 흐름:
 
@@ -104,92 +109,70 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 
 | Command | Description |
 |---------|-------------|
-| `dva show` | 설정 요약 (modes, environments, commands 등) |
+| `dva show` | 설정 요약 또는 특정 실행 이름 상세 표시 |
 | `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
+dva show local-dev        # 특정 named execution entry 상세
 dva show --json           # JSON 출력
-dva status                # docker compose ps + 헬스체크 상태
+dva status                # 전체 상태 요약
+dva status local-dev      # 특정 named execution entry 상태
 dva status --json         # JSON 출력
 dva config show           # JSON 형식 (기본)
 dva config show -f yaml   # YAML 형식
 ```
 
-### Lifecycle (Stack + App)
+### Lifecycle
 
-#### dva stack — 인프라 관리
+#### 권장 실행 모델
 
-`stack:` 섹션에 정의된 플러그인들을 `order` 순서대로 실행합니다.
+권장 구조:
 
-| Command | Description |
-|---------|-------------|
-| `dva stack up [NAME...]` | stack 엔트리 시작 (order 순서) |
-| `dva stack stop [NAME...]` | stack 엔트리 중지 (상태 보존) |
-| `dva stack down [NAME...]` | stack 엔트리 중지 및 제거 (역순) |
-| `dva stack status [NAME...]` | stack 엔트리 상태 표시 |
-| `dva stack log [NAME]` | stack 엔트리 로그 조회 |
+- `stack` = 재사용 가능한 실행 대상 선언
+- `plans` = 실제 실행 가능한 이름
+- `environments` = dev/stg/prd 같은 환경 차이
+- `sites` = local/office/remote/cloud 같은 실행 host 차이
+- `interactions` = 단발성 편의 명령
+- `provision` = 준비/초기화 절차
 
 ```bash
-dva stack up                    # 전체 stack 시작 (order 순서)
-dva stack up compose            # 특정 엔트리만
-dva stack up --force            # 강제 재시작
-dva stack up --no-wait          # 즉시 리턴
-dva stack up -M backend         # 모드별 stack 필터 적용
-dva stack up -T infra           # 태그 기반 필터
-dva stack up --exclude-tags db  # 태그 제외
-dva stack down -v               # + 볼륨 제거
-dva stack status                # 전체 상태 표시
-dva stack log compose           # compose 엔트리 로그
+dva ls
+dva show local-dev
+dva up local-dev
+dva status local-dev
+dva stop local-dev
+dva down local-dev
 ```
 
-#### dva app — 애플리케이션 관리
+#### named execution entry
 
-`applications:` 섹션에 정의된 앱 프로세스를 관리합니다.
+실행 명령의 직접 대상은 `stack`이 아니라 `plans.<name>` 입니다.
 
-| Command | Description |
-|---------|-------------|
-| `dva app ls` | 앱 목록 (상태, 헬스, 포트, PID) |
-| `dva app up [APP...]` | 앱 시작 (의존성 순서, 동시 실행) |
-| `dva app stop [APP...]` | 앱 중지 (PID 보존, 빠른 재시작 가능) |
-| `dva app down [APP...]` | 앱 중지 및 리소스 제거 |
-| `dva app build [APP...]` | 앱 빌드 |
-| `dva app restart [APP...]` | 앱 재시작 (stop + start) |
-| `dva app log <APP>` | 앱 로그 (최근 100줄) |
+예:
 
 ```bash
-dva app ls                      # 전체 앱 상태
-dva app up                      # 전체 앱 시작 (native 기본)
-dva app up api --dev            # dev 모드 (hot-reload)
-dva app up -M docker            # docker 전략으로 시작
-dva app build api               # 특정 앱 빌드
-dva app build --docker          # docker 빌드
-dva app stop api                # 앱 중지 (상태 보존)
-dva app down                    # 전체 앱 중지 + 리소스 제거
-dva app restart api --dev       # dev 모드로 재시작
-dva app log api                 # 앱 로그 조회
+dva up local-dev
+dva up backend/local-dev
 ```
 
-#### dva up/down (통합 명령)
+`stack`은 선언 저장소이므로 `dva stack up`은 더 이상 권장 모델이 아닙니다.
 
 | Command | Description |
 |---------|-------------|
-| `dva up [SERVICE]` | stack + app 통합 시작 |
-| `dva down` | stack + app 통합 중지 |
-| `dva stop [SERVICE]` | 서비스 중지 (제거하지 않음) |
-| `dva restart [SERVICE]` | 서비스 재시작 (stop + start) |
-| `dva logs [SERVICE]` | 컨테이너 로그 보기 |
-| `dva build [SERVICE]` | 이미지 빌드 |
-| `dva clean` | 전체 정리 (containers, networks) |
+| `dva up <NAME>` | named execution entry 실행 |
+| `dva down <NAME>` | named execution entry teardown |
+| `dva stop <NAME>` | 중지 (제거하지 않음) |
+| `dva restart <NAME>` | 재시작 |
+| `dva logs [NAME]` | 로그 보기 |
+| `dva build [NAME]` | 빌드 수행 |
+| `dva clean` | 전체 정리 |
 
 ```bash
-dva up                    # stack + app 전체 시작
-dva up -M backend         # 모드 적용
-dva up -E staging         # 환경 프리셋 적용
-dva up -T backend,ui      # 태그 필터 (--tag 별칭)
-dva up --exclude-tags db  # 태그 제외 (--exclude-tag 별칭)
-dva up -M backend -E staging  # 모드 + 환경 조합
+dva up local-dev
+dva down local-dev
+dva stop local-dev
 ```
 
 #### clean
@@ -201,14 +184,18 @@ dva clean -i              # + 로컬 빌드 이미지 제거
 dva clean -f              # 확인 프롬프트 스킵
 ```
 
-#### --mode / --env / --tags 플래그
+#### `--env` / `--site` / `--var`
 
-`--mode`(`-M`), `--env`(`-E`), `--tags`(`-T`), `--exclude-tags`는 `stack`, `app`, `up`, `down`, `stop`, `restart`에서 사용 가능합니다.
+새 구조에서는 실행 이름이 기본 컨텍스트를 담고 있으므로, 환경 분기는 주로 설정의 `plans`에서 결정합니다.
 
-- `--mode`: `modes` 섹션에 정의된 운영 모드 적용 (compose profiles, 서비스 필터, 환경변수, 앱 전략)
-- `--env`: `environments` 섹션에 정의된 환경변수 프리셋 적용 (stack 엔트리 필터 포함)
-- `--tags`: `tags` 속성 기반으로 특정 컨테이너/앱 그룹만 선택 실행 (별칭: `--tag`)
-- `--exclude-tags`: 특정 태그 그룹 배제 (별칭: `--exclude-tag`)
+- `environment`: `environments.<name>` 선택
+- `site`: `sites.<name>` 선택
+- `vars`: 실행 시점 변수 override
+
+권장 방식:
+
+- 기본은 `plans.<name>` 안에 `environment`, `site`를 정의
+- 추가 일회성 조정이 필요하면 `--var KEY=VALUE` 같은 명시적 override 사용
 
 ### Integration Tools
 
@@ -264,7 +251,7 @@ dva config validate --strict # drift 경고 시에도 검증 실패 처리
 
 스키마 검증 외에 13개 시맨틱 경고를 검사합니다:
 - 중복 stack order, 다중 compose 엔트리 분할 권고
-- `default_mode` 누락, 기본 모드에 무거운 인프라 포함 경고
+- 실행 계획 누락 또는 과도하게 무거운 기본 실행 구성 경고
 - 미해결 환경변수 (`${MISSING_VAR}`), 비지원 셸 문법 감지
 - 깊은 서브커맨드 중첩 (5단계 초과), 도달 불가능 커맨드
 - 정규 섹션 순서 검증
@@ -276,11 +263,25 @@ dva config validate --strict # drift 경고 시에도 검증 실패 처리
 ```yaml
 version: "0.1.44"         # 최소 DVA 버전
 
+env_file:
+  - .env
+
 stack:
-  compose:                 # 엔트리 이름으로 플러그인 자동추론
-    order: 10
-    files: [docker-compose.yml]
-    project_name: myproject
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml]
+        project_name: myproject
+
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis]
 
 interaction:
   shell:
@@ -296,14 +297,13 @@ interaction:
 | Section | Description |
 |---------|-------------|
 | `version` | 최소 DVA 버전 |
-| `environment` | 글로벌 환경변수 |
+| `vars` | 글로벌 환경변수 |
 | `env_file` | .env 파일 로딩 |
-| `stack` | 인프라 오케스트레이션 파이프라인 (플러그인 기반) |
+| `stack` | 재사용 가능한 실행 대상 선언 |
+| `plans` | 실제 실행 가능한 이름 |
 | `checks` | `dva doctor` 환경 사전조건 체크 |
-| `applications` | 앱 프로세스 정의 (native/docker 전략) |
-| `default_mode` | 기본 모드명 |
-| `modes` | 운영 모드 (`--mode` 플래그용) |
-| `environments` | 환경 프리셋 (`--env` 플래그용) |
+| `environments` | 환경 프리셋 (`dev/stg/prd`) |
+| `sites` | 실행 host 프리셋 (`local/remote/cloud`) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
 | `interaction` | 커맨드 정의 (command, command list, script, script_file, steps, subcommands 등) |
 | `provision` | 프로비저닝 프로필 및 스텝 정의 |
@@ -314,32 +314,44 @@ interaction:
 | `ssh` | SSH agent 설정 |
 | `devcontainer` | devcontainer 통합 (실험적) |
 
-### stack (인프라 파이프라인)
+### stack (선언 저장소)
 
-`stack:` 섹션에서 여러 플러그인 엔트리를 `order` 순서대로 실행합니다.
+`stack:`은 logical unit 선언 모음입니다.
+직접 실행 대상이 아니라 `plans.entries[].name`에서 참조됩니다.
 
 ```yaml
 stack:
-  compose:                      # 이름 = 플러그인 자동추론
-    order: 10
-    files: [docker-compose.yml]
-    project_name: myapp
-    services:
-      api:
-        tags: [app]
-        related: [worker]
-  kubectl:                      # kubectl 플러그인 자동추론
-    order: 20
-    namespace: myapp-dev
-    context: my-cluster
-    kubeconfig: ~/.kube/config
-  staging-compose:              # 이름 ≠ 플러그인명이면 plugin: 명시
-    plugin: compose
-    order: 30
-    files: [docker-compose.staging.yml]
+  core-compose:
+    description: infra bundle
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml, docker-compose.dev.yml]
+
+  api:
+    description: backend api
+    default_runner: native
+    runners:
+      native:
+        dir: apps/api
+        run: go run ./cmd/api
+      docker:
+        image: myorg/api:dev
+        run: docker run --rm myorg/api:dev
+      helm:
+        chart: ./charts/api
+        release: api
+        namespace: default
 ```
 
-지원 플러그인:
+핵심 규칙:
+
+- 하나의 `stack` 엔트리는 multi-runner logical unit이 될 수 있음
+- `default_runner`는 기본 실행 백엔드
+- 실제 실행 runner는 plan/site에서 override 가능
+- 정의되지 않은 runner 선택은 validation error
+
+지원 가능한 runner 예:
 
 | Tier | Plugins |
 |------|---------|
@@ -347,91 +359,52 @@ stack:
 | Extended | `kustomize`, `tilt`, `skaffold`, `podman-compose`, `vagrant` |
 | Niche | `sam`, `serverless`, `multipass` |
 
-플러그인 타입 결정 우선순위:
-1. 중첩 포맷 (legacy): `compose:` 서브키가 있으면 해당 플러그인
-2. 플랫 포맷 + `plugin:` 명시
-3. 엔트리 이름이 알려진 플러그인명과 일치하면 자동추론
+### plans
 
-### modes (--mode)
-
-`dva up -M <name>`으로 활성화. Compose profiles, 서비스 필터, 환경변수, stack 엔트리 필터를 묶어서 관리합니다.
+`plans`는 실제 실행 가능한 이름입니다.
 
 ```yaml
-modes:
-  backend:
-    description: "Backend services only"
-    compose_profiles: [backend]
-    compose_services: [api, postgres, redis]
-    health_checks: [api-server]
-    stack: [compose]            # 특정 stack 엔트리만 실행
-    applications: native        # 앱 실행 전략 (문자열: 전체 적용)
-    environment:
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    vars:
       LOG_LEVEL: debug
-  native:
-    description: "No compose, local services only"
-    compose_services: []  # 빈 배열 = compose 스킵
-    health_checks: [local-api]
-  hybrid:
-    description: "Mixed native/docker"
-    applications:              # 앱별 전략 맵
-      api: native
-      worker: docker
-      web: native
+    entries:
+      - name: core-compose
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [core-compose]
 ```
 
-### applications
+`dva up local-dev`처럼 직접 실행합니다.
 
-`dva app` 명령으로 관리하는 앱 프로세스를 정의합니다.
-
-```yaml
-applications:
-  api:
-    description: "REST API server"
-    tags: [app, api]
-    port: 11200
-    dir: "rust-workspace"          # 작업 디렉토리
-    depends_on: []                 # 의존 앱/서비스 (토폴로지 정렬)
-    run:
-      native: "cargo run --release -p api-server"
-      docker:
-        service: api-rs
-        profile: rust
-    dev:                           # --dev 모드용 (hot-reload)
-      native: "cargo watch -x 'run -p api-server'"
-    build:
-      native: "cargo build -p api-server"
-      docker:
-        service: api-rs
-        command: "cargo build"
-    environment:
-      PORT: "11200"
-    health:
-      type: http                   # http, tcp, command
-      url: "http://localhost:11200/health"
-      timeout: 5
-      ready_timeout: 120
-```
-
-`run`, `dev`, `build`는 문자열 축약형도 지원합니다:
-
-```yaml
-  web:
-    run: "pnpm build && pnpm preview"   # = run.native
-    dev: "pnpm dev --port 11300"        # = dev.native
-```
-
-### environments (--env)
-
-`dva up -E <name>`으로 활성화. 환경변수 프리셋입니다.
+### environments / sites
 
 ```yaml
 environments:
-  ci:
-    description: "CI environment"
-    environment:
-      CI: "true"
-      LOG_LEVEL: warn
-    stack: [compose]               # 특정 stack 엔트리만 실행 (선택)
+  dev:
+    vars:
+      APP_ENV: dev
+      LOG_LEVEL: debug
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      api:
+        runner: native
+```
+
+`vars` 우선순위:
+
+```text
+OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars
 ```
 
 ### health_checks
@@ -452,15 +425,27 @@ health_checks:
 ### subprojects
 
 모노레포에서 서브프로젝트별 dva.yml을 참조합니다.
+기본 연결 대상은 `plans`, `interactions`, 필요시 `provision`입니다.
 
 ```yaml
 subprojects:
-  api:
-    path: ./services/api
-    exclude_tags: [heavy]
+  backend:
+    path: ./services/backend
+    import:
+      plans: [local-dev]
+      interactions: [shell, logs]
+      provision: [setup]
 ```
 
-실행: `dva api:test` 또는 `dva run --project api test`
+실행 이름은 canonical namespace를 사용합니다.
+
+```bash
+dva up backend/local-dev
+dva run backend/shell
+dva provision backend/setup
+```
+
+subproject의 `interaction`과 `provision`은 해당 subproject root 기준으로 실행됩니다.
 
 ### 특수 변수
 

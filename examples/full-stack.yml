@@ -1,53 +1,157 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/master/schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
 #
 # Example: Full-Stack DVA Configuration
-# Use Case: Rails + Node.js + PostgreSQL + Redis full-stack application
-# Features: Demonstrates all major dva features including provision profiles,
-#           subcommands, multiple runners, compose profiles, and infra management
+# Use Case: Rails + Node.js + PostgreSQL + Redis
+# Features: multi-runner stack, compose + kubernetes targets, named plans, rich interactions
 #
 # Usage:
-#   dva up                     # Start all services (default mode)
-#   dva stack up               # Start infrastructure stack only
-#   dva stack status           # Show stack entry statuses
-#   dva app ls                 # List applications with status/health/port
-#   dva app up                 # Start all applications
-#   dva app up --dev           # Start apps in dev mode (hot-reload)
-#   dva up -M native           # Native mode: health checks only, no Docker
-#   dva up -M hybrid           # Databases in Docker, app natively
-#   dva up -M native -E stg   # Native mode with staging config
-#   dva down -M native         # Stop native services only
-#   dva provision              # Run default setup
-#   dva provision reset        # Reset and rebuild
-#   dva rails console          # Start Rails console
-#   dva rails db:migrate       # Run migrations
-#   dva npm install            # Install Node packages
-#   dva rspec                  # Run tests
-#
-# Learn more: https://github.com/ScriptonBasestar/dev-virtual-auto
+#   dva ls
+#   dva up local-dev
+#   dva up remote-stg
+#   dva rails console
+#   dva npm install
+#   dva provision deploy
 
-version: '0.1.44'
+version: "0.1.44"
 
-environment:
+env_file:
+  - .env
+
+vars:
   RAILS_ENV: development
   NODE_ENV: development
   DATABASE_URL: postgres://user:password@db:5432/myapp_development
   REDIS_URL: redis://redis:6379/0
   PORT: ${PORT:-3000}
   APP_PORT: ${PORT:-3000}
-  ENABLE_WEB_CONSOLE: true
-  WORKER_CONCURRENCY: 4
+  ENABLE_WEB_CONSOLE: "true"
+  WORKER_CONCURRENCY: "4"
 
 stack:
-  compose:
-    order: 10
-    files:
-      - docker-compose.yml
-      - docker-compose.override.yml
-    project_name: myapp_project
-    command: docker compose
-  kubectl:
-    order: 20
-    namespace: myapp-development
+  core-infra:
+    description: PostgreSQL and Redis via Docker Compose
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+          - docker-compose.override.yml
+        project_name: myapp_project
+
+  web:
+    description: Rails web application
+    default_runner: native
+    runners:
+      native:
+        dir: myapp
+        build: bundle exec rails assets:precompile
+        run: bundle exec rails server -p 3000 -b 0.0.0.0
+      docker:
+        image: myorg/web:dev
+        run: docker run --rm --name web myorg/web:dev
+      kubectl:
+        namespace: myapp-development
+        context: minikube
+        manifests:
+          - k8s/web.yaml
+
+  frontend:
+    description: Node.js frontend
+    default_runner: native
+    runners:
+      native:
+        dir: frontend
+        build: npm run build
+        run: npm run start
+      docker:
+        image: myorg/frontend:dev
+        run: docker run --rm --name frontend myorg/frontend:dev
+
+  app-k8s:
+    description: Shared Kubernetes deployment bundle
+    default_runner: kubectl
+    runners:
+      kubectl:
+        namespace: myapp-development
+        context: minikube
+        manifests:
+          - k8s/web.yaml
+          - k8s/worker.yaml
+
+environments:
+  dev:
+    vars:
+      APP_ENV: dev
+      LOG_LEVEL: debug
+
+  stg:
+    vars:
+      APP_ENV: stg
+      LOG_LEVEL: info
+      DATABASE_URL: postgres://user:password@stg-db:5432/myapp_staging
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      web:
+        runner: native
+      frontend:
+        runner: native
+
+  remote:
+    vars:
+      DVA_SITE: remote
+    entry_overrides:
+      web:
+        runner: docker
+      frontend:
+        runner: docker
+
+  cloud:
+    vars:
+      DVA_SITE: cloud
+    entry_overrides:
+      web:
+        runner: kubectl
+
+plans:
+  local-dev:
+    description: Local full-stack development
+    environment: dev
+    site: local
+    entries:
+      - name: core-infra
+        runner: compose
+        order: 10
+        services: [db, redis]
+      - name: web
+        runner: native
+        order: 20
+        depends_on: [core-infra]
+      - name: frontend
+        runner: native
+        order: 30
+        depends_on: [web]
+
+  remote-stg:
+    description: Remote staging-like environment
+    environment: stg
+    site: remote
+    entries:
+      - name: core-infra
+        runner: compose
+        order: 10
+        services: [db, redis]
+      - name: web
+        runner: docker
+        order: 20
+        depends_on: [core-infra]
+      - name: frontend
+        runner: docker
+        order: 30
+        depends_on: [web]
 
 interaction:
   rails:
@@ -59,24 +163,13 @@ interaction:
       RAILS_LOG_TO_STDOUT: "true"
     compose:
       method: run
-      compose_method: up
       run_options:
         - service-ports
         - rm
-      profiles:
-        - web
-        - development
-    shell: true
-    entrypoint: /docker-entrypoint.sh
-    runner: docker_compose
-    pod: web
     subcommands:
       console:
         description: Start Rails console
         command: console
-      routes:
-        description: Show Rails routes
-        command: routes
       db:
         description: Database related commands
         subcommands:
@@ -91,17 +184,11 @@ interaction:
     description: Run npm commands
     service: frontend
     command: npm
-    compose:
-      method: run
-      profiles:
-        - frontend
 
   psql:
     description: Connect to PostgreSQL database
     service: db
     command: psql -h db -U user myapp_development
-    compose:
-      method: run
     environment:
       PGPASSWORD: password
 
@@ -111,244 +198,39 @@ interaction:
     command: bundle exec rspec
     environment:
       RAILS_ENV: test
-    compose:
-      method: run
-      run_options:
-        - rm
-      profiles:
-        - test
-    subcommands:
-      all:
-        command: bundle exec appraisal rspec
-      rails-6.0:
-        command: bundle exec appraisal rails-6.0 rspec
-      rails-6.1:
-        command: bundle exec appraisal rails-6.1 rspec
-      rails-7.0:
-        command: bundle exec appraisal rails-7.0 rspec
 
   shell:
     description: Start a shell in the web container
     service: web
     command: /bin/bash
-    compose:
-      method: run
-      run_options:
-        - rm
 
   k8s:
     description: Run kubectl commands
     command: kubectl
     runner: kubectl
-    entrypoint: kubectl
-    shell: false
-
-  brakeman:
-    description: Check brakeman sast
-    command: docker run another-image ...
-
-  rake:
-    description: Run Rake tasks
-    service: web
-    command: bundle exec rake
 
 provision:
-  # Note: Containers will auto-start if needed (since v9.1.3)
   default:
     - step: Building containers
-      run: dva compose build
-
+      run: docker compose build
     - step: Setting up database
       run:
         - dva rails db:create
         - dva rails db:migrate
         - dva rails db:seed
-
     - step: Installing Node.js dependencies
       run: dva npm install
-
-    - step: Validating configuration
-      run: dva validate
 
   reset:
     - step: Cleaning temporary files
       run: rm -rf tmp/ log/*.log
-
     - step: Rebuilding containers
-      run: dva compose build --no-cache
-
-    - step: Recreating database
-      run: dva rails db:drop db:create db:migrate db:seed
-
-  seed:
-    - step: Seeding database
-      run: dva rails db:seed
+      run: docker compose build --no-cache
 
   deploy:
     - step: Building containers
-      run: dva compose build
-
+      run: docker compose build
     - step: Running migrations
       run: dva rails db:migrate
-
     - step: Precompiling assets
       run: dva rails assets:precompile
-
-# Applications: managed app processes with native/docker dual paths
-# Use `dva app ls` to see status, `dva app up/down/stop` to control.
-applications:
-  web:
-    description: "Rails API server"
-    tags: [app, api]
-    port: 3000
-    dir: "myapp"
-    run:
-      native: "bundle exec rails server -p 3000 -b 0.0.0.0"
-      docker:
-        service: web
-        profile: web
-    dev:
-      native: "bin/rails server -p 3000 -b 0.0.0.0"
-      docker: "docker compose --profile web up web"
-    build:
-      native: "bundle exec rails assets:precompile"
-      docker:
-        service: web
-        command: "bundle exec rails assets:precompile"
-    environment:
-      RAILS_LOG_TO_STDOUT: "true"
-      PORT: "3000"
-    health:
-      type: http
-      url: "http://localhost:3000/health"
-      start: "cd myapp && bundle exec rails server -p 3000 -d"
-      start_hint: "Start Rails: bundle exec rails server -p 3000"
-      timeout: 5
-      ready_timeout: 30
-
-  frontend:
-    description: "Node.js frontend"
-    tags: [app, ui]
-    port: 3001
-    dir: "frontend"
-    depends_on: [web]
-    run:
-      native: "npm run build && npm run start"
-      docker:
-        service: frontend
-        profile: frontend
-    dev:
-      native: "npm run dev -- --port 3001"
-      docker: "docker compose --profile frontend up frontend"
-    build:
-      native: "npm run build"
-      docker:
-        service: frontend
-        command: "npm run build"
-    health:
-      type: http
-      url: "http://localhost:3001"
-      timeout: 3
-      ready_timeout: 30
-
-# Modes: runtime strategy (--mode/-M) — HOW to run infrastructure and apps
-modes:
-  native:
-    description: Run without Docker (native services only)
-    compose_services: []
-    health_checks: [postgres, redis, web_server]
-    applications: native
-
-  docker:
-    description: Full Docker mode with all compose profiles activated
-    compose_profiles: [web, development, frontend]
-    applications: docker
-
-  hybrid:
-    description: Databases in Docker, app runs natively
-    compose_services: [db, redis]
-    health_checks: [web_server]
-    applications:
-      web: native
-      frontend: native
-
-  full-stack:
-    description: "Everything running natively"
-    applications: native
-
-health_checks:
-  postgres:
-    type: tcp
-    address: "localhost:5432"
-    start: "pg_ctl -D /usr/local/var/postgres start"
-    timeout: 3
-  redis:
-    type: tcp
-    address: "localhost:6379"
-    start: "redis-server --daemonize yes"
-    timeout: 2
-  web_server:
-    type: http
-    url: "http://localhost:3000/health"
-    start: "cd myapp && bundle exec rails server -p 3000 -d"
-    start_hint: "Start Rails: bundle exec rails server -p 3000"
-    timeout: 5
-    ready_timeout: 30
-
-# Environments: env configuration (--env/-E) — WHAT settings to use
-# Optional `stack` field filters which stack entries run (empty=all)
-environments:
-  dev:
-    description: Development settings (default)
-    stack: [compose]
-    environment:
-      RAILS_ENV: development
-      DATABASE_URL: postgres://user:password@db:5432/myapp_development
-      REDIS_URL: redis://redis:6379/0
-
-  stg:
-    description: Staging settings for local testing
-    stack: [kubectl]
-    environment:
-      RAILS_ENV: staging
-      DATABASE_URL: postgres://user:password@localhost:5433/myapp_staging
-      REDIS_URL: redis://localhost:6380/0
-
-  prd:
-    description: Production-like settings for local testing
-    stack: [kubectl]
-    environment:
-      RAILS_ENV: production
-      DATABASE_URL: postgres://user:password@localhost:5434/myapp_production
-      REDIS_URL: redis://localhost:6381/0
-
-# modules:
-#   - production
-
-endpoints:
-  web:
-    url: "http://localhost:3000"
-    label: "Rails API"
-    tags: [app, api]
-    paths:
-      /health: "Health check"
-      /api/v1: "API v1"
-  frontend:
-    url: "http://localhost:3001"
-    label: "Frontend"
-    tags: [app, ui]
-  db:
-    source: "db:5432"
-    label: "PostgreSQL"
-    tags: [infra, data]
-  redis:
-    source: "redis:6379"
-    label: "Redis"
-    tags: [infra, data]
-
-infra:
-  redis:
-    git: https://github.com/mycompany/redis-config.git
-    ref: main
-  elasticsearch:
-    path: ./infra/elasticsearch
