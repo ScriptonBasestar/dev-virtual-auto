@@ -148,6 +148,7 @@ applications:
 
 ```bash
 dva config init --ai         # Claude Code CLI로 dva.yml 자동 생성
+dva config discover         # 프로젝트에서 가능한 DVA 옵션 분석
 dva config init -p           # LLM용 프롬프트 출력
 dva config improve --print   # 기존 dva.yml 개선용 프롬프트 출력
 dva manifest                 # 구조화된 커맨드 매니페스트

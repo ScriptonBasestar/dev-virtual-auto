@@ -71,7 +71,7 @@ steps:
     instruction: |
       # Stage 30: Configure DVA
 
-      승인된 계획에 따라 dva.yml을 생성/개선하라.
+      승인된 선택 계획에 따라 dva.yml을 생성/개선하라.
 
       ## Setup Track: {{detect_track.track | trim}}
       - **fresh**: compose.yml + dva.yml 모두 신규 생성
@@ -102,7 +102,7 @@ steps:
       1. 기존 dva.yml 로드 (있으면)
       2. 안티패턴 변환 (echo 래퍼 → 실제 명령, 프리픽스 커맨드 → replace 훅)
       3. 누락 필수 섹션 추가
-      4. applications 섹션 생성 (감지된 앱 서버)
+      4. 사용자에게 제시된 후보 중 선택된 applications 섹션 생성
       5. interaction 매핑 (Makefile/package.json → dva commands)
       6. endpoints 완비
 

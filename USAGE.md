@@ -19,6 +19,7 @@
 | Command | Description |
 |---------|-------------|
 | `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
+| `dva config discover` | 프로젝트를 분석해 가능한 DVA 옵션 후보 출력 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 사용 가능한 interaction 커맨드 목록 |
 | `dva version` | 버전 표시 |
@@ -38,6 +39,30 @@ dva config init --all            # 가능한 모든 기능 통합 활성화 (dev
 ```
 
 생성 후 `dva config improve`로 AI 기반 최적화를 실행할 수 있습니다.
+
+#### discover (config discover)
+
+```bash
+dva config discover          # JSON 형식으로 분석 결과 출력
+dva config discover -f yaml  # YAML 형식으로 출력
+```
+
+`discover`는 `dva.yml`을 직접 생성하지 않고, 프로젝트에서 감지한 다음 후보를 정리해 보여줍니다.
+
+- 감지된 compose 파일과 서비스
+- package.json / Makefile 기반 실행 커맨드
+- 앱 후보와 native/docker 실행 경로
+- 추천 mode (`native`, `docker`, `hybrid`, `local-test` 등)
+- 추천 environment (`dev`, `local-test` 등)
+
+권장 흐름:
+
+```bash
+dva config discover   # 1단계: 옵션 분석
+dva config improve    # 2단계: 최종 dva.yml 생성/개선
+```
+
+`improve`는 내부적으로 discovery 결과 리포트를 재사용합니다.
 
 #### config improve
 

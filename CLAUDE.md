@@ -9,7 +9,7 @@ make build          # bin/dva 생성 (generate 포함)
 make install        # ~/.local/bin/dva 설치
 make test           # 전체 테스트
 make test-integration  # 통합 테스트 (-tags=integration)
-make generate       # workflow/library/ → internal/cli/library_reference.txt 임베드 생성
+make generate       # agent-mesh-flows/shared/library/ → internal/cli/library_reference.txt 임베드 생성
 ```
 
 **규칙**: `go build` 직접 실행 금지 → `make build` 사용
@@ -26,7 +26,6 @@ internal/
   logger/            # slog 래퍼
   output/            # 출력 포맷
 agent-mesh-flows/    # agent-mesh flow 정의 (dva config improve/diagnose의 AI 워크플로우)
-workflow/            # DVA library reference 소스 (guardrails, schema, naming presets)
 examples/            # dva.yml 예시 파일
 tasks/               # 작업 추적
 ```
@@ -45,7 +44,7 @@ am run dva-diagnose                   # dva config improve diagnose
 
 **의존성**: `am` (agent-mesh) CLI가 PATH에 있어야 함.
 
-Flow 파일: `agent-mesh-flows/` 디렉토리. Library reference: `workflow/library/`.
+Flow 파일: `agent-mesh-flows/` 디렉토리. Library reference: `agent-mesh-flows/shared/library/`.
 
 ## Key Concepts
 

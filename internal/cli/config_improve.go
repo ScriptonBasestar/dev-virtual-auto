@@ -28,6 +28,10 @@ var improveCmd = &cobra.Command{
 If dva.yml does not exist, it scaffolds one first (auto-detecting project type),
 then runs AI improvement on it. If dva.yml already exists, it improves in place.
 
+Recommended workflow:
+  1. dva config discover  # inspect discovered options and candidate modes
+  2. dva config improve   # reuse the discovery report and generate/refine dva.yml
+
 Use --rewrite to rebuild dva.yml from scratch based on project analysis.
 Use --recursive to also improve dva.yml in detected sub-projects.
 Use --interactive to run the guided 5-stage improve pipeline.
@@ -77,6 +81,10 @@ func runAmImprove() error {
 		return err
 	}
 
+	if err := runDiscoveryFlow(amPath, "."); err != nil {
+		return err
+	}
+
 	mode := "preserve"
 	if improveRewrite {
 		mode = "rewrite"
@@ -105,6 +113,10 @@ func runAmImproveGuided() error {
 
 	amPath, err := findAmCLI()
 	if err != nil {
+		return err
+	}
+
+	if err := runDiscoveryFlow(amPath, "."); err != nil {
 		return err
 	}
 
@@ -182,6 +194,14 @@ func runAmImproveRecursive() error {
 	}
 
 	return nil
+}
+
+func runDiscoveryFlow(amPath, target string) error {
+	fmt.Println("Running discovery via agent-mesh...")
+	fmt.Println()
+	return execAm(amPath, buildAmArgs("dva-discover", map[string]string{
+		"target": target,
+	}))
 }
 
 // printAmRunCommand outputs the am run command that would be executed.

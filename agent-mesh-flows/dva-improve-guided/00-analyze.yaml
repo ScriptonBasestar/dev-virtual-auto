@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../schemas/flow.schema.json
 name: dva-improve-guided/00-analyze
-description: "Stage 00: Scan target project, detect patterns, classify track"
+description: "Stage 00: Scan target project and enumerate candidate DVA options"
 contract:
-  goal: "프로젝트 구조를 분석하여 DVA 설정 계획을 수립한다"
+  goal: "프로젝트 구조를 분석하여 선택 가능한 DVA 옵션을 수집한다"
   expected_results:
     - "DVA 필요 여부가 판단된다"
     - "setup_track(fresh/adopt/upgrade)이 분류된다"
@@ -182,7 +182,7 @@ steps:
     depends_on: [detect_basics, dva_cli_data, scan_project]
     json_mode: true
     instruction: |
-      프로젝트를 분석하여 DVA 설정 계획을 JSON으로 생성하라.
+      프로젝트를 분석하여 DVA 설정 계획과 선택 가능한 옵션을 JSON으로 생성하라.
 
       ## DVA CLI 정보
       - DVA 버전: {{check_dva.dva_version}}
@@ -242,7 +242,13 @@ steps:
         "package_names": {"lang": "name"},
         "service_groups": [{"name": "svc", "tags": ["infra"]}],
         "recommended_modes": ["infra", "full-stack"],
+        "candidate_environments": ["dev", "local-test"],
         "detected_applications": [{"name": "api", "port": 8080, "framework": "..."}],
+        "candidate_options": {
+          "applications": [{"name": "api", "native_run": ["..."], "docker_services": ["api"]}],
+          "interactions": [{"name": "test", "source": "package.json", "command": "npm test"}]
+        },
+        "selection_hints": ["추천 기본 mode는 hybrid"],
         "compose_issues": ["issues"],
         "port_discrepancies": [],
         "naming_compliance": {"issues": []},

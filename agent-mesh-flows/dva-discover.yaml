@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=schemas/flow.schema.json
+name: dva-discover
+description: "Analyze a project and emit discovered DVA configuration options"
+contract:
+  goal: "프로젝트를 스캔해 DVA 구성에 사용할 수 있는 옵션을 분석 리포트로 생성한다"
+  expected_results:
+    - "프로젝트 분석 리포트가 생성된다"
+    - "감지된 앱, 인프라, 커맨드 후보가 정리된다"
+    - "추천 mode 와 environment 후보가 제시된다"
+  success_criteria:
+    - "analyze stage가 성공해야 한다"
+    - "tmp/improve-guided/00-analysis-report.json 파일이 생성되어야 한다"
+pipeline_role: orchestrator
+default_backend: smart
+
+parameters:
+  - name: target
+    description: "Target directory to analyze"
+    default: "."
+
+steps:
+  - id: analyze
+    type: pipeline
+    run_pipeline: dva-improve-guided/00-analyze
+    pipeline_params:
+      target: "{{param.target}}"

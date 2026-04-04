@@ -33,6 +33,9 @@ parameters:
   - name: target
     description: "Target directory"
     default: "."
+  - name: discovery_report
+    description: "Path to a precomputed discovery report JSON"
+    default: "tmp/improve-guided/00-analysis-report.json"
 
 interactive:
   confirm_before: [improve]
@@ -268,6 +271,17 @@ steps:
       validation_strict: |
         cd '{{param.target}}' && dva config validate --strict 2>&1 || true
 
+  - id: load_discovery_report
+    type: context
+    depends_on: [scaffold]
+    context:
+      discovery_report: |
+        if [ -f '{{param.discovery_report}}' ]; then
+          cat '{{param.discovery_report}}'
+        else
+          echo '{}'
+        fi
+
   # ══════════════════════════════════════════════
   # Phase 3: Load Library Reference (static knowledge)
   # ══════════════════════════════════════════════
@@ -306,6 +320,7 @@ steps:
       - scan_env
       - scan_subprojects
       - dva_state
+      - load_discovery_report
       - load_guardrails
       - load_checklist
       - load_schema
@@ -334,6 +349,17 @@ steps:
       `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`,
       `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `dev`,
       `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`
+
+      ---
+
+      # Precomputed Discovery Report
+
+      아래 JSON은 `dva config discover` 또는 `dva-discover` flow가 생성한 분석 결과입니다.
+      이 보고서가 비어 있지 않다면, 아래 결과를 현재 프로젝트 스캔보다 우선적인 구조화 입력으로 사용하세요.
+
+      ```json
+      {{load_discovery_report.discovery_report}}
+      ```
 
       ---
 

@@ -1,12 +1,12 @@
 # yaml-language-server: $schema=../schemas/flow.schema.json
 name: dva-improve-guided/10-verify
-description: "Stage 10: Present proposal to user and collect approval (USER GATE)"
+description: "Stage 10: Present discovered options and collect selection confirmation (USER GATE)"
 contract:
-  goal: "분석 결과를 사용자에게 제시하고 승인을 받는다"
+  goal: "분석 결과를 사용자에게 제시하고 선택 방향을 확정한다"
   expected_results:
-    - "변경 계획이 markdown으로 제시된다"
-    - "사용자가 명시적으로 승인한다"
-    - "승인된 계획이 저장된다"
+    - "발견된 옵션과 추천 조합이 markdown으로 제시된다"
+    - "사용자가 선택 방향을 확인한다"
+    - "확정된 계획이 저장된다"
   success_criteria:
     - "사용자가 승인/거부/수정 중 하나를 선택해야 한다"
     - "승인 없이 다음 stage로 진행하지 않는다"
@@ -47,11 +47,13 @@ steps:
     type: llm
     depends_on: [check_dva_needed]
     instruction: |
-      분석 리포트를 기반으로 사용자에게 제시할 변경 계획을 생성하라.
+      분석 리포트를 기반으로 사용자에게 제시할 선택형 변경 계획을 생성하라.
 
       ## 포함 항목
       - Setup track (fresh/adopt/upgrade)
       - Development pattern (hybrid/container-first/devbox)
+      - 발견된 앱/인프라/커맨드 옵션
+      - 추천 기본 mode / environment 조합
       - 생성/수정할 파일 목록 (체크박스)
       - 서비스 그룹과 태그 매핑
       - 추천 modes
@@ -59,7 +61,7 @@ steps:
       - 리스크 평가
 
       ## 마지막에 반드시 포함
-      "이 계획을 승인하시겠습니까? (Yes/No/Modify)"
+      "발견된 옵션 중 어떤 방향으로 dva.yml을 구성할지 승인하시겠습니까? (Yes/No/Modify)"
 
       [ANALYSIS REPORT]
       {{load_report.output}}
