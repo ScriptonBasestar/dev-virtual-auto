@@ -63,6 +63,8 @@ type PlanConfig struct {
 	Site        string            `yaml:"site"`
 	Vars        map[string]string `yaml:"vars"`
 	Entries     []PlanEntry       `yaml:"entries"`
+
+	SubprojectPath string `yaml:"-"`
 }
 
 // PlanEntry is a single entry in a plan, referencing a stack declaration.
@@ -333,6 +335,8 @@ type InteractionCommand struct {
 	Before  []ProvisionItem `yaml:"before"`
 	Replace []ProvisionItem `yaml:"replace"`
 	After   []ProvisionItem `yaml:"after"`
+
+	SubprojectPath string `yaml:"-"`
 }
 
 // HasHooks reports whether the command defines any hook steps (before/replace/after).
@@ -785,6 +789,12 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 	if cfg.Sites == nil {
 		cfg.Sites = make(map[string]*SiteConfig)
+	}
+
+	if len(cfg.Subprojects) > 0 {
+		if err := resolveSubprojectImports(cfg); err != nil {
+			return nil, fmt.Errorf("resolving subprojects: %w", err)
+		}
 	}
 
 	// Populate Name field and resolve deferred plugins from map keys

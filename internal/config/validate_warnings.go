@@ -10,6 +10,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const migrationGuideURL = "https://github.com/ScriptonBasestar/dva/blob/main/docs/40-declarative-stack-and-plans.md#11-migration"
+
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{
 	"version", "environment", "env_file", "stack", "checks",
@@ -33,6 +35,11 @@ func init() {
 func (c *Config) ValidateWarnings() []string {
 	var warnings []string
 	warnings = append(warnings, c.warnVersionOutdated()...)
+	warnings = append(warnings, c.warnLegacyModes()...)
+	warnings = append(warnings, c.warnLegacyApplications()...)
+	warnings = append(warnings, c.warnLegacyStackOrder()...)
+	warnings = append(warnings, c.warnLegacyEnvironmentFields()...)
+	warnings = append(warnings, c.warnNoPlansHint()...)
 	warnings = append(warnings, c.warnHealthCheckRedundancy()...)
 	warnings = append(warnings, c.warnDuplicateParentSubcommand()...)
 	warnings = append(warnings, c.warnDuplicateStackOrder()...)
@@ -54,6 +61,83 @@ func (c *Config) ValidateWarnings() []string {
 		warnings = append(warnings, validateCanonicalOrder(c.filePath)...)
 	}
 	return warnings
+}
+
+// warnLegacyModes warns when legacy `modes` are present and suggests migration.
+func (c *Config) warnLegacyModes() []string {
+	if len(c.Modes) == 0 {
+		return nil
+	}
+
+	return []string{
+		fmt.Sprintf("⚠ 'modes' section detected — consider migrating to 'plans' + 'environments' + 'sites'\n  Migration guide: %s\n  Hint: modes will continue to work but are deprecated in favor of the new plans model", migrationGuideURL),
+	}
+}
+
+// warnLegacyApplications warns when legacy `applications` are present and suggests migration.
+func (c *Config) warnLegacyApplications() []string {
+	if len(c.Applications) == 0 {
+		return nil
+	}
+
+	return []string{
+		fmt.Sprintf("⚠ 'applications' section detected — consider migrating to multi-runner 'stack' entries\n  Migration guide: %s\n  Hint: each application can become a stack entry with native/docker/helm runners", migrationGuideURL),
+	}
+}
+
+// warnLegacyStackOrder warns when `stack.*.order` is used and suggests moving order to plan entries.
+func (c *Config) warnLegacyStackOrder() []string {
+	if len(c.Stack) == 0 {
+		return nil
+	}
+
+	var affected []string
+	for name, entry := range c.Stack {
+		if entry != nil && entry.Order > 0 {
+			affected = append(affected, name)
+		}
+	}
+	if len(affected) == 0 {
+		return nil
+	}
+
+	sort.Strings(affected)
+	return []string{
+		fmt.Sprintf("⚠ 'stack.*.order' detected — execution order should move to 'plans.*.entries[].order'\n  Migration guide: %s\n  Affected entries: %s\n  Hint: stack is now a declaration store; execution order belongs in plans", migrationGuideURL, strings.Join(affected, ", ")),
+	}
+}
+
+// warnLegacyEnvironmentFields warns when deprecated environment stack fields are used.
+func (c *Config) warnLegacyEnvironmentFields() []string {
+	if len(c.Environments) == 0 {
+		return nil
+	}
+
+	var affected []string
+	for envName, profile := range c.Environments {
+		if len(profile.Stack) > 0 || len(profile.StackOverrides) > 0 {
+			affected = append(affected, envName)
+		}
+	}
+	if len(affected) == 0 {
+		return nil
+	}
+
+	sort.Strings(affected)
+	return []string{
+		fmt.Sprintf("⚠ 'environments.*.stack/stack_overrides' detected — these fields are deprecated\n  Migration guide: %s\n  Affected environments: %s\n  Hint: environments should use 'vars' only; stack selection belongs in plans", migrationGuideURL, strings.Join(affected, ", ")),
+	}
+}
+
+// warnNoPlansHint emits a migration hint when stack exists but no plans are defined.
+func (c *Config) warnNoPlansHint() []string {
+	if len(c.Stack) == 0 || len(c.Plans) > 0 {
+		return nil
+	}
+
+	return []string{
+		fmt.Sprintf("ℹ No 'plans' defined — consider adding execution plans for 'dva up <name>' support\n  Migration guide: %s\n  Hint: plans combine stack entries, environments, and sites into named execution targets\n  Example:\n    plans:\n      local-dev:\n        environment: dev\n        site: local\n        entries:\n          - name: <stack-entry>\n            runner: <runner-name>\n            order: 10", migrationGuideURL),
+	}
 }
 
 // warnVersionOutdated warns when the config version is older than the running DVA binary.
