@@ -2,6 +2,8 @@ package config
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -28,12 +30,16 @@ var knownPluginNames = map[string]string{
 
 // LifecycleEntry defines a single entry in the stack pipeline.
 type LifecycleEntry struct {
-	Name         string                       `yaml:"-"` // populated from map key
-	Plugin       string                       `yaml:"plugin,omitempty"`
-	Order        int                          `yaml:"order"`
-	Tags         []string                     `yaml:"tags"`
-	Exports      map[string]string            `yaml:"exports"`
-	HealthChecks map[string]HealthCheckConfig `yaml:"health_checks"`
+	Name          string                       `yaml:"-"` // populated from map key
+	Plugin        string                       `yaml:"plugin,omitempty"`
+	Order         int                          `yaml:"order"`
+	Description   string                       `yaml:"description"`
+	Tags          []string                     `yaml:"tags"`
+	Vars          map[string]string            `yaml:"vars"`
+	Exports       map[string]string            `yaml:"exports"`
+	HealthChecks  map[string]HealthCheckConfig `yaml:"health_checks"`
+	DefaultRunner string                       `yaml:"default_runner"`
+	Runners       map[string]any               `yaml:"runners"`
 
 	// --- Tier 1: Core ---
 	Compose *ComposePluginConfig `yaml:"compose,omitempty"`
@@ -60,6 +66,24 @@ type LifecycleEntry struct {
 	rawNode *yaml.Node `yaml:"-"`
 }
 
+type NativeRunnerConfig struct {
+	Dir   string            `yaml:"dir"`
+	Build string            `yaml:"build"`
+	Run   string            `yaml:"run"`
+	Env   map[string]string `yaml:"env"`
+}
+
+type DockerRunnerConfig struct {
+	Image   string            `yaml:"image"`
+	Run     string            `yaml:"run"`
+	Build   string            `yaml:"build"`
+	Command string            `yaml:"command"`
+	Ports   []string          `yaml:"ports"`
+	Volumes []string          `yaml:"volumes"`
+	Env     map[string]string `yaml:"env"`
+	Options []string          `yaml:"options"`
+}
+
 // UnmarshalYAML supports three resolution strategies for lifecycle entries:
 //
 // Nested (legacy): plugin config under a named sub-key
@@ -84,11 +108,14 @@ type LifecycleEntry struct {
 func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	// Decode common fields + nested plugin configs
 	var raw struct {
-		Plugin       string                       `yaml:"plugin"`
-		Order        int                          `yaml:"order"`
-		Tags         []string                     `yaml:"tags"`
-		Exports      map[string]string            `yaml:"exports"`
-		HealthChecks map[string]HealthCheckConfig `yaml:"health_checks"`
+		Plugin        string                       `yaml:"plugin"`
+		Order         int                          `yaml:"order"`
+		Description   string                       `yaml:"description"`
+		Tags          []string                     `yaml:"tags"`
+		Vars          map[string]string            `yaml:"vars"`
+		Exports       map[string]string            `yaml:"exports"`
+		HealthChecks  map[string]HealthCheckConfig `yaml:"health_checks"`
+		DefaultRunner string                       `yaml:"default_runner"`
 
 		// Nested format: plugin config under its type key
 		Compose       *ComposePluginConfig       `yaml:"compose"`
@@ -111,9 +138,18 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	e.Order = raw.Order
+	e.Description = raw.Description
 	e.Tags = raw.Tags
+	e.Vars = raw.Vars
 	e.Exports = raw.Exports
 	e.HealthChecks = raw.HealthChecks
+	e.DefaultRunner = raw.DefaultRunner
+
+	runners, err := decodeRunnersMap(node)
+	if err != nil {
+		return err
+	}
+	e.Runners = runners
 
 	// Nested format: detect by checking which plugin sub-key is set
 	switch {
@@ -184,6 +220,153 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	// No plugin detected: store raw node for deferred resolution from entry name
 	e.rawNode = node
 	return nil
+}
+
+func decodeRunnersMap(entryNode *yaml.Node) (map[string]any, error) {
+	runnersNode := findMapValueNode(entryNode, "runners")
+	if runnersNode == nil {
+		return nil, nil
+	}
+	if runnersNode.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("runners: expected mapping node")
+	}
+
+	runners := make(map[string]any)
+	for i := 0; i+1 < len(runnersNode.Content); i += 2 {
+		name := runnersNode.Content[i].Value
+		cfgNode := runnersNode.Content[i+1]
+		cfg, err := decodeRunnerNode(name, cfgNode)
+		if err != nil {
+			return nil, fmt.Errorf("runners.%s: %w", name, err)
+		}
+		runners[name] = cfg
+	}
+	return runners, nil
+}
+
+func findMapValueNode(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
+	return nil
+}
+
+func decodeRunnerNode(name string, node *yaml.Node) (any, error) {
+	normalized := normalizeRunnerName(name)
+	switch normalized {
+	case "native":
+		cfg := &NativeRunnerConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "docker":
+		cfg := &DockerRunnerConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "compose":
+		cfg := &ComposePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "process":
+		cfg := &ProcessPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "script":
+		cfg := &ScriptPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "kubectl":
+		cfg := &KubectlPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "helm":
+		cfg := &HelmPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "kustomize":
+		cfg := &KustomizePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "tilt":
+		cfg := &TiltPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "skaffold":
+		cfg := &SkaffoldPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "podman-compose":
+		cfg := &PodmanComposePluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "vagrant":
+		cfg := &VagrantPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "sam":
+		cfg := &SAMPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "serverless":
+		cfg := &ServerlessPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	case "multipass":
+		cfg := &MultipassPluginConfig{}
+		if err := node.Decode(cfg); err != nil {
+			return nil, err
+		}
+		return cfg, nil
+	default:
+		m := make(map[string]any)
+		if err := node.Decode(&m); err != nil {
+			return nil, err
+		}
+		return m, nil
+	}
+}
+
+func normalizeRunnerName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "podman_compose" {
+		return "podman-compose"
+	}
+	if mapped, ok := knownPluginNames[trimmed]; ok {
+		return mapped
+	}
+	return trimmed
 }
 
 // resolvePluginConfig decodes plugin-specific fields from a flat YAML node.
@@ -277,6 +460,143 @@ func (e *LifecycleEntry) resolvePluginConfig(node *yaml.Node) error {
 		return fmt.Errorf("unknown plugin %q", e.Plugin)
 	}
 	return nil
+}
+
+func (e *LifecycleEntry) GetRunnerConfig(runnerName string) (any, error) {
+	selected := normalizeRunnerName(runnerName)
+	if selected == "" {
+		selected = normalizeRunnerName(e.DefaultRunner)
+	}
+
+	if len(e.Runners) > 0 {
+		if selected == "" && len(e.Runners) == 1 {
+			for k := range e.Runners {
+				selected = normalizeRunnerName(k)
+				break
+			}
+		}
+
+		if selected != "" {
+			if cfg, ok := e.Runners[selected]; ok {
+				return cfg, nil
+			}
+			if selected == "podman-compose" {
+				if cfg, ok := e.Runners["podman_compose"]; ok {
+					return cfg, nil
+				}
+			}
+			if selected == "podman_compose" {
+				if cfg, ok := e.Runners["podman-compose"]; ok {
+					return cfg, nil
+				}
+			}
+			return nil, fmt.Errorf("runner %q is not declared in entry %q", selected, e.Name)
+		}
+	}
+
+	if selected == "" {
+		selected = normalizeRunnerName(e.DetectPlugin())
+	}
+
+	switch selected {
+	case "compose":
+		if e.Compose == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Compose, nil
+	case "process":
+		if e.Process == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Process, nil
+	case "script":
+		if e.Script == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Script, nil
+	case "docker":
+		if e.Docker == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Docker, nil
+	case "kubectl":
+		if e.Kubectl == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Kubectl, nil
+	case "helm":
+		if e.Helm == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Helm, nil
+	case "kustomize":
+		if e.Kustomize == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Kustomize, nil
+	case "tilt":
+		if e.Tilt == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Tilt, nil
+	case "skaffold":
+		if e.Skaffold == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Skaffold, nil
+	case "podman-compose":
+		if e.PodmanCompose == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.PodmanCompose, nil
+	case "vagrant":
+		if e.Vagrant == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Vagrant, nil
+	case "sam":
+		if e.SAM == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.SAM, nil
+	case "serverless":
+		if e.Serverless == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Serverless, nil
+	case "multipass":
+		if e.Multipass == nil {
+			return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+		}
+		return e.Multipass, nil
+	}
+
+	return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
+}
+
+func (e *LifecycleEntry) RunnerNames() []string {
+	names := make([]string, 0, len(e.Runners)+1)
+	if len(e.Runners) > 0 {
+		for name := range e.Runners {
+			names = append(names, normalizeRunnerName(name))
+		}
+	}
+	if len(names) == 0 {
+		if detected := normalizeRunnerName(e.DetectPlugin()); detected != "" {
+			names = append(names, detected)
+		}
+	}
+	sort.Strings(names)
+	if len(names) < 2 {
+		return names
+	}
+	uniq := names[:1]
+	for i := 1; i < len(names); i++ {
+		if names[i] != names[i-1] {
+			uniq = append(uniq, names[i])
+		}
+	}
+	return uniq
 }
 
 // ResolvePluginFromName infers the plugin type from the entry name

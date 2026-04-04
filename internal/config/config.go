@@ -13,6 +13,7 @@ import (
 // Config represents the parsed dva.yml configuration.
 type Config struct {
 	Version          string                         `yaml:"version"`
+	Vars             map[string]string              `yaml:"vars"`
 	Environment      map[string]string              `yaml:"environment"`
 	EnvFile          any                            `yaml:"env_file"`
 	Interaction      map[string]*InteractionCommand `yaml:"interaction"`
@@ -27,6 +28,8 @@ type Config struct {
 	SuggestionIgnore []string                       `yaml:"suggestion_ignore"`
 	Modes            map[string]ModeConfig          `yaml:"modes"`
 	Environments     map[string]EnvironmentProfile  `yaml:"environments"`
+	Plans            map[string]*PlanConfig         `yaml:"plans"`
+	Sites            map[string]*SiteConfig         `yaml:"sites"`
 	Ssh              SshConfig                      `yaml:"ssh"`
 	DoctorChecks     []DoctorCheck                  `yaml:"checks"`
 	Stack            map[string]*LifecycleEntry     `yaml:"stack"`
@@ -48,8 +51,81 @@ type DoctorCheck struct {
 
 // SubprojectConfig defines a sub-project reference.
 type SubprojectConfig struct {
-	Path        string   `yaml:"path"`
-	ExcludeTags []string `yaml:"exclude_tags"`
+	Path        string                  `yaml:"path"`
+	ExcludeTags []string                `yaml:"exclude_tags"`
+	Import      *SubprojectImportConfig `yaml:"import"`
+}
+
+// PlanConfig defines a named executable plan.
+type PlanConfig struct {
+	Description string            `yaml:"description"`
+	Environment string            `yaml:"environment"`
+	Site        string            `yaml:"site"`
+	Vars        map[string]string `yaml:"vars"`
+	Entries     []PlanEntry       `yaml:"entries"`
+}
+
+// PlanEntry is a single entry in a plan, referencing a stack declaration.
+type PlanEntry struct {
+	Name      string            `yaml:"name"`
+	Runner    string            `yaml:"runner"`
+	Order     int               `yaml:"order"`
+	DependsOn []string          `yaml:"depends_on"`
+	Services  []string          `yaml:"services"`
+	Vars      map[string]string `yaml:"vars"`
+}
+
+// SiteConfig defines host-based execution conditions.
+type SiteConfig struct {
+	Description    string                        `yaml:"description"`
+	Vars           map[string]string             `yaml:"vars"`
+	EntryOverrides map[string]*SiteEntryOverride `yaml:"entry_overrides"`
+}
+
+// SiteEntryOverride defines site-specific overrides for a stack entry.
+type SiteEntryOverride struct {
+	Runner string            `yaml:"runner"`
+	Vars   map[string]string `yaml:"vars"`
+}
+
+// EnvironmentV2 is the simplified environment profile (vars-only).
+type EnvironmentV2 struct {
+	Description string            `yaml:"description"`
+	Vars        map[string]string `yaml:"vars"`
+}
+
+// SubprojectImportConfig defines what to import from a subproject.
+type SubprojectImportConfig struct {
+	Plans        []SubprojectImportEntry `yaml:"plans"`
+	Interactions []SubprojectImportEntry `yaml:"interactions"`
+	Provision    []SubprojectImportEntry `yaml:"provision"`
+}
+
+// SubprojectImportEntry represents a single import item, optionally with alias.
+type SubprojectImportEntry struct {
+	Name string `yaml:"name"`
+	As   string `yaml:"as"`
+}
+
+// UnmarshalYAML supports both string shorthand and object forms.
+func (e *SubprojectImportEntry) UnmarshalYAML(node *yaml.Node) error {
+	if node.Kind == yaml.ScalarNode {
+		e.Name = strings.TrimSpace(node.Value)
+		e.As = ""
+		if e.Name == "" {
+			return fmt.Errorf("subproject import entry cannot be empty")
+		}
+		return nil
+	}
+
+	type plain SubprojectImportEntry
+	if err := node.Decode((*plain)(e)); err != nil {
+		return err
+	}
+	if strings.TrimSpace(e.Name) == "" {
+		return fmt.Errorf("subproject import entry name is required")
+	}
+	return nil
 }
 
 // ModeConfig defines a named operational mode for dva up (--mode/-M flag).
@@ -152,16 +228,16 @@ type ServiceTagConfig struct {
 // ApplicationConfig declares a long-running application process with
 // native and docker execution paths.
 type ApplicationConfig struct {
-	Description string             `yaml:"description"`
-	Tags        []string           `yaml:"tags"`
-	Port        int                `yaml:"port"` // listening port (shown in dva app ls)
-	Run         AppExecPaths       `yaml:"run"`
-	Build       AppExecPaths       `yaml:"build"`
-	Dev         AppExecPaths       `yaml:"dev"`
-	Health      *HealthCheckConfig `yaml:"health"`
-	DependsOn   []string           `yaml:"depends_on"` // compose services or other app names
-	Environment map[string]string  `yaml:"environment"`
-	Dir         string             `yaml:"dir"` // working directory (default: config dir)
+	Description string                 `yaml:"description"`
+	Tags        []string               `yaml:"tags"`
+	Port        int                    `yaml:"port"` // listening port (shown in dva app ls)
+	Run         AppExecPaths           `yaml:"run"`
+	Build       AppExecPaths           `yaml:"build"`
+	Dev         AppExecPaths           `yaml:"dev"`
+	Health      *HealthCheckConfig     `yaml:"health"`
+	DependsOn   []string               `yaml:"depends_on"` // compose services or other app names
+	Environment map[string]string      `yaml:"environment"`
+	Dir         string                 `yaml:"dir"`      // working directory (default: config dir)
 	Variants    map[string]*AppVariant `yaml:"variants"` // sub-components with own build/run/dev
 }
 
@@ -503,6 +579,22 @@ func (c *Config) FileDir() string {
 	return filepath.Dir(c.filePath)
 }
 
+// HasPlans reports whether any plans are configured.
+func (c *Config) HasPlans() bool {
+	return len(c.Plans) > 0
+}
+
+// DefaultPlan returns the only plan name when exactly one plan exists.
+func (c *Config) DefaultPlan() string {
+	if len(c.Plans) != 1 {
+		return ""
+	}
+	for name := range c.Plans {
+		return name
+	}
+	return ""
+}
+
 // ResolveApp resolves an application name (possibly with variant via dot notation)
 // to a fully merged ApplicationConfig. Supports "appname" and "appname.variant".
 func (c *Config) ResolveApp(name string) (string, *ApplicationConfig, error) {
@@ -673,6 +765,9 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	if cfg.Environment == nil {
 		cfg.Environment = make(map[string]string)
 	}
+	if cfg.Vars == nil {
+		cfg.Vars = make(map[string]string)
+	}
 	if cfg.Interaction == nil {
 		cfg.Interaction = make(map[string]*InteractionCommand)
 	}
@@ -684,6 +779,12 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 	if cfg.Applications == nil {
 		cfg.Applications = make(map[string]*ApplicationConfig)
+	}
+	if cfg.Plans == nil {
+		cfg.Plans = make(map[string]*PlanConfig)
+	}
+	if cfg.Sites == nil {
+		cfg.Sites = make(map[string]*SiteConfig)
 	}
 
 	// Populate Name field and resolve deferred plugins from map keys
