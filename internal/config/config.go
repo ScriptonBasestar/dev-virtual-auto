@@ -869,8 +869,36 @@ func loadFile(path string) (*Config, error) {
 //
 // Returns an error if a restricted field override is attempted.
 func (c *Config) mergeFrom(other *Config) error {
+	c.Vars = mergeStringMap(c.Vars, other.Vars)
+
 	// environment: map merge (key-level)
 	c.Environment = mergeStringMap(c.Environment, other.Environment)
+
+	if other.Plans != nil {
+		if c.Plans == nil {
+			c.Plans = make(map[string]*PlanConfig)
+		}
+		for k, v := range other.Plans {
+			if existing, ok := c.Plans[k]; ok {
+				c.Plans[k] = mergePlanConfig(existing, v)
+			} else {
+				c.Plans[k] = v
+			}
+		}
+	}
+
+	if other.Sites != nil {
+		if c.Sites == nil {
+			c.Sites = make(map[string]*SiteConfig)
+		}
+		for k, v := range other.Sites {
+			if existing, ok := c.Sites[k]; ok {
+				c.Sites[k] = mergeSiteConfig(existing, v)
+			} else {
+				c.Sites[k] = v
+			}
+		}
+	}
 
 	// interaction: deep merge per entry
 	if other.Interaction != nil {
@@ -989,13 +1017,16 @@ func (c *Config) mergeFrom(other *Config) error {
 		c.EnvFile = other.EnvFile
 	}
 
-	// subprojects: key-level replace (simple struct)
 	if other.Subprojects != nil {
 		if c.Subprojects == nil {
 			c.Subprojects = make(map[string]SubprojectConfig)
 		}
 		for k, v := range other.Subprojects {
-			c.Subprojects[k] = v
+			if existing, ok := c.Subprojects[k]; ok {
+				c.Subprojects[k] = mergeSubprojectConfig(existing, v)
+			} else {
+				c.Subprojects[k] = v
+			}
 		}
 	}
 

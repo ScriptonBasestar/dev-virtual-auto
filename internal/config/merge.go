@@ -128,6 +128,27 @@ func MergeLifecycleEntry(base, other *LifecycleEntry) (*LifecycleEntry, error) {
 		base.Multipass = other.Multipass
 	}
 
+	if other.Description != "" {
+		base.Description = other.Description
+	}
+	base.Vars = mergeStringMap(base.Vars, other.Vars)
+	if other.DefaultRunner != "" {
+		base.DefaultRunner = other.DefaultRunner
+	}
+
+	if other.Runners != nil {
+		if base.Runners == nil {
+			base.Runners = make(map[string]any)
+		}
+		for runnerName, runnerConfig := range other.Runners {
+			if existing, ok := base.Runners[runnerName]; ok {
+				base.Runners[runnerName] = mergeRunnerConfig(existing, runnerConfig)
+			} else {
+				base.Runners[runnerName] = runnerConfig
+			}
+		}
+	}
+
 	return base, nil
 }
 
@@ -596,5 +617,97 @@ func mergeEnvironmentProfile(base, other EnvironmentProfile) EnvironmentProfile 
 		}
 	}
 
+	return base
+}
+
+func mergePlanConfig(base, other *PlanConfig) *PlanConfig {
+	if base == nil {
+		return other
+	}
+	if other == nil {
+		return base
+	}
+	if other.Description != "" {
+		base.Description = other.Description
+	}
+	if other.Environment != "" {
+		base.Environment = other.Environment
+	}
+	if other.Site != "" {
+		base.Site = other.Site
+	}
+	base.Vars = mergeStringMap(base.Vars, other.Vars)
+	if other.Entries != nil {
+		base.Entries = other.Entries
+	}
+	return base
+}
+
+func mergeSiteConfig(base, other *SiteConfig) *SiteConfig {
+	if base == nil {
+		return other
+	}
+	if other == nil {
+		return base
+	}
+	if other.Description != "" {
+		base.Description = other.Description
+	}
+	base.Vars = mergeStringMap(base.Vars, other.Vars)
+	if other.EntryOverrides != nil {
+		if base.EntryOverrides == nil {
+			base.EntryOverrides = make(map[string]*SiteEntryOverride)
+		}
+		for k, v := range other.EntryOverrides {
+			if existing, ok := base.EntryOverrides[k]; ok {
+				base.EntryOverrides[k] = mergeSiteEntryOverride(existing, v)
+			} else {
+				base.EntryOverrides[k] = v
+			}
+		}
+	}
+	return base
+}
+
+func mergeSiteEntryOverride(base, other *SiteEntryOverride) *SiteEntryOverride {
+	if base == nil {
+		return other
+	}
+	if other == nil {
+		return base
+	}
+	if other.Runner != "" {
+		base.Runner = other.Runner
+	}
+	base.Vars = mergeStringMap(base.Vars, other.Vars)
+	return base
+}
+
+func mergeRunnerConfig(base, other any) any {
+	baseMap, baseOk := base.(map[string]any)
+	otherMap, otherOk := other.(map[string]any)
+	if baseOk && otherOk {
+		result := make(map[string]any, len(baseMap))
+		for k, v := range baseMap {
+			result[k] = v
+		}
+		for k, v := range otherMap {
+			result[k] = v
+		}
+		return result
+	}
+	return other
+}
+
+func mergeSubprojectConfig(base, other SubprojectConfig) SubprojectConfig {
+	if other.Path != "" {
+		base.Path = other.Path
+	}
+	if other.ExcludeTags != nil {
+		base.ExcludeTags = other.ExcludeTags
+	}
+	if other.Import != nil {
+		base.Import = other.Import
+	}
 	return base
 }
