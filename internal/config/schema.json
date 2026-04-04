@@ -336,6 +336,113 @@
       "description": "Specifies the minimum required version of DVA",
       "examples": ["8.1.0"]
     },
+    "vars": {
+      "type": "object",
+      "description": "Global variables injected into all execution contexts. Merged with environment, site, and plan vars at runtime. Priority: OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars",
+      "additionalProperties": { "type": ["string", "boolean", "number"] },
+      "examples": [{ "LOG_FORMAT": "text", "APP_ENV": "dev" }]
+    },
+    "plans": {
+      "type": "object",
+      "description": "Named execution plans. Each plan combines stack entries, environment, site, and vars into an executable configuration. Use 'dva up <plan-name>' to execute.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": { "type": "string", "description": "Human-readable description of this plan" },
+            "environment": { "type": "string", "description": "Environment name to apply (references environments section)" },
+            "site": { "type": "string", "description": "Site name to apply (references sites section)" },
+            "vars": {
+              "type": "object",
+              "description": "Plan-level variables (highest priority after CLI override)",
+              "additionalProperties": { "type": ["string", "boolean", "number"] }
+            },
+            "entries": {
+              "type": "array",
+              "description": "Ordered list of stack entry references with execution parameters",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string", "description": "Stack entry name to reference" },
+                  "runner": { "type": "string", "description": "Runner to use from the stack entry's runners map" },
+                  "order": { "type": "integer", "description": "Execution order within this plan" },
+                  "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Names of other plan entries that must complete first" },
+                  "services": { "type": "array", "items": { "type": "string" }, "description": "Compose service subset to start (compose runner only)" },
+                  "vars": {
+                    "type": "object",
+                    "description": "Entry-level additional variables",
+                    "additionalProperties": { "type": ["string", "boolean", "number"] }
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          },
+          "examples": [{
+            "local-dev": {
+              "description": "Local development plan",
+              "environment": "dev",
+              "site": "local",
+              "vars": { "LOG_LEVEL": "debug" },
+              "entries": [
+                { "name": "core-compose", "runner": "compose", "order": 10, "services": ["postgres", "redis"] },
+                { "name": "api", "runner": "native", "order": 20, "depends_on": ["core-compose"] }
+              ]
+            }
+          }]
+        }
+      },
+      "additionalProperties": false
+    },
+    "sites": {
+      "type": "object",
+      "description": "Named host-based execution conditions. Sites represent where DVA runs (local, office, remote, cloud), not the deployment target.",
+      "patternProperties": {
+        "^[\\w\\-.]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "description": { "type": "string" },
+            "vars": {
+              "type": "object",
+              "description": "Site-level variables",
+              "additionalProperties": { "type": ["string", "boolean", "number"] }
+            },
+            "entry_overrides": {
+              "type": "object",
+              "description": "Per-stack-entry overrides for this site",
+              "patternProperties": {
+                "^[\\w\\-.]+$": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "runner": { "type": "string", "description": "Override runner selection for this stack entry" },
+                    "vars": {
+                      "type": "object",
+                      "description": "Additional variables for this entry in this site",
+                      "additionalProperties": { "type": ["string", "boolean", "number"] }
+                    }
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "examples": [{
+            "local": { "vars": { "DVA_SITE": "local" } },
+            "remote": {
+              "vars": { "DVA_SITE": "remote" },
+              "entry_overrides": {
+                "api": { "runner": "docker", "vars": { "API_URL": "remote-api" } }
+              }
+            }
+          }]
+        }
+      },
+      "additionalProperties": false
+    },
     "stack": {
       "type": "object",
       "description": "Named stack entries defining the infrastructure lifecycle pipeline. Each key is the entry name. When the key matches a known plugin name (e.g., 'compose', 'kubectl'), the plugin type is auto-inferred. Use `plugin:` for custom names (e.g., 'my-db: plugin: compose'). Plugin-specific fields go at the top level (flat format). Entries execute in ascending order of `order` for up, descending for down/stop.",
@@ -343,6 +450,29 @@
         "type": "object",
         "additionalProperties": true,
         "properties": {
+          "default_runner": {
+            "type": "string",
+            "description": "Default runner name when not specified in plan entry. Must reference a key in the runners map."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable description of this stack declaration"
+          },
+          "runners": {
+            "type": "object",
+            "description": "Map of runner name to runner configuration. Each key is a runner name (e.g., 'native', 'docker', 'compose', 'helm'). The runner config follows the same structure as the corresponding plugin configuration.",
+            "additionalProperties": true,
+            "examples": [{
+              "native": { "dir": "apps/api", "run": "go run ./cmd/api" },
+              "docker": { "image": "myorg/api:dev" },
+              "compose": { "files": ["docker-compose.yml"] }
+            }]
+          },
+          "vars": {
+            "type": "object",
+            "description": "Stack-entry-level variables",
+            "additionalProperties": { "type": ["string", "boolean", "number"] }
+          },
           "plugin": {
             "type": "string",
             "description": "Plugin type (flat format). Specifies which plugin to use; plugin-specific fields go at the top level of this entry.",
@@ -693,6 +823,67 @@
               "type": "string",
               "description": "Relative or absolute path to the sub-project directory (must contain its own dva.yml)",
               "examples": ["cwrapper-engine-py", "../other-project"]
+            },
+            "import": {
+              "type": "object",
+              "description": "What to import from this subproject",
+              "additionalProperties": false,
+              "properties": {
+                "plans": {
+                  "type": "array",
+                  "description": "Plan names to import from this subproject",
+                  "items": {
+                    "oneOf": [
+                      { "type": "string" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string", "description": "Plan name in the subproject" },
+                          "as": { "type": "string", "description": "Alias name in the parent namespace" }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "interactions": {
+                  "type": "array",
+                  "description": "Interaction names to import",
+                  "items": {
+                    "oneOf": [
+                      { "type": "string" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "as": { "type": "string" }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "provision": {
+                  "type": "array",
+                  "description": "Provision profile names to import",
+                  "items": {
+                    "oneOf": [
+                      { "type": "string" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "as": { "type": "string" }
+                        },
+                        "required": ["name"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              }
             },
             "exclude_tags": {
               "type": "array",
