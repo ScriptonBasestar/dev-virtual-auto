@@ -32,7 +32,6 @@ var jsonOutput bool
 
 `make generate`가 생성한 `*.txt` 파일들이 `//go:embed`로 포함됨:
 - `library_reference.txt` — `ai-docs` 명령어용
-- `improve_*.txt` — `config improve` 워크플로우용
 
 ## Naming Convention
 

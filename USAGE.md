@@ -19,7 +19,7 @@
 | Command | Description |
 |---------|-------------|
 | `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
-| `dva config discover` | 프로젝트를 분석해 가능한 DVA 옵션 후보 출력 |
+| `dva config docs` | 프로젝트 AI 파트너용 CLAUDE.md/AGENTS.md 생성/갱신 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
 | `dva show <NAME>` | 특정 실행 이름 또는 설정 개요 표시 |
@@ -43,47 +43,16 @@ dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
 dva config init --all            # 가능한 모든 기능 통합 활성화 (devcontainer 등)
 ```
 
-생성 후 `dva config improve`로 AI 기반 최적화를 실행할 수 있습니다.
+생성 후 `am run dva-improve`로 AI 기반 최적화를 실행할 수 있습니다.
 
-#### discover (config discover)
-
-```bash
-dva config discover          # JSON 형식으로 분석 결과 출력
-dva config discover -f yaml  # YAML 형식으로 출력
-```
-
-`discover`는 `dva.yml`을 직접 생성하지 않고, 프로젝트에서 감지한 다음 후보를 정리해 보여줍니다.
-
-- 감지된 compose 파일과 서비스
-- package.json / Makefile 기반 실행 커맨드
-- 앱 후보와 native/docker 실행 경로
-- 추천 `stack` logical unit 후보
-- 추천 `plans` / `environments` / `sites` 후보
-
-권장 흐름:
+#### docs (config docs)
 
 ```bash
-dva config discover   # 1단계: 옵션 분석
-dva config improve    # 2단계: 최종 dva.yml 생성/개선
+dva config docs                  # CLAUDE.md/AGENTS.md 가이드 생성/갱신
 ```
 
-`improve`는 내부적으로 discovery 결과 리포트를 재사용합니다.
-
-#### config improve
-
-```bash
-dva config improve                # Claude Code CLI로 개선 실행 (기본)
-dva config improve --print        # 프롬프트만 stdout 출력 (수동 붙여넣기용)
-dva config improve --docs-only    # CLAUDE.md/AGENTS.md만 갱신 (dva.yml 미변경)
-dva config improve --rewrite      # dva.yml을 처음부터 재작성
-dva config improve --interactive  # Claude Code 인터랙티브 모드 (세션 유지)
-dva config improve --recursive    # 서브프로젝트 dva.yml도 함께 개선
-dva config improve --model MODEL  # AI 모델 지정
-dva config improve -v             # 상세 진행 표시
-```
-
-`--print`, `--docs-only`, `--interactive`는 상호 배타적입니다 (먼저 매칭된 것이 실행).
-`--interactive`와 `--recursive`는 동시 사용 불가합니다.
+`docs`는 AI 에이전트가 DVA 환경을 인식하게 만드는 기본 문서를 생성합니다.
+(과거 `dva config improve --docs-only`와 동일)
 
 #### run
 
@@ -467,11 +436,10 @@ subproject의 `interaction`과 `provision`은 해당 subproject root 기준으�
 
 DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제공합니다.
 
-- `dva config improve` — Claude Code CLI로 dva.yml AI 개선
-- `dva config improve --print` — 기존 dva.yml 개선용 프롬프트 출력 (수동 붙여넣기용)
-- `dva config improve --docs-only` — CLAUDE.md/AGENTS.md만 갱신
-- `dva config improve --interactive` — Claude Code 인터랙티브 모드 (세션 유지)
-- `dva config improve --rewrite` — dva.yml을 처음부터 재작성
+- `am run dva-improve` — dva.yml AI 개선 (기존 파일 수정)
+- `am run dva-improve param.mode=rewrite` — dva.yml AI 개선 (처음부터 재작성)
+- `dva config docs` — CLAUDE.md/AGENTS.md 가이드 생성/갱신
+- `am run dva-improve-guided` — Claude Code 대화형 가이드 모드
 - `dva manifest` — 구조화된 커맨드 매니페스트 (JSON/YAML)
 - `dva config show` — 병합된 최종 설정 출력
 - `--json` 글로벌 플래그 — 모든 출력을 JSON으로

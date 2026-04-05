@@ -24,19 +24,27 @@
 모든 dva.yml은 이 순서를 따름 (미사용 섹션은 생략 가능):
 
 1. `version:`
-2. `environment:` (선택)
-3. `env_file:`
-4. `stack:` (services tags-only, NO ports)
-5. `checks:` (dva doctor)
-6. `applications:` (앱 서버/워커 — port, run native/docker, dev, build, health)
-7. `default_mode:` (dva up 기본 모드)
-8. `suggestion_ignore:` (선택)
-9. `modes:` (applications 필드로 앱 전략 지정 가능)
-10. `health_checks:` (non-app 서비스 전용)
-11. `interaction:` (organized by category)
-12. `provision:` (default, full, reset)
-13. `subprojects:` (if devbox pattern)
-14. `endpoints:` (user-facing access URLs)
+2. `vars:` (선택)
+3. `environment:` (선택)
+4. `env_file:`
+5. `stack:` (services tags-only, NO ports)
+6. `checks:` (dva doctor)
+7. `applications:` (앱 서버/워커 — port, run native/docker, dev, build, health)
+8. `default_mode:` (dva up 기본 모드)
+9. `suggestion_ignore:` (선택)
+10. `modes:` (applications 필드로 앱 전략 지정 가능)
+11. `environments:` (선택)
+12. `plans:` (선택)
+13. `sites:` (선택)
+14. `health_checks:` (non-app 서비스 전용)
+15. `interaction:` (organized by category)
+16. `provision:` (default, full, reset)
+17. `modules:` (선택)
+18. `subprojects:` (if devbox pattern)
+19. `endpoints:` (user-facing access URLs)
+20. `infra:` (선택)
+21. `ssh:` (선택)
+22. `devcontainer:` (선택)
 
 ---
 

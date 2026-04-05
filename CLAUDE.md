@@ -22,24 +22,27 @@ internal/
   cli/               # cobra 명령어 (root, run, compose, stack, ...)
   config/            # dva.yml 파싱·병합·검증
   lifecycle/         # 플러그인 백엔드 (compose/helm/kubectl/...)
+  runner/            # interaction 실행 엔진 (compose/local/kubectl 러너)
   exec/              # 외부 명령어 실행
+  integration/       # 통합 테스트 (-tags=integration)
   logger/            # slog 래퍼
   output/            # 출력 포맷
-agent-mesh-flows/    # agent-mesh flow 정의 (dva config improve/diagnose의 AI 워크플로우)
+agent-mesh-flows/    # agent-mesh flow 정의 (AI 워크플로우)
 examples/            # dva.yml 예시 파일
 tasks/               # 작업 추적
 ```
 
 ## Agent-Mesh Flows
 
-`dva config improve`와 `dva config diagnose`는 agent-mesh(`am`) CLI를 통해 AI 워크플로우를 실행.
+AI 기반 프로젝트 분석, 설정 개선, 진단 워크플로우는 agent-mesh(`am`) CLI를 사용하여 독립적으로 실행합니다.
 
 ```bash
-# DVA CLI가 내부적으로 호출하는 agent-mesh flow:
-am run dva-improve                    # dva config improve
-am run dva-improve param.mode=rewrite # dva config improve --rewrite
-am run dva-improve-guided             # dva config improve --interactive
-am run dva-diagnose                   # dva config improve diagnose
+# Agent-Mesh DVA 워크플로우 커맨드:
+am run dva-discover                   # 프로젝트 분석 및 후보 옵션 탐색
+am run dva-improve                    # 기존 dva.yml 개선
+am run dva-improve param.mode=rewrite # 처음부터 파일 재생성 (초기화)
+am run dva-improve-guided             # 대화형 가이드 모드
+am run dva-diagnose                   # 환경 상태 점검 및 문제 자동 진단
 ```
 
 **의존성**: `am` (agent-mesh) CLI가 PATH에 있어야 함.

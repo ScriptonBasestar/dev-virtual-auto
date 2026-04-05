@@ -18,7 +18,7 @@
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
 13. **`checks:` section** — Minimum: `docker_socket` + `.env` file_exists.
-14. **Section order (canonical)** — version → environment → env_file → stack → checks → applications → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints. Omit unused sections, but included sections MUST follow this order.
+14. **Section order (canonical)** — version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer. Omit unused sections, but included sections MUST follow this order.
 15. **File header** — First line must be `# yaml-language-server: $schema=...` schema comment.
 16. **`stack.compose.tags: [infra]`** — Primary stack entry MUST have compose-level `tags:` field.
 17. **Service metadata: tags required** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in `endpoints:` section, NOT in `services.ports`.

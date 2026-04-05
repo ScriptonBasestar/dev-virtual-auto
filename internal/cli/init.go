@@ -28,7 +28,7 @@ var initCmd = &cobra.Command{
 	Long: `Scaffold a new dva.yml in the current directory. Auto-detects docker-compose.yml and Dockerfile.
 
 Use --recursive to also scaffold dva.yml in detected sub-projects.
-After scaffolding, run 'dva config improve' to let an AI agent optimize the configuration.`,
+After scaffolding, run 'am run dva-improve' to let an AI agent optimize the configuration.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		created, err := scaffoldDvaYml(".", initTemplate)
 		if err != nil {
@@ -65,7 +65,7 @@ After scaffolding, run 'dva config improve' to let an AI agent optimize the conf
 
 		fmt.Println()
 		fmt.Println("Next steps:")
-		fmt.Println("  dva config improve   — optimize config via AI agent")
+		fmt.Println("  am run dva-improve   — optimize config via AI agent")
 		fmt.Println("  dva config validate  — validate the config")
 		fmt.Println("  dva ls               — list available commands")
 		return nil

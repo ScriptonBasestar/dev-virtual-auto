@@ -47,7 +47,7 @@ var validateCmd = &cobra.Command{
 		printConfigSuggestionWarnings(detectConfigSuggestionWarnings(c))
 
 		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0) {
-			return fmt.Errorf("config warnings detected; review warnings above or run 'dva config improve --print'")
+			return fmt.Errorf("config warnings detected; review warnings above or run 'am run dva-improve'")
 		}
 
 		// Check devcontainer sync

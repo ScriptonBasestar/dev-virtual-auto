@@ -11,7 +11,7 @@
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
-8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `dev`, `app`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs/dev) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`).
+8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
@@ -24,10 +24,14 @@
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → health_checks → interaction → provision → modules → subprojects → endpoints`
+`version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer`
 
 ```yaml
 version: "{CURRENT_DVA_VERSION}"   # Use the version from the prompt's CRITICAL section
+
+vars:                           # Template variables for interpolation (optional)
+  PROJECT_NAME: myapp
+  PORT_BASE: "11100"
 
 environment:                    # Global environment variables
   VAR_NAME: value
@@ -139,7 +143,8 @@ interaction:
   # --- Reserved command hooks ---
   # ALL reserved DVA commands (MUST NOT use as plain interaction keys):
   #   up, down, stop, restart, build, clean, logs, status, show, ls, run,
-  #   config, doctor, provision, add, version
+  #   config, doctor, provision, add, version, migrate, console, infra,
+  #   app, stack, help, compose, validate, manifest, ktl, ssh, completion, cmd, init
   # Hookable subset (supports before/replace/after): up, down, stop, restart, build, clean, logs
   # Non-hookable (rename if needed): status→service-status, show→app-show, ls→app-ls
   # `replace:` and `subcommands:` can coexist — subcommands remain accessible.
@@ -195,6 +200,31 @@ environments:                   # Environment configs (--env/-E flag)
       VAR: value
     stack: [entry1]               # Stack entries to include for this environment
 
+plans:                          # Named deployment plans (optional)
+  {plan-name}:
+    description: "{human-readable description}"
+    environment: dev             # Environment to activate
+    site: local                  # Site to activate
+    vars:                        # Plan-specific variables
+      KEY: value
+    entries:                     # Ordered stack entries for this plan
+      - name: compose
+        runner: local
+        order: 10
+        depends_on: []
+        services: [postgres, redis]
+
+sites:                          # Host-based execution conditions (optional)
+  {site-name}:
+    description: "{human-readable description}"
+    vars:
+      KEY: value
+    entry_overrides:             # Site-specific stack entry overrides
+      {entry-name}:
+        runner: local
+        vars:
+          KEY: value
+
 health_checks:                  # Non-compose service health checks
   {name}:
     type: http|tcp|command
@@ -232,6 +262,15 @@ endpoints:                      # User-facing access URLs
     url: "http://localhost:8080"     # Manual URL (local process, external)
     label: "Local Dev Server"
     tags: [app, local]
+
+infra:                          # Remote infrastructure references (optional)
+  {infra-name}:
+    git: "https://github.com/org/repo"  # Git repository URL
+    ref: main                          # Branch or tag
+    path: "k8s/overlays/dev"           # Path within repo
+
+ssh:                            # SSH configuration (optional)
+  agent_image: "ghcr.io/org/ssh-agent:latest"
 ```
 
 ### Endpoints vs Services — When to Use What

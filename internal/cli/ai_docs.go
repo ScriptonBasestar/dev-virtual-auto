@@ -50,7 +50,7 @@ func generateAIDocs() (string, error) {
 
 	if !updated {
 		fmt.Println("💡 CLAUDE.md / AGENTS.md not found. Create AGENTS.md to let AI agents discover DVA automatically:")
-		fmt.Printf("   echo '# AGENTS.md' > AGENTS.md && dva config improve --docs-only\n")
+		fmt.Printf("   echo '# AGENTS.md' > AGENTS.md && dva config docs\n")
 	}
 
 	return guidePath, nil

@@ -219,14 +219,14 @@ dva config validate       # schema + compose project name check
 dva config validate --fix # auto-fix compose project name mismatch
 ```
 
-### `dva config improve`
+### `am run dva-improve` / `dva config docs`
 
 AI-based configuration improvement.
 
 ```bash
-dva config improve              # run improvement via Claude Code CLI
-dva config improve --print      # output prompt to stdout (manual paste)
-dva config improve --docs-only  # update CLAUDE.md/AGENTS.md only
+am run dva-improve             # run AI-based configuration improvement
+am run dva-improve param.mode=rewrite # run AI improvement (rewrite from scratch)
+dva config docs                # generate/update AI agent config docs (CLAUDE.md/AGENTS.md)
 ```
 
 ### `dva add <feature>`

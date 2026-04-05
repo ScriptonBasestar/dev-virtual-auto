@@ -10,7 +10,7 @@
 - [ ] `yaml-language-server: $schema=...` comment on first line
 
 ### Structure
-- [ ] Section order follows canonical: version → environment → env_file → stack → checks → applications → default_mode → modes → environments → health_checks → interaction → provision → subprojects → endpoints
+- [ ] Section order follows canonical: version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer
 - [ ] `env_file:` uses object format (`files:` array + `interpolate: true`)
 - [ ] `stack:` section present (no legacy `compose:` root-level)
 - [ ] `default_mode` set and points to minimal infra mode

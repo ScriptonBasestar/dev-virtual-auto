@@ -27,7 +27,7 @@ dva test               # 테스트 실행
 dva build              # 빌드
 dva down               # 서비스 중지 및 제거
 dva doctor             # 환경 진단
-dva config improve     # AI 기반 dva.yml 개선
+am run dva-improve     # AI 기반 dva.yml 개선
 ```
 
 ## Skills

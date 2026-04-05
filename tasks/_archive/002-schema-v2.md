@@ -1,3 +1,8 @@
+---
+archived-at: 2026-04-05T23:02:00+09:00
+verified-at: 2026-04-05T23:02:00+09:00
+verification-summary: Verified implementation via git commits 2e25daf through 5524b0e.
+---
 # Task 002: Schema V2
 
 ## Goal

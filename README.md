@@ -84,7 +84,7 @@ dva status                 # 워크스페이스 상태 확인
 dva show                   # 설정 요약
 dva config validate        # dva.yml 스키마 + 시맨틱 검증
 dva provision              # 프로비저닝 실행
-dva config init --ai       # AI로 dva.yml 자동 생성
+dva config docs            # AI 에이전트 가이드(CLAUDE.md) 생성
 dva doctor                 # 환경 사전조건 진단
 ```
 
@@ -147,10 +147,10 @@ applications:
 ## LLM Integration
 
 ```bash
-dva config init --ai         # Claude Code CLI로 dva.yml 자동 생성
-dva config discover         # 프로젝트에서 가능한 DVA 옵션 분석
-dva config init -p           # LLM용 프롬프트 출력
-dva config improve --print   # 기존 dva.yml 개선용 프롬프트 출력
+am run dva-discover          # 프로젝트 분석 및 옵션 탐색
+am run dva-improve           # AI로 dva.yml 자동 생성/개선
+am run dva-diagnose          # 에러 분석 및 설정 자동 수정
+dva config docs              # AI 에이전트 가이드(CLAUDE.md) 생성
 dva manifest                 # 구조화된 커맨드 매니페스트
 dva config show              # 병합된 최종 설정 출력
 ```

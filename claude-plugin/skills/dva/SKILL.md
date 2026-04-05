@@ -20,7 +20,7 @@ DVA is a development workspace orchestrator that unifies Docker Compose, Kuberne
 - **NEVER parse `dva.yml` manually.** Use `dva manifest -f json` for structured command discovery or `dva config show` for merged configuration output.
 - **NEVER guess available commands.** Run `dva ls` or `dva manifest -f json` to discover project-specific commands before execution.
 - **Use `--dry-run` before destructive operations.** Preview execution plans with `dva <command> --dry-run`.
-- **Use `dva config improve` for configuration changes**, not manual editing of `dva.yml`.
+- **Use `am run dva-improve` for configuration changes**, not manual editing of `dva.yml`.
 - **Use `dva doctor` for environment issues.** Run `dva doctor --fix` to auto-resolve fixable problems.
 
 ## Project Context
@@ -149,10 +149,11 @@ dva ssh up             # SSH agent container
 DVA provides first-class LLM support:
 
 ```bash
+am run dva-discover        # project analysis and options discovery
+am run dva-improve         # AI-based dva.yml generation/improvement
+am run dva-diagnose        # AI-based error diagnosis and configuration fix
 dva manifest -f json       # structured command manifest for AI
-dva config init --ai       # auto-generate dva.yml via Claude Code
-dva config improve         # AI-based dva.yml improvement
-dva config improve --print # output improvement prompt for manual use
+dva config docs            # regenerate AI agent configuration (CLAUDE.md/AGENTS.md)
 dva --json <command>       # JSON output on any command
 ```
 
