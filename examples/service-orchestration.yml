@@ -91,10 +91,10 @@ endpoints:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
   stg:
-    vars:
+    environment:
       APP_ENV: stg
       ENABLE_AUTH: "true"
 

@@ -80,12 +80,12 @@ stack:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
       LOG_LEVEL: debug
 
   stg:
-    vars:
+    environment:
       APP_ENV: stg
       LOG_LEVEL: info
       DATABASE_URL: postgres://user:password@stg-db:5432/myapp_staging

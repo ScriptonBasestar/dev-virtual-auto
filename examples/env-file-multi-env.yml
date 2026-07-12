@@ -24,13 +24,13 @@ stack:
 
 environments:
   development:
-    vars:
+    environment:
       APP_ENV: development
   staging:
-    vars:
+    environment:
       APP_ENV: staging
   production:
-    vars:
+    environment:
       APP_ENV: production
 
 sites:

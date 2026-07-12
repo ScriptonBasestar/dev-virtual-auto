@@ -130,7 +130,7 @@ stack:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
 
 sites:

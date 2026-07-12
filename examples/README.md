@@ -87,8 +87,8 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
 
 - **[modules/](modules/)** - Modular configuration example
   - **[main.yml](modules/main.yml)** - Main configuration importing modules
-  - **[.dva/sast.yml](modules/.dva/sast.yml)** - Static analysis and security tools module
-  - **[.dva/testing.yml](modules/.dva/testing.yml)** - Testing framework module
+  - **[.sb/dva/sast.yml](modules/.sb/dva/sast.yml)** - Static analysis and security tools module
+  - **[.sb/dva/testing.yml](modules/.sb/dva/testing.yml)** - Testing framework module
   - Use when: Large projects with shared configurations across teams
 
 ### 🔄 Configuration Migration
@@ -131,7 +131,7 @@ cp examples/basic.yml ./dva.yml
 
 # Or for modules
 cp -r examples/modules/main.yml ./dva.yml
-cp -r examples/modules/.dva ./
+cp -r examples/modules/.sb ./
 ```
 
 ### 2. Customize for Your Project
@@ -149,7 +149,7 @@ Edit the copied file to match your:
 dva validate
 
 # Or validate a specific example
-dva validate -c examples/basic.yml
+DVA_FILE=examples/basic.yml dva validate
 ```
 
 ## Configuration File Structure
@@ -175,7 +175,7 @@ stack:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
 
 sites:
