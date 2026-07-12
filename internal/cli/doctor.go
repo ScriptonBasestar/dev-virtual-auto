@@ -103,7 +103,7 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 			Name:    "devcontainer.json exists",
 			Type:    "file_exists",
 			Path:    ".devcontainer/devcontainer.json",
-			FixHint: "Run: dva add devcontainer",
+			FixHint: "Run: dva config validate --fix",
 		}, c.FileDir()))
 	}
 

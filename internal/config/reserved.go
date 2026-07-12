@@ -13,8 +13,8 @@ var reservedCommands = map[string]bool{
 	"up": true, "stop": true, "down": true, "build": true, "clean": true,
 	"run": true, "provision": true, "validate": true, "manifest": true,
 	"ktl": true, "ssh": true, "infra": true, "console": true,
-	"completion": true, "cmd": true, "init": true, "status": true, "config": true,
-	"logs": true, "restart": true, "show": true, "migrate": true, "doctor": true,
+	"completion": true, "init": true, "status": true, "config": true,
+	"logs": true, "restart": true, "show": true, "doctor": true,
 	"app": true, "stack": true,
 }
 
