@@ -156,8 +156,8 @@ func TestExampleModulesParseSuccessfully(t *testing.T) {
 		}
 	})
 
-	// Sub-module files (.dva/)
-	dvaDir := filepath.Join(dir, "modules", ".dva")
+	// Sub-module files (.sb/dva/)
+	dvaDir := filepath.Join(dir, "modules", ".sb", "dva")
 	entries, err := os.ReadDir(dvaDir)
 	if err != nil {
 		t.Fatalf("read .dva dir: %v", err)
@@ -167,7 +167,7 @@ func TestExampleModulesParseSuccessfully(t *testing.T) {
 		if filepath.Ext(e.Name()) != ".yml" {
 			continue
 		}
-		t.Run(".dva/"+e.Name(), func(t *testing.T) {
+		t.Run(".sb/dva/"+e.Name(), func(t *testing.T) {
 			data, err := os.ReadFile(filepath.Join(dvaDir, e.Name()))
 			if err != nil {
 				t.Fatalf("read file: %v", err)
