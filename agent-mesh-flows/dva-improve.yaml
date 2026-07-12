@@ -422,7 +422,7 @@ steps:
       - K8s manifests 감지 → `stack.kubectl`에 `dir:` 지정
       - Helm Chart.yaml 감지 → `stack.helm`에 `chart:`, `release:` 지정
       - K8s/Helm + compose 공존 → `modes:` 사용 (local=compose, staging/prod=kubectl|helm)
-      - K8s 전용 환경에서 `stack.compose`만 생성하지 말 것
+      - K8s 전용 환경에서 compose runner만 가진 stack entry를 생성하지 말 것
 
       ---
 
@@ -432,7 +432,7 @@ steps:
 
       ## A. 호스트 빌드 + Docker 인프라 패턴 (hybrid)
       - 앱은 호스트에서 빌드/실행, Docker는 인프라만
-      → `runner: local`, `stack.compose`에 인프라 정의
+      → 앱은 local/native runner, 인프라는 `stack.<entry>.runners.compose`에 정의
 
       ## B. 컨테이너 내부 실행 패턴 (container-first)
       - 앱이 Docker 컨테이너 내에서 빌드/실행
@@ -440,7 +440,8 @@ steps:
 
       ## C. devbox(부모) 패턴
       - 루트에 여러 서브프로젝트 + 공유 인프라
-      → `subprojects` 섹션 + 각 서브프로젝트 자체 dva.yml
+      → `subprojects` 섹션 + import 대상 서브프로젝트 자체 dva.yml
+      → 아직 초기화되지 않은 서브프로젝트는 `import` 생략 또는 `import: {}`로 선언만 두고 child `dva.yml` 생성 후 non-empty import 추가
 
       ---
 
@@ -491,7 +492,7 @@ steps:
       {{load_naming.output}}
 
       ## 4. 누락 섹션 검사 (MANDATORY)
-      - [ ] `stack.compose` 섹션
+      - [ ] compose runner가 필요한 `stack.<entry>.runners.compose` 선언
       - [ ] `default_mode` 필드
       - [ ] `modes` 섹션 (최소 infra + 1)
       - [ ] `checks` 섹션 (docker_socket + .env)

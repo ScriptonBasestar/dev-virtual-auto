@@ -201,6 +201,8 @@ subproject에서 import된 실행 entrypoint는 canonical namespace 이름을 �
 - parent top-level로 자동 flatten 하지 않음
 - alias는 명시적으로만 허용
 - 충돌은 hard error
+- `subprojects.<name>` 선언만으로 child `dva.yml`을 즉시 로드하지 않음 (`import` 생략 또는 `import: {}` 포함)
+- `import`에 실제 대상이 있거나 `dva run <subproject>:<command>`처럼 직접 실행할 때는 해당 subproject의 `dva.yml`이 필요함
 
 ## 7. subproject execution path
 

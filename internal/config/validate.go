@@ -92,6 +92,14 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	for entryName, entry := range c.Stack {
+		for runnerName := range entry.Runners {
+			if strings.TrimSpace(runnerName) != runnerName {
+				return fmt.Errorf("stack.%s.runners.%q: runner names must not include leading or trailing whitespace", entryName, runnerName)
+			}
+		}
+	}
+
 	// Validate default_mode references an existing mode
 	if c.DefaultMode != "" {
 		if _, ok := c.Modes[c.DefaultMode]; !ok {

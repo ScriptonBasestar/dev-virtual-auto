@@ -83,7 +83,7 @@ func TestWarnHealthCheckRedundancy_StackNested(t *testing.T) {
 	c := &Config{
 		HealthChecks: make(map[string]HealthCheckConfig),
 		Stack: map[string]*LifecycleEntry{
-			"compose": {
+			"infra": {
 				HealthChecks: map[string]HealthCheckConfig{
 					"db": {
 						Type:      "tcp",
@@ -99,7 +99,7 @@ func TestWarnHealthCheckRedundancy_StackNested(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("expected 1 warning for nested health check, got %d", len(warnings))
 	}
-	if !strings.Contains(warnings[0], "stack.compose.health_checks.db") {
+	if !strings.Contains(warnings[0], "stack.infra.health_checks.db") {
 		t.Errorf("unexpected warning: %s", warnings[0])
 	}
 }

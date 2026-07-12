@@ -317,8 +317,8 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 
 	for name, entry := range c.Stack {
 		var files []string
-		if entry.Compose != nil {
-			files = entry.Compose.Files
+		if composeCfg := entry.ComposeConfig(); composeCfg != nil {
+			files = composeCfg.Files
 		} else if entry.Kubectl != nil {
 			files = []string{entry.Kubectl.Kubeconfig}
 		}

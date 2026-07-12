@@ -1,0 +1,106 @@
+version: "0.1.44"
+
+env_file:
+  - .env.example
+  - .env
+
+vars:
+  APP_ENV: dev
+
+stack:
+  infra:
+    description: Migrated compose infrastructure bundle
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - compose.yaml
+        project_name: CHANGE_ME
+        up_options: ["-d", "--wait"]
+
+  app:
+    description: Migrated application entry
+    default_runner: native
+    runners:
+      native:
+        dir: CHANGE_ME
+        build: CHANGE_ME build
+        run: CHANGE_ME run
+      docker:
+        image: CHANGE_ME:dev
+        run: docker run --rm CHANGE_ME:dev
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      app:
+        runner: native
+  docker-host:
+    vars:
+      DVA_SITE: docker-host
+    entry_overrides:
+      app:
+        runner: docker
+
+plans:
+  local-infra:
+    description: Replacement for minimal/infra mode
+    environment: dev
+    site: local
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+
+  local-dev:
+    description: Replacement for hybrid/native dev mode
+    environment: dev
+    site: local
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: app
+        runner: native
+        order: 20
+        depends_on: [infra]
+
+  docker-full:
+    description: Replacement for full-stack Docker mode
+    environment: dev
+    site: docker-host
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+      - name: app
+        runner: docker
+        order: 20
+        depends_on: [infra]
+
+interaction:
+  app-logs:
+    description: Application logs
+    runner: local
+    command: CHANGE_ME logs
+
+  db:
+    description: Database operations
+    service: postgres
+    command: psql -U CHANGE_ME -d CHANGE_ME
+
+provision:
+  default:
+    - step: Create local env file
+      run: cp -n .env.example .env 2>/dev/null || true
+    - step: Start migrated infrastructure
+      run: docker compose -f compose.yaml up -d --wait postgres redis

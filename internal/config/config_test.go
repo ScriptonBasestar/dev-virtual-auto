@@ -58,11 +58,13 @@ func TestLoadConfig(t *testing.T) {
 	content := `version: "0.1.0"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
-    project_name: myapp
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: myapp
 
 environment:
   RAILS_ENV: development
@@ -152,9 +154,11 @@ func TestLoadConfigWithOverride(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    project_name: original
+    runners:
+      compose:
+        project_name: original
 interaction:
   shell:
     service: app
@@ -164,9 +168,11 @@ interaction:
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
 stack:
   compose-override:
-    plugin: compose
+    default_runner: compose
     order: 20
-    project_name: overridden
+    runners:
+      compose:
+        project_name: overridden
 `), 0644)
 
 	cfg, err := Load(tmpDir)
@@ -313,16 +319,18 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 
 	content := `stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [docker-compose.yml]
-    services:
-        api:
-          tags: [web]
-          related: [worker, scheduler]
-          hint: "Worker is needed for async processing"
-        worker:
-          tags: [background]
+    runners:
+      compose:
+        files: [docker-compose.yml]
+        services:
+          api:
+            tags: [web]
+            related: [worker, scheduler]
+            hint: "Worker is needed for async processing"
+          worker:
+            tags: [background]
 `
 	os.WriteFile(dvaYml, []byte(content), 0644)
 
@@ -738,10 +746,10 @@ func TestResolveApp_DirectLookup(t *testing.T) {
 	cfg := &Config{
 		Applications: map[string]*ApplicationConfig{
 			"api": {
-				Run:   AppExecPaths{Native: "cargo run -p api"},
-				Dir:   "services",
-				Port:  8080,
-				Tags:  []string{"backend"},
+				Run:  AppExecPaths{Native: "cargo run -p api"},
+				Dir:  "services",
+				Port: 8080,
+				Tags: []string{"backend"},
 			},
 		},
 	}

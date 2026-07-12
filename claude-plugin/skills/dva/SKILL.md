@@ -5,9 +5,7 @@ description: >-
   "run tests", "start services", "stop containers", "check logs",
   "use kubectl", or manage dev infrastructure.
   Enforces DVA CLI — never use raw docker/compose/kubectl.
-globs: "*"
 allowed-tools: [Bash, Read, Grep, Glob]
-version: 0.1.0
 ---
 
 # DVA (Dev Virtual Auto) CLI
@@ -20,7 +18,7 @@ DVA is a development workspace orchestrator that unifies Docker Compose, Kuberne
 - **NEVER parse `dva.yml` manually.** Use `dva manifest -f json` for structured command discovery or `dva config show` for merged configuration output.
 - **NEVER guess available commands.** Run `dva ls` or `dva manifest -f json` to discover project-specific commands before execution.
 - **Use `--dry-run` before destructive operations.** Preview execution plans with `dva <command> --dry-run`.
-- **Use `am run dva-improve` for configuration changes**, not manual editing of `dva.yml`.
+- **Prefer `am run dva-improve` for broad configuration rewrites.** For targeted config authoring or migration, start from the bundled templates and validate with `dva config validate`.
 - **Use `dva doctor` for environment issues.** Run `dva doctor --fix` to auto-resolve fixable problems.
 
 ## Project Context
@@ -45,6 +43,36 @@ dva show                # project overview (modes, envs, commands)
 ```
 
 Read the `dynamic_commands` section from manifest output to identify project-specific commands and their runners (DockerCompose, Kubectl, or Local).
+
+### Author or Migrate Configuration
+
+For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template:
+
+```text
+assets/templates/root-devbox-plan.yml       # parent devbox: compose infra + native/docker apps + plans
+assets/templates/subproject-local.yml       # child project: local interactions/provision only
+assets/templates/migrate-modes-to-plans.yml # old modes/applications -> stack runners + plans
+```
+
+Use the declarative structure by default:
+
+```text
+stack = reusable declarations
+plans = executable names
+environments = dev/stg/prd vars
+sites = local/office/remote/cloud host differences
+interaction = one-shot convenience commands
+provision = setup/reset procedures
+```
+
+After editing any DVA config, run:
+
+```bash
+dva config validate
+dva config validate --strict
+dva ls
+dva show
+```
 
 ### Execute Commands
 
@@ -164,3 +192,11 @@ dva --json <command>       # JSON output on any command
 For detailed command documentation and advanced patterns, consult:
 - **`references/commands.md`** - Complete command reference with all flags and options
 - **`references/advanced.md`** - Modes, environments, subprojects, configuration management, stack pipeline, and troubleshooting
+- **`references/patterns.md`** - Standard config authoring workflow, migration checklist, naming conventions, and validation gates
+
+### Templates
+
+Reusable YAML starters live under **`assets/templates/`**:
+- **`root-devbox-plan.yml`** - Standard root devbox with compose infrastructure, app runners, environments, sites, plans, interactions, provision, checks, endpoints
+- **`subproject-local.yml`** - Lightweight subproject config for local commands and setup
+- **`migrate-modes-to-plans.yml`** - Migration skeleton for replacing `modes`/`applications` with `plans` and multi-runner `stack` entries

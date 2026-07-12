@@ -684,6 +684,13 @@ func mergeSiteEntryOverride(base, other *SiteEntryOverride) *SiteEntryOverride {
 }
 
 func mergeRunnerConfig(base, other any) any {
+	if baseCompose, ok := base.(*ComposePluginConfig); ok {
+		if otherCompose, ok := other.(*ComposePluginConfig); ok {
+			mergeComposeConfig(baseCompose, otherCompose)
+			return baseCompose
+		}
+	}
+
 	baseMap, baseOk := base.(map[string]any)
 	otherMap, otherOk := other.(map[string]any)
 	if baseOk && otherOk {

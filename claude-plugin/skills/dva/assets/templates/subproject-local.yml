@@ -1,0 +1,43 @@
+version: "0.1.44"
+
+env_file:
+  - .env.example
+  - .env
+
+checks:
+  - name: Environment template exists
+    type: file_exists
+    path: .env.example
+
+interaction:
+  sync:
+    description: Install dependencies
+    runner: local
+    command: CHANGE_ME install
+
+  app-run:
+    description: Run the service locally
+    runner: local
+    command: CHANGE_ME run
+
+  app-build:
+    description: Build the project
+    runner: local
+    command: CHANGE_ME build
+
+  test:
+    description: Run tests
+    runner: local
+    command: CHANGE_ME test
+
+  lint:
+    description: Run lint checks
+    runner: local
+    command: CHANGE_ME lint
+
+provision:
+  default:
+    - step: Create local env file
+      run: cp -n .env.example .env 2>/dev/null || true
+    - step: Install dependencies
+      run: CHANGE_ME install

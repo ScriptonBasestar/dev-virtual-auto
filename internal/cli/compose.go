@@ -41,7 +41,7 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 
 		// Multiple entries: first arg must be entry name
 		if len(args) > 0 {
-			if entry := c.FindStackEntry(args[0]); entry != nil && entry.Compose != nil {
+			if entry := c.FindStackEntry(args[0]); entry != nil && entry.ComposeConfig() != nil {
 				return execComposePassthroughForEntry(e, c, entry, args[1:])
 			}
 		}
@@ -628,7 +628,7 @@ func buildComposeArgsForEntry(e *config.Environment, c *config.Config, entry *co
 	composeCmd := "docker"
 	composeArgs := []string{"compose"}
 
-	cc := entry.Compose
+	cc := entry.ComposeConfig()
 	if cc != nil {
 		if cc.Command != "" {
 			parts := dvaexec.SplitCommand(cc.Command)

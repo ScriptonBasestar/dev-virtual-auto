@@ -20,9 +20,12 @@ version: '0.1.44'
 
 stack:
   compose:
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
 
 interaction:
   rails:

@@ -262,9 +262,11 @@ func TestBuildComposeArgs_Default(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [compose.yml]
+    runners:
+      compose:
+        files: [compose.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -287,9 +289,11 @@ func TestBuildComposeArgs_WithProjectName(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    project_name: myproject
+    runners:
+      compose:
+        project_name: myproject
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -307,9 +311,11 @@ func TestBuildComposeArgs_MultipleFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [compose.yml, compose.override.yml]
+    runners:
+      compose:
+        files: [compose.yml, compose.override.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -388,10 +394,12 @@ func TestBuildComposeArgs_CustomCommand(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    command: "podman compose"
-    files: [compose.yml]
+    runners:
+      compose:
+        command: "podman compose"
+        files: [compose.yml]
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
@@ -408,10 +416,12 @@ func TestBuildComposeArgs_InterpolateFiles(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [compose.yml]
-    project_name: "${APP_NAME}"
+    runners:
+      compose:
+        files: [compose.yml]
+        project_name: "${APP_NAME}"
 `)
 	e := config.NewEnvironment(map[string]string{"APP_NAME": "myapp"}, c.FileDir(), c.FileDir())
 
@@ -419,6 +429,37 @@ stack:
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "myapp") {
 		t.Errorf("args should contain interpolated project name 'myapp', got: %s", joined)
+	}
+}
+
+func TestBuildComposeArgsForEntry_ReadsComposeRunner(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+stack:
+  compose:
+    default_runner: compose
+    order: 10
+    runners:
+      compose:
+        command: "/bin/echo compose"
+        files: [compose.yml]
+        project_name: "${APP_NAME}"
+`)
+	e := config.NewEnvironment(map[string]string{"APP_NAME": "myapp"}, c.FileDir(), c.FileDir())
+	entry := c.FindStackEntry("compose")
+	if entry == nil {
+		t.Fatal("compose entry not found")
+	}
+
+	cmd, args := buildComposeArgsForEntry(e, c, entry, []string{"ps"})
+	joined := strings.Join(args, " ")
+	if cmd != "/bin/echo" {
+		t.Errorf("cmd = %q, want /bin/echo", cmd)
+	}
+	if !strings.Contains(joined, "-f "+c.FileDir()+"/compose.yml") {
+		t.Errorf("args should contain compose file, got: %s", joined)
+	}
+	if !strings.Contains(joined, "--project-name myapp") {
+		t.Errorf("args should contain interpolated project name, got: %s", joined)
 	}
 }
 

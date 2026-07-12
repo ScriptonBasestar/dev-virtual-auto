@@ -44,6 +44,34 @@
         { "PORT": "${PORT:-3000}" }
       ]
     },
+    "service_tag_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "related": { "type": "array", "items": { "type": "string" } },
+        "hint": { "type": "string" }
+      }
+    },
+    "compose_runner_config": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "project_name": { "type": "string" },
+        "command": { "type": "string" },
+        "method": { "type": "string" },
+        "up_options": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "services": {
+          "type": "object",
+          "patternProperties": {
+            "^[\\w\\-.]+$": { "$ref": "#/definitions/service_tag_config" }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
     "env_file": {
       "oneOf": [
         {
@@ -445,10 +473,43 @@
     },
     "stack": {
       "type": "object",
-      "description": "Named stack entries defining the infrastructure lifecycle pipeline. Each key is the entry name. When the key matches a known plugin name (e.g., 'compose', 'kubectl'), the plugin type is auto-inferred. Use `plugin:` for custom names (e.g., 'my-db: plugin: compose'). Plugin-specific fields go at the top level (flat format). Entries execute in ascending order of `order` for up, descending for down/stop.",
+      "description": "Named stack declarations. Compose must be declared through stack.<entry>.runners.compose; legacy stack.<entry>.compose and plugin: compose shapes are rejected by schema validation.",
+      "allOf": [
+        {
+          "properties": {
+            "compose": {
+              "not": {
+                "anyOf": [
+                  { "required": ["command"] },
+                  { "required": ["method"] },
+                  { "required": ["files"] },
+                  { "required": ["project_name"] },
+                  { "required": ["up_options"] },
+                  { "required": ["services"] }
+                ]
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": {
         "type": "object",
         "additionalProperties": true,
+        "not": {
+          "anyOf": [
+            { "required": ["compose"] },
+            { "properties": { "plugin": { "enum": ["compose"] } }, "required": ["plugin"] },
+            {
+              "required": ["runners"],
+              "properties": { "runners": { "required": ["compose"] } },
+              "not": { "required": ["default_runner"] }
+            },
+            { "required": ["files"] },
+            { "required": ["project_name"] },
+            { "required": ["up_options"] },
+            { "required": ["services"] }
+          ]
+        },
         "properties": {
           "default_runner": {
             "type": "string",
@@ -461,6 +522,9 @@
           "runners": {
             "type": "object",
             "description": "Map of runner name to runner configuration. Each key is a runner name (e.g., 'native', 'docker', 'compose', 'helm'). The runner config follows the same structure as the corresponding plugin configuration.",
+            "properties": {
+              "compose": { "$ref": "#/definitions/compose_runner_config" }
+            },
             "additionalProperties": true,
             "examples": [{
               "native": { "dir": "apps/api", "run": "go run ./cmd/api" },
@@ -475,9 +539,9 @@
           },
           "plugin": {
             "type": "string",
-            "description": "Plugin type (flat format). Specifies which plugin to use; plugin-specific fields go at the top level of this entry.",
-            "enum": ["compose", "process", "script", "docker", "kubectl", "helm", "kustomize", "tilt", "skaffold", "podman-compose", "podman_compose", "vagrant", "sam", "serverless", "multipass"],
-            "examples": ["compose", "kubectl", "helm"]
+            "description": "Legacy flat plugin type for non-compose plugins. Compose declarations must use runners.compose.",
+            "enum": ["process", "script", "docker", "kubectl", "helm", "kustomize", "tilt", "skaffold", "podman-compose", "podman_compose", "vagrant", "sam", "serverless", "multipass"],
+            "examples": ["kubectl", "helm"]
           },
           "order": {
             "type": "integer",
@@ -508,65 +572,6 @@
                   "timeout": { "type": "integer" }
                 },
                 "required": ["type"]
-              }
-            }
-          },
-          "compose": {
-            "type": "object",
-            "description": "Docker Compose plugin configuration",
-            "additionalProperties": false,
-            "properties": {
-              "files": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Paths to Docker Compose files",
-                "examples": [["compose.yml", "compose.override.yml"]]
-              },
-              "project_name": {
-                "type": "string",
-                "description": "Project name for Docker Compose"
-              },
-              "command": {
-                "type": "string",
-                "description": "Alternative Docker Compose command",
-                "examples": ["docker compose", "podman compose"]
-              },
-              "method": {
-                "type": "string",
-                "description": "Docker Compose method to use"
-              },
-              "up_options": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Default options for up command",
-                "examples": [["-d", "--wait"]]
-              },
-              "tags": {
-                "type": "array",
-                "items": { "type": "string" },
-                "description": "Default tags for all compose services"
-              },
-              "services": {
-                "type": "object",
-                "description": "Per-service configuration",
-                "patternProperties": {
-                  "^[\\w\\-.]+$": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "tags": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "related": {
-                        "type": "array",
-                        "items": { "type": "string" }
-                      },
-                      "hint": { "type": "string" }
-                    }
-                  }
-                },
-                "additionalProperties": false
               }
             }
           },
@@ -712,9 +717,13 @@
       "examples": [
         {
           "compose": {
-            "order": 10,
-            "files": ["compose.yml"],
-            "project_name": "myapp"
+            "default_runner": "compose",
+            "runners": {
+              "compose": {
+                "files": ["compose.yml"],
+                "project_name": "myapp"
+              }
+            }
           },
           "k8s": {
             "plugin": "kubectl",
@@ -821,7 +830,7 @@
           "properties": {
             "path": {
               "type": "string",
-              "description": "Relative or absolute path to the sub-project directory (must contain its own dva.yml)",
+              "description": "Relative or absolute path to the sub-project directory. Declarations with no import entries, including import: {}, may point at subprojects that will be initialized later; non-empty imports and direct subproject runs require the child path to contain dva.yml.",
               "examples": ["cwrapper-engine-py", "../other-project"]
             },
             "import": {
@@ -1194,7 +1203,7 @@
             "tags": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tags for filtering (used by modes.endpoint_tags). Inherited from stack.compose.services tags if omitted.",
+              "description": "Tags for filtering (used by modes.endpoint_tags). Inherited from service tags under stack.<entry>.runners.compose if omitted.",
               "examples": [["app"], ["infra", "monitoring"]]
             },
             "paths": {

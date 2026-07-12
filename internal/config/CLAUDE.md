@@ -5,22 +5,21 @@
 ## Core Types
 
 - **`Config`** — `dva.yml` 전체 구조 (config.go)
-- **`LifecycleEntry`** — `stack:` 항목, `order`+`plugin`+백엔드별 설정 (lifecycle.go)
+- **`LifecycleEntry`** — `stack:` 항목, `default_runner`+`runners` 기반 실행 선언 (lifecycle.go)
 - **`ModeConfig`** — `--mode` 런타임 전략 (`build`/`run`/`applications`) (config.go)
 - **`Environment`** — 활성 환경 프로필 및 env_file 병합 결과 (environment.go)
 
 ## Plugin Resolution (lifecycle.go)
 
-`LifecycleEntry`의 플러그인 타입은 두 가지 방법으로 결정:
-1. 명시적 `plugin:` 필드
-2. entry 이름이 known plugin명과 일치 시 자동 추론 (`knownPluginNames` 맵)
+`LifecycleEntry`의 실행 설정은 우선 `runners`에서 해석됩니다.
+Legacy non-compose 플러그인은 명시적 `plugin:` 또는 entry 이름 자동 추론도 지원합니다.
 
 `rawNode`에 YAML 원본 저장 → 타입 확정 후 재파싱.
 
 ## Merge (merge.go)
 
 ```
-base config ← modules[*] ← subprojects[*]
+base config ← modules[*] ← imported subprojects[*]
 ```
 
 - `stack:` — 이름 기준 병합, `order` 중복 시 경고

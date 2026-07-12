@@ -19,11 +19,11 @@
 - [ ] `provision:` has `default` and `reset` profiles
 
 ### Stack & Compose
-- [ ] `stack.compose.tags: [infra]` present on primary stack entry
-- [ ] All files in `stack.{entry}.files` actually exist
+- [ ] `stack.{entry}.runners.compose.tags: [infra]` present on primary compose runner
+- [ ] All files in `stack.{entry}.runners.compose.files` actually exist
 - [ ] Multi-stack entries do not redundantly list same base compose file
 - [ ] All services have `tags:`
-- [ ] Compose file has top-level `name:` matching `stack.compose.project_name`
+- [ ] Compose file has top-level `name:` matching `stack.{entry}.runners.compose.project_name`
 
 ### Ports & Endpoints
 - [ ] All host ports are project-unique (no common defaults: 5432, 6379, 3000, 8080, etc.)
@@ -42,7 +42,7 @@
 - [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
 - [ ] `depends_on` has no circular references (cycles are handled but should be avoided)
 - [ ] `dir:` is set when app working directory differs from config root
-- [ ] NO application code placed only in `stack.compose.services` without `applications:` entry
+- [ ] NO application code placed only in compose service metadata without `applications:` entry
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`
@@ -54,9 +54,10 @@
 - [ ] No `run: "dva <command>"` calls in provision steps
 
 ### Subprojects (if applicable)
-- [ ] Subproject `version` matches root
+- [ ] Imported subproject `version` matches root
 - [ ] Subprojects use `exclude_tags: [infra]`
-- [ ] No `description:` field in subprojects (only `path`, `exclude_tags`)
+- [ ] No `description:` field in subprojects (only `path`, `exclude_tags`, `import`)
+- [ ] Every imported subproject has its own `dva.yml`; placeholders without import entries (`import` omitted or `import: {}`) may be initialized later
 
 ### Modes & Native/Docker Strategy
 - [ ] At least 3 modes defined for dual-path projects: `native`, `hybrid`, `docker`

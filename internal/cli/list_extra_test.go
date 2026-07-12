@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
@@ -18,7 +19,9 @@ func TestPrintTable_Detailed(t *testing.T) {
 	keys := []string{"test"}
 
 	output := captureStdout(t, func() {
-		printTable(commands, keys)
+		if err := printTable(&config.Config{}, commands, keys); err != nil {
+			t.Fatalf("printTable error: %v", err)
+		}
 	})
 	if !strings.Contains(output, "service:app") {
 		t.Error("detailed output should contain service info")
@@ -32,7 +35,9 @@ func TestPrintTable_NoDescription(t *testing.T) {
 	keys := []string{"build"}
 
 	output := captureStdout(t, func() {
-		printTable(commands, keys)
+		if err := printTable(&config.Config{}, commands, keys); err != nil {
+			t.Fatalf("printTable error: %v", err)
+		}
 	})
 	if !strings.Contains(output, "build") {
 		t.Error("should contain command name")
@@ -46,7 +51,9 @@ func TestPrintJSON_Output(t *testing.T) {
 	keys := []string{"test"}
 
 	output := captureStdout(t, func() {
-		printJSON(commands, keys)
+		if err := printJSON(&config.Config{}, commands, keys); err != nil {
+			t.Fatalf("printJSON error: %v", err)
+		}
 	})
 	if !strings.Contains(output, "go test") {
 		t.Error("JSON should contain command")
@@ -63,7 +70,9 @@ func TestPrintYAML_Output(t *testing.T) {
 	keys := []string{"test"}
 
 	output := captureStdout(t, func() {
-		printYAML(commands, keys)
+		if err := printYAML(&config.Config{}, commands, keys); err != nil {
+			t.Fatalf("printYAML error: %v", err)
+		}
 	})
 	if !strings.Contains(output, "go test") {
 		t.Error("YAML should contain command")
@@ -81,7 +90,9 @@ func TestPrintTable_DetailedWithPod(t *testing.T) {
 	keys := []string{"shell"}
 
 	output := captureStdout(t, func() {
-		printTable(commands, keys)
+		if err := printTable(&config.Config{}, commands, keys); err != nil {
+			t.Fatalf("printTable error: %v", err)
+		}
 	})
 	if !strings.Contains(output, "pod:backend") {
 		t.Error("detailed output should contain pod info")

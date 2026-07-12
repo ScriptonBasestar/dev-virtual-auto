@@ -69,7 +69,7 @@ interaction:
     runner: kubectl
     pod: web
 
-  logs:
+  k8s-logs:
     description: Stream logs from the web pod
     command: kubectl logs -f
     runner: kubectl

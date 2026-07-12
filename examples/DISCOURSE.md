@@ -263,11 +263,14 @@ dva bundle install
 ```yaml
 stack:
   compose:
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
-      - docker-compose.development.yml
-    project_name: gorisa-discourse
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+          - docker-compose.development.yml
+        project_name: gorisa-discourse
 ```
 
 ### Environment Variables

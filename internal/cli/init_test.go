@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 func TestDetectTemplateIn(t *testing.T) {
@@ -115,6 +117,19 @@ func TestGenerateConfig_Minimal(t *testing.T) {
 	if !strings.Contains(got, "/bin/bash") {
 		t.Error("minimal config should contain shell command")
 	}
+	if !strings.Contains(got, "default_runner: compose") || !strings.Contains(got, "runners:") {
+		t.Errorf("minimal config should use compose runner schema, got:\n%s", got)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(got), 0644); err != nil {
+		t.Fatalf("write generated config: %v", err)
+	}
+	cfg, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load generated config: %v", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate generated config: %v", err)
+	}
 	// Should NOT contain language-specific env
 	if strings.Contains(got, "RAILS_ENV") || strings.Contains(got, "NODE_ENV") {
 		t.Error("minimal config should not contain language-specific env")
@@ -169,14 +184,10 @@ func TestDetectComposeFiles(t *testing.T) {
 	}
 }
 
-func TestPrintAmRunCommand(t *testing.T) {
-	// Verify printAmRunCommand doesn't panic and produces output
-	origRewrite := improveRewrite
-	defer func() { improveRewrite = origRewrite }()
-
-	improveRewrite = false
-	// printAmRunCommand writes to stdout, just verify no panic
-	_ = printAmRunCommand()
+func TestInitCommandMentionsImproveFlow(t *testing.T) {
+	if !strings.Contains(initCmd.Long, "am run dva-improve") {
+		t.Fatalf("init long help should mention am run dva-improve, got: %s", initCmd.Long)
+	}
 }
 
 func TestFilterEnv(t *testing.T) {

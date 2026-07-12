@@ -55,16 +55,23 @@ func resolveSubprojectImports(cfg *Config) error {
 	}
 
 	parentDir := cfg.FileDir()
-	subCfgs, err := LoadSubprojects(parentDir, cfg.Subprojects)
+	importedSubprojects := make(map[string]SubprojectConfig)
+	for name, subproject := range cfg.Subprojects {
+		if !hasSubprojectImports(subproject.Import) {
+			continue
+		}
+		importedSubprojects[name] = subproject
+	}
+	if len(importedSubprojects) == 0 {
+		return nil
+	}
+
+	subCfgs, err := LoadSubprojects(parentDir, importedSubprojects)
 	if err != nil {
 		return err
 	}
 
-	for subprojectName, subproject := range cfg.Subprojects {
-		if subproject.Import == nil {
-			continue
-		}
-
+	for subprojectName, subproject := range importedSubprojects {
 		subCfg, ok := subCfgs[subprojectName]
 		if !ok {
 			return fmt.Errorf("subproject %q not loaded", subprojectName)
@@ -160,6 +167,13 @@ func resolveSubprojectImports(cfg *Config) error {
 	return nil
 }
 
+func hasSubprojectImports(imports *SubprojectImportConfig) bool {
+	return imports != nil &&
+		(len(imports.Plans) > 0 ||
+			len(imports.Interactions) > 0 ||
+			len(imports.Provision) > 0)
+}
+
 func cloneImportedPlan(plan *PlanConfig, subprojectPath string) *PlanConfig {
 	if plan == nil {
 		return nil
@@ -224,116 +238,4 @@ func cloneImportedInteraction(command *InteractionCommand, subprojectPath string
 	}
 
 	return &clone
-}
-
-// HasTag checks if the compose-level default tags contain the given tag.
-func (c *Config) HasTag(tag string) bool {
-	for _, t := range c.ComposeTags() {
-		if t == tag {
-			return true
-		}
-	}
-	return false
-}
-
-// FilterInteractions returns interaction commands excluding those matching any of the given tags.
-func (c *Config) FilterInteractions(excludeTags []string) map[string]*InteractionCommand {
-	if len(excludeTags) == 0 {
-		return c.Interaction
-	}
-	exclude := toSet(excludeTags)
-	result := make(map[string]*InteractionCommand, len(c.Interaction))
-	for name, cmd := range c.Interaction {
-		if !hasAnyTag(cmd.Tags, exclude) {
-			result[name] = cmd
-		}
-	}
-	return result
-}
-
-// GetComposeServicesExcluding returns compose service names that do NOT have any of the excluded tags.
-// Services without explicit tags inherit the compose-level default tags.
-func (c *Config) GetComposeServicesExcluding(excludeTags []string) []string {
-	services := c.ComposeServices()
-	if len(excludeTags) == 0 || len(services) == 0 {
-		return nil
-	}
-	exclude := toSet(excludeTags)
-	defaults := c.ComposeTags()
-
-	var included []string
-	for svcName, svcCfg := range services {
-		tags := svcCfg.Tags
-		if len(tags) == 0 {
-			tags = defaults
-		}
-		if !hasAnyTag(tags, exclude) {
-			included = append(included, svcName)
-		}
-	}
-	return included
-}
-
-// GetComposeServicesIncluding returns compose service names that HAVE ANY of the included tags.
-// Services without explicit tags inherit the compose-level default tags.
-func (c *Config) GetComposeServicesIncluding(includeTags []string) []string {
-	services := c.ComposeServices()
-	if len(includeTags) == 0 || len(services) == 0 {
-		return nil
-	}
-	include := toSet(includeTags)
-	defaults := c.ComposeTags()
-
-	var included []string
-	for svcName, svcCfg := range services {
-		tags := svcCfg.Tags
-		if len(tags) == 0 {
-			tags = defaults
-		}
-		if hasAnyTag(tags, include) {
-			included = append(included, svcName)
-		}
-	}
-	return included
-}
-
-// GetExcludedComposeServices returns compose service names that HAVE any of the excluded tags.
-func (c *Config) GetExcludedComposeServices(excludeTags []string) []string {
-	services := c.ComposeServices()
-	if len(excludeTags) == 0 || len(services) == 0 {
-		return nil
-	}
-	exclude := toSet(excludeTags)
-	defaults := c.ComposeTags()
-
-	var result []string
-	for svcName, svcCfg := range services {
-		tags := svcCfg.Tags
-		if len(tags) == 0 {
-			tags = defaults
-		}
-		if hasAnyTag(tags, exclude) {
-			result = append(result, svcName)
-		}
-	}
-	return result
-}
-
-// hasAnyTag checks if any of the tags exist in the exclusion set.
-func hasAnyTag(tags []string, exclude map[string]bool) bool {
-	for _, t := range tags {
-		if exclude[t] {
-			return true
-		}
-	}
-	return false
-}
-
-// toSet converts a string slice to a set (map).
-func toSet(ss []string) map[string]bool {
-	m := make(map[string]bool, len(ss))
-	for _, s := range ss {
-		m[s] = true
-	}
-	return m
 }

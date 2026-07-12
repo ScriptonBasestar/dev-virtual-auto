@@ -9,16 +9,16 @@
 3. **`version:` field** — Use the current DVA version (specified in the prompt's CRITICAL version section). Subprojects should match.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
-6. **`stack:` NOT top-level `compose:`** — Infrastructure plugins MUST be declared under `stack:` section. Use `stack:`.
+6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
 8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
-10. **`stack.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary stack entry. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
-11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
+10. **`stack.<entry>.runners.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary compose runner. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
+11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
 12. **Multi-stack entries: no duplicate base files** — When creating separate stack entries for overlays, each entry should list ONLY its own overlay file(s). Do NOT repeat the base `compose.yml` in every entry. Exception: if an overlay file uses `extends` or `depends_on` referencing base services, include the base but document why.
-13. **`services:` is tags-only** — `stack.compose.services` exists ONLY for tag-based filtering (subprojects, modes). Port information is read from compose.yml at runtime.
+13. **`services:` is tags-only** — The `services` map under `stack.{entry}.runners.compose` exists ONLY for tag-based filtering. Port information is read from compose.yml at runtime.
 14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
-15. **One stack entry + modes, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `modes.*.compose_services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
+15. **One stack entry + plans, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `plans.*.entries[].services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
 16. **`default_mode` for minimal startup** — Always set `default_mode` to a minimal infrastructure mode (e.g., `infra`). Without it, `dva up` starts ALL services from ALL compose files. The default mode should only include core data services (DB, cache). Heavy infrastructure (monitoring, Kafka, Redis Sentinel/Cluster, PostgreSQL replicas, HA setups) MUST be in separate modes like `full-stack` or `full-stack-monitoring`.
 
 ## dva.yml Structure
@@ -45,34 +45,35 @@ env_file:                       # .env file loading (optional)
   priority: before_environment  # before_environment | after_environment
   interpolate: true
 
-# --- Infrastructure Orchestration Pipeline ---
-# Each entry is a plugin with an execution order.
-# Plugin type is auto-inferred from entry name (e.g., "compose" → compose plugin).
-# Use `plugin:` field when entry name differs from plugin type.
+# --- Infrastructure Orchestration Declarations ---
+# Each entry declares one or more named runners. Plans choose what actually runs.
 stack:
-  compose:                        # Entry name = "compose" → auto-inferred as compose plugin
-    order: 10                     # Execution order (ascending)
-    files:
-      - compose.yml               # Primary compose file
-      # - compose.tools.yml       # Optional dev tools overlay
-    project_name: myapp           # MUST match compose.yml top-level `name:`
-    up_options: ["-d", "--wait"]  # Default options for `dva up` (detached mode)
-    tags: [infra]                 # Default tags for all services
-    services:                     # Per-service TAG metadata only
-      {service-name}:
-        tags: [infra, data]       # Used for tag-based filtering (subprojects, modes)
-        related: [other-service]  # Services shown as hints when this runs
-        hint: "Why this service matters"
+  infra:                          # Logical compose bundle
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - compose.yml           # Primary compose file
+          # - compose.tools.yml   # Optional dev tools overlay
+        project_name: myapp       # MUST match compose.yml top-level `name:`
+        up_options: ["-d", "--wait"]
+        tags: [infra]             # Default tags for all services
+        services:                 # Per-service TAG metadata only
+          {service-name}:
+            tags: [infra, data]   # Used for tag-based filtering
+            related: [other-service]
+            hint: "Why this service matters"
 
   # --- Multi-stack: only for different backends ---
-  # Use ONE stack entry + modes for operational variants (NOT separate entries).
+  # Use ONE stack entry + plans for operational variants (NOT separate entries).
   # Only separate stack entries for genuinely different infrastructure:
-  # compose:                      # Local Docker infra
-  #   order: 10
-  #   files: [compose.yml]
+  # infra:
+  #   default_runner: compose
+  #   runners:
+  #     compose:
+  #       files: [compose.yml]
   # k8s:                          # Staging Kubernetes
   #   plugin: kubectl
-  #   order: 20
   #   namespace: myapp-dev
 
 applications:                   # Long-running app processes (API servers, workers, etc.)
@@ -208,8 +209,8 @@ plans:                          # Named deployment plans (optional)
     vars:                        # Plan-specific variables
       KEY: value
     entries:                     # Ordered stack entries for this plan
-      - name: compose
-        runner: local
+      - name: infra
+        runner: compose
         order: 10
         depends_on: []
         services: [postgres, redis]
@@ -247,6 +248,10 @@ subprojects:                    # Subproject references
   {name}:
     path: relative/path
     exclude_tags: [infra]       # Tags to exclude when running from parent
+    import:                     # Optional; non-empty imports require child dva.yml
+      plans: [local-dev]
+      interactions: [shell]
+      provision: [setup]
 
 endpoints:                      # User-facing access URLs
   # For compose services: use source to reference compose service:port
@@ -277,7 +282,7 @@ ssh:                            # SSH configuration (optional)
 
 | Information | Where it belongs | Example |
 |-------------|-----------------|---------|
-| Service tags (filtering) | `stack.compose.services` | `postgres: { tags: [infra, data] }` |
+| Service tags (filtering) | `stack.<entry>.runners.compose` -> `services` | `postgres: { tags: [infra, data] }` |
 | Port labels, URLs | `endpoints` | `db: { source: "postgres:15432", label: "PostgreSQL" }` |
 | Sub-paths | `endpoints` | `paths: { /health: "Health check" }` |
 | HTTP flag | `endpoints` | Inferred from source port or explicit in url |
@@ -289,7 +294,7 @@ ssh:                            # SSH configuration (optional)
 When generating or modifying `compose.yml`, ensure:
 
 ```yaml
-# REQUIRED: top-level name must match dva.yml compose.project_name
+# REQUIRED: top-level name must match dva.yml stack.<entry>.runners.compose.project_name
 name: myapp
 
 services:
@@ -322,15 +327,24 @@ dva up -M hybrid         # Partial compose + health checks
 6. If `environment:` present → merge into compose environment
 7. `compose_services` and `compose_profiles` can be combined (both apply independently)
 
-**Single stack + modes pattern (preferred):** Use ONE stack entry with all compose files and control service selection via `compose_services` in modes:
+**Single stack + plans pattern (preferred):** Use ONE stack entry with all compose files and control service selection via `plans.*.entries[].services`:
 ```yaml
 stack:
-  compose:
-    files: [compose.yml, compose.dev-full.yml]  # All overlays in one entry
-    services:
-      db:    { tags: [infra] }
-      redis: { tags: [infra] }
-      app:   { tags: [app] }
+  infra:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml, compose.dev-full.yml]  # All overlays in one entry
+        services:
+          db:    { tags: [infra] }
+          redis: { tags: [infra] }
+          app:   { tags: [app] }
+plans:
+  local-infra:
+    entries:
+      - name: infra
+        runner: compose
+        services: [db, redis]
 default_mode: infra                      # dva up (no -M) → minimal infra only
 modes:
   infra:
@@ -634,14 +648,15 @@ The following fields are NOT valid in dva.yml. Use the correct equivalents:
 | `service: local` | `runner: local` (no `service:`) | Host commands use `runner: local`, not `service: local` |
 | `shell: true` (on host commands) | `runner: local` (no `shell: true`) | `runner: local` already executes via shell. Keep `shell: true` only for container commands needing shell interpolation |
 | `profiles:` | `modes:` | Use `modes:` |
-| top-level `compose:` | `stack: { compose: { ... } }` | Use `stack:` |
+| top-level `compose:` or `stack.<entry>.compose` | `stack.<entry>.runners.compose` | Use named runners |
 | `lifecycle:` | `stack:` | Use `stack:` |
 
 ### Subproject Consistency
 
-All subproject dva.yml files MUST follow the same rules as the root:
+Imported or directly executed subproject dva.yml files MUST follow the same rules as the root:
 - Version must match root (use current DVA version)
 - Same format rules apply (stack, runner:local, no echo wrappers)
+- Declared-only subprojects without import entries (`import` omitted or `import: {}`) may be initialized later
 
 ### Provision Step Fields
 

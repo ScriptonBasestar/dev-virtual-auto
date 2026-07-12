@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
@@ -67,7 +68,9 @@ func TestPrintTable_Basic(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	printTable(commands, keys)
+	if err := printTable(&config.Config{}, commands, keys); err != nil {
+		t.Fatalf("printTable error: %v", err)
+	}
 
 	w.Close()
 	os.Stdout = old

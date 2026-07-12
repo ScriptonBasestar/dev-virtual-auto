@@ -172,34 +172,19 @@ func buildManifest(c *config.Config) *Manifest {
 
 	// Build subprojects section
 	if len(c.Subprojects) > 0 {
-		subs, err := config.LoadSubprojects(c.FileDir(), c.Subprojects)
-		if err == nil {
-			m.Subprojects = make(map[string]ManifestSubproject, len(subs))
-			for name, subCfg := range subs {
-				subManifest := ManifestSubproject{
-					Path:        c.Subprojects[name].Path,
-					ExcludeTags: c.Subprojects[name].ExcludeTags,
-				}
-
-				subTree := runner.NewInteractionTree(subCfg.Interaction)
-				subCommands := subTree.List()
-				subManifest.Commands = make(map[string]ManifestDynCmd, len(subCommands))
-				for k, cmd := range subCommands {
-					dynCmd := ManifestDynCmd{
-						Description:  cmd.Description,
-						Command:      cmd.Command,
-						Runner:       runner.DetectRunnerType(cmd),
-						UsageExample: fmt.Sprintf("dva %s:%s", name, k),
-					}
-					if cmd.Service != "" {
-						dynCmd.Service = cmd.Service
-						dynCmd.ComposeMethod = cmd.Compose.Method
-					}
-					subManifest.Commands[k] = dynCmd
-				}
-
-				m.Subprojects[name] = subManifest
+		m.Subprojects = make(map[string]ManifestSubproject, len(c.Subprojects))
+		for name, subproject := range c.Subprojects {
+			subManifest := ManifestSubproject{
+				Path:        subproject.Path,
+				ExcludeTags: subproject.ExcludeTags,
 			}
+
+			subs, err := config.LoadSubprojects(c.FileDir(), map[string]config.SubprojectConfig{name: subproject})
+			if err == nil {
+				subManifest.Commands = buildManifestSubprojectCommands(name, subs[name])
+			}
+
+			m.Subprojects[name] = subManifest
 		}
 	}
 
@@ -220,4 +205,24 @@ func buildManifest(c *config.Config) *Manifest {
 	}
 
 	return m
+}
+
+func buildManifestSubprojectCommands(name string, subCfg *config.Config) map[string]ManifestDynCmd {
+	subTree := runner.NewInteractionTree(subCfg.Interaction)
+	subCommands := subTree.List()
+	commands := make(map[string]ManifestDynCmd, len(subCommands))
+	for k, cmd := range subCommands {
+		dynCmd := ManifestDynCmd{
+			Description:  cmd.Description,
+			Command:      cmd.Command,
+			Runner:       runner.DetectRunnerType(cmd),
+			UsageExample: fmt.Sprintf("dva %s:%s", name, k),
+		}
+		if cmd.Service != "" {
+			dynCmd.Service = cmd.Service
+			dynCmd.ComposeMethod = cmd.Compose.Method
+		}
+		commands[k] = dynCmd
+	}
+	return commands
 }

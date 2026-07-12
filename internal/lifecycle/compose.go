@@ -18,7 +18,7 @@ type ComposePlugin struct{}
 func (p *ComposePlugin) Name() string { return "compose" }
 
 func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, error) {
-	cfg := pctx.Entry.Compose
+	cfg := pctx.Entry.ComposeConfig()
 	if cfg == nil {
 		return &Result{}, nil
 	}
@@ -60,7 +60,7 @@ func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 }
 
 func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
-	if pctx.Entry.Compose == nil {
+	if pctx.Entry.ComposeConfig() == nil {
 		return nil
 	}
 
@@ -82,7 +82,7 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 }
 
 func (p *ComposePlugin) Stop(ctx context.Context, pctx *PluginContext) error {
-	if pctx.Entry.Compose == nil {
+	if pctx.Entry.ComposeConfig() == nil {
 		return nil
 	}
 
@@ -105,7 +105,7 @@ func (p *ComposePlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 // Mode-derived profiles are injected before the subcommand; mode-derived services
 // are appended after the subcommand args (only for "up").
 func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (string, []string) {
-	cfg := pctx.Entry.Compose
+	cfg := pctx.Entry.ComposeConfig()
 
 	cmd := "docker"
 	args := []string{"compose"}
@@ -170,7 +170,7 @@ type composePublisher struct {
 
 // queryServices runs docker compose ps and returns parsed service statuses.
 func (p *ComposePlugin) queryServices(pctx *PluginContext) ([]ServiceStatus, error) {
-	if pctx.Entry.Compose == nil {
+	if pctx.Entry.ComposeConfig() == nil {
 		return nil, nil
 	}
 

@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -84,27 +83,24 @@ type DockerRunnerConfig struct {
 	Options []string          `yaml:"options"`
 }
 
-// UnmarshalYAML supports three resolution strategies for lifecycle entries:
+// UnmarshalYAML supports runner-based entries plus legacy parser compatibility:
 //
-// Nested (legacy): plugin config under a named sub-key
+// Runner-based:
+//
+//	my-service:
+//	  default_runner: compose
+//	  runners:
+//	    compose:
+//	      files: [docker-compose.yml]
+//
+// Nested (legacy parser compatibility): plugin config under a named sub-key
 //
 //	compose:
 //	  order: 10
 //	  compose:
 //	    files: [docker-compose.yml]
 //
-// Flat (preferred): plugin fields at top level with explicit `plugin:` key
-//
-//	my-compose:
-//	  plugin: compose
-//	  order: 10
-//	  files: [docker-compose.yml]
-//
-// 3. Flat with auto-inference: plugin inferred from entry name (resolved later)
-//
-//	compose:
-//	  order: 10
-//	  files: [docker-compose.yml]
+// Flat legacy plugin entries are still parsed for non-schema callers.
 func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	// Decode common fields + nested plugin configs
 	var raw struct {
@@ -359,14 +355,13 @@ func decodeRunnerNode(name string, node *yaml.Node) (any, error) {
 }
 
 func normalizeRunnerName(name string) string {
-	trimmed := strings.TrimSpace(name)
-	if trimmed == "podman_compose" {
+	if name == "podman_compose" {
 		return "podman-compose"
 	}
-	if mapped, ok := knownPluginNames[trimmed]; ok {
+	if mapped, ok := knownPluginNames[name]; ok {
 		return mapped
 	}
-	return trimmed
+	return name
 }
 
 // resolvePluginConfig decodes plugin-specific fields from a flat YAML node.
@@ -604,6 +599,10 @@ func (e *LifecycleEntry) RunnerNames() []string {
 // Called after Name is set from the map key in Config.Load().
 func (e *LifecycleEntry) ResolvePluginFromName() error {
 	if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil {
+		return nil
+	}
+	if len(e.Runners) > 0 {
+		e.rawNode = nil
 		return nil
 	}
 	if pt, ok := knownPluginNames[e.Name]; ok {

@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -149,5 +151,54 @@ func TestBuildManifest_WithEnvironment(t *testing.T) {
 	// Should be sorted
 	if m.EnvKeys[0] != "APP_ENV" || m.EnvKeys[1] != "DB_HOST" {
 		t.Errorf("EnvKeys = %v, want [APP_ENV, DB_HOST]", m.EnvKeys)
+	}
+}
+
+func TestBuildManifest_WithMissingPlaceholderSubproject(t *testing.T) {
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "ready")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("create subproject dir: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(subDir, config.FileName), []byte(`
+version: "0.1.0"
+interaction:
+  shell:
+    description: "Open shell"
+    command: "bash"
+`), 0644); err != nil {
+		t.Fatalf("write subproject config: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  pending:
+    path: pending
+  ready:
+    path: ready
+`), 0644); err != nil {
+		t.Fatalf("write parent config: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+
+	m := buildManifest(c)
+
+	if len(m.Subprojects) != 2 {
+		t.Fatalf("Subprojects = %d, want 2", len(m.Subprojects))
+	}
+	if _, ok := m.Subprojects["pending"]; !ok {
+		t.Fatal("missing placeholder subproject")
+	}
+	if len(m.Subprojects["pending"].Commands) != 0 {
+		t.Errorf("pending commands = %v, want none", m.Subprojects["pending"].Commands)
+	}
+	if _, ok := m.Subprojects["ready"].Commands["shell"]; !ok {
+		t.Fatalf("ready shell command missing: %v", m.Subprojects["ready"].Commands)
 	}
 }

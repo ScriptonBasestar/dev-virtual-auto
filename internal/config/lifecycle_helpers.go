@@ -2,12 +2,33 @@ package config
 
 import "sort"
 
+func (e *LifecycleEntry) ComposeConfig() *ComposePluginConfig {
+	if e == nil {
+		return nil
+	}
+	if e.Compose != nil {
+		return e.Compose
+	}
+	for name, runnerCfg := range e.Runners {
+		if normalizeRunnerName(name) != "compose" {
+			continue
+		}
+		if cfg, ok := runnerCfg.(*ComposePluginConfig); ok {
+			return cfg
+		}
+	}
+	return nil
+}
+
 // SortedStack returns stack entries sorted by Order with Name populated.
 func (c *Config) SortedStack() []LifecycleEntry {
 	entries := make([]LifecycleEntry, 0, len(c.Stack))
 	for name, e := range c.Stack {
 		entry := *e
 		entry.Name = name
+		if entry.Plugin == "" && entry.ComposeConfig() != nil {
+			entry.Plugin = "compose"
+		}
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {
@@ -22,7 +43,7 @@ func (c *Config) SortedStack() []LifecycleEntry {
 func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 	var best *LifecycleEntry
 	for _, e := range c.Stack {
-		if e.Compose == nil {
+		if e.ComposeConfig() == nil {
 			continue
 		}
 		if best == nil || e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name) {
@@ -35,7 +56,7 @@ func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 // PrimaryComposeConfig returns the ComposePluginConfig from the primary compose lifecycle entry.
 func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 	if e := c.PrimaryComposeEntry(); e != nil {
-		return e.Compose
+		return e.ComposeConfig()
 	}
 	return nil
 }
@@ -53,8 +74,8 @@ func (c *Config) AllEnvFiles() []string {
 func (c *Config) AllComposeFiles() []string {
 	var files []string
 	for _, e := range c.Stack {
-		if e.Compose != nil {
-			files = append(files, e.Compose.Files...)
+		if cc := e.ComposeConfig(); cc != nil {
+			files = append(files, cc.Files...)
 		}
 	}
 	return files
@@ -98,7 +119,7 @@ func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 func (c *Config) ComposeEntries() []*LifecycleEntry {
 	var entries []*LifecycleEntry
 	for _, e := range c.Stack {
-		if e.Compose != nil {
+		if e.ComposeConfig() != nil {
 			entries = append(entries, e)
 		}
 	}

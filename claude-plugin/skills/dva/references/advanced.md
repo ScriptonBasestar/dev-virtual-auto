@@ -77,15 +77,18 @@ Filter services by tag for selective operations. Tags are defined on stack servi
 ```yaml
 stack:
   compose:
-    services:
-      api:
-        tags: [app, backend]
-      postgres:
-        tags: [db, backend]
-      redis:
-        tags: [cache]
-      frontend:
-        tags: [app, ui]
+    default_runner: compose
+    runners:
+      compose:
+        services:
+          api:
+            tags: [app, backend]
+          postgres:
+            tags: [db, backend]
+          redis:
+            tags: [cache]
+          frontend:
+            tags: [app, ui]
 ```
 
 Usage:
@@ -177,34 +180,37 @@ Module files in `.sb/dva/` are merged into the base configuration. This keeps `d
 
 ## Stack Pipeline
 
-The `stack:` section defines infrastructure plugins executed in `order` sequence.
+The `stack:` section defines reusable execution declarations. Compose must be declared through `runners.compose`.
 
 ```yaml
 stack:
-  compose:                     # entry name = plugin auto-inference
-    order: 10
-    files: [docker-compose.yml]
-    project_name: myapp
-    services:
-      api:
-        tags: [app]
-        related: [worker]
+  infra:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml]
+        project_name: myapp
+        services:
+          api:
+            tags: [app]
+            related: [worker]
   kubectl:                     # kubectl plugin auto-inferred
     order: 20
     namespace: myapp-dev
     context: my-cluster
-  staging-compose:             # name != plugin → explicit plugin: required
-    plugin: compose
-    order: 30
-    files: [docker-compose.staging.yml]
+  staging-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.staging.yml]
 ```
 
 ### Plugin Type Resolution
 
 Priority order:
-1. Nested format (legacy): presence of `compose:` subkey implies compose plugin
-2. Flat format + explicit `plugin:` key
-3. Entry name matches known plugin name → auto-inferred
+1. `runners.<name>` declarations for plan-based execution
+2. Flat format + explicit `plugin:` key for non-compose legacy plugins
+3. Entry name matches known plugin name → auto-inferred for non-compose legacy plugins
 
 ### Supported Plugins
 

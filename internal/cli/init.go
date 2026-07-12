@@ -275,14 +275,16 @@ func generateConfigIn(dir, tmpl string) string {
 	composeFiles := detectComposeFilesIn(dir)
 	b.WriteString("stack:\n")
 	b.WriteString("  compose:\n")
-	b.WriteString("    order: 10\n")
-	b.WriteString("    files:\n")
+	b.WriteString("    default_runner: compose\n")
+	b.WriteString("    runners:\n")
+	b.WriteString("      compose:\n")
+	b.WriteString("        files:\n")
 	if len(composeFiles) > 0 {
 		for _, f := range composeFiles {
-			_, _ = fmt.Fprintf(&b, "      - %s\n", f)
+			_, _ = fmt.Fprintf(&b, "          - %s\n", f)
 		}
 	} else {
-		b.WriteString("      - docker-compose.yml\n")
+		b.WriteString("          - docker-compose.yml\n")
 	}
 	b.WriteString("\n")
 

@@ -401,14 +401,16 @@ func TestLoadDeepMergeOverride(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
-    project_name: myapp
     tags: [core]
     exports:
       DB_HOST: postgres
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: myapp
 
 interaction:
   shell:
@@ -429,11 +431,13 @@ modes:
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
 stack:
   compose:
-    files:
-      - docker-compose.yml
-      - docker-compose.dev.yml
     exports:
       REDIS_HOST: redis
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+          - docker-compose.dev.yml
 
 interaction:
   shell:
@@ -456,16 +460,20 @@ modes:
 	// Stack: compose entry deep merged
 	entry := cfg.Stack["compose"]
 	if entry == nil {
-		t.Fatal("stack.compose not found")
+		t.Fatal("compose stack entry not found")
 	}
 	if entry.Order != 10 {
-		t.Errorf("stack.compose.order = %d, want 10 (preserved)", entry.Order)
+		t.Errorf("compose entry order = %d, want 10 (preserved)", entry.Order)
 	}
-	if entry.Compose.ProjectName != "myapp" {
-		t.Errorf("stack.compose.project_name = %q, want myapp (preserved)", entry.Compose.ProjectName)
+	composeCfg := entry.ComposeConfig()
+	if composeCfg == nil {
+		t.Fatal("compose runner config not found")
 	}
-	if len(entry.Compose.Files) != 2 {
-		t.Errorf("stack.compose.files = %v, want 2 files", entry.Compose.Files)
+	if composeCfg.ProjectName != "myapp" {
+		t.Errorf("compose runner project_name = %q, want myapp (preserved)", composeCfg.ProjectName)
+	}
+	if len(composeCfg.Files) != 2 {
+		t.Errorf("compose runner files = %v, want 2 files", composeCfg.Files)
 	}
 	if entry.Exports["DB_HOST"] != "postgres" {
 		t.Errorf("exports.DB_HOST = %q, want postgres", entry.Exports["DB_HOST"])
@@ -520,9 +528,9 @@ func TestLoadRestrictedFieldError(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
 stack:
   web:
-    plugin: compose
+    plugin: docker
     order: 10
-    files: [docker-compose.yml]
+    image: nginx:latest
 `), 0644)
 
 	os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`

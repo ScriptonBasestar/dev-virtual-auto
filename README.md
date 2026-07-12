@@ -31,9 +31,12 @@ version: "0.1.44"
 
 stack:
   compose:
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
 
 interaction:
   shell:
@@ -98,17 +101,22 @@ dva doctor                 # 환경 사전조건 진단
 
 ```yaml
 stack:
-  compose:                   # 엔트리 이름 = 플러그인 자동추론
+  compose:
+    default_runner: compose
     order: 10
-    files: [docker-compose.yml]
-    project_name: myapp
+    runners:
+      compose:
+        files: [docker-compose.yml]
+        project_name: myapp
   kubectl:
     order: 20
     namespace: myapp-dev
-  my-staging:                # 이름이 플러그인과 다르면 plugin: 명시
-    plugin: compose
+  my-staging:
+    default_runner: compose
     order: 30
-    files: [docker-compose.staging.yml]
+    runners:
+      compose:
+        files: [docker-compose.staging.yml]
 ```
 
 지원 플러그인: `compose`, `kubectl`, `helm`, `kustomize`, `tilt`, `skaffold`, `podman-compose`, `process`, `script`, `docker`, `vagrant`, `sam`, `serverless`, `multipass`

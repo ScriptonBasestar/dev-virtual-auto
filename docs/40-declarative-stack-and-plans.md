@@ -521,6 +521,7 @@ OS < env_file < global vars < environment vars < site vars < plan vars < CLI var
 - parent top-level로 자동 flatten 하지 않음
 - alias는 선택 사항으로만 허용
 - 이름 충돌은 자동 해결하지 않고 hard error로 처리
+- subproject 선언은 미리 둘 수 있지만, non-empty `import` 대상이 있거나 직접 실행할 때는 해당 subproject의 `dva.yml`이 존재해야 함
 
 예:
 

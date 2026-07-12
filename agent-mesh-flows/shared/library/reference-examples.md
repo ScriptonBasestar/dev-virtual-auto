@@ -59,17 +59,20 @@
 ```yaml
 stack:
   compose:
+    default_runner: compose
     order: 10
     tags: [infra]
-    files:
-      - compose.yml
-      # - compose.monitoring.yml  # optional overlays
-    project_name: {project}
-    up_options: ["-d", "--wait"]
-    services:                      # Tags only — NO ports here
-      postgres:  { tags: [infra, data] }
-      redis:     { tags: [infra, data] }
-      {app-api}: { tags: [app, rust, backend] }
+    runners:
+      compose:
+        files:
+          - compose.yml
+          # - compose.monitoring.yml  # optional overlays
+        project_name: {project}
+        up_options: ["-d", "--wait"]
+        services:                    # Tags only — NO ports here
+          postgres:  { tags: [infra, data] }
+          redis:     { tags: [infra, data] }
+          {app-api}: { tags: [app, rust, backend] }
 
 # Endpoints — user-facing access URLs (port metadata lives here, NOT in services)
 endpoints:
@@ -343,7 +346,7 @@ provision:
 
 ### Stack + Endpoints
 
-Same structure as Rust section above — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
+Same structure as Rust section above — use `stack.<entry>.runners.compose` -> `services` for tags only, `endpoints:` for port/URL metadata.
 
 ### Applications (Go hybrid)
 
@@ -409,7 +412,7 @@ interaction:
 
 ### Stack + Endpoints
 
-Same structure as Rust section — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
+Same structure as Rust section — use `stack.<entry>.runners.compose` -> `services` for tags only, `endpoints:` for port/URL metadata.
 
 ### Key Differences
 
@@ -471,7 +474,7 @@ provision:
 
 ### Stack + Endpoints
 
-Same structure as Rust section — use `stack.compose.services` for tags only, `endpoints:` for port/URL metadata.
+Same structure as Rust section — use `stack.<entry>.runners.compose` -> `services` for tags only, `endpoints:` for port/URL metadata.
 
 ### Hybrid (local dev server)
 
@@ -527,7 +530,7 @@ interaction:
 
 ## Multi-Component (devbox with subprojects)
 
-> Pattern: devbox parent manages shared infra, each subproject has its own dva.yml
+> Pattern: devbox parent manages shared infra; imported subprojects have their own dva.yml
 
 ```yaml
 # Root dva.yml — manages shared infrastructure
@@ -535,6 +538,8 @@ subprojects:
   {component-1}:
     path: {component-1}
     exclude_tags: [infra]    # Prevents duplicate infra when running from parent
+    import:                  # Only add non-empty imports after {component-1}/dva.yml exists
+      interactions: [test]
   {component-2}:
     path: {component-2}
     exclude_tags: [infra]

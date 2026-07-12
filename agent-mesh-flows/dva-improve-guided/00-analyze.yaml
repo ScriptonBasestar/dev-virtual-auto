@@ -228,7 +228,7 @@ steps:
       - Helm charts detected (helm_charts != None) → suggest `stack.helm` with appropriate `chart:` and `release:` fields.
       - Both present → suggest `stack.kubectl` for raw manifests AND `stack.helm` for charts.
       - If K8s/Helm + compose both detected → recommend `modes:` with local=compose, staging/prod=kubectl or helm.
-      - Do NOT force `stack.compose` when the primary infra is Kubernetes-native.
+      - Do NOT force a compose-only stack entry when the primary infra is Kubernetes-native.
 
       ## Output Format
       ```json

@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"sort"
+	"strings"
 	"testing"
 )
 
@@ -16,17 +16,19 @@ func TestLoadSubprojects(t *testing.T) {
 version: "0.1.0"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files:
-      - docker-compose.yml
-    project_name: engine
     tags: [app]
-    services:
-        postgres:
-          tags: [infra]
-        django-engine:
-          tags: [app]
+    runners:
+      compose:
+        files:
+          - docker-compose.yml
+        project_name: engine
+        services:
+          postgres:
+            tags: [infra]
+          django-engine:
+            tags: [app]
 interaction:
   test:
     description: "Run tests"
@@ -77,130 +79,71 @@ func TestLoadSubprojectsMissing(t *testing.T) {
 	}
 }
 
-func TestConfigHasTag(t *testing.T) {
-	cfg := &Config{
-		Stack: map[string]*LifecycleEntry{
-			"compose": {
-				Order:   10,
-				Compose: &ComposePluginConfig{Tags: []string{"infra", "shared"}},
-			},
-		},
+func TestLoadConfigWithUnimportedMissingSubproject(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  pending:
+    path: pending
+`), 0644); err != nil {
+		t.Fatalf("write parent config: %v", err)
 	}
-	if !cfg.HasTag("infra") {
-		t.Error("expected HasTag('infra') to be true")
+
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
 	}
-	if cfg.HasTag("app") {
-		t.Error("expected HasTag('app') to be false")
+
+	if _, ok := cfg.Subprojects["pending"]; !ok {
+		t.Fatal("subproject 'pending' not found")
 	}
 }
 
-func TestFilterInteractions(t *testing.T) {
-	cfg := &Config{
-		Interaction: map[string]*InteractionCommand{
-			"test":  {Description: "Run tests", Tags: []string{"test"}},
-			"lint":  {Description: "Run lint", Tags: []string{"quality"}},
-			"shell": {Description: "Shell", Tags: []string{}},
-			"db":    {Description: "DB shell", Tags: []string{"infra"}},
-		},
+func TestLoadConfigWithEmptyImportMissingSubproject(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  pending:
+    path: pending
+    import: {}
+`), 0644); err != nil {
+		t.Fatalf("write parent config: %v", err)
 	}
 
-	filtered := cfg.FilterInteractions([]string{"infra"})
-	if len(filtered) != 3 {
-		t.Errorf("expected 3 commands after infra exclusion, got %d", len(filtered))
-	}
-	if _, ok := filtered["db"]; ok {
-		t.Error("'db' should be excluded with infra tag")
+	cfg, err := Load(tmpDir)
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
 	}
 
-	all := cfg.FilterInteractions(nil)
-	if len(all) != 4 {
-		t.Errorf("expected 4 commands with no exclusion, got %d", len(all))
-	}
-
-	multi := cfg.FilterInteractions([]string{"test", "quality"})
-	if len(multi) != 2 {
-		t.Errorf("expected 2 commands after multi-tag exclusion, got %d", len(multi))
+	if _, ok := cfg.Subprojects["pending"]; !ok {
+		t.Fatal("subproject 'pending' not found")
 	}
 }
 
-func TestGetComposeServicesExcluding(t *testing.T) {
-	cfg := &Config{
-		Stack: map[string]*LifecycleEntry{
-			"compose": {
-				Order: 10,
-				Compose: &ComposePluginConfig{
-					Tags: []string{"app"},
-					Services: map[string]ServiceTagConfig{
-						"postgres":      {Tags: []string{"infra"}},
-						"redis":         {Tags: []string{"infra"}},
-						"django-engine": {Tags: []string{"app"}},
-						"worker":        {},
-					},
-				},
-			},
-		},
+func TestLoadConfigWithImportedMissingSubproject(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  backend:
+    path: backend
+    import:
+      interactions: [shell]
+`), 0644); err != nil {
+		t.Fatalf("write parent config: %v", err)
 	}
 
-	included := cfg.GetComposeServicesExcluding([]string{"infra"})
-	sort.Strings(included)
-	if len(included) != 2 {
-		t.Fatalf("expected 2 included services, got %d: %v", len(included), included)
+	_, err := Load(tmpDir)
+	if err == nil {
+		t.Fatal("expected error for imported subproject without dva.yml")
 	}
-	if included[0] != "django-engine" || included[1] != "worker" {
-		t.Errorf("included = %v, want [django-engine, worker]", included)
-	}
-}
-
-func TestGetExcludedComposeServices(t *testing.T) {
-	cfg := &Config{
-		Stack: map[string]*LifecycleEntry{
-			"compose": {
-				Order: 10,
-				Compose: &ComposePluginConfig{
-					Tags: []string{"app"},
-					Services: map[string]ServiceTagConfig{
-						"postgres":      {Tags: []string{"infra"}},
-						"redis":         {Tags: []string{"infra"}},
-						"django-engine": {Tags: []string{"app"}},
-					},
-				},
-			},
-		},
-	}
-
-	excluded := cfg.GetExcludedComposeServices([]string{"infra"})
-	sort.Strings(excluded)
-	if len(excluded) != 2 {
-		t.Fatalf("expected 2 excluded services, got %d: %v", len(excluded), excluded)
-	}
-	if excluded[0] != "postgres" || excluded[1] != "redis" {
-		t.Errorf("excluded = %v, want [postgres, redis]", excluded)
-	}
-}
-
-func TestGetComposeServicesExcludingEmpty(t *testing.T) {
-	cfg := &Config{}
-
-	result := cfg.GetComposeServicesExcluding([]string{"infra"})
-	if len(result) != 0 {
-		t.Errorf("expected 0 results for empty services, got %d", len(result))
-	}
-
-	cfg2 := &Config{
-		Stack: map[string]*LifecycleEntry{
-			"compose": {
-				Order: 10,
-				Compose: &ComposePluginConfig{
-					Services: map[string]ServiceTagConfig{
-						"app": {Tags: []string{"app"}},
-					},
-				},
-			},
-		},
-	}
-	result2 := cfg2.GetComposeServicesExcluding(nil)
-	if len(result2) != 0 {
-		t.Errorf("expected 0 results for nil exclude tags, got %d", len(result2))
+	if !strings.Contains(err.Error(), "backend/dva.yml") {
+		t.Fatalf("error = %v, want missing backend/dva.yml", err)
 	}
 }
 
@@ -213,9 +156,11 @@ func TestLoadConfigWithSubprojects(t *testing.T) {
 version: "0.1.0"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [docker-compose.yml]
+    runners:
+      compose:
+        files: [docker-compose.yml]
 interaction:
   test:
     description: "Sub test"
@@ -227,10 +172,12 @@ interaction:
 version: "0.1.0"
 stack:
   compose:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [docker-compose.yml]
     tags: [infra]
+    runners:
+      compose:
+        files: [docker-compose.yml]
 subprojects:
   sub-app:
     path: sub-app

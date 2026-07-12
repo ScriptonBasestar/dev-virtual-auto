@@ -48,7 +48,7 @@ func TestExamplesParseSuccessfully(t *testing.T) {
 	t.Logf("validated %d example files", count)
 }
 
-func TestLifecycleFlatFormatParsing(t *testing.T) {
+func TestLifecycleEntryParsing(t *testing.T) {
 	cases := []struct {
 		name        string
 		yaml        string
@@ -57,16 +57,17 @@ func TestLifecycleFlatFormatParsing(t *testing.T) {
 		wantKubectl func(*KubectlPluginConfig) bool
 	}{
 		{
-			name: "compose flat",
+			name: "compose runner",
 			yaml: `version: "0.1.0"
 stack:
   db:
-    plugin: compose
+    default_runner: compose
     order: 10
-    files: [docker-compose.yml]
-    project_name: myapp
+    runners:
+      compose:
+        files: [docker-compose.yml]
+        project_name: myapp
 `,
-			wantPlugin: "compose",
 			wantCompose: func(c *ComposePluginConfig) bool {
 				return len(c.Files) == 1 && c.Files[0] == "docker-compose.yml" && c.ProjectName == "myapp"
 			},
@@ -116,11 +117,12 @@ stack:
 					t.Errorf("Plugin = %q, want %q", entry.Plugin, tc.wantPlugin)
 				}
 				if tc.wantCompose != nil {
-					if entry.Compose == nil {
+					composeCfg := entry.ComposeConfig()
+					if composeCfg == nil {
 						t.Fatal("expected Compose config")
 					}
-					if !tc.wantCompose(entry.Compose) {
-						t.Errorf("Compose config mismatch: %+v", entry.Compose)
+					if !tc.wantCompose(composeCfg) {
+						t.Errorf("Compose config mismatch: %+v", composeCfg)
 					}
 				}
 				if tc.wantKubectl != nil {

@@ -19,7 +19,7 @@
 
 **Rules:**
 - `infra` is the base tag — DB, cache, queue는 항상 `infra`
-- 태그는 compose.services 와 interaction에 모두 적용
+- 태그는 `stack.<entry>.runners.compose` -> `services` 와 interaction에 모두 적용
 - 프로젝트에 해당 역할이 없으면 해당 태그 생략
 
 ## Infrastructure Tier Classification
@@ -174,9 +174,12 @@ environments:
 ```yaml
 stack:
   compose:
+    default_runner: compose
     order: 10
-    files: [compose.yml]
-    # ...
+    runners:
+      compose:
+        files: [compose.yml]
+        # ...
   kubectl:
     order: 20
     namespace: myapp-dev

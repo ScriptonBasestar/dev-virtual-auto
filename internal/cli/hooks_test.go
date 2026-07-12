@@ -9,8 +9,18 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
+const hookTestConfig = `version: "0.1.22"
+stack:
+  compose:
+    default_runner: compose
+    order: 10
+    runners:
+      compose:
+        files: [compose.yml]
+`
+
 func TestRunHookSteps_DryRun(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun
@@ -46,7 +56,7 @@ func TestRunHookSteps_DryRun(t *testing.T) {
 }
 
 func TestRunHookSteps_DryRun_ComposeUp(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun
@@ -79,7 +89,7 @@ func TestRunHookSteps_DryRun_ComposeUp(t *testing.T) {
 }
 
 func TestRunHookSteps_DryRun_ComposeExec(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun
@@ -111,7 +121,7 @@ func TestRunHookSteps_DryRun_ComposeExec(t *testing.T) {
 }
 
 func TestRunHookSteps_DryRun_ComposeRun(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun
@@ -143,7 +153,7 @@ func TestRunHookSteps_DryRun_ComposeRun(t *testing.T) {
 }
 
 func TestRunHookSteps_WithNote(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun
@@ -171,7 +181,7 @@ func TestRunHookSteps_WithNote(t *testing.T) {
 }
 
 func TestRunHookSteps_RealExecution(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	steps := []config.ProvisionItem{
@@ -199,7 +209,7 @@ func TestRunHookSteps_RealExecution(t *testing.T) {
 }
 
 func TestRunHookSteps_FailingCommand(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	steps := []config.ProvisionItem{
@@ -224,7 +234,7 @@ func TestRunHookSteps_FailingCommand(t *testing.T) {
 }
 
 func TestRunHookSteps_DefaultStepLabel(t *testing.T) {
-	c := loadTestConfig(t, "version: \"0.1.22\"\nstack:\n  compose:\n    plugin: compose\n    order: 10\n    files: [compose.yml]\n")
+	c := loadTestConfig(t, hookTestConfig)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
 	oldDryRun := dryRun

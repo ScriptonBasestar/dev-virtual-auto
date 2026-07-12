@@ -34,7 +34,7 @@ am run dva-improve     # AI 기반 dva.yml 개선
 
 | Skill | 경로 | 역할 |
 |-------|------|------|
-| **dva** | `skills/dva/SKILL.md` | DVA CLI 사용법 및 규칙 — 모든 파일 컨텍스트에서 활성화 (`globs: *`) |
+| **dva** | `skills/dva/SKILL.md` | DVA CLI 사용법, 설정 작성 패턴, 반복 작업 템플릿 |
 
 이 skill은 Claude Code가 raw docker/compose/kubectl 대신 DVA를 사용하도록 강제합니다.
 
@@ -42,8 +42,14 @@ am run dva-improve     # AI 기반 dva.yml 개선
 
 ```
 skills/dva/
-├── SKILL.md              # 핵심 규칙 + 워크플로우 (동적 컨텍스트 주입)
+├── SKILL.md              # 핵심 규칙 + 워크플로우
+├── assets/
+│   └── templates/
+│       ├── root-devbox-plan.yml
+│       ├── subproject-local.yml
+│       └── migrate-modes-to-plans.yml
 └── references/
     ├── commands.md        # 전체 명령어 레퍼런스
-    └── advanced.md        # 모드/환경/서브프로젝트/설정 패턴
+    ├── advanced.md        # 모드/환경/서브프로젝트/설정 패턴
+    └── patterns.md        # 표준 구조, 마이그레이션, 검증 게이트
 ```

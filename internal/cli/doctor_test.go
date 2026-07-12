@@ -228,6 +228,31 @@ func TestPrintDoctorResults_WithFixed(t *testing.T) {
 	}
 }
 
+func TestCheckStackFilesReadsComposeRunner(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+stack:
+  compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml]
+`)
+	if err := os.WriteFile(filepath.Join(c.FileDir(), "compose.yml"), []byte("services: {}\n"), 0644); err != nil {
+		t.Fatalf("write compose file: %v", err)
+	}
+
+	results := checkStackFiles(c)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 stack file result, got %d: %+v", len(results), results)
+	}
+	if !results[0].Passed {
+		t.Fatalf("expected compose runner file check to pass: %+v", results[0])
+	}
+	if !strings.Contains(results[0].Name, "compose.yml") {
+		t.Fatalf("expected result to mention compose.yml: %+v", results[0])
+	}
+}
+
 func TestCheckGitignoreStatus_Fix(t *testing.T) {
 	tmpDir := t.TempDir()
 	// No .gitignore → should be fixable

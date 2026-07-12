@@ -114,3 +114,36 @@ func TestMergeLifecycleEntryRunners(t *testing.T) {
 		t.Errorf("expected 2 runners, got %d", len(merged.Runners))
 	}
 }
+
+func TestMergeLifecycleEntryComposeRunner(t *testing.T) {
+	base := &LifecycleEntry{
+		Name:          "infra",
+		DefaultRunner: "compose",
+		Runners: map[string]any{
+			"compose": &ComposePluginConfig{
+				Files:       []string{"compose.yml"},
+				ProjectName: "myapp",
+			},
+		},
+	}
+	other := &LifecycleEntry{Runners: map[string]any{
+		"compose": &ComposePluginConfig{
+			Files: []string{"compose.yml", "compose.dev.yml"},
+		},
+	}}
+
+	merged, err := MergeLifecycleEntry(base, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	composeCfg := merged.ComposeConfig()
+	if composeCfg == nil {
+		t.Fatal("expected compose runner config")
+	}
+	if composeCfg.ProjectName != "myapp" {
+		t.Errorf("project_name = %q, want preserved", composeCfg.ProjectName)
+	}
+	if len(composeCfg.Files) != 2 || composeCfg.Files[1] != "compose.dev.yml" {
+		t.Errorf("files = %v, want override files", composeCfg.Files)
+	}
+}
