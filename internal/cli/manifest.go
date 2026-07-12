@@ -170,7 +170,6 @@ func buildManifest(c *config.Config) *Manifest {
 		m.DynamicCommands[k] = dynCmd
 	}
 
-	// Build subprojects section
 	if len(c.Subprojects) > 0 {
 		m.Subprojects = make(map[string]ManifestSubproject, len(c.Subprojects))
 		for name, subproject := range c.Subprojects {
@@ -180,10 +179,11 @@ func buildManifest(c *config.Config) *Manifest {
 			}
 
 			subs, err := config.LoadSubprojects(c.FileDir(), map[string]config.SubprojectConfig{name: subproject})
-			if err == nil {
-				subManifest.Commands = buildManifestSubprojectCommands(name, subs[name])
+			if err != nil {
+				m.Subprojects[name] = subManifest
+				continue
 			}
-
+			subManifest.Commands = buildManifestSubprojectCommands(name, subs[name])
 			m.Subprojects[name] = subManifest
 		}
 	}

@@ -7,6 +7,8 @@ import (
 )
 
 // LoadSubprojects loads dva.yml from each sub-project path.
+// Contract: when err == nil, the returned map contains every requested name.
+// On any load failure the function returns nil, err (partial results are discarded).
 func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[string]*Config, error) {
 	result := make(map[string]*Config, len(subs))
 	for name, sub := range subs {
@@ -72,10 +74,7 @@ func resolveSubprojectImports(cfg *Config) error {
 	}
 
 	for subprojectName, subproject := range importedSubprojects {
-		subCfg, ok := subCfgs[subprojectName]
-		if !ok {
-			return fmt.Errorf("subproject %q not loaded", subprojectName)
-		}
+		subCfg := subCfgs[subprojectName]
 
 		subprojectPath := subproject.Path
 		if !filepath.IsAbs(subprojectPath) {
