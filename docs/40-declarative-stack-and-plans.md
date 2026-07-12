@@ -118,7 +118,7 @@ cluster 자체는 필요하면 별도 `target` 개념으로 분리할 수 있지
 ```yaml
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
 
 sites:
@@ -356,12 +356,12 @@ stack:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
       LOG_LEVEL: debug
 
   stg:
-    vars:
+    environment:
       APP_ENV: stg
       LOG_LEVEL: info
 
@@ -430,7 +430,7 @@ plans:
 1. OS 환경 변수
 2. `env_file`
 3. 전역 `vars`
-4. `environments.<name>.vars`
+4. `environments.<name>.environment`
 5. `sites.<name>.vars`
 6. `plans.<name>.vars`
 7. CLI 일회성 override

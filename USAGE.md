@@ -357,7 +357,7 @@ plans:
 ```yaml
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
       LOG_LEVEL: debug
 

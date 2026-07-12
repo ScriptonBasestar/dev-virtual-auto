@@ -79,7 +79,7 @@ dva status local-dev
 1. OS 환경 변수
 2. `env_file`
 3. 전역 `vars`
-4. `environments.<name>.vars`
+4. `environments.<name>.environment`
 5. `sites.<name>.vars`
 6. `plans.<name>.vars`
 7. CLI 일회성 override
@@ -309,7 +309,7 @@ stack:
 
 environments:
   dev:
-    vars:
+    environment:
       APP_ENV: dev
 
 sites:
@@ -338,7 +338,7 @@ plans:
 
 1. `plans.local-dev` 선택
 2. `env_file` 적용
-3. `environments.dev.vars` 적용
+3. `environments.dev.environment` 적용
 4. `sites.local.vars` 적용
 5. `plans.local-dev.vars` 적용
 6. `core-compose`, `api`를 `stack`에서 resolve
