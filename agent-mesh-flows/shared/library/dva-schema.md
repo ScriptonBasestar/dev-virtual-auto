@@ -11,7 +11,7 @@
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
-8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `add`, `version`, `migrate`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `cmd`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
+8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.<entry>.runners.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary compose runner. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
@@ -144,8 +144,8 @@ interaction:
   # --- Reserved command hooks ---
   # ALL reserved DVA commands (MUST NOT use as plain interaction keys):
   #   up, down, stop, restart, build, clean, logs, status, show, ls, run,
-  #   config, doctor, provision, add, version, migrate, console, infra,
-  #   app, stack, help, compose, validate, manifest, ktl, ssh, completion, cmd, init
+  #   config, doctor, provision, version, console, infra,
+  #   app, stack, help, compose, validate, manifest, ktl, ssh, completion, init
   # Hookable subset (supports before/replace/after): up, down, stop, restart, build, clean, logs
   # Non-hookable (rename if needed): status→service-status, show→app-show, ls→app-ls
   # `replace:` and `subcommands:` can coexist — subcommands remain accessible.
@@ -169,7 +169,7 @@ provision:                      # Setup automation
         - command 1
         - command 2
     - step: "Information"       # Display-only step (no run:)
-      note: "Run 'dva dev' to start development"
+      note: "Run 'dva up' to start development"
     # AVOID: `run: "dva <command>"` in provision — creates bootstrap circular dependency
     # Use direct commands instead: `run: "cargo build"` not `run: "dva build"`
 
