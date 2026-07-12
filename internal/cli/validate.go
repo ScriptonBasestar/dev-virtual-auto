@@ -62,7 +62,7 @@ var validateCmd = &cobra.Command{
 					}
 				} else {
 					fmt.Fprintf(os.Stderr, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
-					fmt.Fprintf(os.Stderr, "       → run: dva add devcontainer  (or dva config validate --fix)\n")
+					fmt.Fprintf(os.Stderr, "       → run: dva config validate --fix\n")
 				}
 			}
 		}
@@ -73,8 +73,7 @@ var validateCmd = &cobra.Command{
 }
 
 func init() {
-	validateCmd.Flags().Bool("fix", false, "Auto-fix compose file project name mismatches")
-	validateCmd.Flags().BoolVar(&validateStrict, "strict", false, "Fail validation when config drift warnings are detected")
+	addValidateFlags(validateCmd)
 	configCmd.AddCommand(validateCmd)
 }
 
