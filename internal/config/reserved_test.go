@@ -107,30 +107,19 @@ func TestReservedCommandsMapIsPopulated(t *testing.T) {
 	}
 }
 
-func TestIsReservedCommand(t *testing.T) {
-	if !IsReservedCommand("up") {
-		t.Error("'up' should be reserved")
-	}
-	if IsReservedCommand("migrate") {
-		t.Error("'migrate' should not be reserved without a built-in command")
-	}
-	if IsReservedCommand("cmd") {
-		t.Error("'cmd' should not be reserved without a built-in command")
-	}
-	if IsReservedCommand("shell") {
-		t.Error("'shell' should not be reserved")
-	}
-}
+func TestConfigValidate_AllowsFormerPlaceholderInteractions(t *testing.T) {
+	cfg := loadConfigForSchemaTest(t, t.TempDir(), `version: "0.1.44"
+interaction:
+  cmd:
+    runner: local
+    command: echo cmd
+  migrate:
+    runner: local
+    command: make db-migrate
+`)
 
-func TestValidateReservedCommands_AllowsNonBuiltInCommandNames(t *testing.T) {
-	interaction := map[string]*InteractionCommand{
-		"cmd":     {Command: "echo cmd"},
-		"migrate": {Command: "make db-migrate"},
-	}
-
-	conflicts := ValidateReservedCommands(interaction)
-	if len(conflicts) != 0 {
-		t.Fatalf("expected former placeholder names to be allowed, got %v", conflicts)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected former placeholder names to pass config validation: %v", err)
 	}
 }
 

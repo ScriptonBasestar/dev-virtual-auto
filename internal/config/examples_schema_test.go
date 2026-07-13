@@ -2,12 +2,9 @@ package config
 
 import (
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func TestExamplesValidateAgainstSchema(t *testing.T) {
@@ -39,13 +36,9 @@ func TestExamplesValidateAgainstSchema(t *testing.T) {
 
 func validateExampleSchema(t *testing.T, path string) {
 	t.Helper()
-	data, err := os.ReadFile(path)
+	cfg, err := loadFile(path)
 	if err != nil {
-		t.Fatalf("read example: %v", err)
-	}
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("parse example: %v", err)
+		t.Fatalf("load example: %v", err)
 	}
 	cfg.filePath = path
 	if err := cfg.Validate(); err != nil {

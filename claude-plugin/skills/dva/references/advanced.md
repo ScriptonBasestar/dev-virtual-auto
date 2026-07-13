@@ -257,7 +257,7 @@ interaction:
 
 ## Lifecycle Hooks
 
-The 8 hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `dev`) support hooks defined in the `interaction:` section:
+The 7 hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`) support hooks defined in the `interaction:` section:
 
 ```yaml
 interaction:
@@ -335,7 +335,7 @@ applications:
     dir: "."
 ```
 
-Manage with `dva app` or start all with `dva dev`.
+Manage applications with `dva app`; start the workspace with `dva up`, then start applications with `dva app up`.
 
 Applications support native and docker execution paths, selected by the current mode.
 
@@ -381,7 +381,7 @@ Steps with `parallel: true` execute concurrently within their batch.
 |-------|------------|
 | Environment not set up | `dva doctor --fix` |
 | Compose project name mismatch | `dva config validate --fix` |
-| Legacy config format | `dva migrate` |
+| Legacy config format | `dva config validate` |
 | Unknown available commands | `dva ls` or `dva manifest -f json` |
 | Service won't start | `dva up --force` (skip health checks) |
 | Configuration inspection | `dva config show -f yaml` |

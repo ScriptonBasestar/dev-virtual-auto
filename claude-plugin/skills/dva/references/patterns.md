@@ -73,7 +73,7 @@ Fail the review if any of these are true for a root devbox config:
 - `stack.*.order` controls execution.
 - `applications` remains when the app can be a multi-runner `stack` entry.
 - `subprojects.*.path` exists but the child `dva.yml` is missing.
-- `interaction` uses reserved command names (`logs`, `build`, `clean`, `status`, `migrate`, etc.) as plain commands.
+- `interaction` uses reserved command names (`logs`, `build`, `clean`, `status`, `show`, etc.) as plain commands.
 - `.sb/dva/` is not ignored when DVA writes transient state.
 
 Acceptable exceptions:

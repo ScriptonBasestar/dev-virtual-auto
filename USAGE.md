@@ -182,7 +182,7 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva manifest` | LLM용 커맨드 매니페스트 출력 |
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
-| `dva config validate` | dva.yml 스키마 + 시맨틱 검증 |
+| `dva validate` | dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원) |
 | `dva doctor` | 환경 사전조건 및 설정 문제 진단 (`--fix` 자동 수정) |
 
 #### provision

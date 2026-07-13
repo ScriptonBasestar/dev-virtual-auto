@@ -65,7 +65,7 @@ dva config init --all            # enable all detected features
 
 ## Lifecycle Commands
 
-Lifecycle commands operate on the `stack:` pipeline, executing plugins in `order` sequence. All 8 lifecycle commands support `before:`, `after:`, and `replace:` hooks.
+Lifecycle commands operate on the `stack:` pipeline, executing plugins in `order` sequence. The hookable lifecycle commands support `before:`, `after:`, and `replace:` hooks.
 
 ### `dva up [SERVICE...]`
 
@@ -164,10 +164,6 @@ dva clean -f              # skip confirmation prompt
 | `-i` | Remove local images |
 | `-f` | Skip confirmation |
 
-### `dva dev`
-
-Start infrastructure and applications in dev mode. Combines `dva up` + `dva app run` for development workflow.
-
 ### `dva app`
 
 Manage long-running application processes.
@@ -210,11 +206,13 @@ dva config show           # JSON format (default)
 dva config show -f yaml   # YAML format
 ```
 
-### `dva config validate`
+### `dva validate` / `dva config validate`
 
 Validate `dva.yml` schema and syntax.
 
 ```bash
+dva validate              # schema + compose project name check
+dva validate --fix        # auto-fix compose project name mismatch
 dva config validate       # schema + compose project name check
 dva config validate --fix # auto-fix compose project name mismatch
 ```
@@ -227,14 +225,6 @@ AI-based configuration improvement.
 am run dva-improve             # run AI-based configuration improvement
 am run dva-improve param.mode=rewrite # run AI improvement (rewrite from scratch)
 dva config docs                # generate/update AI agent config docs (CLAUDE.md/AGENTS.md)
-```
-
-### `dva add <feature>`
-
-Add optional integration features.
-
-```bash
-dva add devcontainer      # add .devcontainer configuration
 ```
 
 ## Integration Tools
@@ -319,10 +309,6 @@ dva doctor --json         # JSON output
 Built-in checks: Docker daemon, compose files, devcontainer.json, .gitignore for `.sb/dva/`.
 User-defined checks from `checks:` section: `file_exists`, `command`, `docker_socket`.
 
-### `dva migrate`
-
-Detect legacy configuration format and output migration guidance.
-
 ### `dva completion <shell>`
 
 Generate shell completion scripts.
@@ -337,10 +323,10 @@ dva completion fish       # fish completions
 
 These built-in commands cannot be overridden by interaction commands:
 
-`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `clean`, `run`, `provision`, `validate`, `manifest`, `ktl`, `ssh`, `infra`, `console`, `completion`, `cmd`, `init`, `status`, `config`, `logs`, `restart`, `show`, `migrate`, `doctor`, `add`, `dev`, `app`
+`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `clean`, `run`, `provision`, `validate`, `manifest`, `ktl`, `ssh`, `infra`, `console`, `completion`, `init`, `status`, `config`, `logs`, `restart`, `show`, `doctor`, `app`, `stack`
 
 ## Hookable Lifecycle Commands
 
-These 8 commands support `before:`, `after:`, and `replace:` hooks in the `interaction:` section:
+These 7 commands support `before:`, `after:`, and `replace:` hooks in the `interaction:` section:
 
-`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `dev`
+`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`

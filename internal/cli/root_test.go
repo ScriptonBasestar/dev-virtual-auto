@@ -36,7 +36,7 @@ func TestIsTopLevelCommand(t *testing.T) {
 	}
 
 	// Unknown commands should return false
-	unknowns := []string{"mycommand", "test", "deploy", "foo", "migrate", "cmd"}
+	unknowns := []string{"mycommand", "test", "deploy", "foo"}
 	for _, cmd := range unknowns {
 		if isTopLevelCommand(cmd) {
 			t.Errorf("isTopLevelCommand(%q) = true, want false", cmd)

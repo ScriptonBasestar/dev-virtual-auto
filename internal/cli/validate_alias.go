@@ -3,10 +3,6 @@ package cli
 import "github.com/spf13/cobra"
 
 func init() {
-	rootCmd.AddCommand(newRootValidateCommand())
-}
-
-func newRootValidateCommand() *cobra.Command {
 	rootValidateCmd := &cobra.Command{
 		Use:     validateCmd.Use,
 		Short:   validateCmd.Short,
@@ -15,7 +11,7 @@ func newRootValidateCommand() *cobra.Command {
 		RunE:    validateCmd.RunE,
 	}
 	addValidateFlags(rootValidateCmd)
-	return rootValidateCmd
+	rootCmd.AddCommand(rootValidateCmd)
 }
 
 func addValidateFlags(cmd *cobra.Command) {

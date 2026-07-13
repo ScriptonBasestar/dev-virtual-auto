@@ -55,7 +55,7 @@ dva shell           # = dva run shell → docker compose run app /bin/bash
 dva test            # = dva run test → docker compose run app bundle exec rspec
 dva up              # stack 전체 시작 (compose up -d --wait 등)
 dva down            # stack 전체 중지
-dva config validate # dva.yml 스키마 검증
+dva validate        # dva.yml 스키마 검증
 dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ```
 
@@ -85,7 +85,7 @@ dva shell                  # = dva run shell (run 생략 가능)
 # Utilities
 dva status                 # 워크스페이스 상태 확인
 dva show                   # 설정 요약
-dva config validate        # dva.yml 스키마 + 시맨틱 검증
+dva validate               # dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원)
 dva provision              # 프로비저닝 실행
 dva config docs            # AI 에이전트 가이드(CLAUDE.md) 생성
 dva doctor                 # 환경 사전조건 진단
