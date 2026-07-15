@@ -9,7 +9,7 @@ Available on all commands:
 | Flag | Alias | Description |
 |------|-------|-------------|
 | `--debug` | | Enable debug logging |
-| `--dry-run` | `--explain`, `-e` | Show execution plan without running |
+| `--dry-run` | `--explain`, `-e` | Preview flag; prove non-mutation in a disposable fixture before lifecycle use |
 | `--json` | | JSON output (LLM-optimized) |
 
 ## Core Commands
@@ -67,67 +67,57 @@ dva config init --all            # enable all detected features
 
 Lifecycle commands operate on the `stack:` pipeline, executing plugins in `order` sequence. The hookable lifecycle commands support `before:`, `after:`, and `replace:` hooks.
 
-### `dva up [SERVICE...]`
+### `dva up <PLAN>`
 
 Start services via stack plugins.
 
 ```bash
-dva up                        # start all (order-based)
-dva up postgres redis         # specific services only
-dva up -f                     # foreground mode (attached)
-dva up --force                # ignore health checks, force restart
-dva up --no-wait              # return immediately (skip wait)
-dva up -M backend             # apply mode
-dva up -E staging             # apply environment preset
-dva up -T backend,ui          # filter by tags (alias: --tag)
-dva up --exclude-tags db      # exclude tags (alias: --exclude-tag)
-dva up -M backend -E staging  # combine mode + environment
+dva up local-infra            # execute a named plan
+dva up local-dev              # execute compose + native runners selected by the plan
+dva up local-dev --force      # ignore health checks, force restart
+dva up local-dev --no-wait    # return immediately (skip wait)
 ```
 
 Automatic skip: if all services are already running and healthy, `dva up` displays status without restarting. Use `--force` to override.
 
 | Flag | Alias | Description |
 |------|-------|-------------|
-| `-f` | | Foreground mode (attached) |
 | `--force` | | Ignore health, force restart |
 | `--no-wait` | | Return immediately |
-| `-M NAME` | `--mode` | Apply operational mode |
-| `-E NAME` | `--env` | Apply environment preset |
-| `-T TAGS` | `--tags`, `--tag` | Include tags (comma-separated) |
-| `--exclude-tags` | `--exclude-tag` | Exclude tags (comma-separated) |
+| `--var KEY=VAL` | | Override a plan variable |
+| `--dry-run` | | Preview without mutation |
 
-### `dva down`
+The `--mode`, `--env`, and tag filters remain available only for legacy
+configurations without named plans.
+
+### `dva down <PLAN>`
 
 Stop and remove all services.
 
 ```bash
-dva down                  # stop + remove
-dva down -M backend       # mode-filtered
+dva down local-dev        # reverse-order teardown of the named plan
 ```
 
-Supports same filtering flags as `dva up`: `-M`, `-E`, `-T`, `--exclude-tags`.
+Use the same plan name used for `up`.
 
-### `dva stop [SERVICE...]`
+### `dva restart <PLAN>`
 
-Stop services without removing containers.
+Stop and start the same named plan while preserving its runner and service selection.
 
 ```bash
-dva stop                  # stop all
-dva stop postgres         # stop specific service
+dva restart local-dev
+dva restart local-dev --dry-run
 ```
 
-Supports same filtering flags as `dva up`.
+### `dva stop <PLAN>`
 
-### `dva restart [SERVICE...]`
-
-Restart services (stop + start).
+Stop the named plan without removing resources.
 
 ```bash
-dva restart               # restart all
-dva restart api           # restart specific service
+dva stop local-dev
 ```
 
-Supports same filtering flags as `dva up`.
+Use the same plan name used for `up`.
 
 ### `dva build [SERVICE...]`
 
@@ -164,9 +154,9 @@ dva clean -f              # skip confirmation prompt
 | `-i` | Remove local images |
 | `-f` | Skip confirmation |
 
-### `dva app`
+### `dva app` (legacy)
 
-Manage long-running application processes.
+Manage legacy `applications:` entries. New configurations use stack runners and plans.
 
 ```bash
 dva app ls                # list defined applications

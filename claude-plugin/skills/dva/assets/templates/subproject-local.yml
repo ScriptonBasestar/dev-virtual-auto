@@ -1,13 +1,12 @@
 version: "0.1.44"
 
 env_file:
-  - .env.example
-  - .env
-
-checks:
-  - name: Environment template exists
-    type: file_exists
-    path: .env.example
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  interpolate: true
 
 interaction:
   sync:

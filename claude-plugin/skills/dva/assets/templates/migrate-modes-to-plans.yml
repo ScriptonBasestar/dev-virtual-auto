@@ -1,11 +1,15 @@
 version: "0.1.44"
 
-env_file:
-  - .env.example
-  - .env
-
 vars:
   APP_ENV: dev
+
+env_file:
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  interpolate: true
 
 stack:
   infra:
@@ -17,6 +21,13 @@ stack:
           - compose.yaml
         project_name: CHANGE_ME
         up_options: ["-d", "--wait"]
+        services:
+          postgres:
+            tags: [infra, data]
+          redis:
+            tags: [infra, data]
+          app:
+            tags: [app]
 
   app:
     description: Migrated application entry
@@ -26,28 +37,6 @@ stack:
         dir: CHANGE_ME
         build: CHANGE_ME build
         run: CHANGE_ME run
-      docker:
-        image: CHANGE_ME:dev
-        run: docker run --rm CHANGE_ME:dev
-
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-    entry_overrides:
-      app:
-        runner: native
-  docker-host:
-    vars:
-      DVA_SITE: docker-host
-    entry_overrides:
-      app:
-        runner: docker
 
 plans:
   local-infra:
@@ -74,18 +63,28 @@ plans:
         order: 20
         depends_on: [infra]
 
-  docker-full:
+  full-stack:
     description: Replacement for full-stack Docker mode
     environment: dev
-    site: docker-host
+    site: local
     entries:
       - name: infra
         runner: compose
         order: 10
-      - name: app
-        runner: docker
-        order: 20
-        depends_on: [infra]
+        services: [postgres, redis, app]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      app:
+        runner: native
 
 interaction:
   app-logs:
@@ -102,5 +101,3 @@ provision:
   default:
     - step: Create local env file
       run: cp -n .env.example .env 2>/dev/null || true
-    - step: Start migrated infrastructure
-      run: docker compose -f compose.yaml up -d --wait postgres redis

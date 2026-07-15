@@ -4,7 +4,8 @@ description: >-
   This skill should be used when the user asks to "build the project",
   "run tests", "start services", "stop containers", "check logs",
   "use kubectl", or manage dev infrastructure.
-  Enforces DVA CLI — never use raw docker/compose/kubectl.
+  Enforces DVA CLI discovery and safe plan-based execution; use raw tools only
+  for configuration validation or when DVA has no equivalent.
 allowed-tools: [Bash, Read, Grep, Glob]
 ---
 
@@ -14,12 +15,15 @@ DVA is a development workspace orchestrator that unifies Docker Compose, Kuberne
 
 ## Rules (Mandatory)
 
-- **NEVER bypass DVA.** Do not invoke `docker`, `docker compose`, `docker-compose`, `kubectl`, `helm`, or raw language toolchains (`npm test`, `go build`, `make`) directly. Use `dva <command>` instead.
+- **Use DVA for declared workflows.** Raw tools are allowed for read-only
+  validation (`docker compose ... config`) or when no DVA command exists; state why.
 - **NEVER parse `dva.yml` manually.** Use `dva manifest -f json` for structured command discovery or `dva config show` for merged configuration output.
 - **NEVER guess available commands.** Run `dva ls` or `dva manifest -f json` to discover project-specific commands before execution.
-- **Use `--dry-run` before destructive operations.** Preview execution plans with `dva <command> --dry-run`.
+- **Do not trust lifecycle `--dry-run` blindly.** Prove the installed version is
+  non-mutating in a disposable fixture before using it with up/down/provision.
 - **Prefer `am run dva-improve` for broad configuration rewrites.** For targeted config authoring or migration, start from the bundled templates and validate with `dva config validate`.
-- **Use `dva doctor` for environment issues.** Run `dva doctor --fix` to auto-resolve fixable problems.
+- **Use `dva doctor` read-only first.** `--fix` requires explicit authority and
+  review of the proposed mutation.
 
 ## Project Context
 
@@ -39,7 +43,7 @@ Before executing any build, test, or run task, discover available commands:
 dva manifest -f json    # LLM-optimized structured output
 dva ls                  # human-readable command list
 dva ls -f json          # JSON command list with runner info
-dva show                # project overview (modes, envs, commands)
+dva config show -f yaml # merged configuration
 ```
 
 Read the `dynamic_commands` section from manifest output to identify project-specific commands and their runners (DockerCompose, Kubectl, or Local).
@@ -49,7 +53,7 @@ Read the `dynamic_commands` section from manifest output to identify project-spe
 For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template:
 
 ```text
-assets/templates/root-devbox-plan.yml       # parent devbox: compose infra + native/docker apps + plans
+assets/templates/root-devbox-plan.yml       # parent devbox: compose-owned full stack + native dev runners
 assets/templates/subproject-local.yml       # child project: local interactions/provision only
 assets/templates/migrate-modes-to-plans.yml # old modes/applications -> stack runners + plans
 ```
@@ -62,16 +66,17 @@ plans = executable names
 environments = dev/stg/prd vars
 sites = local/office/remote/cloud host differences
 interaction = one-shot convenience commands
-provision = setup/reset procedures
+provision = one-time setup procedures
 ```
 
-After editing any DVA config, run:
+For new/rewrite configuration, use named plans. Treat `modes` and
+`applications` as migration-only legacy sections. After editing, run:
 
 ```bash
 dva config validate
 dva config validate --strict
 dva ls
-dva show
+dva manifest -f json
 ```
 
 ### Execute Commands
@@ -101,34 +106,30 @@ dva run --dry-run test     # preview execution plan without running
 
 ### Lifecycle Management
 
-Lifecycle commands operate on the `stack:` pipeline, executing plugins in `order` sequence:
+Lifecycle commands execute a named plan whose entries select stack runners,
+service subsets, order, and dependencies:
 
 ```bash
-dva up                 # start all services (stack order)
-dva up postgres redis  # start specific services only
-dva up -M backend      # apply mode filter
-dva up -E ci           # apply environment preset
-dva up -T app,api      # tag-based service selection
-dva down               # stop and remove services
-dva stop               # stop without removing
-dva restart            # stop + start
+dva up local-infra      # start the named plan
+dva up local-dev        # compose infra + native app runners
+dva down local-dev      # reverse-order teardown for the same plan
+dva stop local-dev      # stop without removing for the same plan
+dva restart local-dev  # stop + start the named plan
 dva logs <service>     # view service logs
 dva build              # build service images
 dva clean              # remove containers, networks
 dva clean -v           # also remove volumes (data loss warning)
 ```
 
-The `--mode/-M` and `--env/-E` flags are **orthogonal axes**:
-- `--mode` controls **infrastructure strategy** (native, docker, hybrid)
-- `--env` controls **environment variable presets** (dev, ci, staging)
-
-These are independent concerns. Combine freely: `dva up -M backend -E ci`.
+Plans select an `environment` and `site`. Do not create a separate `docker`
+runner for a service already owned by a Compose entry: `docker` means a
+standalone `docker run` target, while `compose` owns Compose services.
 
 ### Diagnostics
 
 ```bash
 dva doctor             # check environment prerequisites
-dva doctor --fix       # auto-fix detected issues
+dva doctor --fix       # mutation; explicit authority required
 dva status             # workspace and service status
 dva config show        # final merged configuration (JSON)
 dva config show -f yaml  # YAML format
@@ -153,23 +154,23 @@ dva ssh up             # SSH agent container
 
 | Concept | Description |
 |---------|-------------|
-| `--mode/-M` | Infrastructure strategy axis (native, docker, hybrid). Orthogonal to `--env`. |
-| `--env/-E` | Environment variable preset axis (dev, ci, staging). Orthogonal to `--mode`. |
-| `--tags/-T` | Service group filtering by tag. `--exclude-tags` to exclude. |
+| Plans | Named executable combinations of stack entries and runners. |
+| Environments | dev/stg/prd variable differences selected by plans. |
+| Sites | local/office/remote/cloud host differences selected by plans. |
 | Runners | DockerCompose (`service:` key), Kubectl (`pod:` key), Local (default). |
 | Subprojects | Monorepo support: `dva namespace:command` or `dva run --project name cmd`. |
 | Hooks | `before:`, `after:`, `replace:` on lifecycle commands (up, down, build, etc.). |
 | Modules | `.sb/dva/*.yml` files merged into base config. Override with `dva.override.yml`. |
 | Dynamic routing | Unknown commands route to `dva run <cmd>` automatically. |
-| Applications | Long-running processes managed via `dva app` (list, build, run, stop). |
-| Provision | One-time setup scripts via `dva provision [profile]`. |
+| Applications | Legacy long-running process model; migrate to stack runners + plans. |
+| Provision | One-time setup only; lifecycle startup belongs to plans. |
 
 ## Global Flags
 
 | Flag | Description |
 |------|-------------|
 | `--debug` | Enable debug logging |
-| `--dry-run` | Show execution plan without running (alias: `--explain`, `-e`) |
+| `--dry-run` | Preview flag; verify non-mutation for the installed version before lifecycle use. |
 | `--json` | JSON output (LLM-optimized) |
 
 ## LLM Integration
@@ -191,7 +192,7 @@ dva --json <command>       # JSON output on any command
 
 For detailed command documentation and advanced patterns, consult:
 - **`references/commands.md`** - Complete command reference with all flags and options
-- **`references/advanced.md`** - Modes, environments, subprojects, configuration management, stack pipeline, and troubleshooting
+- **`references/advanced.md`** - Plans, environments, sites, legacy migration, subprojects, and stack runners
 - **`references/patterns.md`** - Standard config authoring workflow, migration checklist, naming conventions, and validation gates
 
 ### Templates

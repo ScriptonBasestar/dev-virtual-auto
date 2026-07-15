@@ -2,9 +2,34 @@
 
 Conceptual documentation for DVA's configuration model, execution architecture, and advanced usage patterns.
 
-## Modes (`--mode` / `-M`)
+## Plans (current model)
 
-Modes define **infrastructure strategy** — how services are deployed and orchestrated. Activate with `dva up -M <name>`.
+Plans are executable names. Each entry selects a declared stack runner, service
+subset, order, and dependencies. Environments and sites are referenced by the plan.
+
+```yaml
+plans:
+  local-dev:
+    environment: dev
+    site: local
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        order: 20
+        depends_on: [infra]
+```
+
+Run symmetrically with `dva up local-dev`, `dva stop local-dev`, and
+`dva down local-dev`.
+
+## Modes (`--mode` / `-M`) — legacy migration reference
+
+Modes define the deprecated execution model. Preserve them only during migration;
+do not generate them for new configurations.
 
 ```yaml
 modes:
@@ -139,7 +164,8 @@ Top-level sections:
 | `environment` | Global environment variables |
 | `env_file` | External env file reference |
 | `provision` | Provisioning profiles and steps |
-| `modes` | Operational modes (`--mode` flag) |
+| `plans` | Current named execution plans |
+| `modes` | Legacy operational modes (`--mode` flag) |
 | `environments` | Environment presets (`--env` flag) |
 | `health_checks` | Non-compose service health checks |
 | `endpoints` | User-facing URL definitions |
@@ -149,7 +175,7 @@ Top-level sections:
 | `modules` | `.sb/dva/*.yml` module file patterns |
 | `ssh` | SSH agent configuration |
 | `devcontainer` | Dev container integration (experimental) |
-| `applications` | Long-running application processes |
+| `applications` | Legacy long-running application processes |
 
 ### Configuration Loading Order
 

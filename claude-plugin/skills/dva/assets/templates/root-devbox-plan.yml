@@ -5,8 +5,12 @@ vars:
   LOG_LEVEL: debug
 
 env_file:
-  - .env.example
-  - .env
+  files:
+    - path: .env.example
+      required: true
+    - path: .env
+      required: false
+  interpolate: true
 
 stack:
   infra:
@@ -18,6 +22,15 @@ stack:
           - compose.yaml
         project_name: CHANGE_ME
         up_options: ["-d", "--wait"]
+        services:
+          postgres:
+            tags: [infra, data]
+          redis:
+            tags: [infra, data]
+          api:
+            tags: [api, app]
+          web:
+            tags: [ui, app]
 
   api:
     description: Backend API
@@ -27,9 +40,6 @@ stack:
         dir: CHANGE_ME-api
         build: make build
         run: make run
-      docker:
-        image: CHANGE_ME-api:dev
-        run: docker run --rm CHANGE_ME-api:dev
 
   web:
     description: Frontend web app
@@ -39,54 +49,6 @@ stack:
         dir: CHANGE_ME-web
         build: pnpm build
         run: pnpm dev
-      docker:
-        image: CHANGE_ME-web:dev
-        run: docker run --rm CHANGE_ME-web:dev
-
-checks:
-  - name: Docker daemon accessible
-    type: docker_socket
-    fix_hint: Start Docker Desktop or ensure dockerd is running
-  - name: Compose file exists
-    type: file_exists
-    path: compose.yaml
-  - name: Environment template exists
-    type: file_exists
-    path: .env.example
-
-suggestion_ignore:
-  - "deploy-*"
-  - "ci-*"
-  - "release-*"
-
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-      LOG_LEVEL: debug
-  ci:
-    environment:
-      APP_ENV: ci
-      CI: "true"
-      LOG_LEVEL: info
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-    entry_overrides:
-      api:
-        runner: native
-      web:
-        runner: native
-  docker-host:
-    vars:
-      DVA_SITE: docker-host
-    entry_overrides:
-      api:
-        runner: docker
-      web:
-        runner: docker
 
 plans:
   local-infra:
@@ -117,22 +79,41 @@ plans:
         order: 30
         depends_on: [api]
 
-  docker-full:
-    description: Full stack through Docker-compatible runners
+  full-stack:
+    description: Full stack through the Compose owner
     environment: dev
-    site: docker-host
+    site: local
     entries:
       - name: infra
         runner: compose
         order: 10
-      - name: api
-        runner: docker
-        order: 20
-        depends_on: [infra]
-      - name: web
-        runner: docker
-        order: 30
-        depends_on: [api]
+        services: [postgres, redis, api, web]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+      LOG_LEVEL: debug
+  ci:
+    environment:
+      APP_ENV: ci
+      CI: "true"
+      LOG_LEVEL: info
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      api:
+        runner: native
+      web:
+        runner: native
+
+suggestion_ignore:
+  - "deploy-*"
+  - "ci-*"
+  - "release-*"
 
 interaction:
   db:
@@ -159,8 +140,6 @@ provision:
   default:
     - step: Create local env file
       run: cp -n .env.example .env 2>/dev/null || true
-    - step: Start core infrastructure
-      run: docker compose -f compose.yaml up -d --wait postgres redis
     - step: Run migrations
       run: make migrate
 

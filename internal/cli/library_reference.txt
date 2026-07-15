@@ -19,8 +19,10 @@
 7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
 9. **Reserved commands** — These are DVA built-in commands and MUST NOT appear as plain interaction keys: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`. Hookable commands (up/down/stop/restart/build/clean/logs) use `replace:` hooks. Others must be renamed (e.g., `service-status`, `db-migrate`). Canonical source: `internal/config/reserved.go`.
-10. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency). Use direct shell commands.
-11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
+10. **Provision: setup only** — NEVER call `run: "dva <command>"` (circular
+    dependency), and do not duplicate plan up/down actions with raw lifecycle commands.
+11. **Provision evidence** — Generate only profiles backed by actual setup work;
+    never invent `default`, `full`, or `reset` profiles to satisfy a template.
 12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
 13. **Built-in checks first** — Do not generate custom Docker socket, Compose
     file, or env-file checks already emitted by `dva doctor`. Add `checks:` only
@@ -38,7 +40,8 @@
 20. **Stack files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist. Run `ls` to verify.
 21. **Multi-stack entries: no duplicate base files** — Do NOT repeat base `compose.yml` in every entry.
 22. **Package names: EXACT from manifests** — Use `[package] name` from Cargo.toml, module path from go.mod, `name` from package.json. NOT directory names.
-23. **Naming presets** — Tags: infra, api, worker, ui, data, monitoring, build. Modes: infra, full-stack, hybrid, backend, server, worker, ui. Environments: dev, test, stg, prd.
+23. **Naming presets** — Tags: infra, api, worker, ui, data, monitoring, build.
+    Plans: local-infra, local-dev, full-stack, observability. Environments: dev, test, stg, prd.
 24. **No echo wrappers** — Never generate `echo 'Run: ...'` dummy commands.
 25. **No code changes** — Only modify `dva.yml` and related config. Do not touch app code or Dockerfiles.
 26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Allowed fields: `path`, `exclude_tags`, `import`. Only add non-empty `import` entries after the child `dva.yml` exists; placeholders may omit `import` or use `import: {}`.
@@ -55,7 +58,8 @@
     `plans.entries[].depends_on` and `order`.
 31. **Health ownership** — Compose healthchecks remain in Compose; native
     process readiness belongs to its stack runner/health configuration.
-32. **`stop` vs `down` semantics** — `dva stack stop` / `dva app stop` sends SIGTERM but preserves state (PID files, volumes) for quick restart. `dva stack down` / `dva app down` sends SIGTERM AND removes resources (PID files, log files, optionally volumes with `-v`). Prefer `stop` during development iteration; use `down` for full cleanup.
+32. **`stop` vs `down` semantics** — Validate both operations for the same
+    named plan. `stop` preserves resources; `down` tears entries down in reverse dependency order.
 33. **Named lifecycle** — Use `dva up <plan>`/`down <plan>` for declarative
     lifecycle. Legacy `dva app` and `--mode` behavior is migration-only.
 34. **No synthetic dual path** — Do not invent native and docker alternatives.
@@ -122,6 +126,8 @@
 
 ### Provision
 - [ ] No `run: "dva <command>"` calls in provision steps
+- [ ] No raw compose/docker lifecycle command duplicates a named plan
+- [ ] No synthetic default/full/reset profile without setup evidence
 
 ### Subprojects (if applicable)
 - [ ] Imported subproject `version` matches root

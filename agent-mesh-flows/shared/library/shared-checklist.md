@@ -47,6 +47,8 @@
 
 ### Provision
 - [ ] No `run: "dva <command>"` calls in provision steps
+- [ ] No raw compose/docker lifecycle command duplicates a named plan
+- [ ] No synthetic default/full/reset profile without setup evidence
 
 ### Subprojects (if applicable)
 - [ ] Imported subproject `version` matches root

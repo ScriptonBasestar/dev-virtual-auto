@@ -519,6 +519,9 @@ steps:
       {{load_schema.output}}
 
       # DVA Reference Examples
+      > Examples containing `modes:` or `applications:` are legacy migration
+      > evidence only. They MUST NOT override the current stack + plans model or
+      > the single-lifecycle-owner invariant above.
       {{load_examples.output}}
 
       ---
