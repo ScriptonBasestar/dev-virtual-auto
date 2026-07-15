@@ -14,10 +14,12 @@ const migrationGuideURL = "https://github.com/ScriptonBasestar/dva/blob/main/doc
 
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{
-	"version", "environment", "env_file", "stack", "checks",
-	"applications",
-	"default_mode", "modes", "environments", "health_checks", "interaction",
-	"provision", "modules", "subprojects", "endpoints",
+	"version", "vars", "environment", "env_file", "stack", "plans",
+	"environments", "sites",
+	// Legacy sections retain a deterministic position during migration.
+	"checks", "applications", "default_mode", "suggestion_ignore", "modes",
+	"health_checks", "interaction", "provision", "modules", "subprojects",
+	"endpoints", "infra", "ssh", "devcontainer",
 }
 
 // canonicalOrderIndex maps section name to its position in canonical order.
@@ -37,6 +39,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnVersionOutdated()...)
 	warnings = append(warnings, c.warnLegacyModes()...)
 	warnings = append(warnings, c.warnLegacyApplications()...)
+	warnings = append(warnings, c.warnDuplicateComposeApplicationOwnership()...)
 	warnings = append(warnings, c.warnLegacyStackOrder()...)
 	warnings = append(warnings, c.warnLegacyEnvironmentFields()...)
 	warnings = append(warnings, c.warnNoPlansHint()...)
@@ -60,6 +63,62 @@ func (c *Config) ValidateWarnings() []string {
 	if c.filePath != "" {
 		warnings = append(warnings, validateCanonicalOrder(c.filePath)...)
 	}
+	return warnings
+}
+
+// warnDuplicateComposeApplicationOwnership warns when a legacy application
+// docker path points at a service already owned by a compose stack entry. In
+// that shape, top-level lifecycle can start the same service once through the
+// stack orchestrator and again through the legacy application manager.
+func (c *Config) warnDuplicateComposeApplicationOwnership() []string {
+	composeServices := make(map[string][]string)
+	for entryName, entry := range c.Stack {
+		if entry == nil {
+			continue
+		}
+
+		var composeConfigs []*ComposePluginConfig
+		if entry.Compose != nil {
+			composeConfigs = append(composeConfigs, entry.Compose)
+		}
+		if runner, ok := entry.Runners["compose"].(*ComposePluginConfig); ok && runner != nil {
+			composeConfigs = append(composeConfigs, runner)
+		}
+
+		for _, composeConfig := range composeConfigs {
+			for service := range composeConfig.Services {
+				composeServices[service] = append(composeServices[service], entryName)
+			}
+		}
+	}
+
+	var warnings []string
+	for appName, app := range c.Applications {
+		if app == nil {
+			continue
+		}
+
+		refs := []struct {
+			path    string
+			service string
+		}{
+			{path: "run", service: app.Run.Docker.Service},
+			{path: "dev", service: app.Dev.Docker.Service},
+			{path: "build", service: app.Build.Docker.Service},
+		}
+		for _, ref := range refs {
+			entries := composeServices[ref.service]
+			if ref.service == "" || len(entries) == 0 {
+				continue
+			}
+			sort.Strings(entries)
+			warnings = append(warnings, fmt.Sprintf(
+				"applications.%s.%s.docker.service %q is also owned by compose stack entry/entries [%s] — choose one lifecycle owner; prefer stack + plans for Compose services",
+				appName, ref.path, ref.service, strings.Join(entries, ", ")))
+		}
+	}
+
+	sort.Strings(warnings)
 	return warnings
 }
 
@@ -211,7 +270,7 @@ func (c *Config) warnDuplicateParentSubcommand() []string {
 
 // warnDuplicateStackOrder warns when multiple stack entries share the same order value.
 func (c *Config) warnDuplicateStackOrder() []string {
-	if len(c.Stack) < 2 {
+	if len(c.Stack) < 2 || len(c.Plans) > 0 {
 		return nil
 	}
 

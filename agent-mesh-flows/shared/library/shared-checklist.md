@@ -10,13 +10,12 @@
 - [ ] `yaml-language-server: $schema=...` comment on first line
 
 ### Structure
-- [ ] Section order follows canonical: version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer
+- [ ] Section order follows canonical: version → vars → environment → env_file → stack → plans → environments → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer
 - [ ] `env_file:` uses object format (`files:` array + `interpolate: true`)
 - [ ] `stack:` section present (no legacy `compose:` root-level)
-- [ ] `default_mode` set and points to minimal infra mode
-- [ ] `modes:` has at least `infra` mode
-- [ ] `checks:` has `docker_socket` check
-- [ ] `provision:` has `default` and `reset` profiles
+- [ ] New/rewrite config has at least one named `plans:` entry
+- [ ] Custom `checks:` do not duplicate built-in doctor checks
+- [ ] `provision:` exists only when setup/initialization work is required
 
 ### Stack & Compose
 - [ ] `stack.{entry}.runners.compose.tags: [infra]` present on primary compose runner
@@ -33,16 +32,12 @@
 - [ ] All `health_checks` have `start:` and/or `start_hint:` (not both with identical values)
 - [ ] Health check URLs use literal values (no `${VAR:-DEFAULT}`)
 
-### Applications (if project has long-running dev servers)
-- [ ] App servers (API, workers, web) declared in `applications:` section
-- [ ] Each app has at least `run:` or `dev:` exec path defined
-- [ ] Each app has BOTH `run.native` AND `run.docker` paths (dual-path rule #34)
-- [ ] Apps with HTTP endpoints have `health:` block
-- [ ] Apps with listening ports declare `port:` field (shown by `dva app ls`)
-- [ ] `depends_on` reflects startup dependencies (e.g., worker depends on api)
-- [ ] `depends_on` has no circular references (cycles are handled but should be avoided)
-- [ ] `dir:` is set when app working directory differs from config root
-- [ ] NO application code placed only in compose service metadata without `applications:` entry
+### Lifecycle ownership
+- [ ] Each Compose service has one lifecycle owner: compose stack + plan
+- [ ] No matching `applications.*.run.docker.service` for a Compose-owned service
+- [ ] No standalone docker runner generated for an existing Compose service
+- [ ] Native app processes use native/process runners selected by plans
+- [ ] `plans.entries[].depends_on` has no circular references
 
 ### Interaction Commands
 - [ ] Host build commands use `runner: local`
@@ -59,12 +54,11 @@
 - [ ] No `description:` field in subprojects (only `path`, `exclude_tags`, `import`)
 - [ ] Every imported subproject has its own `dva.yml`; placeholders without import entries (`import` omitted or `import: {}`) may be initialized later
 
-### Modes & Native/Docker Strategy
-- [ ] At least 3 modes defined for dual-path projects: `native`, `hybrid`, `docker`
-- [ ] Each mode with `applications: native` has `environment:` overrides for DB/service URLs
-- [ ] Pure-native mode uses `stack: []` to skip Docker infrastructure (when applicable)
-- [ ] `modes.{mode}.applications` uses proper form: string (`native`/`docker`) or per-app map
-- [ ] Mode environment overrides distinguish `localhost` (native) vs Docker service names (docker)
+### Plans & runner strategy
+- [ ] Plans select only declared runners
+- [ ] Compose service subsets use `plans.entries[].services`
+- [ ] Environments distinguish dev/stg/prd variables
+- [ ] Sites distinguish local/remote host differences
 
 ### Final Validation
 - [ ] `dva config validate` exits with ERROR 0

@@ -205,6 +205,12 @@ func TestWarnDuplicateStackOrder(t *testing.T) {
 	if !strings.Contains(warnings[0], "default") {
 		t.Errorf("expected 'default' hint in warning, got: %s", warnings[0])
 	}
+
+	// Plan order owns sequencing when plans exist.
+	c.Plans = map[string]*PlanConfig{"local": {Entries: []PlanEntry{{Name: "a", Order: 10}, {Name: "b", Order: 20}}}}
+	if warnings = c.warnDuplicateStackOrder(); len(warnings) != 0 {
+		t.Errorf("expected plan-owned order to suppress stack warning, got %v", warnings)
+	}
 }
 
 func TestCanonicalOrder_Correct(t *testing.T) {
@@ -424,6 +430,41 @@ func TestWarnMultiStackComposeSplit(t *testing.T) {
 	warnings = c.warnMultiStackComposeSplit()
 	if len(warnings) != 0 {
 		t.Errorf("expected 0 warnings for different backends, got %d", len(warnings))
+	}
+}
+
+func TestWarnDuplicateComposeApplicationOwnership(t *testing.T) {
+	c := &Config{
+		Stack: map[string]*LifecycleEntry{
+			"devbox": {
+				Runners: map[string]any{
+					"compose": &ComposePluginConfig{
+						Services: map[string]ServiceTagConfig{
+							"django-engine": {Tags: []string{"app"}},
+						},
+					},
+				},
+			},
+		},
+		Applications: map[string]*ApplicationConfig{
+			"django": {
+				Run: AppExecPaths{Docker: AppDockerRef{Service: "django-engine"}},
+			},
+		},
+	}
+
+	warnings := c.warnDuplicateComposeApplicationOwnership()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
+	}
+	if !strings.Contains(warnings[0], "applications.django.run.docker.service") ||
+		!strings.Contains(warnings[0], "devbox") {
+		t.Fatalf("unexpected warning: %s", warnings[0])
+	}
+
+	c.Applications["django"].Run.Docker.Service = "external-engine"
+	if warnings := c.warnDuplicateComposeApplicationOwnership(); len(warnings) != 0 {
+		t.Fatalf("expected no warning for distinct service ownership, got %v", warnings)
 	}
 }
 

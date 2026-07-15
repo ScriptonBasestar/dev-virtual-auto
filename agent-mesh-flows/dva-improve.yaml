@@ -401,7 +401,9 @@ steps:
       ```
       > **Instruction**: 위 스크립트를 DVA interaction으로 1:1 매핑하세요.
       > 접두사 기반 그루핑 (`test:*` → `test` subcommands, `build:*` → `build` subcommands).
-      > `npm run <script>` 형식으로 `run.native.cmd`와 `run.docker.cmd`에 사용.
+      > host 실행은 `runner: local`, 기존 Compose 컨테이너 실행은 `service:` +
+      > `command:` interaction으로 매핑하세요. 같은 작업을 native/docker 양쪽에
+      > 기계적으로 복제하지 마세요.
 
       ### 4. 환경 변수
       ```text
@@ -421,7 +423,7 @@ steps:
       ### 6. Kubernetes/Helm Stack 추론 규칙
       - K8s manifests 감지 → `stack.kubectl`에 `dir:` 지정
       - Helm Chart.yaml 감지 → `stack.helm`에 `chart:`, `release:` 지정
-      - K8s/Helm + compose 공존 → `modes:` 사용 (local=compose, staging/prod=kubectl|helm)
+      - K8s/Helm + compose 공존 → `plans:` 사용 (local=compose, staging/prod=kubectl|helm)
       - K8s 전용 환경에서 compose runner만 가진 stack entry를 생성하지 말 것
 
       ---
@@ -491,20 +493,22 @@ steps:
       ## 3. 네이밍 프리셋 준수
       {{load_naming.output}}
 
-      ## 4. 누락 섹션 검사 (MANDATORY)
+      ## 4. 누락 섹션 검사
       - [ ] compose runner가 필요한 `stack.<entry>.runners.compose` 선언
-      - [ ] `default_mode` 필드
-      - [ ] `modes` 섹션 (최소 infra + 1)
-      - [ ] `checks` 섹션 (docker_socket + .env)
+      - [ ] 신규/rewrite 설정에는 실행 가능한 `plans` 섹션
       - [ ] `env_file` 섹션
-      - [ ] `applications` 섹션 (앱 서버가 있을 때)
       - [ ] `health_checks` 섹션
-      - [ ] `provision`에 default + reset
+      - [ ] 준비 작업이 있을 때만 `provision`
       - [ ] `endpoints` 섹션
       - [ ] `subprojects` 섹션 (서브프로젝트 감지 시)
 
-      `workspace_map`에 실제 workspace 구조가 있다면 `applications:` 의 `depends_on:` 필드에 이를 반영하세요.
-      예) pnpm-workspace.yaml에 `api`가 `web`보다 먼저 열거되면 `web`의 `depends_on: [api]` 추가.
+      `workspace_map`의 실행 순서는 `plans.entries[].depends_on`에 반영하세요.
+
+      **Lifecycle ownership invariant**: Compose 파일에 있는 서비스는 compose stack +
+      plan이 유일하게 기동합니다. 같은 서비스를 `applications.*.run.docker.service`,
+      별도 docker runner, interaction의 `docker compose up`, provision 시작 단계에
+      중복 선언하지 마세요. `docker` runner는 Compose 서비스가 아닌 독립적인
+      `docker run` 컨테이너에만 사용합니다.
 
       ## 5. 안티패턴 검사
       - echo 더미 없음, 기본 포트 미사용, 예약 커맨드 미사용
@@ -575,9 +579,9 @@ steps:
         ver=$(yq e '.version' "$DVA_FILE" 2>/dev/null || echo "")
         [ -z "$ver" ] || [ "$ver" = "null" ] && ERRORS="$ERRORS\nERROR: .version field is missing"
 
-        # Rule: default_mode must exist
-        dm=$(yq e '.default_mode' "$DVA_FILE" 2>/dev/null || echo "")
-        [ -z "$dm" ] || [ "$dm" = "null" ] && ERRORS="$ERRORS\nERROR: .default_mode is missing"
+        # Rule: new declarative model should expose at least one named plan
+        plan_keys=$(yq e '.plans | keys | length' "$DVA_FILE" 2>/dev/null || echo 0)
+        [ "$plan_keys" = "0" ] && ERRORS="$ERRORS\nERROR: .plans is empty or missing — add a named execution plan"
 
         if [ -z "$ERRORS" ]; then
           echo "OK — no structural rule violations detected"

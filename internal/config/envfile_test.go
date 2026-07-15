@@ -112,3 +112,23 @@ func TestLoadEnvFile_QuotedValues(t *testing.T) {
 		t.Errorf("SINGLE = %q, want 'hello world'", env.Vars["SINGLE"])
 	}
 }
+
+func TestLoadEnvFile_InlineComments(t *testing.T) {
+	dir := t.TempDir()
+	envPath := filepath.Join(dir, ".env")
+	contents := "PORT=14011 # Temporal PostgreSQL\nQUOTED=\"value # kept\"\n"
+	if err := os.WriteFile(envPath, []byte(contents), 0644); err != nil {
+		t.Fatalf("write env file: %v", err)
+	}
+
+	env := NewEnvironment(nil, "", "")
+	if err := LoadEnvFile(envPath, dir, env); err != nil {
+		t.Fatalf("LoadEnvFile: %v", err)
+	}
+	if got := env.Vars["PORT"]; got != "14011" {
+		t.Errorf("PORT = %q, want %q", got, "14011")
+	}
+	if got := env.Vars["QUOTED"]; got != "value # kept" {
+		t.Errorf("QUOTED = %q, want quoted content preserved", got)
+	}
+}

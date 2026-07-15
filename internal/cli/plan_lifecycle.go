@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -16,6 +17,19 @@ type planRunFlags struct {
 	force   bool
 	wait    bool
 	volumes bool
+}
+
+func requirePlanSelection(c *config.Config, command string, args []string) error {
+	if c == nil || !c.HasPlans() || len(args) > 0 || c.DefaultPlan() != "" {
+		return nil
+	}
+
+	names := make([]string, 0, len(c.Plans))
+	for name := range c.Plans {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return fmt.Errorf("multiple plans configured; specify one: dva %s <%s>", command, strings.Join(names, "|"))
 }
 
 func detectPlanRoute(c *config.Config, args []string) (planName string, extraArgs []string, ok bool) {
@@ -99,7 +113,10 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
-	orch := lifecycle.NewOrchestrator(c, e)
+	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
+	if err != nil {
+		return err
+	}
 	if err := orch.Up(context.Background(), lifecycle.UpOptions{
 		DryRun: dryRun || flags.dryRun,
 		Force:  flags.force,
@@ -133,7 +150,10 @@ func runPlanDown(c *config.Config, e *config.Environment, planName string, extra
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
-	orch := lifecycle.NewOrchestrator(c, e)
+	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
+	if err != nil {
+		return err
+	}
 	return orch.Down(context.Background(), lifecycle.DownOptions{
 		DryRun:  dryRun || flags.dryRun,
 		Volumes: flags.volumes,
@@ -156,7 +176,10 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
-	orch := lifecycle.NewOrchestrator(c, e)
+	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
+	if err != nil {
+		return err
+	}
 	return orch.Stop(context.Background(), lifecycle.StopOptions{
 		DryRun: dryRun || flags.dryRun,
 		Names:  planEntryNames(plan),
@@ -173,7 +196,10 @@ func runPlanStatus(c *config.Config, e *config.Environment, planName string) err
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
-	orch := lifecycle.NewOrchestrator(c, e)
+	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
+	if err != nil {
+		return err
+	}
 	status, err := orch.Status(context.Background())
 	if err != nil {
 		return err

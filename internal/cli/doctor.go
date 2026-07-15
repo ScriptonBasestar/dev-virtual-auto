@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -63,11 +64,8 @@ func init() {
 func runDoctorChecks(c *config.Config) []DoctorResult {
 	var results []DoctorResult
 
-	// Built-in: Docker socket permissions
-	results = append(results, checkDockerSocketPermissions())
-
-	// Built-in: Docker daemon accessible
-	results = append(results, checkDocker())
+	// Built-in: portable daemon check, with a Linux-only socket diagnostic on failure.
+	results = append(results, runDockerDoctorChecks(checkDocker, checkDockerSocketPermissions, runtime.GOOS)...)
 
 	// Built-in: Compose project name alignment
 	results = append(results, checkComposeProjectNameAlignment(c))
@@ -110,6 +108,19 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: Check if .sb/dva is ignored in .gitignore
 	results = append(results, checkGitignoreStatus(c.FileDir()))
 
+	return results
+}
+
+func runDockerDoctorChecks(
+	daemonCheck func() DoctorResult,
+	socketCheck func() DoctorResult,
+	goos string,
+) []DoctorResult {
+	daemon := daemonCheck()
+	results := []DoctorResult{daemon}
+	if !daemon.Passed && goos == "linux" {
+		results = append(results, socketCheck())
+	}
 	return results
 }
 

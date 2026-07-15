@@ -2,11 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/spf13/cobra"
 )
 
 const hookTestConfig = `version: "0.1.22"
@@ -18,6 +21,41 @@ stack:
       compose:
         files: [compose.yml]
 `
+
+func TestWrapWithHooks_DryRunArgProtectsHooks(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "hook-ran")
+	c := loadTestConfig(t, hookTestConfig+fmt.Sprintf(`interaction:
+  up:
+    before:
+      - run: "touch %s"
+`, marker))
+
+	oldCfg, oldEnv, oldDryRun := cfg, env, dryRun
+	cfg = c
+	env = config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+	dryRun = false
+	t.Cleanup(func() {
+		cfg, env, dryRun = oldCfg, oldEnv, oldDryRun
+	})
+
+	cmd := &cobra.Command{RunE: func(_ *cobra.Command, args []string) error {
+		if !dryRun {
+			t.Fatal("wrapped command did not receive dry-run state")
+		}
+		if len(args) != 0 {
+			t.Fatalf("args = %v, want --dry-run consumed", args)
+		}
+		return nil
+	}}
+	wrapWithHooks("up", cmd)
+
+	if err := cmd.RunE(cmd, []string{"--dry-run"}); err != nil {
+		t.Fatalf("wrapped command failed: %v", err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("dry-run executed hook command; marker stat error = %v", err)
+	}
+}
 
 func TestRunHookSteps_DryRun(t *testing.T) {
 	c := loadTestConfig(t, hookTestConfig)

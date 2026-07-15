@@ -6,8 +6,11 @@
 ## Critical Rules
 
 1. **`stack:` section required** — Compose config MUST be under `stack.<entry>.runners.compose`. Migrate legacy root-level `compose:` and `stack.<entry>.compose` fields to `runners.compose`.
-2. **`modes:` required** — Always generate `modes:` for environment selection. Minimum: `infra` + one other (full-stack, hybrid, etc.).
-3. **`default_mode` required** — `dva up` (no mode flag) must start minimal infra only. Never include Redis Sentinel/Cluster, Kafka, monitoring, HA replicas in default mode.
+2. **`plans:` current model** — New/rewrite configs MUST use named `plans:`.
+   Preserve legacy `modes:` only until an explicit migration; never generate new
+   modes/applications merely to satisfy an old example.
+3. **Plan scope** — Provide explicit minimal and full/hybrid plans as needed.
+   Service selection belongs in `plans.*.entries[].services`.
 4. **`version:` field** — Must match the current DVA CLI version. Subproject versions must also match root.
 5. **`health_checks`: `start` and/or `start_hint`** — `start` is the auto-start command (optional). `start_hint` is human-readable hint text shown by `dva status` (optional). If `start` is set, `start_hint` is only needed when it differs from the start command. Do not set both to identical values (validation warning).
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
@@ -17,8 +20,14 @@
 10. **Provision: direct commands only** — NEVER call `run: "dva <command>"` (circular dependency). Use direct shell commands.
 11. **Provision completeness** — At least 3 profiles: `default`, `full`, `reset`.
 12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
-13. **`checks:` section** — Minimum: `docker_socket` + `.env` file_exists.
-14. **Section order (canonical)** — version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer. Omit unused sections, but included sections MUST follow this order.
+13. **Built-in checks first** — Do not generate custom Docker socket, Compose
+    file, or env-file checks already emitted by `dva doctor`. Add `checks:` only
+    for project-specific prerequisites.
+14. **Section order (canonical)** — version → vars → environment → env_file →
+    stack → plans → environments → sites → health_checks → interaction →
+    provision → modules → subprojects → endpoints → infra → ssh → devcontainer.
+    Legacy checks/applications/default_mode/modes remain in place during preserve
+    mode but are not generated for new configs.
 15. **File header** — First line must be `# yaml-language-server: $schema=...` schema comment.
 16. **`stack.<entry>.runners.compose.tags: [infra]`** — Primary compose runner MUST have compose-level `tags:` field.
 17. **Service metadata: tags required** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in `endpoints:` section, NOT in `services.ports`.
@@ -31,17 +40,33 @@
 24. **No echo wrappers** — Never generate `echo 'Run: ...'` dummy commands.
 25. **No code changes** — Only modify `dva.yml` and related config. Do not touch app code or Dockerfiles.
 26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Allowed fields: `path`, `exclude_tags`, `import`. Only add non-empty `import` entries after the child `dva.yml` exists; placeholders may omit `import` or use `import: {}`.
-27. **`applications:` for long-running app processes** — Application servers (API, workers, web frontends) that the developer actively develops MUST be declared in the `applications:` section, NOT buried in `interaction:` or only in `health_checks.start`. The `applications:` section supports both native and docker execution strategies via `run:`, `dev:`, and `build:` paths.
-28. **`applications:` naming** — Use short lowercase names: `api`, `worker`, `web`, `scheduler`. These become the PID/log identifiers.
-29. **`applications:` health** — Each application SHOULD have a `health:` block for readiness checking. `dva app up` waits for health before reporting success.
-30. **`applications:` port** — Each application with a listening port SHOULD declare `port:` for display in `dva app ls` status output.
-31. **`applications:` depends_on** — Use `depends_on` to express startup order. Apps are started in topological waves: independent apps within the same wave launch concurrently. Cycles are broken automatically but should be avoided.
+27. **App declarations** — Model native app processes as native/process stack
+    runners and select them from plans. Compose-hosted apps remain services of
+    the compose stack entry.
+28. **Single lifecycle owner** — A Compose service MUST NOT also appear as
+    `applications.*.run.docker.service`, a standalone docker runner, a raw
+    `docker compose up` interaction, or a provision lifecycle step.
+29. **Runner meaning** — `compose` manages Compose services. `docker` manages a
+    standalone `docker run` container. Merely being containerized does not
+    justify generating both runners.
+30. **Plan dependencies** — Express cross-entry startup order with
+    `plans.entries[].depends_on` and `order`.
+31. **Health ownership** — Compose healthchecks remain in Compose; native
+    process readiness belongs to its stack runner/health configuration.
 32. **`stop` vs `down` semantics** — `dva stack stop` / `dva app stop` sends SIGTERM but preserves state (PID files, volumes) for quick restart. `dva stack down` / `dva app down` sends SIGTERM AND removes resources (PID files, log files, optionally volumes with `-v`). Prefer `stop` during development iteration; use `down` for full cleanup.
-33. **`dva up` vs `dva stack up`** — `dva up` is the top-level lifecycle command that runs hook execution (before/replace/after) then delegates to the stack orchestrator. `dva stack up` directly controls the stack orchestrator without hooks. `dva app up` independently manages application processes. Typical flow: `dva up` (infra) → `dva app up` (apps).
-34. **`applications:` dual-path required** — Every application MUST define BOTH `run.native` AND `run.docker` (service or command) paths. This enables seamless switching between native and docker execution via modes. Short-form string sets `native` only — always expand to object form with both paths.
-35. **`modes:` native/docker strategy** — `modes.{mode}.applications` controls app execution strategy. String form (`applications: native` or `applications: docker`) applies to all apps. Map form (`applications: { api: native, frontend: docker }`) enables per-app strategy. `_default` key in map sets fallback strategy.
-36. **`modes:` environment switching** — Each mode with `applications: native` MUST set `environment:` overrides for connection URLs (e.g., `DB_HOST: localhost` for native mode vs `DB_HOST: postgres` for docker mode). Native apps connect to Docker services via host-mapped ports; Docker apps use internal network names.
-37. **`modes:` stack filtering** — Modes can restrict which stack entries run via `stack: [entry-names]`. A pure-native mode (e.g., SQLite-based development) can set `stack: []` to skip all Docker infrastructure. The `stack` field is a whitelist — empty list means "start nothing".
-38. **Infrastructure vs Application separation** — Infrastructure services (PostgreSQL, Redis, MongoDB, Kafka) MUST be in `stack:` (compose runner). Application code that developers actively modify (API servers, workers, frontends) MUST be in `applications:`. NEVER put runnable application code only in compose service metadata without a corresponding `applications:` entry.
-39. **Standard mode names** — Provide at least 3 modes for projects with both native and docker execution: `native` (all apps natively, minimal/no Docker), `hybrid` (infra Docker + apps native), `docker` (all in Docker). The `default_mode` should point to the most common development workflow (usually `hybrid` or `native`).
-40. **`applications:` build dual-path** — When `build:` is defined, provide both `build.native` (local toolchain: `cargo build`, `go build`, `npm run build`) and `build.docker` (compose service or `docker compose build`). This enables `dva app build` to respect the current mode strategy.
+33. **Named lifecycle** — Use `dva up <plan>`/`down <plan>` for declarative
+    lifecycle. Legacy `dva app` and `--mode` behavior is migration-only.
+34. **No synthetic dual path** — Do not invent native and docker alternatives.
+    Declare only execution paths proven by project files and developer workflow.
+35. **Environment switching** — Put dev/stg/prd variables in `environments:`
+    and host/location differences in `sites:`; plans select both.
+36. **Provision boundary** — Provision prepares files, dependencies, directories,
+    or credentials. Lifecycle startup belongs to plans.
+37. **Interaction boundary** — Interactions are one-shot developer commands,
+    not alternate lifecycle wrappers.
+38. **Compose command reuse** — Container exec interactions should use
+    `service:` + `command:`. Avoid repeating declared Compose file/project flags.
+39. **Preserve migration** — In preserve mode, report legacy ownership overlap
+    before migration; do not silently delete working commands.
+40. **Rewrite migration** — In rewrite mode, remove legacy applications/modes
+    only after equivalent stack runners and plans exist.

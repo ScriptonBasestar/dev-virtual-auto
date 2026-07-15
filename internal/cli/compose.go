@@ -78,6 +78,9 @@ DVA-specific flags:
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanUp(c, e, planName, extraArgs)
 		}
+		if err := requirePlanSelection(c, "up", args); err != nil {
+			return err
+		}
 
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
@@ -222,6 +225,9 @@ var downCmd = &cobra.Command{
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanDown(c, e, planName, extraArgs)
 		}
+		if err := requirePlanSelection(c, "down", args); err != nil {
+			return err
+		}
 
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "down")
 		if err != nil {
@@ -254,6 +260,9 @@ var stopCmd = &cobra.Command{
 		e := loadEnv(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanStop(c, e, planName, extraArgs)
+		}
+		if err := requirePlanSelection(c, "stop", args); err != nil {
+			return err
 		}
 
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "stop")
@@ -431,8 +440,14 @@ var logsCmd = &cobra.Command{
 	},
 }
 
-// parseDvaFlags extracts --mode/-M, --env/-E, --tags/-T, and --exclude-tags from args.
+// parseDvaFlags extracts DVA flags from commands that disable Cobra flag parsing.
 func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
+	var foundDryRun bool
+	args, foundDryRun = consumeDryRunFlag(args)
+	if foundDryRun {
+		dryRun = true
+	}
+
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -484,6 +499,19 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		}
 	}
 	return
+}
+
+func consumeDryRunFlag(args []string) ([]string, bool) {
+	filtered := make([]string, 0, len(args))
+	found := false
+	for _, arg := range args {
+		if arg == "--dry-run" {
+			found = true
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+	return filtered, found
 }
 
 // applyEnv resolves and applies environment configuration from --env flag.

@@ -87,6 +87,30 @@ func TestParseDvaFlags_Empty(t *testing.T) {
 	}
 }
 
+func TestParseDvaFlags_DryRun(t *testing.T) {
+	oldDryRun := dryRun
+	dryRun = false
+	t.Cleanup(func() { dryRun = oldDryRun })
+
+	_, _, _, _, filtered := parseDvaFlags([]string{"--mode", "infra", "--dry-run"})
+	if !dryRun {
+		t.Fatal("--dry-run must enable dryRun for commands with flag parsing disabled")
+	}
+	if len(filtered) != 0 {
+		t.Fatalf("filtered = %v, want empty", filtered)
+	}
+}
+
+func TestConsumeDryRunFlag(t *testing.T) {
+	filtered, found := consumeDryRunFlag([]string{"local-dev", "--dry-run", "--force"})
+	if !found {
+		t.Fatal("expected --dry-run to be detected")
+	}
+	if got := strings.Join(filtered, " "); got != "local-dev --force" {
+		t.Fatalf("filtered = %q, want %q", got, "local-dev --force")
+	}
+}
+
 func TestParseDvaFlags_MissingValue(t *testing.T) {
 	// --mode at end with no value — should not panic
 	mode, _, _, _, filtered := parseDvaFlags([]string{"--mode"})

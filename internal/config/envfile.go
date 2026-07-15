@@ -103,6 +103,14 @@ func parseEnvFile(f *os.File) (map[string]string, error) {
 
 		key := matches[1]
 		value := strings.TrimSpace(matches[2])
+		// Match dotenv/Compose behavior for unquoted inline comments. This is
+		// important for shared .env.example files where values are documented
+		// on the same line, e.g. PORT=14011 # Temporal PostgreSQL.
+		if len(value) == 0 || (value[0] != '\'' && value[0] != '"') {
+			if comment := strings.Index(value, " #"); comment >= 0 {
+				value = strings.TrimSpace(value[:comment])
+			}
+		}
 		value = unquoteEnvValue(value)
 		vars[key] = value
 	}

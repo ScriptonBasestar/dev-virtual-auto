@@ -101,6 +101,49 @@ func TestRunSingleCheck_UnknownType(t *testing.T) {
 	}
 }
 
+func TestRunDockerDoctorChecks_SkipsSocketWhenDaemonIsAccessible(t *testing.T) {
+	socketCalled := false
+	results := runDockerDoctorChecks(
+		func() DoctorResult { return DoctorResult{Name: "Docker daemon accessible", Passed: true} },
+		func() DoctorResult {
+			socketCalled = true
+			return DoctorResult{Name: "Docker socket accessible", Passed: false}
+		},
+		"darwin",
+	)
+
+	if socketCalled {
+		t.Fatal("socket check must not run when docker info succeeds")
+	}
+	if len(results) != 1 || !results[0].Passed {
+		t.Fatalf("results = %+v, want one passing daemon result", results)
+	}
+}
+
+func TestRunDockerDoctorChecks_AddsLinuxSocketDiagnosticOnDaemonFailure(t *testing.T) {
+	results := runDockerDoctorChecks(
+		func() DoctorResult { return DoctorResult{Name: "Docker daemon accessible", Passed: false} },
+		func() DoctorResult { return DoctorResult{Name: "Docker socket accessible", Passed: false} },
+		"linux",
+	)
+
+	if len(results) != 2 {
+		t.Fatalf("results = %+v, want daemon failure plus Linux socket diagnostic", results)
+	}
+}
+
+func TestRunDockerDoctorChecks_SkipsUnixSocketDiagnosticOffLinux(t *testing.T) {
+	results := runDockerDoctorChecks(
+		func() DoctorResult { return DoctorResult{Name: "Docker daemon accessible", Passed: false} },
+		func() DoctorResult { return DoctorResult{Name: "Docker socket accessible", Passed: false} },
+		"darwin",
+	)
+
+	if len(results) != 1 {
+		t.Fatalf("results = %+v, want only portable daemon diagnostic", results)
+	}
+}
+
 func TestPrintDoctorResults_AllPass(t *testing.T) {
 	results := []DoctorResult{
 		{Name: "Docker installed", Passed: true},

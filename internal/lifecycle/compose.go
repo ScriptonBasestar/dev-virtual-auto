@@ -64,13 +64,7 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 		return nil
 	}
 
-	args := []string{"down", "--remove-orphans"}
-	if pctx.Volumes {
-		args = append(args, "--volumes")
-	}
-	if pctx.RemoveImages {
-		args = append(args, "--rmi", "local")
-	}
+	args := composeDownArgs(pctx)
 
 	if pctx.DryRun {
 		cmd, cmdArgs := p.buildArgs(pctx, args)
@@ -81,12 +75,32 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	return p.runSubprocess(pctx, args)
 }
 
+func composeDownArgs(pctx *PluginContext) []string {
+	args := []string{"down", "--remove-orphans"}
+	if pctx.ComposeServices != nil && len(*pctx.ComposeServices) > 0 {
+		args = []string{"rm", "--force", "--stop"}
+		if pctx.Volumes {
+			args = append(args, "--volumes")
+		}
+		args = append(args, *pctx.ComposeServices...)
+	}
+	if pctx.Volumes {
+		if len(args) > 0 && args[0] == "down" {
+			args = append(args, "--volumes")
+		}
+	}
+	if pctx.RemoveImages {
+		args = append(args, "--rmi", "local")
+	}
+	return args
+}
+
 func (p *ComposePlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	if pctx.Entry.ComposeConfig() == nil {
 		return nil
 	}
 
-	args := []string{"stop"}
+	args := composeStopArgs(pctx)
 
 	if pctx.DryRun {
 		cmd, cmdArgs := p.buildArgs(pctx, args)
@@ -95,6 +109,14 @@ func (p *ComposePlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	}
 
 	return p.runSubprocess(pctx, args)
+}
+
+func composeStopArgs(pctx *PluginContext) []string {
+	args := []string{"stop"}
+	if pctx.ComposeServices != nil && len(*pctx.ComposeServices) > 0 {
+		args = append(args, *pctx.ComposeServices...)
+	}
+	return args
 }
 
 func (p *ComposePlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {

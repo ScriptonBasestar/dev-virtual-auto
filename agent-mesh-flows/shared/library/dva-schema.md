@@ -4,7 +4,9 @@
 
 ## Critical Rules (MUST follow)
 
-1. **`modes:` NOT `profiles:`** — Always use `modes:`.
+1. **`plans:` are the current execution model** — Use named plans for new or
+   rewritten configs. `modes:` and `applications:` are migration-only legacy
+   sections.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Use the current DVA version (specified in the prompt's CRITICAL version section). Subprojects should match.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
@@ -19,7 +21,11 @@
 13. **`services:` is tags-only** — The `services` map under `stack.{entry}.runners.compose` exists ONLY for tag-based filtering. Port information is read from compose.yml at runtime.
 14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
 15. **One stack entry + plans, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `plans.*.entries[].services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
-16. **`default_mode` for minimal startup** — Always set `default_mode` to a minimal infrastructure mode (e.g., `infra`). Without it, `dva up` starts ALL services from ALL compose files. The default mode should only include core data services (DB, cache). Heavy infrastructure (monitoring, Kafka, Redis Sentinel/Cluster, PostgreSQL replicas, HA setups) MUST be in separate modes like `full-stack` or `full-stack-monitoring`.
+16. **Single lifecycle owner** — A Compose service is started only by its
+    compose stack entry through a plan. Do not also generate an
+    `applications.*.run.docker.service`, standalone docker runner, raw
+    `docker compose up` interaction, or provision start step for that service.
+    A `docker` runner means standalone `docker run`, not Docker Compose.
 
 ## dva.yml Structure
 

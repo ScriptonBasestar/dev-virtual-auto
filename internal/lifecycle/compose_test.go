@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"log/slog"
+	"reflect"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -12,6 +13,18 @@ func TestComposePlugin_Name(t *testing.T) {
 	p := &ComposePlugin{}
 	if p.Name() != "compose" {
 		t.Errorf("expected 'compose', got %q", p.Name())
+	}
+}
+
+func TestComposePlanServiceArgs(t *testing.T) {
+	services := []string{"postgres", "redis"}
+	pctx := &PluginContext{ComposeServices: &services}
+
+	if got, want := composeDownArgs(pctx), []string{"rm", "--force", "--stop", "postgres", "redis"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("down args = %v, want %v", got, want)
+	}
+	if got, want := composeStopArgs(pctx), []string{"stop", "postgres", "redis"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("stop args = %v, want %v", got, want)
 	}
 }
 

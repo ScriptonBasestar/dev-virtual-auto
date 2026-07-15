@@ -249,7 +249,7 @@ func detectComposeFilesInDir(dir string) []string {
 			continue
 		}
 		name := entry.Name()
-		if strings.HasPrefix(name, "docker-compose.") &&
+		if (strings.HasPrefix(name, "docker-compose.") || strings.HasPrefix(name, "compose.")) &&
 			(strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")) &&
 			!contains(found, name) {
 			found = append(found, name)

@@ -113,6 +113,33 @@ func TestDetectConfigDriftWarnings_ComposeFilesMismatch(t *testing.T) {
 	}
 }
 
+func TestDetectConfigDriftWarnings_ModernComposeOverlaysMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, name := range []string{"compose.yaml", "compose.tools.yaml", "compose.monitor.yaml"} {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("services: {}\n"), 0644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml, compose.tools.yaml, compose.monitor.yaml]
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected no compose drift warning, got %v", warnings)
+	}
+}
+
 func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldWd, _ := os.Getwd()

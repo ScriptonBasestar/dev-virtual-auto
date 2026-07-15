@@ -20,6 +20,12 @@ var forceSubprocess bool
 func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 	original := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		var foundDryRun bool
+		args, foundDryRun = consumeDryRunFlag(args)
+		if foundDryRun {
+			dryRun = true
+		}
+
 		// Recursion guard: skip hooks if already inside a hook execution
 		if depth, _ := strconv.Atoi(os.Getenv(config.EnvHookDepthKey)); depth > 0 {
 			return original(cmd, args)

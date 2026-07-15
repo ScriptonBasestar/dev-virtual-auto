@@ -50,11 +50,12 @@ type StopOptions struct {
 
 // Orchestrator coordinates lifecycle plugin execution in order.
 type Orchestrator struct {
-	entries []config.LifecycleEntry
-	cfg     *config.Config
-	env     *config.Environment
-	logger  *slog.Logger
-	hc      *HealthChecker
+	entries         []config.LifecycleEntry
+	composeServices map[string][]string
+	cfg             *config.Config
+	env             *config.Environment
+	logger          *slog.Logger
+	hc              *HealthChecker
 }
 
 // NewOrchestrator creates a new orchestrator from config.
@@ -101,6 +102,12 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
 
+		entryComposeServices := modeServices
+		if services, ok := o.composeServices[entry.Name]; ok {
+			selected := append([]string(nil), services...)
+			entryComposeServices = &selected
+		}
+
 		pctx := &PluginContext{
 			Entry:           &entry,
 			Env:             envClone,
@@ -109,7 +116,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 			Force:           opts.Force,
 			Wait:            opts.Wait,
 			ComposeProfiles: modeProfiles,
-			ComposeServices: modeServices,
+			ComposeServices: entryComposeServices,
 			Logger:          o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
@@ -175,14 +182,21 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
 
+		var entryComposeServices *[]string
+		if services, ok := o.composeServices[entry.Name]; ok {
+			selected := append([]string(nil), services...)
+			entryComposeServices = &selected
+		}
+
 		pctx := &PluginContext{
-			Entry:        &entry,
-			Env:          o.env,
-			ConfigDir:    o.cfg.FileDir(),
-			DryRun:       opts.DryRun,
-			Volumes:      opts.Volumes,
-			RemoveImages: opts.RemoveImages,
-			Logger:       o.logger.With("entry", entry.Name, "plugin", pluginType),
+			Entry:           &entry,
+			Env:             o.env,
+			ConfigDir:       o.cfg.FileDir(),
+			DryRun:          opts.DryRun,
+			Volumes:         opts.Volumes,
+			RemoveImages:    opts.RemoveImages,
+			ComposeServices: entryComposeServices,
+			Logger:          o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
@@ -217,12 +231,19 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
 
+		var entryComposeServices *[]string
+		if services, ok := o.composeServices[entry.Name]; ok {
+			selected := append([]string(nil), services...)
+			entryComposeServices = &selected
+		}
+
 		pctx := &PluginContext{
-			Entry:     &entry,
-			Env:       o.env,
-			ConfigDir: o.cfg.FileDir(),
-			DryRun:    opts.DryRun,
-			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
+			Entry:           &entry,
+			Env:             o.env,
+			ConfigDir:       o.cfg.FileDir(),
+			DryRun:          opts.DryRun,
+			ComposeServices: entryComposeServices,
+			Logger:          o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
