@@ -554,7 +554,9 @@ func (c *Config) warnUnreachableCommands() []string {
 		if len(cmd.Subcommands) > 0 {
 			// A parent is essentially a "group" node if it has no execution directives.
 			// Calling it directly typically requires at least one execution target.
-			isCallable := cmd.Command != "" || cmd.Compose != nil || cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
+			isCallable := cmd.Command != "" || len(cmd.CommandLines) > 0 || cmd.HasScript() ||
+				cmd.ScriptFile != "" || cmd.HasSteps() || cmd.HasHooks() || cmd.Compose != nil ||
+				cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
 			if !isCallable {
 				warnings = append(warnings,
 					fmt.Sprintf("interaction.%s: has subcommands but is not directly callable; add an execution target or remove subcommands",

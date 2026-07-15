@@ -607,6 +607,12 @@ func TestWarnUnreachableCommands(t *testing.T) {
 					"sub": {Command: "echo ok"},
 				},
 			},
+			"reachable_with_hooks": {
+				Replace: []ProvisionItem{{Run: "echo replaced"}},
+				Subcommands: map[string]*InteractionCommand{
+					"sub": {Command: "echo ok"},
+				},
+			},
 			"reachable_without_subs": { // no subcommands -> no warning
 			},
 		},

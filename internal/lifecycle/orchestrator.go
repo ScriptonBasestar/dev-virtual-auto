@@ -108,9 +108,11 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 			entryComposeServices = &selected
 		}
 
+		entryEnv := cloneEnv(envClone)
+		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
-			Env:             envClone,
+			Env:             entryEnv,
 			ConfigDir:       o.cfg.FileDir(),
 			DryRun:          opts.DryRun,
 			Force:           opts.Force,
@@ -188,9 +190,11 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 			entryComposeServices = &selected
 		}
 
+		entryEnv := cloneEnv(o.env)
+		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
-			Env:             o.env,
+			Env:             entryEnv,
 			ConfigDir:       o.cfg.FileDir(),
 			DryRun:          opts.DryRun,
 			Volumes:         opts.Volumes,
@@ -237,9 +241,11 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 			entryComposeServices = &selected
 		}
 
+		entryEnv := cloneEnv(o.env)
+		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
-			Env:             o.env,
+			Env:             entryEnv,
 			ConfigDir:       o.cfg.FileDir(),
 			DryRun:          opts.DryRun,
 			ComposeServices: entryComposeServices,
@@ -281,9 +287,11 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 			continue
 		}
 
+		entryEnv := cloneEnv(o.env)
+		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:     &entry,
-			Env:       o.env,
+			Env:       entryEnv,
 			ConfigDir: o.cfg.FileDir(),
 			Logger:    o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}

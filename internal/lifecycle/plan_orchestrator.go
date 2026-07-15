@@ -45,6 +45,10 @@ func materializeResolvedEntry(resolved ResolvedEntry) (config.LifecycleEntry, er
 	entry := *resolved.StackEntry
 	entry.Name = resolved.Name
 	entry.Order = resolved.Order
+	entry.Vars = make(map[string]string, len(resolved.Vars))
+	for key, value := range resolved.Vars {
+		entry.Vars[key] = value
+	}
 	entry.Plugin = ""
 	entry.Compose = nil
 	entry.Process = nil

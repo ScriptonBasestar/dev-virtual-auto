@@ -29,7 +29,7 @@ Use this reference when creating, reviewing, or migrating `dva.yml` files. Keep 
 Use this order for readability and stable review diffs:
 
 ```text
-version -> vars -> env_file -> stack -> checks -> suggestion_ignore -> environments -> sites -> plans -> health_checks -> interaction -> provision -> subprojects -> endpoints
+version -> vars -> environment -> env_file -> stack -> plans -> environments -> sites -> checks -> suggestion_ignore -> health_checks -> interaction -> provision -> subprojects -> endpoints
 ```
 
 Use `interaction`, not `interactions`, for the current schema.

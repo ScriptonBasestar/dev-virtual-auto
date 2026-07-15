@@ -291,8 +291,12 @@ func sameStringSlice(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
-	for i := range a {
-		if a[i] != b[i] {
+	left := append([]string(nil), a...)
+	right := append([]string(nil), b...)
+	sort.Strings(left)
+	sort.Strings(right)
+	for i := range left {
+		if left[i] != right[i] {
 			return false
 		}
 	}

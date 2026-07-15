@@ -170,7 +170,9 @@
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → vars → environment → env_file → stack → checks → applications → default_mode → suggestion_ignore → modes → environments → plans → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer`
+`version → vars → environment → env_file → stack → plans → environments → sites → checks → applications → default_mode → suggestion_ignore → modes → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer`
+
+`checks`, `applications`, `default_mode`, `suggestion_ignore`, and `modes` are legacy-compatible sections. Preserve them only when needed during migration; new configurations should use plans and stack runners.
 
 ```yaml
 version: "{CURRENT_DVA_VERSION}"   # Use the version from the prompt's CRITICAL section
