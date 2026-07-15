@@ -48,6 +48,34 @@ func TestRootValidateMatchesConfigValidate(t *testing.T) {
 	}
 }
 
+func TestDirectHelpDoesNotExecuteManualFlagCommands(t *testing.T) {
+	commands := []*cobra.Command{
+		composeCmd,
+		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
+		stackUpCmd, stackStopCmd, stackDownCmd, stackLogCmd,
+		appUpCmd, appRestartCmd, appBuildCmd,
+		infraUpCmd, infraDownCmd,
+		ktlCmd,
+	}
+
+	for _, command := range commands {
+		command := command
+		t.Run(command.CommandPath(), func(t *testing.T) {
+			helpCalled := false
+			originalHelp := command.HelpFunc()
+			command.SetHelpFunc(func(*cobra.Command, []string) { helpCalled = true })
+			t.Cleanup(func() { command.SetHelpFunc(originalHelp) })
+
+			if err := command.RunE(command, []string{"--help"}); err != nil {
+				t.Fatalf("direct help returned error: %v", err)
+			}
+			if !helpCalled {
+				t.Fatal("direct help reached command execution instead of the help handler")
+			}
+		})
+	}
+}
+
 func TestRootValidateMatchesConfigValidateBehavior(t *testing.T) {
 	validConfig := writeValidateConfigForTest(t, `version: "0.1.44"
 stack:

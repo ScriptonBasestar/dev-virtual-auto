@@ -81,11 +81,19 @@ func (p *SAMPlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	if pctx.Entry.SAM == nil {
 		return nil
 	}
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
+		return nil
+	}
 	return p.stopProcess(pctx)
 }
 
 func (p *SAMPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	if pctx.Entry.SAM == nil {
+		return nil
+	}
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
 		return nil
 	}
 	return p.stopProcess(pctx)

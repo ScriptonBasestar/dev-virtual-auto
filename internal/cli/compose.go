@@ -57,12 +57,18 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 }
 
 var upCmd = &cobra.Command{
-	Use:   "up [OPTIONS]",
+	Use:   "up [PLAN] [OPTIONS]",
 	Short: "Start stack infrastructure and applications",
-	Long: `Start stack infrastructure via lifecycle plugins, then start applications.
-Equivalent to running 'dva stack up' followed by 'dva app up'.
+	Long: `Start a named plan when plans are configured.
+Without plans, use the legacy stack and applications lifecycle.
 
-DVA-specific flags:
+Plan usage:
+  dva up <plan>           Start the selected plan
+  --force                 Force restart even if already running
+  --no-wait               Return without waiting for readiness
+  --var KEY=VAL           Override a plan variable
+
+Legacy flags:
   --force                   Force restart even if already running
   --no-wait                 Start services and return immediately without waiting
   --dev                     Start applications in dev mode (hot-reload)
@@ -216,8 +222,9 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 }
 
 var downCmd = &cobra.Command{
-	Use:                "down [OPTIONS]",
+	Use:                "down [PLAN] [OPTIONS]",
 	Short:              "Stop and remove applications then stack infrastructure",
+	Long:               "Stop and remove a named plan. Without plans, use the legacy applications and stack lifecycle.",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -252,8 +259,9 @@ var downCmd = &cobra.Command{
 }
 
 var stopCmd = &cobra.Command{
-	Use:                "stop [OPTIONS]",
+	Use:                "stop [PLAN] [OPTIONS]",
 	Short:              "Stop applications and stack without removing resources",
+	Long:               "Stop a named plan without removing resources. Without plans, use the legacy applications and stack lifecycle.",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
@@ -288,12 +296,18 @@ var stopCmd = &cobra.Command{
 }
 
 var restartCmd = &cobra.Command{
-	Use:                "restart [OPTIONS] [SERVICE...]",
+	Use:                "restart [PLAN] [OPTIONS]",
 	Short:              "Restart services (stop + start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			return runPlanRestart(c, e, planName, extraArgs)
+		}
+		if err := requirePlanSelection(c, "restart", args); err != nil {
+			return err
+		}
 
 		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)

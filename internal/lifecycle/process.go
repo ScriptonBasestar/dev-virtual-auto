@@ -67,10 +67,18 @@ func (p *ProcessPlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 }
 
 func (p *ProcessPlugin) Down(ctx context.Context, pctx *PluginContext) error {
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "remove process", "name", pctx.Entry.Name)
+		return nil
+	}
 	return p.removeProcess(pctx)
 }
 
 func (p *ProcessPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
+		return nil
+	}
 	return p.haltProcess(pctx)
 }
 

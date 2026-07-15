@@ -130,6 +130,21 @@ func init() {
 		}
 	}
 
+	// Cobra does not intercept --help when flag parsing is disabled. Wrap every
+	// passthrough command so a direct help request cannot fall through to a
+	// lifecycle operation or an external tool.
+	manualFlagCommands := []*cobra.Command{
+		composeCmd,
+		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
+		stackUpCmd, stackStopCmd, stackDownCmd, stackLogCmd,
+		appUpCmd, appRestartCmd, appBuildCmd,
+		infraUpCmd, infraDownCmd,
+		ktlCmd,
+	}
+	for _, cmd := range manualFlagCommands {
+		wrapDirectHelp(cmd)
+	}
+
 	cobra.AddTemplateFunc("colorTitle", func(s string) string {
 		if !jsonOutput && isTerminal(os.Stdout) && os.Getenv("NO_COLOR") == "" {
 			return "\033[1;36m" + s + "\033[0m"
@@ -140,6 +155,22 @@ func init() {
 	cobra.AddTemplateFunc("isFeaturedLifecycle", isFeaturedLifecycleCommand)
 	cobra.AddTemplateFunc("featuredLifecycleHint", featuredLifecycleHint)
 	rootCmd.SetUsageTemplate(dvaUsageTemplate)
+}
+
+// wrapDirectHelp restores Cobra's normal `command --help` behavior for
+// commands using DisableFlagParsing. Arguments after another token remain
+// untouched so passthrough commands such as `dva compose ps --help` still work.
+func wrapDirectHelp(cmd *cobra.Command) {
+	if cmd == nil || !cmd.DisableFlagParsing || cmd.RunE == nil {
+		return
+	}
+	original := cmd.RunE
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+			return cmd.Help()
+		}
+		return original(cmd, args)
+	}
 }
 
 // Execute is the main entry point for the CLI.

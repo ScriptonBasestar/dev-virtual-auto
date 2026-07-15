@@ -266,9 +266,11 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 func (o *Orchestrator) Restart(ctx context.Context, opts UpOptions) error {
 	stopOpts := StopOptions{
 		DryRun:      opts.DryRun,
+		Names:       opts.Names,
 		IncludeTags: opts.IncludeTags,
 		ExcludeTags: opts.ExcludeTags,
 		Mode:        opts.Mode,
+		Env:         opts.Env,
 	}
 	if err := o.Stop(ctx, stopOpts); err != nil {
 		return err

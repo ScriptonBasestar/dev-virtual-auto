@@ -80,11 +80,19 @@ func (p *ServerlessPlugin) Down(ctx context.Context, pctx *PluginContext) error 
 	if pctx.Entry.Serverless == nil {
 		return nil
 	}
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
+		return nil
+	}
 	return p.stopProcess(pctx)
 }
 
 func (p *ServerlessPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	if pctx.Entry.Serverless == nil {
+		return nil
+	}
+	if pctx.DryRun {
+		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
 		return nil
 	}
 	return p.stopProcess(pctx)

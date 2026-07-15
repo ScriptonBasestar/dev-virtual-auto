@@ -187,6 +187,36 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 	})
 }
 
+func runPlanRestart(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
+	flags, err := parsePlanFlags(extraArgs)
+	if err != nil {
+		return err
+	}
+	if flags.volumes {
+		return fmt.Errorf("--volumes is only supported by down")
+	}
+
+	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)
+	if err != nil {
+		return err
+	}
+
+	e.MergeVars(plan.EnvVars)
+	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
+
+	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
+	if err != nil {
+		return err
+	}
+	return orch.Restart(context.Background(), lifecycle.UpOptions{
+		DryRun: dryRun || flags.dryRun,
+		Force:  true,
+		Wait:   flags.wait,
+		Names:  planEntryNames(plan),
+		Env:    plan.EnvironmentName,
+	})
+}
+
 func runPlanStatus(c *config.Config, e *config.Environment, planName string) error {
 	plan, err := lifecycle.ResolvePlan(c, planName, nil)
 	if err != nil {
