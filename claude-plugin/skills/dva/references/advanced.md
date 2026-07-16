@@ -87,13 +87,36 @@ environments:
       DATABASE_URL: "postgres://localhost:5432/myapp_staging"
 ```
 
-Environment variables are merged in precedence order:
-1. Global `environment:` section
-2. `env_file:` loaded values
-3. Interaction command-level `environment:`
-4. Mode `environment:` (if `--mode` set)
-5. Environment preset (if `--env` set)
-6. Explicit CLI flags
+Environment variables are merged in ascending precedence order (later overrides earlier).
+**OS environment variables outrank every layer, including `--var`** — if a key is set in the
+OS environment, nothing in `dva.yml` can override it.
+
+Which layers apply depends on the command path:
+
+**`dva up` / `dva stack up`** — the `-M` / `-E` flag path:
+
+```text
+environment: < env_file: < environment preset (-E) < mode (-M) < OS environment
+```
+
+**`dva run <command>`** — the interaction path (`dva run` has no `-M` / `-E`):
+
+```text
+environment: < env_file: < interaction command-level environment: < OS environment
+```
+
+**`dva up <plan>`** — the plan path, which resolves the separate `vars:` system:
+
+```text
+env_file < global vars < environment vars < site vars < plan vars < --var < OS environment
+```
+
+Here `environment vars` means `environments.<name>.environment`, which is distinct from the
+top-level `environment:` block. `--var` is accepted only on the plan path.
+
+OS precedence comes from `MergeVars` in `internal/config/environment.go`, which applies the OS
+value for a key whenever one is set and only otherwise takes the configured value. A stray
+exported shell variable will silently win over `--var` with no warning.
 
 ## Tags (`--tags` / `-T`)
 
