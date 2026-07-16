@@ -72,6 +72,156 @@
         }
       }
     },
+    "native_runner_config": {
+      "type": "object",
+      "description": "Native (host process) runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string", "description": "Working directory" },
+        "build": { "type": "string", "description": "Build command" },
+        "run": { "type": "string", "description": "Run command" },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "docker_runner_config": {
+      "type": "object",
+      "description": "Docker runner configuration (application-style: image/run/build/command)",
+      "additionalProperties": false,
+      "properties": {
+        "image": { "type": "string" },
+        "run": { "type": "string", "description": "Full docker run command" },
+        "build": { "type": "string", "description": "Image build command" },
+        "command": { "type": "string", "description": "Command passed to the container" },
+        "ports": { "type": "array", "items": { "type": "string" } },
+        "volumes": { "type": "array", "items": { "type": "string" } },
+        "env": { "type": "object", "additionalProperties": { "type": "string" } },
+        "options": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "process_runner_config": {
+      "type": "object",
+      "description": "Local process runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "command": { "type": "string", "description": "Command to run" },
+        "dir": { "type": "string", "description": "Working directory" },
+        "ready_timeout": { "type": "integer", "description": "Timeout in seconds to wait for readiness" }
+      }
+    },
+    "script_runner_config": {
+      "type": "object",
+      "description": "Shell script runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "up": { "type": "string", "description": "Script to run on up" },
+        "down": { "type": "string", "description": "Script to run on down" },
+        "stop": { "type": "string", "description": "Script to run on stop" }
+      }
+    },
+    "kubectl_runner_config": {
+      "type": "object",
+      "description": "Kubectl apply runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "manifests": { "type": "array", "items": { "type": "string" } },
+        "namespace": { "type": "string" },
+        "context": { "type": "string" },
+        "kubeconfig": { "type": "string", "description": "Path to kubeconfig file" }
+      }
+    },
+    "helm_runner_config": {
+      "type": "object",
+      "description": "Helm chart deployment runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "chart": { "type": "string" },
+        "release": { "type": "string" },
+        "namespace": { "type": "string" },
+        "context": { "type": "string" },
+        "values": { "type": "array", "items": { "type": "string" } },
+        "set": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "kustomize_runner_config": {
+      "type": "object",
+      "description": "Kustomize overlay runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string" },
+        "namespace": { "type": "string" },
+        "context": { "type": "string" }
+      }
+    },
+    "tilt_runner_config": {
+      "type": "object",
+      "description": "Tilt local dev runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "skaffold_runner_config": {
+      "type": "object",
+      "description": "Skaffold pipeline runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "config": { "type": "string" },
+        "profile": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "podman_compose_runner_config": {
+      "type": "object",
+      "description": "Podman Compose runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "files": { "type": "array", "items": { "type": "string" } },
+        "project_name": { "type": "string" }
+      }
+    },
+    "vagrant_runner_config": {
+      "type": "object",
+      "description": "Vagrant VM runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string" },
+        "machine": { "type": "string" }
+      }
+    },
+    "sam_runner_config": {
+      "type": "object",
+      "description": "AWS SAM local runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "template": { "type": "string" },
+        "port": { "type": "integer" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "serverless_runner_config": {
+      "type": "object",
+      "description": "Serverless offline runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "dir": { "type": "string" },
+        "port": { "type": "integer" },
+        "args": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "multipass_runner_config": {
+      "type": "object",
+      "description": "Multipass VM runner configuration",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "image": { "type": "string" },
+        "cpus": { "type": "integer" },
+        "memory": { "type": "string" },
+        "disk": { "type": "string" },
+        "cloud_init": { "type": "string" }
+      }
+    },
     "env_file": {
       "oneOf": [
         {
@@ -521,11 +671,26 @@
           },
           "runners": {
             "type": "object",
-            "description": "Map of runner name to runner configuration. Each key is a runner name (e.g., 'native', 'docker', 'compose', 'helm'). The runner config follows the same structure as the corresponding plugin configuration.",
+            "description": "Map of runner name to runner configuration. Keys must be one of the runner names the config decoder accepts (see decodeRunnerNode in internal/config/lifecycle.go). Unknown runner names and unknown keys inside a runner are rejected.",
             "properties": {
-              "compose": { "$ref": "#/definitions/compose_runner_config" }
+              "native": { "$ref": "#/definitions/native_runner_config" },
+              "docker": { "$ref": "#/definitions/docker_runner_config" },
+              "compose": { "$ref": "#/definitions/compose_runner_config" },
+              "process": { "$ref": "#/definitions/process_runner_config" },
+              "script": { "$ref": "#/definitions/script_runner_config" },
+              "kubectl": { "$ref": "#/definitions/kubectl_runner_config" },
+              "helm": { "$ref": "#/definitions/helm_runner_config" },
+              "kustomize": { "$ref": "#/definitions/kustomize_runner_config" },
+              "tilt": { "$ref": "#/definitions/tilt_runner_config" },
+              "skaffold": { "$ref": "#/definitions/skaffold_runner_config" },
+              "podman-compose": { "$ref": "#/definitions/podman_compose_runner_config" },
+              "podman_compose": { "$ref": "#/definitions/podman_compose_runner_config" },
+              "vagrant": { "$ref": "#/definitions/vagrant_runner_config" },
+              "sam": { "$ref": "#/definitions/sam_runner_config" },
+              "serverless": { "$ref": "#/definitions/serverless_runner_config" },
+              "multipass": { "$ref": "#/definitions/multipass_runner_config" }
             },
-            "additionalProperties": true,
+            "additionalProperties": false,
             "examples": [{
               "native": { "dir": "apps/api", "run": "go run ./cmd/api" },
               "docker": { "image": "myorg/api:dev" },

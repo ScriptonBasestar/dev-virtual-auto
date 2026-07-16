@@ -3,7 +3,22 @@ id: TASK-010
 title: "Validate every runner in schema.json, not only compose"
 type: bug
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T21:15:00+09:00
+verified-at: 2026-07-16T21:15:00+09:00
+verification-summary: >-
+  Verified by orchestrator in BOTH directions. Rejects: unknown runner name, unknown key
+  in a non-compose runner, and whitespace-padded runner keys. Accepts: valid script config,
+  each runner's real fields (process/helm/kubectl probed), and all 18 shipped examples
+  (TestExamplesValidateAgainstSchema passes unmodified). make test and go vet green.
+  16 keys declared for 15 runners (podman-compose and podman_compose both accepted, per
+  normalizeRunnerName). runners.additionalProperties is now false.
+  A test assertion was widened, not weakened: the whitespace case is now rejected by the
+  closed runners map before reaching the Go-side check, so the test accepts either layer's
+  message while still requiring an error - independently re-proven above.
+  Not treated as a finding: validate.go:98's whitespace check is now unreachable for
+  YAML-loaded configs, but Validate() also runs on programmatically built configs, so it
+  remains defense in depth rather than dead code. Left in place deliberately.
 effort: M
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -72,11 +87,11 @@ the docker plugin is a **design decision**, deliberately excluded — see TASK-0
 
 ## Completion Criteria
 
-- [ ] `runners` declares a schema for every runner name `decodeRunnerNode` accepts, and no declared name is missing | verify: `python3 -c "import json,re;s=json.load(open('internal/config/schema.json'));r=s['properties']['stack']['additionalProperties']['properties']['runners'];ks=set(r.get('properties',{}));src=open('internal/config/lifecycle.go').read();body=src[src.index('func decodeRunnerNode'):];body=body[:body.index('\ndefault:')] if '\ndefault:' in body else body;want={m for m in re.findall(r'case \"([a-z_-]+)\":',body)};missing=want-ks;print('declared:',sorted(ks));assert not missing, f'missing: {sorted(missing)}'"`
-- [ ] An unknown runner name is rejected instead of silently accepted | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    runners:\n      not_a_runner:\n        up: "true"\n' > dva.yml && ! "$OLDPWD/bin/dva" validate`
-- [ ] Unknown keys inside a non-compose runner are rejected rather than silently accepted | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    default_runner: script\n    runners:\n      script:\n        bogus_key_xyz: 1\n' > dva.yml && ! "$OLDPWD/bin/dva" validate`
-- [ ] All shipped examples still validate against the tightened schema | verify: `go test ./internal/config/ -run 'Example|Schema' -v`
-- [ ] Full suite and vet stay green | verify: `make test && go vet ./...`
+- [x] `runners` declares a schema for every runner name `decodeRunnerNode` accepts, and no declared name is missing | verify: `python3 -c "import json,re;s=json.load(open('internal/config/schema.json'));r=s['properties']['stack']['additionalProperties']['properties']['runners'];ks=set(r.get('properties',{}));src=open('internal/config/lifecycle.go').read();body=src[src.index('func decodeRunnerNode'):];body=body[:body.index('\ndefault:')] if '\ndefault:' in body else body;want={m for m in re.findall(r'case \"([a-z_-]+)\":',body)};missing=want-ks;print('declared:',sorted(ks));assert not missing, f'missing: {sorted(missing)}'"`
+- [x] An unknown runner name is rejected instead of silently accepted | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    runners:\n      not_a_runner:\n        up: "true"\n' > dva.yml && ! "$OLDPWD/bin/dva" validate`
+- [x] Unknown keys inside a non-compose runner are rejected rather than silently accepted | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    default_runner: script\n    runners:\n      script:\n        bogus_key_xyz: 1\n' > dva.yml && ! "$OLDPWD/bin/dva" validate`
+- [x] All shipped examples still validate against the tightened schema | verify: `go test ./internal/config/ -run 'Example|Schema' -v`
+- [x] Full suite and vet stay green | verify: `make test && go vet ./...`
 
 ## Dependencies
 

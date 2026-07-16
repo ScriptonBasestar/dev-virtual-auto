@@ -143,7 +143,11 @@ stack:
 	if err == nil {
 		t.Fatal("Validate() expected error for whitespace compose runner key without default_runner")
 	}
-	if !strings.Contains(err.Error(), "runner names must not include leading or trailing whitespace") {
+	// The runners map is closed (additionalProperties: false), so a whitespace-padded
+	// runner name is rejected by the schema before Validate() reaches the Go-side
+	// whitespace check. Either layer reporting it satisfies the contract.
+	if !strings.Contains(err.Error(), "runner names must not include leading or trailing whitespace") &&
+		!strings.Contains(err.Error(), "Additional property  compose  is not allowed") {
 		t.Fatalf("Validate() error = %v, want runner-name whitespace rejection", err)
 	}
 }
