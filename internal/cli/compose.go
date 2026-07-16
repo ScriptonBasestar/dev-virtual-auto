@@ -228,9 +228,22 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 }
 
 var downCmd = &cobra.Command{
-	Use:                "down [PLAN] [OPTIONS]",
-	Short:              "Stop and remove applications then stack infrastructure",
-	Long:               "Stop and remove a named plan. Without plans, use the legacy applications and stack lifecycle.",
+	Use:   "down [PLAN] [OPTIONS]",
+	Short: "Stop and remove applications then stack infrastructure",
+	Long: `Stop and remove a named plan.
+Without plans, use the legacy applications and stack lifecycle.
+
+Plan usage:
+  dva down <plan>         Tear down the selected plan
+  --var KEY=VAL           Override a plan variable
+  --volumes, -v           Also remove volumes
+  --dry-run               Print actions without executing
+
+Legacy flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -268,9 +281,21 @@ var downCmd = &cobra.Command{
 }
 
 var stopCmd = &cobra.Command{
-	Use:                "stop [PLAN] [OPTIONS]",
-	Short:              "Stop applications and stack without removing resources",
-	Long:               "Stop a named plan without removing resources. Without plans, use the legacy applications and stack lifecycle.",
+	Use:   "stop [PLAN] [OPTIONS]",
+	Short: "Stop applications and stack without removing resources",
+	Long: `Stop a named plan without removing its resources.
+Without plans, use the legacy applications and stack lifecycle.
+
+Plan usage:
+  dva stop <plan>         Stop the selected plan without removing resources
+  --var KEY=VAL           Override a plan variable
+  --dry-run               Print actions without executing
+
+Legacy flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -308,8 +333,22 @@ var stopCmd = &cobra.Command{
 }
 
 var restartCmd = &cobra.Command{
-	Use:                "restart [PLAN] [OPTIONS]",
-	Short:              "Restart services (stop + start)",
+	Use:   "restart [PLAN] [OPTIONS]",
+	Short: "Restart services (stop + start)",
+	Long: `Restart a named plan (stop followed by start).
+Without plans, use the legacy applications and stack lifecycle.
+
+Plan usage:
+  dva restart <plan>      Restart the selected plan
+  --var KEY=VAL           Override a plan variable
+  --no-wait               Return without waiting for readiness
+  --dry-run               Print actions without executing
+
+Legacy flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {

@@ -37,7 +37,7 @@
 ```bash
 dva config init                  # 자동 감지 기반 dva.yml 생성
 dva init                         # 위와 동일 (backward compat alias)
-dva config init -t node          # 템플릿 지정 (minimal, rails, node, python, go)
+dva config init -t node          # --template: 템플릿 지정 (minimal, rails, node, python, go)
 dva config init --recursive      # 서브프로젝트에도 dva.yml 생성
 dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
 dva config init --all            # 가능한 모든 기능 통합 활성화 (devcontainer 등)
@@ -144,6 +144,50 @@ dva down local-dev
 dva stop local-dev
 ```
 
+#### 라이프사이클 플래그
+
+플래그 집합은 **이름 없이 실행할 때**와 **named plan을 지정해 실행할 때**가 서로 다릅니다.
+
+**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`, `dva stack up/down/stop`)
+
+| Flag | Description |
+|---|---|
+| `--mode`, `-M MODE` | `modes` 섹션의 named mode 적용 |
+| `--env`, `-E ENV` | `environments` 섹션의 named environment 적용 |
+| `--tag`, `--tags`, `-T TAG[,TAG]` | 해당 태그를 가진 lifecycle 엔트리만 포함 |
+| `--exclude-tag`, `--exclude-tags TAG[,TAG]` | 해당 태그를 가진 lifecycle 엔트리 제외 |
+
+`dva up`과 `dva stack up`은 위에 더해 다음을 인식합니다.
+
+| Flag | Description |
+|---|---|
+| `--force` | 이미 실행 중이어도 강제로 재시작 |
+| `--no-wait` | 서비스 시작 후 준비 상태를 기다리지 않고 즉시 반환 |
+| `--dev` | 앱을 dev 모드(hot-reload)로 시작 |
+| `--docker` | 앱을 docker 전략으로 강제 실행 |
+
+**named plan 지정 시** (`dva up <NAME>`, `dva down <NAME>`, `dva stop <NAME>`)
+
+| Flag | Description |
+|---|---|
+| `--force` | 이미 실행 중이어도 강제로 재시작 |
+| `--no-wait` | 준비 상태를 기다리지 않고 즉시 반환 |
+| `--var KEY=VAL` | 실행 시점 변수 override |
+| `-v`, `--volumes` | teardown 시 볼륨까지 제거 |
+| `--dry-run` | 실행 계획만 표시 |
+
+환경/모드/태그는 plan 정의(`plans.<name>`)가 결정하므로, named plan 실행에는 `--mode`/`--env`/`--tag`를 쓸 수 없습니다.
+
+```bash
+dva up --tag db,cache          # db/cache 태그 엔트리만 시작
+dva up --exclude-tag heavy     # heavy 태그 엔트리 제외하고 시작
+dva up --force --no-wait       # 강제 재시작 후 대기 없이 반환
+dva down -E staging            # staging environment 설정으로 teardown
+dva up local-dev --force       # named plan을 강제 재시작
+```
+
+`--tag`/`--exclude-tag`은 `--exclude-tag=heavy,slow` 형태의 `=` 문법도 지원합니다.
+
 #### stack 서브커맨드
 
 `stack` 엔트리를 개별적으로 제어해야 할 때 사용합니다.
@@ -191,9 +235,10 @@ dva clean -i              # + 로컬 빌드 이미지 제거
 dva clean -f              # 확인 프롬프트 스킵
 ```
 
-#### `--env` / `--site` / `--var`
+#### 환경 분기 (`environment` / `site` / `vars`)
 
 새 구조에서는 실행 이름이 기본 컨텍스트를 담고 있으므로, 환경 분기는 주로 설정의 `plans`에서 결정합니다.
+아래 세 항목은 CLI 플래그가 아니라 `plans.<name>` 안의 YAML 필드입니다.
 
 - `environment`: `environments.<name>` 선택
 - `site`: `sites.<name>` 선택
@@ -212,6 +257,15 @@ dva clean -f              # 확인 프롬프트 스킵
 | `dva ktl ARGS` | kubectl 패스스루 |
 | `dva infra up/down/update SVC` | 공유 인프라 서비스 관리 |
 | `dva ssh up/down/status` | SSH agent 컨테이너 관리 |
+
+#### ssh up
+
+```bash
+dva ssh up                        # 기본값으로 SSH agent 컨테이너 시작
+dva ssh up -k ~/.ssh/id_ed25519   # --key: SSH 키 경로 (기본값 $HOME/.ssh/id_rsa)
+dva ssh up -u devuser             # --user: ssh-agent 컨테이너에서 사용할 사용자
+dva ssh up -v /workspace          # --volume: 마운트할 볼륨 (기본값 $HOME)
+```
 
 ### Advanced Utilities
 
@@ -428,11 +482,15 @@ sites:
         runner: native
 ```
 
-`vars` 우선순위 (낮음 → 높음):
+`vars` 우선순위 (낮음 → 높음) — plan 실행 경로(`dva up <plan>`) 기준:
 
 ```text
 env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS 환경 변수
 ```
+
+여기서 `environment vars`는 `environments.<name>.environment`를 뜻하며, 최상위
+`environment:` 블록과는 다릅니다. 최상위 `environment:`는 `dva run` 경로에서
+`env_file`보다 **먼저** 적용되어 덮어써집니다 (`environment:` < `env_file` < OS).
 
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
 `dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
