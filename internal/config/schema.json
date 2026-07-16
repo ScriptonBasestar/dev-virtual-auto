@@ -366,7 +366,7 @@
     },
     "vars": {
       "type": "object",
-      "description": "Global variables injected into all execution contexts. Merged with environment, site, and plan vars at runtime. Priority: OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars",
+      "description": "Global variables injected into all execution contexts. Merged with environment, site, and plan vars at runtime. Priority (lowest to highest): env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS environment variables. An OS environment variable always wins: no dva.yml layer (not even --var) can override a key that is set in the OS environment.",
       "additionalProperties": { "type": ["string", "boolean", "number"] },
       "examples": [{ "LOG_FORMAT": "text", "APP_ENV": "dev" }]
     },

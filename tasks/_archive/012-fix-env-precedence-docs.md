@@ -3,7 +3,18 @@ id: TASK-012
 title: "Correct inverted ENV precedence in USAGE.md, docs/30 and schema.json"
 type: docs
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T20:45:00+09:00
+verified-at: 2026-07-16T20:45:00+09:00
+verification-summary: >-
+  Verified by orchestrator: full chain proven empirically, not merely reversed -
+  env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS env.
+  Only OS's position was wrong; the middle layers' documented order was already correct.
+  Runtime-proven: --var beats plan vars, and OS beats --var (K_PC=from-os won over
+  --var K_PC=from-cli-vars). --var is real (plan_lifecycle.go:60-70), not aspirational.
+  All three sources corrected; old inverted chain absent; schema parses; tests green.
+  Two out-of-scope findings raised as TASK-018 (CLAUDE.md:66 env_file/environment pair
+  inverted; top-level vars: inert on the dva run path).
 effort: S
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -70,10 +81,10 @@ overrides a production OS variable. It does not.
 
 ## Completion Criteria
 
-- [ ] `USAGE.md:376`, `docs/30-config-merge-semantics.md:327-330`, and `internal/config/schema.json:369` state OS environment as the highest-priority layer, consistent with `CLAUDE.md:66` | verify: `! grep -rnE 'OS *<' USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json`
-- [ ] No current doc still places OS at the bottom of the chain | verify: `grep -rn "환경 변수 우선순위\|Priority:" USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json CLAUDE.md`
-- [ ] `schema.json` remains valid JSON and all examples still validate | verify: `python3 -c "import json;json.load(open('internal/config/schema.json'));print('schema.json parses')" && go test ./internal/config/ -run 'Schema|Example'`
-- [ ] Full suite stays green | verify: `make test`
+- [x] `USAGE.md:376`, `docs/30-config-merge-semantics.md:327-330`, and `internal/config/schema.json:369` state OS environment as the highest-priority layer, consistent with `CLAUDE.md:66` | verify: `! grep -rnE 'OS *<' USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json`
+- [x] No current doc still places OS at the bottom of the chain | verify: `grep -rn "환경 변수 우선순위\|Priority:" USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json CLAUDE.md`
+- [x] `schema.json` remains valid JSON and all examples still validate | verify: `python3 -c "import json;json.load(open('internal/config/schema.json'));print('schema.json parses')" && go test ./internal/config/ -run 'Schema|Example'`
+- [x] Full suite stays green | verify: `make test`
 
 ## Dependencies
 

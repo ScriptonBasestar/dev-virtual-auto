@@ -370,11 +370,14 @@ sites:
         runner: native
 ```
 
-`vars` 우선순위:
+`vars` 우선순위 (낮음 → 높음):
 
 ```text
-OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars
+env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS 환경 변수
 ```
+
+OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
+`dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
 
 ### health_checks
 
