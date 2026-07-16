@@ -64,6 +64,26 @@ Effort: S · Risk: medium
 - 단점: `resolver.go:219`가 plan 경로에서 `NativeRunnerConfig`로 `WorkingDir`을 읽으므로
   `runners.native`는 plan에서 의미가 있다 — 단순 거부 시 이 동작이 깨진다.
 
+### 새 증거 (2026-07-16, convergence check 2) — 옵션 A를 강화함
+
+`claude-plugin/skills/dva/references/patterns.md:61`의 Migration Map은 이미 사용자에게
+다음 이전을 지시하고 있습니다:
+
+| Old shape | New shape |
+| --------- | --------- |
+| `applications.<name>` | `stack.<name>.runners.native/docker` |
+
+즉 **출시된 문서가 이미 `stack.<name>.runners.docker`를 의도된 형태로 안내**하고 있습니다.
+이는 이 저장소에서 발견된 설계 의도 기록에 가장 가까운 증거이며, `runners.<name>`이
+플러그인을 뜻한다는 옵션 A 방향을 가리킵니다. 실제로 이 지시를 그대로 따르면
+`dva validate`는 통과하지만 `dva stack up`은 `unknown lifecycle plugin ""`으로 실패합니다
+(TASK-024).
+
+반대 방향의 증거도 함께 고려해야 합니다: runner 구조체가 application 형태
+(`dir`/`build`/`run`)라는 점은 이들이 원래 `applications:` 전략용으로 설계되었음을 시사합니다.
+
+이 결정은 TASK-024를 blocking합니다.
+
 ### 추천 근거
 
 docker는 `registry.go`에 등록된 실제 플러그인이고 중첩 `docker:` 형태는 이미 동작한다.
