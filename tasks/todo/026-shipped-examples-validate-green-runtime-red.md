@@ -97,6 +97,46 @@ documented surface (12 locations plus `patterns.md`'s migration map) says this s
 intended. Weigh against: the runner structs are application-shaped (`dir`/`build`/`run`), and
 Option A for `native` requires building a whole plugin.
 
+## Full runnability sweep of the example corpus (orchestrator, 2026-07-17)
+
+The whole corpus was swept statically (every `stack.<entry>`'s resolved runner vs. the real
+registry) and spot-checked against runtime. Scope: 18 files — all of `examples/*.yml` plus
+`claude-plugin/skills/dva/assets/templates/*.yml`.
+
+| Result | Count |
+| --- | --- |
+| CONFIG-BROKEN entries | **10** |
+| CLEAN entries | 19 |
+| UNKNOWN / unresolvable by inspection | 0 |
+
+All 10 broken entries are the **same single shape** — `default_runner: native`. No other
+broken runner shape exists anywhere in the corpus; notably no example uses `runners.docker` as
+a `default_runner`, so `native` is the entire blast radius:
+
+```
+examples/applications.yml            api, worker, web
+examples/full-stack.yml              web, frontend
+examples/service-orchestration.yml   api, worker
+claude-plugin/.../migrate-modes-to-plans.yml   app
+claude-plugin/.../root-devbox-plan.yml         api, web
+```
+
+Static prediction confirmed against runtime on three independently chosen entries — every one
+`validate=0`, `stack up=1`, signature `unknown lifecycle plugin ""`:
+
+```
+examples/applications.yml [api]                : validate=0  stack-up=1  ✅ predicted
+examples/service-orchestration.yml [worker]    : validate=0  stack-up=1  ✅ predicted
+claude-plugin/.../root-devbox-plan.yml [web]   : validate=0  stack-up=1  ✅ predicted
+```
+
+The 19 CLEAN entries are the positive control: the sweep does resolve real plugins, so "10
+broken" is a measurement, not a scan that matched everything or nothing.
+
+This narrows the fix: whichever option TASK-017 picks, the change is mechanical and touches
+**5 files / 10 entries**, and `native` is the only name that needs a decision. `docker` is
+implicated in the docs but not in any shipped example.
+
 ## Note on why the example suite missed this
 
 The suite's check is "all 18 examples validate". Schema validity is not runnability, so a
