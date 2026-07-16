@@ -375,7 +375,7 @@ Legacy flags:
 			return err
 		}
 
-		mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
@@ -402,6 +402,7 @@ Legacy flags:
 			DryRun:      dryRun,
 			Force:       true,
 			Wait:        true,
+			Names:       names,
 			IncludeTags: includeTags,
 			ExcludeTags: excludeTags,
 			Mode:        mode,

@@ -3,8 +3,9 @@ id: TASK-033
 title: "dva restart <name> discards the name and stops+restarts the entire stack, always"
 type: bug
 priority: P1
-status: todo
+status: done
 effort: S
+completed-at: 2026-07-17T05:15:00+09:00
 created-at: 2026-07-17T03:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (scope-widening mutation surfaces)
@@ -118,13 +119,73 @@ on every config shape. The blast radius is the whole stack.
 
 ## Completion Criteria
 
-- [ ] `dva restart s1` restarts only `s1` | verify: `human — run the Evidence probe; assert S1_STOP and S1_UP are emitted and NEITHER S2_STOP nor S2_UP is`
-- [ ] `dva restart` with no args still restarts the whole stack (the legitimate path is untouched) | verify: `human — assert all four of S1_STOP S2_STOP S1_UP S2_UP are emitted`
-- [ ] `dva restart <unknown>` no longer touches any entry, and says so | verify: `human — assert no S*_STOP / S*_UP markers are emitted and the 'no lifecycle entries matched filters' warning appears, matching 'dva stack up bogus-name'`
-- [ ] Flags still work alongside names, i.e. names are not confused with flag values | verify: `human — run 'dva restart s1 -E <env>' and confirm the env applies AND scoping to s1 still holds`
-- [ ] A regression test asserts restart passes Names through, and is proven to fail without the fix | verify: `human — revert compose.go:337 to '_', confirm the new test FAILS, restore, confirm it passes`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
-- [ ] `filterEntries` / `stack up` unknown-name behavior is left unchanged | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
+- [x] `dva restart s1` restarts only `s1` | verify: `human — run the Evidence probe; assert S1_STOP and S1_UP are emitted and NEITHER S2_STOP nor S2_UP is`
+- [x] `dva restart` with no args still restarts the whole stack (the legitimate path is untouched) | verify: `human — assert all four of S1_STOP S2_STOP S1_UP S2_UP are emitted`
+- [x] `dva restart <unknown>` no longer touches any entry, and says so | verify: `human — assert no S*_STOP / S*_UP markers are emitted and the 'no lifecycle entries matched filters' warning appears, matching 'dva stack up bogus-name'`
+- [x] Flags still work alongside names, i.e. names are not confused with flag values | verify: `human — run 'dva restart s1 -E <env>' and confirm the env applies AND scoping to s1 still holds`
+- [x] A regression test asserts restart passes Names through, and is proven to fail without the fix | verify: `human — revert compose.go:337 to '_', confirm the new test FAILS, restore, confirm it passes`
+- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `filterEntries` / `stack up` unknown-name behavior is left unchanged | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
+
+## Outcome
+
+Done — but **this task's own premise was wrong, and the correction is the important part.**
+
+This file claimed the fix was "passing a value that is already parsed into a field that already
+exists". That was true and *insufficient*. `Orchestrator.Restart` runs `Stop` then `Up`, and it
+built its `stopOpts` without forwarding `Names`:
+
+```go
+stopOpts := StopOptions{DryRun: opts.DryRun, IncludeTags: opts.IncludeTags, ...}  // Names dropped
+```
+
+So the CLI-only fix scopes the **Up** half while the **Stop** half still bounces every entry. Two
+hunks were required:
+
+- `internal/cli/compose.go` — capture `names` from `parseDvaFlags`, pass `Names: names` to `UpOptions`
+- `internal/lifecycle/orchestrator.go` — forward `Names: opts.Names` into `Restart`'s `stopOpts`
+
+The second is the same class of change (an existing value into an existing field: `StopOptions.Names`
+already existed at `orchestrator.go:44` and already routed through `filterEntries`), and it touches
+neither `filterEntries` nor `filterByNames`. It was in scope because criterion 1 — "NEITHER S2_STOP
+nor S2_UP" — is unsatisfiable without it.
+
+**The CLI-only fix would have been worse than the bug.** Verified, not reasoned: with only the
+`compose.go` hunk, `dva restart <unknown>` produced markers `map[s1_stop:true s2_stop:true]` — stops
+with no ups. The original defect at least bounced the stack back up (stop all → up all); the partial
+fix stops the entire stack and brings nothing back, leaving it **down**. A half-applied fix to a
+two-layer path inverted the outcome from "over-restarts" to "silently leaves your infrastructure
+off". This is the strongest argument in this run for proving each layer independently rather than
+stopping at the first green test.
+
+Verified in a scratch worktree containing **only** this change (the main worktree held TASK-032's
+edits to this same file plus two other agents' work):
+
+- Positive control 1 — revert `compose.go`, keep the orchestrator hunk → 3 of 4 tests FAIL.
+- Positive control 2 — revert `orchestrator.go`, keep the CLI hunk → `TestRestart_ScopesToNamedEntry`
+  and `TestRestart_UnknownNameTouchesNothing` FAIL, on `s2_stop ran, but s2 was not named`. Each hunk
+  is independently necessary; neither is cargo.
+- `TestRestart_NoArgsRestartsAll` stayed green through both controls — the over-filter control,
+  proving the fix did not simply turn `restart` into a no-op.
+- Probes against a binary built from the isolated tree, `dva validate` exiting 0 first:
+  `restart s1` → S1_STOP S1_UP only; `restart` → all four; `restart <unknown>` → no markers plus the
+  'no lifecycle entries matched filters' warn, matching `stack up bogus-name` exactly;
+  `restart s1 -E dev` → still scoped to s1.
+- Flag-slot trap checked in the form that can actually detect it: `restart -E dev` with **no** name
+  restarts all four entries. (`restart s1 -E dev` cannot distinguish a leak, since scoping to s1
+  holds either way — if `dev` leaked into the name slot it would scope to nothing and restart
+  nothing. It does not.) `restart --mode dev` exits 1, byte-identically to the HEAD binary — a
+  pre-existing message about the probe config defining no `modes:`, not a regression.
+- Isolation control: the binary from this worktree does **not** reject `dva up s1` (exit 0),
+  confirming TASK-032's fix is absent and these results are attributable to this change alone.
+- `make test` and `go vet ./...` exit 0 in that isolated worktree.
+
+## Follow-up found while fixing this — NOT filed
+
+`Restart`'s `stopOpts` also drops `Env` (the `Up` half receives it, the `Stop` half does not). Probe
+`restart s1 -E dev` still applied the env correctly, so it did not bite here and is not proven to be
+a defect. Recorded as a latent sibling of exactly the same shape — an option silently not forwarded
+across the Stop/Up seam — and left alone as out of scope. Worth its own triage.
 
 ## References
 
