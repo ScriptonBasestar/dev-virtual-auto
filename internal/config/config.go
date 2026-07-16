@@ -480,6 +480,18 @@ type ProvisionConfig struct {
 	Profiles       map[string][]ProvisionItem `yaml:"-"`
 }
 
+// MarshalYAML restores the schema shape consumed by UnmarshalYAML.
+func (pc ProvisionConfig) MarshalYAML() (any, error) {
+	provision := make(map[string]any, len(pc.Profiles)+1)
+	if pc.DefaultProfile != "" {
+		provision["default_profile"] = pc.DefaultProfile
+	}
+	for name, items := range pc.Profiles {
+		provision[name] = items
+	}
+	return provision, nil
+}
+
 // UnmarshalYAML handles the mixed-type provision mapping:
 // "default_profile" key is extracted as a string; all other keys are profiles.
 func (pc *ProvisionConfig) UnmarshalYAML(node *yaml.Node) error {

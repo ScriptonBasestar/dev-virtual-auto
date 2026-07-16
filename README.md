@@ -160,7 +160,7 @@ am run dva-improve           # AI로 dva.yml 자동 생성/개선
 am run dva-diagnose          # 에러 분석 및 설정 자동 수정
 dva config docs              # AI 에이전트 가이드(CLAUDE.md) 생성
 dva manifest                 # 구조화된 커맨드 매니페스트
-dva config show              # 병합된 최종 설정 출력
+dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 출력 (JSON도 지원)
 ```
 
 - **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)

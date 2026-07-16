@@ -2,7 +2,9 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
@@ -24,9 +26,26 @@ var configShowCmd = &cobra.Command{
 		case "yaml":
 			return output.PrintYAML(c)
 		default:
-			return output.PrintJSON(c)
+			data, err := configSchemaView(c)
+			if err != nil {
+				return err
+			}
+			return output.PrintJSON(data)
 		}
 	},
+}
+
+func configSchemaView(c *config.Config) (any, error) {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, err
+	}
+
+	var view any
+	if err := yaml.Unmarshal(data, &view); err != nil {
+		return nil, err
+	}
+	return view, nil
 }
 
 func init() {

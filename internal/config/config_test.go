@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestFindConfigWalksUp(t *testing.T) {
@@ -280,6 +282,31 @@ func TestProvisionConfigWithoutDefaultProfile(t *testing.T) {
 	}
 	if len(cfg.Provision.Profiles) != 1 {
 		t.Errorf("profiles count = %d, want 1", len(cfg.Provision.Profiles))
+	}
+}
+
+func TestProvisionConfigMarshalYAMLPreservesProfiles(t *testing.T) {
+	input := ProvisionConfig{
+		DefaultProfile: "setup",
+		Profiles: map[string][]ProvisionItem{
+			"setup": {{Step: "Install deps", Run: "npm install"}},
+		},
+	}
+
+	data, err := yaml.Marshal(input)
+	if err != nil {
+		t.Fatalf("Marshal error: %v", err)
+	}
+
+	var output map[string]any
+	if err := yaml.Unmarshal(data, &output); err != nil {
+		t.Fatalf("Unmarshal marshaled data: %v", err)
+	}
+	if got := output["default_profile"]; got != "setup" {
+		t.Fatalf("default_profile = %v, want setup", got)
+	}
+	if _, ok := output["setup"]; !ok {
+		t.Fatalf("marshaled provision missing setup profile: %s", data)
 	}
 }
 
