@@ -20,6 +20,10 @@ var forceSubprocess bool
 func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 	original := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return original(cmd, args)
+		}
+
 		var foundDryRun bool
 		args, foundDryRun = consumeDryRunFlag(args)
 		if foundDryRun {

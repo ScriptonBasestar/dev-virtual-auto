@@ -3,13 +3,15 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/spf13/cobra"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 const hookTestConfig = `version: "0.1.22"
@@ -306,5 +308,45 @@ func TestRunHookSteps_Empty(t *testing.T) {
 	err := runHookSteps(e, c, "before", "up", nil)
 	if err != nil {
 		t.Fatalf("empty steps should not error: %v", err)
+	}
+}
+
+func TestWrapWithHooksSkipsHooksOnHelp(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "hook_ran.txt")
+	cfgYAML := "version: \"0.1.0\"\ninteraction:\n  build:\n    replace:\n      - step: probe\n        run: \"touch " + marker + "\"\n"
+	if err := os.WriteFile(filepath.Join(dir, config.FileName), []byte(cfgYAML), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Chdir(dir)
+	cfg = nil
+	t.Cleanup(func() { cfg = nil })
+
+	cmd := &cobra.Command{
+		Use:                "build",
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if helpRequested(args) {
+				return cmd.Help()
+			}
+			return nil
+		},
+	}
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	wrapWithHooks("build", cmd)
+
+	if err := cmd.RunE(cmd, []string{"--help"}); err != nil {
+		t.Fatalf("RunE(--help) error: %v", err)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("replace hook executed for --help; the wrapper must delegate to the original guard first")
+	}
+
+	if err := cmd.RunE(cmd, []string{}); err != nil {
+		t.Fatalf("RunE() error: %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatalf("replace hook did not run for a real invocation: %v", err)
 	}
 }
