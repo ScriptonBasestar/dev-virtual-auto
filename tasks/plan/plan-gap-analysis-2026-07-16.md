@@ -4,10 +4,10 @@ title: "Gap analysis remediation — run 20260716T091912Z-73dc094"
 type: plan
 scope: "Close the 8 gaps found by the bidirectional gap analysis of dev-virtual-auto @ 73dc094"
 parent: null
-children: [TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-016]
-progress: 0
-total-tasks: 8
-completed-tasks: 0
+children: [TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-016, TASK-017]
+progress: 11
+total-tasks: 9
+completed-tasks: 1
 target-date: null
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -38,7 +38,7 @@ Close the 8 evidence-backed gaps found by the bidirectional gap analysis of
 
 ## Children
 
-- [ ] TASK-009 — Fix plugin resolution for the `runners`/`default_runner` stack shape (P1, bug) — G1/HIGH
+- [x] TASK-009 — Fix plugin resolution for the `runners`/`default_runner` stack shape (P1, bug) — G1/HIGH — **done** `9dce65e`, archived
 - [ ] TASK-010 — Validate every runner in `schema.json`, not only compose (P1, bug) — G2/HIGH
 - [ ] TASK-011 — Honor `--help` on commands that disable flag parsing (P1, bug) — G3/HIGH
 - [ ] TASK-012 — Correct inverted ENV precedence in `USAGE.md`, `docs/30`, `schema.json` (P1, docs) — G4/HIGH
@@ -46,6 +46,7 @@ Close the 8 evidence-backed gaps found by the bidirectional gap analysis of
 - [ ] TASK-014 — Fix `docs/40` recommended YAML using `version: 2` (P2, docs) — G6/MEDIUM
 - [ ] TASK-015 — Fix `schema.json` version example that can never load (P2, docs) — G7/MEDIUM
 - [ ] TASK-016 — Document 6 shipped subcommands and `default_mode` (P3, docs) — G8/LOW
+- [ ] TASK-017 — Decide stack `runners.docker` / `runners.native` semantics (P2, chore, **needs human**) — discovered in TASK-009, not from Phase 1
 
 ## Severity → priority mapping (exact, per emit-tasks contract)
 
@@ -78,6 +79,7 @@ Close the 8 evidence-backed gaps found by the bidirectional gap analysis of
 | Task files | `tasks/todo/` | **`tasks/todo/` (created by this run)** | `tasks/` existed but contained **only** `_archive/` — no entry dir at all. `tasks/todo/` is the canonical entry dir and a valid state dir for the task runner. Created explicitly and recorded here, not silently. |
 | Plan file | `tasks/plan/plan-gap-analysis-{date}.md` | **`tasks/plan/plan-gap-analysis-2026-07-16.md` (dir created by this run)** | `tasks/plan/` was absent, so the emit-tasks `tasks/`-root fallback was tried first — the local validator **rejected** it (`❌ Unsupported canonical task directory`), which would have introduced a new failure against a zero-failure baseline. The local validator contract takes precedence over the hub fallback, so the canonical `tasks/plan/` was created explicitly and recorded here. Re-validated: ✅ valid. |
 | Filename rule | `{type}-gap-{kebab-summary}.md` | **`NNN-kebab-summary.md`** (009–016) | Detected local convention from `tasks/_archive/001-config-model.md` … `008-tests-and-examples.md`. Local filename rules take precedence; numbering continues from 008. |
+| Decision task (TASK-017, added mid-run) | `tasks/decision/` | **`tasks/todo/017-…md`** with `needs-human: true` and `human —` verify bindings | `tasks/decision/` is listed as a valid state dir by the task runner and **is recognized by `ce task board`** (it displayed `decision (1)`), but `ce task validate` rejects it: `❌ Unsupported canonical task directory` — the tool contradicts itself. Keeping `decision/` would have left `ce task validate --all` red against a zero-failure baseline. The decision semantics are preserved in the body (options, recommendation, confidence) and the `human —` bindings prevent auto-resolution. Validator-supported dirs observed: `todo/`, `plan/`, `_archive/`. |
 | Body sections | Summary + Completion Criteria | **Summary + Completion Criteria** (+ Evidence, Out Of Scope, Dependencies, References) | Enforced by the local validator `ce task validate`, which errors on "Missing Summary section" / "Missing Completion Criteria section". Note the archived files use an older `Goal`/`Acceptance Criteria` shape that the validator does **not** accept; `_archive/` is excluded from validation, so the canonical shape was used for new tasks. |
 
 ## Validation record
