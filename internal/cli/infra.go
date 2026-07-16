@@ -21,6 +21,9 @@ var infraUpCmd = &cobra.Command{
 	Args:               cobra.MinimumNArgs(1),
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		serviceName := args[0]
 		extraArgs := args[1:]
@@ -48,6 +51,9 @@ var infraDownCmd = &cobra.Command{
 	Args:               cobra.MinimumNArgs(1),
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		serviceName := args[0]
 		extraArgs := args[1:]

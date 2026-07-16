@@ -3,7 +3,21 @@ id: TASK-011
 title: "Honor --help on commands that disable flag parsing"
 type: bug
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T20:35:00+09:00
+verified-at: 2026-07-16T20:35:00+09:00
+verification-summary: >-
+  Verified by orchestrator: make build / make test / go vet exit 0; all 16 documented
+  commands print usage for --help (0/16 failures); 'up --help', 'stack down --help' and
+  'stack stop --help' no longer execute (marker files absent) while real 'stack up' still
+  executes. 17 DisableFlagParsing sites patched (3 more than the 16 user-facing
+  invocations: compose build/logs and app build share the same defect).
+  CORRECTION: this task's secondary claim - that 'dva down --help' printed an error yet
+  exited 0 - was a MEASUREMENT ERROR by the auditor. The exit code was read after a pipe
+  ($? captured head's status, not dva's). root.go:185-204 os.Exit(1)s on any returned
+  error, so that path did exit non-zero. No exit-code change was needed or made; the
+  help guard returns before teardownCommon's stray-positional path. The immutable run
+  archive retains the original incorrect claim by design.
 effort: M
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -77,10 +91,10 @@ passthrough contract is preserved while help stays safe.
 
 ## Completion Criteria
 
-- [ ] `dva up --help` prints usage and does not execute the lifecycle | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    script:\n      up: "touch ./started.txt"\n' > dva.yml && "$OLDPWD/bin/dva" up --help && test ! -f ./started.txt`
-- [ ] All 16 affected commands print their own usage for `--help` | verify: `for c in "up" "down" "stop" "restart" "stack up" "stack stop" "stack down" "app up" "app restart" "compose up" "compose down" "compose stop" "compose restart" "infra up" "infra down" "ktl"; do ./bin/dva ${=c} --help 2>&1 | grep -q "Usage:" || { echo "FAIL: $c"; exit 1; }; done; echo OK`
-- [ ] Flag passthrough to compose/kubectl still works | verify: `go test ./internal/cli/ -v`
-- [ ] Full suite and vet stay green | verify: `make test && go vet ./...`
+- [x] `dva up --help` prints usage and does not execute the lifecycle | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    script:\n      up: "touch ./started.txt"\n' > dva.yml && "$OLDPWD/bin/dva" up --help && test ! -f ./started.txt`
+- [x] All 16 affected commands print their own usage for `--help` | verify: `for c in "up" "down" "stop" "restart" "stack up" "stack stop" "stack down" "app up" "app restart" "compose up" "compose down" "compose stop" "compose restart" "infra up" "infra down" "ktl"; do ./bin/dva ${=c} --help 2>&1 | grep -q "Usage:" || { echo "FAIL: $c"; exit 1; }; done; echo OK`
+- [x] Flag passthrough to compose/kubectl still works | verify: `go test ./internal/cli/ -v`
+- [x] Full suite and vet stay green | verify: `make test && go vet ./...`
 
 ## Dependencies
 

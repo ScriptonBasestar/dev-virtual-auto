@@ -240,6 +240,15 @@ func isFlag(s string) bool {
 	return len(s) > 0 && s[0] == '-'
 }
 
+func helpRequested(args []string) bool {
+	for _, a := range args {
+		if a == "--help" || a == "-h" {
+			return true
+		}
+	}
+	return false
+}
+
 func loadConfig() (*config.Config, error) {
 	if cfg != nil {
 		return cfg, nil

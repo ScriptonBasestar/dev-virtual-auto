@@ -26,6 +26,9 @@ If multiple compose entries exist, the first argument must be the entry name.`,
   dva compose main-db logs -f api   # Passthrough with entry name`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
@@ -79,6 +82,9 @@ Legacy flags:
   --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
@@ -227,6 +233,9 @@ var downCmd = &cobra.Command{
 	Long:               "Stop and remove a named plan. Without plans, use the legacy applications and stack lifecycle.",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
@@ -264,6 +273,9 @@ var stopCmd = &cobra.Command{
 	Long:               "Stop a named plan without removing resources. Without plans, use the legacy applications and stack lifecycle.",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
@@ -300,6 +312,9 @@ var restartCmd = &cobra.Command{
 	Short:              "Restart services (stop + start)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
@@ -349,6 +364,9 @@ var buildCmd = &cobra.Command{
 	Short:              "Build or rebuild services (mode-aware: docker or native)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
@@ -448,6 +466,9 @@ var logsCmd = &cobra.Command{
 	Short:              "View output from containers",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))

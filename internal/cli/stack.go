@@ -35,6 +35,9 @@ var stackUpCmd = &cobra.Command{
 	Short:              "Start stack entries (all if no name given)",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
@@ -104,6 +107,9 @@ var stackStopCmd = &cobra.Command{
 	Short:              "Stop stack entries without removing resources",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
@@ -139,6 +145,9 @@ var stackDownCmd = &cobra.Command{
 	Short:              "Stop and remove stack resources",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
@@ -219,6 +228,9 @@ var stackLogCmd = &cobra.Command{
 	Short:              "View logs for a stack entry",
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 

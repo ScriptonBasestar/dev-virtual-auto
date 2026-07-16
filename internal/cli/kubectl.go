@@ -18,6 +18,9 @@ If only one kubectl entry exists, the entry name can be omitted.
 If multiple kubectl entries exist, the first argument must be the entry name.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
