@@ -2,9 +2,11 @@
 id: TASK-017
 title: "Decide stack runners.docker / runners.native semantics"
 type: chore
-priority: P2
+priority: P1
 status: todo
 effort: S
+priority-raised-at: 2026-07-16T23:15:00+09:00
+priority-raised-reason: "convergence check 2 proved three shipped examples/ files pass validate then hard-fail at stack up on this exact shape (TASK-026)"
 created-at: 2026-07-16T20:15:00+09:00
 needs-human: true
 source-run-id: 20260716T091912Z-73dc094
@@ -83,6 +85,31 @@ Effort: S · Risk: medium
 (`dir`/`build`/`run`)라는 점은 이들이 원래 `applications:` 전략용으로 설계되었음을 시사합니다.
 
 이 결정은 TASK-024를 blocking합니다.
+
+### 새 증거 (2026-07-16, convergence check 2) — 영향 범위가 예상보다 큼
+
+이 형태는 문서 **12곳**에서 권장되며 그중 셋은 **출시된 `examples/` 파일**입니다.
+저장소 자체 예시로 재현했습니다 (HEAD `f4b2063`):
+
+```
+$ cp examples/full-stack.yml $T/dva.yml && cd $T
+$ dva validate      -> EXIT=0  ✅ dva.yml is valid
+$ dva stack up web  -> EXIT=1  ERROR: entry "web": unknown lifecycle plugin ""
+```
+
+이는 이번 run에서 non-gap으로 판정했던 다른 사례들과 **방향이 반대**입니다. 그 사례들은
+`validate`가 거부하고 런타임이 관대한 쪽(무해)이었지만, 이것은 **게이트가 통과시키고
+런타임이 실패**하는 쪽입니다. 게다가 복붙 출발점으로 배포되는 파일에서 발생합니다.
+
+TASK-010이 `runners.additionalProperties: false`로 16개 이름 allowlist를 넣으면서
+`native`/`docker`를 **허용**했기 때문에, 현재 schema가 깨진 형태를 적극적으로 축복합니다.
+지금 schema를 조이면 옵션 B를 암묵적으로 확정하는 셈이므로 결정 전에는 손대지 않았습니다.
+
+따라서 priority를 **P2 → P1**로 올렸습니다. 이 결정은 TASK-026도 blocking합니다.
+
+옵션 A 비용에 대한 정정: `docker`는 등록된 플러그인으로 라우팅하면 되지만, `native`는
+**플러그인 자체가 존재하지 않으므로 새로 작성**해야 합니다. 이는 gap 교정이 아니라 신규
+기능 개발이며, 제품 소유자 결정이 필요한 핵심 이유입니다.
 
 ### 추천 근거
 
