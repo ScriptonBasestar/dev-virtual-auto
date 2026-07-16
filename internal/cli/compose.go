@@ -96,7 +96,7 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		if err := requirePlanSelection(c, "up", args); err != nil {
 			return err
 		}
-		if err := rejectUnknownPlanArg(c, args); err != nil {
+		if err := rejectUpPositionalArg(c, args); err != nil {
 			return err
 		}
 

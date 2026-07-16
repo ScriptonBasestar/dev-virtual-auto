@@ -77,6 +77,30 @@ func rejectUnknownPlanArg(c *config.Config, args []string) error {
 	return fmt.Errorf("plan '%s' not found. Available: %s", name, strings.Join(available, ", "))
 }
 
+// rejectUpPositionalArg guards the plan-name slot of 'up', which advertises
+// "up [OPTIONS]" and so has no positional argument that means anything else.
+// It reads args the same way rejectUnknownPlanArg does — only args[0], and a
+// leading '-' returns early — so flag values such as '--var FOO=x' are never
+// mistaken for a plan name.
+//
+// Unlike rejectUnknownPlanArg it also fires when no plans are configured. There
+// args[0] was never a plan name either, and permitting it made 'dva up s1'
+// start every entry in the stack and report success. 'down' and 'stop' already
+// reject a stray argument with or without plans; this makes 'up' agree.
+func rejectUpPositionalArg(c *config.Config, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	name := args[0]
+	if strings.HasPrefix(name, "-") {
+		return nil
+	}
+	if c == nil || !c.HasPlans() {
+		return fmt.Errorf("unexpected argument '%s': 'dva up' takes no positional arguments and no plans are configured. Run 'dva up' to start the whole stack, or 'dva stack up %s' to start a single entry", name, name)
+	}
+	return rejectUnknownPlanArg(c, args)
+}
+
 func parsePlanFlags(args []string) (planRunFlags, error) {
 	flags := planRunFlags{
 		cliVars: map[string]string{},

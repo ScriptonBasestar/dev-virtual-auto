@@ -146,9 +146,9 @@ func TestUpAcceptsKnownPlanName(t *testing.T) {
 	}
 }
 
-// The guard keys off plans being configured. Without plans a positional argument
-// was never a plan name, so the legacy whole-stack path must stay reachable.
-func TestUpWithoutPlansKeepsLegacyPath(t *testing.T) {
+// Without plans, bare 'dva up' starting the whole stack is the legitimate path
+// and must stay reachable — it is what the command advertises.
+func TestUpWithoutPlansStartsWholeStack(t *testing.T) {
 	useConfig(t, noPlanStackConfig)
 
 	oldDryRun := dryRun
@@ -158,8 +158,32 @@ func TestUpWithoutPlansKeepsLegacyPath(t *testing.T) {
 	if err := upCmd.RunE(upCmd, []string{}); err != nil {
 		t.Fatalf("'dva up' with no plans must start the stack: %v", err)
 	}
-	if err := upCmd.RunE(upCmd, []string{"s1"}); err != nil {
-		t.Fatalf("'dva up s1' with no plans defined must keep its previous behavior: %v", err)
+}
+
+// Without plans a positional argument is not a plan name and is not an entry
+// filter either ('up [OPTIONS]' advertises neither), so it must not be silently
+// dropped and widened into starting every entry. s1 is a REAL entry name: even a
+// name that exists is not something 'up' accepts.
+func TestUpWithoutPlansRejectsPositionalArg(t *testing.T) {
+	useConfig(t, noPlanStackConfig)
+
+	oldDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = oldDryRun }()
+
+	for _, name := range []string{"notarealthing", "s1"} {
+		err := upCmd.RunE(upCmd, []string{name})
+		if err == nil {
+			t.Fatalf("'dva up %s' with no plans returned nil; a stray argument must not start the whole stack", name)
+		}
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("error must name the rejected argument %q, got: %v", name, err)
+		}
+		// With zero plans there is nothing to list; an empty "Available:" would
+		// be a worse message than none.
+		if strings.Contains(err.Error(), "Available:") {
+			t.Errorf("error must not print an Available: plan list when no plans exist, got: %v", err)
+		}
 	}
 }
 
@@ -187,6 +211,28 @@ func TestUpPlanGuardOnlyInspectsPlanNameSlot(t *testing.T) {
 	} {
 		if err := upCmd.RunE(upCmd, args); err != nil {
 			t.Errorf("'dva up %s' must not be read as a plan name: %v", strings.Join(args, " "), err)
+		}
+	}
+}
+
+// The no-plans guard reads args[0] only, exactly as the plans-configured one
+// does. A flag value like FOO=bare does not look like a flag and must not be
+// mistaken for a positional argument now that the guard fires without plans.
+func TestUpWithoutPlansGuardOnlyInspectsPlanNameSlot(t *testing.T) {
+	useConfig(t, noPlanStackConfig)
+
+	oldDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = oldDryRun }()
+
+	for _, args := range [][]string{
+		{"--dev"},
+		{"--force"},
+		{"--var", "FOO=bare"},
+		{"--var=FOO=bare"},
+	} {
+		if err := upCmd.RunE(upCmd, args); err != nil {
+			t.Errorf("'dva up %s' must not be read as a positional argument: %v", strings.Join(args, " "), err)
 		}
 	}
 }
