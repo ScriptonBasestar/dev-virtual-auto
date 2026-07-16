@@ -324,11 +324,16 @@ merge semantics와 runtime resolution은 다릅니다.
 
 vars runtime 우선순위는 [31-execution-plan-resolution.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/31-execution-plan-resolution.md)를 따릅니다.
 
-우선순위 (낮음 → 높음):
+우선순위 (낮음 → 높음) — plan 실행 경로(`dva up <plan>`) 기준:
 
 ```text
 env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS 환경 변수
 ```
+
+여기서 `environment vars`는 `environments.<name>.environment`를 뜻하며,
+최상위 `environment:` 블록과는 다릅니다. 최상위 `environment:`는 `dva run` 경로에서
+`env_file`보다 **먼저** 적용되어 덮어써집니다(`environment:` < `env_file` < OS).
+자세한 내용은 CLAUDE.md를 참조하세요.
 
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
 `dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.

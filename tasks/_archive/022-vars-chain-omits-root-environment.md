@@ -3,7 +3,19 @@ id: TASK-022
 title: "vars precedence chain never places the root environment: map"
 type: docs
 priority: P3
-status: todo
+status: done
+archived-at: 2026-07-16T22:00:00+09:00
+verified-at: 2026-07-16T22:00:00+09:00
+verification-summary: >-
+  Verified by orchestrator: both USAGE.md and docs/30 now state the chain describes the plan
+  path, define `environment vars` as environments.<name>.environment, and give the root
+  environment: < env_file < OS order for the dva run path. No contradiction with CLAUDE.md.
+  COMMIT HYGIENE NOTE: this task's USAGE.md hunk was swept into TASK-021's commit a204856 by
+  an orchestrator staging error - the edit was already in the working tree when USAGE.md was
+  staged for TASK-021. Only docs/30 is in this task's own commit. The net file state is
+  correct and both tasks are complete; only commit attribution is split. Not rewritten,
+  since splitting one file's intermixed hunks needs interactive staging, which is
+  unavailable here, and rewriting risked the verified work.
 effort: XS
 created-at: 2026-07-16T21:45:00+09:00
 source-run-id: 20260716T112622Z-5729d98
@@ -48,9 +60,9 @@ terms. This is a docs-clarity gap, not a behavioral defect — no code change is
 
 ## Completion Criteria
 
-- [ ] The chain states which path it describes, and that "environment vars" means `environments.<name>.environment`, not the root `environment:` block | verify: `grep -n "environments.<name>.environment\|environments\.<name>" USAGE.md docs/30-config-merge-semantics.md`
-- [ ] The root `environment:` vs `env_file` order is stated or cross-referenced where the chain appears | verify: `grep -rn "env_file" USAGE.md docs/30-config-merge-semantics.md | head`
-- [ ] No claim contradicts CLAUDE.md's `environment:` < `env_file` < OS | verify: `grep -n "environment:` < `env_file" CLAUDE.md`
+- [x] The chain states which path it describes, and that "environment vars" means `environments.<name>.environment`, not the root `environment:` block | verify: `grep -n "environments.<name>.environment\|environments\.<name>" USAGE.md docs/30-config-merge-semantics.md`
+- [x] The root `environment:` vs `env_file` order is stated or cross-referenced where the chain appears | verify: `grep -rn "env_file" USAGE.md docs/30-config-merge-semantics.md | head`
+- [x] No claim contradicts CLAUDE.md's `environment:` < `env_file` < OS | verify: `grep -n "environment:` < `env_file" CLAUDE.md`
 
 ## References
 
