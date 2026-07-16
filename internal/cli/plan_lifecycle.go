@@ -51,6 +51,32 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 	return "", nil, false
 }
 
+// rejectUnknownPlanArg reports a plan name that reached the non-plan fallthrough
+// of a plan-aware command. It reads args exactly as detectPlanRoute does — only
+// args[0] is ever the plan name slot — so it fires only where detectPlanRoute
+// looked for a plan and found none. Every other position belongs to a flag or a
+// flag value and keeps whatever behavior it had.
+//
+// detectPlanRoute returns ok=false both when no plans are configured and when
+// args[0] matches none; only the latter is an error. Without plans args[0] was
+// never a plan name, and a leading flag means detectPlanRoute never treated the
+// invocation as plan-routed either.
+func rejectUnknownPlanArg(c *config.Config, args []string) error {
+	if c == nil || !c.HasPlans() || len(args) == 0 {
+		return nil
+	}
+	name := args[0]
+	if strings.HasPrefix(name, "-") {
+		return nil
+	}
+	available := make([]string, 0, len(c.Plans))
+	for plan := range c.Plans {
+		available = append(available, plan)
+	}
+	sort.Strings(available)
+	return fmt.Errorf("plan '%s' not found. Available: %s", name, strings.Join(available, ", "))
+}
+
 func parsePlanFlags(args []string) (planRunFlags, error) {
 	flags := planRunFlags{
 		cliVars: map[string]string{},

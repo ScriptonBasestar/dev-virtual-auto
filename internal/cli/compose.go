@@ -93,6 +93,9 @@ Legacy flags:
 		if err := requirePlanSelection(c, "up", args); err != nil {
 			return err
 		}
+		if err := rejectUnknownPlanArg(c, args); err != nil {
+			return err
+		}
 
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
