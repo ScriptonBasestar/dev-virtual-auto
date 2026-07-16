@@ -3,8 +3,9 @@ id: TASK-034
 title: "devcontainer.config_path is ignored AND leaks verbatim into the generated devcontainer.json"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: S
+completed-at: 2026-07-17T04:05:00+09:00
 created-at: 2026-07-17T03:20:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (silent config no-ops)
@@ -107,7 +108,31 @@ reporting green throughout.
 - [ ] `enabled` is still stripped and every genuine spec key (`name`, `image`, `features`, …) still passes through unchanged | verify: `human — assert name/image survive and enabled does not; this is the control that the fix did not over-filter`
 - [ ] A regression test covers the exclusion and is proven to fail without the fix | verify: `human — restore the leak, confirm the new test FAILS, restore the fix, confirm it passes`
 - [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
-- [ ] DECISION — honor `config_path` or delete it from `schema.json`? Not to be resolved by the implementer | verify: `human — decide; if honored, doctor.go:100-105 and init.go hardcode the same path and must follow`
+- [x] DECISION — honor `config_path` or delete it from `schema.json`? Not to be resolved by the implementer | verify: `human — decide; if honored, doctor.go:100-105 and init.go hardcode the same path and must follow` — **deferred, not resolved**: split out to TASK-037 so it stays visible in the queue rather than being buried in an archived file. The leak fix does not commit the project to either answer.
+
+## Outcome
+
+Done — the decision-independent half only. `generateDevcontainerJSON` now filters a
+`dvaOnlyDevcontainerKeys` set (`enabled`, `config_path`) instead of hardcoding `enabled`.
+`config_path` no longer reaches the generated file.
+
+Scope held exactly: `validate.go`, `doctor.go`, `init.go`, and `schema.json` have **zero** lines in
+the diff, so the write path is still hardcoded and the honor-vs-remove question is untouched.
+
+Verified independently in a scratch worktree containing only this change (the main worktree held
+other agents' in-flight edits to the same package, which would have contaminated `make test`):
+
+- Positive control — restoring the leak makes `TestGenerateJSONOmitsDVAOnlyKeys` **fail**, for the
+  right reason and only that reason (`config_path` leaked …); the `enabled` and spec-key control
+  assertions stay silent. Restoring the fix makes it pass.
+- End-to-end against a rebuilt binary, `dva validate` exiting 0 first so the probe is not vacuous:
+  generated file contains `name`, `image`, and expanded `features`; contains neither `config_path`
+  nor `enabled`; `custom/` is not created.
+- `make test` exit 0, `go vet ./...` exit 0.
+
+`features` expansion (`ghcr.io/devcontainers/features/go:latest`) was the one thing the implementer
+flagged as unverified — checked here, and it survives. The test asserts real JSON contents, not that
+config parses, which is the anti-pattern TASK-036 documents.
 
 ## References
 

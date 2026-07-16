@@ -8,6 +8,13 @@ import (
 	"strings"
 )
 
+// dvaOnlyDevcontainerKeys are dva.yml devcontainer keys that DVA interprets itself.
+// They are not devcontainer spec keys and must never reach the generated file.
+var dvaOnlyDevcontainerKeys = map[string]bool{
+	"enabled":     true,
+	"config_path": true,
+}
+
 // isDevcontainerEnabled reports whether the devcontainer section is active.
 // Absent `enabled` field defaults to true; only explicit false disables it.
 func isDevcontainerEnabled(dc map[string]any) bool {
@@ -43,7 +50,7 @@ func writeDevcontainerFiles(dc map[string]any, composeFiles []string, baseDir st
 func generateDevcontainerJSON(dc map[string]any, composeFiles []string) ([]byte, error) {
 	out := make(map[string]any)
 	for k, v := range dc {
-		if k == "enabled" {
+		if dvaOnlyDevcontainerKeys[k] {
 			continue // DVA-only field, not part of devcontainer spec
 		}
 		out[k] = v

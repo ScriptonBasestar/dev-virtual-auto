@@ -44,6 +44,39 @@ func TestExpandFeatures(t *testing.T) {
 	}
 }
 
+func TestGenerateJSONOmitsDVAOnlyKeys(t *testing.T) {
+	dc := map[string]any{
+		"enabled":     true,
+		"config_path": "custom/somewhere/devcontainer.json",
+		"name":        "probe-dc",
+		"image":       "mcr.microsoft.com/devcontainers/base:ubuntu",
+	}
+	data, err := generateDevcontainerJSON(dc, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("generated output is not valid JSON: %v", err)
+	}
+
+	// DVA-only keys must not reach the generated file.
+	for _, k := range []string{"enabled", "config_path"} {
+		if v, ok := out[k]; ok {
+			t.Errorf("DVA-only key %q leaked into devcontainer.json with value %v", k, v)
+		}
+	}
+
+	// Control: genuine spec keys must still pass through unchanged.
+	if out["name"] != "probe-dc" {
+		t.Errorf("name = %v, want %q", out["name"], "probe-dc")
+	}
+	if out["image"] != "mcr.microsoft.com/devcontainers/base:ubuntu" {
+		t.Errorf("image = %v, want %q", out["image"], "mcr.microsoft.com/devcontainers/base:ubuntu")
+	}
+}
+
 func TestToDevcontainerRelative(t *testing.T) {
 	tests := []struct {
 		input string
