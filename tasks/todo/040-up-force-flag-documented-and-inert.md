@@ -4,6 +4,7 @@ title: "--force on 'up'/'stack up' is documented, parsed, threaded through two s
 type: bug
 priority: P3
 status: todo
+needs-human: true
 effort: S
 created-at: 2026-07-17T05:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98

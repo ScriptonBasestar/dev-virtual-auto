@@ -4,6 +4,7 @@ title: "env_file.interpolate and env_file.priority validate green and are never 
 type: bug
 priority: P2
 status: todo
+needs-human: true
 effort: S
 created-at: 2026-07-17T03:25:00+09:00
 source-run-id: 20260716T112622Z-5729d98

@@ -4,6 +4,7 @@ title: "plans.<p>.entries[].runner is resolved and validated, then discarded bef
 type: bug
 priority: P2
 status: todo
+needs-human: true
 effort: M
 created-at: 2026-07-17T05:35:00+09:00
 source-run-id: 20260716T112622Z-5729d98

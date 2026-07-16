@@ -4,6 +4,7 @@ title: "services.<svc>.related and .hint validate green, are never read, and hav
 type: bug
 priority: P3
 status: todo
+needs-human: true
 effort: S
 created-at: 2026-07-17T03:30:00+09:00
 source-run-id: 20260716T112622Z-5729d98
