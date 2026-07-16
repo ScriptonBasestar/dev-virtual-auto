@@ -38,3 +38,6 @@ reports/
 
 # Task batch state (transient)
 tasks/.batch-state.yaml
+
+# ignore ScriptonBasestar tmp files
+.sb/dva/
