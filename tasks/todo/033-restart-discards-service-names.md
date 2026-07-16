@@ -54,7 +54,8 @@ with plans. This fires on every config, always.
 
 ## Root cause
 
-`internal/cli/compose.go:337` — the names are captured into `_`:
+In `restartCmd`'s `RunE` (`internal/cli/compose.go:328` at HEAD `f9c63c8`) the names are captured
+into `_`:
 
 ```go
 mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
@@ -63,6 +64,12 @@ mode, envName, includeTags, excludeTags, _ := parseDvaFlags(args)
 
 `compose.go:351` then calls `orch.Restart(ctx, lifecycle.UpOptions{...})` with no `Names:` field,
 and `filterEntries` reads an empty `Names` as "all entries".
+
+> **Locate this by content, not by line number.** TASK-030 adds help text to `upCmd`/`downCmd`/
+> `stopCmd` *above* `restartCmd`, shifting this whole region by +9 (`parseDvaFlags` 328 → 337,
+> `orch.Restart` 351 → 360). The two edits are ~20 lines apart in separate hunks and merge in
+> either order — only a hardcoded line number is fragile. An earlier draft of this file cited the
+> post-TASK-030 worktree numbers by mistake; caught by task030-impl.
 
 Contrast `stack.go:52`, which captures the same return value and uses it:
 
@@ -82,7 +89,7 @@ plan-path guard will ever reach it. `compose.go` passes `Names:` at zero call si
 Unlike TASK-032, the fix here is to **honor** the names, not reject them — and that is settled by
 the repo, not by preference:
 
-- `Use: "restart [OPTIONS] [SERVICE...]"` (`compose.go:320`) explicitly advertises the argument.
+- `Use: "restart [OPTIONS] [SERVICE...]"` (`compose.go:311` at HEAD) explicitly advertises the argument.
   Erroring on it would contradict the command's own documented interface.
 - `orch.Restart(ctx, opts UpOptions)` (`orchestrator.go:239`) already takes `UpOptions`, which
   already carries `Names []string // specific stack entry names (empty = all)`
