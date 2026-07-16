@@ -3,8 +3,9 @@ id: TASK-030
 title: "dva stack --help documents none of the flags it actually accepts, and --var appears in no help surface"
 type: docs
 priority: P3
-status: todo
+status: done
 effort: S
+completed-at: 2026-07-17T03:50:00+09:00
 created-at: 2026-07-17T02:00:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (docs-vs-binary drift)
@@ -122,7 +123,46 @@ proceed freely.
 - [ ] Every flag newly claimed in help text is verified to actually work, not just written down | verify: `human — re-run this task's Evidence probes; help must not overstate the binary any more than it understated it`
 - [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
+## Outcome
+
+Done. `stack.go`'s `up`/`down`/`stop` gained hand-written "DVA-specific flags" blocks matching
+compose.go's layout; `compose.go`'s `up`/`down`/`stop` gained a separate "Plan-path flags" section
+documenting `--var … Ignored off the plan path.` Docs only — the diff touches no behavior line, and
+`restart` is untouched (0 mentions), so TASK-033 merges cleanly in either order.
+
+Independently re-verified in a scratch worktree containing **only** this change (the main worktree
+held unrelated in-flight edits to the same package, which would have contaminated the result):
+`make test` exit 0, `go vet ./...` exit 0, all three criterion `verify:` commands exit 0.
+
+`--var` was placed under its own heading rather than merged into the DVA-specific list, so the help
+does not imply it behaves like the others. TASK-028's question is untouched.
+
+### Two corrections this task produced
+
+**`stack log` was correctly left alone.** This file's root-cause section groups `log` with `up`/
+`down`/`stop` as commands that "document none of what they accept". True as to `DisableFlagParsing`,
+but misleading: `stackLogCmd` never calls `parseDvaFlags` and accepts none of these flags. Proven —
+`dva stack log s1 -E nosuch` fails with docker compose's `unknown shorthand flag: 'E' in -E`, not
+DVA's `env 'nosuch' not found`. Documenting them there would have swapped an understating help
+surface for a lying one. Negative control confirms the fix did not overreach:
+`stack log --help` → 0 mentions of `--mode`, `stack status --help` → 0.
+
+**Two flags deliberately left undocumented, on evidence.** `--force`/`--no-wait` (`stack up`) and
+`-v`/`--volumes` (`stack down`) are parsed by the command bodies, but `internal/lifecycle/script.go`
+never references `Force`, `Wait`, or `Volumes`, and a `--dry-run` probe produced byte-identical
+output with and without them. Unproven, so unwritten — which is this task's own standard. `stack
+down -v` is destructive and worth documenting once someone can prove what it does.
+
+## Follow-ups this task surfaced (not filed — no evidence of user harm yet)
+
+- `dva stack log` accepts no DVA flags while its three siblings do. Either wire in `parseDvaFlags`
+  or accept the asymmetry deliberately.
+- `--force` / `--no-wait` / `--volumes` may be parsed-but-inert on the script runner — the same
+  silent-no-op shape as TASK-034/035/036. Needs a probe against a compose-backed entry before
+  filing; `stack down -v` being destructive makes it the one to check first.
+
 ## References
 
 - [027-up-silently-ignores-unknown-args.md](../_archive/027-up-silently-ignores-unknown-args.md) — records `--var`'s absence from help as out of scope; this task picks it up
 - [028-flag-suppresses-default-plan-route.md](./028-flag-suppresses-default-plan-route.md) — owns whether `--var` should work off the plan path
+- [033-restart-discards-service-names.md](../todo/033-restart-discards-service-names.md) — adjacent hunk in compose.go; this task's +9 line shift is why 033 cites its code by content rather than line number

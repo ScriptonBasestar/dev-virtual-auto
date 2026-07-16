@@ -79,7 +79,10 @@ Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
+
+Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
+  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -246,7 +249,10 @@ Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
+
+Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
+  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -298,7 +304,10 @@ Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
+
+Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
+  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {

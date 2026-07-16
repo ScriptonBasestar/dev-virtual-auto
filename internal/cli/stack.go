@@ -31,8 +31,16 @@ Use subcommands to control individual or all stack entries.`,
 }
 
 var stackUpCmd = &cobra.Command{
-	Use:                "up [NAME...] [OPTIONS]",
-	Short:              "Start stack entries (all if no name given)",
+	Use:   "up [NAME...] [OPTIONS]",
+	Short: "Start stack entries (all if no name given)",
+	Long: `Start stack entries defined in the 'stack' section of dva.yml.
+Starts every entry unless NAME arguments or tag filters narrow the selection.
+
+DVA-specific flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -103,8 +111,16 @@ var stackUpCmd = &cobra.Command{
 }
 
 var stackStopCmd = &cobra.Command{
-	Use:                "stop [NAME...] [OPTIONS]",
-	Short:              "Stop stack entries without removing resources",
+	Use:   "stop [NAME...] [OPTIONS]",
+	Short: "Stop stack entries without removing resources",
+	Long: `Stop stack entries without removing their resources.
+Stops every entry unless NAME arguments or tag filters narrow the selection.
+
+DVA-specific flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -141,8 +157,16 @@ var stackStopCmd = &cobra.Command{
 }
 
 var stackDownCmd = &cobra.Command{
-	Use:                "down [NAME...] [OPTIONS]",
-	Short:              "Stop and remove stack resources",
+	Use:   "down [NAME...] [OPTIONS]",
+	Short: "Stop and remove stack resources",
+	Long: `Stop stack entries and remove their resources.
+Tears down every entry unless NAME arguments or tag filters narrow the selection.
+
+DVA-specific flags:
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
