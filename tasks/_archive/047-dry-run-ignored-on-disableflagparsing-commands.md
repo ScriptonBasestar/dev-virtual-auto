@@ -3,9 +3,28 @@ id: TASK-047
 title: "dva up --dry-run executes for real; --dry-run is dropped by every DisableFlagParsing command"
 type: bug
 priority: P1
-status: todo
+status: done
 effort: M
 created-at: 2026-07-17T08:40:00+09:00
+archived-at: 2026-07-16T23:20:00+09:00
+verified-at: 2026-07-16T23:20:00+09:00
+verification-summary: |
+  Fixed in internal/cli/compose.go by consuming --dry-run in parseDvaFlags, the shared
+  seam all 12 DisableFlagParsing lifecycle callers route through. composeCmd (raw docker
+  passthrough) does not call it, so docker's own --dry-run is unaffected.
+  Regression test internal/cli/dryrun_flag_test.go proven RED before the fix (reverted the
+  parse: "parseDvaFlags did not set dryRun" + "filtered = [--dry-run postgres]") while its
+  negative control still PASSED, then GREEN after restore.
+  E2E re-measured on a script-side-effect probe (liveness gate: dva validate EXIT=0):
+  up --dry-run no longer executes and now emits the same msg=dry-run log as the plan route;
+  positive control (plain `dva up`) still executes; plan route not regressed; stack up
+  --dry-run and stack down --dry-run now print real plans instead of "no lifecycle entries
+  matched filters"; `dva down --dry-run` previews, so its own recommended command works.
+  make test EXIT=0 (0 FAIL), go vet clean.
+  Audit outcome: --debug and --json ARE dropped identically (measured: `dva up --debug`
+  produced 0 level=DEBUG lines vs 1 for the root-parsed `dva validate --debug`), but they
+  are consumed by logger.Init in PersistentPreRun (root.go:40) which runs BEFORE RunE, so
+  they cannot be fixed at this seam. Filed separately as TASK-048.
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: sweep-checks report, independently re-verified by the orchestrator at 413f9fc
 source-severity: HIGH
@@ -163,14 +182,30 @@ must not regress.
 
 ## Completion Criteria
 
-- [ ] `dva up --dry-run` does not execute stack entries | verify: `human — reproduce the probe: stack entry with script.up "touch UP_HAPPENED"; run 'dva up --dry-run'; assert UP_HAPPENED is ABSENT and a plan is printed`
-- [ ] The positive control still passes — plain `dva up` DOES execute | verify: `human — same config, run 'dva up' with no flag; assert UP_HAPPENED IS created. A fix that breaks this has disabled up entirely`
-- [ ] The plan route still honors --dry-run (no regression) | verify: `human — 'dva up p1 --dry-run' must still log msg=dry-run and leave UP_HAPPENED absent`
-- [ ] `dva stack up --dry-run` prints a plan instead of '[warn] no lifecycle entries matched filters' | verify: `human — assert --dry-run is not collected as an entry name and a real plan is shown`
-- [ ] `dva down --dry-run`'s recommended command actually works | verify: `human — the error text points at 'dva stack down --dry-run'; assert that command previews rather than silently no-opping`
-- [ ] A regression test asserts --dry-run reaches UpOptions.DryRun on the bare route, proven to fail without the fix | verify: `human — revert the parse, confirm the test FAILS for the right reason (side effect occurs), restore, confirm it passes`
-- [ ] The other 17 DisableFlagParsing commands are audited for the same drop | verify: `human — --debug and --json are the other root persistent flags; either fix centrally or document per-command which are unaffected and why`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `dva up --dry-run` does not execute stack entries | verify: `human — reproduce the probe: stack entry with script.up "touch UP_HAPPENED"; run 'dva up --dry-run'; assert UP_HAPPENED is ABSENT and a plan is printed`
+- [x] The positive control still passes — plain `dva up` DOES execute | verify: `human — same config, run 'dva up' with no flag; assert UP_HAPPENED IS created. A fix that breaks this has disabled up entirely`
+- [x] The plan route still honors --dry-run (no regression) | verify: `human — 'dva up p1 --dry-run' must still log msg=dry-run and leave UP_HAPPENED absent`
+- [x] `dva stack up --dry-run` prints a plan instead of '[warn] no lifecycle entries matched filters' | verify: `human — assert --dry-run is not collected as an entry name and a real plan is shown`
+- [x] `dva down --dry-run`'s recommended command actually works | verify: `human — the error text points at 'dva stack down --dry-run'; assert that command previews rather than silently no-opping`
+- [x] A regression test asserts --dry-run reaches UpOptions.DryRun on the bare route, proven to fail without the fix | verify: `human — revert the parse, confirm the test FAILS for the right reason (side effect occurs), restore, confirm it passes`
+- [x] The other 17 DisableFlagParsing commands are audited for the same drop | verify: `human — --debug and --json are the other root persistent flags; either fix centrally or document per-command which are unaffected and why`
+- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+
+## Verification Record (2026-07-16)
+
+All criteria measured, not assumed. The audit criterion resolved as **affected, different seam** — see
+frontmatter `verification-summary` and TASK-048.
+
+Fix shape chosen: `parseDvaFlags` (`compose.go:490`) rather than the per-command loop at
+`compose.go:100-111`. It is the single seam all 12 lifecycle callers share (upCmd, teardownCommon,
+downCmd, stopCmd, restartCmd, buildCmd, stackUp/Stop/Down, appUp/Restart/Build), so one 6-line case
+fixes `up` **and** the `stack up`/`stack down` entry-name-swallowing defect together. `composeCmd`
+(raw docker passthrough) was verified NOT to call it, so `docker compose --dry-run` still passes
+through untouched.
+
+Known remaining gap, deliberately not fixed here (minimal-change): `--dry-run=false` and `--dry-run=true`
+are still not recognized (only the bare `--dry-run`), matching the existing hand-parsed idiom for
+`--force`/`--no-wait`. This is not a regression — cobra never parsed them on these commands either.
 
 ## References
 

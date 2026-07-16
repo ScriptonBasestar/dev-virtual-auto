@@ -527,7 +527,9 @@ var logsCmd = &cobra.Command{
 	},
 }
 
-// parseDvaFlags extracts DVA flags from commands that disable Cobra flag parsing.
+// parseDvaFlags extracts --mode/-M, --env/-E, --tags/-T, and --exclude-tags from args.
+// It also consumes the root persistent --dry-run and sets the dryRun global, because
+// callers set DisableFlagParsing and cobra therefore never parses it for them.
 func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
 	var foundDryRun bool
 	args, foundDryRun = consumeDryRunFlag(args)
@@ -581,6 +583,12 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		case strings.HasPrefix(a, "--exclude-tags="):
 			val := strings.TrimPrefix(a, "--exclude-tags=")
 			excludeTags = append(excludeTags, strings.Split(val, ",")...)
+		// Callers set DisableFlagParsing, so cobra never parses the root
+		// persistent --dry-run. Without this it falls through to filtered and
+		// is read as an entry/service name, leaving dryRun false: `dva up
+		// --dry-run` then executes for real.
+		case a == "--dry-run":
+			dryRun = true
 		default:
 			filtered = append(filtered, a)
 		}
