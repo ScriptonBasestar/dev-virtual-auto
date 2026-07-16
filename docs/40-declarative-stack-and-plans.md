@@ -312,7 +312,7 @@ dva ls sites
 ## 9. 권장 YAML 예시
 
 ```yaml
-version: 2
+version: "0.1.44"
 
 env_file:
   - .env

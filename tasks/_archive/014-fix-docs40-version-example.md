@@ -3,7 +3,14 @@ id: TASK-014
 title: "Fix docs/40 recommended YAML using version: 2"
 type: docs
 priority: P2
-status: todo
+status: done
+archived-at: 2026-07-16T20:28:00+09:00
+verified-at: 2026-07-16T20:28:00+09:00
+verification-summary: >-
+  Verified by orchestrator: docs/40 s9 now uses version: "0.1.44", matching USAGE.md:233,
+  README.md:30 and all example YAMLs. No doc example uses an unquoted integer version;
+  the value validates (exit 0). Did not introduce a config-format version field - that
+  remains a design question, deliberately out of scope.
 effort: XS
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -46,9 +53,9 @@ example YAMLs use `version: "0.1.44"`.
 
 ## Completion Criteria
 
-- [ ] `docs/40` §9 uses a quoted semver string consistent with the rest of the docs | verify: `! grep -nE '^version: *[0-9]+ *$' docs/40-declarative-stack-and-plans.md`
-- [ ] The §9 example's version value loads against the shipped binary | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\n' > dva.yml && "$OLDPWD/bin/dva" validate`
-- [ ] No doc example uses an unquoted integer version | verify: `! grep -rnE '^\s*version: *[0-9]+ *$' docs/ USAGE.md README.md examples/`
+- [x] `docs/40` §9 uses a quoted semver string consistent with the rest of the docs | verify: `! grep -nE '^version: *[0-9]+ *$' docs/40-declarative-stack-and-plans.md`
+- [x] The §9 example's version value loads against the shipped binary | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\n' > dva.yml && "$OLDPWD/bin/dva" validate`
+- [x] No doc example uses an unquoted integer version | verify: `! grep -rnE '^\s*version: *[0-9]+ *$' docs/ USAGE.md README.md examples/`
 
 ## Dependencies
 
