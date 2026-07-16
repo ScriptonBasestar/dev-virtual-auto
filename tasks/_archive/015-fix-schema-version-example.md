@@ -3,7 +3,14 @@ id: TASK-015
 title: "Fix schema.json version example that can never load"
 type: docs
 priority: P2
-status: todo
+status: done
+archived-at: 2026-07-16T20:55:00+09:00
+verified-at: 2026-07-16T20:55:00+09:00
+verification-summary: >-
+  Verified by orchestrator: schema version example is now "0.1.0" and validates (exit 0).
+  Chose a low floor rather than pinning 0.1.44 so the example cannot rot back into this
+  same defect at the next release. Also stated the constraint in the description.
+  schema.json parses; schema/example tests green.
 effort: XS
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -44,9 +51,9 @@ does not silently rot into this same defect after the next release.
 
 ## Completion Criteria
 
-- [ ] The `version` example is a value that loads against the shipped binary | verify: `cd "$(mktemp -d)" && V=$(python3 -c "import json;print(json.load(open('$OLDPWD/internal/config/schema.json'))['properties']['version']['examples'][0])") && printf 'version: "%s"\n' "$V" > dva.yml && "$OLDPWD/bin/dva" validate`
-- [ ] `schema.json` remains valid JSON | verify: `python3 -c "import json;json.load(open('internal/config/schema.json'));print('ok')"`
-- [ ] Schema/example tests stay green | verify: `go test ./internal/config/ -run 'Schema|Example'`
+- [x] The `version` example is a value that loads against the shipped binary | verify: `cd "$(mktemp -d)" && V=$(python3 -c "import json;print(json.load(open('$OLDPWD/internal/config/schema.json'))['properties']['version']['examples'][0])") && printf 'version: "%s"\n' "$V" > dva.yml && "$OLDPWD/bin/dva" validate`
+- [x] `schema.json` remains valid JSON | verify: `python3 -c "import json;json.load(open('internal/config/schema.json'));print('ok')"`
+- [x] Schema/example tests stay green | verify: `go test ./internal/config/ -run 'Schema|Example'`
 
 ## Dependencies
 

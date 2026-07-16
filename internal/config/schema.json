@@ -361,8 +361,8 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Specifies the minimum required version of DVA",
-      "examples": ["8.1.0"]
+      "description": "Specifies the minimum required version of DVA. Must not exceed the installed DVA version, or the config is rejected.",
+      "examples": ["0.1.0"]
     },
     "vars": {
       "type": "object",
