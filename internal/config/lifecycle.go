@@ -654,6 +654,21 @@ func (e *LifecycleEntry) DetectPlugin() string {
 	return ""
 }
 
+// runnerPluginName returns the runner selected by DefaultRunner, or the sole
+// declared runner when DefaultRunner is empty. It reports the declared name
+// only; resolveRunnerPlugin decides whether that runner can be served.
+func (e *LifecycleEntry) runnerPluginName() string {
+	if name := normalizeRunnerName(e.DefaultRunner); name != "" {
+		return name
+	}
+	if len(e.Runners) == 1 {
+		for name := range e.Runners {
+			return normalizeRunnerName(name)
+		}
+	}
+	return ""
+}
+
 // ===== Tier 1: Core =====
 
 // ComposePluginConfig holds Docker Compose plugin settings.

@@ -3,7 +3,16 @@ id: TASK-009
 title: "Fix plugin resolution for the runners/default_runner stack shape"
 type: bug
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T20:10:00+09:00
+verified-at: 2026-07-16T20:10:00+09:00
+verification-summary: >-
+  Verified by orchestrator: make build / make test / go vet all exit 0 (config
+  coverage 55.6%->57.2%); non-compose runner executes via all four orchestrator
+  paths (up/status/stop/down); nested, flat and sole-runner shapes unchanged.
+  Independent review found a CRITICAL silent-no-op regression for runners.docker
+  (DetectPlugin named a plugin whose typed config was nil); corrected before
+  commit by removing the DetectPlugin fallback, with guard tests added.
 effort: M
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -79,11 +88,11 @@ path rather than inventing new semantics: resolve `Plugin` from
 
 ## Completion Criteria
 
-- [ ] A `stack` entry using `default_runner: script` + `runners.script` executes via the script plugin instead of failing | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    default_runner: script\n    runners:\n      script:\n        up: "touch ./ran.txt"\n' > dva.yml && "$OLDPWD/bin/dva" stack up && test -f ./ran.txt`
-- [ ] A regression test covers runners-shape plugin resolution for at least one non-compose plugin | verify: `go test ./internal/config/ ./internal/lifecycle/ -run 'Runner|Plugin' -v`
-- [ ] The nested (`script:`) and flat (`plugin: script`) shapes still resolve | verify: `go test ./internal/config/ ./internal/lifecycle/`
-- [ ] Full suite and vet stay green | verify: `make test && go vet ./...`
-- [ ] Build succeeds | verify: `make build`
+- [x] A `stack` entry using `default_runner: script` + `runners.script` executes via the script plugin instead of failing | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    default_runner: script\n    runners:\n      script:\n        up: "touch ./ran.txt"\n' > dva.yml && "$OLDPWD/bin/dva" stack up && test -f ./ran.txt`
+- [x] A regression test covers runners-shape plugin resolution for at least one non-compose plugin | verify: `go test ./internal/config/ ./internal/lifecycle/ -run 'Runner|Plugin' -v`
+- [x] The nested (`script:`) and flat (`plugin: script`) shapes still resolve | verify: `go test ./internal/config/ ./internal/lifecycle/`
+- [x] Full suite and vet stay green | verify: `make test && go vet ./...`
+- [x] Build succeeds | verify: `make build`
 
 ## Dependencies
 

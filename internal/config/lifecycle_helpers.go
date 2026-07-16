@@ -20,15 +20,72 @@ func (e *LifecycleEntry) ComposeConfig() *ComposePluginConfig {
 	return nil
 }
 
+// applyRunnerConfig assigns a runner config to its typed plugin field.
+func (e *LifecycleEntry) applyRunnerConfig(cfg any) bool {
+	switch c := cfg.(type) {
+	case *ComposePluginConfig:
+		e.Compose = c
+	case *ProcessPluginConfig:
+		e.Process = c
+	case *ScriptPluginConfig:
+		e.Script = c
+	case *DockerPluginConfig:
+		e.Docker = c
+	case *KubectlPluginConfig:
+		e.Kubectl = c
+	case *HelmPluginConfig:
+		e.Helm = c
+	case *KustomizePluginConfig:
+		e.Kustomize = c
+	case *TiltPluginConfig:
+		e.Tilt = c
+	case *SkaffoldPluginConfig:
+		e.Skaffold = c
+	case *PodmanComposePluginConfig:
+		e.PodmanCompose = c
+	case *VagrantPluginConfig:
+		e.Vagrant = c
+	case *SAMPluginConfig:
+		e.SAM = c
+	case *ServerlessPluginConfig:
+		e.Serverless = c
+	case *MultipassPluginConfig:
+		e.Multipass = c
+	default:
+		return false
+	}
+	return true
+}
+
+// resolveRunnerPlugin backfills Plugin and its typed config from the runners shape.
+func (e *LifecycleEntry) resolveRunnerPlugin() {
+	if e == nil || e.Plugin != "" {
+		return
+	}
+	name := e.runnerPluginName()
+	if name == "" {
+		if e.ComposeConfig() != nil {
+			e.Plugin = "compose"
+		}
+		return
+	}
+	cfg, err := e.GetRunnerConfig(name)
+	if err != nil {
+		return
+	}
+	if !e.applyRunnerConfig(cfg) {
+		return
+	}
+	e.Plugin = name
+}
+
 // SortedStack returns stack entries sorted by Order with Name populated.
 func (c *Config) SortedStack() []LifecycleEntry {
 	entries := make([]LifecycleEntry, 0, len(c.Stack))
 	for name, e := range c.Stack {
 		entry := *e
 		entry.Name = name
-		if entry.Plugin == "" && entry.ComposeConfig() != nil {
-			entry.Plugin = "compose"
-		}
+		entry.resolveRunnerPlugin()
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {
