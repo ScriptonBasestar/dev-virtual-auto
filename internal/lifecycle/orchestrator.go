@@ -286,6 +286,14 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 		pluginType := entry.DetectPlugin()
 		plugin, err := NewPlugin(pluginType)
 		if err != nil {
+			// Report the entry as broken rather than dropping it: `up`/`down`/`stop`
+			// fail fast on this same entry, so status must not read as a clean stack.
+			o.logger.Warn("plugin could not be constructed", "entry", entry.Name, "plugin", pluginType, "error", err)
+			status.Entries = append(status.Entries, EntryStatus{
+				Name:   entry.Name,
+				Plugin: pluginType,
+				Error:  err.Error(),
+			})
 			continue
 		}
 

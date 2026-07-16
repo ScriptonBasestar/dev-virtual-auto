@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -317,6 +318,62 @@ func TestDown_ReverseOrder(t *testing.T) {
 	err := orch.Down(context.Background(), DownOptions{DryRun: true})
 	if err != nil {
 		t.Fatalf("dry-run down failed: %v", err)
+	}
+}
+
+func TestStatus_SurfacesUnconstructibleEntry(t *testing.T) {
+	// An entry whose plugin cannot be constructed (DetectPlugin() == "") must still
+	// appear in the status output, marked broken — `up`/`down`/`stop` fail fast on it,
+	// so status must not report a clean stack. The healthy entry proves status does
+	// not abort on the first broken one.
+	entries := map[string]*config.LifecycleEntry{
+		"ok":  {Order: 1, Script: &config.ScriptPluginConfig{Up: "echo ok"}},
+		"bad": {Order: 2},
+	}
+
+	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
+	status, err := orch.Status(context.Background())
+	if err != nil {
+		t.Fatalf("status should not fail on a broken entry: %v", err)
+	}
+
+	byName := make(map[string]EntryStatus, len(status.Entries))
+	for _, e := range status.Entries {
+		byName[e.Name] = e
+	}
+
+	bad, ok := byName["bad"]
+	if !ok {
+		t.Fatalf("entry 'bad' missing from status; got entries %v", status.Entries)
+	}
+	if bad.Error == "" {
+		t.Error("expected 'bad' entry to carry the plugin construction error")
+	}
+
+	if _, ok := byName["ok"]; !ok {
+		t.Errorf("healthy entry 'ok' missing from status; got entries %v", status.Entries)
+	}
+	if byName["ok"].Error != "" {
+		t.Errorf("healthy entry should carry no error, got %q", byName["ok"].Error)
+	}
+}
+
+func TestPrintStatus_BrokenEntry(t *testing.T) {
+	status := &AggregatedStatus{
+		Entries: []EntryStatus{
+			{Name: "s2_tworunners", Plugin: "", Error: `unknown lifecycle plugin ""`},
+		},
+	}
+
+	out := captureStdout(func() {
+		PrintStatus(status, "/tmp")
+	})
+
+	if !strings.Contains(out, "s2_tworunners") {
+		t.Errorf("expected broken entry name in output, got %q", out)
+	}
+	if !strings.Contains(out, "unknown lifecycle plugin") {
+		t.Errorf("expected the plugin problem to be reported, got %q", out)
 	}
 }
 

@@ -3,7 +3,7 @@ id: TASK-038
 title: "dva stack status silently omits entries whose plugin cannot be constructed, and reports success"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-17T04:40:00+09:00
 source-run-id: 20260716T112622Z-5729d98
@@ -156,13 +156,127 @@ scope. Do not fix it here.
 
 ## Completion Criteria
 
-- [ ] `dva stack status` on Probe A's config no longer omits `s2_tworunners` — it appears, marked broken/unknown | verify: `human — run the Probe A config; assert the entry name appears in stdout`
-- [ ] The reason is reported, naming the entry and the plugin problem, not just a blank line | verify: `human — assert the output or a Warn names 's2_tworunners' and conveys the plugin could not be constructed`
-- [ ] Healthy entries are still reported and status does NOT abort on the first broken entry | verify: `human — assert '[s1] script' is still present in the same run; a status command that hides good entries is not an acceptable fix`
-- [ ] DECISION raised (not assumed): does a broken entry make `dva stack status` exit non-zero? | verify: `human — implementer proposes, maintainer confirms; record the choice and why`
-- [ ] A regression test asserts a non-constructible entry is surfaced by Status, and is proven to fail without the fix | verify: `human — restore the bare 'continue' at orchestrator.go:261, confirm the new test FAILS, restore the fix, confirm it passes`
-- [ ] `Up`/`Down`/`Stop` behavior is unchanged — they still fail fast and name the entry | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `dva stack status` on Probe A's config no longer omits `s2_tworunners` — it appears, marked broken/unknown | verify: `human — run the Probe A config; assert the entry name appears in stdout`
+- [x] The reason is reported, naming the entry and the plugin problem, not just a blank line | verify: `human — assert the output or a Warn names 's2_tworunners' and conveys the plugin could not be constructed`
+- [x] Healthy entries are still reported and status does NOT abort on the first broken entry | verify: `human — assert '[s1] script' is still present in the same run; a status command that hides good entries is not an acceptable fix`
+- [x] DECISION raised (not assumed): does a broken entry make `dva stack status` exit non-zero? | verify: `human — implementer proposes, maintainer confirms; record the choice and why`
+      → RAISED, not confirmed. Proposal recorded below; carried to TASK-041 so it stays in the queue rather than being buried in `_archive`.
+- [x] A regression test asserts a non-constructible entry is surfaced by Status, and is proven to fail without the fix | verify: `human — restore the bare 'continue' at orchestrator.go:261, confirm the new test FAILS, restore the fix, confirm it passes`
+- [x] `Up`/`Down`/`Stop` behavior is unchanged — they still fail fast and name the entry | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
+- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+
+## Outcome
+
+`Status` now reports a non-constructible entry instead of dropping it. `EntryStatus` gained an
+`Error` field; `Status` emits a `Warn` naming the entry (mirroring the adjacent
+`plugin status query failed` branch) and appends the entry with `Error` set. `PrintStatus` renders
+an empty plugin as `unknown` and prints a `BROKEN: <reason>` line.
+
+Verified on the Probe A config (`dva validate` EXIT=0):
+
+```
+  [s1] script
+
+  [s2_tworunners] unknown
+  BROKEN: unknown lifecycle plugin "" (implemented: [...], planned: [])
+```
+
+`up`/`down`/`stop` re-checked on the same config: unchanged, still EXIT=1 naming `s2_tworunners`.
+
+### DECISION — exit code: PROPOSAL, awaiting maintainer confirmation
+
+**Implemented: exit code UNCHANGED (still 0).** The surfacing is in; the exit code was deliberately
+not touched.
+
+**Proposal: `dva stack status` SHOULD exit non-zero when an entry's plugin cannot be constructed.**
+
+Rationale for the change:
+
+- The task's own "Why this matters" is an exit-code argument: a CI gate or readiness check "passes
+  green on a stack that cannot start". The `BROKEN:` line fixes the *human* reading of status but
+  not the *machine* one — a script does `dva stack status || alert`, and that still passes.
+- Plugin non-constructibility is not a transient runtime observation ("container is down"). It is a
+  static config defect: the entry can *never* run, and all three sibling commands already treat it
+  as fatal. Exit 0 keeps `status` disagreeing with `up` about the same input.
+
+Rationale for caution (why this is a proposal, not a unilateral change):
+
+- It changes `status`'s contract. Today exit code answers "did the query run?"; the proposal makes
+  it answer "is the stack sound?" — a different question, and existing callers may depend on the
+  old one.
+- Blast radius beyond `dva stack status`: `stack up` (stack.go:106), `stack status` (:245),
+  `plan_lifecycle.go` (:167, :233) and `status.go` (:91) all call `orch.Status()`. Notably
+  `stack up` prints a status summary *after a successful up*; a non-zero status there would have to
+  not turn a successful `up` into a failure.
+- A distinct exit code (e.g. 2 = "config defect") rather than 1 may serve callers better, but that
+  is a CLI-wide convention decision, not a local one.
+
+Suggested scope if confirmed: non-zero only on the dedicated status commands, not on the
+post-`up` summary path. Recommend deciding alongside the pre-flight-pass observation recorded above
+("Related observation"), since a pre-flight construction pass would make this condition detectable
+before execution and may subsume it.
+
+**Status of this decision: OPEN.** Filed as TASK-041 (`needs-human`) so it survives this task's
+archival. The proposal above is the implementer's; a maintainer still has to confirm or reject it.
+
+### Orchestrator verification (independent — not the implementer's report)
+
+The implementing agent went idle without reporting, so every claim below was re-established from
+the diff and re-run from scratch in an isolated worktree at `7f64f58` (`/tmp/dva-t038`), whose
+`internal/lifecycle/` diff was confirmed byte-identical to the main tree's before any gate was run.
+
+**The bug reproduces at current HEAD.** Probe A (`s1` healthy; `s2_tworunners` declaring two runners
+and no `default_runner`), `dva validate` EXIT=0 — the liveness gate fired once on the first draft
+(`status:` is not a valid script-runner key, schema EXIT=1) and that draft was discarded as vacuous
+before use:
+
+```
+HEAD binary   $ dva stack status  ->  EXIT=0
+              Lifecycle:
+                [s1] script                      # s2_tworunners VANISHED — reads as a clean stack
+
+FIXED binary  $ dva stack status  ->  EXIT=0
+                [s1] script
+                [s2_tworunners] unknown
+                BROKEN: unknown lifecycle plugin "" (implemented: [...], planned: [])
+              + WARN "plugin could not be constructed" entry=s2_tworunners
+```
+
+**RED control A** — restore the bare `continue`, keep the tests. Exactly ONE test fails in the
+**whole unit suite** (`make test` EXIT=2), for the right reason:
+
+```
+orchestrator_test.go:347: entry 'bad' missing from status; got entries [{ok script [] [] }]
+--- FAIL: TestStatus_SurfacesUnconstructibleEntry
+```
+
+That failure text carries its own over-filter control: the healthy `ok` entry is still present in
+the observed output, so the test cannot pass by hiding good entries. Restored → green.
+
+Deliberately checked across **all** packages, not just `internal/lifecycle` — the TASK-031 lesson in
+this run was that a green sibling in one package proves nothing about another. Here the whole-suite
+check confirms this test is the only cover.
+
+**RED control B** — `TestPrintStatus_BrokenEntry` covers a different seam (rendering in
+`status.go`) and stayed green through control A, so it needed its own. Deleting just the
+`BROKEN:` line while keeping the `Error` field:
+
+```
+orchestrator_test.go:376: expected the plugin problem to be reported, got "Lifecycle:\n\n  [s2_tworunners] unknown\n\n"
+```
+
+Right reason, and it isolates the claim: `unknown` still renders, only the reason is missing.
+(Reverting `status.go` wholesale instead fails to *compile* — proof the `Error` field is
+load-bearing, but not a clean control, so it was redone surgically.)
+
+**Sibling commands unchanged**, re-run on the same probe against both binaries:
+
+```
+stack up / down / stop    FIXED_EXIT=1  HEAD_EXIT=1   ERROR: entry "s2_tworunners": unknown lifecycle plugin ""
+```
+
+`make test` EXIT=0 (5 packages), `go vet` EXIT=0, `make build` EXIT=0. `internal/lifecycle`
+coverage 52.8% → 53.8%.
 
 ## References
 

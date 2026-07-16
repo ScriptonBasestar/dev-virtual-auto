@@ -15,11 +15,14 @@ type AggregatedStatus struct {
 }
 
 // EntryStatus holds the status for a single lifecycle entry.
+// Error is set when the entry could not be queried at all (e.g. its plugin
+// could not be constructed); such an entry is still reported, marked broken.
 type EntryStatus struct {
 	Name     string
 	Plugin   string
 	Services []ServiceStatus
 	Health   []HealthCheckResult
+	Error    string
 }
 
 // PrintStatus prints the aggregated lifecycle status to stderr.
@@ -32,7 +35,15 @@ func PrintStatus(status *AggregatedStatus, configDir string) {
 	fmt.Println("Lifecycle:")
 
 	for _, entry := range status.Entries {
-		fmt.Printf("\n  [%s] %s\n", entry.Name, entry.Plugin)
+		pluginName := entry.Plugin
+		if pluginName == "" {
+			pluginName = "unknown"
+		}
+		fmt.Printf("\n  [%s] %s\n", entry.Name, pluginName)
+
+		if entry.Error != "" {
+			fmt.Printf("  BROKEN: %s\n", entry.Error)
+		}
 
 		if len(entry.Services) > 0 {
 			var buf strings.Builder
