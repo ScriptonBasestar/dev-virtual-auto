@@ -169,9 +169,9 @@ EXIT=1.
 
 ### The control that mattered — the last criterion, discharged
 
-Migrating every fixture off the legacy shape could silently delete the only coverage of the
-loader's back-compat branch. Deleting `if e.Compose != nil { return e.Compose }` from
-`ComposeConfig()` (`internal/config/lifecycle_helpers.go:9`) produced:
+Migrating every fixture off the legacy shape might silently delete coverage of the loader's
+back-compat branch. Deleting `if e.Compose != nil { return e.Compose }` from `ComposeConfig()`
+(`internal/config/lifecycle_helpers.go:9`) produced:
 
 ```
 --- FAIL: TestLoadLegacyComposeFixture
@@ -181,7 +181,36 @@ loader's back-compat branch. Deleting `if e.Compose != nil { return e.Compose }`
 
 Two facts, one control. The new test fails **for the right reason** (the legacy branch is what it
 reads), and the other five Load tests **stay green** — proving the migrated fixtures no longer
-depend on that branch and this test is now its *only* coverage. Restored → green.
+depend on that branch, so within the integration suite this test is the only thing holding it.
+
+### CORRECTION — this task's premise was wrong, and so was the first version of this Outcome
+
+Criterion 6 assumed migrating the fixtures could drop "the only test of that back-compat path".
+**It could not.** The same mutant run against the *unit* suite:
+
+```
+$ make test          # legacy branch deleted
+--- FAIL: TestLifecycleEntryParsing, TestConfigHasTag, TestGetComposeServicesExcluding,
+          TestGetExcludedComposeServices, TestValidateComposeProjectNames_{Missing,Mismatch}   (internal/config)
+--- FAIL: TestBuildManifest_MinimalConfig, TestShowText_WithCompose, TestShowJSON_FullConfig    (internal/cli)
+--- FAIL: TestComposePlugin_BuildArgs_Default                                                   (internal/lifecycle)
+EXIT=2
+```
+
+Ten unit tests across three packages already cover the branch, and CI already runs `make test` —
+so removing it was never silent. The `legacy-compose` fixture is therefore an **addition**
+(the only fixture-driven, integration-level, mutation-verified cover), **not a rescue**.
+
+Recorded because the error was mine and it is instructive: my RED control only ran the
+*integration* package, observed the five sibling Load tests stay green, and I read that as "this is
+now the only coverage". The evidence never supported it — a green sibling in one package says
+nothing about another package. The commit message of `46d92d1` carries the same overstatement and
+cannot be corrected without rewriting history; this note is the correction of record. The scope of
+the claim, not the fix, was wrong: the migration and the CI step stand on their own evidence.
+
+Credit: caught by the task031-impl subagent, which checked the mutant against `make test` when I
+had not. Its report is also why criterion 6 (`human —`) is answered NO: dropping legacy fixture
+coverage would not have been silent, though keeping the fixture is still worthwhile.
 
 ### Gates
 
