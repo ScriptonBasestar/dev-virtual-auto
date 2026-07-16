@@ -74,6 +74,9 @@ Flow 파일: `agent-mesh-flows/` 디렉토리. Library reference: `agent-mesh-fl
 dva.yml (현재 디렉토리) → modules: 병합 → subprojects: import 대상 로드
 ```
 
-환경 변수 우선순위: `env_file` < `environment:` < OS 환경 변수
+환경 변수 우선순위 (낮음 → 높음): `environment:` < `env_file` < OS 환경 변수
+
+`loadEnv`(`cli/root.go`)가 `environment:`를 먼저 적용한 뒤 `env_file`을 덮어씁니다.
+plan 경로(`dva up <plan>`)의 전체 `vars` 우선순위는 USAGE.md를 참조하세요.
 
 ## Module: github.com/ScriptonBasestar/dva

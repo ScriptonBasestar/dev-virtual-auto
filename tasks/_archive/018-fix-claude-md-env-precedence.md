@@ -3,7 +3,15 @@ id: TASK-018
 title: "Fix inverted env_file/environment precedence in CLAUDE.md"
 type: docs
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T20:50:00+09:00
+verified-at: 2026-07-16T20:50:00+09:00
+verification-summary: >-
+  Verified by orchestrator: CLAUDE.md:66 now reads `environment:` < `env_file` < OS,
+  matching root.go:249-252. Runtime-proven both halves: env_file value wins over
+  top-level environment: on the dva run path, and an OS value still beats both.
+  Added a pointer to USAGE.md for the plan path's full chain, since the two paths
+  describe different layer sets.
 effort: XS
 created-at: 2026-07-16T20:45:00+09:00
 source-run-id: 20260716T091912Z-73dc094
@@ -59,8 +67,8 @@ statements must be true for their own path; only the `CLAUDE.md` one is currentl
 
 ## Completion Criteria
 
-- [ ] `CLAUDE.md` states that `env_file` overrides top-level `environment:`, with OS highest | verify: `! grep -n 'env_file` < `environment:' CLAUDE.md`
-- [ ] The corrected claim matches observed behavior | verify: `cd "$(mktemp -d)" && printf 'P_T=from-env-file\n' > .env && printf 'version: "0.1.44"\nenv_file:\n  - .env\nenvironment:\n  P_T: from-top-environment\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P_T]"'"'"'\n' > dva.yml && "$OLDPWD/bin/dva" run s 2>&1 | grep -q 'R=\[from-env-file\]'`
+- [x] `CLAUDE.md` states that `env_file` overrides top-level `environment:`, with OS highest | verify: `! grep -n 'env_file` < `environment:' CLAUDE.md`
+- [x] The corrected claim matches observed behavior | verify: `cd "$(mktemp -d)" && printf 'P_T=from-env-file\n' > .env && printf 'version: "0.1.44"\nenv_file:\n  - .env\nenvironment:\n  P_T: from-top-environment\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P_T]"'"'"'\n' > dva.yml && "$OLDPWD/bin/dva" run s 2>&1 | grep -q 'R=\[from-env-file\]'`
 
 ## References
 
