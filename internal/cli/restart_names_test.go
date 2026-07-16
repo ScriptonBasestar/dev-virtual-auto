@@ -1,6 +1,7 @@
 // Package cli — regression tests for TASK-033.
-// restartCmd advertises "[SERVICE...]" in its Use string; these tests assert the
-// names actually reach lifecycle.UpOptions.Names instead of being discarded.
+// restartCmd advertises "[PLAN | SERVICE...]" in its Use string; these tests
+// assert that on the legacy (no-plans) path the names actually reach
+// lifecycle.UpOptions.Names instead of being discarded.
 package cli
 
 import (

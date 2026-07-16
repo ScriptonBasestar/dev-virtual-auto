@@ -345,16 +345,23 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 }
 
 var restartCmd = &cobra.Command{
-	Use:   "restart [PLAN] [OPTIONS]",
+	Use:   "restart [PLAN | SERVICE...] [OPTIONS]",
 	Short: "Restart services (stop + start)",
 	Long: `Restart a named plan (stop followed by start).
 Without plans, use the legacy applications and stack lifecycle.
+
+The first argument is read as a plan name when it names a plan, and as a stack
+entry name otherwise; the two cannot be combined.
 
 Plan usage:
   dva restart <plan>      Restart the selected plan
   --var KEY=VAL           Override a plan variable
   --no-wait               Return without waiting for readiness
   --dry-run               Print actions without executing
+
+Legacy usage:
+  dva restart             Restart every stack entry
+  dva restart <service>   Restart only the named entries
 
 Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
