@@ -3,7 +3,7 @@ id: TASK-031
 title: "make test-integration has been red the whole run, and CI never runs it"
 type: bug
 priority: P1
-status: todo
+status: done
 effort: S
 created-at: 2026-07-17T02:30:00+09:00
 source-run-id: 20260716T112622Z-5729d98
@@ -153,6 +153,57 @@ to fix (three YAML files), high leverage.
 - [ ] `make test` and `go vet ./...` still pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
 - [ ] CI runs the integration suite, so it cannot silently rot again | verify: `grep -q "test-integration" /Users/archmagece/mywork/scripton/dev-virtual-auto/.github/workflows/ci.yml`
 - [ ] Legacy-shape loading keeps explicit coverage (the loader still supports it; migrating every fixture must not silently drop the only test of that back-compat path) | verify: `human — confirm a test still exercises the legacy stack.<entry>.compose loading path, or that dropping it is intended`
+
+## Outcome
+
+Fixed. Three fixtures migrated to `runners.compose` + `default_runner: compose`; a new
+`legacy-compose` fixture and `TestLoadLegacyComposeFixture` keep the back-compat path covered; CI
+gained an `Integration Test` step running `make test-integration`.
+
+Verified in an isolated worktree at `af90577` (`/tmp/dva-t031`), not in the main tree — other
+agents' in-flight edits were present there and would have contaminated the result.
+
+**The bug still reproduced at current HEAD**, so nothing here rests on the stale `e87d02b` report:
+reverting only the fixture migration reproduced the identical three `TestValidate*` failures,
+EXIT=1.
+
+### The control that mattered — the last criterion, discharged
+
+Migrating every fixture off the legacy shape could silently delete the only coverage of the
+loader's back-compat branch. Deleting `if e.Compose != nil { return e.Compose }` from
+`ComposeConfig()` (`internal/config/lifecycle_helpers.go:9`) produced:
+
+```
+--- FAIL: TestLoadLegacyComposeFixture
+    legacy_compose_test.go:19: ProjectName = "", want "legacy-test"
+--- PASS: TestLoadBasicFixture / FullStack / ProvisionProfiles / Invalid / Nonexistent
+```
+
+Two facts, one control. The new test fails **for the right reason** (the legacy branch is what it
+reads), and the other five Load tests **stay green** — proving the migrated fixtures no longer
+depend on that branch and this test is now its *only* coverage. Restored → green.
+
+### Gates
+
+```
+make test-integration           EXIT=0   (was EXIT=2)
+make test                       EXIT=0   5 packages ok
+go vet ./...                    EXIT=0
+grep -q test-integration ci.yml          Integration Test step present
+```
+
+### Checked before committing, not assumed
+
+Adding the suite to CI trades a red local gate for a red CI if any test needs a Docker daemon. It
+does not: the suite is pure config-loading — no `exec.Command`, no `Skip` guards, runs in 1.4s. The
+lone `docker` grep hit (`config_load_test.go:45`) is a config *mode name*, a YAML string.
+
+`legacy-compose` is deliberately schema-invalid and must never reach a validate test. Confirmed
+safe by construction: no test enumerates the fixtures directory (`ReadDir`/`Walk`/`Glob` → none);
+every validate test names its fixture literally.
+
+`.gitignore` was **not** staged. Its ` M` state (`.sb/dva/`) predates this run and is unrelated to
+this task.
 
 ## References
 

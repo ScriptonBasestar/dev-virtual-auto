@@ -3,7 +3,10 @@ version: "0.1.22"
 stack:
   compose:
     order: 10
-    files: [compose.yml]
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml]
 
 provision:
   default_profile: setup

@@ -7,8 +7,11 @@ environment:
 stack:
   compose:
     order: 10
-    files: [compose.yml]
-    project_name: fullstack-test
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml]
+        project_name: fullstack-test
 
 modes:
   docker:
