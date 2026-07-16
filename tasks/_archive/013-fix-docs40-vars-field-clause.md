@@ -3,7 +3,14 @@ id: TASK-013
 title: "Fix docs/40 clause mandating vars for environments (fails validation)"
 type: docs
 priority: P1
-status: todo
+status: done
+archived-at: 2026-07-16T20:25:00+09:00
+verified-at: 2026-07-16T20:25:00+09:00
+verification-summary: >-
+  Verified by orchestrator: the stale claim at docs/40:108 is gone; a config written
+  from the corrected prose validates (exit 0), and the old advice
+  (environments.dev.vars) is still rejected by schema - confirming the doc was wrong,
+  not the schema. Rejected rationale demoted to a marked note; YAML example untouched.
 effort: XS
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -72,9 +79,9 @@ either drop it or mark it explicitly as a rejected alternative rather than an in
 
 ## Completion Criteria
 
-- [ ] `docs/40` §3-5 no longer instructs using `vars` in place of `environment` for `environments` | verify: `! grep -n '환경 변수 블록의 공통 필드명은' docs/40-declarative-stack-and-plans.md`
-- [ ] §3-5 prose matches its own example and the schema | verify: `grep -n -A18 '### 3-5' docs/40-declarative-stack-and-plans.md`
-- [ ] A config written from the corrected §3-5 validates | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nenvironments:\n  dev:\n    environment:\n      APP_ENV: dev\n' > dva.yml && "$OLDPWD/bin/dva" validate`
+- [x] `docs/40` §3-5 no longer instructs using `vars` in place of `environment` for `environments` | verify: `! grep -n '환경 변수 블록의 공통 필드명은' docs/40-declarative-stack-and-plans.md`
+- [x] §3-5 prose matches its own example and the schema | verify: `grep -n -A18 '### 3-5' docs/40-declarative-stack-and-plans.md`
+- [x] A config written from the corrected §3-5 validates | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nenvironments:\n  dev:\n    environment:\n      APP_ENV: dev\n' > dva.yml && "$OLDPWD/bin/dva" validate`
 
 ## Dependencies
 

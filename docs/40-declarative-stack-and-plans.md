@@ -105,13 +105,14 @@ cluster 자체는 필요하면 별도 `target` 개념으로 분리할 수 있지
 
 ### 3-5. vars
 
-환경 변수 블록의 공통 필드명은 `environment`가 아니라 `vars`를 사용합니다.
+변수 블록의 필드명은 섹션마다 다릅니다. 스키마가 각 섹션에서 아래 필드명만 허용하므로(`additionalProperties: false`), 서로 바꿔 쓰면 `dva validate`가 실패합니다.
 
-이유:
+| 섹션 | 변수 블록 필드명 |
+| --- | --- |
+| `environments.<name>` | `environment` |
+| `sites.<name>` | `vars` |
 
-- `environments`와 `environment`의 이름 충돌을 피하기 위해
-- `sites.*.environment` 같은 중첩 표현의 혼란을 줄이기 위해
-- 실제 역할이 "환경 구분"이 아니라 "주입할 변수 집합"이기 때문에
+> 참고: 설계 단계에서 `environments`와 `environment`의 이름 충돌을 피하려고 모든 섹션의 변수 블록을 `vars`로 통일하는 안도 검토했지만, 채택하지 않았습니다. `environments.<name>`에 `vars`를 쓰면 스키마 검증에서 거부됩니다.
 
 예:
 
