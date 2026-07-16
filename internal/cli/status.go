@@ -22,6 +22,9 @@ var statusCmd = &cobra.Command{
 			if planName, _, ok := detectPlanRoute(c, args); ok {
 				return runPlanStatus(c, e, planName)
 			}
+			if err := rejectUnknownPlanArg(c, args); err != nil {
+				return err
+			}
 		}
 
 		if jsonOutput {
