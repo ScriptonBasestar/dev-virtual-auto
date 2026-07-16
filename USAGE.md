@@ -144,6 +144,44 @@ dva down local-dev
 dva stop local-dev
 ```
 
+#### stack 서브커맨드
+
+`stack` 엔트리를 개별적으로 제어해야 할 때 사용합니다.
+
+| Command | Description |
+|---------|-------------|
+| `dva stack up [NAME...]` | stack 엔트리 시작 (이름 생략 시 전체) |
+| `dva stack stop [NAME...] [OPTIONS]` | 리소스를 제거하지 않고 stack 엔트리 중지 |
+| `dva stack down [NAME...]` | stack 리소스 중지 및 제거 |
+| `dva stack status` | stack 엔트리 상태 표시 |
+| `dva stack log [NAME] [OPTIONS]` | stack 엔트리 로그 보기 |
+
+```bash
+dva stack stop                  # 전체 중지 (상태 보존)
+dva stack log compose           # 특정 stack 엔트리 로그 보기
+```
+
+#### app 서브커맨드
+
+`applications` 섹션에 정의된 앱 프로세스를 제어합니다.
+
+| Command | Description |
+|---------|-------------|
+| `dva app ls` | 앱 목록을 status, health, PID와 함께 표시 |
+| `dva app up [APP...] [--dev]` | 앱 시작 (이름 생략 시 전체), `--dev`는 hot-reload 모드 |
+| `dva app build [APP...]` | 앱 빌드 (`--docker` 지정 시 컨테이너 빌드) |
+| `dva app restart [APP...] [--dev]` | 앱 재시작 (중지 후 시작) |
+| `dva app stop [APP...]` | 상태를 제거하지 않고 앱 중지 (PID 보존, 빠른 재시작용) |
+| `dva app down [APP...]` | 앱 중지 및 리소스(PID 파일, 로그) 제거 |
+| `dva app log <APP>` | 앱의 최근 로그 표시 (마지막 100줄) |
+
+```bash
+dva app build myapp       # 특정 앱 빌드
+dva app restart myapp     # 특정 앱 재시작
+dva app stop myapp        # 중지 (빠른 재시작을 위해 상태 보존)
+dva app log myapp         # 최근 로그 확인
+```
+
 #### clean
 
 ```bash
@@ -271,6 +309,8 @@ interaction:
 | `stack` | 재사용 가능한 실행 대상 선언 |
 | `plans` | 실제 실행 가능한 이름 |
 | `checks` | `dva doctor` 환경 사전조건 체크 |
+| `default_mode` | `--mode` 미지정 시 적용할 기본 `modes` 엔트리 |
+| `modes` | 런타임 전략 프리셋 (`--mode`로 선택) |
 | `environments` | 환경 프리셋 (`dev/stg/prd`) |
 | `sites` | 실행 host 프리셋 (`local/remote/cloud`) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
@@ -351,6 +391,24 @@ plans:
 ```
 
 `dva up local-dev`처럼 직접 실행합니다.
+
+### default_mode
+
+`default_mode`는 `--mode`(`-M`)를 지정하지 않았을 때 적용할 `modes` 엔트리를 선택합니다.
+
+```yaml
+default_mode: infra
+
+modes:
+  infra:
+    ...
+  full:
+    ...
+```
+
+- 기본값이 없습니다. 설정하지 않으면 어떤 mode도 적용되지 않으며, `dva up`은 모든 compose 파일의 모든 서비스를 시작합니다.
+- `modes`가 정의되어 있는데 `default_mode`가 비어 있으면 `dva validate`가 경고합니다. 최소 인프라 mode(예: `infra`)를 지정하는 것을 권장합니다.
+- `modes`에 없는 이름을 지정하면 경고가 아니라 검증 에러입니다.
 
 ### environments / sites
 

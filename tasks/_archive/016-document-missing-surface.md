@@ -3,7 +3,17 @@ id: TASK-016
 title: "Document 6 shipped subcommands and default_mode"
 type: docs
 priority: P3
-status: todo
+status: done
+archived-at: 2026-07-16T21:05:00+09:00
+verified-at: 2026-07-16T21:05:00+09:00
+verification-summary: >-
+  Verified by orchestrator: all six subcommands present in USAGE.md; default_mode
+  documented (5 mentions); documented commands confirmed to exist in the binary.
+  Scope grew slightly for coherence: USAGE.md documented ZERO app subcommands and
+  barely mentioned stack, so full tables were added rather than extending a list;
+  `modes` was also undocumented and default_mode is meaningless without it, so a row
+  was added. README.md deliberately untouched (edit-restricted); documenting in
+  USAGE.md satisfies the criterion, which accepts either file.
 effort: S
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -59,9 +69,9 @@ nothing to contradict — a pure omission.
 
 ## Completion Criteria
 
-- [ ] All six subcommands appear in `README.md` or `USAGE.md` | verify: `for c in "app build" "app log" "app restart" "app stop" "stack log" "stack stop"; do grep -rqF "dva $c" README.md USAGE.md || { echo "MISSING: dva $c"; exit 1; }; done; echo OK`
-- [ ] `default_mode` is documented as a config key | verify: `grep -rn "default_mode" USAGE.md docs/ README.md`
-- [ ] No documented command is absent from the binary (no new doc-only drift) | verify: `./bin/dva app build --help && ./bin/dva stack log --help`
+- [x] All six subcommands appear in `README.md` or `USAGE.md` | verify: `for c in "app build" "app log" "app restart" "app stop" "stack log" "stack stop"; do grep -rqF "dva $c" README.md USAGE.md || { echo "MISSING: dva $c"; exit 1; }; done; echo OK`
+- [x] `default_mode` is documented as a config key | verify: `grep -rn "default_mode" USAGE.md docs/ README.md`
+- [x] No documented command is absent from the binary (no new doc-only drift) | verify: `./bin/dva app build --help && ./bin/dva stack log --help`
 
 ## Dependencies
 
