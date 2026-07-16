@@ -13,7 +13,7 @@ import (
 func TestRunSingleCheck_FileExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	existingFile := filepath.Join(tmpDir, "exists.txt")
-	os.WriteFile(existingFile, []byte("hello"), 0644)
+	os.WriteFile(existingFile, []byte("hello"), 0o644)
 
 	t.Run("file exists", func(t *testing.T) {
 		check := config.DoctorCheck{
@@ -50,7 +50,7 @@ func TestRunSingleCheck_FileExists(t *testing.T) {
 
 func TestRunSingleCheck_FileExists_Relative(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.WriteFile(filepath.Join(tmpDir, ".env"), []byte("KEY=val"), 0644)
+	os.WriteFile(filepath.Join(tmpDir, ".env"), []byte("KEY=val"), 0o644)
 
 	check := config.DoctorCheck{
 		Name: ".env exists",
@@ -271,7 +271,7 @@ func TestPrintDoctorResults_WithFixed(t *testing.T) {
 	}
 }
 
-func TestCheckStackFilesReadsComposeRunner(t *testing.T) {
+func TestCheckStackFilesSkipsComposeRunner(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:
   compose:
@@ -280,19 +280,53 @@ stack:
       compose:
         files: [compose.yml]
 `)
-	if err := os.WriteFile(filepath.Join(c.FileDir(), "compose.yml"), []byte("services: {}\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(c.FileDir(), "compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
 		t.Fatalf("write compose file: %v", err)
 	}
 
 	results := checkStackFiles(c)
-	if len(results) != 1 {
-		t.Fatalf("expected 1 stack file result, got %d: %+v", len(results), results)
+	if len(results) != 0 {
+		t.Fatalf("compose files have their own built-in check; got duplicate stack results: %+v", results)
 	}
-	if !results[0].Passed {
-		t.Fatalf("expected compose runner file check to pass: %+v", results[0])
+}
+
+func TestCheckComposeFilesDeduplicatesAndDetectsMissingFile(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.22"
+stack:
+  first:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml, missing.yml]
+  second:
+    default_runner: compose
+    runners:
+      compose:
+        files: [./compose.yml, ./missing.yml]
+`)
+	if err := os.WriteFile(filepath.Join(c.FileDir(), "compose.yml"), []byte("services: {}\n"), 0o644); err != nil {
+		t.Fatalf("write compose file: %v", err)
 	}
-	if !strings.Contains(results[0].Name, "compose.yml") {
-		t.Fatalf("expected result to mention compose.yml: %+v", results[0])
+
+	results := checkComposeFiles(c)
+	if len(results) != 2 {
+		t.Fatalf("expected one result per Compose file, got %d: %+v", len(results), results)
+	}
+
+	for _, result := range results {
+		if strings.Contains(result.Name, "missing.yml") {
+			if result.Passed {
+				t.Fatalf("expected missing Compose file to fail: %+v", result)
+			}
+			if !strings.Contains(result.FixHint, "missing.yml") {
+				t.Fatalf("expected missing-file fix hint: %+v", result)
+			}
+			continue
+		}
+
+		if !result.Passed {
+			t.Fatalf("expected existing Compose file to pass: %+v", result)
+		}
 	}
 }
 

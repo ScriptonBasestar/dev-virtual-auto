@@ -2,6 +2,17 @@
 
 개발 환경 오케스트레이터. `dva.yml` 하나로 Docker Compose, Kubernetes, Helm, 로컬 프로세스를 통합 관리.
 
+## Documentation
+
+문서 또는 설계 작업 전 `AGENTS.md`의 **Documentation Ownership**을 따릅니다.
+
+- 철학과 판단 기준: `SOUL.md`
+- 제품 가치와 범위: `PRODUCT.md`
+- 구현 경계와 데이터 흐름: `ARCHITECTURE.md`
+
+내용을 복제하지 말고 canonical document를 갱신한 뒤 다른 문서에서는 요약과 링크만
+사용합니다.
+
 ## Build
 
 ```bash

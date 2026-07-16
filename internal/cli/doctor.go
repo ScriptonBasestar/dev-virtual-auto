@@ -73,22 +73,11 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: Environment files exist
 	results = append(results, checkEnvFiles(c)...)
 
-	// Built-in: Stack entry files exist
+	// Built-in: non-Compose stack entry files exist
 	results = append(results, checkStackFiles(c)...)
 
-	// Built-in: compose files exist
-	for _, f := range c.AllComposeFiles() {
-		path := f
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(c.FileDir(), f)
-		}
-		passed := fileExists(path)
-		results = append(results, DoctorResult{
-			Name:    fmt.Sprintf("Compose file exists: %s", f),
-			Passed:  passed,
-			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
-		})
-	}
+	// Built-in: Compose files exist
+	results = append(results, checkComposeFiles(c)...)
 
 	// User-defined checks
 	for _, check := range c.DoctorChecks {
@@ -327,10 +316,12 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 	cfgDir := c.FileDir()
 
 	for name, entry := range c.Stack {
+		if entry.ComposeConfig() != nil {
+			continue
+		}
+
 		var files []string
-		if composeCfg := entry.ComposeConfig(); composeCfg != nil {
-			files = composeCfg.Files
-		} else if entry.Kubectl != nil {
+		if entry.Kubectl != nil {
 			files = []string{entry.Kubectl.Kubeconfig}
 		}
 
@@ -350,6 +341,36 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 				FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
 			})
 		}
+	}
+
+	return results
+}
+
+func checkComposeFiles(c *config.Config) []DoctorResult {
+	var results []DoctorResult
+	seen := make(map[string]struct{})
+
+	for _, f := range c.AllComposeFiles() {
+		if f == "" {
+			continue
+		}
+
+		path := f
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(c.FileDir(), f)
+		}
+		path = filepath.Clean(path)
+		if _, ok := seen[path]; ok {
+			continue
+		}
+		seen[path] = struct{}{}
+
+		passed := fileExists(path)
+		results = append(results, DoctorResult{
+			Name:    fmt.Sprintf("Compose file exists: %s", f),
+			Passed:  passed,
+			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
+		})
 	}
 
 	return results

@@ -4,6 +4,8 @@
 
 ## Install
 
+DVA는 Go toolchain에서 직접 설치하거나 release binary를 사용할 수 있습니다.
+
 ### Binary (추천)
 
 ```bash
@@ -95,6 +97,8 @@ dva doctor                 # 환경 사전조건 진단
 
 ## Configuration
 
+`dva.yml`은 재사용 가능한 실행 대상과 사용자가 호출하는 명령을 선언합니다.
+
 ### Stack (인프라 오케스트레이션)
 
 `stack:` 섹션에서 여러 플러그인을 `order` 순서대로 실행합니다:
@@ -166,6 +170,13 @@ dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 �
 - **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)
 - **Cursor**: `.cursor/rules/dva.mdc`
 - **Antigravity**: `skills/dva/SKILL.md`
+
+## Documentation
+
+- [PRODUCT.md](PRODUCT.md) — 제품 가치, 대상 사용자, 현재 범위
+- [SOUL.md](SOUL.md) — 변하지 않는 설계 철학
+- [ARCHITECTURE.md](ARCHITECTURE.md) — 시스템 경계와 데이터 흐름
+- [USAGE.md](USAGE.md) — 명령과 설정 레퍼런스
 
 ## Development
 

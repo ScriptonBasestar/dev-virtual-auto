@@ -1,5 +1,7 @@
 # AGENTS.md — DVA (Dev Virtual Auto)
 
+이 문서는 에이전트가 DVA 저장소를 탐색하고 변경할 때 필요한 작업 규칙과 코드 지도를 제공한다.
+
 ## Overview
 
 DVA는 개발 환경 오케스트레이터입니다. 핵심 방향은 `stack:`을 선언 저장소로 두고, 실제 실행은 이름 있는 실행 계획을 통해 수행하는 것입니다.
@@ -12,7 +14,32 @@ DVA는 개발 환경 오케스트레이터입니다. 핵심 방향은 `stack:`�
 - `interactions` = 단발성 편의 명령
 - `provision` = 준비/초기화 절차
 
-## Architecture
+## Documentation Ownership
+
+문서 작업에서는 목적에 따라 다음 순서로 읽습니다.
+
+| Need | Loading Order |
+|------|---------------|
+| 제품 판단 | `SOUL.md` → `PRODUCT.md` |
+| 아키텍처·구현 | `SOUL.md` → `PRODUCT.md` → `ARCHITECTURE.md` |
+| 사용법 | `README.md` → `USAGE.md` |
+| 코드 작업 | `AGENTS.md` → `ARCHITECTURE.md` → 해당 소스 |
+
+각 사실은 하나의 canonical document만 소유합니다.
+
+- `SOUL.md`: Why, 핵심 신념, 변하지 않는 tradeoff
+- `PRODUCT.md`: What/Who, 사용자 가치, 제품 경계와 현재 상태
+- `ARCHITECTURE.md`: How, 컴포넌트 책임, 의존 방향, 데이터 흐름
+- `README.md`/`USAGE.md`: 설치, 시작, 사용자 레퍼런스
+- `AGENTS.md`/`CLAUDE.md`: 에이전트 명령, 금지사항, repository navigation
+
+다른 문서에는 한두 문장 요약과 상대 링크만 둡니다. 같은 목록, 표, 다이어그램을
+복사하지 않습니다. 미래 후보는 roadmap이 생기기 전까지 현재 지원 기능처럼 서술하지
+않습니다.
+
+## Repository Map
+
+구현 경계와 데이터 흐름의 원본은 `ARCHITECTURE.md`입니다. 아래 목록은 코드 탐색용입니다.
 
 ```text
 cmd/dva/main.go                → Entry point
@@ -39,6 +66,8 @@ internal/exec/                 → Process execution (syscall.Exec, subprocess)
 ```
 
 ## Key Flows
+
+아래 흐름은 코드 탐색을 위한 요약이며, 시스템 경계의 원본은 `ARCHITECTURE.md`다.
 
 ### Plan Lifecycle (`dva up/down/stop/status <name>`)
 
