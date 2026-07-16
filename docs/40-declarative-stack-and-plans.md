@@ -428,19 +428,22 @@ plans:
 `vars`는 아래 우선순위로 병합합니다.
 뒤에 오는 값이 같은 키를 덮어씁니다.
 
-1. OS 환경 변수
-2. `env_file`
-3. 전역 `vars`
-4. `environments.<name>.environment`
-5. `sites.<name>.vars`
-6. `plans.<name>.vars`
-7. CLI 일회성 override
+1. `env_file`
+2. 전역 `vars`
+3. `environments.<name>.environment`
+4. `sites.<name>.vars`
+5. `plans.<name>.vars`
+6. CLI 일회성 override (`--var`)
+7. OS 환경 변수
 
 즉:
 
 ```text
-OS < env_file < global vars < environment vars < site vars < plan vars < CLI vars
+env_file < global vars < environment vars < site vars < plan vars < CLI vars < OS 환경 변수
 ```
+
+OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면 `dva.yml`의
+어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
 
 이 순서를 택하는 이유:
 
