@@ -3,12 +3,13 @@ id: TASK-037
 title: "DECISION: should devcontainer.config_path be honored, or deleted from the schema?"
 type: decision
 priority: P3
-status: decision
+status: todo
 effort: M
 created-at: 2026-07-17T04:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-034 (split out so the decision is not buried in an archived file)
 source-severity: LOW
+needs-human: true
 ---
 
 # Task 037: `devcontainer.config_path` — Honor It Or Delete It
@@ -89,5 +90,5 @@ Recorded as a recommendation because this run's rule is that decisions are surfa
 ## References
 
 - [034-devcontainer-config-path-ignored-and-leaks.md](../_archive/034-devcontainer-config-path-ignored-and-leaks.md) — fixed the leak; explicitly deferred this question
-- [035-env-file-interpolate-and-priority-ignored.md](../todo/035-env-file-interpolate-and-priority-ignored.md) — same honor-vs-remove shape for `env_file.interpolate`/`priority`
-- [036-service-related-and-hint-ignored.md](../todo/036-service-related-and-hint-ignored.md) — same shape for `services.<svc>.related`/`hint`
+- [035-env-file-interpolate-and-priority-ignored.md](./035-env-file-interpolate-and-priority-ignored.md) — same honor-vs-remove shape for `env_file.interpolate`/`priority`
+- [036-service-related-and-hint-ignored.md](./036-service-related-and-hint-ignored.md) — same shape for `services.<svc>.related`/`hint`
