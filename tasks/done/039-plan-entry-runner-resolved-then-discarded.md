@@ -3,17 +3,34 @@ id: TASK-039
 title: "plans.<p>.entries[].runner is resolved and validated, then discarded before execution"
 type: bug
 priority: P2
-status: decision
-needs-human: true
+status: done
 effort: M
 created-at: 2026-07-17T05:35:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (examples runnability)
 source-severity: MEDIUM
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:52:00+09:00
+verified-at: 2026-07-17T11:52:00+09:00
+decision: honor plan entries[].runner at execution
+decision-rationale: |
+  Resolver already computed finalRunner and stored it on ResolvedEntry.
+  NewPlanOrchestrator materializes RunnerConfig onto LifecycleEntry.Plugin so DetectPlugin
+  honors the plan choice. Undeclared runners still rejected. No native/process mapping change.
+verification-summary: |
+  Decision: HONOR plan entries[].runner via NewPlanOrchestrator materialization.
+  Regression: TestPlanEntryRunnerHonoredOverDefault, TestPlanEntryRunnerWithoutDefault,
+  TestPlanEntryUndeclaredRunnerRejected. Probes 1/3 pass; Probe 2 control intact.
+  go test ./internal/lifecycle/ -count=1 ok.
 ---
-
 # Task 039: The Plan Computes The Right Answer, Validates It, And Throws It Away
+
+
+## Decision (recorded)
+
+**HONOR** `plans.<p>.entries[].runner` at execution.
+
+`ResolvePlan` → `NewPlanOrchestrator` → `materializeResolvedEntry` sets Plugin from the
+resolved runner config so Up/Down/Stop use the plan's choice, not only default_runner.
 
 ## Summary
 

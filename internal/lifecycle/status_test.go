@@ -22,6 +22,36 @@ func captureStdout(fn func()) string {
 	return buf.String()
 }
 
+func TestStatusExitError_AllHealthy(t *testing.T) {
+	err := StatusExitError(&AggregatedStatus{
+		Entries: []EntryStatus{{Name: "s1", Plugin: "script"}},
+	})
+	if err != nil {
+		t.Fatalf("StatusExitError() = %v, want nil", err)
+	}
+	if err := StatusExitError(nil); err != nil {
+		t.Fatalf("StatusExitError(nil) = %v, want nil", err)
+	}
+	if err := StatusExitError(&AggregatedStatus{}); err != nil {
+		t.Fatalf("StatusExitError(empty) = %v, want nil", err)
+	}
+}
+
+func TestStatusExitError_Unrunnable(t *testing.T) {
+	err := StatusExitError(&AggregatedStatus{
+		Entries: []EntryStatus{
+			{Name: "s1", Plugin: "script"},
+			{Name: "s2", Plugin: "", Error: `unknown lifecycle plugin ""`},
+		},
+	})
+	if err == nil {
+		t.Fatal("StatusExitError() = nil, want non-nil for unrunnable entry")
+	}
+	if !strings.Contains(err.Error(), "unrunnable") {
+		t.Fatalf("StatusExitError() = %q, want unrunnable", err)
+	}
+}
+
 func TestPrintStatus_Empty(t *testing.T) {
 	out := captureStdout(func() {
 		PrintStatus(&AggregatedStatus{}, "/tmp")

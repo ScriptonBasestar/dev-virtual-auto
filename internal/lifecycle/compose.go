@@ -18,30 +18,11 @@ type ComposePlugin struct{}
 func (p *ComposePlugin) Name() string { return "compose" }
 
 func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, error) {
-	cfg := pctx.Entry.ComposeConfig()
-	if cfg == nil {
+	if pctx.Entry.ComposeConfig() == nil {
 		return &Result{}, nil
 	}
 
-	upOpts := cfg.UpOptions
-	if len(upOpts) == 0 {
-		upOpts = []string{"-d", "--wait"}
-	}
-	if !pctx.Wait {
-		// Remove --wait for immediate return
-		var filtered []string
-		for _, o := range upOpts {
-			if o != "--wait" {
-				filtered = append(filtered, o)
-			}
-		}
-		upOpts = filtered
-		if len(upOpts) == 0 {
-			upOpts = []string{"-d"}
-		}
-	}
-
-	args := append([]string{"up"}, upOpts...)
+	args := composeUpArgs(pctx)
 
 	if pctx.DryRun {
 		cmd, cmdArgs := p.buildArgs(pctx, args)
@@ -57,6 +38,39 @@ func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 	services, _ := p.queryServices(pctx)
 
 	return &Result{Services: services}, nil
+}
+
+func composeUpArgs(pctx *PluginContext) []string {
+	cfg := pctx.Entry.ComposeConfig()
+	upOpts := cfg.UpOptions
+	if len(upOpts) == 0 {
+		upOpts = []string{"-d", "--wait"}
+	}
+	if !pctx.Wait {
+		var filtered []string
+		for _, o := range upOpts {
+			if o != "--wait" {
+				filtered = append(filtered, o)
+			}
+		}
+		upOpts = filtered
+		if len(upOpts) == 0 {
+			upOpts = []string{"-d"}
+		}
+	}
+	if pctx.Force {
+		hasForce := false
+		for _, o := range upOpts {
+			if o == "--force-recreate" {
+				hasForce = true
+				break
+			}
+		}
+		if !hasForce {
+			upOpts = append(upOpts, "--force-recreate")
+		}
+	}
+	return append([]string{"up"}, upOpts...)
 }
 
 func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {

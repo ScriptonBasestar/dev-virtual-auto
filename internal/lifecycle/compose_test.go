@@ -28,6 +28,35 @@ func TestComposePlanServiceArgs(t *testing.T) {
 	}
 }
 
+// TestComposeUpArgsForce locks TASK-040: Force adds --force-recreate for compose.
+func TestComposeUpArgsForce(t *testing.T) {
+	entry := &config.LifecycleEntry{
+		Compose: &config.ComposePluginConfig{},
+	}
+	base := &PluginContext{Entry: entry, Wait: true}
+	if got, want := composeUpArgs(base), []string{"up", "-d", "--wait"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("default up args = %v, want %v", got, want)
+	}
+
+	forced := &PluginContext{Entry: entry, Wait: true, Force: true}
+	if got, want := composeUpArgs(forced), []string{"up", "-d", "--wait", "--force-recreate"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("force up args = %v, want %v", got, want)
+	}
+
+	// Control: --no-wait still strips --wait when Force is set.
+	noWaitForce := &PluginContext{Entry: entry, Wait: false, Force: true}
+	if got, want := composeUpArgs(noWaitForce), []string{"up", "-d", "--force-recreate"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("no-wait+force up args = %v, want %v", got, want)
+	}
+
+	// Idempotent when up_options already includes --force-recreate.
+	entry.Compose.UpOptions = []string{"-d", "--force-recreate"}
+	already := &PluginContext{Entry: entry, Wait: false, Force: true}
+	if got, want := composeUpArgs(already), []string{"up", "-d", "--force-recreate"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("duplicate force up args = %v, want %v", got, want)
+	}
+}
+
 func TestComposePlugin_Up_NilConfig(t *testing.T) {
 	p := &ComposePlugin{}
 	pctx := &PluginContext{

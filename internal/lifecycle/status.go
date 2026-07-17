@@ -25,6 +25,25 @@ type EntryStatus struct {
 	Error    string
 }
 
+// StatusExitError returns a non-nil error when any entry is unrunnable
+// (plugin construction failed / Error set). For dedicated status commands only
+// (dva status, dva stack status, plan status) — never post-up summary paths.
+func StatusExitError(status *AggregatedStatus) error {
+	if status == nil {
+		return nil
+	}
+	n := 0
+	for _, e := range status.Entries {
+		if e.Error != "" {
+			n++
+		}
+	}
+	if n == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d stack entry(ies) unrunnable", n)
+}
+
 // PrintStatus prints the aggregated lifecycle status to stderr.
 func PrintStatus(status *AggregatedStatus, configDir string) {
 	if len(status.Entries) == 0 {
