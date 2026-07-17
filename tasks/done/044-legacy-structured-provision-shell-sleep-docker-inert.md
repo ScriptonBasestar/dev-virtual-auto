@@ -3,17 +3,34 @@ id: TASK-044
 title: "Provision's legacy structured format implements echo/cmd but silently ignores shell/sleep/docker"
 type: bug
 priority: P2
-status: decision
-needs-human: true
+status: done
 effort: M
 created-at: 2026-07-16T23:05:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (zero-reader audit of every yaml-tagged config field)
 source-severity: MEDIUM
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:52:00+09:00
+verified-at: 2026-07-17T11:52:00+09:00
+decision: remove shell/sleep/docker from legacy structured provision
+decision-rationale: |
+  Zero readers; schema example recommended sleep:10 no-op. Raw-string form already
+  implements sleep/shell. docker had no defined shape. Remove keys + fix example; wire provision
+  profiles to provision_item via additionalProperties so schema actually validates items.
+verification-summary: |
+  Decision: REMOVE shell/sleep/docker from schema + ProvisionItem.
+  provision profiles now validated as arrays of provision_item.
+  TestValidateRejectsLegacyProvisionShellSleepDocker; echo/cmd/raw sleep still accept.
+  go test ./internal/config/ -count=1 ok.
 ---
-
 # Task 044: `- sleep: 4` Waits Zero Seconds And Reports "✅ Provision complete!"
+
+
+## Decision (recorded)
+
+**REMOVE** legacy structured keys `shell`, `sleep`, `docker` from schema and `ProvisionItem`.
+
+Keep `echo`/`cmd`. Raw-string form (`- sleep 4`) still works. Schema example no longer ships
+`{"sleep": 10}`. Provision profile arrays are now schema-validated against `provision_item`.
 
 ## Summary
 

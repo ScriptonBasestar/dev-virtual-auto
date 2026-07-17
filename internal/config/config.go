@@ -532,11 +532,8 @@ type ProvisionItem struct {
 	ComposeRun  string   `yaml:"compose_run"`  // One-off command in service
 
 	// Legacy structured format
-	Echo   string `yaml:"echo"`
-	Cmd    string `yaml:"cmd"`
-	ShellC string `yaml:"shell"`
-	Sleep  any    `yaml:"sleep"`
-	Docker any    `yaml:"docker"`
+	Echo string `yaml:"echo"`
+	Cmd  string `yaml:"cmd"`
 
 	// Raw string format (set during custom unmarshal)
 	Raw string `yaml:"-"`
