@@ -3,9 +3,21 @@ id: TASK-048
 title: "--debug and --json are silently dropped by every DisableFlagParsing command"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-16T23:24:00+09:00
+completed-at: 2026-07-17T01:48:47Z
+completion-summary: |
+  Pre-parse --debug/--json from os.Args in PersistentPreRun before logger.Init
+  (applyRootPersistentFlagsFromArgs). Also strip them in parseDvaFlags so lifecycle
+  commands do not treat them as entry names. --dry-run left alone for compose passthrough.
+verification-status: verified
+verification-evidence:
+  - "RED: go test failed with undefined: applyRootPersistentFlagsFromArgs before impl"
+  - "GREEN: go test ./internal/cli/ -run TestApplyRootPersistentFlagsFromArgs|TestParseDvaFlagsConsumesDebugAndJSON|TestParseDvaFlags -count=1 EXIT=0"
+  - "GREEN: go test ./internal/cli/ -count=1 EXIT=0"
+  - "GREEN: go vet ./internal/cli/... clean"
+  - "TASK-047 regression: TestParseDvaFlags* still pass"
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-047's audit criterion, measured by the orchestrator at a9dd492
 source-severity: MEDIUM

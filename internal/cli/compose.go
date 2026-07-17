@@ -535,8 +535,10 @@ var logsCmd = &cobra.Command{
 }
 
 // parseDvaFlags extracts --mode/-M, --env/-E, --tags/-T, and --exclude-tags from args.
-// It also consumes the root persistent --dry-run and sets the dryRun global, because
-// callers set DisableFlagParsing and cobra therefore never parses it for them.
+// It also consumes root persistent --dry-run/--debug/--json because callers set
+// DisableFlagParsing and cobra therefore never parses them for them. --debug/--json
+// are also pre-parsed in PersistentPreRun for logger.Init; stripping them here
+// prevents them from being treated as entry/service names.
 func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
 	var foundDryRun bool
 	args, foundDryRun = consumeDryRunFlag(args)
@@ -596,6 +598,10 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		// --dry-run` then executes for real.
 		case a == "--dry-run":
 			dryRun = true
+		case a == "--debug":
+			debug = true
+		case a == "--json":
+			jsonOutput = true
 		default:
 			filtered = append(filtered, a)
 		}

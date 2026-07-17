@@ -36,14 +36,18 @@ intuitive shortcuts and uniform environments defined in 'dva.yml'.
 
 DVA ensures robust and reproducible development environments, 
 making it easy to onboard and manage projects.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		logger.Init(debug, jsonOutput)
-		if debug {
-			_ = os.Setenv(config.EnvDebugKey, "1")
-			dvaexec.Debug = true
-			slog.Debug("debug mode enabled", "json", jsonOutput)
-		}
-	},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			// DisableFlagParsing commands never let cobra parse root persistent
+			// flags. Pre-scan os.Args so --debug/--json reach logger.Init.
+			// Do not consume --dry-run here: composeCmd forwards it to docker.
+			applyRootPersistentFlagsFromArgs(os.Args[1:])
+			logger.Init(debug, jsonOutput)
+			if debug {
+				_ = os.Setenv(config.EnvDebugKey, "1")
+				dvaexec.Debug = true
+				slog.Debug("debug mode enabled", "json", jsonOutput)
+			}
+		},
 	// When unknown command is invoked, treat as dynamic "run" command
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -238,6 +242,21 @@ func Execute() {
 
 func isFlag(s string) bool {
 	return len(s) > 0 && s[0] == '-'
+}
+
+// applyRootPersistentFlagsFromArgs sets root persistent --debug and --json from
+// a raw arg slice. Used when DisableFlagParsing prevents cobra from parsing them
+// before PersistentPreRun runs logger.Init. Does not mutate args or touch --dry-run
+// (compose passthrough must keep docker's own --dry-run).
+func applyRootPersistentFlagsFromArgs(args []string) {
+	for _, a := range args {
+		switch a {
+		case "--debug":
+			debug = true
+		case "--json":
+			jsonOutput = true
+		}
+	}
 }
 
 func helpRequested(args []string) bool {
