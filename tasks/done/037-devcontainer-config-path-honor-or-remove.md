@@ -3,17 +3,34 @@ id: TASK-037
 title: "DECISION: should devcontainer.config_path be honored, or deleted from the schema?"
 type: bug
 priority: P3
-status: decision
+status: done
 effort: M
 created-at: 2026-07-17T04:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-034 (split out so the decision is not buried in an archived file)
 source-severity: LOW
-needs-human: true
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:52:00+09:00
+verified-at: 2026-07-17T11:52:00+09:00
+decision: remove config_path from schema
+decision-rationale: |
+  Never consumed; write path hardcodes .devcontainer/devcontainer.json.
+  Honor would require fixing toDevcontainerRelative for arbitrary output dirs.
+  Lean remove: validate fails instead of green no-op. Conventional path stays.
+verification-summary: |
+  Decision: REMOVE devcontainer.config_path from schema.json.
+  dvaOnlyDevcontainerKeys still strips config_path if present in memory.
+  TestValidateRejectsDevcontainerConfigPath; probe: validate EXIT=1 names config_path.
+  go test ./internal/config/ -count=1 ok.
 ---
-
 # Task 037: `devcontainer.config_path` — Honor It Or Delete It
+
+
+## Decision (recorded)
+
+**REMOVE** `devcontainer.config_path` from schema.
+
+Hardcoded `.devcontainer/devcontainer.json` remains the only write/check path.
+Configs using `config_path` now fail `dva validate` with Additional property config_path is not allowed.
 
 ## Summary
 

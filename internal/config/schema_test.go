@@ -258,6 +258,83 @@ checks:
 	}
 }
 
+// TestValidateRejectsDevcontainerConfigPath locks TASK-037: config_path was never
+// honored; schema must reject it rather than validate-green no-op.
+func TestValidateRejectsDevcontainerConfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+devcontainer:
+  enabled: true
+  config_path: custom/somewhere/devcontainer.json
+  image: mcr.microsoft.com/devcontainers/base:ubuntu
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for devcontainer.config_path")
+	}
+	if !strings.Contains(err.Error(), "Additional property config_path is not allowed") {
+		t.Fatalf("Validate() error = %v, want config_path rejection", err)
+	}
+}
+
+// TestValidateRejectsLegacyProvisionShellSleepDocker locks TASK-044: shell/sleep/docker
+// structured keys were never executed; schema must reject them.
+func TestValidateRejectsLegacyProvisionShellSleepDocker(t *testing.T) {
+	cases := []struct {
+		name    string
+		snippet string
+		key     string
+	}{
+		{"sleep", `provision:
+  setup:
+    - sleep: 10
+`, "sleep"},
+		{"shell", `provision:
+  setup:
+    - shell: echo should-fail
+`, "shell"},
+		{"docker", `provision:
+  setup:
+    - docker: {compose: docker-compose.yml}
+`, "docker"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			content := "version: \"0.1.44\"\n" + tc.snippet
+			cfg := loadConfigForSchemaTest(t, tmpDir, content)
+			err := cfg.Validate()
+			if err == nil {
+				t.Fatalf("Validate() expected error for provision %s", tc.name)
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, tc.key) &&
+				!strings.Contains(msg, "Must validate one and only one schema") &&
+				!strings.Contains(msg, "Additional property") {
+				t.Fatalf("Validate() error = %v, want rejection naming %q", msg, tc.key)
+			}
+		})
+	}
+}
+
+// TestValidateAcceptsLegacyProvisionEchoCmd ensures echo/cmd still validate.
+func TestValidateAcceptsLegacyProvisionEchoCmd(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+provision:
+  setup:
+    - echo: "Starting..."
+    - cmd: echo ok
+    - sleep 1
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want accept echo/cmd and raw sleep", err)
+	}
+}
+
 // TestValidateAcceptsDoctorCheckWithoutFix ensures exposing fix does not require it.
 func TestValidateAcceptsDoctorCheckWithoutFix(t *testing.T) {
 	tmpDir := t.TempDir()

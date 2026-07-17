@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-// dvaOnlyDevcontainerKeys are dva.yml devcontainer keys that DVA interprets itself.
-// They are not devcontainer spec keys and must never reach the generated file.
-var dvaOnlyDevcontainerKeys = map[string]bool{
-	"enabled":     true,
-	"config_path": true,
-}
+	// dvaOnlyDevcontainerKeys are dva.yml devcontainer keys that DVA interprets itself.
+	// They are not devcontainer spec keys and must never reach the generated file.
+	var dvaOnlyDevcontainerKeys = map[string]bool{
+		"enabled":     true,
+		"config_path": true,
+	}
 
 // isDevcontainerEnabled reports whether the devcontainer section is active.
 // Absent `enabled` field defaults to true; only explicit false disables it.

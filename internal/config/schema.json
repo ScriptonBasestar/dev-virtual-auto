@@ -337,32 +337,11 @@
         },
         {
           "type": "object",
-          "description": "Legacy structured command",
+          "description": "Legacy structured command (echo/cmd only; use raw strings for sleep/shell)",
           "additionalProperties": false,
           "properties": {
             "echo": { "type": "string" },
-            "cmd": { "type": "string" },
-            "shell": { "type": "string" },
-            "sleep": {
-              "oneOf": [
-                { "type": "integer" },
-                { "type": "number" },
-                { "type": "string" }
-              ]
-            },
-            "docker": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "compose": {
-                  "oneOf": [
-                    { "type": "string" },
-                    { "type": "array", "items": { "type": "string" } }
-                  ]
-                }
-              },
-              "required": ["compose"]
-            }
+            "cmd": { "type": "string" }
           },
           "minProperties": 1,
           "maxProperties": 1
@@ -904,6 +883,11 @@
           "examples": ["setup", "default"]
         }
       },
+      "additionalProperties": {
+        "type": "array",
+        "items": { "$ref": "#/definitions/provision_item" },
+        "description": "Named provision profile: list of step/legacy/raw commands"
+      },
       "examples": [
         {
           "default": [
@@ -918,8 +902,7 @@
           ],
           "legacy_structured": [
             { "echo": "🚀 Starting..." },
-            { "cmd": "docker compose up -d" },
-            { "sleep": 10 }
+            { "cmd": "docker compose up -d" }
           ]
         }
       ]
@@ -1066,11 +1049,6 @@
           "type": "boolean",
           "description": "Enable or disable devcontainer integration",
           "examples": [true]
-        },
-        "config_path": {
-          "type": "string",
-          "description": "Path to existing devcontainer.json file to sync with",
-          "examples": [".devcontainer/devcontainer.json"]
         },
         "name": {
           "type": "string",
