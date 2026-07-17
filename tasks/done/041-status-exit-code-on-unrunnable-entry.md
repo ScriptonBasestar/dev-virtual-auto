@@ -3,18 +3,39 @@ id: TASK-041
 title: "DECISION: should 'dva stack status' exit non-zero when an entry can never run?"
 type: bug
 priority: P3
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-17T07:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-038 implementation (decision raised, not assumed)
 source-severity: LOW
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:52:00+09:00
 related-decision: "TASK-046 chose middle-ground (user-defined only); align stack status exit policy similarly"
+verified-at: 2026-07-17T11:52:00+09:00
+decision: non-zero on dedicated status only when entry Error set
+decision-rationale: |
+  Align with TASK-046 middle-ground spirit: dedicated status commands exit non-zero
+  when any EntryStatus.Error is set (unrunnable). Post-up summary paths still swallow status
+  errors so successful up is not turned into failure.
+verification-summary: |
+  Decision: NON-ZERO on dva status / stack status / plan status only.
+  StatusExitError helper; wired in status.go, stack.go, plan_lifecycle.go.
+  Post-up paths unchanged. TestStatusExitError_*; probe EXIT=1 with BROKEN entry.
+  go test ./internal/lifecycle/ ./internal/cli/ -count=1 ok.
 ---
-
 # Task 041: Status Now Says "BROKEN" To Humans And "Fine" To Scripts
+
+
+## Decision (recorded)
+
+**NON-ZERO** exit on dedicated status commands when any entry has `Error` set.
+
+| Path | Exit policy |
+|------|-------------|
+| `dva status`, `dva stack status`, plan status | non-zero if any unrunnable |
+| post-up summary (compose/stack/plan up) | still swallow; successful up stays 0 |
+
+JSON status still prints full payload first, then returns the error (doctor pattern).
 
 ## Summary
 

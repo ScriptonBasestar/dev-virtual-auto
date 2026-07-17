@@ -306,14 +306,15 @@ func runPlanStatus(c *config.Config, e *config.Environment, planName string) err
 	if err != nil {
 		return err
 	}
-	status, err := orch.Status(context.Background())
-	if err != nil {
-		return err
-	}
+		status, err := orch.Status(context.Background())
+		if err != nil {
+			return err
+		}
 
-	lifecycle.PrintStatus(filterStatusByNames(status, planEntryNames(plan)), c.FileDir())
-	return nil
-}
+		filtered := filterStatusByNames(status, planEntryNames(plan))
+		lifecycle.PrintStatus(filtered, c.FileDir())
+		return lifecycle.StatusExitError(filtered)
+	}
 
 func planEntryNames(plan *lifecycle.ExecutionPlan) []string {
 	if plan == nil || len(plan.Entries) == 0 {

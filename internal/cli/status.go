@@ -35,6 +35,7 @@ var statusCmd = &cobra.Command{
 				"dva_version":  config.Version,
 				"config_found": err == nil,
 			}
+			var stackStatus *lifecycle.AggregatedStatus
 			if err == nil {
 				statusData["config_path"] = c.FilePath()
 				statusData["config_version"] = c.Version
@@ -45,6 +46,7 @@ var statusCmd = &cobra.Command{
 				orch := lifecycle.NewOrchestrator(c, e)
 				status, statusErr := orch.Status(context.Background())
 				if statusErr == nil {
+					stackStatus = status
 					statusData["stack"] = status.Entries
 				}
 				if len(c.Applications) > 0 {
@@ -52,7 +54,10 @@ var statusCmd = &cobra.Command{
 					statusData["applications"] = am.AppStatuses()
 				}
 			}
-			return output.PrintJSON(statusData)
+			if printErr := output.PrintJSON(statusData); printErr != nil {
+				return printErr
+			}
+			return lifecycle.StatusExitError(stackStatus)
 		}
 
 		fmt.Printf("DVA v%s\n\n", config.Version)
@@ -107,6 +112,9 @@ var statusCmd = &cobra.Command{
 			printEndpointTable(c.Endpoints, nil, allHC)
 		}
 
+		if statusErr == nil {
+			return lifecycle.StatusExitError(status)
+		}
 		return nil
 	},
 }
