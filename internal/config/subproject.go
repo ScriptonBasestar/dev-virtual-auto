@@ -48,6 +48,9 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ..
 						return nil, fmt.Errorf("loading subproject %q module %q: %w", name, mod, err)
 					}
 				}
+				if len(modCfg.Modules) > 0 {
+					return nil, fmt.Errorf("loading subproject %q module %q: nested modules are not supported", name, mod)
+				}
 				if err := cfg.mergeFrom(modCfg); err != nil {
 					return nil, fmt.Errorf("merging subproject %q module %q: %w", name, mod, err)
 				}

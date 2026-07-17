@@ -147,6 +147,73 @@ subprojects:
 	}
 }
 
+// TestLoadSubprojects_NestedModules_Fails locks TASK-043: a subproject module that
+// declares modules: must fail with the same nested-modules rule as root Load, not
+// silently drop the nested file and later report a misleading import miss.
+func TestLoadSubprojects_NestedModules_Fails(t *testing.T) {
+	// Given: parent imports an interaction that only exists in a nested module file
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "sub")
+	modDir := filepath.Join(subDir, DotDirName)
+	if err := os.MkdirAll(modDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  sub:
+    path: sub
+    import:
+      interactions: [sub_from_nested]
+`), 0o644); err != nil {
+		t.Fatalf("write parent: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, FileName), []byte(`
+version: "0.1.0"
+modules:
+  - submod
+interaction:
+  sub_from_module:
+    command: echo HELLO_SUB_FROM_MODULE
+`), 0o644); err != nil {
+		t.Fatalf("write sub dva.yml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "submod.yml"), []byte(`
+modules:
+  - subnested
+interaction:
+  from_outer_module:
+    command: echo OUTER
+`), 0o644); err != nil {
+		t.Fatalf("write submod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(modDir, "subnested.yml"), []byte(`
+interaction:
+  sub_from_nested:
+    command: echo HELLO_SUB_FROM_NESTED
+`), 0o644); err != nil {
+		t.Fatalf("write subnested: %v", err)
+	}
+
+	// When
+	_, err := Load(tmpDir)
+
+	// Then: accurate nested-modules error (not "interaction not found")
+	if err == nil {
+		t.Fatal("Load() error = nil, want nested modules rejection for subproject")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "nested modules are not supported") {
+		t.Errorf("error = %q, want nested modules are not supported", msg)
+	}
+	if !strings.Contains(msg, "sub") {
+		t.Errorf("error = %q, want subproject name sub", msg)
+	}
+	if strings.Contains(msg, "interaction") && strings.Contains(msg, "not found") {
+		t.Errorf("error = %q, must not blame missing interaction", msg)
+	}
+}
+
 func TestLoadConfigWithSubprojects(t *testing.T) {
 	tmpDir := t.TempDir()
 

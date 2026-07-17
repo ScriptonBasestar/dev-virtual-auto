@@ -3,17 +3,50 @@ id: TASK-043
 title: "Nested modules are a hard error at the root and a silent drop in subprojects"
 type: bug
 priority: P3
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-16T22:55:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (config surfaces; merge-completeness audit)
 source-severity: LOW
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:44:00+09:00
+verified-at: 2026-07-17T11:44:00+09:00
+decision: reject nested modules everywhere
+decision-rationale: |
+  Root Load already hard-errors on modules that declare modules:. Subproject
+  LoadSubprojects used the same merge loop but omitted the check, so nested
+  module files were never opened (mergeFrom skips Modules) and imports failed
+  with a misleading "interaction not found". Reject consistently: same message
+  as root, wrapped with subproject/module name. Nesting never took effect, so
+  only load-success (not behavior) is a back-compat break.
+  TASK-042 (version gate) was decided separately; both are loadFile-ungated
+  family but orthogonal policies.
+verification-summary: |
+  Decision: REJECT nested modules in subproject module load path.
+  Implementation: after version check in LoadSubprojects module loop, if
+  len(modCfg.Modules) > 0 return error "nested modules are not supported"
+  with subproject and module names.
+  TDD: TestLoadSubprojects_NestedModules_Fails — parent imports interaction
+  only defined in nested module; asserts error contains nested modules message
+  and subproject name, not "interaction not found".
+  go test ./internal/config/ -run NestedModules → ok.
 ---
 
 # Task 043: The Same YAML Errors In One Load Path And Is Ignored In The Other
+
+## Decision (recorded)
+
+**REJECT**: nested modules are a hard error in subprojects, same as root.
+
+| Option | Chosen | Why |
+|--------|--------|-----|
+| Reject everywhere (consistent) | **yes** | Matches root intent; turns misleading import error into accurate message |
+| Support nesting both paths | no | Needs cycle detection + merge order; root already refuses |
+
+**Back-compat:** configs that previously loaded with nested modules in a subproject (nesting ignored) now fail Load with `nested modules are not supported`. Nesting never took effect.
+
+**TASK-042:** decided separately (honor version gate). Same ungated-loadFile family; policies are independent.
+
 
 ## Summary
 
