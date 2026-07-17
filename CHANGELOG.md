@@ -40,12 +40,15 @@ All notable changes to DVA are documented here.
 - 모듈 디렉토리 `.dva/` → `.sb/dva/`로 변경
 - CLI 구조 변경: `up`/`down` → `stack up`/`stack down` + `app up`/`app down` 분리
 - `dva status` 출력에 앱 포트 정보 추가
+- **`dva doctor` exits non-zero when a user-defined `checks:` entry fails** (built-in checks stay advisory):
+  text and `--json` still print full results first; user prerequisites gate `dva doctor && dva up`
 
 ### Fixed
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)
 - `env_file` field was parsed but never loaded into environment
 - Tag filtering (`FilterInteractions`, `exclude_tags`) was implemented but not called for subprojects
 - `os.Exit(1)` inside `RunE` replaced with `return err` for consistent cobra error handling
+- `dva doctor` always exited 0 after reporting failed checks (TASK-046)
 
 ## [0.1.16] - 2026-03-24
 

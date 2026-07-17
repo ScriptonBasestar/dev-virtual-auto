@@ -144,6 +144,48 @@ func TestRunDockerDoctorChecks_SkipsUnixSocketDiagnosticOffLinux(t *testing.T) {
 	}
 }
 
+func TestDoctorExitError_AllPassed(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "ok", Passed: true},
+		{Name: "fixed", Passed: true, Fixed: true, UserDefined: true},
+	}
+	if err := doctorExitError(results); err != nil {
+		t.Fatalf("doctorExitError() = %v, want nil when all checks passed", err)
+	}
+}
+
+func TestDoctorExitError_UserDefinedFailed(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "ok", Passed: true},
+		{Name: "Impossible check", Passed: false, FixHint: "never", UserDefined: true},
+		{Name: "fixed", Passed: true, Fixed: true},
+	}
+	err := doctorExitError(results)
+	if err == nil {
+		t.Fatal("doctorExitError() = nil, want non-nil when a user-defined check failed")
+	}
+	if !strings.Contains(err.Error(), "1 user check") {
+		t.Fatalf("doctorExitError() = %q, want user-check failure count", err)
+	}
+}
+
+func TestDoctorExitError_BuiltinFailedOnly_Advisory(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "Docker socket accessible", Passed: false},
+		{Name: ".sb/dva/ is ignored", Passed: false},
+		{Name: "user ok", Passed: true, UserDefined: true},
+	}
+	if err := doctorExitError(results); err != nil {
+		t.Fatalf("doctorExitError() = %v, want nil when only built-in checks failed", err)
+	}
+}
+
+func TestDoctorExitError_EmptyResults(t *testing.T) {
+	if err := doctorExitError(nil); err != nil {
+		t.Fatalf("doctorExitError(nil) = %v, want nil", err)
+	}
+}
+
 func TestPrintDoctorResults_AllPass(t *testing.T) {
 	results := []DoctorResult{
 		{Name: "Docker installed", Passed: true},

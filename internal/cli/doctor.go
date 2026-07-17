@@ -18,12 +18,13 @@ import (
 
 // DoctorResult holds the outcome of a single doctor check.
 type DoctorResult struct {
-	Name    string       `json:"name"`
-	Passed  bool         `json:"passed"`
-	FixHint string       `json:"fix_hint,omitempty"`
-	Fixable bool         `json:"fixable,omitempty"`
-	Fixed   bool         `json:"fixed,omitempty"`
-	fixFunc func() error // built-in fix function (unexported)
+	Name        string `json:"name"`
+	Passed      bool   `json:"passed"`
+	FixHint     string `json:"fix_hint,omitempty"`
+	Fixable     bool   `json:"fixable,omitempty"`
+	Fixed       bool   `json:"fixed,omitempty"`
+	UserDefined bool   `json:"user_defined,omitempty"`
+	fixFunc     func() error
 }
 
 var doctorFix bool
@@ -36,23 +37,26 @@ Also runs built-in checks for Docker availability and compose file existence.
 
 Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.
 Use --fix to automatically resolve fixable issues.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		c := mustLoadConfig()
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c := mustLoadConfig()
 
-		results := runDoctorChecks(c)
+			results := runDoctorChecks(c)
 
-		if doctorFix {
-			applyDoctorFixes(results)
-		}
+			if doctorFix {
+				applyDoctorFixes(results)
+			}
 
-		if jsonOutput {
-			return output.PrintJSON(map[string]any{"checks": results})
-		}
+			if jsonOutput {
+				if err := output.PrintJSON(map[string]any{"checks": results}); err != nil {
+					return err
+				}
+				return doctorExitError(results)
+			}
 
-		printDoctorResults(results)
-		return nil
-	},
-}
+			printDoctorResults(results)
+			return doctorExitError(results)
+		},
+	}
 
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Automatically fix issues that can be resolved")
@@ -79,9 +83,10 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: Compose files exist
 	results = append(results, checkComposeFiles(c)...)
 
-	// User-defined checks
 	for _, check := range c.DoctorChecks {
-		results = append(results, runSingleCheck(check, c.FileDir()))
+		r := runSingleCheck(check, c.FileDir())
+		r.UserDefined = true
+		results = append(results, r)
 	}
 
 	// Built-in: devcontainer.json exists (when devcontainer section is enabled)
@@ -413,6 +418,19 @@ func printDoctorResults(results []DoctorResult) {
 		summary += fmt.Sprintf(" (%d auto-fixed)", fixed)
 	}
 	fmt.Println(summary)
+}
+
+func doctorExitError(results []DoctorResult) error {
+	failed := 0
+	for _, r := range results {
+		if r.UserDefined && !r.Passed {
+			failed++
+		}
+	}
+	if failed == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d user check(s) failed", failed)
 }
 
 func condStr(cond bool, s string, fallback ...string) string {

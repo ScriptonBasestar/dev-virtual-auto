@@ -3,19 +3,32 @@ id: TASK-019
 title: "Top-level vars: is inert on the dva run path, contradicting its schema description"
 type: bug
 priority: P2
-status: decision
+status: done
 effort: S
 created-at: 2026-07-16T20:45:00+09:00
 source-run-id: 20260716T091912Z-73dc094
 discovered-in: TASK-012
 source-severity: MEDIUM
-needs-human: true
-decision-status: pending
-decision-recommendation: "Direction needed: inject vars on the run path (code fix) vs narrow the schema description (doc fix)"
-moved-at: 2026-07-17T10:55:00+09:00
+needs-human: false
+decision-status: accepted
+decision: "Option A — inject cfg.Vars in loadEnv"
+decision-at: 2026-07-17T11:10:00+09:00
+moved-at: 2026-07-17T11:15:00+09:00
+verified-at: 2026-07-17T11:15:00+09:00
+verification-summary: >-
+  Option A implemented: loadEnv seeds NewEnvironment with c.Vars, then MergeVars(c.Environment),
+  then LoadEnvFile. Run-path order is vars < environment: < env_file < OS.
+  TestLoadEnv_IncludesGlobalVars proves P_GLOBAL from vars reaches the env, and env_file
+  wins over environment over vars for shared keys. go test ./internal/cli/ -count=1 ok.
 ---
 
 # Task 019: Global vars Inert On The run Path
+
+## Decision
+
+**Option A accepted** — `loadEnv` merges `cfg.Vars` beneath `environment:`/`env_file`.
+
+Run-path precedence: `vars < environment: < env_file < OS env`.
 
 ## Summary
 
@@ -67,8 +80,13 @@ should confirm before it ships.
 
 ## Completion Criteria
 
-- [ ] Option A or B is chosen and recorded here | verify: `human — behavior change vs contract narrowing; product owner must decide`
-- [ ] Implementation matches the chosen option, with `vars` behavior and its schema description agreeing | verify: `human — re-run the two-path probe in Evidence and confirm it matches the chosen option`
+- [x] Option A or B is chosen and recorded here | verify: decision field = Option A
+- [x] Implementation matches the chosen option, with `vars` behavior and its schema description agreeing | verify: `go test ./internal/cli/ -count=1` ok; TestLoadEnv_IncludesGlobalVars green
+
+## Implementation
+
+- `internal/cli/root.go` `loadEnv`: `NewEnvironment(c.Vars, ...)` then `MergeVars(c.Environment)` then `LoadEnvFile`
+- `internal/cli/root_test.go` `TestLoadEnv_IncludesGlobalVars`: locks vars injection + precedence
 
 ## References
 
