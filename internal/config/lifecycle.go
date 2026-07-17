@@ -261,12 +261,14 @@ func decodeRunnerNode(name string, node *yaml.Node) (any, error) {
 			return nil, err
 		}
 		return cfg, nil
-	case "docker":
-		cfg := &DockerRunnerConfig{}
-		if err := node.Decode(cfg); err != nil {
-			return nil, err
-		}
-		return cfg, nil
+		case "docker":
+			// Map runners.docker to the docker lifecycle plugin (TASK-017 Option A).
+			// Nested docker: already uses DockerPluginConfig; keep runners shape aligned.
+			cfg := &DockerPluginConfig{}
+			if err := node.Decode(cfg); err != nil {
+				return nil, err
+			}
+			return cfg, nil
 	case "compose":
 		cfg := &ComposePluginConfig{}
 		if err := node.Decode(cfg); err != nil {

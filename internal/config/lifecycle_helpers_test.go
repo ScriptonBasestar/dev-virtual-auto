@@ -143,26 +143,68 @@ stack:
 	}
 }
 
-func TestSortedStackDoesNotNameUnservableRunner(t *testing.T) {
-	// docker/native runners decode to runner-only configs that no lifecycle
-	// plugin reads. Naming them would make Up a silent no-op instead of an error.
-	for _, runner := range []string{"docker", "native"} {
-		t.Run(runner, func(t *testing.T) {
-			cfg := loadStackConfig(t, `version: "0.1.0"
+func TestSortedStackResolvesDockerRunnerToPlugin(t *testing.T) {
+	// Option A (TASK-017): runners.docker decodes as DockerPluginConfig so
+	// stack up can run the registered docker plugin (same as nested docker:).
+	cfg := loadStackConfig(t, `version: "0.1.0"
 stack:
   cache:
+    default_runner: docker
     runners:
-      `+runner+`:
+      docker:
         image: redis:7
+        name: dva-redis
+        ports:
+          - "6379:6379"
 `)
-			entry := sortedEntry(t, cfg, "cache")
-			if entry.Plugin != "" {
-				t.Fatalf("Plugin = %q, want empty for unservable runner %q", entry.Plugin, runner)
-			}
-			if got := entry.DetectPlugin(); got != "" {
-				t.Fatalf("DetectPlugin() = %q, want empty: naming a plugin with a nil typed config makes Up a silent no-op", got)
-			}
-		})
+	entry := sortedEntry(t, cfg, "cache")
+	if entry.Plugin != "docker" {
+		t.Fatalf("Plugin = %q, want docker", entry.Plugin)
+	}
+	if entry.DetectPlugin() != "docker" {
+		t.Fatalf("DetectPlugin() = %q, want docker", entry.DetectPlugin())
+	}
+	if entry.Docker == nil {
+		t.Fatal("Docker config not populated from runners.docker")
+	}
+	if entry.Docker.Image != "redis:7" {
+		t.Errorf("Docker.Image = %q, want redis:7", entry.Docker.Image)
+	}
+	if entry.Docker.Name != "dva-redis" {
+		t.Errorf("Docker.Name = %q, want dva-redis", entry.Docker.Name)
+	}
+	if len(entry.Docker.Ports) != 1 || entry.Docker.Ports[0] != "6379:6379" {
+		t.Errorf("Docker.Ports = %v, want [6379:6379]", entry.Docker.Ports)
+	}
+	// Runners map must hold the same plugin config type so plan materialization works.
+	rc, err := entry.GetRunnerConfig("docker")
+	if err != nil {
+		t.Fatalf("GetRunnerConfig(docker): %v", err)
+	}
+	if _, ok := rc.(*DockerPluginConfig); !ok {
+		t.Fatalf("runners.docker type = %T, want *DockerPluginConfig", rc)
+	}
+}
+
+func TestSortedStackDoesNotNameUnservableNativeRunner(t *testing.T) {
+	// native is not a registered lifecycle plugin. Naming it would make Up a
+	// silent no-op (or unknown plugin) instead of a clear empty-plugin error.
+	// Plan path still reads NativeRunnerConfig for WorkingDir only.
+	cfg := loadStackConfig(t, `version: "0.1.0"
+stack:
+  api:
+    default_runner: native
+    runners:
+      native:
+        dir: apps/api
+        run: go run ./cmd/api
+`)
+	entry := sortedEntry(t, cfg, "api")
+	if entry.Plugin != "" {
+		t.Fatalf("Plugin = %q, want empty for unservable runner native", entry.Plugin)
+	}
+	if got := entry.DetectPlugin(); got != "" {
+		t.Fatalf("DetectPlugin() = %q, want empty: native is not a lifecycle plugin", got)
 	}
 }
 
