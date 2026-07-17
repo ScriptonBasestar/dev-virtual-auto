@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +34,10 @@ var infraUpCmd = &cobra.Command{
 			return fmt.Errorf("infra service '%s' not found", serviceName)
 		}
 
-		location := resolveInfraPath(svc.Path, c.FileDir())
+		location, err := infraServiceLocation(svc, serviceName, c.FileDir())
+		if err != nil {
+			return err
+		}
 
 		// Create network (ignore errors)
 		networkName := serviceName + "_default"
@@ -63,7 +67,10 @@ var infraDownCmd = &cobra.Command{
 			return fmt.Errorf("infra service '%s' not found", serviceName)
 		}
 
-		location := resolveInfraPath(svc.Path, c.FileDir())
+		location, err := infraServiceLocation(svc, serviceName, c.FileDir())
+		if err != nil {
+			return err
+		}
 		composeArgs := append([]string{"compose", "down"}, extraArgs...)
 		return runInDir(location, "docker", composeArgs...)
 	},
@@ -86,7 +93,10 @@ var infraUpdateCmd = &cobra.Command{
 			return fmt.Errorf("infra service '%s' has no git URL", serviceName)
 		}
 
-		location := resolveInfraPath(svc.Path, c.FileDir())
+		location, err := infraServiceLocation(svc, serviceName, c.FileDir())
+		if err != nil {
+			return err
+		}
 
 		if _, err := os.Stat(location); err == nil {
 			// Check for uncommitted changes before updating
@@ -94,25 +104,24 @@ var infraUpdateCmd = &cobra.Command{
 			statusCmd.Dir = location
 			statusOut, _ := statusCmd.Output()
 			if len(statusOut) > 0 {
-				fmt.Fprintf(os.Stderr, "[warn] %s has uncommitted changes:\n%s\n", serviceName, string(statusOut))
+				fmt.Fprintf(os.Stderr, "[warn] %s has uncommitted changes in %s:\n%s\n", serviceName, location, string(statusOut))
 				fmt.Fprintf(os.Stderr, "Stash changes before updating? [y/N] ")
 				var answer string
 				_, _ = fmt.Scanln(&answer)
 				answer = strings.ToLower(strings.TrimSpace(answer))
 				if answer != "y" && answer != "yes" {
-					return fmt.Errorf("aborted: %s has uncommitted changes. Use 'git stash' manually or commit changes first", serviceName)
+					return fmt.Errorf("aborted: %s has uncommitted changes in %s. Use 'git stash' manually or commit changes first", serviceName, location)
 				}
 				if err := runInDir(location, "git", "stash"); err != nil {
 					return fmt.Errorf("git stash failed: %w", err)
 				}
-				fmt.Println("  Changes stashed. Run 'git stash pop' in the infra dir to restore.")
+				fmt.Printf("  Changes stashed. Run 'git stash pop' in %s to restore.\n", location)
 			}
 
 			fmt.Printf("Updating %s...\n", serviceName)
 			return runInDir(location, "git", "pull", "--rebase")
 		}
 
-		// Clone
 		fmt.Printf("Cloning %s...\n", serviceName)
 		if err := os.MkdirAll(filepath.Dir(location), 0755); err != nil {
 			return fmt.Errorf("creating directory for %s: %w", serviceName, err)
@@ -130,11 +139,35 @@ func init() {
 	infraCmd.AddCommand(infraUpCmd, infraDownCmd, infraUpdateCmd)
 }
 
+// infraServiceLocation: git-only → .sb/dva/infra/<name>/; path must not resolve to cfgDir.
+func infraServiceLocation(svc config.InfraConfig, serviceName, cfgDir string) (string, error) {
+	path := strings.TrimSpace(svc.Path)
+	if svc.Git != "" && path == "" {
+		return filepath.Join(cfgDir, config.DotDirName, "infra", serviceName), nil
+	}
+	if path == "" {
+		return "", fmt.Errorf("infra service %q has neither git nor path", serviceName)
+	}
+
+	location := resolveInfraPath(path, cfgDir)
+	if sameInfraDir(location, cfgDir) {
+		return "", fmt.Errorf(
+			"infra service %q path resolves to the project directory (%s); refuse to operate on the config directory",
+			serviceName, location,
+		)
+	}
+	return location, nil
+}
+
 func resolveInfraPath(path, cfgDir string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
 	return filepath.Join(cfgDir, path)
+}
+
+func sameInfraDir(a, b string) bool {
+	return filepath.Clean(a) == filepath.Clean(b)
 }
 
 func runInDir(dir, name string, args ...string) error {

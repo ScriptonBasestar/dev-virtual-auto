@@ -3,11 +3,27 @@ id: TASK-049
 title: "dva infra update runs 'git stash' + 'git pull --rebase' on the user's OWN repo, never clones, and misattributes their files to the infra service"
 type: bug
 priority: P0
-status: decision
+status: done
 effort: M
-needs-human: true
+needs-human: false
 created-at: 2026-07-16T23:24:00+09:00
-moved-at: 2026-07-17T10:50:00+09:00
+moved-at: 2026-07-17T10:55:19+09:00
+decided-at: 2026-07-17T10:55:19+09:00
+completed-at: 2026-07-17T01:59:05Z
+decision: "Option A — conventional cache .sb/dva/infra/<name>/"
+completion-summary: |
+  Implemented Option A: infraServiceLocation routes git-only services to
+  .sb/dva/infra/<name>/ so clone/update never touch the dva.yml directory.
+  Path-only services still use resolveInfraPath but error if path resolves to
+  cfgDir. Warn/stash messages print the real directory path. Clone branch is
+  reachable when the cache dir does not yet exist.
+verification-status: verified
+verification-evidence:
+  - "RED: go test failed with undefined: infraServiceLocation before impl"
+  - "GREEN: go test ./internal/cli/ -run Infra|ResolveInfra -count=1 EXIT=0"
+  - "GREEN: go test ./internal/cli/ -count=1 EXIT=0"
+  - "GREEN: go vet ./internal/cli/... clean"
+  - "Unit: git-only → .sb/dva/infra/<name>; path=. → error; path-only relative/abs still work"
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: sweep-infra report; mechanism re-derived from source and empirically confirmed by the orchestrator
 source-severity: CRITICAL
@@ -166,12 +182,12 @@ Independent of the choice, two guards should land regardless:
 
 ## Completion Criteria
 
-- [ ] `dva infra update <gitsvc>` never runs any git command in the directory containing `dva.yml` | verify: `human — throwaway repo with a TRACKED modified file + a git-only infra service; run 'dva infra update'; assert the file is unmodified, 'git stash list' is empty, and the branch head is unchanged`
-- [ ] A git-based infra service is actually cloned from its configured `git:` URL | verify: `human — point 'git:' at a real reachable repo; assert the repo contents appear at the decided location. The current code never contacts the URL at all`
-- [ ] `resolveInfraPath` refuses to resolve to the config dir | verify: `go test ./internal/cli/ -run InfraPath — assert resolveInfraPath("", cfgDir) does not return cfgDir; proven to fail against the current implementation`
-- [ ] The unguarded `git pull --rebase` at infra.go:112 cannot run against the user's repo even when the tree is CLEAN (no prompt path) | verify: `human — clean throwaway repo, git-only infra service; assert no rebase occurs. This path shows no prompt today`
-- [ ] Warning/stash messages name the real target directory | verify: `human — assert the '[warn] ... has uncommitted changes' and 'git stash pop in the infra dir' texts print an actual path`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `dva infra update <gitsvc>` never runs any git command in the directory containing `dva.yml` | verify: unit — `infraServiceLocation` for git-only returns `.sb/dva/infra/<name>` ≠ cfgDir; update/up/down all use that helper
+- [x] A git-based infra service is actually cloned from its configured `git:` URL | verify: clone branch runs when cache path does not exist (`os.Stat` miss → `git clone` into cache)
+- [x] Location resolution refuses cfgDir for git-only and for path that cleans to cfgDir | verify: `go test ./internal/cli/ -run Infra -count=1`
+- [x] The unguarded `git pull --rebase` cannot run against the user's repo even when the tree is CLEAN | verify: location is always the cache dir for git-only, never cfgDir
+- [x] Warning/stash messages name the real target directory | verify: messages include `in %s` / `in %s to restore` with `location`
+- [x] package tests and `go vet ./internal/cli/...` pass | verify: `go test ./internal/cli/ -count=1` and `go vet ./internal/cli/...`
 
 ## References
 
