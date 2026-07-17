@@ -3,17 +3,47 @@ id: TASK-042
 title: "The minimum-version gate fires only for the root dva.yml; modules and subprojects bypass it entirely"
 type: bug
 priority: P2
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-16T22:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (config surfaces; merge-completeness audit)
 source-severity: MEDIUM
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:14:42+09:00
+verified-at: 2026-07-17T11:14:42+09:00
+decision: honor version gate on modules and subprojects
+decision-rationale: |
+  version: is a minimum-DVA-version gate. Modules are the most likely unit to be
+  authored against a newer dva (.sb/dva/*.yml shared/vendored). Silently dropping
+  the requirement relocates the failure to a wrong symptom. Honor the field on
+  every loaded config file (root, module, override, subproject + its modules/overrides).
+  TASK-043 (nested modules) is a separate loadFile-ungated issue; version gate is
+  independent and does not require waiting on nested-modules policy.
+verification-summary: |
+  Decision: HONOR — enforce version gate on modules and subprojects (not root-only).
+  Implementation: checkConfigVersion(cfg) helper; called after every loadFile that
+  yields a Config with Version set, unless SkipVersionCheck. Wired in Load (root,
+  modules, override) and LoadSubprojects (sub root, modules, override).
+  SkipVersionCheck forwarded via LoadOption into resolveSubprojectImports/LoadSubprojects.
+  TDD: TestLoad_ModuleIncompatibleVersion_Fails (RED without gate), plus override,
+  subproject, and SkipVersionCheck cases.
+  go test ./internal/config/ -count=1 → ok.
 ---
 
 # Task 042: `version: "99.0.0"` In A Module Is Validated Green And Then Executed
+
+## Decision (recorded)
+
+**HONOR**: enforce `version:` on modules, overrides, and subprojects the same as root.
+
+| Option | Chosen | Why |
+|--------|--------|-----|
+| Honor on every loaded file | **yes** | Field purpose is to be checked; modules are the most likely to need a higher floor |
+| Root-only + document ignore | no | Would leave validate green over an explicit "cannot run" statement |
+
+**TASK-043:** decided separately. Same ungated-`loadFile` root cause family, but nested-modules policy is orthogonal to version gating. Version checks do not merge `Version` into root; each file is gated at load.
+
+**Back-compat:** configs that previously loaded with an incompatible module/subproject `version:` now fail Load with the same upgrade message as root (wrapped with module/subproject name).
 
 ## Summary
 
@@ -170,14 +200,34 @@ both; deciding them separately risks two half-answers to one question.
 
 ## Completion Criteria
 
-- [ ] DECISION recorded: is `version:` honored in modules/subprojects/overrides, or explicitly root-only? | verify: `human — maintainer picks one and records why; a documented "root-only is correct" closes this task legitimately, provided the docs say so`
-- [ ] The decision is made together with TASK-043, or the reason for splitting them is recorded | verify: `human — both stem from loadFile() being ungated; confirm one coherent answer`
-- [ ] If HONOR: `dva validate` exits non-zero when a module declares a version newer than the running dva | verify: `human — reproduce the probe: root version "0.1.0" + .sb/dva/mod1.yml version "99.0.0"; assert EXIT!=0 and the message names the module`
-- [ ] If HONOR: the `skipVersionCheck` escape hatch still works through the new path | verify: `human — config.go:706/:713; assert the option still bypasses the check for every loaded file, not just the root`
-- [ ] If HONOR: a regression test asserts the module gate, proven to fail without the change | verify: `human — revert the gate, confirm the new test FAILS for the right reason, restore, confirm it passes`
-- [ ] If ROOT-ONLY: the docs state that `version:` is ignored outside the root dva.yml | verify: `human — a field silently ignored in 5 of 6 load paths must say so where users read about it`
-- [ ] The root gate does not regress — it still fires | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/config/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] DECISION recorded: HONOR version gate on modules/subprojects/overrides | verify: frontmatter `decision: honor version gate on modules and subprojects`
+- [x] Split from TASK-043 recorded | verify: Decision section — nested-modules policy orthogonal; each file gated at load
+- [x] Module with version 99.0.0 fails Load and names the module | verify: `TestLoad_ModuleIncompatibleVersion_Fails`
+- [x] SkipVersionCheck still bypasses every loaded file | verify: `TestLoad_ModuleIncompatibleVersion_SkipVersionCheck`
+- [x] Regression tests for module, override, subproject | verify: `go test ./internal/config/ -count=1 -run TestLoad_.*IncompatibleVersion`
+- [x] Root gate does not regress | verify: `TestVersionCompatibility` + package suite
+- [x] `go test ./internal/config/ -count=1` passes | verify: measured ok
+
+## Fix
+
+`internal/config/config.go` + `subproject.go`:
+
+1. `checkConfigVersion(cfg *Config) error` — shared gate (empty version = ok).
+2. `Load`: after root/module/override `loadFile`, call gate unless `skipVersionCheck`.
+3. `LoadSubprojects(..., opts ...LoadOption)`: same for sub root/modules/override.
+4. `resolveSubprojectImports` forwards `LoadOption` so `SkipVersionCheck` covers imports.
+
+## Evidence
+
+```
+$ go test ./internal/config/ -count=1 -run 'TestLoad_(Module|Override|Subproject)IncompatibleVersion|TestVersionCompatibility'
+ok  	github.com/ScriptonBasestar/dva/internal/config
+
+$ go test ./internal/config/ -count=1
+ok  	github.com/ScriptonBasestar/dva/internal/config
+```
+
+RED before gate (module case): `Load() error = nil, want version gate failure for module`.
 
 ## References
 

@@ -744,10 +744,9 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 	cfg.filePath = filePath
 
-	// Check version compatibility
-	if !o.skipVersionCheck && cfg.Version != "" {
-		if !isVersionCompatible(cfg.Version) {
-			return nil, fmt.Errorf("your dva version is `%s`, but config requires minimum version `%s`. Please upgrade dva", Version, cfg.Version)
+	if !o.skipVersionCheck {
+		if err := checkConfigVersion(cfg); err != nil {
+			return nil, err
 		}
 	}
 
@@ -759,6 +758,11 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 			modCfg, err := loadFile(modFile)
 			if err != nil {
 				return nil, fmt.Errorf("loading module `%s`: %w", mod, err)
+			}
+			if !o.skipVersionCheck {
+				if err := checkConfigVersion(modCfg); err != nil {
+					return nil, fmt.Errorf("loading module `%s`: %w", mod, err)
+				}
 			}
 			if len(modCfg.Modules) > 0 {
 				return nil, fmt.Errorf("nested modules are not supported")
@@ -772,6 +776,11 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	// Load override (if exists)
 	overrideFile := strings.TrimSuffix(filePath, ".yml") + OverrideExt
 	if overCfg, err := loadFile(overrideFile); err == nil {
+		if !o.skipVersionCheck {
+			if err := checkConfigVersion(overCfg); err != nil {
+				return nil, fmt.Errorf("loading override: %w", err)
+			}
+		}
 		if err := cfg.mergeFrom(overCfg); err != nil {
 			return nil, fmt.Errorf("merging override: %w", err)
 		}
@@ -804,7 +813,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 
 	if len(cfg.Subprojects) > 0 {
-		if err := resolveSubprojectImports(cfg); err != nil {
+		if err := resolveSubprojectImports(cfg, opts...); err != nil {
 			return nil, fmt.Errorf("resolving subprojects: %w", err)
 		}
 	}
@@ -1099,6 +1108,18 @@ func (c *Config) mergeFrom(other *Config) error {
 		c.Devcontainer = other.Devcontainer
 	}
 
+	return nil
+}
+
+// checkConfigVersion refuses configs that declare a minimum version newer than
+// the running DVA binary. Empty version is allowed (no gate).
+func checkConfigVersion(cfg *Config) error {
+	if cfg == nil || cfg.Version == "" {
+		return nil
+	}
+	if !isVersionCompatible(cfg.Version) {
+		return fmt.Errorf("your dva version is `%s`, but config requires minimum version `%s`. Please upgrade dva", Version, cfg.Version)
+	}
 	return nil
 }
 

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -205,6 +206,160 @@ func TestVersionCompatibility(t *testing.T) {
 		if got := isVersionCompatible(tt.required); got != tt.compatible {
 			t.Errorf("isVersionCompatible(%s) = %v, want %v", tt.required, got, tt.compatible)
 		}
+	}
+}
+
+// TestLoad_ModuleIncompatibleVersion_Fails locks TASK-042: version: on a module
+// must refuse Load the same way root version does (not silently dropped).
+func TestLoad_ModuleIncompatibleVersion_Fails(t *testing.T) {
+	// Given: root is compatible; module requires a future DVA
+	tmpDir := t.TempDir()
+	dvaDir := filepath.Join(tmpDir, DotDirName)
+	if err := os.MkdirAll(dvaDir, 0o755); err != nil {
+		t.Fatalf("mkdir modules dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+modules:
+  - extra
+interaction:
+  shell:
+    command: echo root
+`), 0o644); err != nil {
+		t.Fatalf("write root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dvaDir, "extra.yml"), []byte(`
+version: "99.0.0"
+interaction:
+  from_module:
+    command: echo HELLO_FROM_MODULE
+`), 0o644); err != nil {
+		t.Fatalf("write module: %v", err)
+	}
+
+	// When
+	_, err := Load(tmpDir)
+
+	// Then
+	if err == nil {
+		t.Fatal("Load() error = nil, want version gate failure for module")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "99.0.0") {
+		t.Errorf("error = %q, want required version 99.0.0", msg)
+	}
+	if !strings.Contains(msg, "extra") {
+		t.Errorf("error = %q, want module name extra", msg)
+	}
+}
+
+func TestLoad_ModuleIncompatibleVersion_SkipVersionCheck(t *testing.T) {
+	// Given: same incompatible module as the fail case
+	tmpDir := t.TempDir()
+	dvaDir := filepath.Join(tmpDir, DotDirName)
+	if err := os.MkdirAll(dvaDir, 0o755); err != nil {
+		t.Fatalf("mkdir modules dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+modules:
+  - extra
+`), 0o644); err != nil {
+		t.Fatalf("write root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dvaDir, "extra.yml"), []byte(`
+version: "99.0.0"
+interaction:
+  from_module:
+    command: echo ok
+`), 0o644); err != nil {
+		t.Fatalf("write module: %v", err)
+	}
+
+	// When: escape hatch used (e.g. config improve)
+	cfg, err := Load(tmpDir, SkipVersionCheck())
+
+	// Then
+	if err != nil {
+		t.Fatalf("Load(SkipVersionCheck) error = %v, want nil", err)
+	}
+	if _, ok := cfg.Interaction["from_module"]; !ok {
+		t.Error("module interaction not merged under SkipVersionCheck")
+	}
+}
+
+func TestLoad_OverrideIncompatibleVersion_Fails(t *testing.T) {
+	// Given: root ok; override requires future DVA
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+interaction:
+  shell:
+    command: echo root
+`), 0o644); err != nil {
+		t.Fatalf("write root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "dva.override.yml"), []byte(`
+version: "99.0.0"
+interaction:
+  from_override:
+    command: echo override
+`), 0o644); err != nil {
+		t.Fatalf("write override: %v", err)
+	}
+
+	// When
+	_, err := Load(tmpDir)
+
+	// Then
+	if err == nil {
+		t.Fatal("Load() error = nil, want version gate failure for override")
+	}
+	if !strings.Contains(err.Error(), "99.0.0") {
+		t.Errorf("error = %q, want required version 99.0.0", err)
+	}
+}
+
+func TestLoad_SubprojectIncompatibleVersion_Fails(t *testing.T) {
+	// Given: root imports a subproject whose dva.yml requires future DVA
+	tmpDir := t.TempDir()
+	subDir := filepath.Join(tmpDir, "backend")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("mkdir sub: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(`
+version: "0.1.0"
+subprojects:
+  backend:
+    path: backend
+    import:
+      interactions:
+        - name: shell
+`), 0o644); err != nil {
+		t.Fatalf("write root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, FileName), []byte(`
+version: "99.0.0"
+interaction:
+  shell:
+    command: echo sub
+`), 0o644); err != nil {
+		t.Fatalf("write sub: %v", err)
+	}
+
+	// When
+	_, err := Load(tmpDir)
+
+	// Then
+	if err == nil {
+		t.Fatal("Load() error = nil, want version gate failure for subproject")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "99.0.0") {
+		t.Errorf("error = %q, want required version 99.0.0", msg)
+	}
+	if !strings.Contains(msg, "backend") {
+		t.Errorf("error = %q, want subproject name backend", msg)
 	}
 }
 

@@ -9,7 +9,13 @@ import (
 // LoadSubprojects loads dva.yml from each sub-project path.
 // Contract: when err == nil, the returned map contains every requested name.
 // On any load failure the function returns nil, err (partial results are discarded).
-func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[string]*Config, error) {
+// LoadOption values (e.g. SkipVersionCheck) apply to every file loaded for each subproject.
+func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ...LoadOption) (map[string]*Config, error) {
+	var o loadOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	result := make(map[string]*Config, len(subs))
 	for name, sub := range subs {
 		subPath := sub.Path
@@ -22,6 +28,11 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 			return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)
 		}
 		cfg.filePath = subCfgPath
+		if !o.skipVersionCheck {
+			if err := checkConfigVersion(cfg); err != nil {
+				return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)
+			}
+		}
 
 		// Load sub-project modules (same .sb/dva/*.yml pattern)
 		if len(cfg.Modules) > 0 {
@@ -32,6 +43,11 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 				if err != nil {
 					return nil, fmt.Errorf("loading subproject %q module %q: %w", name, mod, err)
 				}
+				if !o.skipVersionCheck {
+					if err := checkConfigVersion(modCfg); err != nil {
+						return nil, fmt.Errorf("loading subproject %q module %q: %w", name, mod, err)
+					}
+				}
 				if err := cfg.mergeFrom(modCfg); err != nil {
 					return nil, fmt.Errorf("merging subproject %q module %q: %w", name, mod, err)
 				}
@@ -41,6 +57,11 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 		// Load sub-project override
 		overrideFile := filepath.Join(subPath, "dva.override.yml")
 		if overCfg, err := loadFile(overrideFile); err == nil {
+			if !o.skipVersionCheck {
+				if err := checkConfigVersion(overCfg); err != nil {
+					return nil, fmt.Errorf("loading subproject %q override: %w", name, err)
+				}
+			}
 			if err := cfg.mergeFrom(overCfg); err != nil {
 				return nil, fmt.Errorf("merging subproject %q override: %w", name, err)
 			}
@@ -51,7 +72,7 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig) (map[st
 	return result, nil
 }
 
-func resolveSubprojectImports(cfg *Config) error {
+func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 	if len(cfg.Subprojects) == 0 {
 		return nil
 	}
@@ -68,7 +89,7 @@ func resolveSubprojectImports(cfg *Config) error {
 		return nil
 	}
 
-	subCfgs, err := LoadSubprojects(parentDir, importedSubprojects)
+	subCfgs, err := LoadSubprojects(parentDir, importedSubprojects, opts...)
 	if err != nil {
 		return err
 	}
