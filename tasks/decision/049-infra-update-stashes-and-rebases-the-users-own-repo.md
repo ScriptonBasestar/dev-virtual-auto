@@ -3,13 +3,21 @@ id: TASK-049
 title: "dva infra update runs 'git stash' + 'git pull --rebase' on the user's OWN repo, never clones, and misattributes their files to the infra service"
 type: bug
 priority: P0
-status: todo
+status: decision
 effort: M
 needs-human: true
 created-at: 2026-07-16T23:24:00+09:00
+moved-at: 2026-07-17T10:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: sweep-infra report; mechanism re-derived from source and empirically confirmed by the orchestrator
 source-severity: CRITICAL
+context: "Product decision required on where git-based infra services should live before implementing safe clone/update (user's repo is currently mutated)."
+options:
+  A: "conventional cache dir (.sb/dva/infra/<name>/, sibling to the existing marker dir). Makes the clone branch reachable and leaves the user's repo alone."
+  B: "relax the oneOf so git + path may be given together (git = source, path = destination). Requires schema change and migration."
+  C: "make path required for git services. Simplest, but breaks every existing git-only config."
+recommendation: "Option A (conventional cache .sb/dva/infra/<name>/)"
+recommendation-reason: "leaves user repo alone; clone branch becomes reachable; no schema oneOf relaxation risk; .sb/ is existing project pattern"
 ---
 
 # Task 049: `dva infra update` Mutates The User's Project Repository
