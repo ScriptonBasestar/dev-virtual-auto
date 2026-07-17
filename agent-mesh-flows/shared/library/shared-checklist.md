@@ -11,7 +11,7 @@
 
 ### Structure
 - [ ] Section order follows canonical: version → vars → environment → env_file → stack → plans → environments → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer
-- [ ] `env_file:` uses object format (`files:` array + `interpolate: true`)
+- [ ] `env_file:` uses object format (`files:` array; optional top-level `required:`)
 - [ ] `stack:` section present (no legacy `compose:` root-level)
 - [ ] New/rewrite config has at least one named `plans:` entry
 - [ ] Custom `checks:` do not duplicate built-in doctor checks

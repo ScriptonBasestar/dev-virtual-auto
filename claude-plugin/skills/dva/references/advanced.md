@@ -242,7 +242,6 @@ stack:
         services:
           api:
             tags: [app]
-            related: [worker]
   kubectl:                     # kubectl plugin auto-inferred
     order: 20
     namespace: myapp-dev

@@ -23,7 +23,7 @@
     dependency), and do not duplicate plan up/down actions with raw lifecycle commands.
 11. **Provision evidence** — Generate only profiles backed by actual setup work;
     never invent `default`, `full`, or `reset` profiles to satisfy a template.
-12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
+12. **`env_file:` object format** — Prefer `{ files: [...] }` (optional `required:`); plain string path is also valid.
 13. **Built-in checks first** — Do not generate custom Docker socket, Compose
     file, or env-file checks already emitted by `dva doctor`. Add `checks:` only
     for project-specific prerequisites.
@@ -90,7 +90,7 @@
 
 ### Structure
 - [ ] Section order follows canonical: version → vars → environment → env_file → stack → plans → environments → sites → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer
-- [ ] `env_file:` uses object format (`files:` array + `interpolate: true`)
+- [ ] `env_file:` uses object format (`files:` array; optional top-level `required:`)
 - [ ] `stack:` section present (no legacy `compose:` root-level)
 - [ ] New/rewrite config has at least one named `plans:` entry
 - [ ] Custom `checks:` do not duplicate built-in doctor checks
@@ -196,8 +196,7 @@ env_file:                       # .env file loading (optional)
       required: true
     - path: .env
       required: false
-  priority: before_environment  # before_environment | after_environment
-  interpolate: true
+  required: false               # optional: mark all listed files required
 
 # --- Infrastructure Orchestration Declarations ---
 # Each entry declares one or more named runners. Plans choose what actually runs.
@@ -215,8 +214,6 @@ stack:
         services:                 # Per-service TAG metadata only
           {service-name}:
             tags: [infra, data]   # Used for tag-based filtering
-            related: [other-service]
-            hint: "Why this service matters"
 
   # --- Multi-stack: only for different backends ---
   # Use ONE stack entry + plans for operational variants (NOT separate entries).
@@ -832,8 +829,6 @@ env_file:
       required: true
     - path: .env
       required: false
-  priority: before_environment
-  interpolate: true
 ```
 
 ### Commonly Misused Fields

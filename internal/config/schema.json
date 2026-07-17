@@ -48,9 +48,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "tags": { "type": "array", "items": { "type": "string" } },
-        "related": { "type": "array", "items": { "type": "string" } },
-        "hint": { "type": "string" }
+        "tags": { "type": "array", "items": { "type": "string" } }
       }
     },
     "compose_runner_config": {
@@ -271,21 +269,10 @@
                 }
               ]
             },
-            "priority": {
-              "type": "string",
-              "enum": ["before_environment", "after_environment"],
-              "default": "before_environment",
-              "description": "Control whether env_file or environment: takes precedence"
-            },
             "required": {
               "type": "boolean",
               "default": false,
               "description": "Whether env files are required to exist"
-            },
-            "interpolate": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable variable interpolation in .env files"
             }
           },
           "required": ["files"],
@@ -297,7 +284,6 @@
         [".env.defaults", ".env", ".env.local"],
         {
           "files": [".env.defaults", ".env"],
-          "priority": "before_environment",
           "required": false
         }
       ]
@@ -1483,6 +1469,11 @@
             "type": "string",
             "description": "Suggestion shown when the check fails",
             "examples": ["cp .env.example .env", "dva provision setup"]
+          },
+          "fix": {
+            "type": "string",
+            "description": "Shell command executed by `dva doctor --fix` to auto-remediate a failed check. Runs via `sh -c` from the config directory; only used when --fix is passed.",
+            "examples": ["cp .env.example .env", "touch .sentinel"]
           }
         },
         "required": ["name", "type"]
@@ -1490,7 +1481,7 @@
       "examples": [
         [
           { "name": "Docker socket accessible", "type": "docker_socket", "fix_hint": "Start Docker Desktop" },
-          { "name": ".env file exists", "type": "file_exists", "path": ".env", "fix_hint": "cp .env.example .env" },
+          { "name": ".env file exists", "type": "file_exists", "path": ".env", "fix_hint": "cp .env.example .env", "fix": "cp .env.example .env" },
           { "name": "DB migrations applied", "type": "command", "command": "make migrate-status 2>&1 | grep -qv pending", "fix_hint": "dva provision setup" }
         ]
       ]

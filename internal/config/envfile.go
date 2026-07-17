@@ -18,7 +18,7 @@ type EnvFileConfig struct {
 }
 
 // LoadEnvFile loads environment variables from .env file(s).
-// The config can be: string, []any, or map with files/priority/interpolate keys.
+// The config can be: string, []any, or map with files/required keys.
 func LoadEnvFile(envFileConfig any, basePath string, env *Environment) error {
 	files := normalizeEnvFileConfig(envFileConfig)
 

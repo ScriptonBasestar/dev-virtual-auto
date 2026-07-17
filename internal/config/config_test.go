@@ -495,7 +495,9 @@ func TestProvisionConfigMergeOverride(t *testing.T) {
 	}
 }
 
-func TestServiceRelatedFieldParsing(t *testing.T) {
+// TestServiceTagsFieldParsing locks that services.<svc>.tags still parse after
+// related/hint removal (TASK-036). Sibling Tags remains the live field.
+func TestServiceTagsFieldParsing(t *testing.T) {
 	tmpDir := t.TempDir()
 	dvaYml := filepath.Join(tmpDir, FileName)
 
@@ -509,8 +511,6 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
         services:
           api:
             tags: [web]
-            related: [worker, scheduler]
-            hint: "Worker is needed for async processing"
           worker:
             tags: [background]
 `
@@ -523,14 +523,12 @@ func TestServiceRelatedFieldParsing(t *testing.T) {
 
 	services := cfg.ComposeServices()
 	api := services["api"]
-	if len(api.Related) != 2 {
-		t.Fatalf("expected 2 related, got %d", len(api.Related))
+	if len(api.Tags) != 1 || api.Tags[0] != "web" {
+		t.Fatalf("api.tags = %v, want [web]", api.Tags)
 	}
-	if api.Related[0] != "worker" || api.Related[1] != "scheduler" {
-		t.Errorf("related = %v, want [worker scheduler]", api.Related)
-	}
-	if api.Hint != "Worker is needed for async processing" {
-		t.Errorf("hint = %q", api.Hint)
+	worker := services["worker"]
+	if len(worker.Tags) != 1 || worker.Tags[0] != "background" {
+		t.Fatalf("worker.tags = %v, want [background]", worker.Tags)
 	}
 }
 

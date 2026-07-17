@@ -152,6 +152,129 @@ stack:
 	}
 }
 
+// TestValidateRejectsServiceRelatedAndHint locks TASK-036: related/hint were
+// never consumed; schema must reject them rather than validate-green no-op.
+func TestValidateRejectsServiceRelatedAndHint(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+stack:
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml]
+        services:
+          api:
+            tags: [web]
+            related: [worker]
+            hint: "never shown"
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for services related/hint")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "Additional property related is not allowed") &&
+		!strings.Contains(msg, "Additional property hint is not allowed") {
+		t.Fatalf("Validate() error = %v, want related or hint rejection", msg)
+	}
+}
+
+// TestValidateRejectsEnvFileInterpolate locks TASK-035: interpolate was never
+// read; schema must reject it rather than validate-green no-op.
+func TestValidateRejectsEnvFileInterpolate(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+env_file:
+  files: [.env]
+  interpolate: false
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for env_file.interpolate")
+	}
+	if !strings.Contains(err.Error(), "Additional property interpolate is not allowed") {
+		t.Fatalf("Validate() error = %v, want interpolate rejection", err)
+	}
+}
+
+// TestValidateRejectsEnvFilePriority locks TASK-035: priority was never read.
+func TestValidateRejectsEnvFilePriority(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+env_file:
+  files: [.env]
+  priority: after_environment
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() expected error for env_file.priority")
+	}
+	if !strings.Contains(err.Error(), "Additional property priority is not allowed") {
+		t.Fatalf("Validate() error = %v, want priority rejection", err)
+	}
+}
+
+// TestValidateAcceptsEnvFileRequiredOnly ensures required still works after removal.
+func TestValidateAcceptsEnvFileRequiredOnly(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+env_file:
+  files: [.env]
+  required: false
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want accept env_file with required only", err)
+	}
+}
+
+// TestValidateAcceptsDoctorCheckFix locks TASK-045: checks[].fix is honored by
+// doctor --fix and must be schema-legal (not "Additional property fix is not allowed").
+func TestValidateAcceptsDoctorCheckFix(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+checks:
+  - name: "Sentinel file exists"
+    type: file_exists
+    path: .sentinel
+    fix_hint: "touch .sentinel"
+    fix: "touch .sentinel"
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want accept checks[].fix", err)
+	}
+	if len(cfg.DoctorChecks) != 1 || cfg.DoctorChecks[0].Fix != "touch .sentinel" {
+		t.Fatalf("DoctorChecks = %+v, want fix=touch .sentinel", cfg.DoctorChecks)
+	}
+}
+
+// TestValidateAcceptsDoctorCheckWithoutFix ensures exposing fix does not require it.
+func TestValidateAcceptsDoctorCheckWithoutFix(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+checks:
+  - name: "Sentinel file exists"
+    type: file_exists
+    path: .sentinel
+    fix_hint: "touch .sentinel"
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want accept checks without fix", err)
+	}
+}
+
 func TestComposeHelpersReadComposeRunnerSchema(t *testing.T) {
 	tmpDir := t.TempDir()
 	content := `version: "0.1.44"

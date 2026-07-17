@@ -3,17 +3,42 @@ id: TASK-045
 title: "checks[].fix is implemented and works, and dva validate rejects it as an unknown property"
 type: bug
 priority: P3
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-17T08:05:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (schema.json examples lens)
 source-severity: LOW
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:45:00+09:00
+verified-at: 2026-07-17T11:45:00+09:00
+decision: expose checks[].fix in schema
+decision-rationale: |
+  Code already honors Fix (doctor --fix runs sh -c). Schema forbade it via
+  additionalProperties: false. type: command already executes config shell on
+  plain doctor; fix behind --fix is more guarded. Expose matches implemented
+  behavior; remove would delete a working feature. Schema description states
+  arbitrary-shell-on--fix semantics.
+verification-summary: |
+  Decision: EXPOSE fix in schema.json checks properties next to fix_hint.
+  Implementation: schema property fix + example; TestValidateAcceptsDoctorCheckFix
+  and TestValidateAcceptsDoctorCheckWithoutFix.
+  go test ./internal/config/ -run DoctorCheck → ok.
+  Doctor exit-code logic (TASK-046) untouched.
 ---
 
 # Task 045: The Feature Works, The Validator Says It Is Invalid
+
+## Decision (recorded)
+
+**EXPOSE**: add `checks[].fix` to schema.json so validate accepts working configs.
+
+| Option | Chosen | Why |
+|--------|--------|-----|
+| Expose in schema | **yes** | Code already runs it; type:command already accepts config shell |
+| Remove from code | no | Deletes working doctor --fix for user checks |
+
+**Security note:** `fix` runs via `sh -c` only when `dva doctor --fix` is passed. Documented in schema description.
+
 
 ## Summary
 

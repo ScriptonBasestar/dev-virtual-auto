@@ -21,7 +21,7 @@
     dependency), and do not duplicate plan up/down actions with raw lifecycle commands.
 11. **Provision evidence** — Generate only profiles backed by actual setup work;
     never invent `default`, `full`, or `reset` profiles to satisfy a template.
-12. **`env_file:` object format** — Must use `{ files: [...], interpolate: true }`, not plain string.
+12. **`env_file:` object format** — Prefer `{ files: [...] }` (optional `required:`); plain string path is also valid.
 13. **Built-in checks first** — Do not generate custom Docker socket, Compose
     file, or env-file checks already emitted by `dva doctor`. Add `checks:` only
     for project-specific prerequisites.

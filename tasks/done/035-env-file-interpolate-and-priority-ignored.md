@@ -3,17 +3,43 @@ id: TASK-035
 title: "env_file.interpolate and env_file.priority validate green and are never read"
 type: bug
 priority: P2
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-17T03:25:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (silent config no-ops)
 source-severity: MEDIUM
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:47:00+09:00
+verified-at: 2026-07-17T11:47:00+09:00
+decision: remove interpolate and priority from schema
+decision-rationale: |
+  Neither key was ever read from the env_file map branch (only files/required).
+  interpolate:false still interpolated; priority never reordered precedence.
+  Honor would require real precedence work (priority) and tri-state Interpolate.
+  Lean remove: delete inert surface so validate fails instead of green no-op.
+  Interpolation remains unconditional (always on); documented precedence unchanged.
+verification-summary: |
+  Decision: REMOVE both keys from schema.json env_file object form.
+  Implementation: schema drop + example cleanup; templates drop interpolate;
+  library docs updated; TestValidateRejectsEnvFile{Interpolate,Priority} and
+  TestValidateAcceptsEnvFileRequiredOnly.
+  go test ./internal/config/ -run EnvFile → ok.
+  required: control still validates.
 ---
 
 # Task 035: Two `env_file` Keys The Loader Never Extracts
+
+## Decision (recorded)
+
+**REMOVE** both `env_file.interpolate` and `env_file.priority` from schema.
+
+| Key | Chosen | Why |
+|-----|--------|-----|
+| interpolate | remove | Never gated; always interpolates; honor needs tri-state |
+| priority | remove | Never implemented; precedence already documented elsewhere |
+
+Configs using either key now fail `dva validate` with Additional property … is not allowed.
+
 
 ## Summary
 

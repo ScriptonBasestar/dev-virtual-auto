@@ -50,8 +50,7 @@ env_file:                       # .env file loading (optional)
       required: true
     - path: .env
       required: false
-  priority: before_environment  # before_environment | after_environment
-  interpolate: true
+  required: false               # optional: mark all listed files required
 
 # --- Infrastructure Orchestration Declarations ---
 # Each entry declares one or more named runners. Plans choose what actually runs.
@@ -69,8 +68,6 @@ stack:
         services:                 # Per-service TAG metadata only
           {service-name}:
             tags: [infra, data]   # Used for tag-based filtering
-            related: [other-service]
-            hint: "Why this service matters"
 
   # --- Multi-stack: only for different backends ---
   # Use ONE stack entry + plans for operational variants (NOT separate entries).
@@ -686,8 +683,6 @@ env_file:
       required: true
     - path: .env
       required: false
-  priority: before_environment
-  interpolate: true
 ```
 
 ### Commonly Misused Fields

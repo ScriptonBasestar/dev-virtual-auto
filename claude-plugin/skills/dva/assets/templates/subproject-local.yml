@@ -6,7 +6,6 @@ env_file:
       required: true
     - path: .env
       required: false
-  interpolate: true
 
 interaction:
   sync:

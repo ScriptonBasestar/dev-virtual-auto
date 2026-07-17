@@ -222,9 +222,7 @@ type HealthCheckConfig struct {
 
 // ServiceTagConfig defines per-service tag configuration.
 type ServiceTagConfig struct {
-	Tags    []string `yaml:"tags"`
-	Related []string `yaml:"related"` // related service names (shown as hints when not running)
-	Hint    string   `yaml:"hint"`    // human-readable hint shown when related services are missing
+	Tags []string `yaml:"tags"`
 }
 
 // ApplicationConfig declares a long-running application process with

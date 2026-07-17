@@ -3,17 +3,40 @@ id: TASK-036
 title: "services.<svc>.related and .hint validate green, are never read, and have a test that proves only that they parse"
 type: bug
 priority: P3
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-17T03:30:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (silent config no-ops)
 source-severity: LOW
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:49:00+09:00
+verified-at: 2026-07-17T11:49:00+09:00
+decision: remove related and hint from schema and struct
+decision-rationale: |
+  Zero non-test readers of Related/Hint. Only coverage was parse-roundtrip
+  (false confidence). Surfacing needs UX design with no in-repo precedent.
+  Lean remove: drop schema properties, struct fields, and parse-only test;
+  replace with schema rejection test + tags control.
+verification-summary: |
+  Decision: REMOVE related/hint from service_tag_config and ServiceTagConfig.
+  Implementation: schema.json, config.go, TestValidateRejectsServiceRelatedAndHint,
+  TestServiceTagsFieldParsing (tags control). Docs/templates cleaned.
+  go test ./internal/config/ ./internal/lifecycle/ → ok.
 ---
 
 # Task 036: Two Keys, Zero Reads, And A Test That Manufactures Confidence
+
+## Decision (recorded)
+
+**REMOVE** `services.<svc>.related` and `.hint` from schema and Go struct.
+
+| Option | Chosen | Why |
+|--------|--------|-----|
+| Remove | **yes** | Never consumed; parse-only test was false confidence |
+| Surface | no | No UX precedent for where to show them |
+
+Parse-only `TestServiceRelatedFieldParsing` replaced by tags control + schema rejection test.
+
 
 ## Summary
 
