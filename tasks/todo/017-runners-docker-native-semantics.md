@@ -3,18 +3,20 @@ id: TASK-017
 title: "Decide stack runners.docker / runners.native semantics"
 type: chore
 priority: P1
-status: decision
+status: todo
 effort: S
 priority-raised-at: 2026-07-16T23:15:00+09:00
 priority-raised-reason: "convergence check 2 proved three shipped examples/ files pass validate then hard-fail at stack up on this exact shape (TASK-026)"
 created-at: 2026-07-16T20:15:00+09:00
-needs-human: true
+needs-human: false
 source-run-id: 20260716T091912Z-73dc094
 discovered-in: TASK-009
 decision-status: pending
 decision-recommendation: "Option A — map runners.docker to the docker plugin"
 decision-confidence: medium
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T10:55:19+09:00
+decided-at: 2026-07-17T10:55:19+09:00
+decision: "Option A — map runners.docker to the docker plugin"
 ---
 
 # Decision 017: stack runners.docker / runners.native 의미 확정

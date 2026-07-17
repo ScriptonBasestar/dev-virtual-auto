@@ -3,17 +3,19 @@ id: TASK-028
 title: "A leading flag silently suppresses the default-plan route and widens scope to the whole stack"
 type: bug
 priority: P1
-status: decision
+status: todo
 effort: M
 created-at: 2026-07-17T00:45:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-027 probing
 source-severity: HIGH
-needs-human: true
+needs-human: false
 decision-status: pending
 decision-recommendation: "Option B — error when a plan route is suppressed by flags — as the minimal honest fix; Option A is the better product but is feature work"
 decision-confidence: medium
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T10:55:19+09:00
+decided-at: 2026-07-17T10:55:19+09:00
+decision: "Option B — error when flags suppress an available plan route"
 ---
 
 # Task 028: A Flag Silently Widens `dva up` From One Plan To The Whole Stack
