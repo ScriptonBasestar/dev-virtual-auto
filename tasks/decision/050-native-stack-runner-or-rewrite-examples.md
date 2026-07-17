@@ -3,7 +3,8 @@ id: TASK-050
 title: "native stack default_runner still unservable after TASK-017 Option A (docker only)"
 type: bug
 priority: P1
-status: todo
+status: decision
+needs-human: true
 effort: M
 created-at: 2026-07-17T11:15:00+09:00
 depends-on: [TASK-017]
