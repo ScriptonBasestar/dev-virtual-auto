@@ -20,7 +20,11 @@ type planRunFlags struct {
 }
 
 func requirePlanSelection(c *config.Config, command string, args []string) error {
-	if c == nil || !c.HasPlans() || len(args) > 0 || c.DefaultPlan() != "" {
+	if c == nil || !c.HasPlans() {
+		return nil
+	}
+	args = planRoutingArgs(args)
+	if len(args) > 0 || c.DefaultPlan() != "" {
 		return nil
 	}
 
@@ -36,6 +40,7 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 	if c == nil || !c.HasPlans() {
 		return "", nil, false
 	}
+	args = planRoutingArgs(args)
 
 	if len(args) > 0 {
 		if _, exists := c.Plans[args[0]]; exists {
