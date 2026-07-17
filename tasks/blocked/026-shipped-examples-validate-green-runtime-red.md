@@ -12,7 +12,8 @@ source-severity: HIGH
 depends-on: [TASK-017]
 blocked-reason: dependency
 blocked-detail: "Whether the fix is code (make runners.native/docker run) or docs (rewrite 12 locations) is exactly TASK-017's undecided question"
-unblock-condition: "TASK-017 decided (Option A -> examples become correct, implement the backend; Option B -> rewrite the 12 locations and make validate reject the shape)"
+unblock-condition: "TASK-017 decided Option A for docker only; native stack default_runner still unservable — need native plugin OR rewrite 12 native example/doc locations (split follow-up)"
+depends-on-status: "TASK-017 done (docker only); native residual remains"
 blocked-at: 2026-07-17T10:55:00+09:00
 ---
 
