@@ -65,24 +65,24 @@ var upCmd = &cobra.Command{
 	Long: `Start a named plan when plans are configured.
 Without plans, use the legacy stack and applications lifecycle.
 
-Plan usage:
-  dva up <plan>           Start the selected plan
-  --force                 Force restart even if already running
-  --no-wait               Return without waiting for readiness
-  --var KEY=VAL           Override a plan variable
+	Plan usage:
+	  dva up <plan>           Start the selected plan
+	  --force                 Compose only: pass --force-recreate (other plugins ignore)
+	  --no-wait               Return without waiting for readiness
+	  --var KEY=VAL           Override a plan variable
 
-Legacy flags:
-  --force                   Force restart even if already running
-  --no-wait                 Start services and return immediately without waiting
-  --dev                     Start applications in dev mode (hot-reload)
-  --docker                  Force docker strategy for applications
-  --mode, -M MODE           Use a named mode from dva.yml modes section
-  --env, -E ENV             Use a named environment from dva.yml environments section
-  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
+	Legacy flags:
+	  --force                   Compose only: pass --force-recreate (other plugins ignore)
+	  --no-wait                 Start services and return immediately without waiting
+	  --dev                     Start applications in dev mode (hot-reload)
+	  --docker                  Force docker strategy for applications
+	  --mode, -M MODE           Use a named mode from dva.yml modes section
+	  --env, -E ENV             Use a named environment from dva.yml environments section
+	  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+	  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
 
-Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
-  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
+	Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
+	  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {

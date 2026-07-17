@@ -36,35 +36,37 @@ var stackUpCmd = &cobra.Command{
 	Long: `Start stack entries defined in the 'stack' section of dva.yml.
 Starts every entry unless NAME arguments or tag filters narrow the selection.
 
-DVA-specific flags:
-  --mode, -M MODE           Use a named mode from dva.yml modes section
-  --env, -E ENV             Use a named environment from dva.yml environments section
-  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
-	DisableFlagParsing: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if helpRequested(args) {
-			return cmd.Help()
-		}
-		c := mustLoadConfig()
-		e := loadEnv(c)
-
-		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
-		mode, isDefault := applyDefaultMode(c, mode)
-
-		force := false
-		noWait := false
-		var filteredNames []string
-		for _, a := range names {
-			switch a {
-			case "--force":
-				force = true
-			case "--no-wait":
-				noWait = true
-			default:
-				filteredNames = append(filteredNames, a)
+	DVA-specific flags:
+	  --force                   Compose only: pass --force-recreate (other plugins ignore)
+	  --no-wait                 Start and return without waiting for readiness
+	  --mode, -M MODE           Use a named mode from dva.yml modes section
+	  --env, -E ENV             Use a named environment from dva.yml environments section
+	  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+	  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
+		DisableFlagParsing: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if helpRequested(args) {
+				return cmd.Help()
 			}
-		}
+			c := mustLoadConfig()
+			e := loadEnv(c)
+
+			mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+			mode, isDefault := applyDefaultMode(c, mode)
+
+			force := false
+			noWait := false
+			var filteredNames []string
+			for _, a := range names {
+				switch a {
+				case "--force":
+					force = true
+				case "--no-wait":
+					noWait = true
+				default:
+					filteredNames = append(filteredNames, a)
+				}
+			}
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -242,12 +244,12 @@ var stackStatusCmd = &cobra.Command{
 			status.Entries = filtered
 		}
 
-		lifecycle.PrintStatus(status, c.FileDir())
-		return nil
-	},
-}
+			lifecycle.PrintStatus(status, c.FileDir())
+			return lifecycle.StatusExitError(status)
+		},
+	}
 
-var stackLogCmd = &cobra.Command{
+	var stackLogCmd = &cobra.Command{
 	Use:                "log [NAME] [OPTIONS]",
 	Short:              "View logs for a stack entry",
 	DisableFlagParsing: true,

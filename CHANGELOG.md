@@ -42,6 +42,10 @@ All notable changes to DVA are documented here.
 - `dva status` 출력에 앱 포트 정보 추가
 - **`dva doctor` exits non-zero when a user-defined `checks:` entry fails** (built-in checks stay advisory):
   text and `--json` still print full results first; user prerequisites gate `dva doctor && dva up`
+- **`dva status` / `dva stack status` exit non-zero when any entry is unrunnable** (TASK-041):
+  post-up status summaries still swallow errors so a successful `up` stays exit 0
+- **`dva up --force` / `stack up --force`**: compose only — passes `--force-recreate` (TASK-040);
+  help text states the scope; other plugins ignore Force
 
 ### Fixed
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)
@@ -49,6 +53,10 @@ All notable changes to DVA are documented here.
 - Tag filtering (`FilterInteractions`, `exclude_tags`) was implemented but not called for subprojects
 - `os.Exit(1)` inside `RunE` replaced with `return err` for consistent cobra error handling
 - `dva doctor` always exited 0 after reporting failed checks (TASK-046)
+- Removed inert schema surface: `devcontainer.config_path` (TASK-037); provision structured
+  `shell`/`sleep`/`docker` (TASK-044; raw-string form still works); provision profiles now
+  schema-validated against `provision_item`
+- Plan `entries[].runner` honored at execution via plan orchestrator materialization (TASK-039)
 
 ## [0.1.16] - 2026-03-24
 

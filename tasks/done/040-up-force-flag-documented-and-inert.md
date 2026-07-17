@@ -3,17 +3,33 @@ id: TASK-040
 title: "--force on 'up'/'stack up' is documented, parsed, threaded through two structs, and read by nobody"
 type: bug
 priority: P3
-status: decision
-needs-human: true
+status: done
 effort: S
 created-at: 2026-07-17T05:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-030 follow-up (help surfaces vs actual behavior)
 source-severity: LOW
-moved-at: 2026-07-17T10:55:00+09:00
+moved-at: 2026-07-17T11:52:00+09:00
+verified-at: 2026-07-17T11:52:00+09:00
+decision: honor --force for compose only (--force-recreate)
+decision-rationale: |
+  pctx.Wait already toggles --wait; Force now adds --force-recreate in composeUpArgs.
+  Help text scopes the flag to compose. restart keeps Force:true so restart recreates compose.
+  dva clean --force untouched.
+verification-summary: |
+  Decision: HONOR --force for compose only.
+  composeUpArgs + TestComposeUpArgsForce; help updated on up and stack up.
+  go test ./internal/lifecycle/ ./internal/cli/ -count=1 ok.
 ---
-
 # Task 040: A Flag That Travels Two Structs To Reach Nobody
+
+
+## Decision (recorded)
+
+**HONOR** `--force` for **compose only** as `--force-recreate`.
+
+Other plugins ignore `pctx.Force`. Help text states the scope. `dva clean --force` unchanged.
+`restart` keeps `Force: true` so compose restart force-recreates.
 
 ## Summary
 
