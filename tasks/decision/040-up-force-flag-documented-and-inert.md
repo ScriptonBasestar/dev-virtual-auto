@@ -3,13 +3,14 @@ id: TASK-040
 title: "--force on 'up'/'stack up' is documented, parsed, threaded through two structs, and read by nobody"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T05:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-030 follow-up (help surfaces vs actual behavior)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 040: A Flag That Travels Two Structs To Reach Nobody

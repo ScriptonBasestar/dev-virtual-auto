@@ -3,7 +3,7 @@ id: TASK-024
 title: "patterns.md recommends migrating applications to runners.native/docker, which fails at runtime"
 type: docs
 priority: P2
-status: todo
+status: blocked
 effort: XS
 created-at: 2026-07-16T22:25:00+09:00
 source-run-id: 20260716T112622Z-5729d98
@@ -13,6 +13,7 @@ depends-on: [TASK-017]
 blocked-reason: dependency
 blocked-detail: "The correct content depends on TASK-017's decision about runners.docker/native semantics"
 unblock-condition: "TASK-017 decided (Option A -> this doc becomes correct as-is; Option B -> this row must be rewritten)"
+blocked-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 024: patterns.md Recommends A Broken Migration

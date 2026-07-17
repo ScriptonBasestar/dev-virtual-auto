@@ -7,6 +7,8 @@ status: done
 effort: S
 created-at: 2026-07-16T23:24:00+09:00
 completed-at: 2026-07-17T01:48:47Z
+archived-at: 2026-07-17T10:51:00+09:00
+verified-at: 2026-07-17T10:51:00+09:00
 completion-summary: |
   Pre-parse --debug/--json from os.Args in PersistentPreRun before logger.Init
   (applyRootPersistentFlagsFromArgs). Also strip them in parseDvaFlags so lifecycle
@@ -18,6 +20,15 @@ verification-evidence:
   - "GREEN: go test ./internal/cli/ -count=1 EXIT=0"
   - "GREEN: go vet ./internal/cli/... clean"
   - "TASK-047 regression: TestParseDvaFlags* still pass"
+verification-summary: |
+  Deliverables verified:
+  - internal/cli/root.go has applyRootPersistentFlagsFromArgs (defined at :251) and
+    PersistentPreRun calls it (line 43) before logger.Init (line 44).
+  - parseDvaFlags (compose.go:542) consumes --debug/--json (sets globals, excludes from filtered).
+  - internal/cli/root_persistent_flags_test.go exists (covers TestApplyRootPersistentFlagsFromArgs*
+    and TestParseDvaFlagsConsumesDebugAndJSON).
+  - go test ./internal/cli/ -run TestApplyRoot -count=1 passes (ok).
+  File moved from done/ to _archive/ following sibling TASK-047 archive convention (status: done).
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-047's audit criterion, measured by the orchestrator at a9dd492
 source-severity: MEDIUM

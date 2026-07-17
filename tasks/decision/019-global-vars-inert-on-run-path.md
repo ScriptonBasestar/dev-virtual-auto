@@ -3,7 +3,7 @@ id: TASK-019
 title: "Top-level vars: is inert on the dva run path, contradicting its schema description"
 type: bug
 priority: P2
-status: todo
+status: decision
 effort: S
 created-at: 2026-07-16T20:45:00+09:00
 source-run-id: 20260716T091912Z-73dc094
@@ -12,6 +12,7 @@ source-severity: MEDIUM
 needs-human: true
 decision-status: pending
 decision-recommendation: "Direction needed: inject vars on the run path (code fix) vs narrow the schema description (doc fix)"
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 019: Global vars Inert On The run Path

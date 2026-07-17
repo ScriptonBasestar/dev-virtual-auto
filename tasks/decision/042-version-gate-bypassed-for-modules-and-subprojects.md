@@ -3,13 +3,14 @@ id: TASK-042
 title: "The minimum-version gate fires only for the root dva.yml; modules and subprojects bypass it entirely"
 type: bug
 priority: P2
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-16T22:50:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (config surfaces; merge-completeness audit)
 source-severity: MEDIUM
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 042: `version: "99.0.0"` In A Module Is Validated Green And Then Executed

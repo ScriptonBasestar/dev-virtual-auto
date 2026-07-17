@@ -3,13 +3,14 @@ id: TASK-035
 title: "env_file.interpolate and env_file.priority validate green and are never read"
 type: bug
 priority: P2
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T03:25:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (silent config no-ops)
 source-severity: MEDIUM
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 035: Two `env_file` Keys The Loader Never Extracts

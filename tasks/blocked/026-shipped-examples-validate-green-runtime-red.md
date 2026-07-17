@@ -3,7 +3,7 @@ id: TASK-026
 title: "Shipped examples pass validate then hard-fail at stack up"
 type: bug
 priority: P1
-status: todo
+status: blocked
 effort: S
 created-at: 2026-07-16T23:15:00+09:00
 source-run-id: 20260716T112622Z-5729d98
@@ -13,6 +13,7 @@ depends-on: [TASK-017]
 blocked-reason: dependency
 blocked-detail: "Whether the fix is code (make runners.native/docker run) or docs (rewrite 12 locations) is exactly TASK-017's undecided question"
 unblock-condition: "TASK-017 decided (Option A -> examples become correct, implement the backend; Option B -> rewrite the 12 locations and make validate reject the shape)"
+blocked-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 026: Shipped Examples Validate Green, Then Hard-Fail

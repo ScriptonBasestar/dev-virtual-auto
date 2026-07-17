@@ -3,13 +3,14 @@ id: TASK-046
 title: "DECISION: should 'dva doctor' exit non-zero when its checks fail?"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T08:15:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (schema.json examples lens, doctor probe)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 046: Doctor Says "3 failed" To Humans And "Success" To Scripts

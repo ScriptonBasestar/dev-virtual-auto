@@ -3,13 +3,14 @@ id: TASK-037
 title: "DECISION: should devcontainer.config_path be honored, or deleted from the schema?"
 type: bug
 priority: P3
-status: todo
+status: decision
 effort: M
 created-at: 2026-07-17T04:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-034 (split out so the decision is not buried in an archived file)
 source-severity: LOW
 needs-human: true
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 037: `devcontainer.config_path` — Honor It Or Delete It

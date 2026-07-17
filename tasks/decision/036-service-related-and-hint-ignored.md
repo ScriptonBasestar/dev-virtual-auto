@@ -3,13 +3,14 @@ id: TASK-036
 title: "services.<svc>.related and .hint validate green, are never read, and have a test that proves only that they parse"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T03:30:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (silent config no-ops)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 036: Two Keys, Zero Reads, And A Test That Manufactures Confidence

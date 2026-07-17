@@ -3,13 +3,14 @@ id: TASK-045
 title: "checks[].fix is implemented and works, and dva validate rejects it as an unknown property"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T08:05:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (schema.json examples lens)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 045: The Feature Works, The Validator Says It Is Invalid

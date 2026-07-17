@@ -3,13 +3,14 @@ id: TASK-039
 title: "plans.<p>.entries[].runner is resolved and validated, then discarded before execution"
 type: bug
 priority: P2
-status: todo
+status: decision
 needs-human: true
 effort: M
 created-at: 2026-07-17T05:35:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (examples runnability)
 source-severity: MEDIUM
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 039: The Plan Computes The Right Answer, Validates It, And Throws It Away

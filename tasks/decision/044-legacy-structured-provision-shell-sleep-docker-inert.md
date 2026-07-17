@@ -3,13 +3,14 @@ id: TASK-044
 title: "Provision's legacy structured format implements echo/cmd but silently ignores shell/sleep/docker"
 type: bug
 priority: P2
-status: todo
+status: decision
 needs-human: true
 effort: M
 created-at: 2026-07-16T23:05:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (zero-reader audit of every yaml-tagged config field)
 source-severity: MEDIUM
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 044: `- sleep: 4` Waits Zero Seconds And Reports "✅ Provision complete!"

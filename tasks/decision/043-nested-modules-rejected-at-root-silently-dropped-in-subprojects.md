@@ -3,13 +3,14 @@ id: TASK-043
 title: "Nested modules are a hard error at the root and a silent drop in subprojects"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-16T22:55:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: fresh Phase 1 sweep (config surfaces; merge-completeness audit)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 043: The Same YAML Errors In One Load Path And Is Ignored In The Other

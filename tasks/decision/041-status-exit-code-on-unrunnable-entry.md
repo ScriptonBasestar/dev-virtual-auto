@@ -3,13 +3,14 @@ id: TASK-041
 title: "DECISION: should 'dva stack status' exit non-zero when an entry can never run?"
 type: bug
 priority: P3
-status: todo
+status: decision
 needs-human: true
 effort: S
 created-at: 2026-07-17T07:10:00+09:00
 source-run-id: 20260716T112622Z-5729d98
 discovered-in: TASK-038 implementation (decision raised, not assumed)
 source-severity: LOW
+moved-at: 2026-07-17T10:55:00+09:00
 ---
 
 # Task 041: Status Now Says "BROKEN" To Humans And "Fine" To Scripts
