@@ -2,12 +2,14 @@
 id: PLAN-001
 title: "Gap analysis remediation — run 20260716T091912Z-73dc094"
 type: plan
+status: done
+completed-at: 2026-07-17T11:53:00+09:00
 scope: "Close the 8 gaps found by the bidirectional gap analysis of dev-virtual-auto @ 73dc094"
 parent: null
 children: [TASK-009, TASK-010, TASK-011, TASK-012, TASK-013, TASK-014, TASK-015, TASK-016, TASK-017]
-progress: 11
+progress: 100
 total-tasks: 9
-completed-tasks: 1
+completed-tasks: 9
 target-date: null
 created-at: 2026-07-16T09:19:12Z
 source-run-id: 20260716T091912Z-73dc094
@@ -39,14 +41,14 @@ Close the 8 evidence-backed gaps found by the bidirectional gap analysis of
 ## Children
 
 - [x] TASK-009 — Fix plugin resolution for the `runners`/`default_runner` stack shape (P1, bug) — G1/HIGH — **done** `9dce65e`, archived
-- [ ] TASK-010 — Validate every runner in `schema.json`, not only compose (P1, bug) — G2/HIGH
-- [ ] TASK-011 — Honor `--help` on commands that disable flag parsing (P1, bug) — G3/HIGH
-- [ ] TASK-012 — Correct inverted ENV precedence in `USAGE.md`, `docs/30`, `schema.json` (P1, docs) — G4/HIGH
-- [ ] TASK-013 — Fix `docs/40` clause mandating `vars` for `environments` (P1, docs) — G5/HIGH
-- [ ] TASK-014 — Fix `docs/40` recommended YAML using `version: 2` (P2, docs) — G6/MEDIUM
-- [ ] TASK-015 — Fix `schema.json` version example that can never load (P2, docs) — G7/MEDIUM
-- [ ] TASK-016 — Document 6 shipped subcommands and `default_mode` (P3, docs) — G8/LOW
-- [ ] TASK-017 — Decide stack `runners.docker` / `runners.native` semantics (P2, chore, **needs human**) — discovered in TASK-009, not from Phase 1
+- [x] TASK-010 — Validate every runner in `schema.json`, not only compose (P1, bug) — G2/HIGH
+- [x] TASK-011 — Honor `--help` on commands that disable flag parsing (P1, bug) — G3/HIGH
+- [x] TASK-012 — Correct inverted ENV precedence in `USAGE.md`, `docs/30`, `schema.json` (P1, docs) — G4/HIGH
+- [x] TASK-013 — Fix `docs/40` clause mandating `vars` for `environments` (P1, docs) — G5/HIGH
+- [x] TASK-014 — Fix `docs/40` recommended YAML using `version: 2` (P2, docs) — G6/MEDIUM
+- [x] TASK-015 — Fix `schema.json` version example that can never load (P2, docs) — G7/MEDIUM
+- [x] TASK-016 — Document 6 shipped subcommands and `default_mode` (P3, docs) — G8/LOW
+- [x] TASK-017 — Decide stack `runners.docker` / `runners.native` semantics (P2, chore, **needs human**) — discovered in TASK-009, not from Phase 1
 
 ## Severity → priority mapping (exact, per emit-tasks contract)
 
