@@ -27,6 +27,9 @@ func (e *LifecycleEntry) applyRunnerConfig(cfg any) bool {
 		e.Compose = c
 	case *ProcessPluginConfig:
 		e.Process = c
+	case *NativeRunnerConfig:
+		// Alias runners.native → process plugin (TASK-050 Option A).
+		e.Process = &ProcessPluginConfig{Command: c.Run, Dir: c.Dir}
 	case *ScriptPluginConfig:
 		e.Script = c
 	case *DockerPluginConfig:
@@ -74,6 +77,10 @@ func (e *LifecycleEntry) resolveRunnerPlugin() {
 		return
 	}
 	if !e.applyRunnerConfig(cfg) {
+		return
+	}
+	if name == "native" {
+		e.Plugin = "process"
 		return
 	}
 	e.Plugin = name

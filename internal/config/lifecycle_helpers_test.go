@@ -186,10 +186,9 @@ stack:
 	}
 }
 
-func TestSortedStackDoesNotNameUnservableNativeRunner(t *testing.T) {
-	// native is not a registered lifecycle plugin. Naming it would make Up a
-	// silent no-op (or unknown plugin) instead of a clear empty-plugin error.
-	// Plan path still reads NativeRunnerConfig for WorkingDir only.
+func TestSortedStackResolvesNativeRunnerToProcessPlugin(t *testing.T) {
+	// Option A (TASK-050): runners.native aliases to the process plugin
+	// (Command=run, Dir=dir). NativeRunnerConfig type is kept for plan WorkingDir.
 	cfg := loadStackConfig(t, `version: "0.1.0"
 stack:
   api:
@@ -200,11 +199,28 @@ stack:
         run: go run ./cmd/api
 `)
 	entry := sortedEntry(t, cfg, "api")
-	if entry.Plugin != "" {
-		t.Fatalf("Plugin = %q, want empty for unservable runner native", entry.Plugin)
+	if entry.Plugin != "process" {
+		t.Fatalf("Plugin = %q, want process", entry.Plugin)
 	}
-	if got := entry.DetectPlugin(); got != "" {
-		t.Fatalf("DetectPlugin() = %q, want empty: native is not a lifecycle plugin", got)
+	if entry.DetectPlugin() != "process" {
+		t.Fatalf("DetectPlugin() = %q, want process", entry.DetectPlugin())
+	}
+	if entry.Process == nil {
+		t.Fatal("Process config not populated from runners.native")
+	}
+	if entry.Process.Command != "go run ./cmd/api" {
+		t.Errorf("Process.Command = %q, want %q", entry.Process.Command, "go run ./cmd/api")
+	}
+	if entry.Process.Dir != "apps/api" {
+		t.Errorf("Process.Dir = %q, want %q", entry.Process.Dir, "apps/api")
+	}
+	// Runners map still holds NativeRunnerConfig for plan WorkingDir path.
+	rc, err := entry.GetRunnerConfig("native")
+	if err != nil {
+		t.Fatalf("GetRunnerConfig(native): %v", err)
+	}
+	if _, ok := rc.(*NativeRunnerConfig); !ok {
+		t.Fatalf("runners.native type = %T, want *NativeRunnerConfig", rc)
 	}
 }
 
