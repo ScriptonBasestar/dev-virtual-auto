@@ -45,6 +45,7 @@ type Manifest struct {
 	StaticCommands  map[string]ManifestCmd         `json:"static_commands" yaml:"static_commands"`
 	DynamicCommands map[string]ManifestDynCmd      `json:"dynamic_commands" yaml:"dynamic_commands"`
 	Runners         map[string]ManifestRunner      `json:"runners" yaml:"runners"`
+	Plans           map[string]ManifestPlan        `json:"plans,omitempty" yaml:"plans,omitempty"`
 	Subprojects     map[string]ManifestSubproject  `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
 	HealthChecks    map[string]ManifestHealthCheck `json:"health_checks,omitempty" yaml:"health_checks,omitempty"`
 }
@@ -90,7 +91,7 @@ type ManifestRunner struct {
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
 		DvaVersion:    config.Version,
-		SchemaVersion: "1.1",
+		SchemaVersion: "1.2",
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ConfigFile:    c.FilePath(),
 		ProjectDir:    c.FileDir(),
@@ -132,6 +133,7 @@ func buildManifest(c *config.Config) *Manifest {
 			},
 		},
 	}
+	m.Plans = buildManifestPlans(c)
 
 	// Collect environment keys
 	envKeys := make([]string, 0, len(c.Environment))
