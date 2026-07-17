@@ -51,6 +51,32 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 	return "", nil, false
 }
 
+// rejectSuppressedDefaultPlan refuses silent whole-stack fallthrough when exactly
+// one plan exists (DefaultPlan) but leading args prevented detectPlanRoute from
+// selecting it. Name the plan explicitly instead (e.g. dva up p1 --dev).
+//
+// Non-flag tokens are left to rejectUnknownPlanArg / rejectUpPositionalArg so
+// unknown plan names keep their existing messages.
+func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string) error {
+	if c == nil || !c.HasPlans() || len(args) == 0 {
+		return nil
+	}
+	def := c.DefaultPlan()
+	if def == "" {
+		return nil
+	}
+	if _, exists := c.Plans[args[0]]; exists {
+		return nil
+	}
+	if !strings.HasPrefix(args[0], "-") {
+		return nil
+	}
+	return fmt.Errorf(
+		"flags suppress the default plan %q; name it explicitly: dva %s %s %s",
+		def, command, def, strings.Join(args, " "),
+	)
+}
+
 // rejectUnknownPlanArg reports a plan name that reached the non-plan fallthrough
 // of a plan-aware command. It reads args exactly as detectPlanRoute does — only
 // args[0] is ever the plan name slot — so it fires only where detectPlanRoute

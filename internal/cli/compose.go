@@ -90,15 +90,18 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanUp(c, e, planName, extraArgs)
-		}
-		if err := requirePlanSelection(c, "up", args); err != nil {
-			return err
-		}
-		if err := rejectUpPositionalArg(c, args); err != nil {
-			return err
-		}
+			if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+				return runPlanUp(c, e, planName, extraArgs)
+			}
+			if err := requirePlanSelection(c, "up", args); err != nil {
+				return err
+			}
+			if err := rejectSuppressedDefaultPlan(c, "up", args); err != nil {
+				return err
+			}
+			if err := rejectUpPositionalArg(c, args); err != nil {
+				return err
+			}
 
 		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
@@ -260,12 +263,15 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanDown(c, e, planName, extraArgs)
-		}
-		if err := requirePlanSelection(c, "down", args); err != nil {
-			return err
-		}
+			if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+				return runPlanDown(c, e, planName, extraArgs)
+			}
+			if err := requirePlanSelection(c, "down", args); err != nil {
+				return err
+			}
+			if err := rejectSuppressedDefaultPlan(c, "down", args); err != nil {
+				return err
+			}
 
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "down")
 		if err != nil {
@@ -315,12 +321,15 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanStop(c, e, planName, extraArgs)
-		}
-		if err := requirePlanSelection(c, "stop", args); err != nil {
-			return err
-		}
+			if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+				return runPlanStop(c, e, planName, extraArgs)
+			}
+			if err := requirePlanSelection(c, "stop", args); err != nil {
+				return err
+			}
+			if err := rejectSuppressedDefaultPlan(c, "stop", args); err != nil {
+				return err
+			}
 
 		c, e, mode, includeTags, excludeTags, err := teardownCommon(args, "stop")
 		if err != nil {
@@ -375,12 +384,15 @@ Legacy flags:
 		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
-		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanRestart(c, e, planName, extraArgs)
-		}
-		if err := requirePlanSelection(c, "restart", args); err != nil {
-			return err
-		}
+			if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+				return runPlanRestart(c, e, planName, extraArgs)
+			}
+			if err := requirePlanSelection(c, "restart", args); err != nil {
+				return err
+			}
+			if err := rejectSuppressedDefaultPlan(c, "restart", args); err != nil {
+				return err
+			}
 
 		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)

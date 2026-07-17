@@ -150,6 +150,8 @@ dva stop local-dev
 
 **이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`, `dva stack up/down/stop`)
 
+`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --dev`처럼 plan 이름을 명시해야 한다.
+
 | Flag | Description |
 |---|---|
 | `--mode`, `-M MODE` | `modes` 섹션의 named mode 적용 |

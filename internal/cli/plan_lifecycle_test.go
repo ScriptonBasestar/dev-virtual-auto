@@ -146,6 +146,19 @@ func TestUpAcceptsKnownPlanName(t *testing.T) {
 	}
 }
 
+// Bare `dva up` with exactly one plan must still use DefaultPlan (no flags).
+func TestUpBareUsesDefaultPlan(t *testing.T) {
+	useConfig(t, planStackConfig)
+
+	oldDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = oldDryRun }()
+
+	if err := upCmd.RunE(upCmd, []string{}); err != nil {
+		t.Fatalf("'dva up' with one plan must use DefaultPlan: %v", err)
+	}
+}
+
 // Without plans, bare 'dva up' starting the whole stack is the legitimate path
 // and must stay reachable — it is what the command advertises.
 func TestUpWithoutPlansStartsWholeStack(t *testing.T) {
@@ -187,31 +200,90 @@ func TestUpWithoutPlansRejectsPositionalArg(t *testing.T) {
 	}
 }
 
-// The guard reads only args[0], the sole position detectPlanRoute treats as a
-// plan name. A leading flag means the invocation was never plan-routed, so it
-// keeps its existing behavior — including the flag values that follow, which do
-// not look like flags and must not be mistaken for a plan name.
-func TestUpPlanGuardOnlyInspectsPlanNameSlot(t *testing.T) {
+// When exactly one plan exists, bare `dva up` uses DefaultPlan. A leading flag
+// used to skip that route and silently start the whole stack (TASK-028). Option B
+// refuses that fallthrough and requires the plan name to be written out.
+func TestUpRejectsFlagsThatSuppressDefaultPlan(t *testing.T) {
 	useConfig(t, planStackConfig)
 
 	oldDryRun := dryRun
 	dryRun = true
 	defer func() { dryRun = oldDryRun }()
 
-	// --dev is not routed to the plan (parsePlanFlags does not accept it), so it
-	// reaches the legacy whole-stack path and must stay there.
-	if err := upCmd.RunE(upCmd, []string{"--dev"}); err != nil {
-		t.Fatalf("'dva up --dev' must keep the whole-stack path: %v", err)
-	}
 	for _, args := range [][]string{
+		{"--dev"},
 		{"--force"},
 		{"--no-wait"},
 		{"--docker"},
-		{"--var", "FOO=bare"}, // FOO=bare is a flag value, not a plan name
+		{"--var", "FOO=bare"},
 	} {
-		if err := upCmd.RunE(upCmd, args); err != nil {
-			t.Errorf("'dva up %s' must not be read as a plan name: %v", strings.Join(args, " "), err)
+		err := upCmd.RunE(upCmd, args)
+		if err == nil {
+			t.Fatalf("'dva up %s' with a default plan returned nil; must not silently start the whole stack", strings.Join(args, " "))
 		}
+		msg := err.Error()
+		if !strings.Contains(msg, "p1") {
+			t.Errorf("error must name the default plan, got: %v", err)
+		}
+		if !strings.Contains(msg, "dva up p1") {
+			t.Errorf("error must show explicit plan form, got: %v", err)
+		}
+	}
+}
+
+// Flag values after a leading flag are not plan names. The guard still fires on
+// the leading flag (default plan suppressed), not on the value token.
+func TestUpPlanGuardOnlyInspectsPlanNameSlot(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+	// FOO=bare alone is not a flag; with a default plan it is an unknown plan name.
+	if err := rejectUnknownPlanArg(c, []string{"FOO=bare"}); err == nil {
+		t.Fatal("non-flag token must still be treated as a plan-name slot")
+	}
+}
+
+func TestRejectSuppressedDefaultPlan_LeadingFlag(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+
+	err := rejectSuppressedDefaultPlan(c, "up", []string{"--dev"})
+	if err == nil {
+		t.Fatal("expected error when flags suppress the default plan")
+	}
+	if got := err.Error(); !strings.Contains(got, "dva up p1 --dev") {
+		t.Fatalf("error = %q, want explicit plan hint", got)
+	}
+}
+
+func TestRejectSuppressedDefaultPlan_BareUpStillAllowed(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+	if err := rejectSuppressedDefaultPlan(c, "up", nil); err != nil {
+		t.Fatalf("bare args must not suppress default plan: %v", err)
+	}
+}
+
+func TestRejectSuppressedDefaultPlan_MultiplePlansNoDefault(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{
+		"p1": {},
+		"p2": {},
+	}}
+	// No DefaultPlan; multi-plan bare up is requirePlanSelection's job.
+	if err := rejectSuppressedDefaultPlan(c, "up", []string{"--dev"}); err != nil {
+		t.Fatalf("without a default plan, flag fallthrough is not this guard: %v", err)
+	}
+}
+
+func TestDetectPlanRoute_BareArgsUsesDefaultPlan(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+	name, extra, ok := detectPlanRoute(c, nil)
+	if !ok || name != "p1" || len(extra) != 0 {
+		t.Fatalf("detectPlanRoute(nil) = (%q, %v, %v), want (p1, nil, true)", name, extra, ok)
+	}
+}
+
+func TestDetectPlanRoute_LeadingFlagDoesNotSelectDefault(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+	name, extra, ok := detectPlanRoute(c, []string{"--dev"})
+	if ok || name != "" || extra != nil {
+		t.Fatalf("detectPlanRoute(--dev) = (%q, %v, %v), want (\"\", nil, false)", name, extra, ok)
 	}
 }
 

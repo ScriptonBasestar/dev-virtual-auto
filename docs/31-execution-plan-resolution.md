@@ -57,6 +57,7 @@ dva status local-dev
 1. CLI 인자로 `<name>`을 받음
 2. `plans.<name>` 또는 import된 canonical name을 조회
 3. 없으면 즉시 validation error
+4. 예외: plan이 정확히 하나일 때 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 선택한다. 앞에 플래그가 오면 기본 선택을 조용히 건너뛰지 않고, plan 이름을 명시하라고 오류를 낸다 (`dva up p1 --dev`).
 
 예:
 
