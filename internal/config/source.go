@@ -72,13 +72,22 @@ func validateEntrySource(entryName string, entry *LifecycleEntry, cfgDir string)
 	if _, err := SourceDir(entry.Source, entryName, cfgDir); err != nil {
 		return fmt.Errorf("stack.%s.%w", entryName, err)
 	}
-	if plugin := normalizeRunnerName(entry.DetectPlugin()); plugin != "compose" {
-		return fmt.Errorf("stack.%s.source: v1 supports only the compose runner (resolved runner: %q)", entryName, plugin)
-	}
 	for runnerName := range entry.Runners {
 		if runner := normalizeRunnerName(runnerName); runner != "compose" {
 			return fmt.Errorf("stack.%s.source: v1 does not support runner %q; only compose is supported", entryName, runnerName)
 		}
+	}
+	plugin := normalizeRunnerName(entry.DefaultRunner)
+	if plugin == "" {
+		plugin = normalizeRunnerName(entry.DetectPlugin())
+	}
+	if plugin == "" && len(entry.Runners) == 1 {
+		if _, ok := entry.Runners["compose"]; ok {
+			plugin = "compose"
+		}
+	}
+	if plugin != "compose" {
+		return fmt.Errorf("stack.%s.source: v1 supports only the compose runner (resolved runner: %q)", entryName, plugin)
 	}
 	return nil
 }
