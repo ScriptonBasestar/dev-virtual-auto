@@ -19,6 +19,9 @@ var composeCmd = &cobra.Command{
 	Short: "Execute raw Docker Compose commands",
 	Long: `Execute raw Docker Compose commands against a stack entry.
 
+This is a low-level debugging escape hatch. Use 'dva up <plan>' for normal,
+validated lifecycle execution.
+
 If only one compose entry exists, the entry name can be omitted.
 If multiple compose entries exist, the first argument must be the entry name.`,
 	Example: `  dva compose ps                    # Single compose entry
