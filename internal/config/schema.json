@@ -678,6 +678,31 @@
             "description": "Execution order (ascending for up, descending for down/stop)",
             "examples": [10, 20, 30]
           },
+          "source": {
+            "type": "object",
+            "description": "Externally-owned stack fetched (git) or referenced (path) before this entry's runner runs. Exactly one of git/path. (TASK-051)",
+            "properties": {
+              "git": { "type": "string", "description": "Git repository URL cloned into the source cache" },
+              "ref": { "type": "string", "description": "Git ref; SHA/tag recommended for reproducibility. Only valid with git." },
+              "path": { "type": "string", "description": "Local directory referenced in place; mutually exclusive with git." }
+            },
+            "oneOf": [
+              {
+                "required": ["git"],
+                "not": { "required": ["path"] }
+              },
+              {
+                "required": ["path"],
+                "not": {
+                  "anyOf": [
+                    { "required": ["git"] },
+                    { "required": ["ref"] }
+                  ]
+                }
+              }
+            ],
+            "additionalProperties": false
+          },
           "tags": {
             "type": "array",
             "items": { "type": "string" },

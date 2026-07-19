@@ -813,10 +813,20 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		}
 	}
 
+	// Fold deprecated top-level infra: into stack: as source-backed entries.
+	if migrated, err := cfg.migrateInfraToStack(); err != nil {
+		return nil, err
+	} else if len(migrated) > 0 {
+		fmt.Fprintf(os.Stderr, "⚠  'infra:' is deprecated (TASK-051): migrated %s into stack: as source-backed compose entries (tag: infra).\n   Declare them under stack.<name>.source instead; 'infra:' will be removed in a future release.\n", strings.Join(migrated, ", "))
+	}
+
 	// Populate Name field and resolve deferred plugins from map keys
 	for name, entry := range cfg.Stack {
 		entry.Name = name
 		if err := entry.ResolvePluginFromName(); err != nil {
+			return nil, err
+		}
+		if err := validateEntrySource(name, entry, cfg.FileDir()); err != nil {
 			return nil, err
 		}
 	}

@@ -98,6 +98,9 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("stack.%s.runners.%q: runner names must not include leading or trailing whitespace", entryName, runnerName)
 			}
 		}
+		if err := validateEntrySource(entryName, entry, c.FileDir()); err != nil {
+			return err
+		}
 	}
 
 	// Validate default_mode references an existing mode

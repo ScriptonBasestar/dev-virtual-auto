@@ -40,6 +40,11 @@ type LifecycleEntry struct {
 	DefaultRunner string                       `yaml:"default_runner"`
 	Runners       map[string]any               `yaml:"runners"`
 
+	// Source declares an externally-owned stack fetched (git) or referenced
+	// (path) before the entry's runner executes. When set, runner file paths
+	// and working directory resolve against the sourced directory. (TASK-051)
+	Source *SourceConfig `yaml:"source,omitempty"`
+
 	// --- Tier 1: Core ---
 	Compose *ComposePluginConfig `yaml:"compose,omitempty"`
 	Process *ProcessPluginConfig `yaml:"process,omitempty"`
@@ -63,6 +68,37 @@ type LifecycleEntry struct {
 	// rawNode stores the YAML node for deferred plugin resolution
 	// when plugin type is inferred from the entry name.
 	rawNode *yaml.Node `yaml:"-"`
+}
+
+// SourceConfig declares where an externally-owned stack is obtained from.
+// Exactly one of Git or Path must be set. Git repositories are cloned into a
+// cache directory; Path references a local directory in place. (TASK-051)
+type SourceConfig struct {
+	Git  string `yaml:"git"`
+	Ref  string `yaml:"ref"`
+	Path string `yaml:"path"`
+}
+
+// IsGit reports whether this source is fetched from a git repository.
+func (s *SourceConfig) IsGit() bool { return s != nil && strings.TrimSpace(s.Git) != "" }
+
+// Validate ensures exactly one of git/path is set. ref is only meaningful with git.
+func (s *SourceConfig) Validate() error {
+	if s == nil {
+		return nil
+	}
+	git := strings.TrimSpace(s.Git)
+	path := strings.TrimSpace(s.Path)
+	ref := strings.TrimSpace(s.Ref)
+	switch {
+	case git == "" && path == "":
+		return fmt.Errorf("source: requires either 'git' or 'path'")
+	case git != "" && path != "":
+		return fmt.Errorf("source: 'git' and 'path' are mutually exclusive")
+	case path != "" && ref != "":
+		return fmt.Errorf("source: 'ref' is only valid with 'git'")
+	}
+	return nil
 }
 
 type NativeRunnerConfig struct {
@@ -112,6 +148,7 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 		Exports       map[string]string            `yaml:"exports"`
 		HealthChecks  map[string]HealthCheckConfig `yaml:"health_checks"`
 		DefaultRunner string                       `yaml:"default_runner"`
+		Source        *SourceConfig                `yaml:"source"`
 
 		// Nested format: plugin config under its type key
 		Compose       *ComposePluginConfig       `yaml:"compose"`
@@ -140,6 +177,7 @@ func (e *LifecycleEntry) UnmarshalYAML(node *yaml.Node) error {
 	e.Exports = raw.Exports
 	e.HealthChecks = raw.HealthChecks
 	e.DefaultRunner = raw.DefaultRunner
+	e.Source = raw.Source
 
 	runners, err := decodeRunnersMap(node)
 	if err != nil {
