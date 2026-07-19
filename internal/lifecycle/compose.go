@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 )
 
@@ -154,10 +155,20 @@ func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 		}
 	}
 
+	// For sourced entries (TASK-051), relative compose files resolve against the
+	// fetched/referenced source dir. The command also runs with that dir as its
+	// working directory (see composeWorkdir), matching the legacy
+	// `cd <dir> && docker compose` behavior so default file discovery, .env,
+	// relative build contexts and volumes resolve as the external author intended.
+	baseDir := pctx.ConfigDir
+	if wd := composeWorkdir(pctx); wd != "" {
+		baseDir = wd
+	}
+
 	for _, f := range cfg.Files {
 		f = pctx.Env.Interpolate(f)
 		if !filepath.IsAbs(f) {
-			f = pctx.ConfigDir + "/" + f
+			f = baseDir + "/" + f
 		}
 		args = append(args, "-f", f)
 	}
@@ -183,11 +194,26 @@ func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 	return cmd, args
 }
 
+// composeWorkdir returns the working directory a sourced compose entry runs in.
+// Sourced entries (TASK-051) execute in their fetched/referenced source dir so
+// relative compose files, default file discovery, .env and build contexts
+// resolve as the external stack's author intended (matching the legacy
+// `cd <dir> && docker compose` behavior). Returns "" for non-sourced entries,
+// which then inherit the current working directory.
+func composeWorkdir(pctx *PluginContext) string {
+	if src := pctx.Entry.Source; src != nil {
+		if d, err := config.SourceDir(src, pctx.Entry.Name, pctx.ConfigDir); err == nil {
+			return d
+		}
+	}
+	return ""
+}
+
 // runSubprocess executes a docker compose command as a subprocess.
 func (p *ComposePlugin) runSubprocess(pctx *PluginContext, args []string) error {
 	cmd, cmdArgs := p.buildArgs(pctx, args)
 	pctx.Logger.Debug("compose subprocess", "command", cmd, "args", cmdArgs)
-	return dvaexec.ExecSubprocess(pctx.Env, cmd, cmdArgs, false)
+	return dvaexec.ExecSubprocessInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
 }
 
 // composeServiceInfo mirrors docker compose ps JSON output for parsing.
@@ -211,7 +237,9 @@ func (p *ComposePlugin) queryServices(pctx *PluginContext) ([]ServiceStatus, err
 	}
 
 	cmd, cmdArgs := p.buildArgs(pctx, []string{"ps", "--format", "json"})
-	out, err := exec.Command(cmd, cmdArgs...).Output()
+	c := exec.Command(cmd, cmdArgs...)
+	c.Dir = composeWorkdir(pctx)
+	out, err := c.Output()
 	if err != nil {
 		return nil, fmt.Errorf("compose ps: %w", err)
 	}

@@ -32,13 +32,20 @@ func ExecReplace(env *config.Environment, cmd string, args []string, shell bool)
 // ExecSubprocess runs a command as a subprocess and waits for it.
 // Equivalent to Ruby's Kernel.system.
 func ExecSubprocess(env *config.Environment, cmd string, args []string, shell bool) error {
+	return ExecSubprocessInDir(env, "", cmd, args, shell)
+}
+
+// ExecSubprocessInDir runs a command as a subprocess in the given working
+// directory and waits for it. An empty dir inherits the current directory.
+func ExecSubprocessInDir(env *config.Environment, dir, cmd string, args []string, shell bool) error {
 	cmdLine := buildCommandLine(env, cmd, args, shell)
 
 	if Debug {
-		slog.Debug("exec subprocess", "command", strings.Join(cmdLine, " "))
+		slog.Debug("exec subprocess", "dir", dir, "command", strings.Join(cmdLine, " "))
 	}
 
 	c := exec.Command(cmdLine[0], cmdLine[1:]...)
+	c.Dir = dir
 	c.Stdin = os.Stdin
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr

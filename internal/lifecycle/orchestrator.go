@@ -124,6 +124,10 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] %s (%s)\n", entry.Name, pluginType)
 
+		if err := ensureSource(&entry, o.cfg.FileDir(), opts.DryRun, o.logger); err != nil {
+			return fmt.Errorf("entry %q source: %w", entry.Name, err)
+		}
+
 		result, err := plugin.Up(ctx, pctx)
 		if err != nil {
 			return fmt.Errorf("entry %q up failed: %w", entry.Name, err)
@@ -204,6 +208,10 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
+		if err := requireSource(&entry, o.cfg.FileDir()); err != nil {
+			fmt.Fprintf(os.Stderr, "[warn] entry %q source unavailable for down: %v\n", entry.Name, err)
+			continue
+		}
 
 		if err := plugin.Down(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q down failed: %v\n", entry.Name, err)
@@ -253,6 +261,10 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 		}
 
 		fmt.Fprintf(os.Stderr, "[lifecycle] stopping %s (%s)\n", entry.Name, pluginType)
+		if err := requireSource(&entry, o.cfg.FileDir()); err != nil {
+			fmt.Fprintf(os.Stderr, "[warn] entry %q source unavailable for stop: %v\n", entry.Name, err)
+			continue
+		}
 
 		if err := plugin.Stop(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q stop failed: %v\n", entry.Name, err)
