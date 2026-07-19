@@ -25,7 +25,11 @@ install: build
 	@mkdir -p $(HOME)/.local/bin
 	rm -f $(HOME)/.local/bin/$(BINARY)
 	cp $(BUILD_DIR)/$(BINARY) $(HOME)/.local/bin/$(BINARY)
-	@GOBIN=$$(go env GOBIN); [ -n "$$GOBIN" ] && { rm -f "$$GOBIN/$(BINARY)"; cp $(BUILD_DIR)/$(BINARY) "$$GOBIN/$(BINARY)"; } || true
+	@GO_BIN_DIR=$$(go env GOBIN); \
+		[ -n "$$GO_BIN_DIR" ] || GO_BIN_DIR="$$(go env GOPATH)/bin"; \
+		mkdir -p "$$GO_BIN_DIR"; \
+		rm -f "$$GO_BIN_DIR/$(BINARY)"; \
+		cp $(BUILD_DIR)/$(BINARY) "$$GO_BIN_DIR/$(BINARY)"
 
 ## test: Run all tests
 test:

@@ -9,9 +9,24 @@ needs-human: false
 created-at: 2026-07-19T00:55:00+09:00
 updated-at: 2026-07-19T00:55:00+09:00
 completed-at: 2026-07-19T00:55:00+09:00
+moved-at: 2026-07-19T21:32:00+09:00
 source: matdosa-devbox 운영 중 발견
 source-severity: HIGH
 decision: direction-A (fold infra into stack sourcing, deprecate top-level infra)
+completion-summary: |
+  Added stack.source git/path sourcing for Compose, deterministic legacy infra
+  migration, source-relative Compose execution, non-interactive cache safety,
+  deprecated infra lifecycle delegation, and raw compose escape-hatch guidance.
+  Hardened source validation, pinned commit checkout, cache identity checks,
+  teardown no-clone behavior, and installation to GOBIN or GOPATH/bin.
+verification-status: verified
+verification-evidence:
+  - "PASS: go test -race -cover ./... (Go 1.26.3 via mise, GOTOOLCHAIN=local)"
+  - "PASS: go test -tags=integration -race ./internal/integration/..."
+  - "PASS: go vet ./..."
+  - "PASS: make check-generate"
+  - "PASS: built, ~/.local/bin, and ~/go/bin binaries share SHA-256 c2baaf6f10dafff39d064cf6dc288405d70cd26f1e5bfbbfcdaf916e1e41d9eb"
+  - "PASS: matdosa-devbox dry-run accepts zero-argument 'dva infra up' and emits deprecation guidance"
 ---
 
 # Task 051: `dva infra`를 stack 소싱으로 흡수하고 명령 표면을 정리
