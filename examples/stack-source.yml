@@ -1,0 +1,26 @@
+# TASK-051: stack entries that source externally-owned compose stacks.
+# `source:` fetches (git) or references (path) a stack you do not author, then
+# runs it via the normal compose runner. Files and the working directory resolve
+# against the source directory. See USAGE.md → "stack.source (외부 스택 소싱)".
+version: "0.1.0"
+
+stack:
+  # Git-sourced shared infrastructure.
+  # Cloned once into .sb/dva/sources/postgres (never auto-pulled — reproducible).
+  # Refresh explicitly with: dva infra update postgres
+  postgres:
+    order: 10
+    default_runner: compose
+    source:
+      git: https://example.com/shared-infra.git
+      ref: v1.2.0            # pin a SHA or tag for reproducibility
+    runners:
+      compose:
+        files: [docker-compose.yml]
+
+  # Local directory referenced in place (no fetch).
+  local-infra:
+    order: 20
+    default_runner: compose
+    source:
+      path: ../shared-infra

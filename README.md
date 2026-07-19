@@ -64,10 +64,14 @@ dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ## Commands
 
 ```bash
-# Infrastructure (stack)
-dva stack up               # stack 시작 (order 순서대로)
-dva stack down             # stack 중지 및 제거
-dva stack status           # stack 엔트리별 상태
+# Lifecycle (named plans are the primary interface)
+dva up local-dev           # named plan 시작
+dva down local-dev         # named plan teardown
+dva status local-dev       # named plan 상태
+
+# Low-level escape hatches
+dva stack up compose       # 특정 stack 엔트리 직접 시작
+dva compose ps             # raw Docker Compose passthrough
 
 # Applications
 dva app ls                 # 앱 목록 (상태, 포트, PID)
@@ -75,10 +79,8 @@ dva app up                 # 전체 앱 시작 (의존성 순서)
 dva app up api --dev       # dev 모드 (hot-reload)
 dva app down               # 전체 앱 중지
 
-# Combined
-dva up                     # stack + app 통합 시작
-dva up -M backend          # 모드 적용
-dva down                   # stack + app 통합 중지
+# Legacy compatibility (deprecated surfaces may still exist)
+dva up                     # plan이 하나면 기본 plan, 없으면 legacy 전체 stack
 
 # Interaction
 dva ls                     # 사용 가능한 커맨드 목록

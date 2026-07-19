@@ -255,9 +255,9 @@ dva clean -f              # 확인 프롬프트 스킵
 
 | Command | Description |
 |---------|-------------|
-| `dva compose ARGS` | docker compose 직접 패스스루 |
+| `dva compose ARGS` | raw Docker Compose 패스스루 (escape hatch — 내가 소유한 compose를 직접 실행) |
 | `dva ktl ARGS` | kubectl 패스스루 |
-| `dva infra up/down/update SVC` | 공유 인프라 서비스 관리 |
+| `dva infra up/down [SVC]` | ⚠️ deprecated → stack `source:`로 흡수 ([stack.source](#stacksource-외부-스택-소싱) 참조). SVC 생략 시 `infra` 태그 전체 |
 | `dva ssh up/down/status` | SSH agent 컨테이너 관리 |
 
 #### ssh up
@@ -423,6 +423,43 @@ stack:
 | Core | `compose`, `kubectl`, `helm`, `process`, `script`, `docker` |
 | Extended | `kustomize`, `tilt`, `skaffold`, `podman-compose`, `vagrant` |
 | Niche | `sam`, `serverless`, `multipass` |
+
+### stack.source (외부 스택 소싱)
+
+stack 엔트리는 `source:`로 **외부 소유 스택**(다른 repo나 로컬 디렉토리에 정의된
+compose 스택)을 가져와 실행합니다. 소싱과 실행을 분리해, 정의는 외부 도구가
+소유하고 DVA는 fetch와 수명 주기만 조정합니다.
+
+```yaml
+stack:
+  postgres:
+    default_runner: compose
+    source:
+      git: https://example.com/shared-infra.git
+      ref: v1.2.0                    # 재현성 위해 SHA/tag 권장
+    runners:
+      compose:
+        files: [docker-compose.yml]  # source 디렉토리 기준 (생략 시 자동 탐색)
+
+  local-infra:
+    default_runner: compose
+    source:
+      path: ../shared-infra          # 로컬 디렉토리 참조 (fetch 없음)
+```
+
+핵심 규칙:
+
+- `git`과 `path`는 상호 배타 — 정확히 하나만 지정.
+- git 소스는 `dva up` 시 **없을 때만 clone**하며 자동 pull하지 않습니다(재현성).
+  명시적 갱신: `dva infra update <name>`.
+- 소싱된 엔트리의 `runners.compose.files`와 실행 작업 디렉토리(`.env`,
+  build context, 볼륨)는 **source 디렉토리 기준**으로 해석됩니다.
+- git 캐시 위치: `.sb/dva/sources/<name>/`.
+
+**`infra:` 마이그레이션** — 구 top-level `infra:` 맵은 deprecated입니다. 로드 시
+`source:` 기반 stack 엔트리(태그 `infra`)로 자동 변환되며 경고를 출력하고,
+`dva infra up/down`은 이 stack 엔트리로 위임됩니다. 새 설정은
+`stack.<name>.source`를 직접 사용하세요.
 
 ### plans
 
