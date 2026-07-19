@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -37,11 +38,8 @@ func warnInfraDeprecated() {
 func infraServiceNames(c *config.Config) []string {
 	var names []string
 	for name, entry := range c.Stack {
-		for _, tag := range entry.Tags {
-			if tag == "infra" {
-				names = append(names, name)
-				break
-			}
+		if slices.Contains(entry.Tags, "infra") {
+			names = append(names, name)
 		}
 	}
 	sort.Strings(names)

@@ -3,18 +3,10 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
-
-func hasTag(tags []string, want string) bool {
-	for _, t := range tags {
-		if t == want {
-			return true
-		}
-	}
-	return false
-}
 
 // TASK-051 Phase 1: source: field on stack entries.
 
@@ -154,7 +146,7 @@ infra:
 	if e.Source.Git != "https://example.com/pg.git" || e.Source.Ref != "v1.2.0" {
 		t.Errorf("source = %+v, want git+ref from infra:", e.Source)
 	}
-	if !hasTag(e.Tags, "infra") {
+	if !slices.Contains(e.Tags, "infra") {
 		t.Errorf("migrated entry tags = %v, want to include 'infra'", e.Tags)
 	}
 	if e.DetectPlugin() != "compose" {
