@@ -1,0 +1,22 @@
+version: "0.1.22"
+
+# TASK-051: stack entries sourcing externally-owned compose stacks.
+stack:
+  pg-remote:
+    order: 10
+    default_runner: compose
+    source:
+      git: https://example.com/shared-infra.git
+      ref: v1.2.0
+    runners:
+      compose:
+        files: [docker-compose.yml]
+
+  pg-local:
+    order: 20
+    default_runner: compose
+    source:
+      path: ../external
+    runners:
+      compose:
+        files: [docker-compose.yml]

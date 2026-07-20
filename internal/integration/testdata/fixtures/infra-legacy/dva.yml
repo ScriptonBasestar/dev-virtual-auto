@@ -1,0 +1,10 @@
+version: "0.1.22"
+
+# TASK-051: deprecated top-level infra: map, migrated into stack: on load
+# as source-backed compose entries tagged "infra".
+infra:
+  postgres:
+    git: https://example.com/pg.git
+    ref: v1.0.0
+  redis:
+    path: ../redis-infra
