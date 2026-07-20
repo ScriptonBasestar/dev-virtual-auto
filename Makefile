@@ -39,10 +39,15 @@ test:
 test-integration:
 	go test -tags=integration -race ./internal/integration/...
 
-## lint: Run linters
+## lint: Run linters (golangci-lint v2, pinned in .mise.toml)
 lint: vet
-	@which golangci-lint > /dev/null 2>&1 || echo "Install golangci-lint: https://golangci-lint.run/usage/install/"
-	golangci-lint run ./...
+	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
+		mise exec -- golangci-lint run ./...; \
+	elif command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "Install golangci-lint v2 (https://golangci-lint.run/usage/install/) or run 'mise install'"; exit 1; \
+	fi
 
 ## vet: Run go vet
 vet:

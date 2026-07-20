@@ -1,25 +1,48 @@
-# golangci-lint configuration (v1 format).
-# Requires golangci-lint built with Go >= the go.mod directive (currently 1.26.x).
+# golangci-lint configuration (v2 format).
+# Run with golangci-lint v2.x (built with Go >= the go.mod directive). Pinned in
+# .mise.toml and CI so the toolchain version gate cannot drift again.
+version: "2"
+
 run:
   timeout: 5m
 
+linters:
+  exclusions:
+    generated: lax
+    # `legacy` keeps the default exclusions close to golangci-lint v1 so the
+    # migration does not surface a new wave of style-only findings.
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      # Unchecked error returns in tests are acceptable: the real assertion
+      # fails loudly, and defensive error checks add noise to fixtures.
+      - path: _test\.go
+        linters:
+          - errcheck
+      # libraryReferenceText is a //go:embed target for `make generate` that is
+      # not currently read; kept pending a decision to rewire `dva init` to use
+      # it or remove the generate pipeline. Suppressed by name so other dead
+      # code in init.go is still reported.
+      - path: internal/cli/init\.go
+        linters:
+          - unused
+        text: "libraryReferenceText"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
 issues:
-  # Do not cap the number of reported issues.
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-rules:
-    # Unchecked error returns in tests are acceptable: tests fail loudly on the
-    # real assertion, and defensive error checks add noise to fixtures.
-    - path: _test\.go
-      linters:
-        - errcheck
 
-    # Pre-existing unwired symbols in init.go, tracked for a dedicated cleanup:
-    #   - libraryReferenceText: a //go:embed target retained for `make generate`.
-    #   - formatComposeWarnings and the subProject/scanSubProject/detectSubprojects
-    #     cluster: recursive-scaffold helpers not currently wired to `dva init`.
-    # Suppressed by name so genuinely new dead code in init.go is still reported.
-    - path: internal/cli/init\.go
-      linters:
-        - unused
-      text: "(libraryReferenceText|formatComposeWarnings|subProject|scanSubProject|detectSubprojects)"
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

@@ -86,7 +86,7 @@ plans:
 	localFullIndex := bytes.Index(payload, []byte(`"local-full"`))
 	localInfraIndex := bytes.Index(payload, []byte(`"local-infra"`))
 	reviewBackendIndex := bytes.Index(payload, []byte(`"review-backend"`))
-	if !(localFullIndex < localInfraIndex && localInfraIndex < reviewBackendIndex) {
+	if localFullIndex >= localInfraIndex || localInfraIndex >= reviewBackendIndex {
 		t.Errorf("plan keys are not deterministic: local-full=%d local-infra=%d review-backend=%d", localFullIndex, localInfraIndex, reviewBackendIndex)
 	}
 

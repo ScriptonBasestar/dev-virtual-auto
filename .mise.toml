@@ -1,7 +1,6 @@
-# Project toolchain pins (mise). Keep the Go version in sync with the go.mod
-# `go` directive. golangci-lint is intentionally not pinned here yet: `make lint`
-# needs a golangci-lint built with Go >= this version; the reproducible path is
-# to migrate to golangci-lint v2 (see .golangci.yml header). Until then, install
-# it locally with `go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8`.
+# Project toolchain pins (mise). Keep go in sync with the go.mod `go` directive.
+# golangci-lint is pinned to a v2 release built with a recent Go so `make lint`
+# cannot hit the "built with an older Go than the target" version gate.
 [tools]
 go = "1.26.3"
+golangci-lint = "2.12.2"
