@@ -207,6 +207,14 @@ dva stack stop                  # 전체 중지 (상태 보존)
 dva stack log compose           # 특정 stack 엔트리 로그 보기
 ```
 
+> **`dva stack up`은 plans/`default_plan`을 참조하지 않습니다.** Compose 러너에서는
+> `--profile` 없는 `docker compose up`이므로 profile 없는 서비스만 뜹니다. 기본을 최소로
+> 유지하려면 **Docker Compose 네이티브 `profiles:`**로 계층을 나누세요 — 코어 데이터
+> (postgres/redis)는 profile 없이 항상 시작하고, 무거운 계층은
+> `profiles: [workflow|monitoring|dev-tools|apps]`로 opt-in 합니다. 명시적 서비스 서브셋
+> 실행은 `dva up <plan>`(`plans.entries[].services`)을 쓰며, plan이 profile 걸린 서비스를
+> 이름으로 지정하면 profile과 무관하게 시작됩니다.
+
 #### app 서브커맨드
 
 `applications` 섹션에 정의된 앱 프로세스를 제어합니다.

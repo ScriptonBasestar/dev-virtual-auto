@@ -35,6 +35,11 @@ var stackUpCmd = &cobra.Command{
 	Short: "Start stack entries (all if no name given)",
 	Long: `Start stack entries defined in the 'stack' section of dva.yml.
 Starts every entry unless NAME arguments or tag filters narrow the selection.
+With no NAME this issues a bare 'docker compose up' (no --profile), so only
+profile-less services start; it does NOT consult plans or default_plan. Keep the
+default minimal by giving core data services no Docker Compose profile and
+gating heavier tiers behind Compose-native 'profiles:'; use 'dva up <plan>' to
+start an explicit service subset.
 
 	DVA-specific flags:
 	  --force                   Compose only: pass --force-recreate (other plugins ignore)
