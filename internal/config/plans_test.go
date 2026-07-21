@@ -172,4 +172,16 @@ func TestConfigPlanHelpers(t *testing.T) {
 	if dp := cfg.DefaultPlan(); dp != "" {
 		t.Errorf("2 plans should return empty default, got '%s'", dp)
 	}
+
+	// Explicit default_plan selects among multiple plans.
+	cfg.DefaultPlanName = "stg"
+	if dp := cfg.DefaultPlan(); dp != "stg" {
+		t.Errorf("explicit default_plan should win, got '%s'", dp)
+	}
+
+	// An explicit default_plan that names no existing plan resolves to empty.
+	cfg.DefaultPlanName = "ghost"
+	if dp := cfg.DefaultPlan(); dp != "" {
+		t.Errorf("unknown default_plan should resolve to empty, got '%s'", dp)
+	}
 }

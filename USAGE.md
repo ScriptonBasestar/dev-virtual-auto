@@ -364,6 +364,7 @@ interaction:
 | `env_file` | .env 파일 로딩 |
 | `stack` | 재사용 가능한 실행 대상 선언 |
 | `plans` | 실제 실행 가능한 이름 |
+| `default_plan` | 플랜 이름 미지정 시 적용할 기본 `plans` 엔트리 (여러 plan 중 기본 선택) |
 | `checks` | `dva doctor` 환경 사전조건 체크 |
 | `default_mode` | `--mode` 미지정 시 적용할 기본 `modes` 엔트리 |
 | `modes` | 런타임 전략 프리셋 (`--mode`로 선택) |
@@ -502,6 +503,22 @@ modes:
 - 기본값이 없습니다. 설정하지 않으면 어떤 mode도 적용되지 않으며, `dva up`은 모든 compose 파일의 모든 서비스를 시작합니다.
 - `modes`가 정의되어 있는데 `default_mode`가 비어 있으면 `dva validate`가 경고합니다. 최소 인프라 mode(예: `infra`)를 지정하는 것을 권장합니다.
 - `modes`에 없는 이름을 지정하면 경고가 아니라 검증 에러입니다.
+
+### default_plan
+
+`default_plan`은 플랜 이름 없이 `dva up/down/stop/restart`를 실행할 때 적용할 `plans` 엔트리를 선택합니다.
+
+```yaml
+default_plan: dev
+
+plans:
+  dev:     { entries: [ { name: frontend-dev,     runner: process } ] }
+  preview: { entries: [ { name: frontend-preview, runner: process } ] }
+```
+
+- `plans`가 정확히 1개면 그 플랜이 자동으로 기본값입니다. `default_plan`은 **여러 plan 중** 기본을 고를 때 씁니다.
+- `plans`에 없는 이름을 지정하면 검증 에러입니다 (`dva config validate`).
+- 무엇을 기본으로 둘지는 프로젝트 정책입니다 (예: devbox 로컬은 `dev`). DVA는 선택지를 표현할 뿐 기본을 강제하지 않습니다.
 
 ### environments / sites
 

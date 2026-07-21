@@ -29,6 +29,7 @@ type Config struct {
 	Modes            map[string]ModeConfig          `yaml:"modes"`
 	Environments     map[string]EnvironmentProfile  `yaml:"environments"`
 	Plans            map[string]*PlanConfig         `yaml:"plans"`
+	DefaultPlanName  string                         `yaml:"default_plan"`
 	Sites            map[string]*SiteConfig         `yaml:"sites"`
 	Ssh              SshConfig                      `yaml:"ssh"`
 	DoctorChecks     []DoctorCheck                  `yaml:"checks"`
@@ -597,6 +598,15 @@ func (c *Config) HasPlans() bool {
 
 // DefaultPlan returns the only plan name when exactly one plan exists.
 func (c *Config) DefaultPlan() string {
+	// Explicit default_plan wins when it references a defined plan. A missing
+	// reference falls through to "" (Validate reports it as a hard error).
+	if c.DefaultPlanName != "" {
+		if _, ok := c.Plans[c.DefaultPlanName]; ok {
+			return c.DefaultPlanName
+		}
+		return ""
+	}
+	// Otherwise a lone plan is the implicit default.
 	if len(c.Plans) != 1 {
 		return ""
 	}
@@ -1008,6 +1018,11 @@ func (c *Config) mergeFrom(other *Config) error {
 	// default_mode: scalar replace
 	if other.DefaultMode != "" {
 		c.DefaultMode = other.DefaultMode
+	}
+
+	// default_plan: scalar replace
+	if other.DefaultPlanName != "" {
+		c.DefaultPlanName = other.DefaultPlanName
 	}
 
 	// modes: deep merge per entry

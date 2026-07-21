@@ -2,6 +2,8 @@
 
 개발 환경 오케스트레이터 — `dva.yml` 하나로 Docker Compose, Kubernetes, Helm, 로컬 프로세스 등을 통합 관리.
 
+**제품 특성**: DVA는 동작을 코드가 아니라 설정으로 정하는 개발환경 *구성* 도구입니다. 실행 방식은 `dva.yml`에서 자유롭게 선언하며, 기본 실행과 개발용(hot-reload) 실행을 옵트인으로 구분합니다 — 무엇이 개발용이고 무엇이 배포용인지는 도구가 아니라 설정이 결정합니다.
+
 ## Install
 
 DVA는 Go toolchain에서 직접 설치하거나 release binary를 사용할 수 있습니다.
@@ -145,6 +147,8 @@ applications:
       type: http
       url: "http://localhost:11200/health"
 ```
+
+> `run`은 기본 실행 명령, `dev`는 hot-reload 명령입니다. `dva app up`은 `run`을 실행하고, `dva app up <app> --dev`가 `dev`를 실행합니다 — 개발 모드는 **옵트인**이며 `dva app up`이 자동으로 dev로 뜨지 않습니다. 무엇을 dev/prod로 볼지는 이 설정이 정합니다. (별도의 `dva dev` 명령은 없습니다.)
 
 ### 기타 설정
 

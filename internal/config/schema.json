@@ -1182,6 +1182,11 @@
       "description": "Mode applied automatically when dva up/down/stop/restart is called without --mode/-M. Should reference a minimal infrastructure mode (e.g., 'infra') so that dva up starts only core services by default. Use 'dva up -M full-stack' for everything.",
       "examples": ["infra", "dev"]
     },
+    "default_plan": {
+      "type": "string",
+      "description": "Plan applied automatically when dva up/down/stop/restart is called without naming a plan. References a plans entry. When exactly one plan is defined it is the default automatically; set this to choose the default among multiple plans (e.g. 'dev').",
+      "examples": ["dev", "local-dev"]
+    },
     "suggestion_ignore": {
       "type": "array",
       "items": { "type": "string" },

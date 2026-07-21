@@ -117,6 +117,20 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate default_plan references an existing plan
+	if c.DefaultPlanName != "" {
+		if _, ok := c.Plans[c.DefaultPlanName]; !ok {
+			available := make([]string, 0, len(c.Plans))
+			for k := range c.Plans {
+				available = append(available, k)
+			}
+			if len(available) == 0 {
+				return fmt.Errorf("default_plan '%s' is set but no plans are defined", c.DefaultPlanName)
+			}
+			return fmt.Errorf("default_plan '%s' not found in plans. Available: %s", c.DefaultPlanName, strings.Join(available, ", "))
+		}
+	}
+
 	return nil
 }
 
