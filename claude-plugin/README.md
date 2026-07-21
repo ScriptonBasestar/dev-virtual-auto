@@ -34,22 +34,28 @@ am run dva-improve     # AI 기반 dva.yml 개선
 
 | Skill | 경로 | 역할 |
 |-------|------|------|
-| **dva** | `skills/dva/SKILL.md` | DVA CLI 사용법, 설정 작성 패턴, 반복 작업 템플릿 |
+| **dva** | `skills/dva/SKILL.md` | DVA CLI 실행 — build/test/run/lifecycle, 설정 작성 패턴, 반복 작업 템플릿 |
+| **config** | `skills/config/SKILL.md` | dva.yml 저작·감사·마이그레이션·진단 (ownership 모델, 변경 모드, 위험순 검증). 자동 트리거 |
 
-이 skill은 Claude Code가 raw docker/compose/kubectl 대신 DVA를 사용하도록 강제합니다.
+`dva` skill은 Claude Code가 raw docker/compose/kubectl 대신 DVA를 사용하도록 강제하고,
+`config` skill은 dva.yml 설정 작업 시 자동으로 트리거됩니다 (`user-invocable: false`).
 
 ### 스킬 구조
 
 ```
-skills/dva/
-├── SKILL.md              # 핵심 규칙 + 워크플로우
-├── assets/
-│   └── templates/
-│       ├── root-devbox-plan.yml
-│       ├── subproject-local.yml
-│       └── migrate-modes-to-plans.yml
-└── references/
-    ├── commands.md        # 전체 명령어 레퍼런스
-    ├── advanced.md        # 모드/환경/서브프로젝트/설정 패턴
-    └── patterns.md        # 표준 구조, 마이그레이션, 검증 게이트
+skills/
+├── dva/                      # CLI 실행
+│   ├── SKILL.md              # 핵심 규칙 + 워크플로우
+│   ├── assets/
+│   │   └── templates/
+│   │       ├── root-devbox-plan.yml
+│   │       ├── subproject-local.yml
+│   │       └── migrate-modes-to-plans.yml
+│   └── references/
+│       ├── commands.md       # 전체 명령어 레퍼런스
+│       ├── advanced.md       # 모드/환경/서브프로젝트/설정 패턴
+│       └── patterns.md       # 표준 구조, 마이그레이션, 검증 게이트
+└── config/                   # 설정 저작·진단 (canonical)
+    ├── SKILL.md              # ownership 모델 + 변경 모드 + 위험순 검증
+    └── README.md
 ```

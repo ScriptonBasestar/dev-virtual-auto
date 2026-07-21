@@ -50,6 +50,10 @@ Read the `dynamic_commands` section from manifest output to identify project-spe
 
 ### Author or Migrate Configuration
 
+For deep configuration authoring, migration, and defect attribution (ownership
+model, change modes, risk-ordered validation), use the **`config` skill**
+(`dva:config`). This section covers only the quick-start surface.
+
 For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template:
 
 ```text
@@ -69,7 +73,7 @@ interaction = one-shot convenience commands
 provision = one-time setup procedures
 ```
 
-For new/rewrite configuration, use named plans. Treat `modes` and
+For new/rewrite configuration, use named plans; treat `modes` and
 `applications` as migration-only legacy sections. After editing, run:
 
 ```bash
