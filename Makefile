@@ -79,10 +79,12 @@ generate:
 	   cat $(WF_LIBRARY)/reference-examples.md; \
 	} > $(GEN_LIBRARY)
 	@echo "Generated: $(GEN_LIBRARY)"
+	@echo "Generating platform skill artifacts from skills/..."
+	@go run ./tools/skillgen
 
 ## check-generate: Verify generated files are up-to-date (CI)
 check-generate: generate
-	@git diff --exit-code $(GEN_LIBRARY) \
+	@git diff --exit-code $(GEN_LIBRARY) AGENTS.md .agents/skills claude-plugin/skills \
 		|| { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
 ## help: Show this help

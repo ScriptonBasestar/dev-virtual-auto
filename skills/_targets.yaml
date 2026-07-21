@@ -14,18 +14,31 @@ defaults:
     - ".sb/dva/*.yml"
 
 targets:
-  # ── Identity targets: read the canonical SKILL.md directly, no conversion ──
-  antigravity:
-    shape: agent-skill
-    output: skills/            # canonical location itself
-    generated: false
-
+  # ── Agent-Skills-format targets: read SKILL.md directly via a symlinked dir.
+  #    No conversion — the symlink IS the projection (single source, zero drift). ──
   claude-code:
     shape: agent-skill
     output: claude-plugin/skills   # symlink -> ../skills
     generated: false
 
-  # ── Down-projected targets ──
+  antigravity:
+    # Antigravity reads .agents/skills/<name>/SKILL.md (NOT bare root skills/).
+    # references/ is a supported skill subdir. Ref: antigravity.google/docs/skills
+    shape: agent-skill
+    output: .agents/skills         # symlink -> ../skills
+    generated: false
+
+  opencode:
+    # OpenCode has native Agent Skills at .opencode/skills/<name>/SKILL.md
+    # (also reads .agents/skills/). Unknown frontmatter (allowed-tools, x-targets)
+    # is ignored; references/ is not auto-loaded but the body links them for
+    # on-demand file reads. name must match dir: ^[a-z0-9]+(-[a-z0-9]+)*$.
+    # Ref: opencode.ai/docs/skills
+    shape: agent-skill
+    output: .opencode/skills       # symlink -> ../skills
+    generated: false
+
+  # ── Down-projected targets: real conversion ──
   cursor:
     shape: mdc
     output: .cursor/rules/
@@ -36,18 +49,11 @@ targets:
     default_alwaysApply: false
 
   codex:
+    # The only true AGENTS.md target. Codex has no SKILL.md concept, so skills
+    # project to a non-destructive marked section (pointer-only: always-injected).
     shape: agents-md
     output: AGENTS.md
-    merge: section            # non-destructive: replace only the marked block
+    merge: section            # replace only the marked block
     marker: "skills:auto"     # merge boundary in AGENTS.md
     references: link
     generated: true
-
-  opencode:
-    shape: agents-md
-    output: AGENTS.md         # plus .opencode/ — layout UNVERIFIED (confirm in Phase 3)
-    merge: section
-    marker: "skills:auto"
-    references: link
-    generated: true
-    status: unverified

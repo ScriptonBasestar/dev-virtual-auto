@@ -18,18 +18,21 @@ root `skills/` (the canonical/intermediate source). Every other platform artifac
 is **generated or symlinked** from it — never hand-maintained in parallel
 (single-source-of-truth, consistent with [[dva-config-single-source]] / TASK-052).
 
-Selected targets and their output shapes:
+Selected targets — corrected against official docs in Phase 3 (OpenCode and
+Antigravity both consume the Agent Skills format natively; they are symlinks, not
+`AGENTS.md`):
 
-| Target       | Output                                   | Conversion            |
-| ------------ | ---------------------------------------- | --------------------- |
-| Antigravity  | `skills/` (canonical, read directly)     | none (identity)       |
-| Claude Code  | `claude-plugin/skills/` → symlink to `../skills` | none (identity) |
-| Cursor       | `.cursor/rules/*.mdc`                     | MDC down-projection   |
-| Codex        | `AGENTS.md` (merged section, non-destructive) | AGENTS.md-family |
-| OpenCode     | `AGENTS.md` + `.opencode/` (format TBD)   | AGENTS.md-family      |
+| Target       | Output                              | Conversion        | Committed? |
+| ------------ | ----------------------------------- | ----------------- | ---------- |
+| Claude Code  | `claude-plugin/skills` → `../skills` | symlink (none)    | yes        |
+| Antigravity  | `.agents/skills` → `../skills`       | symlink (none)    | yes        |
+| OpenCode     | `.opencode/skills` → `../skills`     | symlink (none)    | no (gitignored) |
+| Cursor       | `.cursor/rules/*.mdc`                | MDC (full body)   | no (gitignored) |
+| Codex        | `AGENTS.md` marked section           | pointer-only merge | yes       |
 
-README.md:176-178 already advertises this layout; `skills/dva/SKILL.md` and
-`.cursor/rules/dva.mdc` are currently **dangling** and this task makes them real.
+**Antigravity reads `.agents/skills/<name>/SKILL.md`, not bare root `skills/`** —
+so README.md:178 (`Antigravity: skills/dva/SKILL.md`) is **wrong** and needs a human
+fix (root README is AI-deny).
 
 ## Field-mapping spec
 
@@ -48,19 +51,22 @@ always-injected context budgets). Full spec: `skills/README.md`.
   - Hand-write `.cursor/rules/{dva,config}.mdc` per the spec.
   - Add a minimal `x-targets:` override to a canonical `SKILL.md` and confirm the
     `.mdc` reflects it (validates the override mechanism before automating).
-- **Phase 3 — Generator + remaining targets** (tooling choice deferred)
-  - Build converter → Cursor + AGENTS.md-family (Codex/OpenCode), merge non-destructively.
-  - Verify OpenCode/Antigravity file conventions against current docs first.
-  - Wire into `make generate` + CI freshness check (`generate` then `git diff --exit-code`).
+- **Phase 3 — Generator (DONE)** — Go tool `tools/skillgen`, wired into `make generate`.
+  - Verified OpenCode + Antigravity conventions against official docs (both native Agent Skills).
+  - Emits Cursor `.mdc` + Codex `AGENTS.md` section; ensures the 3 skill symlinks idempotently.
+  - `make check-generate` diffs `AGENTS.md` + committed symlinks.
 
 ## Acceptance criteria
 
-- [ ] Canonical skills live at root | verify: `test -f skills/dva/SKILL.md -a -f skills/config/SKILL.md`
-- [ ] Claude Code plugin still resolves skills | verify: `test -f claude-plugin/skills/dva/SKILL.md`
-- [ ] `claude-plugin/skills` is a symlink, not a copy | verify: `test -L claude-plugin/skills`
-- [ ] Format spec exists | verify: `test -f skills/README.md`
-- [ ] Target manifest exists | verify: `test -f skills/_targets.yaml`
-- [ ] README Cursor reference resolves | verify: `test -f .cursor/rules/dva.mdc`
-- [ ] README Antigravity reference resolves | verify: `test -f skills/dva/SKILL.md`
-- [ ] No dangling refs to old path | verify: `! grep -rn 'claude-plugin/skills/dva/references' --include=*.go internal cmd`
-- [ ] Phase 3 generator wired | verify: human — deferred until tooling decision
+- [x] Canonical skills live at root | verify: `test -f skills/dva/SKILL.md -a -f skills/config/SKILL.md`
+- [x] Claude Code plugin still resolves skills | verify: `test -f claude-plugin/skills/dva/SKILL.md`
+- [x] `claude-plugin/skills` is a symlink, not a copy | verify: `test -L claude-plugin/skills`
+- [x] Format spec exists | verify: `test -f skills/README.md`
+- [x] Target manifest exists | verify: `test -f skills/_targets.yaml`
+- [x] Cursor rules generated | verify: `test -f .cursor/rules/dva.mdc`
+- [x] Antigravity skill resolves at documented path | verify: `test -f .agents/skills/dva/SKILL.md`
+- [x] OpenCode skill resolves | verify: `test -f .opencode/skills/dva/SKILL.md`
+- [x] Codex section present in AGENTS.md | verify: `grep -q 'skills:auto:start' AGENTS.md`
+- [x] Generator compiles + module vets | verify: `go vet ./tools/skillgen/`
+- [x] `make generate` is idempotent | verify: `make generate >/dev/null && git diff --exit-code AGENTS.md`
+- [ ] README.md:178 corrected to `.agents/skills/dva/SKILL.md` | verify: human — root README is AI-deny

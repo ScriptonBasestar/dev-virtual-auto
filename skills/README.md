@@ -22,10 +22,18 @@ skills/
 `SKILL.md` is the **superset**. Only it supports progressive disclosure
 (`references/`), bundled `assets/`, and tool scoping (`allowed-tools`). Every other
 target is a strict subset, so converters only ever **down-project** — never the
-reverse. Two targets read it with **zero conversion**:
+reverse. **Three targets read the format itself** (zero conversion) — each is a
+symlinked directory pointing at canonical `skills/`, so an edit propagates with no
+regeneration:
 
-- **Antigravity** reads `skills/<name>/SKILL.md` directly.
-- **Claude Code** reads it via `claude-plugin/skills` → symlink to `../skills`.
+- **Claude Code** — `claude-plugin/skills` → `../skills`.
+- **Antigravity** — `.agents/skills` → `../skills` (reads `.agents/skills/<name>/SKILL.md`,
+  **not** bare root `skills/`; `references/` supported). Ref: antigravity.google/docs/skills
+- **OpenCode** — `.opencode/skills` → `../skills` (native Agent Skills at
+  `.opencode/skills/<name>/SKILL.md`; unknown frontmatter ignored; `name` must match
+  the dir). Ref: opencode.ai/docs/skills
+
+Only **Cursor** (`.mdc`) and **Codex** (`AGENTS.md`) require real conversion.
 
 ## Canonical frontmatter
 
@@ -41,38 +49,53 @@ x-targets:                       # OPTIONAL per-target overrides (extension key)
 ---
 ```
 
-`x-targets` is an extension key. Claude Code and Antigravity ignore unknown
-frontmatter keys, so it is safe in canonical files. A skill's own `x-targets`
-**wins over** the `defaults` in `_targets.yaml`.
+`x-targets` is an extension key. Agent-Skills consumers (Claude Code, Antigravity,
+OpenCode) ignore unknown frontmatter keys, so it is safe in canonical files. A
+skill's own `x-targets` **wins over** the `defaults` in `_targets.yaml`.
 
 ## Field mapping (canonical → target)
 
-| Canonical            | Claude Code / Antigravity | Cursor `.mdc`      | AGENTS.md-family (Codex/OpenCode) |
-| -------------------- | ------------------------- | ------------------ | --------------------------------- |
-| `name`               | `name`                    | filename           | section heading                   |
-| `description`        | `description`             | `description`      | prose "use when…" line            |
-| `x-targets.*.globs`  | —                         | `globs`            | —                                 |
-| `x-targets.*.alwaysApply` | —                    | `alwaysApply`      | (always present in file)          |
-| `allowed-tools`      | `allowed-tools`           | dropped            | dropped                           |
-| `user-invocable`     | `user-invocable`          | dropped            | dropped                           |
-| `references/`        | native (on demand)        | **linked by path** | **linked by path**                |
-| `assets/`            | native                    | linked by path     | linked by path                    |
-| body                 | body                      | body               | merged section (non-destructive)  |
+Agent-Skills targets (Claude Code, Antigravity, OpenCode) consume the file as-is via
+symlink — no field mapping. Only the two converted targets remap fields:
 
-## Reference-degradation policy
+| Canonical            | Agent-Skills targets | Cursor `.mdc`      | Codex (`AGENTS.md`) |
+| -------------------- | -------------------- | ------------------ | ------------------- |
+| `name`               | as-is                | filename           | section heading     |
+| `description`        | as-is                | `description`      | prose "use when…" line |
+| `x-targets.*.globs`  | ignored              | `globs`            | —                   |
+| `x-targets.*.alwaysApply` | ignored         | `alwaysApply`      | (always present)    |
+| `allowed-tools`      | as-is / ignored      | dropped            | dropped             |
+| `user-invocable`     | as-is / ignored      | dropped            | dropped             |
+| `references/`        | native / on-demand   | **linked by path** | (body not inlined)  |
+| `assets/`            | native               | linked by path     | (body not inlined)  |
+| body                 | as-is                | inlined (lazy-loaded) | pointer-only (always-injected) |
 
-Reference/instruction targets are **always-injected context** (token cost on every
-request). DVA's `references/` is large (~850 lines), so converters **link
-references by repo path — never inline them**. This preserves the
-progressive-disclosure intent as far as each target allows: the compact body stays
-in the rule, deep detail stays one click away in `skills/<name>/references/`.
+## Reference-degradation policy (asymmetric by load model)
+
+The two converted targets differ in how their content is loaded, so they degrade
+differently:
+
+- **Cursor** rules are **lazy-loaded** on `globs` match → the generator **inlines
+  the full body** but rewrites `references/`/`assets/` links to repo-root paths
+  (Claude-only `` !`cmd` `` dynamics and now-empty sections are stripped).
+- **Codex** `AGENTS.md` is **always-injected** → each skill degrades to a
+  **pointer-only** entry (description + link to `skills/<name>/SKILL.md`), never the
+  body. `references/` are never inlined anywhere.
 
 ## Targets
 
-Defined in [`_targets.yaml`](./_targets.yaml). Current set: Antigravity, Claude
-Code (both identity), Cursor (`.mdc`), Codex + OpenCode (`AGENTS.md`-family, merged
-non-destructively). OpenCode's `.opencode/` layout is **unverified** — confirm
-against current docs before the generator emits it.
+Defined in [`_targets.yaml`](./_targets.yaml), all verified against current docs:
+
+| Target       | Output                          | How            |
+| ------------ | ------------------------------- | -------------- |
+| Claude Code  | `claude-plugin/skills`          | symlink        |
+| Antigravity  | `.agents/skills`                | symlink (committed) |
+| OpenCode     | `.opencode/skills`              | symlink (gitignored → local) |
+| Cursor       | `.cursor/rules/*.mdc`           | generated (gitignored → local) |
+| Codex        | `AGENTS.md` marked section      | generated (committed) |
+
+`make generate` reproduces every row (symlinks are ensured idempotently), so a
+fresh clone materializes the gitignored ones locally.
 
 ## Workflow
 
