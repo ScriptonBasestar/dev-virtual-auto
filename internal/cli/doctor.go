@@ -83,6 +83,11 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: Compose files exist
 	results = append(results, checkComposeFiles(c)...)
 
+	// Built-in: Compose config resolves (catches include:/-f targets that the
+	// per-file existence check above misses — e.g. compose.yaml includes a file
+	// that was renamed/removed). Runs `docker compose config`, which needs no daemon.
+	results = append(results, checkComposeConfigResolves(c)...)
+
 	for _, check := range c.DoctorChecks {
 		r := runSingleCheck(check, c.FileDir())
 		r.UserDefined = true
@@ -379,6 +384,64 @@ func checkComposeFiles(c *config.Config) []DoctorResult {
 	}
 
 	return results
+}
+
+// checkComposeConfigResolves runs `docker compose config -q` for the primary
+// compose file set so a compose.yaml whose -f or include: target does not
+// resolve is caught here (before `dva up`) rather than only failing at up time.
+// `docker compose config` only parses/merges files and needs no daemon; the
+// check is skipped when the docker CLI is absent (the daemon check reports that).
+func checkComposeConfigResolves(c *config.Config) []DoctorResult {
+	cc := c.PrimaryComposeConfig()
+	if cc == nil || len(cc.Files) == 0 {
+		return nil
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		return nil
+	}
+
+	args := []string{"compose"}
+	for _, f := range cc.Files {
+		path := f
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(c.FileDir(), f)
+		}
+		args = append(args, "-f", path)
+	}
+	if cc.ProjectName != "" {
+		args = append(args, "--project-name", cc.ProjectName)
+	}
+	args = append(args, "config", "--quiet")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd.Dir = c.FileDir()
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		return []DoctorResult{{Name: "Compose config resolves", Passed: true}}
+	}
+
+	detail := firstNonEmptyLine(string(out))
+	hint := "check compose.files in dva.yml and any include: paths, then run: docker compose config"
+	if detail != "" {
+		hint = detail + " — " + hint
+	}
+	return []DoctorResult{{
+		Name:    "Compose config resolves",
+		Passed:  false,
+		FixHint: hint,
+	}}
+}
+
+// firstNonEmptyLine returns the first non-blank line of s, trimmed.
+func firstNonEmptyLine(s string) string {
+	for _, line := range strings.Split(s, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			return t
+		}
+	}
+	return ""
 }
 
 func fileExists(path string) bool {

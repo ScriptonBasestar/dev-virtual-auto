@@ -57,6 +57,26 @@ func ExecSubprocessInDir(env *config.Environment, dir, cmd string, args []string
 	return nil
 }
 
+// ExecSubprocessCaptureInDir runs a command in dir and returns its combined
+// stdout+stderr instead of streaming to the terminal. Used for preflight/probe
+// commands (e.g. `docker compose config`) whose output should be inspected and
+// reformatted into an actionable dva error rather than leaked raw. Interpolation
+// and env handling match ExecSubprocessInDir; an empty dir inherits the cwd.
+func ExecSubprocessCaptureInDir(env *config.Environment, dir, cmd string, args []string, shell bool) (string, error) {
+	cmdLine := buildCommandLine(env, cmd, args, shell)
+
+	if Debug {
+		slog.Debug("exec subprocess (capture)", "dir", dir, "command", strings.Join(cmdLine, " "))
+	}
+
+	c := exec.Command(cmdLine[0], cmdLine[1:]...)
+	c.Dir = dir
+	c.Env = env.EnvSlice()
+
+	out, err := c.CombinedOutput()
+	return string(out), err
+}
+
 // ExecSubprocessOutput runs a command and captures output.
 func ExecSubprocessOutput(cmd string, args ...string) (string, error) {
 	c := exec.Command(cmd, args...)

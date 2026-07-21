@@ -31,6 +31,16 @@ func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 		return &Result{}, nil
 	}
 
+	// Preflight: validate the compose file set resolves before `up`. This makes a
+	// compose file whose -f or include: target is missing/invalid surface as a
+	// dva-owned, actionable error instead of docker's raw stderr followed by a
+	// bare exit status. `config` only parses/merges — it needs no daemon.
+	if cfg := pctx.Entry.ComposeConfig(); len(cfg.Files) > 0 {
+		if err := p.preflightConfig(pctx); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := p.runSubprocess(pctx, args); err != nil {
 		return nil, fmt.Errorf("compose up: %w", err)
 	}
@@ -214,6 +224,57 @@ func (p *ComposePlugin) runSubprocess(pctx *PluginContext, args []string) error 
 	cmd, cmdArgs := p.buildArgs(pctx, args)
 	pctx.Logger.Debug("compose subprocess", "command", cmd, "args", cmdArgs)
 	return dvaexec.ExecSubprocessInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
+}
+
+// preflightConfig runs `docker compose ... config --quiet` to validate the
+// compose file set (including that every -f and include: target resolves)
+// before `up`. Output is captured so a broken reference surfaces through a
+// ComposeConfigError carrying docker's own diagnostic, rather than being
+// streamed raw ahead of a bare exit status.
+func (p *ComposePlugin) preflightConfig(pctx *PluginContext) error {
+	cmd, cmdArgs := p.buildArgs(pctx, []string{"config", "--quiet"})
+	pctx.Logger.Debug("compose preflight", "command", cmd, "args", cmdArgs)
+	out, err := dvaexec.ExecSubprocessCaptureInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
+	if err != nil {
+		return &ComposeConfigError{
+			Files:  pctx.Entry.ComposeConfig().Files,
+			Detail: strings.TrimSpace(out),
+			cause:  err,
+		}
+	}
+	return nil
+}
+
+// ComposeConfigError reports that the pre-up `docker compose config` preflight
+// failed — typically a file referenced by -f or include: that does not resolve,
+// or invalid/merge-conflicting YAML. It carries docker's own diagnostic (Detail)
+// so the real cause surfaces instead of a bare exit status, plus a remediation
+// hint. Mirrors ResolveError's cause-wrapping shape (Error/Unwrap).
+type ComposeConfigError struct {
+	Files  []string
+	Detail string
+	cause  error
+}
+
+func (e *ComposeConfigError) Error() string {
+	msg := "compose config is invalid"
+	if e.Detail != "" {
+		msg += ": " + firstLine(e.Detail)
+	}
+	msg += "\n       → a compose file referenced by -f or include: does not resolve or is invalid"
+	msg += "\n       → check compose.files in dva.yml and any include: paths, then run: docker compose config"
+	return msg
+}
+
+func (e *ComposeConfigError) Unwrap() error { return e.cause }
+
+// firstLine returns the first line of s (docker's diagnostics are typically a
+// single line; guard against multi-line output leaking into the summary).
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return strings.TrimSpace(s[:i])
+	}
+	return s
 }
 
 // composeServiceInfo mirrors docker compose ps JSON output for parsing.
