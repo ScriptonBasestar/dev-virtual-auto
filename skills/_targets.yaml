@@ -1,0 +1,53 @@
+# Conversion manifest for portable skills.
+# Canonical source = skills/<name>/SKILL.md (Agent Skills format).
+# Edit the canonical skill, then (re)generate the targets below. See skills/README.md.
+
+version: 1
+
+# Per-skill default overrides. A skill's own frontmatter `x-targets:` wins over these.
+defaults:
+  # File globs that make a rule/instruction target attach to DVA config work.
+  globs:
+    - "dva.yml"
+    - "**/dva.yml"
+    - "dva.override.yml"
+    - ".sb/dva/*.yml"
+
+targets:
+  # ── Identity targets: read the canonical SKILL.md directly, no conversion ──
+  antigravity:
+    shape: agent-skill
+    output: skills/            # canonical location itself
+    generated: false
+
+  claude-code:
+    shape: agent-skill
+    output: claude-plugin/skills   # symlink -> ../skills
+    generated: false
+
+  # ── Down-projected targets ──
+  cursor:
+    shape: mdc
+    output: .cursor/rules/
+    ext: .mdc
+    generated: true
+    frontmatter: [description, globs, alwaysApply]
+    references: link          # link references/ by repo path, never inline
+    default_alwaysApply: false
+
+  codex:
+    shape: agents-md
+    output: AGENTS.md
+    merge: section            # non-destructive: replace only the marked block
+    marker: "skills:auto"     # merge boundary in AGENTS.md
+    references: link
+    generated: true
+
+  opencode:
+    shape: agents-md
+    output: AGENTS.md         # plus .opencode/ — layout UNVERIFIED (confirm in Phase 3)
+    merge: section
+    marker: "skills:auto"
+    references: link
+    generated: true
+    status: unverified

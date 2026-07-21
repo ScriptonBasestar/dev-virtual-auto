@@ -7,6 +7,11 @@ description: >-
   Enforces DVA CLI discovery and safe plan-based execution; use raw tools only
   for configuration validation or when DVA has no equivalent.
 allowed-tools: [Bash, Read, Grep, Glob]
+x-targets:
+  # dva touches Compose too, so its rule/instruction globs extend the
+  # _targets.yaml defaults (dva.yml only) with compose files. Overrides win.
+  cursor:
+    globs: ["dva.yml", "**/dva.yml", "dva.override.yml", ".sb/dva/*.yml", "compose*.y*ml", "docker-compose*.y*ml"]
 ---
 
 # DVA (Dev Virtual Auto) CLI
