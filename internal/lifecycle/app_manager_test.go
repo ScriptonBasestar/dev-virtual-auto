@@ -1,7 +1,10 @@
 package lifecycle
 
 import (
+	"context"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -235,8 +238,8 @@ func TestSelectApps_VariantName(t *testing.T) {
 	cfg := &config.Config{
 		Applications: map[string]*config.ApplicationConfig{
 			"proxynd": {
-				Dir:   "nd-stack-rs",
-				Run:   config.AppExecPaths{Native: "cargo run -p proxynd"},
+				Dir: "nd-stack-rs",
+				Run: config.AppExecPaths{Native: "cargo run -p proxynd"},
 				Variants: map[string]*config.AppVariant{
 					"json": {
 						Port: 11401,
@@ -322,5 +325,49 @@ func TestBuildDockerCommand(t *testing.T) {
 				t.Errorf("buildDockerCommand() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestWatchProcessExit_CancelsWhenProcessDead is the fail-fast regression: a
+// process that has already exited must cancel the readiness wait promptly,
+// rather than let the health check poll a dead process for the full timeout.
+func TestWatchProcessExit_CancelsWhenProcessDead(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	watchProcessExit(ctx, 999999999, cancel) // returns once it cancels
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Errorf("watchProcessExit took %s to detect a dead process; want prompt cancel", elapsed)
+	}
+	if ctx.Err() == nil {
+		t.Error("expected context to be cancelled after watching a dead process")
+	}
+}
+
+// TestWatchProcessExit_ReturnsWhenCtxDone verifies the watcher does not cancel a
+// live process and simply unwinds when the surrounding context ends.
+func TestWatchProcessExit_ReturnsWhenCtxDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		watchProcessExit(ctx, os.Getpid(), cancel) // our own PID stays alive
+		close(done)
+	}()
+
+	// A couple of poll cycles must pass without the watcher returning, since the
+	// process is alive.
+	select {
+	case <-done:
+		t.Fatal("watchProcessExit returned while its process was still alive")
+	case <-time.After(700 * time.Millisecond):
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Error("watchProcessExit did not return after context cancel")
 	}
 }

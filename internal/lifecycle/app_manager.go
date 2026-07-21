@@ -178,14 +178,31 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 				timeout = time.Duration(app.Health.ReadyTimeout) * time.Second
 			}
 
-			// Wait for the configured health check to pass (if any).
+			crashReported := false
+
+			// Wait for the configured health check to pass (if any). Cancel the
+			// wait the instant a native process exits: a process that crashes on
+			// startup (e.g. a failed port bind) would otherwise be polled until
+			// the full timeout elapses — a silent, minutes-long wait with no
+			// output. (waitForPortOwnership below already self-cancels on death;
+			// this extends the same fail-fast to the health-check wait.)
 			if app.Health != nil {
+				fmt.Fprintf(os.Stderr, "[app] waiting for %s to become healthy (up to %s)...\n", name, timeout)
 				checks := map[string]config.HealthCheckConfig{name: *app.Health}
 				waitCtx, wCancel := context.WithTimeout(waveCtx, timeout)
+				if strategy != "docker" && pid > 0 {
+					go watchProcessExit(waitCtx, pid, wCancel)
+				}
 				results := am.hc.WaitUntilReady(waitCtx, checks)
 				wCancel()
 				for _, r := range results {
-					if !r.Ready {
+					if r.Ready {
+						continue
+					}
+					if strategy != "docker" && pid > 0 && !IsProcessRunning(pid) {
+						fmt.Fprintf(os.Stderr, "[FAIL] app %s exited during startup — see %s. A common cause is the process binding a different port than its health check expects; set PORT to match the health URL.\n", name, am.logPath(name))
+						crashReported = true
+					} else {
 						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
 					}
 				}
@@ -194,8 +211,9 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 			// Verify the process dva started actually owns its port. This
 			// catches a child that crashed on bind and a green health probe
 			// that is really being answered by a foreign orphan — both of which
-			// would otherwise be reported as a successful start.
-			if strategy != "docker" && pid > 0 && portOwnershipSupported() {
+			// would otherwise be reported as a successful start. Skip when the
+			// health wait already reported the crash, to avoid a duplicate FAIL.
+			if !crashReported && strategy != "docker" && pid > 0 && portOwnershipSupported() {
 				if port := effectivePort(app); port > 0 && !waitForPortOwnership(waveCtx, pid, port, timeout) {
 					if foreign, _ := resolvePortOwnership(pid, port); foreign > 0 {
 						fmt.Fprintf(os.Stderr, "[FAIL] app %s: port %d is held by PID %d, not the process dva started — likely a stale orphan or a crash on bind. See %s\n", name, port, foreign, am.logPath(name))
@@ -558,6 +576,26 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 	go func() { _ = cmd.Wait() }()
 
 	return pid, nil
+}
+
+// watchProcessExit cancels the wait once pid is no longer running, so a
+// readiness wait stops polling a process that has already crashed instead of
+// blocking for the full timeout. It returns when the process exits or ctx is
+// done, whichever comes first.
+func watchProcessExit(ctx context.Context, pid int, cancel context.CancelFunc) {
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if !IsProcessRunning(pid) {
+				cancel()
+				return
+			}
+		}
+	}
 }
 
 // startDockerApp starts an application via docker compose.
