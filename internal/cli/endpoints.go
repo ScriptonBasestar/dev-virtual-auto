@@ -10,11 +10,13 @@ import (
 	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 // checkEndpointHealth probes each endpoint URL/port concurrently and returns
 // HealthCheckResults keyed by endpoint name. HTTP endpoints (url starts with
-// http) get an HTTP check; others get a TCP check on the resolved port.
+// http) get an HTTP reachability check — any response means up, since API
+// servers legitimately 404 on "/"; others get a TCP check on the resolved port.
 func checkEndpointHealth(endpoints map[string]config.EndpointConfig) []HealthCheckResult {
 	if len(endpoints) == 0 {
 		return nil
@@ -43,7 +45,7 @@ func checkEndpointHealth(endpoints map[string]config.EndpointConfig) []HealthChe
 			}
 
 			if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-				result.Ready = checkHTTP(url, timeout)
+				result.Ready = lifecycle.CheckHTTPReachable(url, timeout)
 			} else {
 				// Treat as host:port for TCP check
 				host, port, err := net.SplitHostPort(url)
@@ -52,7 +54,7 @@ func checkEndpointHealth(endpoints map[string]config.EndpointConfig) []HealthChe
 					host = "localhost"
 					port = url
 				}
-				result.Ready = checkTCP(net.JoinHostPort(host, port), timeout)
+				result.Ready = lifecycle.CheckTCP(net.JoinHostPort(host, port), timeout)
 			}
 
 			mu.Lock()

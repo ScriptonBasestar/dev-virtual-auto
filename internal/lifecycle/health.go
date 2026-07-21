@@ -52,9 +52,9 @@ func (hc *HealthChecker) Check(checks map[string]config.HealthCheckConfig) []Hea
 
 			switch check.Type {
 			case "http":
-				result.Ready = checkHTTP(check.URL, timeout)
+				result.Ready = CheckHTTP(check.URL, timeout)
 			case "tcp":
-				result.Ready = checkTCP(check.Address, timeout)
+				result.Ready = CheckTCP(check.Address, timeout)
 			case "command":
 				result.Ready = checkCommand(check.Command, timeout)
 			default:
@@ -100,7 +100,9 @@ func (hc *HealthChecker) WaitUntilReady(ctx context.Context, checks map[string]c
 	}
 }
 
-func checkHTTP(url string, timeout time.Duration) bool {
+// CheckHTTP reports whether an HTTP GET to url returns a 2xx/3xx status within
+// timeout. Exported so the CLI endpoint table shares one implementation.
+func CheckHTTP(url string, timeout time.Duration) bool {
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -110,7 +112,24 @@ func checkHTTP(url string, timeout time.Duration) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 400
 }
 
-func checkTCP(address string, timeout time.Duration) bool {
+// CheckHTTPReachable reports whether url answers an HTTP request at all within
+// timeout, regardless of status code. Any response — including 4xx/5xx — proves
+// a server is listening and speaking HTTP. This is the liveness question the
+// endpoint table asks (is something serving here?), as opposed to CheckHTTP's
+// stricter 2xx/3xx health verdict: an API server that 404s on "/" is up, not
+// down. Only a transport error (connection refused, timeout) counts as down.
+func CheckHTTPReachable(url string, timeout time.Duration) bool {
+	client := &http.Client{Timeout: timeout}
+	resp, err := client.Get(url)
+	if err != nil {
+		return false
+	}
+	_ = resp.Body.Close()
+	return true
+}
+
+// CheckTCP reports whether a TCP connection to address succeeds within timeout.
+func CheckTCP(address string, timeout time.Duration) bool {
 	conn, err := net.DialTimeout("tcp", address, timeout)
 	if err != nil {
 		return false

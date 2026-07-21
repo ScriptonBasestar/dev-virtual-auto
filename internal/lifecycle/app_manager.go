@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +46,21 @@ type AppStatus struct {
 	PID      int
 	Port     int
 	LogFile  string
+	// PortPID is the PID currently listening on Port (0 = none/undeterminable).
+	// PortOwned reports whether that listener belongs to the tracked process
+	// group. PortPID > 0 && !PortOwned means a foreign process (e.g. a stale
+	// orphan from a previous run) holds the port.
+	PortPID   int
+	PortOwned bool
+}
+
+// PortConflict describes an application whose declared port is held by a
+// process that dva did not start (or that outlived the process dva tracked).
+type PortConflict struct {
+	App        string
+	Port       int
+	TrackedPID int // PID dva recorded for the app (0 if none / dead)
+	ForeignPID int // PID actually holding the port, outside dva's group
 }
 
 // NewAppManager creates an AppManager for the given config and environment.
@@ -113,15 +129,34 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 			_ = os.Remove(pidFile)
 		}
 
+		// Preflight: a foreign process already holding the port would make the
+		// child crash on bind, leaving an untracked orphan serving the port.
+		// Refuse to spawn a doomed process and tell the user how to reclaim it.
+		if strategy != "docker" {
+			if port := effectivePort(app); port > 0 && portOwnershipSupported() {
+				if foreign, owned := resolvePortOwnership(0, port); foreign > 0 && !owned {
+					fmt.Fprintf(os.Stderr, "[app] %s: port %d already held by PID %d (not started by dva) — skipping. Run 'dva app down %s' to reclaim the port, then retry.\n", name, port, foreign, name)
+					// Record the skip as an error so `up` exits non-zero. The
+					// post-start PortConflicts check can't see it: no pidfile is
+					// written for an app we never spawned.
+					mu.Lock()
+					errs = append(errs, fmt.Errorf("app %s: port %d held by PID %d not started by dva", name, port, foreign))
+					mu.Unlock()
+					continue
+				}
+			}
+		}
+
 		wg.Add(1)
 		go func(name, strategy, command string, app *config.ApplicationConfig) {
 			defer wg.Done()
 
+			var pid int
 			var err error
 			if strategy == "docker" {
 				err = am.startDockerApp(waveCtx, name, app, command)
 			} else {
-				err = am.startNativeApp(name, app, command)
+				pid, err = am.startNativeApp(name, app, command)
 			}
 
 			if err != nil {
@@ -134,19 +169,38 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 
 			fmt.Fprintf(os.Stderr, "[+] started app %s [%s]\n", name, strategy)
 
-			// Wait for health check readiness
-			if opts.Wait && app.Health != nil {
+			if !opts.Wait {
+				return
+			}
+
+			timeout := 30 * time.Second
+			if app.Health != nil && app.Health.ReadyTimeout > 0 {
+				timeout = time.Duration(app.Health.ReadyTimeout) * time.Second
+			}
+
+			// Wait for the configured health check to pass (if any).
+			if app.Health != nil {
 				checks := map[string]config.HealthCheckConfig{name: *app.Health}
-				timeout := time.Duration(app.Health.ReadyTimeout) * time.Second
-				if timeout == 0 {
-					timeout = 30 * time.Second
-				}
 				waitCtx, wCancel := context.WithTimeout(waveCtx, timeout)
 				results := am.hc.WaitUntilReady(waitCtx, checks)
 				wCancel()
 				for _, r := range results {
 					if !r.Ready {
 						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
+					}
+				}
+			}
+
+			// Verify the process dva started actually owns its port. This
+			// catches a child that crashed on bind and a green health probe
+			// that is really being answered by a foreign orphan — both of which
+			// would otherwise be reported as a successful start.
+			if strategy != "docker" && pid > 0 && portOwnershipSupported() {
+				if port := effectivePort(app); port > 0 && !waitForPortOwnership(waveCtx, pid, port, timeout) {
+					if foreign, _ := resolvePortOwnership(pid, port); foreign > 0 {
+						fmt.Fprintf(os.Stderr, "[FAIL] app %s: port %d is held by PID %d, not the process dva started — likely a stale orphan or a crash on bind. See %s\n", name, port, foreign, am.logPath(name))
+					} else {
+						fmt.Fprintf(os.Stderr, "[FAIL] app %s: process did not listen on port %d within %s — see %s\n", name, port, timeout, am.logPath(name))
 					}
 				}
 			}
@@ -253,29 +307,39 @@ func (am *AppManager) HaltApps(names ...string) {
 }
 
 // DownApps sends SIGTERM and removes PID/log files (Vagrant destroy semantics).
+// Beyond signalling the tracked process group, it reclaims each app's declared
+// port from any survivor or stale orphan the group signal did not reach — this
+// is what frees a port held by a process from a previous run that a plain
+// group-kill would otherwise leave behind.
 func (am *AppManager) DownApps(names ...string) {
 	apps := am.selectApps(names)
 
-	for name := range apps {
+	for name, app := range apps {
 		pidFile := am.pidPath(name)
 		logFile := am.logPath(name)
 
-		data, err := os.ReadFile(pidFile)
-		if err != nil {
-			continue
+		// Terminate the tracked process group if we recorded one. A pidfile is
+		// written only for native apps, so its presence also gates the port
+		// reclaim below.
+		hadPidfile := false
+		if data, err := os.ReadFile(pidFile); err == nil {
+			hadPidfile = true
+			if pid, perr := strconv.Atoi(strings.TrimSpace(string(data))); perr == nil && pid > 0 {
+				if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+					fmt.Fprintf(os.Stderr, "[-] removed app %s (pid %d)\n", name, pid)
+				}
+			}
 		}
 
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err != nil {
-			// Malformed PID file — clean up both files
-			_ = os.Remove(pidFile)
-			_ = os.Remove(logFile)
-			continue
-		}
-
-		if pid > 0 {
-			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
-				fmt.Fprintf(os.Stderr, "[-] removed app %s (pid %d)\n", name, pid)
+		// Reclaim the declared port (SIGTERM then SIGKILL survivors) — but only
+		// for apps dva started natively. A docker app's port is held by
+		// docker-proxy; signalling it (or an unrelated process sharing the port)
+		// would be wrong and potentially destructive.
+		if hadPidfile {
+			if port := effectivePort(app); port > 0 && portOwnershipSupported() {
+				if killed := reclaimPort(port); len(killed) > 0 {
+					fmt.Fprintf(os.Stderr, "[-] freed port %d for app %s (killed pid %v)\n", port, name, killed)
+				}
 			}
 		}
 
@@ -310,16 +374,7 @@ func (am *AppManager) AppStatuses() []AppStatus {
 			status.Strategy = "stopped"
 		}
 
-		// Check health if configured and running
-		if status.Running && app.Health != nil {
-			checks := map[string]config.HealthCheckConfig{name: *app.Health}
-			results := am.hc.Check(checks)
-			for _, r := range results {
-				if r.Ready {
-					status.Healthy = true
-				}
-			}
-		}
+		am.resolveOwnership(&status, app)
 
 		statuses = append(statuses, status)
 
@@ -348,15 +403,7 @@ func (am *AppManager) AppStatuses() []AppStatus {
 				vStatus.Strategy = "stopped"
 			}
 
-			if vStatus.Running && vApp.Health != nil {
-				checks := map[string]config.HealthCheckConfig{fullName: *vApp.Health}
-				results := am.hc.Check(checks)
-				for _, r := range results {
-					if r.Ready {
-						vStatus.Healthy = true
-					}
-				}
-			}
+			am.resolveOwnership(&vStatus, vApp)
 
 			statuses = append(statuses, vStatus)
 		}
@@ -365,23 +412,115 @@ func (am *AppManager) AppStatuses() []AppStatus {
 	return statuses
 }
 
+// resolveOwnership fills in port-ownership fields and the health verdict for a
+// status. Health requires the tracked process to be alive, the configured
+// health probe to pass, and — when port ownership can be determined — the port
+// not to be answered by a foreign process. A green probe served by an orphan
+// outside dva's process group is reported unhealthy rather than masking it.
+func (am *AppManager) resolveOwnership(status *AppStatus, app *config.ApplicationConfig) {
+	port := effectivePort(app)
+	if status.Port == 0 {
+		status.Port = port
+	}
+
+	foreign := false
+	// Port-ownership reasoning only applies to apps dva runs as native processes.
+	// A docker app's published port is held by docker-proxy — outside dva's
+	// process group — and would always look "foreign". A live tracked PID or a
+	// recorded pidfile (even for a since-crashed process) marks native management.
+	managed := status.PID > 0 || am.pidFileExists(status.Name)
+	if managed && port > 0 && portOwnershipSupported() {
+		status.PortPID, status.PortOwned = resolvePortOwnership(status.PID, port)
+		foreign = status.PortPID > 0 && !status.PortOwned
+	}
+
+	if status.Running && app.Health != nil {
+		checks := map[string]config.HealthCheckConfig{status.Name: *app.Health}
+		for _, r := range am.hc.Check(checks) {
+			if r.Ready && !foreign {
+				status.Healthy = true
+			}
+		}
+	}
+}
+
+// PortConflicts returns applications whose declared port is currently held by a
+// process outside dva's tracking (a stale orphan, or a child that outlived the
+// tracked group). names filters the set; empty means all applications. Returns
+// nil when port ownership cannot be determined on this host.
+func (am *AppManager) PortConflicts(names ...string) []PortConflict {
+	if !portOwnershipSupported() {
+		return nil
+	}
+	var conflicts []PortConflict
+	for name, app := range am.selectApps(names) {
+		// Only apps dva runs natively (a pidfile was recorded) can be reasoned
+		// about by port ownership; a docker app's port is held by docker-proxy,
+		// which is never in dva's process group.
+		if !am.pidFileExists(name) {
+			continue
+		}
+		port := effectivePort(app)
+		if port == 0 {
+			continue
+		}
+		tracked := am.trackedPID(name)
+		if foreign, owned := resolvePortOwnership(tracked, port); foreign > 0 && !owned {
+			conflicts = append(conflicts, PortConflict{
+				App:        name,
+				Port:       port,
+				TrackedPID: tracked,
+				ForeignPID: foreign,
+			})
+		}
+	}
+	sort.Slice(conflicts, func(i, j int) bool { return conflicts[i].App < conflicts[j].App })
+	return conflicts
+}
+
+// trackedPID returns the live PID dva recorded for an app, or 0 when there is
+// no pidfile or the recorded process is dead.
+func (am *AppManager) trackedPID(name string) int {
+	data, err := os.ReadFile(am.pidPath(name))
+	if err != nil {
+		return 0
+	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+	if pid > 0 && IsProcessRunning(pid) {
+		return pid
+	}
+	return 0
+}
+
+// pidFileExists reports whether dva has a pidfile recorded for an app. Only
+// startNativeApp writes one, so its presence means dva is managing the app as a
+// native process — the precondition for port-ownership reasoning. It stays true
+// even when the recorded process has since died (a crashed-on-bind native app),
+// which is exactly the stale-orphan case ownership checks must still catch.
+func (am *AppManager) pidFileExists(name string) bool {
+	_, err := os.Stat(am.pidPath(name))
+	return err == nil
+}
+
 // startNativeApp starts an application as a background process using the
-// same PID/log infrastructure as the process plugin.
-func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig, command string) error {
+// same PID/log infrastructure as the process plugin. It returns the PID of the
+// spawned process-group leader (the `sh -c` wrapper) so callers can verify the
+// process actually came up and owns its port.
+func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig, command string) (int, error) {
 	configDir := am.cfg.FileDir()
 	pidDir := filepath.Join(configDir, config.DotDirName, config.PidsDirName)
 	logDir := filepath.Join(configDir, config.DotDirName, config.LogsDirName)
 
 	if err := os.MkdirAll(pidDir, 0755); err != nil {
-		return fmt.Errorf("create pid dir: %w", err)
+		return 0, fmt.Errorf("create pid dir: %w", err)
 	}
 	if err := os.MkdirAll(logDir, 0755); err != nil {
-		return fmt.Errorf("create log dir: %w", err)
+		return 0, fmt.Errorf("create log dir: %w", err)
 	}
 
 	logFile, err := os.Create(filepath.Join(logDir, "app-"+name+".log"))
 	if err != nil {
-		return fmt.Errorf("create log file: %w", err)
+		return 0, fmt.Errorf("create log file: %w", err)
 	}
 
 	dir := am.resolveDir(app)
@@ -402,14 +541,15 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
-		return fmt.Errorf("start: %w", err)
+		return 0, fmt.Errorf("start: %w", err)
 	}
 
+	pid := cmd.Process.Pid
 	pidPath := filepath.Join(pidDir, "app-"+name+".pid")
-	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(pid)), 0644); err != nil {
+		_ = syscall.Kill(-pid, syscall.SIGTERM)
 		_ = logFile.Close()
-		return fmt.Errorf("save pid: %w", err)
+		return 0, fmt.Errorf("save pid: %w", err)
 	}
 
 	_ = logFile.Close()
@@ -417,7 +557,7 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 	// Reap zombie in background goroutine
 	go func() { _ = cmd.Wait() }()
 
-	return nil
+	return pid, nil
 }
 
 // startDockerApp starts an application via docker compose.

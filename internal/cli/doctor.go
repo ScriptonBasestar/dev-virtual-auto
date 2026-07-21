@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
@@ -107,6 +108,38 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: Check if .sb/dva is ignored in .gitignore
 	results = append(results, checkGitignoreStatus(c.FileDir()))
 
+	// Built-in: application ports are owned by processes dva tracks (not stale orphans)
+	results = append(results, checkAppPortOwnership(c)...)
+
+	return results
+}
+
+// checkAppPortOwnership flags applications whose declared port is held by a
+// process dva did not start — a stale orphan from a previous run, or a child
+// that outlived its tracked group. This is the condition that lets a dead app
+// look "healthy" because something else is answering on its port.
+func checkAppPortOwnership(c *config.Config) []DoctorResult {
+	if len(c.Applications) == 0 {
+		return nil
+	}
+
+	am := lifecycle.NewAppManager(c, loadEnv(c))
+	conflicts := am.PortConflicts()
+	if len(conflicts) == 0 {
+		return []DoctorResult{{
+			Name:   "Application ports owned by dva-tracked processes",
+			Passed: true,
+		}}
+	}
+
+	results := make([]DoctorResult, 0, len(conflicts))
+	for _, pc := range conflicts {
+		results = append(results, DoctorResult{
+			Name:    fmt.Sprintf("App %q port %d held by a process dva did not start", pc.App, pc.Port),
+			Passed:  false,
+			FixHint: fmt.Sprintf("PID %d owns port %d (stale orphan?). Run 'dva app down %s' to reclaim it, then 'dva app up %s'.", pc.ForeignPID, pc.Port, pc.App, pc.App),
+		})
+	}
 	return results
 }
 

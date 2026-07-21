@@ -155,6 +155,13 @@ var appUpCmd = &cobra.Command{
 			}
 		}
 
+		// Fail the command when a started app's port is held by a process
+		// dva did not start — otherwise a crash-on-bind or a stale orphan
+		// masquerades as a successful `up`.
+		if conflicts := am.PortConflicts(appNames...); len(conflicts) > 0 {
+			return fmt.Errorf("%d application port(s) held by processes dva did not start (see FAIL lines above); run 'dva app down' to reclaim the port(s), then retry", len(conflicts))
+		}
+
 		return nil
 	},
 }
@@ -279,9 +286,15 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 			state = "running"
 		}
 		health := "-"
-		if s.Running && s.Healthy {
+		switch {
+		case s.Running && s.Healthy:
 			health = "healthy"
-		} else if s.Running {
+		case s.PortPID > 0 && !s.PortOwned:
+			// Port is answered by a process dva did not start — a stale orphan
+			// from a previous run, or a child that crashed on bind. Surface the
+			// real owner instead of masking it as healthy/unknown.
+			health = fmt.Sprintf("foreign:%d", s.PortPID)
+		case s.Running:
 			health = "unknown"
 		}
 		url := "-"
