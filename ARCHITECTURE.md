@@ -142,10 +142,30 @@ dva manifest / dva ls / dva config show
 에이전트는 manifest에 없는 명령을 추측하지 않으며, mutation 전에 validate와 doctor의
 읽기 전용 결과를 우선한다.
 
+## AI 워크플로우 층위
+
+DVA의 AI 지원은 **목적과 실행 모델이 다른 두 층**으로 나뉜다. 이름은 둘 다
+"워크플로우"지만 층위가 다르며, 서로 강제로 연결하지 않는다.
+
+| 층 | 위치 | 실행 | 대상 |
+|----|------|------|------|
+| 오케스트레이션 | `workflows/dva-dogfood/` | 에이전트가 Markdown 스테이지를 상태 모델(`next_prompt`)대로 진행 — 대화형 | DVA **자체**(스킬·프롬프트·CLI) 개밥주기 개선 |
+| 실행 프리미티브 | `agent-mesh-flows/` | `am`(agent-mesh) 엔진이 YAML 플로우 실행 — 결정론적 | **사용자 프로젝트**의 `dva.yml` 분석·개선·진단 |
+
+- `agent-mesh-flows`는 단일 프로젝트를 대상으로 하는 결정론적 파이프라인이다.
+  `dva-discover`/`dva-improve`/`dva-diagnose`가 `am`으로 실행된다.
+- `dva-dogfood`는 다중 repo(스킬·CLI·대상 프로젝트)에 걸친 사람 게이트 기반 탐색 루프다.
+  결정론적 DAG로 표현하지 않으며, dva 리포에는 전용 러너가 없다(에이전트가 프롬프트를 직접 진행).
+- **경계 원칙**: dogfood는 스킬과 CLI를 **직접** 사용해 결함을 찾는 것이 목적이므로, "프로젝트
+  적용" 단계를 `am` 플로우로 우회하지 않는다. 두 층은 목적이 달라 독립적으로 유지한다.
+- `skills/`(SKILL.md, 단일 소스)는 두 층이 공통으로 참조하는 DVA 사용·설정 지식이다.
+
 ## 상세 문서
 
 - [Configuration Merge Semantics](docs/30-config-merge-semantics.md)
 - [Execution Plan Resolution](docs/31-execution-plan-resolution.md)
 - [Declarative Stack and Plans](docs/40-declarative-stack-and-plans.md)
+- [skills/](skills/README.md) — 포터블 DVA 스킬 (단일 소스, 플랫폼별 투영)
+- [workflows/](workflows/README.md) — DVA 자체 개선 dogfood 워크플로우
 - [USAGE.md](USAGE.md) — CLI와 설정 레퍼런스
 - [AGENTS.md](AGENTS.md) — 에이전트 작업 지침과 repository map

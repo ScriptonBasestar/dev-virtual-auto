@@ -10,6 +10,11 @@ from the skills, which have their own homes:
 | `agent-mesh-flows/` | **Product** — analyze/improve/diagnose a *user's* `dva.yml` | `am run dva-discover \| dva-improve \| dva-diagnose` |
 | `skills/` | The canonical DVA **skills** (single source, projected to platforms) | loaded by the AI host; see `skills/README.md` |
 
+> **`workflows/` vs `agent-mesh-flows/` are two layers, not competing paradigms** —
+> an interactive orchestration loop (here) vs a deterministic `am`-run execution
+> primitive. They are intentionally **not** wired together (dogfood exercises the
+> skill/CLI directly). See `ARCHITECTURE.md` → "AI 워크플로우 층위".
+
 ## Workflows
 
 - **[`dva-dogfood/`](dva-dogfood/)** — Prompt/Skill/Project improvement loop.
