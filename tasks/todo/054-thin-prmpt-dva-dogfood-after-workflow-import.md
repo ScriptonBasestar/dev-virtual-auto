@@ -33,6 +33,39 @@ Imported into the dva repo (canonical): `workflows/dva-dogfood/` — `00-start-c
 (`entry.md`, `RUN.md`, `operate/RUN.md`, `contract/`) was intentionally **not**
 imported — it is prmpt-framework-specific.
 
+## Execution status (2026-07-22)
+
+- **ce-plugin pointer (TASK-055): DONE** — committed locally in `claude-ce-plugin`
+  (`61f525e`), not pushed; skillref validation clean.
+- **prmpt: BLOCKED from the dva-repo session.** Both destructive git ops (`git rm`)
+  and file writes to the external `devenv` repo were denied by the permission
+  classifier — confirming this must run from a prmpt/devenv-scoped session (or with a
+  granted Bash permission rule for `/Users/archmagece/devenv`). One change landed
+  before the block: `prmpt/packages/dva/dogfood/README.md` was rewritten to the
+  canonical-pointer form. It is written for the **post-cutover** state (describes the
+  numbered/ref files as removed), so it becomes accurate once the deletion below runs;
+  if abandoning, revert it (command at the end).
+
+### Ready-to-run change-set (verified safe)
+
+Active-path check completed: `contract/dogfood-manifest.yaml`, its
+`cases/01-inspect-contract.md`, `entry.md`, `RUN.md`, and `catalog.yaml` reference
+**none** of the 14 files below; the contract SHA-256 is over a separate JSON. So
+removal cannot affect CE execution.
+
+1. Delete the 14 frozen-mirror files (9 numbered + 5 ref):
+   ```
+   git -C /Users/archmagece/devenv rm \
+     prmpt/packages/dva/dogfood/prmpt-{00-start-cycle,10-audit-skill,20-capture-baseline,30-improve-skill,40-improve-prompts,45-improve-dva-tool,50-apply-to-project,60-evaluate,70-feedback}.md \
+     prmpt/packages/dva/dogfood/ref-{context,artifacts,evaluation,safety,session}.md
+   ```
+2. Keep the active adapter: `entry.md`, `RUN.md`, `contract/`, `evidence/`, `README.md`.
+3. Validate: `make -C /Users/archmagece/devenv validate-prompt-catalog validate-prmpt`.
+4. Commit ONLY the dogfood changes (exclude the unrelated, pre-existing
+   `config/claude/zai.env.local`); do not push.
+
+Abandon instead → `git -C /Users/archmagece/devenv restore prmpt/packages/dva/dogfood/README.md`.
+
 ## Why this can't be done from the dva-repo session
 
 Cross-repo writes to `/Users/archmagece/devenv/prmpt` are blocked by this session's
