@@ -19,6 +19,15 @@ apply → evaluate → feedback) is now **canonical in the dva repo** at
 `prmpt` keeps a lightweight **pointer**, not a second copy — no dual management
 (same principle as [[dva-config-single-source]] / TASK-052).
 
+**Primary rationale (access, not just single-source):** the dva repo is the
+**public** distributable (`github.com/ScriptonBasestar/dev-virtual-auto`); `prmpt`
+is in the **private, internal** `gitlab.polypia.net/scripton/iac/devenv`. DVA users
+receive the dva repo, never devenv — so any DVA workflow they should run must be
+canonical in the accessible repo. The import was decoupled to plain, gateway-free
+Markdown precisely so it runs with the dva repo alone. Only `packages/dva` is
+DVA-specific; prmpt's gateway/catalog/~31 non-DVA packages are general framework
+infrastructure and stay in devenv.
+
 Imported into the dva repo (canonical): `workflows/dva-dogfood/` — `00-start-cycle`
 … `70-feedback`, `ref-*.md`, `METHODOLOGY.md`, `README.md`. The CE/gateway glue
 (`entry.md`, `RUN.md`, `operate/RUN.md`, `contract/`) was intentionally **not**

@@ -17,13 +17,24 @@ from the skills, which have their own homes:
   [`dva-dogfood/00-start-cycle.md`](dva-dogfood/00-start-cycle.md). `METHODOLOGY.md`
   is the shared self-improve spine; `ref-*.md` define the DVA domain contract.
 
-## Provenance & single source
+## Why the canonical lives here (not in devenv/prmpt)
 
-`dva-dogfood/` was **imported from** the `prmpt` framework
-(`scripton/iac/devenv`, `packages/dva/dogfood`) and **decoupled** from its CE
-controller / catalog / gateway so it stands alone here. This repo is now the
-**canonical source**; `prmpt` keeps a reference pointer only (no dual management —
-see `tasks/todo/054-thin-prmpt-dva-dogfood-after-workflow-import.md`).
+This repo (`github.com/ScriptonBasestar/dev-virtual-auto`) is the **public,
+distributable artifact** DVA users receive. `prmpt` lives in the **private,
+internal** `gitlab.polypia.net/scripton/iac/devenv` repo — DVA users cannot access
+it. So any DVA workflow users should run **must be canonical here**; devenv cannot
+be the home for user-facing DVA capability. `prmpt` is one *consumer* of this
+content, not its owner.
+
+`dva-dogfood/` was **imported from** `prmpt` (`packages/dva/dogfood`) and
+**decoupled** from that framework's gateway / catalog / CE controller, so it runs
+**standalone with only this repo** — hand `00-start-cycle.md` to any agent; no
+`prmpt-gateway` or devenv access is needed. `prmpt` keeps a reference pointer only
+(see `tasks/todo/054-thin-prmpt-dva-dogfood-after-workflow-import.md`).
+
+Scope boundary: only `packages/dva` is DVA-specific and belongs here. The rest of
+`prmpt` (its gateway CLI, catalog, and ~31 non-DVA domain packages) is
+general-purpose framework infrastructure and correctly stays in devenv.
 
 These are plain Markdown stage prompts — inherently host-portable, so they need no
 per-platform conversion (unlike `skills/`, which `tools/skillgen` projects).
