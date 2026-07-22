@@ -38,7 +38,10 @@ internal/
   integration/       # 통합 테스트 (-tags=integration)
   logger/            # slog 래퍼
   output/            # 출력 포맷
-agent-mesh-flows/    # agent-mesh flow 정의 (AI 워크플로우)
+agent-mesh-flows/    # agent-mesh flow 정의 (product: dva.yml 분석/개선, am 실행)
+skills/              # 포터블 스킬 단일 소스 (SKILL.md → Cursor/Codex/OpenCode 투영, tools/skillgen)
+workflows/           # DVA 자체 개선 dogfood 워크플로우 (prmpt에서 import, 단일 소스)
+tools/skillgen/      # skills/ → 플랫폼별 아티팩트 변환기 (make generate)
 examples/            # dva.yml 예시 파일
 tasks/               # 작업 추적
 ```
