@@ -3,13 +3,19 @@ id: TASK-052
 title: "Remove dva-config content from claude-ce-plugin; keep only a reference to the dva plugin"
 type: chore
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-22T00:00:00+09:00
 scope: "Cross-repo: claude-ce-plugin (must be applied from a ce-plugin-scoped session)"
 ---
 
 # Task 052: Make ce-plugin reference-only for DVA config
+
+> **✅ Completed 2026-07-22** — already applied in `claude-ce-plugin`
+> (commit `44a5639` "refactor(tool): drop dva-config skill; reference dva plugin
+> as canonical"). Verified: no `dva-config` skill dir remains; prose pointers exist
+> at `src/plugins/INDEX.md:201` and `src/plugins/tool/CLAUDE.md:31`. Single-source
+> holds — ce-plugin references, does not embed.
 
 ## Decision (settled)
 
