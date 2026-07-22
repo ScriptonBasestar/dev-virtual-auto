@@ -173,9 +173,13 @@ dva manifest                 # 구조화된 커맨드 매니페스트
 dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 출력 (JSON도 지원)
 ```
 
+AI 스킬은 `skills/`에 단일 소스로 두고 `make generate`(→ `tools/skillgen`)로 각 플랫폼에 투영합니다.
+
 - **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)
+- **Antigravity**: `.agents/skills/dva/SKILL.md`
+- **OpenCode**: `.opencode/skills/dva/SKILL.md`
 - **Cursor**: `.cursor/rules/dva.mdc`
-- **Antigravity**: `skills/dva/SKILL.md`
+- **Codex**: `AGENTS.md` (자동 생성 `skills:auto` 섹션)
 
 ## Documentation
 

