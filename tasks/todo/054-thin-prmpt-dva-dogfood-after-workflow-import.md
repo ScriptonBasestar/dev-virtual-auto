@@ -42,9 +42,12 @@ the prmpt repo (GitLab `scripton/iac/devenv`).
 ## Change-set (prmpt)
 
 1. **`packages/dva/dogfood/`** — replace the duplicated workflow bodies (numbered
-   `prmpt-NN-*.md` stage prompts + `ref-*.md`) with a **pointer README** stating the
-   canonical source is the dva repo `workflows/dva-dogfood/`. Keep only what the
-   prmpt framework genuinely needs to run its own dogfood (see open questions).
+   `prmpt-NN-*.md` stage prompts + `ref-*.md`) with a **pointer README**. The pointer
+   MUST use the **canonical GitHub URL**, not a local path or a bare "the DVA repo"
+   mention (unresolvable for a reader):
+   `https://github.com/ScriptonBasestar/dev-virtual-auto/tree/master/workflows/dva-dogfood`.
+   Keep only what the prmpt framework genuinely needs to run its own dogfood (see
+   open questions).
 
 2. **CE dogfood adapter / contract** — decide (open question) whether prmpt still runs
    the DVA dogfood through `core.component-dogfood` + `contract/dogfood-manifest.yaml`.

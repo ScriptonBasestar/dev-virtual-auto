@@ -5,6 +5,13 @@ authored once here in the **Agent Skills `SKILL.md` format** and down-projected 
 every other platform. Never hand-maintain a platform copy in parallel — edit the
 canonical skill and regenerate (single-source-of-truth; see TASK-053).
 
+**Canonical location for external references** — repos that reference these skills
+(e.g. `claude-ce-plugin`, `prmpt`) MUST point at the GitHub URL, never a local
+filesystem path (machine-specific, unresolvable elsewhere):
+
+> `https://github.com/ScriptonBasestar/dev-virtual-auto` → `skills/<name>/SKILL.md`
+> e.g. `https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/skills/config/SKILL.md`
+
 ## Layout
 
 ```

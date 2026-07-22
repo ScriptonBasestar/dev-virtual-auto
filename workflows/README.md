@@ -36,5 +36,10 @@ Scope boundary: only `packages/dva` is DVA-specific and belongs here. The rest o
 `prmpt` (its gateway CLI, catalog, and ~31 non-DVA domain packages) is
 general-purpose framework infrastructure and correctly stays in devenv.
 
+**Canonical location for external references** — `prmpt`'s pointer (and any other
+repo referencing this workflow) MUST use the GitHub URL, never a local path:
+
+> `https://github.com/ScriptonBasestar/dev-virtual-auto/tree/master/workflows/dva-dogfood`
+
 These are plain Markdown stage prompts — inherently host-portable, so they need no
 per-platform conversion (unlike `skills/`, which `tools/skillgen` projects).
