@@ -3,7 +3,7 @@ id: TASK-054
 title: "Make prmpt packages/dva/dogfood reference-only after importing the workflow into the dva repo"
 type: chore
 priority: P2
-status: todo
+status: blocked
 effort: S
 created-at: 2026-07-22T00:00:00+09:00
 scope: "Cross-repo: prmpt (scripton/iac/devenv) — must be applied from a prmpt-scoped session"
