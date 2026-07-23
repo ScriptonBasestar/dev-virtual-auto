@@ -23,7 +23,7 @@ stage.</input>
 
 <steps>
 1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
-   latest reports, target guidance, improved setup entry, and installed skill.
+   latest reports, target guidance, improved setup entry, canonical skill, and active projection.
 2. Create a unique ATTEMPT_ID; prior stage-50 attempts never block rerun.
 3. Recheck target Git HEAD, dirty hash, and protected paths against state; stop
    on incompatible external changes and update revision evidence otherwise.
@@ -34,7 +34,7 @@ stage.</input>
    use the recorded installed command. BLOCK if a changed DVA has no executable
    candidate. Prove the selected path is executable and its version/commit
    matches state. Record the selection and provenance without global install.
-6. Invoke `tool-dva-config` explicitly and classify new setup, preserve,
+6. Invoke the canonical `config` skill explicitly and classify new setup, preserve,
    migration, or rewrite.
 7. Default to preserve; map every proposed edit to a baseline finding and owner.
 8. Obtain authority before rewrite, secrets, destructive actions, service start,

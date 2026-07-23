@@ -15,6 +15,10 @@ by owner, and validate from static schema to authorized runtime checks. For new 
 configuration, prefer `stack` declarations selected by named `plans`; treat `modes` and
 `applications` as legacy migration inputs.
 
+Read **`references/diagnosis.md`** when symptoms cross configuration, CLI, project, and environment
+boundaries; when comparing installed/source/candidate DVA builds; when deciding root/subproject DVA
+need; or when validating process ownership and lifecycle migration behavior.
+
 For CLI execution (build/test/run/lifecycle), use the sibling `dva` skill; this skill owns
 configuration authoring, migration, and defect attribution.
 
@@ -48,9 +52,8 @@ configuration authoring, migration, and defect attribution.
 1. Read target and active module guidance.
 2. Inspect scoped Git status; protect secrets, generated files, archives, and unrelated user
    changes.
-3. Capture `dva version`. Treat the installed CLI as the schema authority; do not rely on
-   remembered fields. Before running lifecycle `--help` in a live workspace, prove in a disposable
-   fixture that the installed manual flag parser returns help without entering command execution.
+3. Capture the installed executable path and `dva version`. Treat that executable as the schema
+   authority; do not rely on remembered fields or assume a source checkout produced it.
 
 ### 2. Capture a Read-Only Baseline
 
@@ -63,11 +66,10 @@ dva manifest -f json
 dva doctor --json
 ```
 
-Read help only after the help path is proven non-executing. Do not use `--fix`, rewrite, reset,
-cleanup, or service-starting commands in the baseline. Do not assume a global `--dry-run` prevents
-lifecycle execution: verify every selected runner's up/down/stop behavior in a disposable fixture,
-including process-backed PID state, before using it with `up`, `down`, `restart`, `provision`, or
-similar commands in a live workspace. A zero exit status does not make contradictory output correct.
+Do not use `--fix`, rewrite, reset, cleanup, or service-starting commands in the baseline. Treat
+lifecycle help and previews as potentially executable until proven safe for the installed version;
+use the sibling `dva` skill's `skills/dva/references/operation-safety.md`. A zero exit status does
+not make contradictory output correct.
 
 ### 3. Select the Change Mode
 
@@ -85,18 +87,6 @@ Never infer rewrite merely because a newer model exists.
 - Standardize Compose/ports/env prerequisites before DVA references them.
 - Use named plans for new/rewrite configuration. Preserve legacy modes/applications only until an
   explicit, behavior-preserving migration is proven.
-- When a service has distinct run variants (e.g. hot-reload `dev` vs built `preview`/prod), model
-  each variant as its own stack entry and select it with a named plan (`dev`, `preview`) rather than
-  overloading one entry or relying on `--dev`. Declare `default_plan` to set the local default (e.g.
-  `default_plan: dev` for a devbox); it selects among plans and is validated against them. This keeps
-  "which mode is default" a project config choice, not a DVA built-in.
-- `dva stack up` starts every stack entry with no plan/`default_plan` awareness — for the Compose
-  runner it is a bare `docker compose up`, so only profile-less services start. Make the minimal
-  default the Compose layer's job: keep core data (postgres, redis) with no Compose `profiles:` so
-  they always start, and gate optional tiers behind Compose-native `profiles: [workflow|monitoring|
-  dev-tools|apps]`. Plans still select explicit subsets via `dva up <plan>`; naming a profiled
-  service in a plan starts it regardless of profile. This is Compose's own `profiles:` field, not a
-  DVA profiles layer.
 - Keep shared lifecycle at the devbox root; keep module-native commands in the owning active
   subproject.
 - Declare a DVA subproject only when its child `dva.yml` exists. If it is missing, choose explicitly
@@ -105,22 +95,10 @@ Never infer rewrite merely because a newer model exists.
 - Exclude archived, legacy, generated, and guidance-prohibited modules.
 - Use recursive improvement only when each detected subproject is in scope.
 - Keep docs and advertised commands aligned with `dva show`/`dva ls` output.
-- Per-service `run`/`dev`/`build` commands are config-defined: `dva app up` runs the `run` command
-  (production/preview) by default, and `--dev` opts into the `dev` command (hot-reload). A run-vs-dev
-  default difference is DVA config, not a tool defect. Confirm the actual dev-mode surface against the
-  installed CLI (`dva app up <name> --dev`); do not assume a bare `dva dev` command exists.
-- `up` is idempotent: it will not switch an already-running app between `run` and `dev`. With the app
-  live it prints `already running` and skips the entry, so `up --dev` on a preview-mode app is a
-  silent no-op. Flip a live app's mode with `restart --dev` (or `down` then `up --dev`). For a built
-  frontend (`preview`), the bundle's `MODE` is baked at build time, so restarting `preview` never
-  exposes dev-only, `MODE`-gated UI — only the `dev` command rebuilds in development mode.
-- A native `run` command must make its process bind the port its `health` check targets. App servers
-  often default to a shared standalone port (`:8080`, `:3000`); set it per app via `environment`, do
-  not assume the health URL configures anything, and confirm the value survives three seams: an
-  `env_file` exporting it under a name the app never reads (`API_PORT` vs the app's `PORT`); a Makefile
-  `PORT=$(PORT) ./bin` where a makefile `PORT = 8080` shadows the process env; a `--port` flag whose
-  default overrides the env inside the app. Two apps sharing one default collide — first wins, rest
-  crash on bind. The last two seams are project defects to report, not `dva.yml` fixes.
+- Decide DVA need independently for the root and every active subproject; do not generate a child
+  config merely because a parent or sibling uses DVA.
+- For run/dev variants, Compose profiles, native port binding, and runtime ownership diagnostics,
+  follow `references/diagnosis.md` instead of inferring behavior from configuration alone.
 
 ### 5. Deduplicate Orchestration Ownership
 
@@ -161,16 +139,15 @@ Never infer rewrite merely because a newer model exists.
 3. `dva config show` and `dva manifest` match intended effective configuration and command surface.
 4. `dva doctor --json` failures are assigned to config, tool, or environment.
 5. A supported printed plan preserves runner, services, order, and dependencies for every named
-   plan. Verify `up`, `down`, and `stop` semantics separately. Use lifecycle `--dry-run` in the
-   target only after proving the installed version does not execute it.
+   plan. Verify `up`, `down`, `stop`, and `restart` semantics separately using
+   `references/diagnosis.md`; use lifecycle previews only after proving they do not execute.
 6. Every configured Compose combination passes `docker compose ... config --quiet` — also surfaced
    continuously by the `dva doctor` "Compose config resolves" built-in, so this is a durable check,
    not only an author-time one.
 7. Target lint/tests pass.
-8. Start services and run health checks only when locally safe and authorized. When you do start a
-   native app, confirm it listens on the port its `health` check targets (e.g. `lsof -iTCP:<port>`),
-   not merely that its pidfile is live: a wrapper process (`make`, `sh`, `node`) stays alive while the
-   real server bound the wrong port or crashed, so a green liveness check can mask a wrong-port bind.
+8. Start services and run health checks only when locally safe and authorized. Verify that the
+   process group DVA controls owns the expected port; a pidfile, wrapper, or unrelated listener is
+   insufficient.
 
 ## Common Mistakes
 
@@ -184,15 +161,7 @@ Never infer rewrite merely because a newer model exists.
 - Declaring root subprojects before their child `dva.yml` files exist.
 - Applying root rules recursively to archived or independently owned modules.
 - Copying a schema example without checking the installed DVA version.
-- Expecting `dva stack up` to honor `default_plan` or start a minimal set — it runs a bare Compose
-  `up` over all profile-less services. A minimal default comes from Compose `profiles:` gating
-  optional tiers, not from DVA plan selection.
-- Assuming `dva app up` starts dev mode — it runs the `run`/preview command by default; `--dev` opts
-  into the `dev` command. Misreading this as a bug instead of a config choice.
-- Running `up --dev` against an app already started in `run`/preview and expecting it to switch — `up`
-  is idempotent and skips a live app, so use `restart --dev` or `down`+`up --dev`.
-- Reading a live pidfile (or a `health` URL) as proof the app is on the expected port. It binds
-  whatever its command/env/flags resolve to; a wrapper (`make`/`node`) stays alive on the wrong port.
+- Treating a pidfile, wrapper, or responding port as proof that DVA controls the healthy process.
 
 ## Output
 

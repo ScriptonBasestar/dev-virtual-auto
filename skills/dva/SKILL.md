@@ -30,6 +30,9 @@ DVA is a development workspace orchestrator that unifies Docker Compose, Kuberne
 - **Use `dva doctor` read-only first.** `--fix` requires explicit authority and
   review of the proposed mutation.
 
+Before lifecycle execution, destructive diagnostics, global installation, or uncertain help/preview
+paths, read **`references/operation-safety.md`** and use its authority and disposable-fixture gates.
+
 ## Project Context
 
 !`dva show 2>/dev/null || echo "DVA not configured in this project"`
@@ -203,6 +206,7 @@ For detailed command documentation and advanced patterns, consult:
 - **`references/commands.md`** - Complete command reference with all flags and options
 - **`references/advanced.md`** - Plans, environments, sites, legacy migration, subprojects, and stack runners
 - **`references/patterns.md`** - Standard config authoring workflow, migration checklist, naming conventions, and validation gates
+- **`references/operation-safety.md`** - Authority gates, read-only validation, preview proof, and lifecycle symmetry
 
 ### Templates
 

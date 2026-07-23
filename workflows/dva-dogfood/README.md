@@ -14,7 +14,7 @@ stage prompt names the references it needs and the next stage to run.
 
 ## Overview
 
-An iterative execution package for improving the plugin skill, the devenv
+An iterative execution package for improving the canonical DVA skills, the devenv
 setup prompt, the DVA tool itself, and target project configuration
 together while applying DVA to a real devbox project. Each cycle validates
 one hypothesis and feeds discovered issues back to the correct source of
@@ -24,16 +24,15 @@ Sources of truth:
 
 - Dogfood orchestration: `workflows/dva-dogfood` (this repo)
 - Domain packages: the prmpt framework (external)
-- Skill/plugin: the claude-ce-plugin repo (generic DVA skill). The DVA config
-  skill is now canonical in this repo at `skills/config/`; the loop's skill
-  targets are `skills/config` and `skills/dva`.
+- Skills: this repo's canonical `skills/config` and `skills/dva`; platform copies
+  are projections generated or linked from those sources.
 - DVA tool: this repo
 
 ## Core Principles
 
 - Do not modify skill, prompt, DVA source, or target project before
   measuring.
-- Keep generic knowledge in the plugin; keep devenv-specific rules in the
+- Keep reusable DVA knowledge in the canonical skills; keep devenv-specific rules in the
   setup prompt.
 - Distinguish project configuration issues from DVA CLI issues.
 - Judge DVA necessity independently for root and each active subproject;
@@ -48,7 +47,7 @@ Sources of truth:
    PASS.
 1. When resuming after a stop, pass only the `RUN_DIR` absolute path to the
    next session.
-1. Always verify a new skill's auto-trigger in a fresh Codex session.
+1. Always verify changed skill metadata and natural triggering in a fresh session.
 
 Treat the numbered stage files as continuation prompts selected by
 `state.next_prompt`. Both new runs and resumes start from the self-contained

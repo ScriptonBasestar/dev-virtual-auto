@@ -52,9 +52,10 @@ A zero exit code does not override contradictory or materially incorrect output.
 
 - Read the complete skill-creator instructions when available.
 - Validate source skill structure with the repository's official validator.
-- Use the plugin's supported Codex install/sync mechanism; do not assume copies
-  auto-update.
-- Compare source and installed metadata/body after installation.
+- Run `make generate` from DVA_ROOT and verify every projection form declared by
+  `skills/_targets.yaml`; do not assume copies auto-update.
+- Compare canonical source with generated/installed metadata, body or pointer,
+  and bundled resources after generation.
 - Use a fresh Codex session to test metadata-based discovery and natural
   triggering.
 - Forward tests receive the raw task and skill, not the expected answer or prior

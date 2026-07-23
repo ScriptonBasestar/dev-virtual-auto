@@ -36,19 +36,18 @@ run:
 revisions:
   target_head: null
   target_dirty_hash: null
-  plugin_head: null
-  plugin_dirty_hash: null
   devenv_head: null
   devenv_dirty_hash: null
   dva_head: null
   dva_dirty_hash: null
+  skill_source_hash: null
   prompt_bundle_hash: null
   installed_skill_hash: null
 
 sources:
   dogfood_root: "workflows/dva-dogfood"
   packages_root: "the prmpt framework (external)"
-  plugin_root: "the claude-ce-plugin repo" # generic DVA skill; DVA config skill is canonical here at skills/config/
+  skills_root: "skills"
   dva_root: "." # this repo root
   skill_source: null
   skill_installed: null
@@ -114,6 +113,8 @@ stable IDs such as `SKILL-001`, `PROMPT-001`, `DVA-001`, `PROJECT-001`.
 
 - Record installed DVA version/commit separately from `dva_root` HEAD and dirty
   hash; equality must be proven rather than inferred.
+- Record the canonical skill hash separately from each installed/generated
+  projection hash; equality must be proven after `make generate`.
 - When evaluating prompt behavior, record the model/runtime, prompt bundle hash,
   seed revision, and exact reproduction command without copying secret values.
 - Redact secrets instead of copying environment files (`.env`) into evidence.

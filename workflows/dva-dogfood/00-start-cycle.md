@@ -37,7 +37,8 @@ DVA config, or target behavior. Existing runs are optional evidence and never bl
    user-state fallback; generate a collision-safe RUN_ID.
 5. Optionally inspect at most three recent sibling summaries; do not reuse their validation.
 6. For a new run only, create RUN_DIR, `state.yaml`, and `handoff.md` using ARTIFACTS.
-7. Record target, plugin, devenv, and DVA source revisions/dirty hashes, one
+7. Record target, devenv, and DVA source revisions/dirty hashes plus canonical
+   skill/projection hashes, one
    measurable hypothesis, stage 00 PASS, and next prompt 10. Initialize owner
    and candidate DVA fields per ARTIFACTS.
 </steps>

@@ -23,7 +23,7 @@ report must PASS.</input>
 
 <steps>
 1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
-   latest stage-10 report, and target/module guidance.
+   latest stage-10 report, selected canonical skill, and target/module guidance.
 2. Create a unique ATTEMPT_ID; older baseline attempts are comparison inputs, not blockers.
 3. Inventory canonical `dva.yml`, legacy `dva.yaml`, other referenced DVA
    files, Compose, Makefile, env template, port, and AI guidance files.

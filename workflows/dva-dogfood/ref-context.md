@@ -6,25 +6,25 @@ Domain deltas only; invariants live in
 <constants>
 PROMPT_ROOT = workflows/dva-dogfood
 PACKAGES_ROOT = the prmpt framework (external)
-PLUGIN_ROOT = the claude-ce-plugin repo
 DVA_ROOT = this repo (repo root)
-CODEX_SKILLS = /Users/archmagece/.codex/skills
+SKILLS_ROOT = DVA_ROOT/skills
+SKILL_TARGETS = DVA_ROOT/skills/_targets.yaml
 RUNS_ROOT = <TARGET_PROJECT>/tmp/dogfood-dva
 FALLBACK_RUNS_ROOT = ${XDG_STATE_HOME:-$HOME/.local/state}/dogfood-dva/<PROJECT_SLUG>-<PATH_HASH>
 RUN_DIR = RUNS_ROOT/<RUN_ID>
 </constants>
 
-The generic DVA skill lives in the claude-ce-plugin repo, but the DVA config
-skill is now canonical in this repo at `skills/config/`. The loop's skill
-targets in this repo are `skills/config` and `skills/dva`.
+The loop's canonical skill targets are `skills/config` and `skills/dva` in this
+repo. Platform-visible copies are projections described by `skills/_targets.yaml`;
+never treat an installed/generated copy as an independent source.
 
 ## Runtime variables
 
 | Variable          | Rule                                                             |
 | ----------------- | ---------------------------------------------------------------- |
 | `TARGET_PROJECT`  | User-supplied absolute path; otherwise current working directory |
-| `SKILL_SOURCE`    | Exact plugin skill directory selected during stage 10            |
-| `SKILL_INSTALLED` | Exact Codex-installed skill directory selected during stage 10   |
+| `SKILL_SOURCE`    | Exact canonical directory under `SKILLS_ROOT` selected in stage 10 |
+| `SKILL_INSTALLED` | Exact platform projection/cache selected during stage 10          |
 | `DVA_ROOT`        | Local DVA CLI/schema/doctor source-of-truth repository           |
 | `RUNS_ROOT`       | Git-ignored target temp root or durable user-state fallback      |
 | `RUN_DIR`         | Unique evidence directory for one dogfood cycle                  |
@@ -38,7 +38,7 @@ changes, start a new run. Never reuse a `RUN_ID` for a new run.
 
 | Owner                       | Put here                                                                | Do not put here                                        |
 | --------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------ |
-| `claude-ce-plugin`          | Generic DVA workflow, reusable heuristics, validation procedure         | Machine paths, project ports, target-specific commands |
+| `skills/config`, `skills/dva` | Reusable DVA workflows, heuristics, validation, and operation safety | Machine paths, project ports, target-specific commands |
 | prmpt framework (external)  | Workstation paths, DVA/Compose boundary, port registry, local templates | Generic DVA schema tutorials duplicated from the skill |
 | `dev-virtual-auto`          | CLI behavior, schema parser, discovery/doctor implementation            | Workarounds that belong only to one project            |
 | Target project              | `dva.yml`, Compose files, project commands and docs                     | Cross-project policy                                   |
@@ -49,14 +49,14 @@ changes, start a new run. Never reuse a `RUN_ID` for a new run.
 **Worked example — dev vs preview default.** The `default_plan` field and
 per-plan run selection are DVA mechanism (`dev-virtual-auto`). The convention
 "define `dev`/`preview` plans and default to `dev` for local devbox work" is a
-reusable heuristic (`claude-ce-plugin` skill). The concrete `default_plan: dev`
+reusable heuristic (`skills/config`). The concrete `default_plan: dev`
 value is written into the target's `dva.yml`. Never bake a dev-vs-preview
 default into DVA itself or into a per-project workaround.
 
 ## Terminology
 
-- **Source skill**: editable skill under `PLUGIN_ROOT`.
-- **Installed skill**: Codex-discoverable copy under `CODEX_SKILLS`.
+- **Source skill**: editable canonical skill under `SKILLS_ROOT`.
+- **Installed skill**: platform projection or cache derived from the source skill.
 - **Prompt**: devenv-specific operational instructions under `PACKAGES_ROOT`.
 - **Baseline**: read-only observations captured before cycle mutations.
 - **Finding**: evidence-backed mismatch or inefficiency.
