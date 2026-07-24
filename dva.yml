@@ -2,7 +2,7 @@
 # dva.yml — DVA CLI (Go)
 # Pattern: Host Build (no Docker infrastructure)
 # All commands run locally via Makefile targets
-version: "0.1.34"
+version: "0.1.44"
 
 checks:
   - name: "Go toolchain available"
@@ -60,6 +60,11 @@ interaction:
     description: "Format code"
     command: "make fmt"
     runner: local
+    subcommands:
+      files:
+        description: "Format only the listed Go files"
+        command: "gofmt -w -s"
+        runner: local
 
   vet:
     description: "Run go vet"
