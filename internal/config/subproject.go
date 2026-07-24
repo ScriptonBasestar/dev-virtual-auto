@@ -203,6 +203,9 @@ func cloneImportedPlan(plan *PlanConfig, subprojectPath string) *PlanConfig {
 	}
 	clone := *plan
 	clone.SubprojectPath = subprojectPath
+	if plan.EndpointTags != nil {
+		clone.EndpointTags = append([]string(nil), plan.EndpointTags...)
+	}
 	if plan.Vars != nil {
 		clone.Vars = copyStringMap(plan.Vars)
 	}

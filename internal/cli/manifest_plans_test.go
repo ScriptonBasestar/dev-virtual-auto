@@ -34,6 +34,7 @@ plans:
         vars:
           ENTRY_SECRET: entry-secret-value
   review-backend:
+    endpoint_tags: [api]
     vars:
       PLAN_SECRET: plan-secret-value
     entries:
@@ -65,7 +66,8 @@ plans:
 	var manifest struct {
 		SchemaVersion string `json:"schema_version"`
 		Plans         map[string]struct {
-			Entries []struct {
+			EndpointTags []string `json:"endpoint_tags"`
+			Entries      []struct {
 				Name     string   `json:"name"`
 				Runner   string   `json:"runner"`
 				Order    int      `json:"order"`
@@ -104,6 +106,9 @@ plans:
 		if len(plan.Entries) != 1 {
 			t.Errorf("plan %q entries = %v, want exactly 1", name, plan.Entries)
 			continue
+		}
+		if name == "review-backend" && !slices.Equal(plan.EndpointTags, []string{"api"}) {
+			t.Errorf("plan %q endpoint_tags = %v, want [api]", name, plan.EndpointTags)
 		}
 		entry := plan.Entries[0]
 		if entry.Name != "plan-dispatcher" || entry.Runner != "compose" || entry.Order != 10 {

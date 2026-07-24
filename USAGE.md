@@ -479,6 +479,7 @@ plans:
   local-dev:
     environment: dev
     site: local
+    endpoint_tags: [app]
     vars:
       LOG_LEVEL: debug
     entries:
@@ -493,6 +494,10 @@ plans:
 ```
 
 `dva up local-dev`처럼 직접 실행합니다.
+
+성공한 `up`은 설정된 endpoint를 출력합니다. `endpoint_tags`를 생략하거나 빈 배열로
+두면 모든 endpoint를 표시하고, 값을 지정하면 tag가 하나라도 일치하는 endpoint만
+표시합니다. `--dry-run`과 실패한 startup은 endpoint 연결 정보를 출력하지 않습니다.
 
 ### default_mode
 

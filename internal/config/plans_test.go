@@ -11,6 +11,7 @@ func TestPlanConfigParsing(t *testing.T) {
 description: local dev
 environment: dev
 site: local
+endpoint_tags: [app, ui]
 vars:
   LOG_LEVEL: debug
 entries:
@@ -37,6 +38,9 @@ entries:
 	}
 	if plan.Site != "local" {
 		t.Errorf("site mismatch")
+	}
+	if len(plan.EndpointTags) != 2 || plan.EndpointTags[0] != "app" || plan.EndpointTags[1] != "ui" {
+		t.Errorf("endpoint_tags mismatch: %v", plan.EndpointTags)
 	}
 	if plan.Vars["LOG_LEVEL"] != "debug" {
 		t.Errorf("vars mismatch")

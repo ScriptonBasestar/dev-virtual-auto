@@ -9,6 +9,7 @@ type ManifestPlan struct {
 	Description     string              `json:"description,omitempty" yaml:"description,omitempty"`
 	Environment     string              `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Site            string              `json:"site,omitempty" yaml:"site,omitempty"`
+	EndpointTags    []string            `json:"endpoint_tags,omitempty" yaml:"endpoint_tags,omitempty"`
 	Entries         []ManifestPlanEntry `json:"entries" yaml:"entries"`
 	ResolutionError string              `json:"resolution_error,omitempty" yaml:"resolution_error,omitempty"`
 }
@@ -39,10 +40,11 @@ func buildManifestPlans(c *config.Config) map[string]ManifestPlan {
 		}
 
 		plan := ManifestPlan{
-			Description: planConfig.Description,
-			Environment: planConfig.Environment,
-			Site:        planConfig.Site,
-			Entries:     make([]ManifestPlanEntry, 0, len(planConfig.Entries)),
+			Description:  planConfig.Description,
+			Environment:  planConfig.Environment,
+			Site:         planConfig.Site,
+			EndpointTags: planConfig.EndpointTags,
+			Entries:      make([]ManifestPlanEntry, 0, len(planConfig.Entries)),
 		}
 		resolved, err := lifecycle.ResolvePlan(c, name, nil)
 		if err != nil {

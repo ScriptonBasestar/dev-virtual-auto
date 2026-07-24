@@ -133,6 +133,7 @@ default_runner < site.entry_overrides.runner < plan.entries[].runner
 - `services`
 - `order`
 - `depends_on`
+- startup 뒤 표시할 `endpoint_tags`
 - runner 선택 override
 - 추가 `vars`
 

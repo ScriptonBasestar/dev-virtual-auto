@@ -496,6 +496,11 @@
             "description": { "type": "string", "description": "Human-readable description of this plan" },
             "environment": { "type": "string", "description": "Environment name to apply (references environments section)" },
             "site": { "type": "string", "description": "Site name to apply (references sites section)" },
+            "endpoint_tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Show only endpoints matching these tags after successful startup. Omit or use an empty list to show all endpoints."
+            },
             "vars": {
               "type": "object",
               "description": "Plan-level variables (highest priority after CLI override)",

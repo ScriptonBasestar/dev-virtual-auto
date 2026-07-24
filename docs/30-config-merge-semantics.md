@@ -165,6 +165,7 @@ plans:
 | `description` | scalar | replace | |
 | `environment` | scalar | replace | environment 이름 |
 | `site` | scalar | replace | site 이름 |
+| `endpoint_tags` | list | replace | 성공한 startup 뒤 표시할 endpoint 선택, 생략/빈 목록은 전체 |
 | `vars` | map | key별 merge | plan-level vars |
 | `entries` | list | replace | ordered execution list |
 

@@ -636,6 +636,9 @@ func mergePlanConfig(base, other *PlanConfig) *PlanConfig {
 	if other.Site != "" {
 		base.Site = other.Site
 	}
+	if other.EndpointTags != nil {
+		base.EndpointTags = other.EndpointTags
+	}
 	base.Vars = mergeStringMap(base.Vars, other.Vars)
 	if other.Entries != nil {
 		base.Entries = other.Entries

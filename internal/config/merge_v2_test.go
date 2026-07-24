@@ -24,16 +24,18 @@ func TestMergeVars(t *testing.T) {
 func TestMergePlans(t *testing.T) {
 	base := &Config{Plans: map[string]*PlanConfig{
 		"dev": {
-			Description: "dev plan",
-			Environment: "dev",
-			Vars:        map[string]string{"A": "1"},
-			Entries:     []PlanEntry{{Name: "db", Order: 10}},
+			Description:  "dev plan",
+			Environment:  "dev",
+			EndpointTags: []string{"infra"},
+			Vars:         map[string]string{"A": "1"},
+			Entries:      []PlanEntry{{Name: "db", Order: 10}},
 		},
 	}}
 	other := &Config{Plans: map[string]*PlanConfig{
 		"dev": {
-			Vars:    map[string]string{"B": "2"},
-			Entries: []PlanEntry{{Name: "api", Order: 20}},
+			EndpointTags: []string{"app"},
+			Vars:         map[string]string{"B": "2"},
+			Entries:      []PlanEntry{{Name: "api", Order: 20}},
 		},
 	}}
 
@@ -47,6 +49,9 @@ func TestMergePlans(t *testing.T) {
 	}
 	if plan.Environment != "dev" {
 		t.Error("environment should be preserved")
+	}
+	if len(plan.EndpointTags) != 1 || plan.EndpointTags[0] != "app" {
+		t.Errorf("endpoint_tags should be replaced, got %v", plan.EndpointTags)
 	}
 	if plan.Vars["A"] != "1" {
 		t.Error("var A should be preserved")

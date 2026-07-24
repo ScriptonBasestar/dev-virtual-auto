@@ -59,11 +59,12 @@ type SubprojectConfig struct {
 
 // PlanConfig defines a named executable plan.
 type PlanConfig struct {
-	Description string            `yaml:"description"`
-	Environment string            `yaml:"environment"`
-	Site        string            `yaml:"site"`
-	Vars        map[string]string `yaml:"vars"`
-	Entries     []PlanEntry       `yaml:"entries"`
+	Description  string            `yaml:"description"`
+	Environment  string            `yaml:"environment"`
+	Site         string            `yaml:"site"`
+	EndpointTags []string          `yaml:"endpoint_tags"`
+	Vars         map[string]string `yaml:"vars"`
+	Entries      []PlanEntry       `yaml:"entries"`
 
 	SubprojectPath string `yaml:"-"`
 }

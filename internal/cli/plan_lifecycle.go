@@ -198,8 +198,9 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	if err != nil {
 		return err
 	}
+	effectiveDryRun := dryRun || flags.dryRun
 	if err := orch.Up(context.Background(), lifecycle.UpOptions{
-		DryRun: dryRun || flags.dryRun,
+		DryRun: effectiveDryRun,
 		Force:  flags.force,
 		Wait:   flags.wait,
 		Names:  planEntryNames(plan),
@@ -212,6 +213,11 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	status, statusErr := orch.Status(context.Background())
 	if statusErr == nil {
 		lifecycle.PrintStatus(filterStatusByNames(status, planEntryNames(plan)), c.FileDir())
+	}
+	if !effectiveDryRun && !jsonOutput && len(c.Endpoints) > 0 {
+		endpoints := filterEndpoints(c.Endpoints, plan.EndpointTags)
+		health := checkEndpointHealth(endpoints)
+		printEndpointTable(endpoints, nil, health)
 	}
 
 	return nil

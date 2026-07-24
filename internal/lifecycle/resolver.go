@@ -12,6 +12,7 @@ type ExecutionPlan struct {
 	Name            string
 	EnvironmentName string
 	SiteName        string
+	EndpointTags    []string
 	EnvVars         map[string]string
 	Entries         []ResolvedEntry
 	ResolutionTrace []string
@@ -72,6 +73,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		Name:            name,
 		EnvironmentName: plan.Environment,
 		SiteName:        plan.Site,
+		EndpointTags:    copyStringSlice(plan.EndpointTags),
 		EnvVars:         make(map[string]string),
 		Entries:         make([]ResolvedEntry, 0, len(plan.Entries)),
 		ResolutionTrace: make([]string, 0, 16),

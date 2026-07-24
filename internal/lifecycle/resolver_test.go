@@ -31,10 +31,11 @@ func TestResolvePlanBasic(t *testing.T) {
 		},
 		Plans: map[string]*config.PlanConfig{
 			"local-dev": {
-				Description: "local dev",
-				Environment: "dev",
-				Site:        "local",
-				Vars:        map[string]string{"LOG_LEVEL": "debug"},
+				Description:  "local dev",
+				Environment:  "dev",
+				Site:         "local",
+				EndpointTags: []string{"app", "ui"},
+				Vars:         map[string]string{"LOG_LEVEL": "debug"},
 				Entries: []config.PlanEntry{
 					{Name: "db", Runner: "compose", Order: 10},
 					{Name: "api", Runner: "native", Order: 20, DependsOn: []string{"db"}},
@@ -62,6 +63,9 @@ func TestResolvePlanBasic(t *testing.T) {
 	}
 	if plan.SiteName != "local" {
 		t.Errorf("site name: got %s", plan.SiteName)
+	}
+	if len(plan.EndpointTags) != 2 || plan.EndpointTags[0] != "app" || plan.EndpointTags[1] != "ui" {
+		t.Errorf("endpoint tags: got %v", plan.EndpointTags)
 	}
 	if len(plan.Entries) != 2 {
 		t.Fatalf("entries: got %d", len(plan.Entries))

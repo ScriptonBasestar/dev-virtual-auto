@@ -226,6 +226,7 @@ stack:
 - 어떤 stack 엔트리를 사용할지
 - 어떤 environment를 적용할지
 - 어떤 site를 적용할지
+- 성공한 startup 뒤 어떤 endpoint를 표시할지
 - 필요한 override
 - runner 선택
 - 최종 실행 순서와 dependency
@@ -236,6 +237,7 @@ plans:
     description: local developer stack
     environment: dev
     site: local
+    endpoint_tags: [app]
     entries:
       - name: core-compose
         runner: compose
