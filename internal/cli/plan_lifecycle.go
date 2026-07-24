@@ -9,6 +9,7 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/lifecycle"
+	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 type planRunFlags struct {
@@ -17,6 +18,21 @@ type planRunFlags struct {
 	force   bool
 	wait    bool
 	volumes bool
+}
+
+type planEndpointOutput struct {
+	Name  string            `json:"name"`
+	Label string            `json:"label"`
+	URL   string            `json:"url"`
+	Paths map[string]string `json:"paths,omitempty"`
+}
+
+type planUpOutput struct {
+	Action    string                      `json:"action"`
+	Plan      string                      `json:"plan"`
+	DryRun    bool                        `json:"dry_run"`
+	Status    *lifecycle.AggregatedStatus `json:"status,omitempty"`
+	Endpoints []planEndpointOutput        `json:"endpoints,omitempty"`
 }
 
 func requirePlanSelection(c *config.Config, command string, args []string) error {
@@ -212,12 +228,26 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	fmt.Fprintln(os.Stderr)
 	status, statusErr := orch.Status(context.Background())
 	if statusErr == nil {
-		lifecycle.PrintStatus(filterStatusByNames(status, planEntryNames(plan)), c.FileDir())
+		status = filterStatusByNames(status, planEntryNames(plan))
+		if !jsonOutput {
+			lifecycle.PrintStatus(status, c.FileDir())
+		}
 	}
-	if !effectiveDryRun && !jsonOutput && len(c.Endpoints) > 0 {
-		endpoints := filterEndpoints(c.Endpoints, plan.EndpointTags)
-		health := checkEndpointHealth(endpoints)
-		printEndpointTable(endpoints, nil, health)
+	endpoints := filterEndpoints(c.Endpoints, plan.EndpointTags)
+	if jsonOutput {
+		result := planUpOutput{
+			Action: "up",
+			Plan:   plan.Name,
+			DryRun: effectiveDryRun,
+			Status: status,
+		}
+		if !effectiveDryRun {
+			result.Endpoints = planEndpointOutputs(endpoints)
+		}
+		return output.PrintJSON(result)
+	}
+	if !effectiveDryRun {
+		printEndpointTable(endpoints, nil, nil)
 	}
 
 	return nil
@@ -317,15 +347,15 @@ func runPlanStatus(c *config.Config, e *config.Environment, planName string) err
 	if err != nil {
 		return err
 	}
-		status, err := orch.Status(context.Background())
-		if err != nil {
-			return err
-		}
-
-		filtered := filterStatusByNames(status, planEntryNames(plan))
-		lifecycle.PrintStatus(filtered, c.FileDir())
-		return lifecycle.StatusExitError(filtered)
+	status, err := orch.Status(context.Background())
+	if err != nil {
+		return err
 	}
+
+	filtered := filterStatusByNames(status, planEntryNames(plan))
+	lifecycle.PrintStatus(filtered, c.FileDir())
+	return lifecycle.StatusExitError(filtered)
+}
 
 func planEntryNames(plan *lifecycle.ExecutionPlan) []string {
 	if plan == nil || len(plan.Entries) == 0 {
@@ -336,6 +366,26 @@ func planEntryNames(plan *lifecycle.ExecutionPlan) []string {
 		names = append(names, entry.Name)
 	}
 	return names
+}
+
+func planEndpointOutputs(endpoints map[string]config.EndpointConfig) []planEndpointOutput {
+	names := make([]string, 0, len(endpoints))
+	for name := range endpoints {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	result := make([]planEndpointOutput, 0, len(names))
+	for _, name := range names {
+		endpoint := endpoints[name]
+		result = append(result, planEndpointOutput{
+			Name:  name,
+			Label: endpoint.Label,
+			URL:   endpoint.URL,
+			Paths: endpoint.Paths,
+		})
+	}
+	return result
 }
 
 func filterStatusByNames(status *lifecycle.AggregatedStatus, names []string) *lifecycle.AggregatedStatus {

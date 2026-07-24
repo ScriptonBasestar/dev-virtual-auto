@@ -11,18 +11,18 @@ import (
 
 // AggregatedStatus holds the combined status from all lifecycle entries.
 type AggregatedStatus struct {
-	Entries []EntryStatus
+	Entries []EntryStatus `json:"entries"`
 }
 
 // EntryStatus holds the status for a single lifecycle entry.
 // Error is set when the entry could not be queried at all (e.g. its plugin
 // could not be constructed); such an entry is still reported, marked broken.
 type EntryStatus struct {
-	Name     string
-	Plugin   string
-	Services []ServiceStatus
-	Health   []HealthCheckResult
-	Error    string
+	Name     string              `json:"name"`
+	Plugin   string              `json:"plugin"`
+	Services []ServiceStatus     `json:"services,omitempty"`
+	Health   []HealthCheckResult `json:"health,omitempty"`
+	Error    string              `json:"error,omitempty"`
 }
 
 // StatusExitError returns a non-nil error when any entry is unrunnable

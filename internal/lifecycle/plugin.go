@@ -42,9 +42,9 @@ type Result struct {
 
 // ServiceStatus represents the state of a single managed service.
 type ServiceStatus struct {
-	Name   string            // "postgres", "api-server"
-	State  string            // running, stopped, error
-	Health string            // healthy, unhealthy, unknown
-	Ports  map[int]int       // host:container port mappings
-	Extra  map[string]string // plugin-specific metadata
+	Name   string            `json:"name"`             // "postgres", "api-server"
+	State  string            `json:"state"`            // running, stopped, error
+	Health string            `json:"health,omitempty"` // healthy, unhealthy, unknown
+	Ports  map[int]int       `json:"ports,omitempty"`  // host:container port mappings
+	Extra  map[string]string `json:"extra,omitempty"`  // plugin-specific metadata
 }

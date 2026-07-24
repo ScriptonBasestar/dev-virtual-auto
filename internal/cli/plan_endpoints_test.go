@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,6 +77,30 @@ func TestRunPlanUpDoesNotProbeEndpointsExcludedByPlanTags(t *testing.T) {
 	}
 }
 
+func TestRunPlanUpDoesNotProbeConfiguredEndpoints(t *testing.T) {
+	var requests atomic.Int32
+	endpoint := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer endpoint.Close()
+
+	configText := strings.Replace(
+		planEndpointTestConfig("    endpoint_tags: [app]\n"),
+		"http://127.0.0.1:18080",
+		endpoint.URL,
+		1,
+	)
+	c := loadTestConfig(t, configText)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	if err := runPlanUp(c, e, "demo", nil); err != nil {
+		t.Fatalf("runPlanUp failed: %v", err)
+	}
+	if got := requests.Load(); got != 0 {
+		t.Errorf("configured endpoint received %d health probes, want 0", got)
+	}
+}
+
 func TestRunPlanUpOmitsEndpointsWhenStartupFails(t *testing.T) {
 	c := loadTestConfig(t, planEndpointTestConfigWithUp("false", ""))
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
@@ -110,7 +135,7 @@ func TestRunPlanUpDryRunOmitsEndpoints(t *testing.T) {
 	}
 }
 
-func TestRunPlanUpJSONOutputOmitsHumanEndpointTable(t *testing.T) {
+func TestRunPlanUpJSONOutputReturnsStructuredResult(t *testing.T) {
 	c := loadTestConfig(t, planEndpointTestConfig(""))
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 	previousJSONOutput := jsonOutput
@@ -129,6 +154,25 @@ func TestRunPlanUpJSONOutputOmitsHumanEndpointTable(t *testing.T) {
 	}
 	if strings.Contains(out, "Endpoints:") {
 		t.Errorf("JSON output included a human endpoint table:\n%s", out)
+	}
+
+	var got struct {
+		Action    string `json:"action"`
+		Plan      string `json:"plan"`
+		DryRun    bool   `json:"dry_run"`
+		Endpoints []struct {
+			Label string `json:"label"`
+			URL   string `json:"url"`
+		} `json:"endpoints"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("JSON output is invalid: %v\n%s", err, out)
+	}
+	if got.Action != "up" || got.Plan != "demo" || got.DryRun {
+		t.Errorf("unexpected plan result: %+v", got)
+	}
+	if len(got.Endpoints) != 2 || got.Endpoints[0].Label != "API" || got.Endpoints[1].Label != "Web" {
+		t.Errorf("unexpected endpoints: %+v", got.Endpoints)
 	}
 }
 
