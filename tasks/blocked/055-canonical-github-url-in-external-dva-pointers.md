@@ -3,10 +3,15 @@ id: TASK-055
 title: "External DVA pointers (ce-plugin, prmpt) must carry the canonical GitHub URL, not a bare mention"
 type: chore
 priority: P3
-status: todo
+status: blocked
 effort: XS
 created-at: 2026-07-22T00:00:00+09:00
 scope: "Cross-repo: claude-ce-plugin + prmpt — apply from each repo's own session"
+depends-on: [TASK-054]
+blocked-reason: dependency
+blocked-detail: "The ce-plugin criterion is complete; the only remaining prmpt URL criterion is folded into TASK-054."
+unblock-condition: "TASK-054 is completed with recorded prmpt-session evidence that the pointer uses the canonical workflow URL."
+blocked-at: 2026-07-24T08:34:48+09:00
 ---
 
 # Task 055: Canonical GitHub URL in external DVA pointers
@@ -41,5 +46,5 @@ Every external pointer must use the **canonical GitHub URL**.
 
 ## Acceptance criteria
 
-- [ ] ce-plugin DVA pointer contains the canonical GitHub URL | verify: human — ce-plugin session
+- [x] ce-plugin DVA pointer contains the canonical GitHub URL | verify: recorded evidence — TASK-054 cites ce-plugin commit `61f525e` and clean skillref validation
 - [ ] prmpt pointer contains the workflow GitHub URL | verify: human — prmpt session (see TASK-054)

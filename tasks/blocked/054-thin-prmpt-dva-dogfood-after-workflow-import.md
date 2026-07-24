@@ -7,6 +7,10 @@ status: blocked
 effort: S
 created-at: 2026-07-22T00:00:00+09:00
 scope: "Cross-repo: prmpt (scripton/iac/devenv) — must be applied from a prmpt-scoped session"
+blocked-reason: external-repository
+blocked-detail: "The remaining prmpt changes and all acceptance-criteria verification require a prmpt/devenv-scoped session; this DVA-scoped session cannot perform or verify them."
+unblock-condition: "A prmpt/devenv-scoped session completes the documented change-set, runs validate-prompt-catalog and validate-prmpt successfully, and records the resulting evidence in TASK-054."
+blocked-at: 2026-07-23T01:24:02+09:00
 ---
 
 # Task 054: Make prmpt reference-only for the DVA dogfood workflow
