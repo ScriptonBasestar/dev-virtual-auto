@@ -16,7 +16,7 @@ Require explicit user authority before:
 
 ## Runtime authority boundary
 
-METHODOLOGY forbids lifecycle invocation from stages 00–70 and requires a
+METHODOLOGY forbids lifecycle invocation from every numbered stage and requires a
 post-cycle authority record naming every command and its side effect. Two DVA
 specifics: the side effect must be the concrete one for that command (the named
 plan, and that it starts a service), and an empty command list or an empty
@@ -65,7 +65,12 @@ never to the read-only audit.
 Read-only audit stages:
 
 - Read the complete skill-creator instructions when available.
-- Validate source skill structure with the repository's official validator.
+- Validate source skill structure with the repository's official validator **when
+  one exists**. This repository ships none: `tools/skillgen` is a generator, and
+  `make check-generate` runs it — which a read-only audit must not do. Absent a
+  validator, check structure directly (frontmatter fields, `SKILL.md` present,
+  declared reference paths resolve) and record the missing validator as a
+  finding. Never substitute the generator for the validator.
 - Verify that every projection declared by `skills/_targets.yaml` exists and is
   current, using the relation its shape supports (`ref-artifacts.md`, Evidence
   rules). Do not run `make generate` to find out — a projection that needs

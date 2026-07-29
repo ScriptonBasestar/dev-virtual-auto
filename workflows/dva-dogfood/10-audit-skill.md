@@ -52,8 +52,11 @@ PASS.</input>
 </steps>
 
 <gate>PASS when source/install evidence is complete and catalog visibility is
-proven. Deferred natural triggering does not fail this stage. Missing skill is a
-valid finding.</gate>
+either proven or recorded as an `environment` finding naming the discovery
+mechanisms actually checked. Deferred natural triggering does not fail this
+stage. A missing skill or an unregistered projection is a finding, not a failure:
+this stage proves what is true about the projection, it does not require the
+projection to work.</gate>
 
 <constraints>
 - Read-only: do not edit, install, or sync skills. Do not run `make generate`; a

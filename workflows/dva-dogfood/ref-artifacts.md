@@ -48,9 +48,9 @@ evaluation:
 
 revisions:
   target_head: null
-  target_dirty_hash: null
+  target_dirty_hash: null # sha1 of `git status --porcelain` run from the repo root
   dva_head: null
-  dva_dirty_hash: null
+  dva_dirty_hash: null # same derivation; every stage must use it or the values cannot be compared
   skill_source_hash: null
   prompt_bundle_hash: null
   installed_skill_hash: null

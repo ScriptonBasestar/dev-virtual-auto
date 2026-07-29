@@ -20,15 +20,22 @@ Domain deltas only; invariants live in
 
 A session boundary occurs after every accepted `PASS` or accepted `SKIPPED`
 stage in `MODE=step`, on BLOCKED/FAIL, when a stage requires user authority,
-after stage 30 when `fresh_session_required` is true, and when the run ends.
-Every boundary regenerates `handoff.md` and emits literal `RUN_DIR=` and
-`NEXT_PROMPT=` lines. A completion boundary names the distinct post-cycle QA
+after `30-improve-skill.md` when `fresh_session_required` is true, and when the
+run ends. Every boundary regenerates `handoff.md` and emits literal `RUN_DIR=`
+and `NEXT_PROMPT=` lines. A completion boundary names the distinct post-cycle QA
 prompt (or `none`); it never starts runtime work from a numbered stage.
 
-When a skill's installed metadata or body changes, stop after stage 30 and
-require a fresh session before stage 40. Stage 40 clears
-`fresh_session_required` only after recording a successful natural-trigger
-result; failure keeps the flag and blocks the run.
+When a skill's installed metadata or body changes, stop after
+`30-improve-skill.md` and require a fresh session before `40-improve-prompts.md`,
+which doubles as this workflow's new-session trigger gate on the skill route
+(`README.md`, the `40*` node). That stage clears `fresh_session_required` only
+after recording a successful natural-trigger result; failure keeps the flag and
+blocks the run.
+
+Bare numbers in this file are **this workflow's** stage numbers. METHODOLOGY's
+spine numbers differ — its `40` is the forward test, which here is
+`50-apply-to-project.md` — which is why METHODOLOGY names stages by role and
+never by number outside its spine block.
 
 ## Reference Reuse
 
@@ -38,9 +45,9 @@ path and Git revision are unchanged. A stage that already has METHODOLOGY or a
 older attempt reports preemptively.
 
 `ref-context.md`, `ref-artifacts.md`, and this file are loaded whole. They are
-small, stage 20 consumes all of each, and their definitions are cross-cutting:
-scoping them by section saves nothing over a run and routes a stage past a name
-it uses.
+small, `20-capture-baseline.md` consumes all of each, and their definitions are
+cross-cutting: scoping them by section saves nothing over a run and routes a
+stage past a name it uses.
 
 `ref-evaluation.md` and `ref-safety.md` are stage-specific. Load the sections the
 stage consumes, plus the file's preamble above the first `##`:
@@ -65,9 +72,14 @@ Each cell names an exact `##` heading; `—` means the stage does not load that
 file at all. Loading a section that turns out to be insufficient is not a
 violation — loading less than the stage's own steps require is.
 
-Stage-60 scoring, the cycle gate, and cross-run promotion live in
-`60-evaluate.md`; prompt-validation rules live in `40-improve-prompts.md`.
-Neither is a `ref-*` load for any other stage.
+The scoring table, cycle gate, and cross-run promotion live in `60-evaluate.md`;
+prompt-validation rules live in `40-improve-prompts.md`. Neither is a `ref-*`
+load for any other stage.
+
+**This table is the routing decision.** A stage's `<constants>` block lists the
+files it may need; this table says which sections it loads. Where they disagree,
+this table wins — and a stage that consumes a section not listed here is a
+defect in the table, not licence to load the file whole.
 
 ## Historical Reference
 

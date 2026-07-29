@@ -2,9 +2,12 @@
 
 Authoritative, domain-neutral contract for the workflow self-improvement dogfood
 loop. Every workflow that runs a numbered `NN-` stage graph **instantiates this
-methodology**. Each workflow keeps only its domain contract (scope, owners, case
-set, domain safety) in its local `README.md` and `ref-*.md`; the invariants
-below are defined here once.
+methodology**. Each workflow's local `README.md` and `ref-*.md` own, and only
+own, its domain contract: scope and the plugin-knowledge ↔ local-toolkit
+boundary, the forbidden actions specific to its blast radius, the surface
+manifest cases derive from (`ref-evaluation.md`), domain safety beyond these
+invariants (`ref-safety.md`), and the `dogfood-<domain>` path slug with its
+per-run evaluation data block. The invariants below are defined here once.
 
 This document is a specification, not an entrypoint. A run still starts from the
 workflow's first stage prompt (`00-start-cycle.md`).
@@ -47,14 +50,23 @@ hypothesis, and new baseline.
                       after evaluation
 ```
 
-Stage 40 is a controller: it launches every required history-free case session
-itself (native subagents); the user does not open those sessions manually. The
-controller may continue from stage 20 or 30 in the same session.
+`improve-plugin` and `simplify-local` are the **mutation stages**; exactly one
+runs per run.
+
+The **forward-test** stage is a controller: it launches every required
+history-free case session itself (native subagents); the user does not open those
+sessions manually. The controller may continue from its mutation stage in the
+same session.
 
 **Permitted variation** — a workflow may insert domain stages, split a spine
 stage, and renumber, provided every invariant here still holds and its own
 `README.md` states the mapping from its numbers back to this spine. This
 workflow's mapping is in [README.md](./README.md).
+
+Because numbering varies, **this document names stages by role, never by
+number**, outside the spine block above. A local `ref-*.md` must do the same: a
+bare number in a local file means that workflow's own number, and a bare number
+here would collide with it.
 
 The workflow's local numbered files and `ref-*.md` are authoritative for its
 domain specifics; they must not contradict the invariants below.
@@ -89,9 +101,9 @@ next_prompt: "NN-name.md"
 
 Attempt reports are append-only under `<RUN_DIR>/stages/NN-*/<ATTEMPT_ID>/`.
 `latest_accepted_report` advances only for PASS or accepted SKIPPED. Unselected
-mutation stages are marked `not_applicable` with no fake report. When stage 50
-routes a correction back to 20/30, retain all attempt history but clear the
-downstream accepted pointers affected by the new change.
+mutation stages are marked `not_applicable` with no fake report. When the
+evaluate stage routes a correction back to a mutation stage, retain all attempt
+history but clear the downstream accepted pointers affected by the new change.
 
 Each attempt records `id`, timestamps, gate, and absolute report path. A run is
 `complete` only when the before/after evidence is comparable, all forward-test
@@ -177,11 +189,9 @@ Every attempt report contains, in order: `Scope`, `Evidence`, `Decisions`,
 `Next` (exact prompt filename). Record paths, revisions, hashes, bounded output,
 and exit codes. Redact secret values and private content. Forward-test reports
 also record model/runtime, prompt bundle hash, target revision, the exact raw
-request hash, and the fixture or read-only inspection scope.
-
-Stage-40 reports also record the controller session identity and every case
-session identity; a plugin or local source edit alone is not evidence that a
-fresh session used the changed guidance.
+request hash, the fixture or read-only inspection scope, the controller session
+identity, and every case session identity; a plugin or local source edit alone is
+not evidence that a fresh session used the changed guidance.
 
 Link to existing files rather than duplicating their contents. Preserve
 unexpected output as a finding even when the command exits zero.
@@ -206,19 +216,8 @@ unexpected output as a finding even when the command exits zero.
 - Record a secret by name and pattern, never its value; never place literal
   credentials, private file contents, or unrelated dirty-file content in
   evidence.
-- Numbered stages 00–70 never invoke `provision`, `up`, `down`, `stop`, or
+- No numbered stage ever invokes `provision`, `up`, `down`, `stop`, or
   `restart` (including equivalent target lifecycle commands) against a real
   target. Runtime startup is a distinct post-cycle QA surface and requires an
   authority record naming every command and each side effect; a generic runtime
   approval is not authority.
-
-## What each workflow defines locally
-
-The workflow's `README.md` and `ref-*.md` own, and only own:
-
-- domain scope and the plugin-knowledge ↔ local-toolkit boundary
-- the forbidden domain actions specific to its blast radius
-- the evaluation surface manifest and how cases derive from it
-  (`ref-evaluation.md`)
-- domain-specific safety beyond these invariants (`ref-safety.md`)
-- the `dogfood-<domain>` path slug and per-run evaluation data block
