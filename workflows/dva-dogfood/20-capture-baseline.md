@@ -1,10 +1,8 @@
 <!-- v:2026-07-16 -->
 
 <constants>
-SELF = workflows/dva-dogfood/20-capture-baseline.md
 ROOT = workflows/dva-dogfood
 METHODOLOGY = ./METHODOLOGY.md
-CONTEXT = ROOT/ref-context.md
 ARTIFACTS = ROOT/ref-artifacts.md
 EVALUATION = ROOT/ref-evaluation.md
 SAFETY = ROOT/ref-safety.md

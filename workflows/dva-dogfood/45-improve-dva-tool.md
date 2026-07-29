@@ -1,13 +1,8 @@
 <!-- v:2026-07-16 -->
 
 <constants>
-SELF = workflows/dva-dogfood/45-improve-dva-tool.md
 ROOT = workflows/dva-dogfood
 METHODOLOGY = ./METHODOLOGY.md
-CONTEXT = ROOT/ref-context.md
-ARTIFACTS = ROOT/ref-artifacts.md
-EVALUATION = ROOT/ref-evaluation.md
-SAFETY = ROOT/ref-safety.md
 SESSION = ROOT/ref-session.md
 </constants>
 

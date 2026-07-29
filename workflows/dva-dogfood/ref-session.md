@@ -44,8 +44,9 @@ path and Git revision are unchanged. A stage that already has METHODOLOGY or a
 `ref-*` loaded does not re-read it. Do not load unrelated reference sections or
 older attempt reports preemptively.
 
-`ref-context.md`, `ref-artifacts.md`, and this file are loaded whole. They are
-small, `20-capture-baseline.md` consumes all of each, and their definitions are
+**Every numbered stage loads `ref-context.md`, `ref-artifacts.md`, and this file,
+and loads them whole** — no stage prompt needs to restate that. They are small,
+`20-capture-baseline.md` consumes all of each, and their definitions are
 cross-cutting: scoping them by section saves nothing over a run and routes a
 stage past a name it uses.
 
@@ -76,10 +77,12 @@ The scoring table, cycle gate, and cross-run promotion live in `60-evaluate.md`;
 prompt-validation rules live in `40-improve-prompts.md`. Neither is a `ref-*`
 load for any other stage.
 
-**This table is the routing decision.** A stage's `<constants>` block lists the
-files it may need; this table says which sections it loads. Where they disagree,
-this table wins — and a stage that consumes a section not listed here is a
-defect in the table, not licence to load the file whole.
+**This table and the paragraph above are the routing decision — they are the only
+place a stage's reference set is declared.** A stage's `<constants>` block is a
+symbol table, not a routing list: it defines only the names that stage's own
+prose uses, so a file this table routes to a stage need not appear there. A stage
+that consumes a section not listed here is a defect in the table, not licence to
+load the file whole.
 
 ## Historical Reference
 
