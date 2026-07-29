@@ -379,7 +379,7 @@ interaction:
 | `environments` | 환경 프리셋 (`dev/stg/prd`) |
 | `sites` | 실행 host 프리셋 (`local/remote/cloud`) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
-| `interaction` | 커맨드 정의 (command, command list, script, script_file, steps, subcommands 등) |
+| `interaction` | 커맨드 정의 (command, command list, script, script_file, steps, subcommands 등) — 예약어/훅 규칙은 아래 [interaction](#interaction-예약어와-훅) 참조 |
 | `provision` | 프로비저닝 프로필 및 스텝 정의 |
 | `modules` | `.sb/dva/*.yml` 모듈 분리 |
 | `subprojects` | 서브프로젝트 참조 (모노레포) |
@@ -578,6 +578,56 @@ health_checks:
     timeout: 2           # 헬스체크 타임아웃 (초)
     ready_timeout: 30    # 시작 후 대기 (초)
 ```
+
+### interaction (예약어와 훅)
+
+`interaction:` 키는 `dva run <name>`으로 실행할 커맨드를 정의합니다. 이름이 내장
+커맨드와 겹치면 조용히 무시될 수 있으므로 아래 규칙을 따릅니다.
+
+**예약어 27개** — 내장 커맨드 이름입니다:
+
+```text
+help  version  ls       compose  up      stop   down     build  clean
+run   provision validate manifest ktl     ssh    infra    console
+completion init  status  config   logs    restart show    doctor
+app   stack
+```
+
+**훅 가능 7개** — 예약어 중 `before`/`replace`/`after` 훅을 받는 것:
+
+```text
+up  down  stop  restart  build  clean  logs
+```
+
+판정 규칙:
+
+| `interaction:` 키 | 훅 필드 | 결과 |
+| --- | --- | --- |
+| 예약어 아님 | — | 정상 등록 |
+| 훅 가능 예약어 | `before`/`replace`/`after` 중 하나 이상 | 내장 커맨드를 감싸는 훅으로 동작 |
+| 훅 가능 예약어 | 없음 (`command:`만) | **충돌** — 무시됨 |
+| 훅 불가 예약어 | 무관 | **충돌** — 무시됨 |
+| `app:build`처럼 `:` 앞이 예약어 | 무관 | **충돌** — 무시됨 |
+
+즉 `build`처럼 **예약어이면서 훅 가능한** 이름은 `command:`로 재정의할 수 없고
+`replace:`로만 대체할 수 있습니다. 충돌은 에러가 아니라 경고이므로
+`dva config validate`로 확인하세요.
+
+```yaml
+interaction:
+  build:                    # 예약어 + 훅 가능
+    replace:                # command: 를 쓰면 충돌로 무시됨
+      - run: "make build"
+    after:
+      - run: "echo built"
+
+  my-build:                 # 예약어 아님 → 자유롭게 정의
+    command: "make build"
+```
+
+실행 순서는 `before` → (`replace` 또는 내장 커맨드) → `after`입니다. 훅 스텝
+안에서 `dva`를 다시 호출해도 재귀 가드가 걸려 안쪽 호출은 훅 없이 내장 커맨드만
+실행합니다.
 
 ### subprojects
 
