@@ -22,7 +22,8 @@ project, environment, and CLI behavior.</objective>
 report must PASS.</input>
 
 <steps>
-1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
+1. Load METHODOLOGY and this stage's references per SESSION reference reuse —
+   once per session, reused while unchanged. Read state, handoff,
    latest stage-10 report, selected canonical skill, and target/module guidance.
 2. Create a unique ATTEMPT_ID; older baseline attempts are comparison inputs, not blockers.
 3. Inventory canonical `dva.yml`, legacy `dva.yaml`, other referenced DVA
@@ -42,25 +43,26 @@ report must PASS.</input>
    independently; exclude archived/legacy modules and never force-create DVA.
 9. Capture dirty paths without reading protected secret contents.
 10. Classify warnings and contradictions; define measurable before/after metrics.
-11. Before selecting an owner, freeze the evaluation contract from
-    EVALUATION: copy its exact ordered IDs, version, and deterministic manifest
-    SHA-256 into state. Create `<RUN_DIR>/forward-requests.md` as its strict
-    YAML request document with exactly one non-empty `raw_request` per case in
-    the same order, then record its full-file SHA-256. Requests must contain no
-    expected-owner or expected-outcome field. Do not reuse or rewrite a frozen
-    file; any byte/order/manifest mismatch blocks this run with
-    `evaluation_contract_mismatch` and requires a successor.
-12. Assign exactly one generic `primary_owner` and one DVA `owner_route`.
-    Map `skill` and `dva_tool` to `plugin`, `prompt` (including workflow-contract
-    changes) to `local_setup`, `target_project` to `target`, and preserve
-    `environment` and `no_change` as both route and generic owner. Select prompt
-    30, 40, 45, 50, 60, or 50 for `skill`, `prompt`, `dva_tool`,
-    `target_project`, `environment`, or `no_change` respectively. Mark
-    unselected owner stages 30, 40, and 45 `not_applicable` without attempt
-    reports. For skill ownership, keep stage 40 conditional until stage 30
-    determines whether a fresh-session gate is required. This run may mutate
-    only its selected generic primary owner; secondary or different-owner
-    findings are backlog for a successor run.
+11. Before selecting an owner, freeze the evaluation contract per EVALUATION.
+    Record `version` and the deterministic manifest SHA-256, then derive this
+    run's ordered `case_ids` by instantiating each surface against this target,
+    in manifest order. Record every surface with no instance in
+    `not_applicable_surfaces` together with the evidence of its absence; never
+    invent a case to fill a surface. Create `<RUN_DIR>/forward-requests.md` as a
+    strict YAML request document with exactly one non-empty `raw_request` per
+    derived case in the same order, then record its full-file SHA-256. Requests
+    must contain no expected-owner or expected-outcome field. Do not reuse or
+    rewrite a frozen file; any byte/order/manifest mismatch blocks this run with
+    `evaluation_contract_mismatch` and requires a successor. If `config_schema`
+    or `no_change` cannot be instantiated, block with `target_out_of_scope`.
+12. Assign exactly one generic `primary_owner` and one DVA `owner_route` using
+    the mapping table in ARTIFACTS, then select the stage that owns that route:
+    `skill` → 30, `prompt` → 40, `dva_tool` → 45, `target_project` → 50,
+    `environment` → 60, `no_change` → 50. Mark unselected owner stages 30, 40,
+    and 45 `not_applicable` without attempt reports. For skill ownership, keep
+    stage 40 conditional until stage 30 determines whether a fresh-session gate
+    is required. This run may mutate only its selected generic primary owner;
+    secondary or different-owner findings are backlog for a successor run.
 13. Write the unique attempt report and update state. Update handoff only at a
     SESSION boundary.
 </steps>

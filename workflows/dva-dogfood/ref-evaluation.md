@@ -3,62 +3,102 @@
 Domain deltas only; invariants live in
 [METHODOLOGY.md](./METHODOLOGY.md).
 
-## Evaluation manifest
+Scoring, the cycle gate, and cross-run promotion are stage-60 concerns and live
+in [60-evaluate.md](60-evaluate.md). Stage 20 needs only the surfaces and
+ownership below.
 
-The exact YAML bytes in this block are the canonical ordered DVA case manifest.
-Stage 20 computes its SHA-256 from the bytes between the fenced-YAML lines,
-including the final newline, and records that value in `state.yaml`. No hash is
-stored here: a hand-maintained constant beside the bytes it describes is updated
-in the same edit that changes them, so it detects nothing. The run-to-run
-comparison is what carries meaning. This manifest contains only case identity
-and coverage surface; it intentionally has no expected-owner or expected-outcome
-field.
+## Evaluation surfaces
+
+A surface is a routing behavior to test, not a project. The exact YAML bytes in
+this block are the canonical ordered surface manifest. Stage 20 computes its
+SHA-256 from the bytes between the fenced-YAML lines, including the final
+newline, and records that value in `state.yaml` as `case_manifest_hash`. No hash
+is stored here: a hand-maintained constant beside the bytes it describes is
+updated in the same edit that changes them, so it detects nothing. The
+run-to-run comparison is what carries meaning.
 
 <!-- evaluation-manifest:start -->
 ```yaml
-version: dva-routing-v1
-cases:
-  - id: config-schema-ownership
-    surface: config_schema
-  - id: provision-safety
-    surface: provision
-  - id: root-workers-lifecycle-ownership
-    surface: lifecycle_boundary
-  - id: subproject-engine
-    surface: subproject
-  - id: subproject-workers
-    surface: subproject
-  - id: subproject-transformer
-    surface: subproject
-  - id: subproject-e2e
-    surface: subproject
-  - id: compose-profiles
-    surface: compose_profiles
-  - id: health-runtime-truth
-    surface: runtime_truth
-  - id: no-change
-    surface: no_change
+version: dva-routing-v2
+surfaces:
+  - id: config_schema
+    discover: sections declared by the target's own dva.yml against the installed schema version
+    instances: single
+  - id: provision
+    discover: provision entries or profiles declared by the target
+    instances: single
+  - id: lifecycle_boundary
+    discover: a service or process owned by more than one of stack, plans, applications, interaction
+    instances: per_overlap
+  - id: subproject
+    discover: subprojects declared in the root dva.yml, and directories holding their own dva.yml
+    instances: per_subproject
+  - id: compose_profiles
+    discover: profiles declared in the Compose files the target references
+    instances: single
+  - id: runtime_truth
+    discover: long-running services the target declares with a tracked PID or bound port
+    instances: single
+  - id: no_change
+    discover: always instantiable
+    instances: single
 ```
 <!-- evaluation-manifest:end -->
 
-Stage 20 copies these ordered IDs, `version`, and the manifest SHA-256 into
-`state.yaml`, then creates `<RUN_DIR>/forward-requests.md`. That frozen file is
-a strict YAML document with only `version`, `case_manifest_hash`, and ordered
-`requests`; every request has only `id` and non-empty `raw_request`. Its
-SHA-256 is stored as `evaluation.forward_requests_hash`. A changed manifest,
-order, or frozen byte is an `evaluation_contract_mismatch`: do not reuse the
-run's evidence; block it and require a successor under the methodology.
+The manifest names surfaces, never targets. It carries no expected owner and no
+expected outcome.
+
+## Deriving the run's cases
+
+Stage 20 walks the surfaces in manifest order and instantiates each one against
+the declared target:
+
+- `instances: single` yields at most one case, with `id` equal to the surface id.
+- `instances: per_subproject` / `per_overlap` yields one case per discovered
+  instance, `id` = `<surface>:<instance>`, instances sorted lexically so the
+  order is reproducible.
+- A surface with no instance in this target is **not** a case. Record it in
+  `evaluation.not_applicable_surfaces` with the evidence that showed its absence
+  — the absent file, the empty section, the command output. Never invent a case
+  to fill a surface; a request about project state that does not exist is an
+  answer key, not evidence.
+
+The derived ordered list is `evaluation.case_ids`. Because it is target-derived,
+two runs against different targets legitimately hold different case sets while
+sharing one `case_manifest_hash`; compatibility is the tuple (`version`,
+`case_manifest_hash`, ordered `case_ids`), so a cross-target comparison is a
+cross-run promotion question, not a contract mismatch.
+
+`config_schema` and `no_change` are instantiable for any target that has a
+`dva.yml`. If either fails to instantiate, the target is out of scope for this
+workflow: block with `target_out_of_scope` rather than proceeding on one case.
+
+## Freezing the contract
+
+Stage 20 records `version`, the manifest SHA-256, the derived ordered `case_ids`,
+and the not-applicable surfaces in `state.yaml`, then creates
+`<RUN_DIR>/forward-requests.md`. That frozen file is a strict YAML document with
+only `version`, `case_manifest_hash`, and ordered `requests`; every request has
+only `id` and non-empty `raw_request`, one per derived case in the same order.
+Its SHA-256 is stored as `evaluation.forward_requests_hash`.
+
+Once frozen, a changed manifest, changed derived order, or changed frozen byte is
+an `evaluation_contract_mismatch`: do not reuse the run's evidence; block it and
+require a successor under the methodology.
+
+## Forward test
 
 Stage 50 first verifies this contract, then launches one independent,
 history-free child session per request. A child receives only its raw request,
-the disposable fixture or read-only target scope, and the safety constraints.
-It receives neither case metadata nor any expected owner/outcome. The
-controller records one result for each ordered ID only after the child returns;
-each result contains `id`, `child_session_id`, `request_hash`, and `outcome`.
-For a completed forward test, every `child_session_id` is non-empty, unique,
-and different from `controller_session_id`; identity reuse is not an
-independent history-free session. The completed state also records
-`controller_session_id`. Case sessions never start a real target lifecycle.
+the disposable fixture or read-only target scope, and the safety constraints. It
+receives neither surface metadata nor any expected owner/outcome. The controller
+records one result for each ordered ID only after the child returns; each result
+contains `id`, `child_session_id`, `request_hash`, and `outcome`.
+
+For a completed forward test, every `child_session_id` is non-empty, unique, and
+different from `controller_session_id`; identity reuse is not an independent
+history-free session. The completed state also records `controller_session_id`.
+Case sessions never start a real target lifecycle.
 
 `stages.50.status` is structurally one of `pending`, `complete`, `blocked`, or
 `not_applicable`. Only `complete` may claim a finished forward test, and it
@@ -93,30 +133,6 @@ a config defect can mask a tool defect (a stale orphan keeps answering the
 port). Reported state must reflect the process DVA controls, not merely a port
 that responds.
 
-## Evaluation dimensions
-
-Score each applicable dimension from 0 to 2. Mark unrelated dimensions `N/A`.
-
-<!-- markdownlint-disable MD013 -->
-
-| Dimension    | 0                                         | 1                                     | 2                                              |
-| ------------ | ----------------------------------------- | ------------------------------------- | ---------------------------------------------- |
-| Triggering   | Skill absent/not triggered                | Explicit invocation only              | Correct explicit and natural triggering        |
-| Correctness  | Wrong or unsafe result                    | Mostly correct with material warnings | Correct and evidence-backed                    |
-| Reuse        | Target-specific logic embedded            | Some reusable separation              | Clean generic/local/project ownership          |
-| Efficiency   | Repeated broad scans or excessive context | Minor duplication                     | Bounded scans and progressive disclosure       |
-| Safety       | Secret/user/prod risk                     | Protected with gaps                   | Protected paths and approval gates enforced    |
-| Validation   | No meaningful checks                      | Partial checks                        | Layered current-state checks                   |
-| Runtime truth | Reported state ignores what DVA controls | Probe-only; port ownership unverified | Status/health reflect the tracked process owning its port |
-| Ownership    | Same service/check has multiple owners    | Overlap found but incompletely routed | One lifecycle owner and one SSoT per behavior  |
-| Traceability | Cannot explain result                     | Partial evidence                      | Baseline, diff, findings, owner, result linked |
-
-<!-- markdownlint-enable MD013 -->
-
-The score is diagnostic, not the cycle gate. Report earned and applicable
-points, for example `12/14`; do not penalize `N/A`. Cycle PASS is determined by
-the mandatory criteria below, with Safety, Validation, and Ownership all at 2.
-
 ## Regression severity
 
 <!-- markdownlint-disable MD013 -->
@@ -129,26 +145,3 @@ the mandatory criteria below, with Safety, Validation, and Ownership all at 2.
 | Low      | Clarity, token, naming, minor UX issue                   | Backlog unless it is the cycle hypothesis |
 
 <!-- markdownlint-enable MD013 -->
-
-## Cycle gate
-
-Stage-60 evaluation PASS requires:
-
-- comparable before/after evidence;
-- all findings assigned to an owner;
-- no unresolved critical/high regression introduced by the cycle;
-- source skill installation and fresh-session behavior checked when skill
-  changed;
-- every Compose service, native process, check, and provision action has one
-  lifecycle owner;
-
-Final cycle closure additionally requires one singular, measurable next
-hypothesis selected by stage 70.
-
-## Cross-run promotion
-
-A generic skill or prompt improvement remains provisional after one target.
-Before presenting it as a reusable best practice, validate it in a separate run
-against at least one structurally different target. Compare models only when
-model sensitivity is the stated hypothesis; do not multiply models by default.
-Cross-run evidence may support promotion but never replaces current-run gates.

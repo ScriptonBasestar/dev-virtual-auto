@@ -22,7 +22,8 @@ mutation stage, when any, must be accepted. State must route to this
 stage.</input>
 
 <steps>
-1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
+1. Load METHODOLOGY and this stage's references per SESSION reference reuse —
+   once per session, reused while unchanged. Read state, handoff,
    latest reports, target guidance, improved setup entry, canonical skill, and active projection.
 2. Create a unique ATTEMPT_ID; prior stage-50 attempts never block rerun.
 3. Recheck target Git HEAD, dirty hash, and protected paths against state; stop
@@ -35,8 +36,11 @@ stage.</input>
    candidate. Prove the selected path is executable and its version/commit
    matches state. Record the selection and provenance without global install.
 6. Verify the frozen evaluation contract before changing or reusing any result:
-   canonical manifest version/order/hash, state fields, and the exact bytes of
-   `<RUN_DIR>/forward-requests.md` must match. On any mismatch, record
+   the surface-manifest version in EVALUATION must still equal `state.version`,
+   and the ordered `case_ids` and `case_manifest_hash` recorded at stage 20 must
+   still match the exact bytes of `<RUN_DIR>/forward-requests.md`. Do not
+   re-derive cases here; a surface added or removed upstream after the freeze is
+   a mismatch, not a correction. On any mismatch, record
    `evaluation_contract_mismatch`, preserve existing evidence, and require a
    successor; do not continue this run.
 7. Act as the forward-test controller. For every ordered frozen request, launch

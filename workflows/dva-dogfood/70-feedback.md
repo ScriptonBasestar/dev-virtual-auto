@@ -22,7 +22,8 @@ invocation.</objective>
 a result classification and state must route to this stage.</input>
 
 <steps>
-1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
+1. Load METHODOLOGY and this stage's references per SESSION reference reuse —
+   once per session, reused while unchanged. Read state, handoff,
    and latest evaluation.
 2. Create a unique ATTEMPT_ID; prior feedback attempts never block rerun.
 3. Recheck Git HEAD, dirty hash, and protected paths for every scoped repository.

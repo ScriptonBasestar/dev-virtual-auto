@@ -87,7 +87,7 @@ instead of proceeding to stage 70.
 | -------------------------------------- | --------------------------------------------------- |
 | [ref-context.md](ref-context.md)       | Paths, terms, source-of-truth boundary, run context |
 | [ref-artifacts.md](ref-artifacts.md)   | Cycle state and evidence file conventions           |
-| [ref-evaluation.md](ref-evaluation.md) | Evaluation scores, defect owners, PASS criteria     |
+| [ref-evaluation.md](ref-evaluation.md) | Evaluation surfaces, case derivation, defect owners |
 | [ref-safety.md](ref-safety.md)         | Safety rules and DVA verification ladder            |
 | [ref-session.md](ref-session.md)       | Unique run path, re-run, session handoff            |
 
@@ -115,10 +115,12 @@ workflows/dva-dogfood/
 
 ## Cycle State and Completion
 
-Cycle state (RUN_DIR path, ATTEMPT_ID, handoff update timing) and
-completion conditions are defined by METHODOLOGY and
-[ref-session.md](ref-session.md) / [ref-evaluation.md](ref-evaluation.md).
-Per-stage completion conditions for the forward-test and evaluation gates
-are defined by
+Cycle state (RUN_DIR path, ATTEMPT_ID, handoff update timing) and completion
+conditions are defined by METHODOLOGY and [ref-session.md](ref-session.md).
+[ref-evaluation.md](ref-evaluation.md) defines the surfaces a case may derive
+from; the run's own case set is derived from the target at stage 20, so two
+targets legitimately produce different case sets. Per-stage completion
+conditions for the forward-test and evaluation gates — including the scoring
+dimensions and cycle gate — are defined by
 [50-apply-to-project.md](50-apply-to-project.md) and
 [60-evaluate.md](60-evaluate.md).

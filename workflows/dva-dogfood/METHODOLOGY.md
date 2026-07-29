@@ -51,13 +51,10 @@ Stage 40 is a controller: it launches every required history-free case session
 itself (native subagents); the user does not open those sessions manually. The
 controller may continue from stage 20 or 30 in the same session.
 
-**Permitted variation** — a workflow may extend the spine while preserving every
-invariant here:
-
-- `docs` adds a cross-runtime (Claude↔Codex) portability case with a hash-locked
-  `portability-handoff.md`.
-- `dva` inserts a skill-audit stage and a DVA-tool stage, and splits evaluate and
-  feedback into stages 60 and 70.
+**Permitted variation** — a workflow may insert domain stages, split a spine
+stage, and renumber, provided every invariant here still holds and its own
+`README.md` states the mapping from its numbers back to this spine. This
+workflow's mapping is in [README.md](./README.md).
 
 The workflow's local numbered files and `ref-*.md` are authoritative for its
 domain specifics; they must not contradict the invariants below.
@@ -79,8 +76,9 @@ run:
   fresh_session_required: false
 evaluation:
   version: "<domain>-routing-vN"
-  case_ids: [ /* ordered, workflow-defined */ ]
+  case_ids: [ /* ordered, derived from the surface manifest for this target */ ]
   case_manifest_hash: "<sha256>"
+  not_applicable_surfaces: [] # surfaces with no instance, each with its evidence
   forward_requests_hash: null
 revisions: { /* target/plugin/external-root heads + dirty hashes, prompt bundle hash */ }
 stages: { "00": { status, latest_attempt, latest_accepted_report, attempts: [] } }
@@ -103,9 +101,13 @@ is recorded.
 ## Evaluation contract
 
 The tuple (`version`, ordered `case_ids`, `case_manifest_hash`) defines run
-compatibility. The domain reference supplies the canonical ordered manifest;
-the controller compares it and the frozen forward-request bytes before reusing
-any evidence. If either differs from state, block the old run with blocker code
+compatibility. The domain reference supplies a surface manifest — what kinds of
+project state a case may be derived from — and the domain baseline stage
+instantiates it against the target to produce that run's ordered `case_ids`. A
+surface with no instance in the target is recorded in `not_applicable_surfaces`
+with its absence evidence; it never becomes a case. Once frozen, the controller
+compares the tuple and the frozen forward-request bytes before reusing any
+evidence. If either differs from state, block the old run with blocker code
 `evaluation_contract_mismatch`; preserve its frozen `forward-requests.md` and
 accepted reports; never route it back to the baseline or forward-test stage. In
 continuous mode, create a successor run with a fresh baseline and
@@ -216,6 +218,7 @@ The workflow's `README.md` and `ref-*.md` own, and only own:
 
 - domain scope and the plugin-knowledge ↔ local-toolkit boundary
 - the forbidden domain actions specific to its blast radius
-- the ordered evaluation case set and metrics (`ref-evaluation.md`)
+- the evaluation surface manifest and how cases derive from it
+  (`ref-evaluation.md`)
 - domain-specific safety beyond these invariants (`ref-safety.md`)
 - the `dogfood-<domain>` path slug and per-run evaluation data block

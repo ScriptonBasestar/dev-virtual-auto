@@ -27,8 +27,9 @@ DVA config, or target behavior. Existing runs are optional evidence and never bl
 </input>
 
 <steps>
-1. Read METHODOLOGY, CONTEXT, ARTIFACTS, SAFETY, SESSION, and target guidance
-   completely.
+1. Load METHODOLOGY, SESSION, and this stage's reference sections per SESSION
+   reference reuse — once per session, reused while unchanged. Read target
+   guidance.
 2. Resolve paths; inspect scoped git status and protected/archive/generated paths.
 3. If RESUME_RUN_DIR is valid for TARGET_PROJECT, load it, run SESSION recovery,
    preserve all state/history, and emit its recorded next prompt. Do not execute

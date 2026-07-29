@@ -23,7 +23,8 @@ defect; otherwise record a justified skip.</objective>
 and state must route to this stage.</input>
 
 <steps>
-1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
+1. Load METHODOLOGY and this stage's references per SESSION reference reuse —
+   once per session, reused while unchanged. Read state, handoff,
    latest reports, and all applicable `DVA_ROOT` guidance.
 2. Create a unique ATTEMPT_ID; prior stage-45 attempts never block rerun.
 3. Compare installed DVA version/build commit with DVA_ROOT HEAD and dirty hash.

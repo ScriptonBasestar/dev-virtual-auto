@@ -37,9 +37,10 @@ run:
   owner_route: null # skill | prompt | dva_tool | target_project | environment | no_change
 
 evaluation:
-  version: "dva-routing-v1"
-  case_ids: [/* ordered DVA case IDs */]
+  version: "dva-routing-v2"
+  case_ids: [/* ordered cases derived from the surfaces for THIS target */]
   case_manifest_hash: "<sha256>"
+  not_applicable_surfaces: [] # {surface, evidence} per surface with no instance
   forward_requests_hash: null
   forward_test:
     controller_session_id: null
@@ -136,19 +137,14 @@ only at `scope: post_cycle_qa` with approved exact `{command, side_effect}`
 entries matching every invoked lifecycle command. The side effect must be the
 declared effect for that command; generic approval is invalid.
 
-`evaluation.case_ids` is an ordered copy of the canonical manifest in
-`ref-evaluation.md`; it is not a set. `case_manifest_hash` is the deterministic
-SHA-256 of that manifest's fenced YAML bytes. Stage 20 writes the immutable
-`<RUN_DIR>/forward-requests.md` and records its full-file SHA-256 in
-`forward_requests_hash`. Once frozen, a changed manifest/order or frozen byte
-is `evaluation_contract_mismatch`: preserve the existing reports, mark the run
-blocked, and create a successor rather than reusing it. On a completed stage
-50, `forward_test.controller_session_id` and exactly one case record per
-ordered ID are required; each case record has one child identity, raw-request
-hash, and outcome. Completed child identities are non-empty, unique, and
-different from the controller identity. `stages.50.status` is exactly one of
-`pending`, `complete`, `blocked`, or `not_applicable`; only `complete` permits
-the completed forward-test record and requires all of it.
+The `evaluation` block is the state projection of the contract defined in
+`ref-evaluation.md`: `case_manifest_hash` holds the surface manifest's hash and
+is target-independent, `case_ids` the ordered cases stage 20 derived for this
+target, `not_applicable_surfaces` each surface with no instance plus its absence
+evidence, and `forward_test` the completed controller and child records. The
+rules governing those values — derivation, freezing, mismatch, forward-test
+completeness, and the `stages.50.status` enum — live in `ref-evaluation.md` and
+are deliberately not restated here.
 
 ## Session handoff
 
@@ -171,8 +167,14 @@ stable IDs such as `SKILL-001`, `PROMPT-001`, `DVA-001`, `PROJECT-001`.
 
 - Record installed DVA version/commit separately from `dva_root` HEAD and dirty
   hash; equality must be proven rather than inferred.
-- Record the canonical skill hash separately from each installed/generated
-  projection hash; equality must be proven after `make generate`.
+- Record the canonical skill hash separately from each projection, and prove the
+  relation the projection's declared shape actually supports. A copy or symlink
+  target must be proven *identical* (same hash, or same inode for a symlink). A
+  conversion target — anything `skills/_targets.yaml` marks `generated: true`
+  with a different shape — can never match the source hash; prove it is *current*
+  instead (clean `git status` plus a projection mtime at or after every canonical
+  source it derives from). Claiming hash equality for a conversion is a false
+  gate, not a strict one.
 - When evaluating prompt behavior, record the model/runtime, prompt bundle hash,
   seed revision, and exact reproduction command without copying secret values.
 - Redact secrets instead of copying environment files (`.env`) into evidence.

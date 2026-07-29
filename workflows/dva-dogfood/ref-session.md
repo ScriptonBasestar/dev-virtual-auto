@@ -32,8 +32,42 @@ result; failure keeps the flag and blocks the run.
 
 ## Reference Reuse
 
-Do not load unrelated reference sections or older attempt reports
-preemptively.
+Load each required reference completely once per session and reuse it while its
+path and Git revision are unchanged. A stage that already has METHODOLOGY or a
+`ref-*` loaded does not re-read it. Do not load unrelated reference sections or
+older attempt reports preemptively.
+
+`ref-context.md`, `ref-artifacts.md`, and this file are loaded whole. They are
+small, stage 20 consumes all of each, and their definitions are cross-cutting:
+scoping them by section saves nothing over a run and routes a stage past a name
+it uses.
+
+`ref-evaluation.md` and `ref-safety.md` are stage-specific. Load the sections the
+stage consumes, plus the file's preamble above the first `##`:
+
+<!-- markdownlint-disable MD013 -->
+
+| Stage | ref-evaluation                                                       | ref-safety                                      |
+| ----- | -------------------------------------------------------------------- | ----------------------------------------------- |
+| 00    | —                                                                    | Protected operations                            |
+| 10    | Finding ownership                                                    | Skill validation, Disposable prompt experiments |
+| 20    | Evaluation surfaces, Deriving the run's cases, Freezing the contract | Validation ladder, Runtime authority boundary   |
+| 30    | Finding ownership                                                    | Skill validation, Worktree safety               |
+| 40    | Finding ownership                                                    | Disposable prompt experiments, Worktree safety  |
+| 45    | Finding ownership                                                    | Validation ladder, Worktree safety              |
+| 50    | Freezing the contract, Forward test                                  | all                                             |
+| 60    | Finding ownership, Regression severity                               | Runtime authority boundary                      |
+| 70    | Finding ownership, Regression severity                               | Protected operations                            |
+
+<!-- markdownlint-enable MD013 -->
+
+Each cell names an exact `##` heading; `—` means the stage does not load that
+file at all. Loading a section that turns out to be insufficient is not a
+violation — loading less than the stage's own steps require is.
+
+Stage-60 scoring, the cycle gate, and cross-run promotion live in
+`60-evaluate.md`; prompt-validation rules live in `40-improve-prompts.md`.
+Neither is a `ref-*` load for any other stage.
 
 ## Historical Reference
 

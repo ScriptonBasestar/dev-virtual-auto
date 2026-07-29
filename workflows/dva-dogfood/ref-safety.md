@@ -16,16 +16,12 @@ Require explicit user authority before:
 
 ## Runtime authority boundary
 
-Stages 00–70 are non-starting for real lifecycle targets. They must not invoke
-`provision`, `up`, `down`, `stop`, `restart`, or an equivalent target lifecycle
-command. A runtime startup/teardown check is a separate post-cycle QA surface,
-not a numbered-stage continuation.
-
-An authority record is valid only when it names each exact command and its
-side effect (for example, the named plan and that it starts a service). A
-generic `runtime approved` statement, an empty command list, or an empty
-side-effect list is insufficient. Numbered stages remain forbidden even when
-post-cycle authority is valid.
+METHODOLOGY forbids lifecycle invocation from stages 00–70 and requires a
+post-cycle authority record naming every command and its side effect. Two DVA
+specifics: the side effect must be the concrete one for that command (the named
+plan, and that it starts a service), and an empty command list or an empty
+side-effect list is not a record. Valid post-cycle authority still does not
+unlock a numbered stage.
 
 ## Worktree safety
 
@@ -63,23 +59,33 @@ A zero exit code does not override contradictory or materially incorrect output.
 
 ## Skill validation
 
+Generation is a mutation. It belongs to the stage that owns the skill change,
+never to the read-only audit.
+
+Read-only audit stages:
+
 - Read the complete skill-creator instructions when available.
 - Validate source skill structure with the repository's official validator.
-- Run `make generate` from DVA_ROOT and verify every projection form declared by
-  `skills/_targets.yaml`; do not assume copies auto-update.
-- Compare canonical source with generated/installed metadata, body or pointer,
-  and bundled resources after generation.
-- Use a fresh Codex session to test metadata-based discovery and natural
-  triggering.
+- Verify that every projection declared by `skills/_targets.yaml` exists and is
+  current, using the relation its shape supports (`ref-artifacts.md`, Evidence
+  rules). Do not run `make generate` to find out — a projection that needs
+  regenerating is a finding, and running it destroys the evidence that it was
+  stale.
+
+Skill-change stages:
+
+- Run `make generate` from DVA_ROOT after editing a canonical skill; do not
+  assume copies auto-update.
+- Compare canonical source with each generated/installed projection afterwards.
+
+Both:
+
+- Natural triggering is fresh-session evidence by definition. A session that has
+  already read or edited the skill cannot produce it; only the fresh-session gate
+  can. An audit stage records catalog visibility and explicit use, and defers
+  natural triggering rather than claiming it.
 - Forward tests receive the raw task and skill, not the expected answer or prior
   diagnosis.
-
-## Prompt validation
-
-- Keep executable prompts in English and concise.
-- Keep shared rules in `ref-*`, not duplicated in every prompt.
-- Verify all relative links and referenced filenames.
-- Run the repository's Markdown formatter/linter scoped as narrowly as supported.
 
 ## Disposable prompt experiments
 

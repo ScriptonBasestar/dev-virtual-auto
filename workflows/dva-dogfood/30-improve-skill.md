@@ -22,7 +22,8 @@ reusable gap.</objective>
 through stage 20 must PASS.</input>
 
 <steps>
-1. Read METHODOLOGY, stage-required references per SESSION, state, handoff,
+1. Load METHODOLOGY and this stage's references per SESSION reference reuse —
+   once per session, reused while unchanged. Read state, handoff,
    latest reports, full skill, and official skill-creator instructions.
 2. Create a unique ATTEMPT_ID; prior stage-30 attempts never block rerun.
 3. Recheck DVA_ROOT Git HEAD, the selected canonical skill hash, and protected
@@ -33,7 +34,8 @@ through stage 20 must PASS.</input>
 6. Keep workflow rules concise; move detail to references and exclude target-specific paths.
 7. Run official skill validation and test changed scripts.
 8. Run `make generate`; verify every target form declared by
-   `skills/_targets.yaml` and compare the active projection with the canonical source.
+   `skills/_targets.yaml` and compare each projection with the canonical source
+   using the relation its shape supports, per ARTIFACTS Evidence rules.
 9. If installed metadata/body changed, set `fresh_session_required: true` and
    stage 40 pending, then set next prompt 40. Write the attempt report and update
    state before the required session boundary. Otherwise mark stage 40

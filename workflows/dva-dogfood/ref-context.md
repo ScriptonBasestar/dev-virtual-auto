@@ -69,19 +69,18 @@ default into DVA itself or into a per-project workaround.
 
 ## Required project context
 
-Before project actions:
+Rules that hold for every project action. The stage prompts own *what* to
+inventory; these own *how to read* what they find.
 
-1. Read target `AGENTS.md`/`CLAUDE.md` and active module guidance.
-2. Identify archived, generated, secret, and user-modified paths.
-3. Confirm DVA and related CLI versions from local commands, not memory.
-4. Compare the installed DVA build/commit with `DVA_ROOT`; never assume the
-   local checkout produced the installed binary.
-5. Treat references under this directory as guidance, not target-specific truth.
-6. Inventory canonical `dva.yml`, legacy `dva.yaml`, and DVA-related files
-   referenced by Makefiles, scripts, or Compose documentation. Legacy presence
-   is a migration finding, never automatic rewrite authority.
-7. Decide whether DVA is needed independently for the root and every active
-   subproject. Parent or sibling usage alone is not justification to create a
-   config.
-8. When Compose changed, preserve an exact handoff of renamed/added/removed root
+1. Read target `AGENTS.md`/`CLAUDE.md` and active module guidance, and identify
+   archived, generated, secret, and user-modified paths.
+2. Confirm DVA and related CLI versions from local commands, not memory, and
+   compare the installed build/commit with `DVA_ROOT`; never assume the local
+   checkout produced the installed binary.
+3. Treat references under this directory as guidance, not target-specific truth.
+4. Legacy `dva.yaml` presence is a migration finding, never automatic rewrite
+   authority.
+5. Judge DVA need independently for the root and every active subproject; parent
+   or sibling usage alone is not justification to create a config.
+6. When Compose changed, preserve an exact handoff of renamed/added/removed root
    files, service names, profiles, port variables, and env prerequisites.
