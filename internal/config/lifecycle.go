@@ -635,10 +635,43 @@ func (e *LifecycleEntry) RunnerNames() []string {
 	return uniq
 }
 
-// ResolvePluginFromName infers the plugin type from the entry name
-// when neither plugin: field nor nested config is present.
+// ResolvePluginFromName infers the plugin type from the entry name when neither
+// plugin: field nor nested config is present, then enforces the compose contract.
 // Called after Name is set from the map key in Config.Load().
+//
+// It is the only hook both load paths (Config.Load and Config.Merge) run per
+// entry once Name is known, which is why the compose check lives here: the
+// legacy shapes it rejects are only identifiable after name inference has run.
 func (e *LifecycleEntry) ResolvePluginFromName() error {
+	if err := e.resolvePluginFromName(); err != nil {
+		return err
+	}
+	return e.rejectLegacyComposeShape()
+}
+
+// rejectLegacyComposeShape refuses every compose declaration schema.json refuses,
+// so Load() and Validate() answer the same question the same way.
+//
+// e.Compose is written by exactly three paths, all legacy: entry-name inference
+// (stack.compose carrying flat compose keys), an explicit plugin: compose, and a
+// nested compose: sub-key. The supported shape decodes into e.Runners and never
+// touches e.Compose, so a non-nil e.Compose is precisely the disagreement schema
+// validation reports — unhelpfully — as "Must not validate the schema (not)".
+func (e *LifecycleEntry) rejectLegacyComposeShape() error {
+	if e.Compose == nil {
+		return nil
+	}
+	return fmt.Errorf("entry %q: compose must be declared under runners.compose, not on the entry itself\n"+
+		"  rewrite it as:\n"+
+		"    %s:\n"+
+		"      default_runner: compose\n"+
+		"      runners:\n"+
+		"        compose:\n"+
+		"          files: [...]   # move this entry's existing compose keys here",
+		e.Name, e.Name)
+}
+
+func (e *LifecycleEntry) resolvePluginFromName() error {
 	if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil {
 		return nil
 	}

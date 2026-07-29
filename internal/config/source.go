@@ -53,8 +53,11 @@ func (c *Config) migrateInfraToStack() ([]string, error) {
 			Tags:          []string{"infra"},
 			Plugin:        "compose",
 			DefaultRunner: "compose",
-			Compose:       &ComposePluginConfig{},
-			Source:        src,
+			// Emit the runners shape, not the Compose field: this migration exists to
+			// move users off a deprecated form, so it must not land them on another one
+			// that LifecycleEntry.rejectLegacyComposeShape refuses.
+			Runners: map[string]any{"compose": &ComposePluginConfig{}},
+			Source:  src,
 		}
 	}
 	return names, nil

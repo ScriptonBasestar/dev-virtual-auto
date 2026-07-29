@@ -31,59 +31,54 @@ plans:
 	}
 }
 
-func TestValidateRejectsLegacyNestedComposeSchema(t *testing.T) {
-	tmpDir := t.TempDir()
-	content := `version: "0.1.44"
+// The three legacy compose shapes are rejected by Load(), not only by Validate().
+// Before, schema.json refused them while the loader accepted them, so `dva validate`
+// failed on configs every other command ran happily — the split that made schema
+// rejection unreachable in practice. Asserting on Load() pins the stronger contract:
+// one answer from both, and an error that names the replacement shape.
+func TestLoadRejectsLegacyNestedCompose(t *testing.T) {
+	requireLegacyComposeRejected(t, `version: "0.1.44"
 stack:
   core-compose:
     compose:
       files: [compose.yml]
-`
-	cfg := loadConfigForSchemaTest(t, tmpDir, content)
-
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() expected error for legacy stack.<entry>.compose")
-	}
-	if !strings.Contains(err.Error(), "Must not validate the schema") {
-		t.Fatalf("Validate() error = %v, want schema rejection", err)
-	}
+`)
 }
 
-func TestValidateRejectsLegacyFlatComposePluginSchema(t *testing.T) {
-	tmpDir := t.TempDir()
-	content := `version: "0.1.44"
+func TestLoadRejectsLegacyFlatComposePlugin(t *testing.T) {
+	requireLegacyComposeRejected(t, `version: "0.1.44"
 stack:
   core-compose:
     plugin: compose
     files: [compose.yml]
-`
-	cfg := loadConfigForSchemaTest(t, tmpDir, content)
-
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() expected error for legacy plugin: compose")
-	}
-	if !strings.Contains(err.Error(), "Must not validate the schema") {
-		t.Fatalf("Validate() error = %v, want schema rejection", err)
-	}
+`)
 }
 
-func TestValidateRejectsLegacyAutoInferredComposeSchema(t *testing.T) {
-	tmpDir := t.TempDir()
-	content := `version: "0.1.44"
+func TestLoadRejectsLegacyAutoInferredCompose(t *testing.T) {
+	requireLegacyComposeRejected(t, `version: "0.1.44"
 stack:
   compose:
     command: /bin/echo
-`
-	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+`)
+}
 
-	err := cfg.Validate()
-	if err == nil {
-		t.Fatal("Validate() expected error for legacy auto-inferred compose")
+func requireLegacyComposeRejected(t *testing.T, content string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, FileName), []byte(content), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
 	}
-	if !strings.Contains(err.Error(), "Must not validate the schema") {
-		t.Fatalf("Validate() error = %v, want schema rejection", err)
+
+	_, err := Load(tmpDir)
+	if err == nil {
+		t.Fatal("Load() accepted a compose shape schema.json rejects")
+	}
+	if !strings.Contains(err.Error(), "runners.compose") {
+		t.Fatalf("Load() error = %v, want the message to name runners.compose", err)
+	}
+	if !strings.Contains(err.Error(), "default_runner: compose") {
+		t.Fatalf("Load() error = %v, want the message to show the replacement shape", err)
 	}
 }
 
