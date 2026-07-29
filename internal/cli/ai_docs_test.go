@@ -161,6 +161,79 @@ func TestGenerateAIDocs_NoAgentFiles(t *testing.T) {
 	}
 }
 
+// A block owned by another generator opens with an HTML comment above its
+// heading. Replacing the DVA section must not consume that opening marker and
+// leave the closing one orphaned.
+func TestReplaceDVASection_PreservesGeneratedBlockMarker(t *testing.T) {
+	tmpDir := t.TempDir()
+	file := filepath.Join(tmpDir, "AGENTS.md")
+	content := "# AGENTS.md\n\n## DVA (Dev Virtual Auto)\n\nOld stuff\n\n" +
+		"<!-- skills:auto:start -->\n## AI Skills\n\n- **dva** — See `skills/dva/SKILL.md`.\n<!-- skills:auto:end -->\n"
+	os.WriteFile(file, []byte(content), 0644)
+
+	newSnippet := "\n## DVA (Dev Virtual Auto)\n\nNew content\n"
+	if err := replaceDVASection(file, content, newSnippet); err != nil {
+		t.Fatalf("replaceDVASection error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	result := string(data)
+	if strings.Count(result, "<!-- skills:auto:start -->") != 1 {
+		t.Errorf("opening marker must survive, got:\n%s", result)
+	}
+	if strings.Count(result, "<!-- skills:auto:end -->") != 1 {
+		t.Errorf("closing marker must survive, got:\n%s", result)
+	}
+	if strings.Index(result, "<!-- skills:auto:start -->") > strings.Index(result, "## AI Skills") {
+		t.Error("opening marker must stay above the heading it introduces")
+	}
+	if !strings.Contains(result, "New content") {
+		t.Error("should contain new content")
+	}
+	if strings.Contains(result, "Old stuff") {
+		t.Error("should have replaced the old DVA section")
+	}
+}
+
+func TestReplaceDVASection_PreservesConsecutiveComments(t *testing.T) {
+	tmpDir := t.TempDir()
+	file := filepath.Join(tmpDir, "AGENTS.md")
+	content := "## DVA (Dev Virtual Auto)\n\nOld stuff\n\n" +
+		"<!-- markdownlint-disable MD013 -->\n<!-- gen:start -->\n## Generated\n\nBody\n"
+	os.WriteFile(file, []byte(content), 0644)
+
+	if err := replaceDVASection(file, content, "\n## DVA (Dev Virtual Auto)\n\nNew\n"); err != nil {
+		t.Fatalf("replaceDVASection error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	result := string(data)
+	for _, want := range []string{"<!-- markdownlint-disable MD013 -->", "<!-- gen:start -->", "## Generated", "Body"} {
+		if !strings.Contains(result, want) {
+			t.Errorf("missing %q in:\n%s", want, result)
+		}
+	}
+}
+
+// Regenerating a file whose DVA section is already current and whose following
+// heading carries no marker must not change a single byte.
+func TestReplaceDVASection_MarkerFreeIsByteIdentical(t *testing.T) {
+	tmpDir := t.TempDir()
+	file := filepath.Join(tmpDir, "AGENTS.md")
+	snippet := "\n## DVA (Dev Virtual Auto)\n\nCurrent content\n"
+	content := "# AGENTS.md\n\n## DVA (Dev Virtual Auto)\n\nCurrent content\n\n## Build & Test\n\nRun make build.\n"
+	os.WriteFile(file, []byte(content), 0644)
+
+	if err := replaceDVASection(file, content, snippet); err != nil {
+		t.Fatalf("replaceDVASection error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	if string(data) != content {
+		t.Errorf("marker-free content must be byte-identical\nwant:\n%q\ngot:\n%q", content, string(data))
+	}
+}
+
 func TestReplaceDVASection_WithFollowingSection(t *testing.T) {
 	tmpDir := t.TempDir()
 	file := filepath.Join(tmpDir, "test.md")

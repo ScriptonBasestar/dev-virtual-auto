@@ -123,8 +123,33 @@ func replaceDVASection(filename, content, newSnippet string) error {
 		// DVA section goes to EOF
 		content = content[:startIdx] + strings.TrimLeft(newSnippet, "\n")
 	} else {
+		endIdx = keepLeadingComments(rest, endIdx)
 		content = content[:startIdx] + strings.TrimLeft(newSnippet, "\n") + rest[endIdx:]
 	}
 
 	return os.WriteFile(filename, []byte(content), 0644)
+}
+
+// keepLeadingComments moves a section boundary back over the HTML comment lines
+// that immediately precede a heading.
+//
+// Another generator marks the block it owns with an opening comment on the line
+// above its heading (tools/skillgen writes `<!-- skills:auto:start -->` before
+// `## AI Skills`). Those comments introduce the block below, so cutting at the
+// heading alone would delete the opening marker of a block DVA does not own and
+// leave its closing marker orphaned. headingIdx points at the newline before the
+// heading; the returned index is at or before it.
+func keepLeadingComments(rest string, headingIdx int) int {
+	for headingIdx > 0 {
+		lineStart := strings.LastIndexByte(rest[:headingIdx], '\n')
+		if lineStart < 0 {
+			break
+		}
+		line := strings.TrimSpace(rest[lineStart+1 : headingIdx])
+		if !strings.HasPrefix(line, "<!--") || !strings.HasSuffix(line, "-->") {
+			break
+		}
+		headingIdx = lineStart
+	}
+	return headingIdx
 }
