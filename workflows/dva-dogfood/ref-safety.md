@@ -14,6 +14,19 @@ Require explicit user authority before:
 - reverting unrelated user changes;
 - installing or replacing global executables.
 
+## Runtime authority boundary
+
+Stages 00–70 are non-starting for real lifecycle targets. They must not invoke
+`provision`, `up`, `down`, `stop`, `restart`, or an equivalent target lifecycle
+command. A runtime startup/teardown check is a separate post-cycle QA surface,
+not a numbered-stage continuation.
+
+An authority record is valid only when it names each exact command and its
+side effect (for example, the named plan and that it starts a service). A
+generic `runtime approved` statement, an empty command list, or an empty
+side-effect list is insufficient. Numbered stages remain forbidden even when
+post-cycle authority is valid.
+
 ## Worktree safety
 
 - Avoid archived, generated, vendor, dependency, and legacy directories defined

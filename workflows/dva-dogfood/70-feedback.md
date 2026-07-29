@@ -13,6 +13,9 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
+<!-- contract:stage id=70 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
+<!-- contract:owner-feedback different_primary=successor predecessor=required post_evaluation_mutation=forbidden -->
+
 <role>DVA feedback router — close one run and prepare one next hypothesis</role>
 
 <objective>Route findings to their SSoT and leave a context-independent next
@@ -26,13 +29,19 @@ a result classification and state must route to this stage.</input>
    and latest evaluation.
 2. Create a unique ATTEMPT_ID; prior feedback attempts never block rerun.
 3. Recheck Git HEAD, dirty hash, and protected paths for every scoped repository.
-4. Group unresolved findings by skill, setup prompt, DVA tool, target, or environment.
-   Route DVA tool findings to `DVA_ROOT`, never to target workarounds.
+4. Group unresolved findings by generic owner and DVA owner route. Map `skill`
+   and `dva_tool` to `plugin`, `prompt` and workflow-contract changes to
+   `local_setup`, `target_project` to `target`, and preserve `environment` and
+   `no_change`. Route DVA tool findings to `DVA_ROOT`, never to target
+   workarounds.
 5. Backlog unresolved corrections with evidence and owner; do not edit any SSoT
    or target file after the accepted evaluation.
 6. For a generic change with only one accepted target, prefer a structurally
    different target as the next hypothesis and mark the change provisional.
-7. Select exactly one measurable next-run hypothesis and set final run status.
+7. Select exactly one measurable next-run hypothesis. If its generic owner
+   differs from this run's `primary_owner`, create successor-run inputs with
+   `predecessor_run_id` pointing to this run; never mutate that second owner in
+   the completed run. Set final run status.
 8. Write the unique attempt report, update state/handoff, and emit the next
    stage-00 invocation.
 </steps>

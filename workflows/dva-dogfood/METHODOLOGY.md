@@ -82,7 +82,7 @@ evaluation:
   case_ids: [ /* ordered, workflow-defined */ ]
   case_manifest_hash: "<sha256>"
   forward_requests_hash: null
-revisions: { /* target/plugin/devenv heads + dirty hashes, prompt bundle hash */ }
+revisions: { /* target/plugin/external-root heads + dirty hashes, prompt bundle hash */ }
 stages: { "00": { status, latest_attempt, latest_accepted_report, attempts: [] } }
 protected_paths: []
 findings: []
@@ -103,18 +103,23 @@ is recorded.
 ## Evaluation contract
 
 The tuple (`version`, ordered `case_ids`, `case_manifest_hash`) defines run
-compatibility. If it differs from state, block the old run with blocker code
+compatibility. The domain reference supplies the canonical ordered manifest;
+the controller compares it and the frozen forward-request bytes before reusing
+any evidence. If either differs from state, block the old run with blocker code
 `evaluation_contract_mismatch`; preserve its frozen `forward-requests.md` and
-accepted reports; never route it back to stage 10 or 40. In continuous mode,
-create a successor run with a fresh baseline and `predecessor_run_id` pointing at
-the blocked run. In step mode, stop with the exact stage-00 prompt and inputs
-needed to create that successor. `forward-requests.md` is frozen at stage 10 and
-never rewritten.
+accepted reports; never route it back to the baseline or forward-test stage. In
+continuous mode, create a successor run with a fresh baseline and
+`predecessor_run_id` pointing at the blocked run. In step mode, stop with the
+exact stage-00 prompt and inputs needed to create that successor.
+`forward-requests.md` is frozen at the domain baseline stage and never
+rewritten. A completed forward-test index records its controller identity and
+exactly one child identity, request hash, and result for every ordered case.
 
 Never disclose a case's label, expected owner, or anticipated outcome to a
-forward-test session; stage 10 freezes one raw request per case and stage 40
-replays it byte-for-byte in independent sessions, recording the selected owner
-only after each test completes.
+forward-test session; the domain baseline stage freezes one raw request per
+case and the domain forward-test controller replays it byte-for-byte in
+independent sessions, recording the selected owner only after each test
+completes.
 
 Results are exactly one of: `CONFIRMED` (improved, no critical regression),
 `PARTIAL` (improved but an acceptance criterion unmet), `REJECTED` (no
@@ -134,9 +139,13 @@ environment blocked comparison).
 - `handoff.md` must be sufficient without conversation history: RUN_DIR, target,
   hypothesis, owner, protected paths, accepted reports, blockers, run-owned
   changes, fresh-session requirement, and exact next prompt.
-- `MODE=step` stops after each accepted stage; `MODE=continuous` follows
-  `state.next_prompt` until a stop condition. Mode never overrides a fresh-session,
-  approval, failure, or safety boundary.
+- `MODE=step` stops after each accepted `PASS` or accepted `SKIPPED` stage and
+  emits literal `RUN_DIR=` and `NEXT_PROMPT=` lines. `MODE=continuous` follows
+  `state.next_prompt` until a stop condition. Both modes stop and emit those
+  lines at a `BLOCKED`, fresh-session, required-authority, or completion
+  boundary; completion selects the separately authorized post-cycle QA prompt
+  (or `none`). Mode never overrides a fresh-session, approval, failure, or
+  safety boundary.
 - `fresh_session_required` is set after any change needing an unseeded routing
   test and cleared only once all required case sessions record unseeded results.
   If the native subagent mechanism is unavailable, keep the flag set and BLOCK
@@ -159,6 +168,9 @@ environment blocked comparison).
   its path and Git revision are unchanged; a historical run may suggest a
   hypothesis but cannot satisfy a current gate.
 
+<!-- contract:step accepted=PASS|SKIPPED stop=required emit=RUN_DIR,NEXT_PROMPT blocked=stop fresh_session=stop authority=stop completion=stop -->
+<!-- contract:numbered-stages ids=00,10,20,30,40,45,50,60,70 lifecycle=forbidden real_target_lifecycle=forbidden post_cycle_qa=separate -->
+
 ## Report structure
 
 Every attempt report contains, in order: `Scope`, `Evidence`, `Decisions`,
@@ -177,11 +189,18 @@ unexpected output as a finding even when the command exits zero.
 
 ## Safety invariants
 
+<!-- contract:safety forward_test_target=read_only target_owner_application=reversible_patch pre_edit_patch=required inverse=required lifecycle=forbidden irreversible=forbidden -->
+<!-- contract:runtime-authority generic=insufficient exact_command=required side_effect=required scope=post_cycle_qa -->
+
 - Append-only evidence; `state.yaml`/`handoff.md` are indexes only.
 - No stage commits, pushes, or performs an irreversible target action (starting a
   service, removing a volume, running a lifecycle target, disclosing a secret).
 - One owner per run; no post-evaluation source change.
-- Disposable, seeded fixtures for forward tests; real targets are read-only.
+- Disposable, seeded fixtures for history-free forward-test children; those
+  children keep real targets read-only. Only the selected target-owner
+  application stage may edit a real target, and only as a reversible,
+  baseline-justified patch after recording the exact pre-edit patch and inverse.
+  Lifecycle execution and irreversible target actions remain forbidden.
 - Before editing plugin or local prompts, record scoped Git status, revision,
   protected paths, and exact paths this run may change; each edit path is
   clean or has an exact pre-edit patch and inverse recorded, leaving unrelated
@@ -191,6 +210,11 @@ unexpected output as a finding even when the command exits zero.
 - Record a secret by name and pattern, never its value; never place literal
   credentials, private file contents, or unrelated dirty-file content in
   evidence.
+- Numbered stages 00–70 never invoke `provision`, `up`, `down`, `stop`, or
+  `restart` (including equivalent target lifecycle commands) against a real
+  target. Runtime startup is a distinct post-cycle QA surface and requires an
+  authority record naming every command and each side effect; a generic runtime
+  approval is not authority.
 
 ## What each workflow defines locally
 

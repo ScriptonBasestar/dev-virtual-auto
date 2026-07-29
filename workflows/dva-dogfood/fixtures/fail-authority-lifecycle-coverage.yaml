@@ -1,0 +1,26 @@
+mode: step
+stage: post_cycle_qa
+gate: PASS
+boundary: accepted
+run_dir: /tmp/dogfood-dva/fail-authority-coverage
+next_prompt: none
+handoff:
+  run_dir: /tmp/dogfood-dva/fail-authority-coverage
+  next_prompt: none
+sources:
+  packages_root: /Users/archmagece/devenv
+  config_projection: active
+revisions:
+  packages_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  packages_dirty_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  packages_protected_dirty_paths: [workflows/private-local.md]
+operations:
+  config_invocation_required: false
+authority:
+  scope: post_cycle_qa
+  approved: true
+  commands:
+    - command: "dva provision"
+      side_effect: "provisions_public_directories"
+lifecycle_commands: ["dva up full-stack"]
+completion: false

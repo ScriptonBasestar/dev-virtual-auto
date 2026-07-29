@@ -13,6 +13,10 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
+<!-- contract:stage id=20 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
+<!-- contract:owner-selection primary=generic route=dva secondary=successor -->
+<!-- contract:evaluation-freeze version=dva-routing-v1 manifest=ordered hash=sha256 requests=one_raw_per_case leakage=forbidden mismatch=successor -->
+
 <role>DVA baseline collector — capture current behavior without fixes</role>
 
 <objective>Create the before-state for the hypothesis and separate config,
@@ -42,12 +46,26 @@ report must PASS.</input>
    independently; exclude archived/legacy modules and never force-create DVA.
 9. Capture dirty paths without reading protected secret contents.
 10. Classify warnings and contradictions; define measurable before/after metrics.
-11. Assign exactly one primary owner: skill, prompt, DVA tool, target project,
-    or environment. Select prompt 30, 40, 45, 50, or 60 respectively; mark
+11. Before selecting an owner, freeze the evaluation contract from
+    EVALUATION: copy its exact ordered IDs, version, and deterministic manifest
+    SHA-256 into state. Create `<RUN_DIR>/forward-requests.md` as its strict
+    YAML request document with exactly one non-empty `raw_request` per case in
+    the same order, then record its full-file SHA-256. Requests must contain no
+    expected-owner or expected-outcome field. Do not reuse or rewrite a frozen
+    file; any byte/order/manifest mismatch blocks this run with
+    `evaluation_contract_mismatch` and requires a successor.
+12. Assign exactly one generic `primary_owner` and one DVA `owner_route`.
+    Map `skill` and `dva_tool` to `plugin`, `prompt` (including workflow-contract
+    changes) to `local_setup`, `target_project` to `target`, and preserve
+    `environment` and `no_change` as both route and generic owner. Select prompt
+    30, 40, 45, 50, 60, or 50 for `skill`, `prompt`, `dva_tool`,
+    `target_project`, `environment`, or `no_change` respectively. Mark
     unselected owner stages 30, 40, and 45 `not_applicable` without attempt
     reports. For skill ownership, keep stage 40 conditional until stage 30
-    determines whether a fresh-session gate is required.
-12. Write the unique attempt report and update state. Update handoff only at a
+    determines whether a fresh-session gate is required. This run may mutate
+    only its selected generic primary owner; secondary or different-owner
+    findings are backlog for a successor run.
+13. Write the unique attempt report and update state. Update handoff only at a
     SESSION boundary.
 </steps>
 
@@ -57,6 +75,8 @@ route from the report.</gate>
 <constraints>
 - Do not use fix, rewrite, reset, clean, production, or service-start commands.
 - Historical success cannot satisfy current validation.
+- A forward request is evidence input, not a hidden answer key: do not put an
+  owner or anticipated outcome in it.
 </constraints>
 
 <trigger>Capture baseline, select the owner stage, then continue or hand off per

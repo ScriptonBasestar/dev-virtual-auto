@@ -3,6 +3,67 @@
 Domain deltas only; invariants live in
 [METHODOLOGY.md](./METHODOLOGY.md).
 
+## Evaluation manifest
+
+The exact YAML bytes in this block are the canonical ordered DVA case manifest.
+Its SHA-256 is calculated from the bytes between the fenced-YAML lines,
+including the final newline. This manifest contains only case identity and
+coverage surface; it intentionally has no expected-owner or expected-outcome
+field.
+
+<!-- evaluation-manifest:start -->
+```yaml
+version: dva-routing-v1
+cases:
+  - id: config-schema-ownership
+    surface: config_schema
+  - id: provision-safety
+    surface: provision
+  - id: root-workers-lifecycle-ownership
+    surface: lifecycle_boundary
+  - id: subproject-engine
+    surface: subproject
+  - id: subproject-workers
+    surface: subproject
+  - id: subproject-transformer
+    surface: subproject
+  - id: subproject-e2e
+    surface: subproject
+  - id: compose-profiles
+    surface: compose_profiles
+  - id: health-runtime-truth
+    surface: runtime_truth
+  - id: no-change
+    surface: no_change
+```
+<!-- evaluation-manifest:end -->
+<!-- evaluation-manifest:sha256=a1d0b990eba33873b85d083f4c3cf7b32c0bd9cd601b4301d40c8ae02c360396 -->
+
+Stage 20 copies these ordered IDs, `version`, and the manifest SHA-256 into
+`state.yaml`, then creates `<RUN_DIR>/forward-requests.md`. That frozen file is
+a strict YAML document with only `version`, `case_manifest_hash`, and ordered
+`requests`; every request has only `id` and non-empty `raw_request`. Its
+SHA-256 is stored as `evaluation.forward_requests_hash`. A changed manifest,
+order, or frozen byte is an `evaluation_contract_mismatch`: do not reuse the
+run's evidence; block it and require a successor under the methodology.
+
+Stage 50 first verifies this contract, then launches one independent,
+history-free child session per request. A child receives only its raw request,
+the disposable fixture or read-only target scope, and the safety constraints.
+It receives neither case metadata nor any expected owner/outcome. The
+controller records one result for each ordered ID only after the child returns;
+each result contains `id`, `child_session_id`, `request_hash`, and `outcome`.
+For a completed forward test, every `child_session_id` is non-empty, unique,
+and different from `controller_session_id`; identity reuse is not an
+independent history-free session. The completed state also records
+`controller_session_id`. Case sessions never start a real target lifecycle.
+
+`stages.50.status` is structurally one of `pending`, `complete`, `blocked`, or
+`not_applicable`. Only `complete` may claim a finished forward test, and it
+requires the controller plus exactly one valid ordered result per case. An
+unknown success-like value (for example `PASS`) is an
+`evaluation_contract_mismatch`, never an incomplete-run escape hatch.
+
 ## Finding ownership
 
 Assign every finding to exactly one primary owner.

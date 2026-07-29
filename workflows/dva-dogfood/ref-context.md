@@ -5,7 +5,7 @@ Domain deltas only; invariants live in
 
 <constants>
 PROMPT_ROOT = workflows/dva-dogfood
-PACKAGES_ROOT = the prmpt framework (external)
+PACKAGES_ROOT = required user-supplied absolute prmpt-framework root
 DVA_ROOT = this repo (repo root)
 SKILLS_ROOT = DVA_ROOT/skills
 SKILL_TARGETS = DVA_ROOT/skills/_targets.yaml
@@ -23,6 +23,7 @@ never treat an installed/generated copy as an independent source.
 | Variable          | Rule                                                             |
 | ----------------- | ---------------------------------------------------------------- |
 | `TARGET_PROJECT`  | User-supplied absolute path; otherwise current working directory |
+| `PACKAGES_ROOT`   | Required user-supplied absolute external root; no workflow default |
 | `SKILL_SOURCE`    | Exact canonical directory under `SKILLS_ROOT` selected in stage 10 |
 | `SKILL_INSTALLED` | Exact platform projection/cache selected during stage 10          |
 | `DVA_ROOT`        | Local DVA CLI/schema/doctor source-of-truth repository           |
@@ -31,6 +32,12 @@ never treat an installed/generated copy as an independent source.
 
 Never infer a different target after `state.yaml` is created. If the target
 changes, start a new run. Never reuse a `RUN_ID` for a new run.
+
+Record `PACKAGES_ROOT` literally in state. Record its Git HEAD, dirty hash, and
+the names of protected dirty paths without reading those paths' contents. A
+missing active `config` projection is an `environment` finding. It blocks only
+an operation that requires an explicit `config` invocation; it never authorizes
+installing, syncing, or synthesizing a projection.
 
 ## Source-of-truth ownership
 

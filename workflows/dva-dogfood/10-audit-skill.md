@@ -12,6 +12,8 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
+<!-- contract:stage id=10 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
+
 <role>DVA skill projection auditor — verify canonical source, platform projection, and
 triggers</role>
 
@@ -41,7 +43,8 @@ PASS.</input>
    executable until the installed DVA version is proven safe in a disposable
    fixture, including process-backed down/stop/restart state.
 9. Select canonical SKILL_SOURCE and active-host SKILL_INSTALLED/projection, or
-   record that the expected projection is missing.
+   record that the expected `config` projection is missing as an `environment`
+   finding. Do not install, sync, or synthesize it.
 10. Write the unique attempt report; update state latest pointer and handoff.
 </steps>
 

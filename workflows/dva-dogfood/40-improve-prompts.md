@@ -14,6 +14,8 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
+<!-- contract:stage id=40 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
+
 <role>DVA fresh-session gate and setup prompt improver</role>
 
 <objective>Validate changed skill triggering when required, then improve local

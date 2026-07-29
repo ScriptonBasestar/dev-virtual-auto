@@ -12,6 +12,9 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
+<!-- contract:stage id=60 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
+<!-- contract:owner-evaluation same_primary=reenter different_primary=successor predecessor=required -->
+
 <role>DVA dogfood evaluator — compare baseline, validate, and assign
 owners</role>
 
@@ -31,13 +34,16 @@ attempted must be accepted. State must route to this stage.</input>
 4. Compare baseline/result for the exact hypothesis metrics.
 5. Score all evaluation dimensions and explain non-maximum scores.
 6. Classify CONFIRMED, PARTIAL, REJECTED, or INCONCLUSIVE.
-7. Assign every unresolved finding one owner and severity; check regressions/protected paths.
+7. Assign every unresolved finding one generic owner, one DVA owner route, and
+   severity; check regressions/protected paths.
 8. Identify but do not apply the smallest feedback action. If a cycle-owned
-   regression requires a primary-owner change, keep the run active, reactivate
-   that owner stage, invalidate accepted downstream stage indexes while
-   retaining their reports, and route to it. Clear candidate DVA provenance
-   when reactivating stage 45. Do not invoke stage 70 until the changed state is
-   evaluated again. Backlog findings owned by another layer.
+   regression stays within the run's existing generic `primary_owner`, keep the
+   run active, reactivate its selected DVA owner-route stage, invalidate
+   accepted downstream stage indexes while retaining their reports, and route
+   to it. Clear candidate DVA provenance when reactivating stage 45. Do not
+   invoke stage 70 until the changed state is evaluated again. Backlog
+   secondary findings; a correction owned by a different generic owner starts
+   a successor run with a fresh baseline and `predecessor_run_id`.
 9. Otherwise set next prompt 70. Write the unique attempt report and update
    state; update handoff only at a SESSION boundary.
 </steps>
@@ -47,7 +53,8 @@ score.</gate>
 
 <constraints>
 - Read-only evaluation stage.
-- Do not aggregate multiple next hypotheses or reassign failures for convenience.
+- Do not aggregate multiple next hypotheses, mutate two generic owners, or
+  reassign failures for convenience.
 </constraints>
 
 <trigger>Evaluate the run, route changes or prompt 70, then continue or hand off

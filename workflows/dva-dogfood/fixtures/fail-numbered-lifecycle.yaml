@@ -1,0 +1,24 @@
+mode: step
+stage: "20"
+gate: PASS
+boundary: accepted
+run_dir: /tmp/dogfood-dva/fail-lifecycle
+next_prompt: 50-apply-to-project.md
+handoff:
+  run_dir: /tmp/dogfood-dva/fail-lifecycle
+  next_prompt: 50-apply-to-project.md
+sources:
+  packages_root: /Users/archmagece/devenv
+  config_projection: active
+revisions:
+  packages_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  packages_dirty_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  packages_protected_dirty_paths: [workflows/private-local.md]
+operations:
+  config_invocation_required: false
+authority:
+  scope: numbered_stage
+  approved: false
+  commands: []
+lifecycle_commands: ["dva up full-stack"]
+completion: false

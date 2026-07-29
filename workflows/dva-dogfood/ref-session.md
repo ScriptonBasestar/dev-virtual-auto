@@ -18,9 +18,12 @@ Domain deltas only; invariants live in
 
 ## Separate-Session Protocol
 
-A session boundary occurs in step mode, on BLOCKED/FAIL, when a stage
-requires user authority, after stage 30 when `fresh_session_required` is
-true, and when the run ends.
+A session boundary occurs after every accepted `PASS` or accepted `SKIPPED`
+stage in `MODE=step`, on BLOCKED/FAIL, when a stage requires user authority,
+after stage 30 when `fresh_session_required` is true, and when the run ends.
+Every boundary regenerates `handoff.md` and emits literal `RUN_DIR=` and
+`NEXT_PROMPT=` lines. A completion boundary names the distinct post-cycle QA
+prompt (or `none`); it never starts runtime work from a numbered stage.
 
 When a skill's installed metadata or body changes, stop after stage 30 and
 require a fresh session before stage 40. Stage 40 clears

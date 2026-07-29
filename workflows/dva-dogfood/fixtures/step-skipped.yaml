@@ -1,0 +1,24 @@
+mode: step
+stage: "50"
+gate: SKIPPED
+boundary: accepted
+run_dir: /tmp/dogfood-dva/step-skipped
+next_prompt: 60-evaluate.md
+handoff:
+  run_dir: /tmp/dogfood-dva/step-skipped
+  next_prompt: 60-evaluate.md
+sources:
+  packages_root: /Users/archmagece/devenv
+  config_projection: missing
+revisions:
+  packages_head: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  packages_dirty_hash: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  packages_protected_dirty_paths: [workflows/private-local.md]
+operations:
+  config_invocation_required: false
+authority:
+  scope: numbered_stage
+  approved: false
+  commands: []
+lifecycle_commands: []
+completion: false
