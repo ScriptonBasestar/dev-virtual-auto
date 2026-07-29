@@ -20,6 +20,7 @@
 |---------|-------------|
 | `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
 | `dva config docs` | 프로젝트 AI 파트너용 CLAUDE.md/AGENTS.md 생성/갱신 |
+| `dva config migrate` | legacy compose 선언을 `runners` 형태로 재작성 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
 | `dva show <NAME>` | 특정 실행 이름 또는 설정 개요 표시 |
@@ -53,6 +54,35 @@ dva config docs                  # CLAUDE.md/AGENTS.md 가이드 생성/갱신
 
 `docs`는 AI 에이전트가 DVA 환경을 인식하게 만드는 기본 문서를 생성합니다.
 (과거 `dva config improve --docs-only`와 동일)
+
+#### migrate (config migrate)
+
+```bash
+dva config migrate               # 변경 결과만 출력 (파일은 그대로)
+dva config migrate --write       # 실제 적용
+dva config migrate ../other-repo # 다른 프로젝트 미리보기
+```
+
+compose를 stack 항목에 직접 선언하던 세 가지 legacy 형태 — 이름이 `compose`인
+항목에 compose 키를 그대로 둔 형태, `plugin: compose`, 중첩 `compose:` 하위 키 —
+를 현재 스키마가 요구하는 `default_runner` + `runners.compose` 형태로 옮깁니다.
+
+```yaml
+stack:                          stack:
+  compose:                        compose:
+    files: [compose.yml]   ->       default_runner: compose
+                                    runners:
+                                      compose:
+                                        files: [compose.yml]
+```
+
+바뀌는 항목만 재작성하므로 나머지 줄은 주석·빈 줄까지 원본 바이트 그대로
+유지됩니다. `--write` 전에 결과를 메모리에서 먼저 로드해 검증하므로 DVA가 읽을 수
+없는 상태로 파일이 남지 않습니다.
+
+`tags`는 옮기지 않고 **양쪽에 복사**합니다. `LifecycleEntry.Tags`는 stack 항목
+필터링에, `ComposePluginConfig.Tags`는 compose 서비스 필터 기본값에 쓰이는데
+legacy 형태에서는 한 키가 두 역할을 겸했기 때문입니다.
 
 #### run
 
