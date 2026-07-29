@@ -15,6 +15,28 @@ import (
 //go:embed schema.json
 var embeddedSchema embed.FS
 
+// removedSchemaKeys maps keys DVA used to accept to whatever took over their
+// job. Every one of them was real schema once, emitted by DVA's own templates
+// and AI flows, so configs generated against an older version still carry them
+// and "Additional property X is not allowed" alone leaves those users with a
+// rejection and no next step.
+//
+// Keyed by property name alone, not by path: the guidance has to read correctly
+// wherever the key turns up, since a stale config can carry it anywhere.
+//
+// This is also the list TestRemovedKeysAbsentFromGeneratorCorpus holds the AI
+// generator corpus to — a key is only really gone once nothing teaches it.
+var removedSchemaKeys = map[string]string{
+	// TASK-036: services metadata; the reader (compose_status.go) is gone.
+	"hint":    "removed: 'services' is tags-only — human-readable hints live in health_checks.<name>.start_hint",
+	"related": "removed: group services with 'tags', or list them explicitly in modes.<name>.compose_services",
+	// ee8ac8e: port metadata moved wholesale to the endpoints: section.
+	"ports": "removed: DVA reads ports from the compose files — declare user-facing ones under the top-level 'endpoints:'",
+	// TASK-035: both validated green and were never read.
+	"interpolate": "removed: env_file values are always interpolated, with no way to opt out",
+	"priority":    "removed: precedence is fixed — environment: < env_file < OS environment",
+}
+
 // Validate validates the dva.yml against the JSON schema.
 func (c *Config) Validate() error {
 	if c.filePath == "" {
@@ -59,7 +81,15 @@ func (c *Config) Validate() error {
 	if !result.Valid() {
 		var errs []string
 		for _, desc := range result.Errors() {
-			errs = append(errs, fmt.Sprintf("  - %s: %s", desc.Field(), desc.Description()))
+			line := fmt.Sprintf("  - %s: %s", desc.Field(), desc.Description())
+			if desc.Type() == "additional_property_not_allowed" {
+				if prop, ok := desc.Details()["property"].(string); ok {
+					if guidance, removed := removedSchemaKeys[prop]; removed {
+						line += "\n      " + guidance
+					}
+				}
+			}
+			errs = append(errs, line)
 		}
 		return fmt.Errorf("schema validation failed in dva.yml:\n%s", strings.Join(errs, "\n"))
 	}
