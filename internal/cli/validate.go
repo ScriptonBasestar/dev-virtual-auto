@@ -242,7 +242,7 @@ func detectComposeFilesInDir(dir string) []string {
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return found
+		return deduplicateComposeFiles(dir, found)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -270,7 +270,7 @@ func detectComposeFilesInDir(dir string) []string {
 		found = append(primary, rest...)
 	}
 
-	return found
+	return deduplicateComposeFiles(dir, found)
 }
 
 func configuredComposeServices(c *config.Config) map[string]bool {

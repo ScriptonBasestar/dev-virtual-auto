@@ -451,7 +451,7 @@ func detectComposeFilesIn(dir string) []string {
 		found = append(primary, rest...)
 	}
 
-	return found
+	return deduplicateComposeFiles(dir, found)
 }
 
 func contains(slice []string, item string) bool {
@@ -711,51 +711,4 @@ func extractMakefileRecipes(lines []string) map[string][]string {
 	}
 
 	return result
-}
-
-func extractComposeServices(path string) []string {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil
-	}
-
-	lines := strings.Split(string(data), "\n")
-	inServices := false
-	var services []string
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-
-		// Top-level key detection
-		if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") {
-			if strings.HasPrefix(trimmed, "services:") {
-				inServices = true
-				continue
-			}
-			if inServices {
-				// Hit another top-level key, stop
-				inServices = false
-			}
-			continue
-		}
-
-		if !inServices {
-			continue
-		}
-
-		// Detect service names: exactly 2-space indent (or 1 tab) + name + ":"
-		if (strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ")) ||
-			(strings.HasPrefix(line, "\t") && !strings.HasPrefix(line, "\t\t")) {
-			name := strings.TrimSpace(trimmed)
-			name = strings.TrimSuffix(name, ":")
-			if name != "" && !strings.Contains(name, " ") {
-				services = append(services, name)
-			}
-		}
-	}
-
-	return services
 }
