@@ -71,11 +71,6 @@ interaction:
     command: "make vet"
     runner: local
 
-  bump-version:
-    description: "Bump micro version if changes detected"
-    command: "make bump-version"
-    runner: local
-
 provision:
   default:
     - step: "Build binary"
