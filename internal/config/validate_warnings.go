@@ -296,7 +296,10 @@ func (c *Config) warnDuplicateStackOrder() []string {
 func (c *Config) warnMultiStackComposeSplit() []string {
 	var composeEntries []string
 	for name, entry := range c.Stack {
-		if entry.Compose != nil {
+		// ComposeConfig(), not entry.Compose: the supported shape stores compose under
+		// runners, so reading the legacy field alone made this warning unreachable for
+		// every config that follows the current schema.
+		if entry.ComposeConfig() != nil {
 			composeEntries = append(composeEntries, name)
 		}
 	}
