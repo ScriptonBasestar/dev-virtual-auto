@@ -33,7 +33,11 @@ reverse. **Three targets read the format itself** (zero conversion) — each is 
 symlinked directory pointing at canonical `skills/`, so an edit propagates with no
 regeneration:
 
-- **Claude Code** — `claude-plugin/skills` → `../skills`.
+- **Claude Code** — `claude-plugin/skills` → `../skills`. Zero conversion, but **not
+  auto-discovered**: this repo ships no `.claude/skills/`, so the skills reach a session
+  only as part of the plugin, loaded per session with `claude --plugin-dir ./claude-plugin`
+  (`README.md`, `claude-plugin/README.md`). No marketplace manifest ships, so there is no
+  persistent install — the symlink is necessary, not sufficient.
 - **Antigravity** — `.agents/skills` → `../skills` (reads `.agents/skills/<name>/SKILL.md`,
   **not** bare root `skills/`; `references/` supported). Ref: antigravity.google/docs/skills
 - **OpenCode** — `.opencode/skills` → `../skills` (native Agent Skills at
@@ -95,7 +99,7 @@ Defined in [`_targets.yaml`](./_targets.yaml), all verified against current docs
 
 | Target       | Output                          | How            |
 | ------------ | ------------------------------- | -------------- |
-| Claude Code  | `claude-plugin/skills`          | symlink        |
+| Claude Code  | `claude-plugin/skills`          | symlink (load: `--plugin-dir`) |
 | Antigravity  | `.agents/skills`                | symlink (committed) |
 | OpenCode     | `.opencode/skills`              | symlink (gitignored → local) |
 | Cursor       | `.cursor/rules/*.mdc`           | generated (gitignored → local) |
