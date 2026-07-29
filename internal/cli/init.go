@@ -240,7 +240,10 @@ func detectTemplateIn(dir string) string {
 func generateConfigIn(dir, tmpl string) string {
 	var b strings.Builder
 
-	_, _ = fmt.Fprintf(&b, "version: \"%s\"\n\n", config.Version)
+	// MinScaffoldVersion, not config.Version: `version:` is what this config requires
+	// of the DVA reading it, so it must describe the emitted schema, not the binary
+	// that happened to run `dva init`. See config.MinScaffoldVersion.
+	_, _ = fmt.Fprintf(&b, "version: \"%s\"\n\n", config.MinScaffoldVersion)
 
 	// Detect compose files relative to dir
 	composeFiles := detectComposeFilesIn(dir)

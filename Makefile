@@ -15,7 +15,7 @@ GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
 ## build: Build the dva binary
 build: generate
-	$(eval VERSION := $(shell grep 'Version =' internal/config/version.go | cut -d'"' -f2))
+	$(eval VERSION := $(shell grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2))
 	$(eval COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none"))
 	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
 	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva

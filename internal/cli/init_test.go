@@ -149,6 +149,30 @@ func TestGenerateConfig_NoComposeFiles(t *testing.T) {
 	}
 }
 
+// TestScaffoldedVersionFloorDoesNotTrackBinary guards the ratchet: `version:` is the
+// minimum DVA a config requires, so a config scaffolded by a newer binary must still
+// load on an older one. The two constants are equal today, so moving Version is the
+// only way to tell a real floor apart from a producer stamp.
+func TestScaffoldedVersionFloorDoesNotTrackBinary(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
+
+	original := config.Version
+	defer func() { config.Version = original }()
+	config.Version = "9.9.9"
+
+	got := generateConfigIn(".", "minimal")
+	if strings.Contains(got, "9.9.9") {
+		t.Error("scaffolded version: followed the running binary; it must state what the config requires")
+	}
+	if !strings.Contains(got, "version: \""+config.MinScaffoldVersion+"\"") {
+		t.Errorf("scaffolded config must declare MinScaffoldVersion (%s); got:\n%s",
+			config.MinScaffoldVersion, got)
+	}
+}
+
 func TestDetectComposeFiles(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "dva-compose-test-*")
 	if err != nil {
