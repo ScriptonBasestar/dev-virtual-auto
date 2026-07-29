@@ -76,11 +76,10 @@ A zero exit code does not override contradictory or materially incorrect output.
 
 ## Prompt validation
 
-- Follow the prmpt framework's prompt conventions (external).
 - Keep executable prompts in English and concise.
 - Keep shared rules in `ref-*`, not duplicated in every prompt.
 - Verify all relative links and referenced filenames.
-- Run the devenv Markdown formatter/linter scoped as narrowly as supported.
+- Run the repository's Markdown formatter/linter scoped as narrowly as supported.
 
 ## Disposable prompt experiments
 

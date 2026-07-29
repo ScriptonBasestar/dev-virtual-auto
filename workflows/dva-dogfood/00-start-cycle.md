@@ -12,8 +12,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=00 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-
 <role>DVA dogfood initializer — bind target, hypothesis, unique run, and
 handoff</role>
 
@@ -25,8 +23,6 @@ DVA config, or target behavior. Existing runs are optional evidence and never bl
 <input>
 - `TARGET_PROJECT`: user path; otherwise current working directory.
 - `HYPOTHESIS`: one observable claim; derive one from the user goal if absent.
-- `PACKAGES_ROOT`: required user-supplied absolute prmpt-framework root; never
-  derive a reusable machine default.
 - Optional `RESUME_RUN_DIR`: validated existing run to resume.
 </input>
 
@@ -41,11 +37,9 @@ DVA config, or target behavior. Existing runs are optional evidence and never bl
    user-state fallback; generate a collision-safe RUN_ID.
 5. Optionally inspect at most three recent sibling summaries; do not reuse their validation.
 6. For a new run only, create RUN_DIR, `state.yaml`, and `handoff.md` using ARTIFACTS.
-7. Record target, literal PACKAGES_ROOT, and DVA source revisions/dirty hashes
-   plus canonical skill/projection hashes. For PACKAGES_ROOT, record Git HEAD,
-   dirty hash, and protected dirty path names without reading their contents; one
-   measurable hypothesis, stage 00 PASS, and next prompt 10. Initialize owner
-   and candidate DVA fields per ARTIFACTS.
+7. Record target and DVA source revisions/dirty hashes plus canonical
+   skill/projection hashes; one measurable hypothesis, stage 00 PASS, and next
+   prompt 10. Initialize owner and candidate DVA fields per ARTIFACTS.
 </steps>
 
 <gate>

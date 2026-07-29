@@ -48,9 +48,6 @@ evaluation:
 revisions:
   target_head: null
   target_dirty_hash: null
-  packages_head: null
-  packages_dirty_hash: null
-  packages_protected_dirty_paths: [] # path names only; never file contents
   dva_head: null
   dva_dirty_hash: null
   skill_source_hash: null
@@ -59,7 +56,6 @@ revisions:
 
 sources:
   dogfood_root: "workflows/dva-dogfood"
-  packages_root: null # required literal absolute PACKAGES_ROOT input
   skills_root: "skills"
   dva_root: "." # this repo root
   skill_source: null
@@ -132,12 +128,8 @@ and `candidate_dva_build_commit`; it never overwrites installed provenance.
 `fresh_session_required` is cleared only after a successful fresh-session
 trigger check. A failed check leaves it set and blocks further mutation.
 
-`sources.packages_root` is the literal absolute `PACKAGES_ROOT` input, never a
-machine-specific workflow default. `revisions.packages_head`,
-`revisions.packages_dirty_hash`, and
-`revisions.packages_protected_dirty_paths` preserve external-root provenance
-without reading protected dirty-file contents. `sources.config_projection:
-missing` is an environment finding; only an operation with
+`sources.config_projection: missing` is an environment finding; only an
+operation with
 `operations.config_invocation_required: true` blocks on it, and it never
 permits installation or projection synthesis. `authority` accepts runtime work
 only at `scope: post_cycle_qa` with approved exact `{command, side_effect}`

@@ -6,9 +6,12 @@ Domain deltas only; invariants live in
 ## Evaluation manifest
 
 The exact YAML bytes in this block are the canonical ordered DVA case manifest.
-Its SHA-256 is calculated from the bytes between the fenced-YAML lines,
-including the final newline. This manifest contains only case identity and
-coverage surface; it intentionally has no expected-owner or expected-outcome
+Stage 20 computes its SHA-256 from the bytes between the fenced-YAML lines,
+including the final newline, and records that value in `state.yaml`. No hash is
+stored here: a hand-maintained constant beside the bytes it describes is updated
+in the same edit that changes them, so it detects nothing. The run-to-run
+comparison is what carries meaning. This manifest contains only case identity
+and coverage surface; it intentionally has no expected-owner or expected-outcome
 field.
 
 <!-- evaluation-manifest:start -->
@@ -37,7 +40,6 @@ cases:
     surface: no_change
 ```
 <!-- evaluation-manifest:end -->
-<!-- evaluation-manifest:sha256=a1d0b990eba33873b85d083f4c3cf7b32c0bd9cd601b4301d40c8ae02c360396 -->
 
 Stage 20 copies these ordered IDs, `version`, and the manifest SHA-256 into
 `state.yaml`, then creates `<RUN_DIR>/forward-requests.md`. That frozen file is
@@ -73,7 +75,7 @@ Assign every finding to exactly one primary owner.
 | Owner          | Signals                                                          | Example                                                         |
 | -------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
 | Skill          | Agent lacked reusable procedure or made inconsistent decisions   | No preserve/rewrite decision rule                               |
-| Prompt         | Local routing, paths, or SSoT boundary is wrong                  | packages/devbox/operate routes DVA before Compose normalization |
+| Prompt         | Stage routing, references, or SSoT boundary is wrong             | Baseline stage routes DVA before Compose normalization          |
 | DVA tool       | CLI output, schema validation, discovery, or doctor is incorrect | Contradictory daemon checks                                     |
 | Target project | Project configuration or docs do not match reality               | stale Compose filename in `dva.yml`                             |
 | Environment    | Required local executable/service is unavailable                 | `am` missing from PATH                                          |

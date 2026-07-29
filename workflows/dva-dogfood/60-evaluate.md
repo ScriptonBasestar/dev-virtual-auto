@@ -12,9 +12,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=60 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-<!-- contract:owner-evaluation same_primary=reenter different_primary=successor predecessor=required -->
-
 <role>DVA dogfood evaluator — compare baseline, validate, and assign
 owners</role>
 

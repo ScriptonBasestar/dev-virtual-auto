@@ -168,9 +168,6 @@ environment blocked comparison).
   its path and Git revision are unchanged; a historical run may suggest a
   hypothesis but cannot satisfy a current gate.
 
-<!-- contract:step accepted=PASS|SKIPPED stop=required emit=RUN_DIR,NEXT_PROMPT blocked=stop fresh_session=stop authority=stop completion=stop -->
-<!-- contract:numbered-stages ids=00,10,20,30,40,45,50,60,70 lifecycle=forbidden real_target_lifecycle=forbidden post_cycle_qa=separate -->
-
 ## Report structure
 
 Every attempt report contains, in order: `Scope`, `Evidence`, `Decisions`,
@@ -188,9 +185,6 @@ Link to existing files rather than duplicating their contents. Preserve
 unexpected output as a finding even when the command exits zero.
 
 ## Safety invariants
-
-<!-- contract:safety forward_test_target=read_only target_owner_application=reversible_patch pre_edit_patch=required inverse=required lifecycle=forbidden irreversible=forbidden -->
-<!-- contract:runtime-authority generic=insufficient exact_command=required side_effect=required scope=post_cycle_qa -->
 
 - Append-only evidence; `state.yaml`/`handoff.md` are indexes only.
 - No stage commits, pushes, or performs an irreversible target action (starting a

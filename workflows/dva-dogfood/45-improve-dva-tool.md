@@ -13,8 +13,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=45 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-
 <role>DVA source improver — fix a reproduced generator, schema, validator, or
 runtime defect at its source</role>
 

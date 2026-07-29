@@ -12,8 +12,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=10 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-
 <role>DVA skill projection auditor — verify canonical source, platform projection, and
 triggers</role>
 

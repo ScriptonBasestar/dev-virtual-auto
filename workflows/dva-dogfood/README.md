@@ -14,26 +14,27 @@ stage prompt names the references it needs and the next stage to run.
 
 ## Overview
 
-An iterative execution package for improving the canonical DVA skills, the devenv
-setup prompt, the DVA tool itself, and target project configuration
-together while applying DVA to a real devbox project. Each cycle validates
-one hypothesis and feeds discovered issues back to the correct source of
-truth.
+An iterative execution package for improving the canonical DVA skills, this
+workflow's own stage prompts, the DVA tool itself, and target project
+configuration together while applying DVA to a real devbox project. Each cycle
+validates one hypothesis and feeds discovered issues back to the correct source
+of truth.
 
 Sources of truth:
 
 - Dogfood orchestration: `workflows/dva-dogfood` (this repo)
-- Domain packages: the prmpt framework (external)
 - Skills: this repo's canonical `skills/config` and `skills/dva`; platform copies
   are projections generated or linked from those sources.
 - DVA tool: this repo
+
+Every source of truth is in this repo, so a run needs no external checkout.
 
 ## Core Principles
 
 - Do not modify skill, prompt, DVA source, or target project before
   measuring.
-- Keep reusable DVA knowledge in the canonical skills; keep devenv-specific rules in the
-  setup prompt.
+- Keep reusable DVA knowledge in the canonical skills; keep run orchestration in
+  this workflow's stage prompts.
 - Distinguish project configuration issues from DVA CLI issues.
 - Judge DVA necessity independently for root and each active subproject;
   do not generate it when unnecessary.

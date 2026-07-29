@@ -13,9 +13,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=70 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-<!-- contract:owner-feedback different_primary=successor predecessor=required post_evaluation_mutation=forbidden -->
-
 <role>DVA feedback router — close one run and prepare one next hypothesis</role>
 
 <objective>Route findings to their SSoT and leave a context-independent next

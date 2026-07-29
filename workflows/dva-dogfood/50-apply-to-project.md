@@ -12,10 +12,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=50 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-<!-- contract:forward-test controller=required child=history_free fixture=disposable target=read_only lifecycle=forbidden results=one_per_case -->
-<!-- contract:forward-test-identities child=unique child_ne_controller=true stage50_status=pending|complete|blocked|not_applicable complete=all_results -->
-
 <role>DVA project applicator and forward tester</role>
 
 <objective>Exercise the selected skill, prompt, or DVA candidate on the fixed

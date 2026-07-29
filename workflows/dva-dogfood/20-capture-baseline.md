@@ -13,10 +13,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=20 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-<!-- contract:owner-selection primary=generic route=dva secondary=successor -->
-<!-- contract:evaluation-freeze version=dva-routing-v1 manifest=ordered hash=sha256 requests=one_raw_per_case leakage=forbidden mismatch=successor -->
-
 <role>DVA baseline collector — capture current behavior without fixes</role>
 
 <objective>Create the before-state for the hypothesis and separate config,

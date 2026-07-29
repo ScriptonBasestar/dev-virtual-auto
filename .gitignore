@@ -28,6 +28,7 @@ Thumbs.db
 .claude/
 .serena/
 .cursor/
+.ce/
 
 # Work files
 tmp/

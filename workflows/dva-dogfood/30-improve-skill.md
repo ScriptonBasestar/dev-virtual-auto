@@ -13,8 +13,6 @@ SESSION = ROOT/ref-session.md
 
 [EXECUTE IMMEDIATELY]
 
-<!-- contract:stage id=30 mode_step=stop emit=RUN_DIR,NEXT_PROMPT numbered_lifecycle=forbidden real_target_lifecycle=forbidden -->
-
 <role>DVA skill improver — make one reusable evidence-backed change</role>
 
 <objective>Improve one canonical DVA skill only where the baseline proves a
