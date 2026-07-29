@@ -36,7 +36,6 @@ func init() {
 // These are non-fatal issues that should be surfaced by `dva config validate`.
 func (c *Config) ValidateWarnings() []string {
 	var warnings []string
-	warnings = append(warnings, c.warnVersionOutdated()...)
 	warnings = append(warnings, c.warnLegacyModes()...)
 	warnings = append(warnings, c.warnLegacyApplications()...)
 	warnings = append(warnings, c.warnDuplicateComposeApplicationOwnership()...)
@@ -199,27 +198,12 @@ func (c *Config) warnNoPlansHint() []string {
 	}
 }
 
-// warnVersionOutdated warns when the config version is older than the running DVA binary.
-func (c *Config) warnVersionOutdated() []string {
-	if c.Version == "" {
-		return nil
-	}
-	cfgVer := parseVersion(c.Version)
-	binVer := parseVersion(Version)
-
-	// Only warn if config version is strictly less than binary version
-	for i := range 3 {
-		if cfgVer[i] < binVer[i] {
-			return []string{
-				fmt.Sprintf("dva.yml version %q is older than running DVA %q; consider updating", c.Version, Version),
-			}
-		}
-		if cfgVer[i] > binVer[i] {
-			return nil // config is newer — handled by Load() as a hard error
-		}
-	}
-	return nil // equal
-}
+// No warning exists for a config version below the running binary, and none should.
+// `version:` is the minimum DVA a config requires (USAGE.md), so config < binary is
+// the correct, portable state: the binary satisfies the floor. The removed
+// warnVersionOutdated advised raising the floor to match the running binary, which
+// would strand every user on an older DVA and ratchet upward on every release.
+// config > binary is the only real failure and Load() already rejects it.
 
 // warnHealthCheckRedundancy warns when both start and start_hint are set on a health check.
 func (c *Config) warnHealthCheckRedundancy() []string {

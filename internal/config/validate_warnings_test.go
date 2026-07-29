@@ -7,29 +7,18 @@ import (
 	"testing"
 )
 
-func TestWarnVersionOutdated(t *testing.T) {
-	// Config version older than binary → warning
-	c := &Config{Version: "0.0.1"}
-	warnings := c.warnVersionOutdated()
-	if len(warnings) != 1 {
-		t.Fatalf("expected 1 warning, got %d", len(warnings))
-	}
-	if !strings.Contains(warnings[0], "older than") {
-		t.Errorf("unexpected warning: %s", warnings[0])
-	}
-
-	// Same version → no warning
-	c = &Config{Version: Version}
-	warnings = c.warnVersionOutdated()
-	if len(warnings) != 0 {
-		t.Errorf("expected 0 warnings for same version, got %d", len(warnings))
-	}
-
-	// Empty version → no warning
-	c = &Config{Version: ""}
-	warnings = c.warnVersionOutdated()
-	if len(warnings) != 0 {
-		t.Errorf("expected 0 warnings for empty version, got %d", len(warnings))
+func TestNoVersionFloorRatchetWarning(t *testing.T) {
+	// `version:` is the minimum DVA a config requires, so a floor below the running
+	// binary is the correct, portable state and must produce no warning. Regression
+	// guard for the removed warnVersionOutdated, which advised raising the floor to
+	// match the binary — stranding users on older DVA and ratcheting every release.
+	for _, v := range []string{"0.0.1", Version, ""} {
+		c := &Config{Version: v}
+		for _, w := range c.ValidateWarnings() {
+			if strings.Contains(w, "older than") {
+				t.Errorf("version %q must not warn about the floor: %s", v, w)
+			}
+		}
 	}
 }
 
