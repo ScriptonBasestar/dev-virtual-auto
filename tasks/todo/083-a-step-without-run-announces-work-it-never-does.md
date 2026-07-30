@@ -88,7 +88,7 @@ Pick per half; they can ship separately.
 - [ ] A `step:` with no `run:` is reported, not silently skipped | verify: `human — run the fixture below; the no-op must be visible in dva's own output, not inferable only from a missing '$' line`
 - [ ] The report distinguishes it from a step that ran | verify: `go test ./internal/runner/ -run TestStepWithoutRunIsReported`
 - [ ] `provision` and both hook runners agree | verify: `/usr/bin/grep -c 'RunCommands' internal/runner/local.go internal/runner/docker_compose.go` — print the counts; both call sites must take the same branch
-- [ ] Every `examples/*.yml` still validates | verify: `for f in examples/*.yml; do dva validate -f "$f" >/dev/null || echo "FAIL $f"; done` — print a count of failures, expect 0
+- [ ] Every `examples/*.yml` still validates | verify: `for f in examples/*.yml; do d=$(mktemp -d); cp "$f" "$d/dva.yml"; (cd "$d" && dva validate >/dev/null) || echo "FAIL $f"; done` — print a count of failures AND a count of files swept, expect 0 and 16
 - [ ] The schema/runner disagreement on `run:`-only is resolved in one direction and documented | verify: `human — either validate accepts it or the error names the fix; state which was chosen`
 - [ ] Not vacuous | verify: `human — break the reporting branch and confirm the new test fails`
 - [ ] Full suite passes | verify: `make test`
