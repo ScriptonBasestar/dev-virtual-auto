@@ -102,7 +102,7 @@ have to store that marker inside the directory it is warning about.
 ## Left open
 
 - `dva validate --json` does not honor `--json` — `validate.go` never reads `jsonOutput`. Same
-  family as [TASK-079](../todo/079-json-flag-does-not-cover-failures.md), not this task's scope.
+  family as [TASK-079](../done/079-json-flag-does-not-cover-failures.md), not this task's scope.
 - `dva doctor`'s line reads `[FAIL] .sb/dva/ is ignored in .gitignore` — the label states the
   check, not the finding, so a failing row reads as if it passed. Cosmetic, noticed here.
 - Plain `dva doctor` prints the stderr banner *and* its own structured row for the same finding.

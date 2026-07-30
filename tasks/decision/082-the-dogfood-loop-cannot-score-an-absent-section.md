@@ -50,7 +50,7 @@ movement cannot be attributed.
 Recommendation: **A**. It is the only option where the finding class shows up in the score.
 
 Note that (c) currently fails for every command on this path — see
-[TASK-079](../todo/079-json-flag-does-not-cover-failures.md). Adding the criterion before that is
+[TASK-079](../done/079-json-flag-does-not-cover-failures.md). Adding the criterion before that is
 fixed means every instance scores low on it at once, which is accurate but will look like a
 regression.
 

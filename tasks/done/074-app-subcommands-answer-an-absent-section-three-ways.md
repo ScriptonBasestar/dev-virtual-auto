@@ -39,7 +39,7 @@ nothing-to-list is not a failure, and that conclusion never propagated.
 Against `bin/dva` 0.1.44, on a `dva.yml` declaring one `stack:` entry and one `interaction:` and no
 `applications:` — now `noAppsConfig` in `internal/cli/app_absent_test.go`. `dva validate` printed
 `✅ dva.yml is valid`, so none of this was an artefact of a malformed config. Run outside a git
-repo so the `.gitignore` warning ([TASK-080](../todo/080-gitignore-warning-preempts-every-command.md)) did not interleave:
+repo so the `.gitignore` warning ([TASK-080](../done/080-gitignore-warning-preempts-every-command.md)) did not interleave:
 
 ```
 === dva app ls ===          exit=0   stderr: No applications defined in dva.yml
@@ -112,8 +112,8 @@ before that. It still precedes `resolveMode`, the mode header, and `suggestProvi
 
 - No `applications:` section was added to any target project. The absence is correct.
 - `dva ls` was not changed to list stack entries — separate contract, filed as
-  [TASK-081](../todo/081-config-discovery-is-split-across-show-and-status.md).
-- No `--json` error envelope — filed as [TASK-079](../todo/079-json-flag-does-not-cover-failures.md).
+  [TASK-081](../done/081-config-discovery-is-split-across-show-and-status.md).
+- No `--json` error envelope — filed as [TASK-079](../done/079-json-flag-does-not-cover-failures.md).
 - The port-conflict message at `app.go:162` was not touched. It is the model, not the target.
 
 ## Acceptance criteria

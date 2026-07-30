@@ -144,7 +144,7 @@ against a fixture whose stack entry is *keyed* `compose`.
 - **`dva stack up <typo>` exits 0.** Measured while verifying the header: an unmatched name prints
   `[warn] no lifecycle entries matched filters` and returns success, so a misspelled name reads as a
   completed start. Same class as
-  [TASK-083](../todo/083-a-step-without-run-announces-work-it-never-does.md) — success reported for
+  [TASK-083](../done/083-a-step-without-run-announces-work-it-never-does.md) — success reported for
   work not done — different code path.
 - **JSON keeps a redundant `default_runner` that the text row hides, and uses three emission rules
   in one object** — `description`/`order` unconditional (so `void` gets `""` and `0`),
