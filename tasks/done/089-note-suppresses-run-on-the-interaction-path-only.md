@@ -134,9 +134,12 @@ and its output is capturable, the compose runner's does not return at all.
 `docker_compose.go` calls `execCompose` inside `for _, c := range cmds`. Since `syscall.Exec`
 never returns on success, only the **first** command of a multi-command step on the compose path
 can run — the loop cannot reach a second iteration. Not touched here because it is a different
-defect with a different fix, and this task's scope was the `note:` branch. This is a code reading,
-not yet a measurement, so it is recorded here rather than asserted; it needs its own fixture
-before being filed as a defect.
+defect with a different fix, and this task's scope was the `note:` branch.
+
+Since confirmed on the binary and filed as
+[TASK-091](../todo/091-compose-steps-stop-after-the-first-command.md) — it is worse than the
+reading suggested: the truncation spans *steps* as well as commands, so a two-step compose
+interaction runs step one and exits 0 without ever printing step two's label.
 
 ## Related
 
