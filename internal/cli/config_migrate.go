@@ -58,7 +58,21 @@ in memory first, so a file is never written in a state DVA cannot read.
 			return err
 		}
 		if len(migrated) == 0 {
-			fmt.Printf("%s: no legacy compose declarations found\n", path)
+			// This command only repairs the one compose shape DVA refuses to load
+			// (see the Long help above); it says nothing about the deprecated-but-
+			// loadable shapes 'dva validate' warns about, so a bare "nothing to
+			// migrate" reads as "nothing to do" when validate may disagree. Name
+			// what was checked and where the rest of the migration guidance lives.
+			//
+			// 'modes', 'stack.*.order' and 'applications' below are a hint, not a
+			// rule sourced from one place: internal/config/validate_warnings.go's
+			// warnLegacyModes/warnLegacyStackOrder/warnLegacyApplications have no
+			// exported list of the section names they cover, and adding one is out
+			// of scope for this fix (TASK-069). If validate's set of deprecated
+			// sections changes, update this string by hand.
+			fmt.Printf("%s: no legacy compose declarations found (this command only converts the\n", path)
+			fmt.Println("compose shape DVA cannot load). Run 'dva validate' for deprecation warnings —")
+			fmt.Println("'modes', 'stack.*.order' and 'applications' are migrated by hand.")
 			return nil
 		}
 
