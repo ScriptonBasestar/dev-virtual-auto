@@ -1,8 +1,9 @@
 version: "0.1.22"
 
-# Deliberately uses the legacy stack.<entry>.compose shape, which schema.json
-# rejects. The loader still supports it for back-compat, so this fixture exists
-# only to keep that path covered. Do not add it to the validate tests.
+# Deliberately uses the legacy stack.<entry>.compose shape, which both schema.json and
+# the loader reject (553c478). This fixture exists so the rejection stays covered from
+# the outside — see TestLegacyComposeFixtureIsRejected. It must keep failing to load; do
+# not migrate it to runners.compose, and do not add it to the validate tests.
 stack:
   compose:
     order: 10
