@@ -55,7 +55,10 @@ steps:
     depends_on: [load_proposal]
     context:
       track: "echo '{{load_proposal.output}}' | jq -r '.setup_track // \"adopt\"' 2>/dev/null || echo 'adopt'"
-      dva_version: "dva version --short 2>/dev/null || echo 'unknown'"
+      # `dva version` has no --short flag; parse the --json contract instead. This value is
+      # handed to an LLM that is told to write `version:`, so a sentinel here lands in a real
+      # config — see the reject rule in the configure instruction below.
+      dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"' 2>/dev/null || echo 'unknown'"
 
   - id: configure
     type: llm
@@ -80,6 +83,11 @@ steps:
 
       ## DVA Version
       version 필드는 반드시 `{{detect_track.dva_version | trim}}`로 설정.
+
+      단, 위 값이 `unknown`이거나 비어 있으면 version 필드를 **쓰지 마라**. 버전 조회가
+      실패했다는 뜻이고, DVA는 형식에 맞지 않는 version을 거부하므로 그 값을 그대로 적으면
+      이후 이 설정에 대한 모든 dva 명령이 실패한다. 기존 값이 있으면 그대로 두고, 없으면
+      필드를 생략한 뒤 리포트에 "version 미설정 — dva 버전 조회 실패"를 남겨라.
 
       ## Guardrails
       {{load_guardrails.output}}

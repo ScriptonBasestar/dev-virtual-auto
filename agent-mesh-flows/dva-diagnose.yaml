@@ -39,7 +39,7 @@ steps:
         command -v dva >/dev/null 2>&1 && echo "yes" || echo ""
       # `dva version` has no --short flag; parse the --json contract instead. This flow only
       # reports the value, so the old 'unknown' misreported rather than corrupted anything.
-      dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"'"
+      dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"' 2>/dev/null || echo 'unknown'"
       has_dva_yml: |
         cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
     exit_if_empty: dva_available
