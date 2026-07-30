@@ -317,7 +317,7 @@ func mustLoadConfig() *config.Config {
 	if err != nil {
 		// The second failure choke point, and not reachable from the first: this exits
 		// before rootCmd.Execute() returns, so the envelope has to be emitted here too.
-		// Fifteen commands reach a missing or unreadable config through this function.
+		// Thirty-four call sites across fourteen files reach it.
 		errMsg := err.Error()
 		emitFailureJSON(errMsg)
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
