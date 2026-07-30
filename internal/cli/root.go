@@ -350,6 +350,10 @@ func isTerminal(file *os.File) bool {
 	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
+// isFeaturedLifecycleCommand reports whether the lifecycle help block lists cmd
+// explicitly, under either "Recommended Flow" (up, down) or "Direct Access"
+// (stack, app). The template uses it to keep those four out of "Other Commands",
+// which lists whatever the explicit blocks did not.
 func isFeaturedLifecycleCommand(cmd *cobra.Command) bool {
 	if cmd == nil || cmd.GroupID != "lifecycle" {
 		return false
@@ -369,12 +373,14 @@ func featuredLifecycleHint(cmd *cobra.Command) string {
 	switch cmd.Name() {
 	case "up":
 		return "[start] " + cmd.Short
+	case "down":
+		return "[down] " + cmd.Short
 	case "stack":
 		return "[infra] " + cmd.Short
 	case "app":
-		return "[apps] " + cmd.Short
-	case "down":
-		return "[down] " + cmd.Short
+		// applications/--mode are migration-only; the current model is stack
+		// runners selected from plans. Mark it where the user chooses.
+		return "[legacy] " + cmd.Short
 	default:
 		return cmd.Short
 	}
@@ -401,14 +407,15 @@ Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help")
   Recommended Flow
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "up"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "down"))}}
+  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
+  Direct Access (prefer the flow above)
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "stack"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "app"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
-{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "down"))}}
-  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
   Other Commands
-{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (not (isFeaturedLifecycle .)))}}
+{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (not (isFeaturedLifecycle .)))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
 

@@ -64,7 +64,7 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 
 var upCmd = &cobra.Command{
 	Use:   "up [PLAN] [OPTIONS]",
-	Short: "Start stack infrastructure and applications",
+	Short: "Start a named plan (or all declared entries)",
 	Long: `Start a named plan when plans are configured.
 Without plans, use the legacy stack and applications lifecycle.
 
@@ -241,7 +241,7 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 
 var downCmd = &cobra.Command{
 	Use:   "down [PLAN] [OPTIONS]",
-	Short: "Stop and remove applications then stack infrastructure",
+	Short: "Tear down a named plan (or all declared entries)",
 	Long: `Stop and remove a named plan.
 Without plans, use the legacy applications and stack lifecycle.
 
