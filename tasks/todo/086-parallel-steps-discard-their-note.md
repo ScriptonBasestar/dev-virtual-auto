@@ -79,7 +79,7 @@ to at `compose.go:464`) also never reads `Note`.
 Nothing executes wrongly and no exit code lies — only an operator message is lost. It is filed
 because it is the same silent-drop family as
 [TASK-083](../done/083-a-step-without-run-announces-work-it-never-does.md) and
-[TASK-085](085-interaction-steps-silently-drop-compose-keys.md), and because a note is *by
+[TASK-085](../done/085-interaction-steps-silently-drop-compose-keys.md), and because a note is *by
 definition* the thing whose entire purpose is to be seen.
 
 ## Proposed fix
@@ -124,7 +124,7 @@ see Left open.
 
 ## Related
 
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — found in the same survey;
+- [TASK-085](../done/085-interaction-steps-silently-drop-compose-keys.md) — found in the same survey;
   compose keys dropped on the interaction path.
 - [TASK-083](../done/083-a-step-without-run-announces-work-it-never-does.md) — the fix whose call-site
   audit surfaced both.

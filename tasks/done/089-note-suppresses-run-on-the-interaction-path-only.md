@@ -145,7 +145,7 @@ interaction runs step one and exits 0 without ever printing step two's label.
 
 - [TASK-086](../todo/086-parallel-steps-discard-their-note.md) — the mirror image: paths that never print
   the note at all. Fix together.
-- [TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md) — the third disagreement between
+- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the third disagreement between
   the runner and provision paths over the same `ProvisionItem` keys. Three now, all found in the
   TASK-083 audit; worth asking whether the two paths should share one step executor rather than
   being reconciled key by key.

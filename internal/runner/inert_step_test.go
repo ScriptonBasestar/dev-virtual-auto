@@ -46,9 +46,18 @@ func captureStdout(t *testing.T, fn func()) string {
 func TestStepWithoutRunIsReported(t *testing.T) {
 	env := &config.Environment{}
 
+	// The compose command is `echo`, so the compose_up case below is observable without
+	// contacting docker. Before TASK-085 these runners ignored compose_up entirely and a nil
+	// config was harmless; now they execute it, and a nil config would have meant a real
+	// `docker compose up -d postgres` from a unit test.
+	cfg := composeConfig("echo")
 	runners := map[string]func(*config.Environment, []config.ProvisionItem) error{
-		"local":          (&LocalRunner{Cmd: &ResolvedCommand{}}).executeSteps,
-		"docker_compose": (&DockerComposeRunner{Cmd: &ResolvedCommand{}}).executeSteps,
+		"local": (&LocalRunner{
+			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
+		}).executeSteps,
+		"docker_compose": (&DockerComposeRunner{
+			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
+		}).executeSteps,
 	}
 
 	for name, executeSteps := range runners {
@@ -86,18 +95,27 @@ func TestStepWithoutRunIsReported(t *testing.T) {
 				}
 			})
 
-			t.Run("an item whose payload these runners do not handle is not reported", func(t *testing.T) {
+			t.Run("a compose_up item is a payload, not an inert label", func(t *testing.T) {
 				out := captureStdout(t, func() {
 					steps := []config.ProvisionItem{{Step: "Start db", ComposeUp: []string{"postgres"}}}
 					if err := executeSteps(env, steps); err != nil {
 						t.Fatalf("executeSteps: %v", err)
 					}
 				})
-				// compose_up is a payload even though executeSteps has no branch for it, so
-				// the item is not inert. This is the case that fails if IsInert is narrowed
-				// to "no run commands" — it would libel a working config.
+				// compose_up is a payload, so the item is not inert. This is the case that
+				// fails if IsInert is narrowed to "no run commands" — it would libel a
+				// working config.
+				//
+				// This subtest was named "…whose payload these runners do not handle…" until
+				// TASK-085, when the runners started handling it. The inert assertion was
+				// always the point and is unchanged; what is new is that the step now
+				// actually runs, so the test asserts that too rather than only what must
+				// not appear.
 				if strings.Contains(out, config.InertStepMessage) {
 					t.Errorf("compose_up is a payload; got %q", out)
+				}
+				if !strings.Contains(out, "compose up -d postgres") {
+					t.Errorf("compose_up must now execute, not merely avoid the notice; got %q", out)
 				}
 			})
 		})

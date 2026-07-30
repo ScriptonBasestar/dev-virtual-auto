@@ -78,14 +78,32 @@ func (r *LocalRunner) executeSteps(env *config.Environment, steps []config.Provi
 		if len(cmds) == 0 && step.Raw != "" {
 			cmds = []string{step.Raw}
 		}
-		if len(cmds) == 0 {
+		// "No run: commands" is not "no work". compose_up/compose_exec/compose_run/echo/cmd are
+		// payloads too, and this test used to be `len(cmds) == 0`, which dropped all five before
+		// even printing the label — zero bytes of output, exit 0, while the identical item under
+		// `dva provision` worked (TASK-085). A note-only step still falls through to `continue`,
+		// which is what TASK-089's tests pin.
+		if len(cmds) == 0 && !hasStepKeys(step) {
 			continue
 		}
 		if !noted {
 			// The note line already named the step; printing the label again would double it.
 			fmt.Printf("  → %s\n", label)
 		}
+		// A compose key stands in for the entire step, exactly as it does on the provision path:
+		// provision.go returns immediately after each one rather than falling through.
+		handled, err := runComposeStepKeys(env, r.Opts.Config, step)
+		if err != nil {
+			return fmt.Errorf("step %q failed: %w", label, err)
+		}
+		if handled {
+			continue
+		}
 		if err := dvaexec.ExecSequential(env, cmds, true); err != nil {
+			return fmt.Errorf("step %q failed: %w", label, err)
+		}
+		// After run:, matching provision.go's ordering — an item may carry both.
+		if err := runLegacyStepKeys(env, step); err != nil {
 			return fmt.Errorf("step %q failed: %w", label, err)
 		}
 	}

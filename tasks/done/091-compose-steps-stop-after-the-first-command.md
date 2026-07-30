@@ -88,7 +88,7 @@ interaction:
 
 ## Why this outranks the other silent-drop tasks
 
-[TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md),
+[TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
 [TASK-086](../todo/086-parallel-steps-discard-their-note.md) and
 [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
 This drops **all remaining work** in the interaction, no matter how it is written, and reports
@@ -188,4 +188,4 @@ asserted directly. TASK-089's test uses the same technique for the same reason.
 
 - [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) — found while writing
   its test, which could not let the compose runner reach execution for exactly this reason.
-- [TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.
+- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.

@@ -84,11 +84,20 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 		if len(cmds) == 0 && step.Raw != "" {
 			cmds = []string{step.Raw}
 		}
-		if len(cmds) == 0 {
+		// Same payload test as LocalRunner.executeSteps, for the same reason (TASK-085): the
+		// five keys below are not `run:` commands, and `len(cmds) == 0` discarded them.
+		if len(cmds) == 0 && !hasStepKeys(step) {
 			continue
 		}
 		if !noted {
 			fmt.Printf("  → %s\n", label)
+		}
+		handled, err := runComposeStepKeys(env, r.Opts.Config, step)
+		if err != nil {
+			return fmt.Errorf("step %q failed: %w", label, err)
+		}
+		if handled {
+			continue
 		}
 		for _, c := range cmds {
 			c = strings.TrimSpace(c)
@@ -101,6 +110,10 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
 				return fmt.Errorf("step %q failed: %w", label, err)
 			}
+		}
+		// After run:, matching provision.go's ordering — an item may carry both.
+		if err := runLegacyStepKeys(env, step); err != nil {
+			return fmt.Errorf("step %q failed: %w", label, err)
 		}
 	}
 	return nil

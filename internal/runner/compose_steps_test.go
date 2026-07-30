@@ -18,12 +18,8 @@ const childModeEnv = "DVA_COMPOSE_STEPS_CHILD"
 // Nothing contacts docker.
 func composeRunnerWith(binary string) *DockerComposeRunner {
 	return &DockerComposeRunner{
-		Cmd: &ResolvedCommand{Service: "app"},
-		Opts: RunOptions{Config: &config.Config{
-			Stack: map[string]*config.LifecycleEntry{
-				"infra": {Compose: &config.ComposePluginConfig{Command: binary}},
-			},
-		}},
+		Cmd:  &ResolvedCommand{Service: "app"},
+		Opts: RunOptions{Config: composeConfig(binary)},
 	}
 }
 

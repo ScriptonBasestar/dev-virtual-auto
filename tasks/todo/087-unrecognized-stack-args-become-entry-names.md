@@ -164,7 +164,7 @@ the exit-1 positive control when run without it.
 
 ## Related
 
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
+- [TASK-085](../done/085-interaction-steps-silently-drop-compose-keys.md),
   [TASK-086](086-parallel-steps-discard-their-note.md) — the same silent-drop family found in the
   TASK-083 audit; this one differs by producing a *wrong action*, not just lost output.
 - [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — the machine-consumer thread: an
