@@ -7,15 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	_ "embed"
-
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
-
-//go:embed library_reference.txt
-var libraryReferenceText string
 
 var initTemplate string
 var initRecursive bool

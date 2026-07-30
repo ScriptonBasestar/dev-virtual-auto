@@ -30,8 +30,12 @@ var jsonOutput bool
 
 ## Embedded Files
 
-`make generate`가 생성한 `*.txt` 파일들이 `//go:embed`로 포함됨:
-- `library_reference.txt` — `ai-docs` 명령어용
+`//go:embed`로 포함된 파일:
+- `dva_guide_template.txt` — `ai-docs` 명령어용 (`ai_docs.go`)
+
+`library_reference.txt`는 `make generate`가 생성하지만 **embed하지 않음** — am flow가
+런타임에 `read_file`로 읽고, `internal/config/removed_keys_test.go`가 corpus로 사용.
+Go 팩트(reserved commands, section order)는 `tools/libgen`이 `shared-guardrails.md`에 주입.
 
 ## Naming Convention
 

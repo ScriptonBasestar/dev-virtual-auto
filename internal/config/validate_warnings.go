@@ -36,6 +36,13 @@ func init() {
 	}
 }
 
+// CanonicalSectionOrder returns a copy of the recommended top-level dva.yml key order.
+// This is the canonical source for the section-order list embedded in
+// agent-mesh-flows/shared/library/shared-guardrails.md by tools/libgen.
+func CanonicalSectionOrder() []string {
+	return slices.Clone(canonicalSectionOrder)
+}
+
 // ValidateWarnings runs semantic warning checks and returns human-readable messages.
 // These are non-fatal issues that should be surfaced by `dva config validate`.
 func (c *Config) ValidateWarnings() []string {
