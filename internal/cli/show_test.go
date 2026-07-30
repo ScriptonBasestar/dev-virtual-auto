@@ -129,14 +129,18 @@ func TestShowNamesStackEntries(t *testing.T) {
 	}
 }
 
-// TestShowStackOrderIsStableAcrossRenders guards the tiebreak that a single assertion cannot:
-// `api` and `bare` share order 20, and SortedStack sorts on Order alone with an unstable sort, so
-// without the name tiebreak the two rows swap at Go's map-iteration whim (TASK-084). One render
-// would pass about half the time — a flaky test, which is worse than none.
+// TestShowStackOrderIsStableAcrossRenders guards what a single assertion cannot: `api` and `bare`
+// share order 20, and SortedStack collects entries from a map, so without the name tiebreak
+// (TASK-084) the two rows swap at Go's map-iteration whim. One render would pass about half the
+// time — a flaky test, which is worse than none.
+//
+// This asserts through showText rather than SortedStack even though the tiebreak now lives in
+// config: what a reader compares against `dva stack up` is the rendered listing, so the property
+// belongs to this surface regardless of which layer supplies it.
 func TestShowStackOrderIsStableAcrossRenders(t *testing.T) {
 	c := stackShapedConfig()
 	first := captureStdout(t, func() { showText(c) })
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		if got := captureStdout(t, func() { showText(c) }); got != first {
 			t.Fatalf("render %d differs from the first; the listing is not reproducible.\nfirst:\n%s\ngot:\n%s", i, first, got)
 		}

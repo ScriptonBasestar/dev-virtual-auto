@@ -47,14 +47,14 @@ type stackEntryView struct {
 
 // stackViews returns one view per declared stack entry in declaration order — by `order`, then by
 // name — which is what the entries themselves declare, not a prediction of any command's sequence.
-// `dva stack up` reads the same field but currently rotates equal orders (TASK-084), and
 // `dva up <plan>` ignores stack order entirely: NewPlanOrchestrator walks the plan's own entries,
 // each carrying its own order and runner.
 //
-// SortedStack() is the source for both the order and for populating Name from the map key. It sorts
-// on Order alone with an unstable sort, so equal orders arrive here in map-iteration order; the
-// name tiebreak below is local until TASK-084 gives SortedStack the same tiebreak
-// PrimaryComposeEntry already documents, at which point this sort can go.
+// The sequence is SortedStack()'s, not re-derived here: it already sorts by (Order, Name) — the rule
+// PrimaryComposeEntry, PrimaryKubectlConfig, ComposeEntries and KubectlEntries share via
+// lessByOrderName — and populates Name from the map key, which is the only place that key survives.
+// A local re-sort would be a sixth copy of that comparator and would drift from the sequence
+// `dva stack up` walks, which is the one a reader is comparing this listing against.
 func stackViews(c *config.Config) []stackEntryView {
 	entries := c.SortedStack()
 	views := make([]stackEntryView, 0, len(entries))
@@ -69,15 +69,6 @@ func stackViews(c *config.Config) []stackEntryView {
 			Order:   e.Order,
 		})
 	}
-	// Not SliceStable: Name comes from a map key, so (Order, Name) is already a strict total order
-	// and stability would add nothing. Saying Slice makes it clear the comparator supplies the
-	// determinism, not the incoming sequence.
-	sort.Slice(views, func(i, j int) bool {
-		if views[i].Order != views[j].Order {
-			return views[i].Order < views[j].Order
-		}
-		return views[i].Name < views[j].Name
-	})
 	return views
 }
 
