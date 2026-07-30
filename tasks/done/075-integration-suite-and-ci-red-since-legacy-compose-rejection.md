@@ -1,5 +1,5 @@
 ---
-id: TASK-074
+id: TASK-075
 title: "The integration suite — and therefore CI on master — has been red since the legacy compose rejection"
 type: fix
 priority: P2
@@ -9,7 +9,7 @@ created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/integration — legacy_compose_test.go + testdata/fixtures/legacy-compose/dva.yml"
 ---
 
-# Task 074: Reconcile the legacy-compose test with the loader that rejects it
+# Task 075: Reconcile the legacy-compose test with the loader that rejects it
 
 ## Problem
 
