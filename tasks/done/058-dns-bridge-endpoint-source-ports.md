@@ -3,7 +3,7 @@ id: TASK-058
 title: "dns-bridge endpoints publish four wrong ports — one points at a different service"
 type: fix
 priority: P2
-status: todo
+status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox/dva.yml — user's real project, needs their go-ahead to edit"
@@ -74,36 +74,52 @@ does not, the literal defaults above are correct.
 - [x] jaeger source matches compose | verify: `grep -q 'source: "jaeger:11245"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
 - [x] powerdns source matches compose | verify: `grep -q 'source: "powerdns:11260"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
 - [x] mock-auth source matches compose | verify: `grep -q 'source: "mock-auth:11290"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
-- [ ] coredns resolved per the chosen option | verify: `human — confirm which option was chosen and that dva.yml reflects it`
+- [x] coredns resolved per the chosen option | verify: `grep -q 'source: "coredns:11254"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
+- [x] Every endpoint resolves to a real service and its published port | verify: `human — 13/13 reconciled, table in the Result section`
 - [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
 - [x] No comment or key loss vs. backup | verify: `uv run --with pyyaml python /Users/archmagece/mywork/scripton/dev-virtual-auto/tmp/scripts/verify-migration.py /Users/archmagece/mywork/scripton/dev-virtual-auto/tmp/mydevbox-backup-20260730-101632 ~/mydevbox`
 
-## Result — three of four applied, coredns awaiting a decision
+## Result — all four applied, all 13 endpoints reconciled
 
 Applied 2026-07-30 to `~/mydevbox/scripton-dns-bridge-devbox/dva.yml`: jaeger
-`11243`→`11245`, powerdns `11250`→`11260`, mock-auth `11280`→`11290`. `dva validate`
-rc=0; loss harness unchanged at 0 fail / 29 files.
+`11243`→`11245`, powerdns `11250`→`11260`, mock-auth `11280`→`11290`, coredns
+`11270`→`11254`. `dva validate` rc=0; loss harness unchanged at 0 fail / 29 files.
 
-**coredns is deliberately left at `11270`** — wrong, but the right value depends on the
-option chosen above, and renumbering it to a DNS port would make `dva show` advertise a
-browser URL for a `53/udp` listener. Fixing the number alone would trade a visibly broken
-link for a plausible-looking one, which is worse.
+The coredns option was settled by the user: **correct the number only**. `11270` was
+published by nothing at all, so the endpoint was worse than imprecise — it named a port
+that does not exist anywhere in the project. `11254` at least describes the real
+`53/udp`+`53/tcp` mapping. That `dva show` still renders it as a browser URL is a display
+concern about DNS services in `endpoints:` generally, not a fact about this port.
 
-A full sweep of every published port while verifying these three (`compose/*.yaml`,
-`${VAR:-default}` form) confirmed the four endpoints that were already right — prometheus
-`11240`, grafana `11241`, otel-collector `11242` (OTEL_GRPC_PORT; the collector's second
-port `11243` is OTEL_HTTP_PORT, which is what jaeger was wrongly pointing at), etcd
-`11261`. Three endpoints did not appear in that sweep at all — `postgres:11210`,
-`redis:11220`, `dns-bridge-api-rs:11200` — so they are published in some other form or
-have no backing service; being audited separately.
+Every endpoint was then reconciled against every published host port, not just the four
+being changed:
 
-## Follow-up found here, not part of this task
+| endpoint | source | published by | verdict |
+| --- | --- | --- | --- |
+| postgres | `postgres:11210` | `compose.yaml:10` `DATABASE_PORT` | ok |
+| redis | `redis:11220` | `compose.yaml:30` `REDIS_PORT` | ok |
+| api | `dns-bridge-api-rs:11200` | `compose.yaml:79` `API_PORT` | ok |
+| kafka | `kafka:11230` | `infra-kafka.yaml` `KAFKA_PORT` | ok |
+| zookeeper | `zookeeper:11231` | `infra-kafka.yaml` `ZOOKEEPER_PORT` | ok |
+| prometheus | `prometheus:11240` | `obs-monitoring.yaml` | ok |
+| grafana | `grafana:11241` | `obs-monitoring.yaml` | ok |
+| otel-collector | `otel-collector:11242` | `OTEL_GRPC_PORT` | ok (HTTP `11243` undeclared) |
+| jaeger | `jaeger:11245` | `JAEGER_PORT` | fixed |
+| powerdns-api | `powerdns:11260` | `POWERDNS_API_PORT` | fixed |
+| etcd | `etcd:11261` | `ETCD_PORT` | ok |
+| coredns | `coredns:11254` | `COREDNS_DNS_PORT` | fixed |
+| mock-auth | `mock-auth:11290` | `MOCK_AUTH_PORT` | fixed |
 
-`compose/infra-redis-sentinel.yaml` publishes host `11230`/`11231`
-(REDIS_MASTER_PORT/REDIS_REPLICA_PORT) and `compose/infra-kafka.yaml` publishes the same
-host `11230`/`11231` (KAFKA_PORT/ZOOKEEPER_PORT). Whether that is a live collision depends
-on whether the two files can load in one invocation, which is under audit. Record it as
-its own task once that is settled — do not fold it in here.
+The three that an earlier sweep could not find — `postgres`, `redis`,
+`dns-bridge-api-rs` — live in the **root `compose.yaml`**, which that sweep never read; it
+only walked `compose/*.yaml`. The endpoints were right and the measurement was incomplete.
+
+## Follow-up found here, promoted to its own task
+
+Six host-port collisions between compose files, including the redis-sentinel/kafka overlap
+this task originally flagged. See [TASK-062](062-dns-bridge-host-port-collisions.md) — the
+reconciliation above is what surfaced the full set, since it was the first pass to compare
+all published ports against each other rather than each endpoint against its own service.
 
 ## Evidence
 
