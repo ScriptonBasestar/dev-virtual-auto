@@ -57,6 +57,15 @@ func (r *LocalRunner) executeSteps(env *config.Environment, steps []config.Provi
 		if label == "" {
 			label = fmt.Sprintf("step %d", i+1)
 		}
+		// Before the note check, though the order does not matter: an item with a note is
+		// not inert. This runner used to reach the emptiness test below and `continue`
+		// without ever printing the label, so an inert step left no trace at all — the
+		// hook path at least printed its label. Now both say the same thing.
+		if step.IsInert() {
+			fmt.Printf("  → %s\n", label)
+			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
+			continue
+		}
 		if step.Note != "" {
 			fmt.Printf("  → %s: %s\n", label, step.Note)
 			continue

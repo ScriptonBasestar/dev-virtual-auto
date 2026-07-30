@@ -333,7 +333,14 @@
               "default": false
             }
           },
-          "required": ["step"]
+          "anyOf": [
+            { "required": ["step"] },
+            { "required": ["run"] },
+            { "required": ["note"] },
+            { "required": ["compose_up"] },
+            { "required": ["compose_exec"] },
+            { "required": ["compose_run"] }
+          ]
         },
         {
           "type": "object",

@@ -62,6 +62,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnChildOverridesParentCritical()...)
 	warnings = append(warnings, c.warnDeepSubcommandNesting()...)
 	warnings = append(warnings, c.warnUnreachableCommands()...)
+	warnings = append(warnings, c.warnInertProvisionSteps()...)
 
 	// Build a contextual environment for accurate interpolation checks
 	env := NewEnvironment(c.Environment, c.FileDir(), c.FileDir())
@@ -215,6 +216,61 @@ func (c *Config) warnNoPlansHint() []string {
 // warnVersionOutdated advised raising the floor to match the running binary, which
 // would strand every user on an older DVA and ratchet upward on every release.
 // config > binary is the only real failure and Load() already rejects it.
+
+// warnInertProvisionSteps flags provision and hook items that carry a label and no payload.
+//
+// A warning rather than an error, deliberately. Such an item is always a mistake — `note:`
+// is what an author uses to print a message — but rejecting it would turn a config that
+// validates today into one that fails, and the item has been quietly doing nothing since
+// long before this check existed. The runtime notice (InertStepMessage, printed by every
+// step runner) is the part that reaches the author at the moment the hook misbehaves;
+// `validate` is not what anyone runs when a build silently produces nothing.
+//
+// Sorted, because both sources are maps and an unsorted result would reorder between runs.
+func (c *Config) warnInertProvisionSteps() []string {
+	var warnings []string
+
+	collect := func(path string, items []ProvisionItem) {
+		for i, item := range items {
+			if !item.IsInert() {
+				continue
+			}
+			label := item.Step
+			if label == "" {
+				label = fmt.Sprintf("step %d", i+1)
+			}
+			warnings = append(warnings, fmt.Sprintf("%s[%d] %q: %s", path, i, label, InertStepMessage))
+		}
+	}
+
+	// Recursive, because hooks nest: `interaction.db.subcommands.migrate.before` is as real
+	// a place to write an inert step as the top level, and a check that stopped at depth 1
+	// would report the shallow mistake and stay silent on the identical deep one.
+	var walk func(path string, cmd *InteractionCommand)
+	walk = func(path string, cmd *InteractionCommand) {
+		if cmd == nil {
+			return
+		}
+		collect(path+".steps", cmd.Steps)
+		collect(path+".before", cmd.Before)
+		collect(path+".replace", cmd.Replace)
+		collect(path+".after", cmd.After)
+		for subName, sub := range cmd.Subcommands {
+			walk(path+"."+subName, sub)
+		}
+	}
+
+	for name, cmd := range c.Interaction {
+		walk("interaction."+name, cmd)
+	}
+
+	for profile, items := range c.Provision.Profiles {
+		collect(fmt.Sprintf("provision.%s", profile), items)
+	}
+
+	sort.Strings(warnings)
+	return warnings
+}
 
 // warnHealthCheckRedundancy warns when both start and start_hint are set on a health check.
 func (c *Config) warnHealthCheckRedundancy() []string {

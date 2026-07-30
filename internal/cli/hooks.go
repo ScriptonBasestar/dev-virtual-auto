@@ -96,6 +96,14 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		}
 		fmt.Fprintf(os.Stderr, "[hook:%s:%s] [%d/%d] %s\n", phase, cmdName, i+1, len(steps), label)
 
+		// The line above has already announced the step by name. Without this branch the
+		// shell loop below simply iterates zero commands, so the announcement stands as the
+		// whole output and reads exactly like a step that succeeded.
+		if step.IsInert() {
+			fmt.Fprintf(os.Stderr, "  ⚠ %s\n", config.InertStepMessage)
+			continue
+		}
+
 		// Compose-aware commands
 		if len(step.ComposeUp) > 0 {
 			composeArgs := append([]string{"up", "-d"}, step.ComposeUp...)

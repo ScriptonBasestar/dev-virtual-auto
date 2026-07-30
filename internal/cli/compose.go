@@ -456,7 +456,19 @@ var buildCmd = &cobra.Command{
 				case "native":
 					// Look for interaction.build.replace steps or run native build
 					if ic, ok := c.Interaction["build"]; ok && len(ic.Replace) > 0 {
-						for _, step := range ic.Replace {
+						for i, step := range ic.Replace {
+							// The quietest of the seven call sites: this loop prints no step
+							// labels at all, so an inert item here made `--mode` with
+							// build=native report success having neither run nor said
+							// anything. The label is synthesised to name which item it was.
+							if step.IsInert() {
+								label := step.Step
+								if label == "" {
+									label = fmt.Sprintf("step %d", i+1)
+								}
+								fmt.Printf("  ⚠ %s: %s\n", label, config.InertStepMessage)
+								continue
+							}
 							cmds := step.RunCommands()
 							for _, cmdStr := range cmds {
 								fmt.Printf("  $ %s\n", cmdStr)

@@ -114,6 +114,14 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 		fmt.Printf("  [%d/%d] %s\n", index+1, total, step.Step)
 	}
 
+	// Reported on the dry-run path too, and that is the point: `provision --dry-run` exists
+	// to answer "what will happen", and it used to list an inert step in the plan with no
+	// command beneath it, which is what a compose step looks like as well.
+	if step.IsInert() {
+		fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
+		return nil
+	}
+
 	if step.Note != "" {
 		fmt.Println()
 		for _, line := range strings.Split(step.Note, "\n") {
@@ -217,6 +225,14 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 
 			if s.Step != "" {
 				fmt.Fprintf(&buf, "  %s %s\n", stepLabel, s.Step)
+			}
+
+			// One check covering both branches below, so the parallel path cannot drift
+			// from the sequential one the way these loops already had.
+			if s.IsInert() {
+				fmt.Fprintf(&buf, "    ⚠ %s\n", config.InertStepMessage)
+				results[idx] = result{index: idx, output: buf.String()}
+				return
 			}
 
 			if dryRun {

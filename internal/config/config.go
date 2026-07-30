@@ -577,6 +577,34 @@ func (p *ProvisionItem) RunCommands() []string {
 	return nil
 }
 
+// InertStepMessage is what every step runner prints in place of the work an inert item
+// implied. It lives beside IsInert because the loops that print it are seven call sites
+// across three packages; while the wording lived nowhere, they could not even agree on
+// whether to print anything.
+const InertStepMessage = "nothing ran — this item is a label with no 'run:'. Add 'run:' to execute a command, or 'note:' if it is a message."
+
+// IsInert reports whether this item carries no payload at all: nothing to run, nothing to
+// print.
+//
+// `step:` is a label. Every examples/*.yml uses it that way and the runners synthesise
+// "step N" when it is missing, so an item holding a label and nothing else announces work
+// and performs none. Measured on 0.1.44, `- step: "make build"` in a directory with no
+// Makefile printed `[hook:replace:build] [1/1] make build` and exited 0 having run nothing —
+// the only signal being the absence of the `$` line that the executing form prints.
+//
+// Every payload field counts, not just Run. An item with compose_up, echo or cmd does
+// something, and reporting it as inert would be a false positive on a working config. Raw
+// needs no test of its own: RunCommands returns it.
+func (p *ProvisionItem) IsInert() bool {
+	return len(p.RunCommands()) == 0 &&
+		p.Note == "" &&
+		len(p.ComposeUp) == 0 &&
+		p.ComposeExec == "" &&
+		p.ComposeRun == "" &&
+		p.Echo == "" &&
+		p.Cmd == ""
+}
+
 // InfraConfig holds infrastructure service configuration.
 type InfraConfig struct {
 	Git  string `yaml:"git"`

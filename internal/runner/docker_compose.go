@@ -66,6 +66,14 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 		if label == "" {
 			label = fmt.Sprintf("step %d", i+1)
 		}
+		// Same branch, same wording as LocalRunner.executeSteps — these two loops are
+		// otherwise line-for-line identical, and the acceptance criterion for TASK-083 is
+		// that they take the same branch.
+		if step.IsInert() {
+			fmt.Printf("  → %s\n", label)
+			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
+			continue
+		}
 		if step.Note != "" {
 			fmt.Printf("  → %s: %s\n", label, step.Note)
 			continue
