@@ -253,6 +253,11 @@ func (c *Config) warnDuplicateParentSubcommand() []string {
 }
 
 // warnDuplicateStackOrder warns when multiple stack entries share the same order value.
+//
+// Entries that modes keep apart are exempt: order only decides who starts first within
+// one invocation, so when no invocation ever holds two members of a group, there is no
+// sequence between them to control. Without this the warning tells users to order
+// entries that never meet.
 func (c *Config) warnDuplicateStackOrder() []string {
 	if len(c.Stack) < 2 || len(c.Plans) > 0 {
 		return nil
@@ -274,6 +279,13 @@ func (c *Config) warnDuplicateStackOrder() []string {
 	for _, order := range orders {
 		names := orderMap[order]
 		if len(names) < 2 {
+			continue
+		}
+		group := make(map[string]bool, len(names))
+		for _, name := range names {
+			group[name] = true
+		}
+		if c.modesIsolateEntries(group) {
 			continue
 		}
 		sort.Strings(names)
@@ -309,7 +321,7 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 			composeEntries[name] = true
 		}
 	}
-	if len(composeEntries) < 2 || c.modesIsolateComposeEntries(composeEntries) {
+	if len(composeEntries) < 2 || c.modesIsolateEntries(composeEntries) {
 		return nil
 	}
 
@@ -324,19 +336,23 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 	}
 }
 
-// modesIsolateComposeEntries reports whether every compose entry is claimed by a mode
-// and no single mode pulls in two of them — the arrangement where only one compose
-// invocation is ever live, which is safe.
+// modesIsolateEntries reports whether every entry in the set is claimed by a mode and
+// no single mode pulls in two of them — the arrangement where at most one member of the
+// set is ever live, so no two of them can interact.
+//
+// Callers use this to answer "can these entries co-occur?", which is the question behind
+// several warnings: two compose entries only collide if both are up, and two entries only
+// race for startup order if both are in the same invocation.
 //
 // A mode with no stack: filter selects every entry (see Orchestrator.filterEntries),
 // so it disqualifies the whole arrangement. Configs that set no default_mode leave the
 // same unfiltered path reachable from a bare `dva up`; warnMissingDefaultMode already
 // says so, and repeating it here would just be a second voice on one problem.
-func (c *Config) modesIsolateComposeEntries(composeEntries map[string]bool) bool {
+func (c *Config) modesIsolateEntries(entries map[string]bool) bool {
 	if len(c.Modes) == 0 {
 		return false
 	}
-	claimed := make(map[string]bool, len(composeEntries))
+	claimed := make(map[string]bool, len(entries))
 	for _, mode := range c.Modes {
 		selected := mode.StackEntries()
 		if len(selected) == 0 {
@@ -344,7 +360,7 @@ func (c *Config) modesIsolateComposeEntries(composeEntries map[string]bool) bool
 		}
 		hits := 0
 		for _, name := range selected {
-			if composeEntries[name] {
+			if entries[name] {
 				hits++
 				claimed[name] = true
 			}
@@ -353,7 +369,7 @@ func (c *Config) modesIsolateComposeEntries(composeEntries map[string]bool) bool
 			return false
 		}
 	}
-	return len(claimed) == len(composeEntries)
+	return len(claimed) == len(entries)
 }
 
 // warnMissingDefaultMode warns when modes are defined but no default_mode is set,

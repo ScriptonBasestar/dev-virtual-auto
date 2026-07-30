@@ -3,7 +3,7 @@ id: TASK-056
 title: "Warning layer is blind to mode isolation — stack-order warning repeats the fixed compose-split defect"
 type: fix
 priority: P2
-status: todo
+status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/config/validate_warnings.go"
@@ -63,11 +63,29 @@ Keep the existing suppression semantics established in `b20fee8`:
 
 ## Acceptance criteria
 
-- [ ] Order warning is silent when the order-group is mode-isolated | verify: `cd /Users/archmagece/mydevbox/primeno1-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 | grep -qv 'have order 0'`
-- [ ] Order warning still fires when entries can co-occur | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
-- [ ] Compose-split suppression from b20fee8 still holds | verify: `go test ./internal/config/ -run TestWarnMultiStackComposeSplit`
-- [ ] Full suite green | verify: `make test`
-- [ ] No regression across the real corpus: 83 configs in ~/mydevbox, only the 9 deliberate negative fixtures fail | verify: `human — re-run the documented validate sweep and compare counts`
+- [x] Order warning is silent when the order-group is mode-isolated | verify: `cd /Users/archmagece/mydevbox/primeno1-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 | grep -qv 'have order 0'`
+- [x] Order warning still fires when entries can co-occur | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
+- [x] Compose-split suppression from b20fee8 still holds | verify: `go test ./internal/config/ -run TestWarnMultiStackComposeSplit`
+- [x] Full suite green | verify: `make test`
+- [x] No regression across the real corpus: 83 configs in ~/mydevbox, only the 9 deliberate negative fixtures fail | verify: `human — re-run the documented validate sweep and compare counts`
+- [x] Suppression fires only on genuinely isolated groups | verify: `uv run --with pyyaml python tmp/scripts/audit-stack-order-groups.py ~/mydevbox`
+
+## Result
+
+`modesIsolateComposeEntries` → `modesIsolateEntries`, now taking any entry set, and
+`warnDuplicateStackOrder` skips order-groups it reports as isolated. primeno1 is clean
+at rc=0 with the order warning gone; corpus sweep unchanged at 83 configs / 9 failures,
+all 9 the known negative fixtures.
+
+Empty warning output across a corpus is not by itself proof of a correct fix — it is
+equally the signature of over-suppression. `tmp/scripts/audit-stack-order-groups.py`
+settles which it is by reimplementing the isolation rule against the parsed YAML and
+classifying every order-group: **19 configs have 2+ stack entries, 4 order-groups exist
+in total, all 4 are genuinely mode-isolated, 0 groups should have warned.** So the
+silence is the corpus having no racing groups, not the warning being unreachable. The
+must-warn directions are held by unit tests instead (a mode holding two members, a mode
+with no `stack:` filter, and a mixed config where one group is isolated and another
+races — the last one proves suppression is per-group rather than global).
 
 ## Findings
 

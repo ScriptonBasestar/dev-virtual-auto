@@ -202,6 +202,67 @@ func TestWarnDuplicateStackOrder(t *testing.T) {
 	}
 }
 
+// TestWarnDuplicateStackOrderModeIsolation covers entries that share an order value but
+// are never live together. Order decides who starts first inside one invocation, so a
+// group no invocation can hold twice has no sequence to control — telling the user to
+// set explicit order values there is advice about an event that cannot happen.
+func TestWarnDuplicateStackOrderModeIsolation(t *testing.T) {
+	// The shape found in the wild: four compose entries left at the default order,
+	// each selected by exactly one mode.
+	c := &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose":               {},
+			"compose-minimal":       {},
+			"compose-observability": {},
+			"compose-tracing":       {},
+		},
+		Modes: map[string]ModeConfig{
+			"full":          {Stack: []string{"compose"}},
+			"minimal":       {Stack: []string{"compose-minimal"}},
+			"observability": {Stack: []string{"compose-observability"}},
+			"tracing":       {Stack: []string{"compose-tracing"}},
+		},
+	}
+	if warnings := c.warnDuplicateStackOrder(); len(warnings) != 0 {
+		t.Fatalf("expected silence for mode-isolated entries, got %v", warnings)
+	}
+
+	// One mode pulling in two of them puts both in the same invocation.
+	c.Modes["full"] = ModeConfig{Stack: []string{"compose", "compose-tracing"}}
+	if warnings := c.warnDuplicateStackOrder(); len(warnings) != 1 {
+		t.Fatalf("expected a warning when a mode holds two entries at the same order, got %v", warnings)
+	}
+
+	// A mode with no stack: filter selects every entry, so nothing is isolated.
+	c.Modes["full"] = ModeConfig{Stack: []string{"compose"}}
+	c.Modes["everything"] = ModeConfig{ComposeProfiles: []string{"all"}}
+	if warnings := c.warnDuplicateStackOrder(); len(warnings) != 1 {
+		t.Fatalf("expected a warning when a mode selects every entry, got %v", warnings)
+	}
+
+	// Suppression is per order group, not global: isolating one group must not silence
+	// another group that genuinely races.
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{
+			"isolated-a": {Order: 0},
+			"isolated-b": {Order: 0},
+			"shared-c":   {Order: 10},
+			"shared-d":   {Order: 10},
+		},
+		Modes: map[string]ModeConfig{
+			"a": {Stack: []string{"isolated-a", "shared-c", "shared-d"}},
+			"b": {Stack: []string{"isolated-b", "shared-c", "shared-d"}},
+		},
+	}
+	warnings := c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("expected exactly the non-isolated group to warn, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "shared-c, shared-d") || !strings.Contains(warnings[0], "order value 10") {
+		t.Errorf("warning should name only the racing group: %s", warnings[0])
+	}
+}
+
 func TestCanonicalOrder_Correct(t *testing.T) {
 	content := `version: "0.1.29"
 env_file: .env
