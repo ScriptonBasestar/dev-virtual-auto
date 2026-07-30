@@ -37,9 +37,31 @@ subprojects:
     exclude_tags: [infra]
 ```
 
-So **both configs are loaded in one process** — DVA has full visibility of both
-`project_name` values and nothing compares them. This is not a cross-repo problem
-DVA cannot see; it is inside the config graph DVA already builds.
+### Correction: `validate` does *not* have both configs (measured 2026-07-30)
+
+An earlier draft of this task claimed "both configs are loaded in one process — DVA has
+full visibility of both `project_name` values". **That is false for this config**, and it
+changes the fix.
+
+`resolveSubprojectImports` (`internal/config/subproject.go:86-89`) skips any subproject
+where `hasSubprojectImports` is false — i.e. one that declares no `import:` block with
+plans, interactions, or provision profiles. The nd-stack subproject declares only `path`
+and `exclude_tags`, so **its `dva.yml` is never opened during `dva validate`**.
+
+```
+$ cd ~/mydevbox/scripton-nd-stack-devbox && dva validate 2>&1 | grep -i 'nd-stack-rs'
+(nothing)
+$ dva manifest 2>&1 | grep -ci 'nd-stack-rs'
+40
+```
+
+`config.LoadSubprojects` has exactly three callers — `subproject.go:95` (imports only),
+`internal/cli/manifest.go:183`, and `internal/cli/run.go:79`. None runs under `validate`.
+
+So this is not "compare two values DVA already holds"; it is "decide which command may
+open the child's file". That makes `dva doctor` the right home rather than `validate`:
+doctor is diagnostic, is expected to touch the filesystem, and already owns the sibling
+check `checkComposeProjectNameAlignment` (`internal/cli/doctor.go:311`).
 
 `exclude_tags: [infra]` is the tell that the author understood the child should not
 own infra. But tag filtering removes **stack entries** from an invocation, while
@@ -77,16 +99,31 @@ not build detection for it.
 
 ## Fix shape
 
-A validation warning fired when the merged config graph contains two configs whose
-resolved compose project name matches but whose service sets differ. Where it belongs
-depends on where subproject configs are reachable from — verify before choosing;
-`Validate()` runs per-config, so this likely belongs wherever subprojects are loaded
-(`internal/cli/root.go` load path) or in `dva doctor`, which already has
-`checkComposeProjectNameAlignment` (`internal/cli/doctor.go:311`) as a sibling.
+A `dva doctor` check that loads each declared subproject and reports when the child's
+resolved compose project name equals the parent's **while the two point at different
+compose files**. Warn, do not error: sharing a project name is legitimate when both
+configs describe the same stack (an overlay-style split).
 
-Warn, do not error: sharing a project name is legitimate when the service sets agree
-(an overlay-style split), so the differing-service-set condition is what makes it
-suspicious.
+Load each subproject **individually**, as `manifest.go:183` does, rather than passing the
+whole map: `LoadSubprojects` returns `nil, err` on any single failure, so one missing or
+malformed child would otherwise hide every other subproject's result.
+
+### Compare compose *files*, not service sets
+
+The original phrasing said "whose service sets differ". Implementing that literally would
+mean parsing every referenced compose file for its `services:` keys — and **DVA has no
+compose service parser**. `internal/lifecycle/orchestrator.go:54`'s `composeServices` is
+config-derived, not parsed, and `readComposeNameKey` only extracts the top-level `name:`.
+
+Comparing the resolved compose **file sets** instead needs no new parser (`AllComposeFiles()`
+plus `FileDir()` already exist) and is closer to the actual failure mechanism: what
+`docker compose -p X down` scopes to is the project identity, and whether two configs are
+"the same stack" is settled by whether they hand docker the same files. Identical files ⇒
+same stack ⇒ silent. Disjoint files ⇒ two stacks under one identity ⇒ warn.
+
+Known limitation, accepted: byte-identical compose content at *different paths* would warn.
+That is the three-clones shape below, which is out of scope here because those repos have no
+config-graph link — parent↔subproject is the only pair this check considers.
 
 ## Non-goals
 
@@ -97,12 +134,13 @@ suspicious.
 
 ## Acceptance criteria
 
-- [ ] Warning fires for parent+subproject sharing a project name with differing services | verify: `go test ./internal/config/ -run TestSubprojectComposeProjectNameCollision`
-- [ ] Silent when the service sets agree | verify: `go test ./internal/config/ -run TestSubprojectComposeProjectNameCollision`
+- [ ] Warning fires for parent+subproject sharing a project name with differing compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
+- [ ] Silent when both point at the same compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
+- [ ] One unloadable subproject does not suppress the others | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
 - [ ] Existing per-config name alignment check unaffected | verify: `go test ./internal/config/ -run TestValidateComposeProjectNames`
-- [ ] Reproduces on the real config | verify: `cd ~/mydevbox/scripton-nd-stack-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 | grep -q 'nd-stack-dev'`
+- [ ] Reproduces on the real config | verify: `cd ~/mydevbox/scripton-nd-stack-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva doctor 2>&1 \| /usr/bin/grep -q 'nd-stack-dev'`
 - [ ] Full suite green | verify: `make test`
-- [ ] No new warnings across the real corpus beyond this one | verify: `human — re-run the documented validate sweep and compare counts`
+- [ ] No new doctor failures across the real corpus beyond this one | verify: `human — re-run the doctor sweep and compare counts`
 
 ## Evidence
 
