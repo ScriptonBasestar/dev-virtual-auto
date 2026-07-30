@@ -55,7 +55,10 @@ steps:
           echo "  go install github.com/ScriptonBasestar/dva@latest" >&2
           echo ""
         fi
-      dva_version: "dva version --short 2>/dev/null || echo 'unknown'"
+      # `dva version` has no --short flag; it exits 1 and the fallback used to make this
+      # 'unknown', which fix_version then wrote into the target config. --json is the
+      # machine-readable contract, so parse that instead of the human first line.
+      dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"'"
       dva_version_json: "dva version --json 2>/dev/null || echo '{\"version\": \"unknown\"}'"
     exit_if_empty: dva_available
 
@@ -708,6 +711,18 @@ steps:
       cd '{{param.target}}'
       DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
       EXPECTED="{{check_prerequisites.dva_version | trim}}"
+
+      # This step rewrites a real config, so a broken prerequisite has to stop it. DVA
+      # rejects a malformed `version:` outright, so writing one makes every later dva
+      # command against this target fail. Guard on the two values check_prerequisites can
+      # actually produce on failure rather than re-encoding DVA's version grammar here — a
+      # shell copy of that grammar would be one more claim nothing checks.
+      if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "unknown" ]; then
+        echo "refusing to rewrite version: dva_version resolved to '$EXPECTED'." >&2
+        echo "Check that 'dva version --json' works and that jq is installed." >&2
+        exit 1
+      fi
+
       CURRENT=$(grep -E '^version:' "$DVA_FILE" 2>/dev/null | head -1 | sed 's/version: *"\?\([^"]*\)"\?/\1/')
 
       if [ "$CURRENT" = "$EXPECTED" ]; then
