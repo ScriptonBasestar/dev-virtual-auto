@@ -359,6 +359,15 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 // so it disqualifies the whole arrangement. Configs that set no default_mode leave the
 // same unfiltered path reachable from a bare `dva up`; warnMissingDefaultMode already
 // says so, and repeating it here would just be a second voice on one problem.
+//
+// Looking only at Modes is sound even though environments.<name>.stack is a second,
+// independent entry filter (Orchestrator.filterEntries applies env and mode as separate
+// steps). The two narrow the set by intersection, and every command path resolves the mode
+// through applyDefaultMode first, so `dva up --env X` still gets the default mode's filter
+// on top of the environment's. Verified: with default_mode set, an environment listing two
+// same-order entries plans only the one its mode selects. Without default_mode the mode
+// filter drops out and both do run — which is the unfiltered path the paragraph above
+// defers to warnMissingDefaultMode.
 func (c *Config) modesIsolateEntries(entries map[string]bool) bool {
 	if len(c.Modes) == 0 {
 		return false
