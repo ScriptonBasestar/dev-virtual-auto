@@ -63,7 +63,7 @@ and **nothing referenced it** (`git grep libraryReferenceText` at `9ffa7c8`: one
 declaration). Go only rejects unused *local* variables, so an unused package-level var
 compiles forever — the file was baked into every `bin/dva` and read by no one. Removed.
 
-This corrects a claim in [TASK-057](../todo/057-dead-self-referencing-urls.md): the dead
+This corrects a claim in [TASK-057](057-dead-self-referencing-urls.md): the dead
 `$schema` URL did **not** reach user configs through the binary. The real path is the am
 flows reading `shared/library/` (and `library_reference.txt`) from disk at runtime via
 `read_file`. The binary was never a link in that chain.
