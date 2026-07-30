@@ -33,12 +33,32 @@ func canonicalRepo(t *testing.T) string {
 		t.Fatalf("read go.mod: %v", err)
 	}
 	for _, line := range strings.Split(string(content), "\n") {
-		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
-			return path.Base(strings.TrimSpace(rest))
+		if repo := repoFromModuleDirective(line); repo != "" {
+			return repo
 		}
 	}
-	t.Fatalf("no module directive in %s", gomod)
+	t.Fatalf("no usable module directive in %s", gomod)
 	return ""
+}
+
+// repoFromModuleDirective returns the repository name a go.mod line implies, or "" if the
+// line is not a usable module directive.
+//
+// Splitting on fields rather than slicing after "module " is deliberate: the directive may
+// be tab-separated and may carry a trailing comment, and it may quote the path. A bare
+// path.Base over the rest of the line handles none of those — `…/dva // pinned` yields
+// " pinned" and `"…/dva"` yields `dva"`, either of which would make the guard reject every
+// URL in the repo while reporting a nonsense expected-name.
+func repoFromModuleDirective(line string) string {
+	fields := strings.Fields(line)
+	if len(fields) < 2 || fields[0] != "module" || strings.HasPrefix(fields[1], "//") {
+		return ""
+	}
+	repo := path.Base(strings.Trim(fields[1], `"`))
+	if repo == "" || repo == "." || repo == "/" {
+		return ""
+	}
+	return repo
 }
 
 // rawURL and blobURL capture owner/repo/ref/path from the two GitHub URL shapes DVA
@@ -157,6 +177,31 @@ func TestGeneratorCorpusURLs(t *testing.T) {
 		t.Fatal("URL audit matched no URLs — the patterns no longer describe how DVA writes its own links")
 	}
 	t.Logf("audited %d URLs across %d files", urls, files)
+}
+
+// TestRepoFromModuleDirective covers the legal go.mod spellings this repo does not happen
+// to use. Our own go.mod is the plain form, so without a table here the quoted and
+// commented cases would only be exercised the day someone edits go.mod — and the symptom
+// then is every URL failing at once, which reads like the URLs are wrong.
+func TestRepoFromModuleDirective(t *testing.T) {
+	for _, tt := range []struct{ line, want string }{
+		{"module github.com/ScriptonBasestar/dva", "dva"},
+		{"module github.com/ScriptonBasestar/dva // pinned for now", "dva"},
+		{`module "github.com/ScriptonBasestar/dva"`, "dva"},
+		{"module\tgithub.com/ScriptonBasestar/dva", "dva"},
+		{"  module   github.com/x/y  ", "y"},
+		{"module dva", "dva"}, // single-element path is still a name
+		{"go 1.26.4", ""},
+		{"// module github.com/x/y", ""},
+		{"module", ""},
+		{"module //", ""},
+		{"require github.com/x/y v1.0.0", ""},
+		{"", ""},
+	} {
+		if got := repoFromModuleDirective(tt.line); got != tt.want {
+			t.Errorf("repoFromModuleDirective(%q) = %q, want %q", tt.line, got, tt.want)
+		}
+	}
 }
 
 // TestGeneratorCorpusURLsDetectsPlantedDefects pins the detector itself. Without this the
