@@ -3,7 +3,7 @@ id: TASK-068
 title: "The interaction-service check exists and is precise, but does not resolve compose `include:` — 3 configs are at latent false-positive risk"
 type: decision
 priority: P4
-status: todo
+status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/validate.go detectConfigDriftWarnings/configuredComposeServices; motivating instance in ~/mydevbox/sigdock-pass-devbox"
@@ -137,12 +137,35 @@ Do not choose on the user's behalf.
 
 ## Acceptance criteria
 
-- [ ] Option chosen and recorded here | verify: `human — decision recorded`
-- [ ] `configuredComposeServices` states the `include:` limitation | verify: `/usr/bin/grep -n 'include' internal/cli/validate.go`
-- [ ] If B or C: an `include:`-supplied service does not warn | verify: `go test ./internal/cli/ -run TestDetectConfigDriftWarnings`
-- [ ] If C: silent on unreadable or non-path `include:` forms | verify: `go test ./internal/cli/ -run TestDetectConfigDriftWarnings`
-- [ ] Corpus still reports exactly 1 | verify: `human — re-run the Evidence sweep, expect drift-warnings-emitted=1`
-- [ ] Full suite green | verify: `make test`
+- [x] Option chosen and recorded here | verify: `human — decision recorded, see Resolution`
+- [x] `configuredComposeServices` states the `include:` limitation | verify: `/usr/bin/grep -n 'include' internal/cli/validate.go`
+- [x] If B or C: an `include:`-supplied service does not warn | verify: `n/a — option A, no behavior change`
+- [x] If C: silent on unreadable or non-path `include:` forms | verify: `n/a — option A, no behavior change`
+- [x] Corpus still reports exactly 1 | verify: `human — re-ran the sweep 2026-07-30: 31 configs, 1 warning (sigdock-pass-devbox)`
+- [x] Full suite green | verify: `make test`
+
+## Resolution
+
+**Option A, chosen by the user.** No behavior change: the check keeps its 0 false positives
+and its 1 true positive, and the 3 at-risk configs stay latent rather than being traded for a
+certain false negative.
+
+What did change is that the limitation is now stated instead of merely being true.
+`configuredComposeServices` carries a doc comment saying it does not resolve `include:`, that
+14 corpus configs declare services it therefore cannot see, and — the part worth writing down —
+that what prevents the gap from becoming a false positive is the empty-set early return in
+`detectConfigDriftWarnings`, not anything in the function itself. The early return got a
+matching comment saying it is load-bearing rather than an optimization.
+
+That is the whole reason to spend a commit on a decision that changes no behavior: a refactor
+that "simplified away" the empty-set check would have turned every `include:`-only project's
+interactions into warnings, with nothing in the diff to suggest it.
+
+Re-verified after the comments landed: 1 drift warning (`sigdock-pass-devbox`),
+`go test ./internal/cli/` green. The sweep scanned 31 configs at `-maxdepth 2` where Evidence
+below used `-maxdepth 4` and found 64 — different depth, same single warning.
+
+Left for the user: the `redis-cli` interaction's three fixes, none obviously right (see above).
 
 ## Evidence
 

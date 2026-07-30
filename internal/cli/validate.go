@@ -123,6 +123,9 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 
 	availableServices := configuredComposeServices(c)
 	if len(availableServices) == 0 {
+		// Not merely an optimization: this is what stops a compose file built entirely out
+		// of `include:` from producing a false positive on every interaction, because
+		// configuredComposeServices cannot see through `include:`. See its doc comment.
 		return warnings
 	}
 
@@ -273,6 +276,17 @@ func detectComposeFilesInDir(dir string) []string {
 	return deduplicateComposeFiles(dir, found)
 }
 
+// configuredComposeServices returns the services declared directly in the configured
+// compose files.
+//
+// It does NOT resolve compose `include:`, so a file that only pulls services in via
+// `include:` contributes nothing. That is a real gap — 14 configs in the measured corpus
+// declare services this function cannot see — and TASK-068 chose to leave it rather than
+// paper over it. What keeps the gap from becoming a false positive is the empty-set early
+// return in detectConfigDriftWarnings, not anything here: when `include:` is all a project
+// uses, this returns an empty map and the interaction-service comparison is skipped
+// wholesale. Stated because that is a load-bearing dependency between two functions that
+// neither of them declared, and it survives only as long as nobody refactors either half.
 func configuredComposeServices(c *config.Config) map[string]bool {
 	services := map[string]bool{}
 	for _, file := range c.AllComposeFiles() {
