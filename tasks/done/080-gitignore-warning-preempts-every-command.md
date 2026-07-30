@@ -3,10 +3,10 @@ id: TASK-080
 title: "The .gitignore warning prints above every command's answer, on every config load, forever"
 type: fix
 priority: P3
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
-scope: "internal/cli — root.go loadConfig call site + gitignore.go warning conditions"
+scope: "internal/cli — gitignore.go warning conditions"
 ---
 
 # Task 080: Say it once, and not in front of the answer
@@ -51,21 +51,38 @@ It also interferes with measurement. Any check that reads the first line of a dv
 output gets the warning instead, which is why the TASK-074 evidence had to be gathered outside a
 git repository to be legible.
 
-## Fix shape (not decided)
+## Shipped: the warning waits until there is something to commit
 
-Four candidates, not mutually exclusive:
+None of the four candidates was adopted as written, because measuring the warning first produced
+a narrower answer than any of them. `ls`, `show`, `validate`, `status` and `manifest` each warned
+(1 warning line apiece) and **none of them created `.sb/dva`**. So on a fresh clone the warning
+named a hazard that had not happened yet, and for a reader who only ever inspects the config it
+never would. What creates the directory is the pid, log, module-cache and source-cache writers
+under `internal/lifecycle` and `internal/config` — and the invocation *after* one of those is the
+first moment the warning has something to point at.
 
-1. **Move it out of `loadConfig`.** The warning is about repository hygiene, not about loading a
-   config. `dva doctor` already owns hygiene checks and already offers `--fix`.
-2. **Print it after the command's own output** rather than before.
-3. **Once per process**, which it already effectively is, and once per *day* or per *config* via
-   a marker under `.sb/dva/` — which is itself the thing being warned about.
-4. **Suppress under `--json`**, unconditionally. A warning on stderr that no schema describes is
-   noise to the flag's stated audience — see
-   [TASK-079](079-json-flag-does-not-cover-failures.md).
+Two gates, therefore: `jsonOutput`, and `.sb/dva` existing on disk. Measured through the binary,
+one fixture, states changed one at a time so each row differs from its neighbour by one fact:
 
-(1) is the largest behaviour change and the most defensible: it puts the check where the fix
-lives. (4) should happen regardless of which of the others is chosen.
+| state | `dva ls/show/validate/status` | note |
+| --- | --- | --- |
+| `.git`, no `.gitignore`, no markers | **0** warning lines; `.sb/dva` still absent after | the fresh-clone case |
+| markers created, still unignored | **1** line, each of the four | the positive control |
+| markers + `.sb/` in `.gitignore` | **0** | ancestor rule, same directory as the row above |
+| markers, unignored, `--json` | stderr **0 bytes**; stdout still `{}` | |
+
+The middle row is what makes the zeros mean anything: same grep, same commands, same directory.
+
+`dva doctor` keeps the unconditional form (`checkGitignoreStatus`) — measured in the no-markers
+state, it still reports `[FAIL] .sb/dva/ is ignored in .gitignore` with its `--fix` remedy. That
+is the right split: doctor is asked "is my setup right?", and is asked *before* anything has run,
+so it is the surface that should speak proactively. The `loadConfig` path answers the narrower
+question — something committable is on disk right now — and only that version is worth putting
+ahead of another command's answer.
+
+Candidate (1), moving it out of `loadConfig` entirely, was rejected for what it gives up: the user
+who never runs `doctor` and has just written markers. Candidate (3), a once-per-day marker, would
+have to store that marker inside the directory it is warning about.
 
 ## Non-goals
 
@@ -74,8 +91,19 @@ lives. (4) should happen regardless of which of the others is chosen.
 
 ## Acceptance criteria
 
-- [ ] The answer a command was asked for is the first thing printed | verify: `human — dva app up in a repo with no .gitignore entry; line 1 is the command's own output`
-- [ ] The warning still reaches a user who has not ignored the directory | verify: `human — whichever surface it moves to still says it`
-- [ ] Nothing is emitted on the warning path under `--json` | verify: `test -z "$(dva ls --json 2>&1 >/dev/null)"` — print the captured value
-- [ ] The conditions that decide it are covered | verify: `go test ./internal/cli/ -run Gitignore`
-- [ ] Full suite passes under -race | verify: `make test`
+- [x] The answer is first on the path the Evidence block reproduces | verify: `human — dva app up myapp on that fixture now prints the ERROR as its first non-blank line, and dva app up its answer at line 1; both warning lines gone`
+- [x] Ordering is unchanged when the warning does fire | verify: `human — with markers on disk and unignored it still prints above the answer. The gate decides whether, not where; deliberate, since by then it describes a real file`
+- [x] The warning still reaches a user who has not ignored the directory | verify: `human — dva doctor reports it even with no markers present, remedy included; the per-command path reports it from the first invocation after markers appear`
+- [x] Nothing is emitted on the warning path under `--json` | verify: `test -z "$(dva ls --json 2>&1 >/dev/null)"` — captured value was `''`, 0 bytes, with stdout still `{}`
+- [x] The conditions that decide it are covered | verify: `go test ./internal/cli/ -run Gitignore`
+- [x] Not vacuous | verify: `human — three mutations, each caught by exactly one subtest: dropping the existence gate fails "no markers written yet", dropping the json gate fails the json case, never warning at all fails "markers on disk and nothing ignores them". One subtest each means the two gates are independent, not redundant`
+- [x] Full suite passes under -race | verify: `make test`
+
+## Left open
+
+- `dva validate --json` does not honor `--json` — `validate.go` never reads `jsonOutput`. Same
+  family as [TASK-079](../todo/079-json-flag-does-not-cover-failures.md), not this task's scope.
+- `dva doctor`'s line reads `[FAIL] .sb/dva/ is ignored in .gitignore` — the label states the
+  check, not the finding, so a failing row reads as if it passed. Cosmetic, noticed here.
+- Plain `dva doctor` prints the stderr banner *and* its own structured row for the same finding.
+  Under `--json` the banner is now gone; the duplication on the human path is pre-existing.
