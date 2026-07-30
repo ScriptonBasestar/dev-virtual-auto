@@ -26,8 +26,7 @@ command naming stack entries, and it presents them as runtime state, so it needs
 ## Resolution
 
 `show` gained a stack section, in declaration order (`order`, then name) — what the entries declare,
-not a prediction of any command's sequence: `dva stack up` rotates equal orders (TASK-084) and
-`dva up <plan>` walks the plan's own entries instead:
+not a prediction of every command's sequence: `dva up <plan>` walks the plan's own entries instead.
 
 ```
 Stack (dva stack up <name>):
@@ -73,7 +72,7 @@ Mutation checks — a *not-contains* assertion passes trivially if the section n
 
 | mutation | result |
 | --- | --- |
-| drop the name tiebreak from `stackViews` | FAIL — determinism test, "render 4 differs" |
+| drop the name tiebreak `stackViews` then held | FAIL — determinism test, "render 4 differs" |
 | print `default:` unconditionally | FAIL — `TestShowNamesStackEntries` |
 | print `order:N` when undeclared | **passed at first** — see below |
 | `no runner declared` → empty bracket | FAIL — `TestShowNamesStackEntries` |
@@ -97,9 +96,8 @@ with an unstable sort, so entries sharing an order — including the default whe
 `order:` — come out in map-iteration order, and `NewOrchestrator` computes that slice once for
 `Up`/`Down`/`Stop`/`Restart`/`Status`. Measured 5 distinct sequences in 20 runs on a config
 `validate` calls valid; filed as
-[TASK-084](../todo/084-stack-up-walks-a-different-sequence-each-run.md). `stackViews` applies a
-local `(Order, Name)` tiebreak — the one `PrimaryComposeEntry` documents twenty lines away — and
-can delegate once that ships.
+[TASK-084](../todo/084-stack-up-walks-a-different-sequence-each-run.md), whose half 1 has since
+given `SortedStack` that tiebreak and deleted `stackViews`' local copy.
 
 **A fixture no config can load proves less than it appears to — and over-correcting is its own
 defect.** The first test built `infra` with an entry-level `Compose` struct, which load *rejects*

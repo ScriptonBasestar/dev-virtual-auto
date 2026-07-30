@@ -13,7 +13,8 @@ scope: "internal/config — lifecycle_helpers.go SortedStack, validate_warnings.
 
 ## Problem
 
-`SortedStack()` (`internal/config/lifecycle_helpers.go:98`) sorts on `Order` alone:
+As found — half 1 below has since fixed this half; the record is kept because the measurement is
+what makes half 2 a real question. `SortedStack()` sorted on `Order` alone:
 
 ```go
 sort.Slice(entries, func(i, j int) bool { return entries[i].Order < entries[j].Order })
@@ -87,6 +88,36 @@ deterministic; it is only worth stating here because it is why half 2 is a real 
 than an obvious yes. Two commands read `stack` for different purposes, and only one of them is
 unstable.
 
+## Half 1: shipped
+
+`lessByOrderName(a, b *LifecycleEntry)` now holds the rule once, and all five call sites read it.
+`SortedStack` gained the tiebreak it was the only one of the five to lack; `show.go`'s local copy —
+which existed only to compensate for that — is deleted, so the listing and `dva stack up` cannot
+drift apart.
+
+Measured through the binary, since a within-process loop cannot see this: Go's map seed is
+per-process, so 200 in-process calls may share one seed. 20 separate `dva stack status` runs on the
+5-entry no-order fixture:
+
+| binary | runs | distinct sequences |
+| --- | --- | --- |
+| with the tiebreak | 20 | **1** |
+| tiebreak reverted, rebuilt | 20 | **5** — rotations of the YAML declaration order |
+
+The 1 means nothing without the 5: a stable sort and a lucky one look identical. State D measured
+too — 20 runs, 1 sequence — so the hazard is gone there while the silence remains, which is half 2.
+
+### Three of the five call sites had no test at all
+
+Measured with `-coverpkg=./internal/config/` across the whole suite, not per package:
+`PrimaryKubectlConfig`, `ComposeEntries` and `KubectlEntries` were at **0%**. They were rewired with
+nothing able to catch a transcription slip — and `PrimaryKubectlConfig`'s old form was an inlined
+min (`e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name)`), not a sort
+comparator, so agreement needed case analysis on all three order relations rather than a glance.
+`TestEntryListingsShareOneComparator` now covers them (0% → 100/100/88.9%); reverting the tiebreak
+fires 26 assertions across 10 runs. **Collecting duplicated logic is not a safe refactor when the
+copies are untested** — the copies looking alike is what makes it feel safe.
+
 ## Non-goals
 
 - Not changing `Down`'s relationship to `Up` order; whether teardown should reverse the sequence
@@ -96,13 +127,15 @@ unstable.
 
 ## Acceptance criteria
 
-- [ ] Equal-order entries come out in a fixed sequence | verify: `go test ./internal/config/ -run TestSortedStackIsDeterministic`
-- [ ] The sequence is stable across processes, not just within one | verify: `human — 20 runs of 'dva stack status' on the 5-entry no-order fixture; print the count of distinct sequences, expect 1`
-- [ ] The tiebreak matches PrimaryComposeEntry's documented one | verify: `/usr/bin/grep -c 'alphabetically first Name' internal/config/lifecycle_helpers.go` — print the count, expect ≥1
+- [x] Equal-order entries come out in a fixed sequence | verify: `go test ./internal/config/ -run TestSortedStackIsDeterministic`
+- [x] The sequence is stable across processes, not just within one | verify: `human — 20 runs of 'dva stack status' on the 5-entry no-order fixture: 1 distinct sequence, against 5 from the same binary with the tiebreak reverted`
+- [x] The tiebreak matches PrimaryComposeEntry's documented one | verify: `/usr/bin/grep -c 'alphabetically first Name' internal/config/lifecycle_helpers.go` — print the count, expect ≥1 (got 2)
+- [x] One comparator, not five | verify: `/usr/bin/grep -c 'Order < ' internal/config/lifecycle_helpers.go internal/cli/show.go` — print both counts, expect 1 and 0
+- [x] The listings that had no test now have one | verify: `go test ./internal/config/ -run TestEntryListingsShareOneComparator`
 - [ ] State D is no longer silent, or `stack up` honours plan order | verify: `human — state which half shipped; run validate on fixture D and paste the outcome`
-- [ ] The suppression still holds where plans really do govern | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
-- [ ] Not vacuous | verify: `human — revert the tiebreak and confirm the determinism test fails`
-- [ ] Full suite passes | verify: `make test`
+- [x] The suppression still holds where plans really do govern | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
+- [x] Not vacuous | verify: `human — revert the tiebreak: the determinism test fails, and so does show's TestShowStackOrderIsStableAcrossRenders, which is the only proof the delegation is real`
+- [x] Full suite passes | verify: `make test`
 
 ## Reproduction fixture
 
@@ -125,8 +158,9 @@ stack:
 
 ## Related
 
-- [TASK-081](../done/081-config-discovery-is-split-across-show-and-status.md) — found here. `show`'s new
-  stack section sorts by `(Order, Name)` locally for exactly this reason; once half 1 ships it can
-  delegate to `SortedStack()` and drop the local tiebreak.
+- [TASK-081](../done/081-config-discovery-is-split-across-show-and-status.md) — found here. Its
+  stack section carried a local `(Order, Name)` tiebreak for exactly this reason; half 1 removed it,
+  and `TestShowStackOrderIsStableAcrossRenders` was kept at the `show` layer because what a reader
+  compares against `dva stack up` is the rendered listing.
 - [TASK-067](../done/067-version-field-rule-stated-three-incompatible-ways.md) — same class: one
   rule stated in mutually incompatible ways, here as two warnings that each undo the other's advice.
