@@ -118,7 +118,7 @@ The WARN does reach stderr on every load, which is why this has not bitten a hum
 It does not reach a JSON consumer's stdout, and it is the message that is wrong about what
 happens.
 
-This is the same family as [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md):
+This is the same family as [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md):
 a discovery surface that describes a capability the next command does not honor. TASK-074's
 `dva app` advertises seven subcommands for an absent section; this one advertises a present
 interaction that the advertised invocation skips.
@@ -196,7 +196,7 @@ after it as a cross-run promotion rather than a regression.
 
 ## Related
 
-- [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md) — the absent-section
+- [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md) — the absent-section
   half of the same discovery problem; shares the "do not name a config filename" constraint.
 - [TASK-073](../done/073-version-error-blames-the-config-for-a-build-defect.md) — precedent for
   the mutation check on not-contains assertions.
