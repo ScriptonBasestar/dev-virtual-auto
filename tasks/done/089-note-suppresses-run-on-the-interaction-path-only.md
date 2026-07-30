@@ -74,7 +74,7 @@ not survive the fixture above, because under that reading `provision` would be t
 Drop the `continue` in both runners so the note prints and execution proceeds, matching
 `provision.go`. Two lines.
 
-Deliberately paired with [TASK-086](../todo/086-parallel-steps-discard-their-note.md): that task adds the
+Deliberately paired with [TASK-086](086-parallel-steps-discard-their-note.md): that task adds the
 note to the paths that never print it, this one stops it swallowing work on the paths that do.
 Doing either alone leaves `note:` meaning something different in three places instead of two.
 
@@ -143,7 +143,7 @@ interaction runs step one and exits 0 without ever printing step two's label.
 
 ## Related
 
-- [TASK-086](../todo/086-parallel-steps-discard-their-note.md) — the mirror image: paths that never print
+- [TASK-086](086-parallel-steps-discard-their-note.md) — the mirror image: paths that never print
   the note at all. Fix together.
 - [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the third disagreement between
   the runner and provision paths over the same `ProvisionItem` keys. Three now, all found in the

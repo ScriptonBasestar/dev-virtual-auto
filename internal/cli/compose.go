@@ -469,6 +469,17 @@ var buildCmd = &cobra.Command{
 								fmt.Printf("  ⚠ %s: %s\n", label, config.InertStepMessage)
 								continue
 							}
+							// The gap TASK-083 left above: the inert notice was added, Note
+							// still was not read here, so a `note:` on a native build step
+							// went nowhere. A note-only step is deliberately not inert
+							// (config.IsInert checks Note), so it reaches this line, prints,
+							// and then runs nothing.
+							//
+							// Reached only from inside a hook: wrapWithHooks intercepts
+							// `build` on the same len(ic.Replace) > 0 condition this branch
+							// tests, so normally runHookSteps prints the note instead — to
+							// stderr, differently indented. See TASK-093.
+							writeNote(os.Stdout, step.Note)
 							cmds := step.RunCommands()
 							for _, cmdStr := range cmds {
 								fmt.Printf("  $ %s\n", cmdStr)

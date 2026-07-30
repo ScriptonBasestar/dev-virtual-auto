@@ -238,7 +238,7 @@ folded in:
 ## Related
 
 - [TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
-  [TASK-086](../todo/086-parallel-steps-discard-their-note.md) — the same silent-drop family found in the
+  [TASK-086](086-parallel-steps-discard-their-note.md) — the same silent-drop family found in the
   TASK-083 audit; this one differs by producing a *wrong action*, not just lost output.
 - [TASK-079](079-json-flag-does-not-cover-failures.md) — the machine-consumer thread: an
   exit code that says 0 is exactly the signal that task made loadbearing.

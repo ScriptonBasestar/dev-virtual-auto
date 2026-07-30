@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -108,6 +109,29 @@ func groupParallelBatches(steps []config.ProvisionItem) [][]config.ProvisionItem
 	return batches
 }
 
+// writeNote renders a step's `note:` — the key whose entire purpose is to be seen.
+//
+// It exists because three paths need the identical rendering and only one had it
+// (TASK-086): the sequential provision step printed the note, while executeParallelBatch
+// and compose.go's native build loop never read the field at all, so adding
+// `parallel: true` — a scheduling hint — silently deleted the step's message.
+//
+// The blank line either side and the four-space indent are the sequential path's
+// formatting, kept byte-for-byte because that path is the reference the other two are
+// being brought into line with, not a third opinion. The io.Writer is what makes it
+// usable from the parallel path, which accumulates each step into its own buffer so
+// concurrent steps cannot interleave mid-line.
+func writeNote(w io.Writer, note string) {
+	if note == "" {
+		return
+	}
+	fmt.Fprintln(w)
+	for _, line := range strings.Split(note, "\n") {
+		fmt.Fprintf(w, "    %s\n", line)
+	}
+	fmt.Fprintln(w)
+}
+
 // executeProvisionStep runs a single provision step sequentially.
 func executeProvisionStep(e *config.Environment, c *config.Config, step config.ProvisionItem, index, total int, dryRun bool) error {
 	if step.Step != "" {
@@ -122,13 +146,7 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 		return nil
 	}
 
-	if step.Note != "" {
-		fmt.Println()
-		for _, line := range strings.Split(step.Note, "\n") {
-			fmt.Printf("    %s\n", line)
-		}
-		fmt.Println()
-	}
+	writeNote(os.Stdout, step.Note)
 
 	// Execute compose-aware commands
 	if len(step.ComposeUp) > 0 {
@@ -234,6 +252,11 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 				results[idx] = result{index: idx, output: buf.String()}
 				return
 			}
+
+			// Before the dry-run branch, not inside it: a note describes the step, so it is
+			// shown whether or not the step's commands are going to run. Ordering matches the
+			// sequential path — after the label and the inert check, before any command.
+			writeNote(&buf, s.Note)
 
 			if dryRun {
 				// Dry run: just show what would run

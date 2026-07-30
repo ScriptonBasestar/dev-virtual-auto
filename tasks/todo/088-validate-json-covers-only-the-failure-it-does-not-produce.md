@@ -117,7 +117,7 @@ provision:
 - **Warnings go to stderr, the verdict to stdout.** A consumer reading only stdout sees `✅` and
   learns nothing about four pending migrations. The JSON document makes that irrelevant for
   machines but leaves the human split unresolved. Same stream-choice question as
-  [TASK-086](086-parallel-steps-discard-their-note.md)'s note on `hooks.go` vs `provision.go`.
+  [TASK-086](../done/086-parallel-steps-discard-their-note.md)'s note on `hooks.go` vs `provision.go`.
 
 ## Related
 

@@ -89,7 +89,7 @@ interaction:
 ## Why this outranks the other silent-drop tasks
 
 [TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
-[TASK-086](../todo/086-parallel-steps-discard-their-note.md) and
+[TASK-086](086-parallel-steps-discard-their-note.md) and
 [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
 This drops **all remaining work** in the interaction, no matter how it is written, and reports
 success. A provisioning sequence that looks like it completed has actually performed only its

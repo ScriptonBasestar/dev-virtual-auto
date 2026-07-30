@@ -96,7 +96,7 @@ Direction 1 is the better default — the fixture in
 interaction path is genuinely out of scope for the runners.
 
 Whichever is chosen, the deeper question is worth answering once: this is the fourth key-by-key
-disagreement between the runner and provision paths ([TASK-086](../todo/086-parallel-steps-discard-their-note.md),
+disagreement between the runner and provision paths ([TASK-086](086-parallel-steps-discard-their-note.md),
 [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md), and this task's two groups).
 Reconciling them one key at a time is how the count got to four. A shared step executor would
 close the class.
@@ -212,5 +212,5 @@ profile carrying the same key works. Same keys, same file.
 
 - [TASK-083](083-a-step-without-run-announces-work-it-never-does.md) — same class, opposite cause;
   found while measuring its call sites.
-- [TASK-086](../todo/086-parallel-steps-discard-their-note.md) — the other half of the same survey: the
+- [TASK-086](086-parallel-steps-discard-their-note.md) — the other half of the same survey: the
   parallel provision path drops `note:`.
