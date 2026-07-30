@@ -484,6 +484,31 @@ func TestCheckConfigVersion(t *testing.T) {
 	}
 }
 
+// TestUnreadableBinaryVersionBlamesTheBuild covers the second parseVersion call in
+// isVersionCompatible, which no test reached before: Version is injected by ldflags from
+// a literal in version.go, so the branch is only reachable through a build that overrides
+// it. Reachable-only-by-mistake is exactly the branch whose message goes unread, and this
+// one used to end with "Omit `version:` entirely" — advice about a file the user cannot
+// fix, for a fault in the binary reading it.
+//
+// Mutating the package var is safe here because no test in this package calls t.Parallel.
+func TestUnreadableBinaryVersionBlamesTheBuild(t *testing.T) {
+	original := Version
+	Version = "bogus"
+	t.Cleanup(func() { Version = original })
+
+	err := checkConfigVersion(&Config{Version: "0.1.0"})
+	if err == nil {
+		t.Fatal("checkConfigVersion error = nil, want a build complaint")
+	}
+	if !strings.Contains(err.Error(), "this dva binary") {
+		t.Errorf("error = %q, want it to name the binary as the faulty side", err)
+	}
+	if strings.Contains(err.Error(), "Omit `version:`") {
+		t.Errorf("error = %q, must not advise a config edit for a build defect", err)
+	}
+}
+
 // TestVersionPatternMatchesSchema keeps the two statements of the accepted `version:`
 // shape in agreement. They must be two copies: schema.json's pattern runs only under
 // `dva validate` (Config.Validate has one call site) while versionPattern runs on every

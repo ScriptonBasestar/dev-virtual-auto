@@ -1155,13 +1155,14 @@ func checkConfigVersion(cfg *Config) error {
 func isVersionCompatible(required string) (bool, error) {
 	req, err := parseVersion(required)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("%w. Omit `version:` entirely for no compatibility gate", err)
 	}
 	cur, err := parseVersion(Version)
 	if err != nil {
 		// Version is a var set by ldflags, so an unreadable one is a build defect
-		// rather than a config defect. Say which of the two is at fault.
-		return false, fmt.Errorf("this dva binary reports an unreadable version: %w", err)
+		// rather than a config defect. Say which of the two is at fault, and do not
+		// suggest editing `version:` — no edit to the config can fix this one.
+		return false, fmt.Errorf("this dva binary reports an unreadable version: %w. Reinstall dva or rebuild it with `make build`", err)
 	}
 	for i := range 3 {
 		if cur[i] < req[i] {
@@ -1214,8 +1215,13 @@ func parseVersion(v string) ([3]int, error) {
 
 // malformedVersionError names the offending value and the shape expected, since the
 // whole point of the check is that a misspelled version is otherwise invisible.
+//
+// It carries no remedy on purpose. parseVersion runs on two different values — the
+// config's `version:` and the binary's own Version — and the remedy differs: one is
+// fixed by editing the file, the other only by rebuilding. isVersionCompatible appends
+// the right one at each call site.
 func malformedVersionError(v string) error {
-	return fmt.Errorf("version %q is not a version: expected MAJOR.MINOR.PATCH or MAJOR.MINOR, optionally v-prefixed (e.g. %q). Omit `version:` entirely for no compatibility gate", v, MinScaffoldVersion)
+	return fmt.Errorf("version %q is not a version: expected MAJOR.MINOR.PATCH or MAJOR.MINOR, optionally v-prefixed (e.g. %q)", v, MinScaffoldVersion)
 }
 
 // nonHTTPServices are compose service name prefixes that resolve to plain host:port
