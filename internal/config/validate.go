@@ -120,21 +120,14 @@ func (c *Config) Validate() error {
 	if conflicts := ValidateReservedCommands(c.Interaction); len(conflicts) > 0 {
 		var errs []string
 		for _, conflict := range conflicts {
-			var hint string
-			if strings.Contains(conflict.Name, ":") {
-				prefix := conflict.Name[:strings.Index(conflict.Name, ":")]
-				hint = fmt.Sprintf("— namespace prefix '%s' is a reserved DVA command; use a different prefix", prefix)
-			} else if IsHookableCommand(conflict.Name) {
-				hint = "— use before/replace/after to extend it instead"
-			} else {
-				hint = "and will be shadowed"
-			}
-			errs = append(errs, fmt.Sprintf(
-				"  - interaction.%s: '%s' is a reserved DVA command %s",
-				conflict.Name, conflict.Name, hint,
-			))
+			// ConflictAdvice, not a hint built here: this error and the warning logged on every
+			// config load describe one condition, and the reader who sees both must not have to
+			// reconcile two accounts of which invocation reaches their command.
+			errs = append(errs, fmt.Sprintf("  - interaction.%s: %s", conflict.Name, ConflictAdvice(conflict.Name)))
 		}
-		return fmt.Errorf("reserved command conflict in dva.yml:\n%s", strings.Join(errs, "\n"))
+		// No filename: config is the merge of modules: and subprojects:, so the file that
+		// declares the conflicting key is not knowable from the merged config.
+		return fmt.Errorf("reserved command conflict in this config:\n%s", strings.Join(errs, "\n"))
 	}
 
 	// Validate hook fields are only used on hookable commands

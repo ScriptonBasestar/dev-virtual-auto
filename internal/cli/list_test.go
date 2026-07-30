@@ -25,7 +25,7 @@ func TestBuildCommandEntries_Basic(t *testing.T) {
 	}
 	keys := []string{"lint", "test"}
 
-	entries := buildCommandEntries(commands, keys)
+	entries := buildCommandEntries(&config.Config{}, commands, keys)
 
 	if len(entries) != 2 {
 		t.Fatalf("entries = %d, want 2", len(entries))
@@ -49,7 +49,7 @@ func TestBuildCommandEntries_Basic(t *testing.T) {
 }
 
 func TestBuildCommandEntries_Empty(t *testing.T) {
-	entries := buildCommandEntries(nil, nil)
+	entries := buildCommandEntries(&config.Config{}, nil, nil)
 	if len(entries) != 0 {
 		t.Errorf("entries = %d, want 0", len(entries))
 	}
@@ -95,7 +95,7 @@ func TestBuildCommandEntries_WithPod(t *testing.T) {
 	}
 	keys := []string{"k8s-cmd"}
 
-	entries := buildCommandEntries(commands, keys)
+	entries := buildCommandEntries(&config.Config{}, commands, keys)
 	entry := entries["k8s-cmd"].(map[string]any)
 	if entry["pod"] != "app-pod" {
 		t.Errorf("pod = %v, want 'app-pod'", entry["pod"])

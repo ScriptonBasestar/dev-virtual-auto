@@ -57,6 +57,14 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 
 	for _, k := range keys {
 		cmd := commands[k]
+		// A shadowed row is still listed — the user declared it and needs to see dva received
+		// it — but it must carry the form that reaches it, or the listing reads as an offer of
+		// `dva <k>`, which runs the built-in instead.
+		usage, shadowedBy := interactionUsage(c, k)
+		mark := ""
+		if shadowedBy != "" {
+			mark = fmt.Sprintf("  (built-in '%s' takes this name; run: %s)", shadowedBy, usage)
+		}
 		if lsDetailed {
 			runnerType := runner.DetectRunnerType(cmd)
 			detail := ""
@@ -65,15 +73,15 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 			} else if cmd.Pod != "" {
 				detail = fmt.Sprintf("pod:%s", cmd.Pod)
 			}
-			fmt.Printf("%-*s  [%-14s]  %-20s  %s\n", maxName, k, runnerType, detail, cmd.Command)
+			fmt.Printf("%-*s  [%-14s]  %-20s  %s%s\n", maxName, k, runnerType, detail, cmd.Command, mark)
 			if cmd.Description != "" {
 				fmt.Printf("%s  # %s\n", strings.Repeat(" ", maxName), cmd.Description)
 			}
 		} else {
 			if cmd.Description != "" {
-				fmt.Printf("%-*s  # %s\n", maxName, k, cmd.Description)
+				fmt.Printf("%-*s  # %s%s\n", maxName, k, cmd.Description, mark)
 			} else {
-				fmt.Println(k)
+				fmt.Printf("%-*s%s\n", maxName, k, mark)
 			}
 		}
 	}
@@ -99,7 +107,35 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 	return nil
 }
 
-func buildCommandEntries(commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
+// interactionUsage returns the invocation that reaches the interaction named k, and the built-in
+// that runs instead when the bare `dva k` form is typed ("" when nothing does).
+//
+// One function because `dva ls` and `dva manifest` describe the same key to the same reader and
+// must not disagree about which form works — the manifest used to print `dva build` for an
+// interaction that `dva build` provably could not reach.
+//
+// Subcommand keys arrive from the resolved tree space-separated ("build fast"), and a subcommand
+// is reached through its parent, so it is the parent's name the built-in set is asked about. The
+// parent's hook exemption does not carry over: measured, a `build` declaring replace: dispatches
+// to that hook for `dva build fast` and ignores the argument, so the subcommand is reachable only
+// through `dva run` even though the parent itself is reachable bare. That is why the exemption
+// lives in ShadowedByBuiltin, consulted here for top-level keys only.
+func interactionUsage(c *config.Config, k string) (usage, shadowedBy string) {
+	if parent, _, nested := strings.Cut(k, " "); nested {
+		if config.IsReservedCommand(parent) {
+			return fmt.Sprintf("dva run %s", k), parent
+		}
+		return fmt.Sprintf("dva %s", k), ""
+	}
+	// c.Interaction, not the tree: hooks live on the declared command, and a top-level tree key
+	// is always a declared key, so this lookup is exact.
+	if config.ShadowedByBuiltin(k, c.Interaction[k]) {
+		return fmt.Sprintf("dva run %s", k), k
+	}
+	return fmt.Sprintf("dva %s", k), ""
+}
+
+func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
 	entries := make(map[string]any, len(keys))
 	for _, k := range keys {
 		cmd := commands[k]
@@ -118,13 +154,18 @@ func buildCommandEntries(commands map[string]*runner.ResolvedCommand, keys []str
 		if cmd.Pod != "" {
 			entry["pod"] = cmd.Pod
 		}
+		// Only on the shadowed entries, so the field's presence is the signal and a consumer
+		// never has to parse the description to learn the short form will not reach this.
+		if _, shadowedBy := interactionUsage(c, k); shadowedBy != "" {
+			entry["shadowed_by_builtin"] = shadowedBy
+		}
 		entries[k] = entry
 	}
 	return entries
 }
 
 func printJSON(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
-	entries := buildCommandEntries(commands, keys)
+	entries := buildCommandEntries(c, commands, keys)
 	if len(c.Plans) == 0 {
 		return output.PrintJSON(entries)
 	}
@@ -154,7 +195,7 @@ func printJSON(c *config.Config, commands map[string]*runner.ResolvedCommand, ke
 }
 
 func printYAML(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
-	entries := buildCommandEntries(commands, keys)
+	entries := buildCommandEntries(c, commands, keys)
 	if len(c.Plans) == 0 {
 		return output.PrintYAML(entries)
 	}

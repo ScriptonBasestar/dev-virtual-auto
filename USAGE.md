@@ -631,25 +631,40 @@ up  down  stop  restart  build  clean  logs
 
 판정 규칙:
 
-| `interaction:` 키 | 훅 필드 | 결과 |
-| --- | --- | --- |
-| 예약어 아님 | — | 정상 등록 |
-| 훅 가능 예약어 | `before`/`replace`/`after` 중 하나 이상 | 내장 커맨드를 감싸는 훅으로 동작 |
-| 훅 가능 예약어 | 없음 (`command:`만) | **충돌** — 무시됨 |
-| 훅 불가 예약어 | 무관 | **충돌** — 무시됨 |
-| `app:build`처럼 `:` 앞이 예약어 | 무관 | **충돌** — 무시됨 |
+| `interaction:` 키 | 훅 필드 | 결과 | 도달하는 호출 |
+| --- | --- | --- | --- |
+| 예약어 아님 | — | 정상 등록 | `dva <name>` |
+| 훅 가능 예약어 | `before`/`replace`/`after` 중 하나 이상 | 내장 커맨드를 감싸는 훅으로 동작 | `dva <name>` (내장이 훅을 실행) |
+| 훅 가능 예약어 | 없음 (`command:`만) | **충돌** — `validate` 실패 | `dva run <name>` |
+| 훅 불가 예약어 | 무관 | **충돌** — `validate` 실패 | `dva run <name>` |
+| `app:build`처럼 `:` 앞이 예약어 | 무관 | **충돌** — `validate` 실패 | **없음** (아래 참조) |
 
 즉 `build`처럼 **예약어이면서 훅 가능한** 이름은 `command:`로 재정의할 수 없고
-`replace:`로만 대체할 수 있습니다. 충돌은 에러가 아니라 경고이므로
-`dva config validate`로 확인하세요.
+`replace:`로만 대체할 수 있습니다.
+
+충돌은 **경고가 아니라 에러**입니다 — `dva validate`(= `dva config validate`)가 exit 1로
+실패합니다. 다만 `ls`·`manifest`·`run`은 같은 설정을 읽고도 종료 코드 0으로 동작하므로,
+설정이 "무효인 상태로 실행 중"일 수 있습니다. 충돌 여부는 `dva validate`로만 확정됩니다.
+
+선언이 버려지는 것은 아닙니다. 짧은 형식(`dva build`)만 내장 커맨드에게 넘어가고, 선언한 커맨드
+자체는 `dva run build`로 그대로 실행됩니다. `dva ls`와 `dva manifest`는 충돌한 키를
+계속 보여주되 도달 가능한 호출을 함께 표시합니다 — `manifest`의 경우
+`usage_example: "dva run build"`와 `shadowed_by_builtin: "build"` 필드입니다.
+
+`app:build`처럼 `:` 앞이 예약어인 경우만 예외로 **어떤 호출로도 도달할 수 없습니다**:
+짧은 형식은 내장 커맨드가 아니고, `run` 형식은 `app:`을 서브프로젝트 참조로 읽어
+`subproject 'app' not found`로 실패합니다. 구분자를 바꾸는 것(`app-build`)이 유일한
+해결책입니다.
 
 ```yaml
 interaction:
   build:                    # 예약어 + 훅 가능
-    replace:                # command: 를 쓰면 충돌로 무시됨
-      - run: "make build"
+    replace:                # command: 를 쓰면 충돌 → dva build 는 내장이 실행
+      - step: "빌드"          # step: 은 라벨 — 실행할 명령은 run: 에 씁니다
+        run: "make build"
     after:
-      - run: "echo built"
+      - step: "완료 알림"
+        run: "echo built"
 
   my-build:                 # 예약어 아님 → 자유롭게 정의
     command: "make build"

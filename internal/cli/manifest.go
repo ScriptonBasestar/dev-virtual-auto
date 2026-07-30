@@ -81,6 +81,10 @@ type ManifestDynCmd struct {
 	Pod           string `json:"pod,omitempty" yaml:"pod,omitempty"`
 	ComposeMethod string `json:"compose_method,omitempty" yaml:"compose_method,omitempty"`
 	UsageExample  string `json:"usage_example" yaml:"usage_example"`
+	// ShadowedByBuiltin names the static_commands entry that runs when the bare `dva <key>`
+	// form is typed. Set only when the key is shadowed, so its presence is the signal; a
+	// consumer must be able to detect this without reading the description or the usage string.
+	ShadowedByBuiltin string `json:"shadowed_by_builtin,omitempty" yaml:"shadowed_by_builtin,omitempty"`
 }
 
 type ManifestRunner struct {
@@ -156,11 +160,17 @@ func buildManifest(c *config.Config) *Manifest {
 
 	for _, k := range keys {
 		cmd := commands[k]
+		// usage_example carries an implicit promise that running it invokes the entry it sits
+		// inside. It used to be `dva <k>` unconditionally, which for a shadowed key was the one
+		// form that provably ran something else — a different command with a different
+		// description, in the same document, silently.
+		usage, shadowedBy := interactionUsage(c, k)
 		dynCmd := ManifestDynCmd{
-			Description:  cmd.Description,
-			Command:      cmd.Command,
-			Runner:       runner.DetectRunnerType(cmd),
-			UsageExample: fmt.Sprintf("dva %s", k),
+			Description:       cmd.Description,
+			Command:           cmd.Command,
+			Runner:            runner.DetectRunnerType(cmd),
+			UsageExample:      usage,
+			ShadowedByBuiltin: shadowedBy,
 		}
 		if cmd.Service != "" {
 			dynCmd.Service = cmd.Service

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 )
 
@@ -42,8 +43,9 @@ func HookableCommands() map[string]bool {
 }
 
 // ReservedCommands returns a copy of the built-in DVA command set.
-// Custom interaction commands in dva.yml must not use these names,
-// as they will be silently shadowed by the built-in commands.
+// A custom interaction declared under one of these names is rejected by Validate; nothing about
+// it is silent. See ShadowedByBuiltin for what the bare form actually runs, and ConflictAdvice
+// for the way out, which differs by the kind of collision.
 func ReservedCommands() map[string]bool {
 	cp := make(map[string]bool, len(reservedCommands))
 	for k, v := range reservedCommands {
@@ -55,6 +57,27 @@ func ReservedCommands() map[string]bool {
 // IsReservedCommand reports whether name is a built-in DVA command.
 func IsReservedCommand(name string) bool {
 	return reservedCommands[name]
+}
+
+// ShadowedByBuiltin reports whether the bare `dva <name>` form runs a built-in command
+// instead of the interaction declared under name.
+//
+// cli.Execute only rewrites `dva <name>` to `dva run <name>` when name is not a built-in, so a
+// reserved name never reaches its interaction that way. It stays reachable as `dva run <name>`,
+// which is why the condition is shadowing and not the "ignored" this once claimed to be.
+//
+// A hookable built-in that declares before/replace/after is not shadowed: the built-in runs the
+// hook, so the bare form does reach what the author declared. A namespaced name like `app:build`
+// is not shadowed either — the colon keeps it out of the built-in set, so dynamic routing sends
+// it to `run` — even though ValidateReservedCommands still rejects the prefix.
+func ShadowedByBuiltin(name string, cmd *InteractionCommand) bool {
+	if !IsReservedCommand(name) {
+		return false
+	}
+	if IsHookableCommand(name) && cmd != nil && cmd.HasHooks() {
+		return false
+	}
+	return true
 }
 
 // ReservedCommandConflict represents a conflict between an interaction
@@ -74,14 +97,15 @@ func ValidateReservedCommands(interaction map[string]*InteractionCommand) []Rese
 	var conflicts []ReservedCommandConflict
 	for name, cmd := range interaction {
 		if IsReservedCommand(name) {
-			// Hookable command with hook fields → valid hook, not a conflict
-			if IsHookableCommand(name) && cmd.HasHooks() {
-				continue
+			// ShadowedByBuiltin carries the hook exemption, so the surfaces that mark a
+			// conflict and the validator that rejects one cannot disagree about which
+			// names are conflicts.
+			if ShadowedByBuiltin(name, cmd) {
+				conflicts = append(conflicts, ReservedCommandConflict{
+					Name:   name,
+					Source: "interaction",
+				})
 			}
-			conflicts = append(conflicts, ReservedCommandConflict{
-				Name:   name,
-				Source: "interaction",
-			})
 			continue
 		}
 		// Check namespace prefix: "app:build" conflicts if "app" is reserved
@@ -98,24 +122,73 @@ func ValidateReservedCommands(interaction map[string]*InteractionCommand) []Rese
 	return conflicts
 }
 
+// ConflictAdvice returns what happens to an interaction declared under name, and the way out.
+//
+// One function because the warning on every config load and the error from validate describe the
+// same condition to the same reader. They disagreed before: the warning said the interaction was
+// discarded while the error said the config was fatal, and neither named the invocation that works.
+//
+// Every invocation named here was executed against the binary. That is the bar, because advice
+// that names a command which refuses is worse than no advice — the reader trusts it and stops.
+func ConflictAdvice(name string) string {
+	// Namespaced keys first: this is the one case reachable by no invocation at all, so it is
+	// also the one case where "rename" is the whole answer rather than a preference.
+	if idx := strings.Index(name, ":"); idx > 0 {
+		// The cause is spelled out but no failing invocation is written in full: this text is
+		// read by machines (it reaches the reader through validate's stderr and the load-time
+		// warning), and a consumer scanning for a `dva run …` form would lift it out of the
+		// negation and execute the one command that cannot work.
+		return fmt.Sprintf(
+			"namespace prefix '%s' is a reserved DVA command — no invocation reaches this key: "+
+				"the bare form is not a built-in, and the run form reads '%s:' as a subproject "+
+				"reference, so it fails with subproject '%s' not found. Use a different "+
+				"separator (e.g., '%s')",
+			name[:idx], name[:idx], name[:idx], strings.Replace(name, ":", "-", 1),
+		)
+	}
+	if IsHookableCommand(name) {
+		// The hook route is listed first because it is the only one that gets the short form
+		// working; `dva run` is the fallback for an author who wants a separate command.
+		return fmt.Sprintf(
+			"'%s' is a reserved DVA command — declare before/replace/after to extend the "+
+				"built-in, or reach this as 'dva run %s'",
+			name, name,
+		)
+	}
+	// The interaction is not discarded: measured, `dva run status` still executes it. Only the
+	// bare `dva status` form is lost, to the built-in. Telling the reader it was ignored sends
+	// them looking for a command that never ran, when what they need is the form that reaches it.
+	//
+	// The old wording is deliberately not quoted anywhere in this file, comments included: a
+	// grep for it is one of TASK-076's checks, and a comment containing the phrase would satisfy
+	// the grep while the message regressed — the check has to fail for exactly one reason.
+	return fmt.Sprintf(
+		"'%s' is a reserved DVA command — the built-in runs for 'dva %s', so this is reachable "+
+			"only as 'dva run %s'. Rename to get the short form back (e.g., 'my-%s')",
+		name, name, name, name,
+	)
+}
+
 // FormatConflictWarnings formats conflict list as warning messages.
 func FormatConflictWarnings(conflicts []ReservedCommandConflict) string {
 	if len(conflicts) == 0 {
 		return ""
 	}
 
-	var names []string
+	// Sorted, and one clause per conflict: conflicts arrive in map iteration order, so a message
+	// that detailed only conflicts[0] named a different command on every run — and the three
+	// kinds of conflict do not share advice, so one clause cannot stand in for the others.
+	names := make([]string, 0, len(conflicts))
 	for _, c := range conflicts {
-		names = append(names, fmt.Sprintf("'%s'", c.Name))
+		names = append(names, c.Name)
 	}
+	sort.Strings(names)
 
-	return fmt.Sprintf(
-		"interaction command %s conflicts with reserved DVA command(s) and will be ignored. "+
-			"Rename to avoid shadowing (e.g., 'my-%s' or 'custom-%s')",
-		strings.Join(names, ", "),
-		conflicts[0].Name,
-		conflicts[0].Name,
-	)
+	clauses := make([]string, 0, len(names))
+	for _, name := range names {
+		clauses = append(clauses, fmt.Sprintf("interaction command %s", ConflictAdvice(name)))
+	}
+	return strings.Join(clauses, "; ")
 }
 
 // WarnReservedCommandConflicts logs warnings for any conflicts found.
