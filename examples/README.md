@@ -358,7 +358,7 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 
 ## Learn More
 
-- [DVA Documentation](https://github.com/ScriptonBasestar/dev-virtual-auto)
+- [DVA Documentation](https://github.com/ScriptonBasestar/dva)
 - [Schema Reference](../schema.json)
 - [Roadmap](../docs/ROADMAP.md)
 

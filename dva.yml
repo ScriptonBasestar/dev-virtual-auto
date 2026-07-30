@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/internal/config/schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/internal/config/schema.json
 # dva.yml — DVA CLI (Go)
 # Pattern: Host Build (no Docker infrastructure)
 # All commands run locally via Makefile targets

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"runtime"
@@ -10,13 +11,35 @@ import (
 	"testing"
 )
 
-// The repository is dev-virtual-auto. github.com/ScriptonBasestar/dva is the Go module
-// path and resolves to nothing on GitHub, so it is never valid inside a URL. The default
-// branch is master; this repo has never had a main.
-const (
-	canonicalRepo   = "dev-virtual-auto"
-	canonicalBranch = "master"
-)
+// canonicalBranch is master; this repo has never had a main.
+const canonicalBranch = "master"
+
+// canonicalRepo is read from go.mod rather than transcribed, because a hand-written
+// constant is the very defect this file guards against — and it already bit once. The
+// constant said "dev-virtual-auto" while TASK-060 was open; when the repo was renamed to
+// dva the guard kept enforcing the dead name, rejecting correct URLs and accepting stale
+// ones. A test cannot notice that its own constant went out of date.
+//
+// Deriving it is sound under either answer TASK-060 could have taken: renaming the module
+// to match the repo and renaming the repo to match the module both end at repo name ==
+// last element of the module path. So this reads the fact from the file that has to be
+// right for the build to work at all.
+func canonicalRepo(t *testing.T) string {
+	t.Helper()
+	_, file, _, _ := runtime.Caller(0)
+	gomod := filepath.Join(filepath.Dir(file), "..", "..", "go.mod")
+	content, err := os.ReadFile(gomod)
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), "module "); ok {
+			return path.Base(strings.TrimSpace(rest))
+		}
+	}
+	t.Fatalf("no module directive in %s", gomod)
+	return ""
+}
 
 // rawURL and blobURL capture owner/repo/ref/path from the two GitHub URL shapes DVA
 // writes about itself. Both require the https:// prefix so Go import paths and
@@ -29,9 +52,10 @@ var (
 // urlAuditRoots are the places DVA states its own URLs: the corpus that teaches an AI to
 // write dva.yml, and the Go sources that print links to users.
 //
-// Root README.md is deliberately absent. It is human-owned (doc-protection: ai=deny) and
-// carries a release-download URL on the unresolvable repo name, which is a decision about
-// what the canonical repo should be — not something a test may quietly hold hostage.
+// Root README.md is deliberately absent: it is human-owned (doc-protection: ai=deny), so a
+// failure there would be one no agent may fix. Its install and release URLs both name dva
+// and became correct when the repo was renamed (TASK-060), so nothing is lost by omitting
+// it — but that is a happy accident, not a guarantee the guard provides.
 func urlAuditRoots() []string {
 	_, file, _, _ := runtime.Caller(0)
 	root := filepath.Join(filepath.Dir(file), "..", "..")
@@ -47,26 +71,27 @@ func urlAuditRoots() []string {
 //
 // TestRemovedKeysAbsentFromGeneratorCorpus already stops the corpus teaching removed
 // keys. Nothing checked that the URLs it teaches resolve, and the same pipeline spread
-// both: authored library file -> make generate -> library_reference.txt -> embedded in
-// the binary -> AI flows stamp it into user configs. A dead $schema is silent by
-// construction — the editor produces no diagnostics rather than an error — so it reached
-// 56 of 83 real configs before anyone noticed.
+// both: authored library file -> make generate -> library_reference.txt -> AI flows read
+// it from disk and stamp it into user configs. A dead $schema is silent by construction —
+// the editor produces no diagnostics rather than an error — so it reached 56 of 83 real
+// configs before anyone noticed.
 //
 // String checks only, no network. A test that reaches the internet fails on a plane and
 // passes when GitHub is having a bad day, which is the opposite of a guard.
 func TestGeneratorCorpusURLs(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Join(filepath.Dir(file), "..", "..")
+	wantRepo := canonicalRepo(t)
 
-	check := func(path string, lineNo int, line string, m []string) {
+	check := func(where string, lineNo int, line string, m []string) {
 		owner, repo, ref, target := m[1], m[2], m[3], m[4]
-		if repo != canonicalRepo {
-			t.Errorf("%s:%d URL names repository %q, but %s/%s is the repo (%q is the Go module path and 404s on GitHub)\n  %s",
-				path, lineNo, repo, owner, canonicalRepo, repo, strings.TrimSpace(line))
+		if repo != wantRepo {
+			t.Errorf("%s:%d URL names repository %q, but the module path in go.mod makes %s/%s canonical\n  %s",
+				where, lineNo, repo, owner, wantRepo, strings.TrimSpace(line))
 		}
 		if ref != canonicalBranch {
 			t.Errorf("%s:%d URL names branch %q; this repo's default branch is %s\n  %s",
-				path, lineNo, ref, canonicalBranch, strings.TrimSpace(line))
+				where, lineNo, ref, canonicalBranch, strings.TrimSpace(line))
 		}
 		// A URL may legitimately point into a directory or carry an anchor; only the
 		// file part is verifiable offline.
@@ -76,7 +101,7 @@ func TestGeneratorCorpusURLs(t *testing.T) {
 		}
 		if _, err := os.Stat(filepath.Join(repoRoot, clean)); err != nil {
 			t.Errorf("%s:%d URL points at %q, which is not in the tree\n  %s",
-				path, lineNo, clean, strings.TrimSpace(line))
+				where, lineNo, clean, strings.TrimSpace(line))
 		}
 	}
 
@@ -139,6 +164,7 @@ func TestGeneratorCorpusURLs(t *testing.T) {
 func TestGeneratorCorpusURLsDetectsPlantedDefects(t *testing.T) {
 	_, file, _, _ := runtime.Caller(0)
 	repoRoot := filepath.Join(filepath.Dir(file), "..", "..")
+	wantRepo := canonicalRepo(t)
 
 	tests := []struct {
 		name string
@@ -146,23 +172,23 @@ func TestGeneratorCorpusURLsDetectsPlantedDefects(t *testing.T) {
 		want string
 	}{
 		{
-			name: "wrong repository — the Go module path used as a repo name",
-			line: `const u = "https://github.com/ScriptonBasestar/dva/blob/master/docs/40-declarative-stack-and-plans.md#11-migration"`,
+			name: "wrong repository — the pre-rename name, which now survives only on GitHub's redirect",
+			line: `const u = "https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md#11-migration"`,
 			want: "names repository",
 		},
 		{
 			name: "branch that does not exist",
-			line: `const u = "https://github.com/ScriptonBasestar/dev-virtual-auto/blob/main/docs/40-declarative-stack-and-plans.md"`,
+			line: `const u = "https://github.com/ScriptonBasestar/dva/blob/main/docs/40-declarative-stack-and-plans.md"`,
 			want: "names branch",
 		},
 		{
 			name: "$schema path absent from the tree",
-			line: `# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/schema.json`,
+			line: `# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/schema.json`,
 			want: "not in the tree",
 		},
 		{
 			name: "refs/heads form is unwrapped before the branch is judged",
-			line: `# $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/refs/heads/main/internal/config/schema.json`,
+			line: `# $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/refs/heads/main/internal/config/schema.json`,
 			want: "names branch",
 		},
 	}
@@ -175,7 +201,7 @@ func TestGeneratorCorpusURLsDetectsPlantedDefects(t *testing.T) {
 			for _, re := range []*regexp.Regexp{rawURL, blobURL} {
 				for _, m := range re.FindAllStringSubmatch(tt.line, -1) {
 					owner, repo, ref, target := m[1], m[2], m[3], m[4]
-					if repo != canonicalRepo {
+					if repo != wantRepo {
 						report("names repository %q (owner %s)", repo, owner)
 					}
 					if ref != canonicalBranch {

@@ -9,8 +9,8 @@ canonical skill and regenerate (single-source-of-truth; see TASK-053).
 (e.g. `claude-ce-plugin`, `prmpt`) MUST point at the GitHub URL, never a local
 filesystem path (machine-specific, unresolvable elsewhere):
 
-> `https://github.com/ScriptonBasestar/dev-virtual-auto` → `skills/<name>/SKILL.md`
-> e.g. `https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/skills/config/SKILL.md`
+> `https://github.com/ScriptonBasestar/dva` → `skills/<name>/SKILL.md`
+> e.g. `https://github.com/ScriptonBasestar/dva/blob/master/skills/config/SKILL.md`
 
 ## Layout
 

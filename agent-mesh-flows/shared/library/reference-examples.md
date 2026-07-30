@@ -9,7 +9,7 @@
 모든 dva.yml은 이 헤더로 시작:
 
 ```yaml
-# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/internal/config/schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/internal/config/schema.json
 # =============================================================================
 # DVA Configuration — {project-name} ({role: Root DevBox | Subproject})
 # =============================================================================
