@@ -195,10 +195,28 @@ func TestWarnDuplicateStackOrder(t *testing.T) {
 		t.Errorf("expected 'default' hint in warning, got: %s", warnings[0])
 	}
 
-	// Plan order owns sequencing when plans exist.
+	// A plan does not settle this (TASK-084 half 2). It used to suppress the warning entirely, on
+	// the premise that plan order owns sequencing once plans exist — but `dva stack up` does not
+	// read plans at all, so the state this produced was the one place the hazard was unannounced.
 	c.Plans = map[string]*PlanConfig{"local": {Entries: []PlanEntry{{Name: "a", Order: 10}, {Name: "b", Order: 20}}}}
-	if warnings = c.warnDuplicateStackOrder(); len(warnings) != 0 {
-		t.Errorf("expected plan-owned order to suppress stack warning, got %v", warnings)
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("declaring a plan must not silence the stack-order warning, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "dva up <plan>") {
+		t.Errorf("with plans declared the warning must say which command plan order governs, got: %s", warnings[0])
+	}
+
+	// ...and must not say it when there are no plans, or it advertises a section the config has
+	// none of. Asserted from the same fixture with Plans removed, so the two branches cannot both
+	// be satisfied by an unconditional string.
+	c.Plans = nil
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning without plans, got %v", warnings)
+	}
+	if strings.Contains(warnings[0], "dva up <plan>") {
+		t.Errorf("the plan clause reached a config declaring no plans: %s", warnings[0])
 	}
 }
 

@@ -269,8 +269,15 @@ func (c *Config) warnDuplicateParentSubcommand() []string {
 // one invocation, so when no invocation ever holds two members of a group, there is no
 // sequence between them to control. Without this the warning tells users to order
 // entries that never meet.
+//
+// Declaring a plan is deliberately *not* an exemption (TASK-084). It was one, on the premise
+// that "plan order owns sequencing when plans exist" — false for the command this warns about:
+// `dva stack up`'s help states it "does NOT consult plans or default_plan", and plan order
+// reaches only `dva up <plan>`, which walks the plan's own entries. Suppressing here left the
+// single configuration dva's own advice funnels users into — default orders plus a plan — as
+// the one state that said nothing.
 func (c *Config) warnDuplicateStackOrder() []string {
-	if len(c.Stack) < 2 || len(c.Plans) > 0 {
+	if len(c.Stack) < 2 {
 		return nil
 	}
 
@@ -300,15 +307,24 @@ func (c *Config) warnDuplicateStackOrder() []string {
 			continue
 		}
 		sort.Strings(names)
+		// Not "undefined": since TASK-084 half 1 the sequence is (Order, Name), so equal orders
+		// resolve alphabetically and repeat run to run. What is worth reporting is no longer a
+		// hazard but a choice never made — the entries start in an order nobody picked.
+		var msg string
 		if order == 0 {
-			warnings = append(warnings,
-				fmt.Sprintf("stack: entries %s have order 0 (default); set explicit order values to control startup sequence",
-					strings.Join(names, ", ")))
+			msg = fmt.Sprintf("stack: entries %s are all at the default order, so `dva stack up` starts them in name order rather than one you chose",
+				strings.Join(names, ", "))
 		} else {
-			warnings = append(warnings,
-				fmt.Sprintf("stack: entries %s share the same order value %d; execution order between them is undefined",
-					strings.Join(names, ", "), order))
+			msg = fmt.Sprintf("stack: entries %s share order value %d, so `dva stack up` starts them in name order rather than one you chose",
+				strings.Join(names, ", "), order)
 		}
+		// Named only when plans exist, because that is the reader who would otherwise assume the
+		// plan already settled this. Saying it unconditionally would advertise plans to configs
+		// that have none.
+		if len(c.Plans) > 0 {
+			msg += "; plan entry order governs `dva up <plan>` only"
+		}
+		warnings = append(warnings, msg)
 	}
 
 	return warnings
