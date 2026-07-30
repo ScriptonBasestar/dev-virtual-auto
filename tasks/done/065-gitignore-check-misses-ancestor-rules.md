@@ -135,3 +135,33 @@ trailing slash. DVA was correct in all 14; the baseline was wrong.
 Worth keeping because the failure is silent and inverted — the flawed probe accused the
 correct code. Any future comparison against git must pass the trailing slash, or the
 directory must exist.
+
+## Follow-up: negations, found in review of this fix (d43eb42)
+
+This task's fix read the file for the first line naming `.sb/dva` or an ancestor and stopped
+there. Two independent reviewers flagged that as a false positive, and they were right — the
+doc comment written here claimed "a later negation cannot make this conclusion wrong", which
+is true for an ancestor's *descendant* but not for the ancestor itself. Verified against git
+with the paths on disk:
+
+| `.gitignore` | git | this fix said |
+| --- | --- | --- |
+| `.sb/` then `!.sb/dva/` | ignored | ignored ✓ |
+| `.sb/` then `!.sb/` | **not ignored** | ignored ✗ |
+
+gitignore has two rules that look like one. Ordinary *last-matching-pattern-wins* applies to
+the path being tested; the carve-out — a path cannot be re-included once a **parent**
+directory is excluded — applies only to descendants. Collapsing both into "any covering line
+means ignored" is right for the carve-out and wrong for the ordinary rule, and it fails in the
+dangerous direction: the warning is suppressed while git leaves the markers committable.
+
+Fixed in `d43eb42` by resolving each ancestor independently, outermost first, with the first
+excluded one decisive. Seven cases added, each expectation checked against real git rather
+than against the new implementation.
+
+The lesson is narrower than "read negations": my review of this fix reasoned from the
+gitignore spec and concluded no false positive was reachable, having deliberately avoided the
+`git check-ignore` probe that misled the sweep above. The reasoning was sound for the eight
+*positive* forms the code generates and never considered a ninth line that unmakes them. The
+reviewers ran real git against real files on disk — the trailing-slash trap avoided by
+creating the directory, not by dropping the probe.

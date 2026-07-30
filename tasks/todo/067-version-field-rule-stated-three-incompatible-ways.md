@@ -83,6 +83,43 @@ Rule B is the worse of the two: rule A over-rejects a shape nobody writes, while
 the generator actively emit configs with an artificially high floor, and asserts a
 constraint DVA never checks.
 
+## Adjacent: nothing enforces that `version:` is a version
+
+Found while reproducing rule A, and worth fixing in the same pass because it lives in the
+same three files. `parseVersion` (`internal/config/config.go:1162-1167`) discards both of
+`fmt.Sscanf`'s return values:
+
+```go
+_, _ = fmt.Sscanf(v, "%d.%d.%d", &parts[0], &parts[1], &parts[2])
+```
+
+A string that does not parse leaves `parts` at `[0,0,0]`, and `isVersionCompatible` then finds
+`current >= 0.0.0` and returns true. So `version: "not-a-version"` is accepted **everywhere**,
+including by `dva validate` — the schema constrains `version` to `type: string` with no
+`pattern`, so any string satisfies it. That directly contradicts the schema's own description
+of the field ("Must not exceed the installed DVA version, or the config is rejected").
+
+Two consequences worth separating:
+
+- **A garbage version is silently treated as "compatible with everything".** The one case the
+  gate exists to catch — a config requiring a newer DVA — is missed whenever the value is
+  misspelled rather than merely high. `version: "O.2.0"` (letter O) passes on 0.1.44.
+- **An unquoted YAML version is inconsistent, not wrong.** `version: 0.1` parses as a YAML
+  *number*; `dva validate` correctly rejects it (`Expected: string, given: number`) because the
+  JSON conversion preserves the type, while `config.Load` accepts it because yaml.v3 coerces a
+  numeric scalar into the Go `string` field. Leave this one alone — fixing it means changing
+  YAML-parsing behavior, which is a much larger blast radius than this task should carry.
+  Record it, do not fix it.
+
+Fix shape: have `parseVersion` surface a parse failure instead of returning `[0,0,0]`, and let
+`checkConfigVersion` report it as the malformed-value error it is. Optionally add
+`"pattern": "^\\d+\\.\\d+(\\.\\d+)?$"` to the schema's `version` property so `dva validate`
+catches it too — but the Go gate is the one that matters, since every other command bypasses
+the schema entirely. Note this is a **tightening**, unlike rule A: check the corpus before
+landing it. All 31 top-level configs parse cleanly today; the only non-semver values anywhere
+under `~/mydevbox` are in directories named `malformed*`, which are deliberate negative-test
+fixtures.
+
 ## Root cause
 
 Same defect class as [TASK-057](../done/) (a hardcoded URL), TASK-060 (a module path) and
@@ -132,6 +169,8 @@ Also stale, fix while here: `reference-examples.md` carries `version: "0.1.29"` 
 - [ ] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rn 'Must match the current DVA CLI version' agent-mesh-flows/`
 - [ ] No library file claims subprojects must match root | verify: `! /usr/bin/grep -rniE 'version.*match(es)? root|Subprojects? (should|must) match' agent-mesh-flows/`
 - [ ] Regenerated artifact agrees | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt || true`
+- [ ] A malformed `version:` is rejected rather than read as 0.0.0 | verify: `go test ./internal/config/ -run TestParseVersionRejectsMalformed`
+- [ ] The corpus still loads after the tightening | verify: `human — dva validate across ~/mydevbox, expect no new failures outside malformed* fixtures`
 - [ ] Full suite green | verify: `make test`
 
 ## Evidence
