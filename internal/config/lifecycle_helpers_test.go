@@ -243,3 +243,30 @@ stack:
 		t.Fatal("ComposeConfig() = nil, want compose config preserved")
 	}
 }
+
+// TestDefaultRunnerNameMatchesRunnerNames pins the invariant show relies on and schema.json states:
+// default_runner "Must reference a key in the runners map". The schema accepts both podman-compose
+// and podman_compose as that key, so the two fields can name one runner in two spellings — and a
+// caller comparing them raw concludes the default points at a runner the entry never declared.
+func TestDefaultRunnerNameMatchesRunnerNames(t *testing.T) {
+	cfg := loadStackConfig(t, `version: "0.1.44"
+stack:
+  vms:
+    default_runner: podman_compose
+    runners:
+      podman_compose:
+        files:
+          - compose.yml
+`)
+	entry := sortedEntry(t, cfg, "vms")
+	names := entry.RunnerNames()
+	if len(names) != 1 || names[0] != "podman-compose" {
+		t.Fatalf("RunnerNames() = %v, want [podman-compose]", names)
+	}
+	if got := entry.DefaultRunnerName(); got != names[0] {
+		t.Errorf("DefaultRunnerName() = %q, RunnerNames()[0] = %q; the two must agree so callers can compare them", got, names[0])
+	}
+	if raw := entry.DefaultRunner; raw != "podman_compose" {
+		t.Errorf("DefaultRunner = %q, want the author's spelling %q preserved on the raw field", raw, "podman_compose")
+	}
+}

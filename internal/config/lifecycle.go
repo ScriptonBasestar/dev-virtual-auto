@@ -610,6 +610,15 @@ func (e *LifecycleEntry) GetRunnerConfig(runnerName string) (any, error) {
 	return nil, fmt.Errorf("runner %q is not configured in entry %q", selected, e.Name)
 }
 
+// DefaultRunnerName returns default_runner canonicalized the same way RunnerNames canonicalizes
+// the runners map, so the two are comparable. Every other reader of DefaultRunner already
+// normalizes it (runnerPluginName, resolveRunner, source.go, lifecycle/resolver.go); this exports
+// that step for callers outside the package, which otherwise compare a raw `podman_compose`
+// against a normalized `podman-compose` and conclude the default names an undeclared runner.
+func (e *LifecycleEntry) DefaultRunnerName() string {
+	return normalizeRunnerName(e.DefaultRunner)
+}
+
 func (e *LifecycleEntry) RunnerNames() []string {
 	names := make([]string, 0, len(e.Runners)+1)
 	if len(e.Runners) > 0 {
