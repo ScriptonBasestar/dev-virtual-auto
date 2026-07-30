@@ -3,7 +3,7 @@ id: TASK-062
 title: "dns-bridge publishes six host ports twice — two compose files were added without registering their ports"
 type: fix
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox — compose/infra-redis-{cluster,sentinel}.yaml and PORT_MAPPINGS.yaml; needs the user's go-ahead to edit"
@@ -68,23 +68,18 @@ Two consequences worth separating:
 2. `endpoints:` publishes **6** entries for services no mode can start (kafka, zookeeper,
    powerdns-api, etcd, coredns, mock-auth), so `dva show` advertises URLs no declared mode
    brings up. **Separate finding — [TASK-064](064-dns-bridge-endpoints-no-mode-can-start.md).**
-   An earlier note here said 10 and included the monitoring group; that was wrong —
-   `full-stack-monitoring` activates `compose_profiles: [rust, monitoring]`, so prometheus,
-   grafana, jaeger and otel-collector are all reachable. Corrected by parsing each compose
-   file and mapping every endpoint's service to its `profiles:` list.
+   An earlier note said 10 and wrongly included the monitoring group, which
+   `full-stack-monitoring` does reach; corrected by mapping each endpoint's service to its
+   `profiles:` list.
 
 ## Fix shape
 
-Needs the user's call on direction; the mechanical part is small either way.
-
-- **Renumber the redis-sentinel services** out of the kafka and monitoring ranges, and
-  register them in `PORT_MAPPINGS.yaml`. The 11270-11289 band appears unused.
-- **Renumber `redis-node-1`** off 11220, or give `redis` and `postgres` an explicit
-  profile (e.g. `default`) so the alternatives really are exclusive. The second option
-  changes what a bare `docker compose up` does, so it is a behaviour decision, not a
-  cleanup.
-- Add the alternative topologies to `PORT_MAPPINGS.yaml` either way — leaving them
-  unregistered is what allowed this.
+Two directions, both mechanically small: renumber the offending services out of the kafka
+and monitoring ranges (the 11270-11289 band appears unused), or give `redis`/`postgres` an
+explicit profile so the alternatives really are exclusive — the second changes what a bare
+`docker compose up` does, so it is a behaviour decision, not a cleanup. Registering the
+topologies in `PORT_MAPPINGS.yaml` is required either way; leaving them unregistered is
+what allowed this. See Resolution for the direction taken.
 
 ## Non-goals
 
@@ -108,22 +103,76 @@ own proposal if the user wants it; recorded here so the connection is not lost.
 
 ## Acceptance criteria
 
-- [ ] Direction chosen for 11220 and for the sentinel range | verify: `human — decision recorded here`
-- [ ] No host port is published by two services | verify: `human — re-run the reconciliation in Evidence; expect 0 duplicates`
-- [ ] Alternative topologies registered | verify: `/usr/bin/grep -qE 'redis-(master|node|sentinel)' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml`
-- [ ] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
+- [x] Direction chosen for 11220 and for the sentinel range | verify: `human — decision recorded in Resolution`
+- [x] No host port is published by two services | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && docker compose --profile kafka --profile monitoring --profile redis-cluster --profile redis-sentinel --profile nameserver --profile dev config | /usr/bin/awk '/published:/{p=$2;gsub(/"/,"",p)} /protocol:/{if(p!=""){print p"/"$2;p=""}}' | sort | /usr/bin/uniq -d` — expect no output
+- [x] Alternative topologies registered | verify: `/usr/bin/grep -qE 'redis-(master|node|sentinel)' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml`
+- [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
 
 ## Evidence
 
-Measured 2026-07-30. Every published host port, extracted per owning service:
-
-```
-/usr/bin/awk '/^  [a-z0-9_-]+:$/{svc=substr($1,1,length($1)-1)} \
-  /^ *- "?\$\{?[A-Z_]*:?-?[0-9]+/{print svc": "$0}' compose.yaml compose/*.yaml
-```
+Measured 2026-07-30 by walking `compose.yaml compose/*.yaml` with awk, tracking the
+current service key and printing each `ports:` entry against it. Superseded by the
+`docker compose config` criterion above, which resolves profiles instead of guessing.
 
 Profile ownership per service was extracted the same way rather than by a recursive grep:
 an earlier `grep -A2 '^    profiles:'` missed `obs-monitoring.yaml` and
 `infra-redis-sentinel.yaml` entirely because their `profiles:` keys sit at a different
 indentation, which would have made both files look unprofiled — i.e. always-on — and
 inflated the collision set. Per-file counts (7 files, all non-zero) caught the error.
+
+## Resolution
+
+Renumber, not re-profile. Fixed in dns-bridge `b61ab84`; the registry entries and
+`.env.example` moved in the same commit.
+
+| service | old | new |
+| --- | --- | --- |
+| `redis-node-1..3` | 11220, 11221, 11222 | 11221, 11222, 11223 |
+| `redis-master`, `redis-replica` | 11230, 11231 | 11224, 11225 |
+| `redis-sentinel-1..3` | 11240, 11241, 11242 | 11226, 11227, 11228 |
+
+Default `redis` keeps 11220, so `dva.yml` needed no edit: its `REDIS_URL` and `redis`
+endpoint stay correct, and the `endpoints:` non-goal held.
+
+**Chose the 1122x cache decade over the 11270-11289 band this task suggested.** The
+registry allocates by decade — 1120x application, 1121x database, 1122x cache, 1123x
+queue, 1124x monitoring, 1129x dev — and cache had nine free slots for eight ports. A
+fresh band would also have worked, but staying in the decade makes a repeat collision with
+queue or monitoring structurally impossible, not merely avoided once.
+
+The exclusivity claim was **not** made true: the non-goal forbade giving `redis` a
+profile, and compose cannot express "this profile disables an unprofiled service" anyway,
+so a stray standalone redis on 11220 now runs beside either topology. Both file headers
+state that outcome instead of repeating the unenforceable "MUTUALLY EXCLUSIVE" line.
+
+A third copy of the wrong fact turned up: `.env.example` called the overlap intentional
+(`# Ports overlap with Kafka ... by design`) — same defect class as TASK-057/060/065/067,
+a claim living where nothing checks it.
+
+### Measurement corrections
+
+Two of my own measurements were wrong before they were right, both worth recording
+because the failure mode is the same one this task's Evidence already warns about:
+
+1. Profile flags built in a shell variable and passed unquoted read as one argument (zsh
+   does not word-split unquoted expansions), so `docker compose` failed, the port list came
+   back empty, and five combinations reported "no duplicates" vacuously. Caught by printing
+   the port *count* beside each verdict — 5/7/9/12/24, never zero.
+2. The first detector ignored protocol and flagged 11253/11254, which are powerdns and
+   coredns publishing one host port each on tcp *and* udp. Legal. The criterion above pairs
+   `published` with `protocol`.
+3. The first negative control copied `.env.example` into the throwaway tree as `.env`,
+   overriding the old compose defaults with the new values and making the pre-fix state
+   look clean. Re-run with no env file, it reproduces exactly the six documented
+   collisions: `redis-cluster` alone duplicates 11220/tcp;
+   `kafka + redis-sentinel` duplicates 11230/tcp and 11231/tcp;
+   `monitoring + redis-sentinel` duplicates 11240/tcp, 11241/tcp, 11242/tcp.
+
+Post-fix, all six profiles active at once publish 24 host ports with no duplicate
+port/protocol pair. `dva validate` rc=0.
+
+### Left open
+
+Four nameserver ports (11253, 11254, 11260, 11261) are published but unregistered — same
+bypassed-registry root cause, different service group. Filed as
+[TASK-071](071-nameserver-ports-unregistered.md).
