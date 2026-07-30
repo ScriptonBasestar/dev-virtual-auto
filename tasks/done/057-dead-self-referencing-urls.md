@@ -6,7 +6,7 @@ priority: P2
 status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
-scope: "dva repo — agent-mesh-flows/shared/library/, internal/cli/library_reference.txt (generated), internal/config/validate_warnings.go, dva.yml"
+scope: "dva repo — agent-mesh-flows/shared/library/, internal/cli/library_reference.txt, internal/config/validate_warnings.go, dva.yml"
 ---
 
 # Task 057: Make DVA's own URLs resolve
@@ -65,19 +65,17 @@ is the actual gap: a second copy of knowledge that nothing compiles.
 | `internal/config/validate_warnings.go:13` | 1 | migration guide URL |
 | `~/mydevbox/**/dva.yml` | 56 of 83 | user configs already stamped |
 
-Two earlier counts were inflated by unpruned paths: "27 places in the repo" counted 24
-backup copies of user configs, and "12 files" for `/blob/main/` counted 10
-`.opencode/node_modules` plus `bin/dva`. Real source occurrences are the 4 rows above. The
-15 `examples/` files using the relative form are correct and stay.
+Two earlier counts were inflated by unpruned paths: "27 places" counted 24 backup copies of
+user configs; "12 files" counted 10 `.opencode/node_modules` plus `bin/dva`. The 15
+`examples/` files using the relative form are correct and stay.
 
 ## Open question — settled 2026-07-30: the repo is public
 
-Probed with `curl` status codes rather than assumed (`gh` was unusable — the org forbids
-fine-grained tokens with a lifetime over 366 days). `dev-virtual-auto` and its
-`internal/config/schema.json` and migration-guide paths all return **200**; root
-`schema.json` 404s; `ScriptonBasestar/dva` 404s at every path tried. So the canonical form
-is confirmed reachable, not merely plausible:
-`https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/internal/config/schema.json`
+Probed with `curl` rather than assumed (`gh` was unusable — the org forbids fine-grained
+tokens over 366 days). `dev-virtual-auto` and its `internal/config/schema.json` and
+migration-guide paths returned **200**; root `schema.json` 404'd; `ScriptonBasestar/dva`
+404'd everywhere. So the canonical form was confirmed reachable, not merely plausible.
+(Hours later the repo was renamed to `dva` and these URLs were swept again — TASK-060.)
 
 ## Fix shape
 
@@ -99,21 +97,21 @@ is confirmed reachable, not merely plausible:
 - [x] Authored corpus teaches a resolving `$schema` URL | verify: `grep -q 'internal/config/schema.json' agent-mesh-flows/shared/library/reference-examples.md`
 - [x] Generated embed matches the source | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt`
 - [x] No source file references the nonexistent root schema path | verify: `/usr/bin/find . -path ./.git -prune -o -path ./tmp -prune -o -path ./bin -prune -o -path ./.opencode -prune -o -path ./tasks -prune -o -type f -print0 | xargs -0 /usr/bin/grep -l 'master/schema.json' ; test $? -ne 0`
-- [x] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
+- [x] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dva/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
 - [x] Corpus URL guard exists and fails on a planted bad URL | verify: `go test ./internal/config/ -run TestGeneratorCorpusURLs`
 - [x] Full suite green | verify: `make test`
 - [x] 56 user configs rewritten, or the sweep explicitly declined | verify: `/usr/bin/find ~/mydevbox -name dva.yml -not -path '*/node_modules/*' -print0 \| xargs -0 /usr/bin/grep -l 'master/schema.json' \| /usr/bin/grep -vE '/tmp/\|/\.omo/evidence/' ; test $? -ne 0`
-- [x] README.md release-download URL resolved | verify: `human — superseded by TASK-060 option B; the rename makes it correct`
+- [x] README.md URLs name a repo that exists | verify: `human — via TASK-060's rename; the download URL still 404s, see TASK-063`
 
-(The third criterion prunes `tasks`: this file quotes the dead URL as evidence, and a guard
-that forbids its own evidence cannot be documented.)
+(Criterion 3 prunes `tasks`: this file quotes the dead URL as evidence, and a guard that
+forbids its own evidence cannot be documented.)
 
 ## Result — repo side done
 
 `reference-examples.md:12` and `dva.yml:1` → canonical raw URL; the first propagated to
 `internal/cli/library_reference.txt:1151` via `make generate`. `migrationGuideURL` →
-`dev-virtual-auto`/`master`, confirmed against a rebuilt binary: the link `dva validate`
-prints in primeno1-devbox is now the 200 one. `make test` green.
+`dev-virtual-auto`/`master`, confirmed against a rebuilt binary in primeno1-devbox: the
+link `dva validate` prints is now the 200 one. `make test` green.
 
 New guard `TestGeneratorCorpusURLs` (`internal/config/corpus_urls_test.go`) audits 5 URLs
 across 125 files, offline, and asserts **both** counters non-zero — a walk that matches
@@ -151,27 +149,29 @@ scripton-dns-bridge-devbox.
 
 ### The loss harness needed a narrow exemption
 
-`tmp/scripts/verify-migration.py` went from 0 fail to **24 fail**, every failure being
-`주석 소실 1건` naming the old `$schema` line. Changing a comment is indistinguishable
-from deleting one to a harness that only knows what text disappeared.
+`tmp/scripts/verify-migration.py` went 0 fail → **24 fail**, every failure `주석 소실 1건`
+naming the old `$schema` line: a changed comment is indistinguishable from a deleted one to
+a harness that only knows what text disappeared.
 
-Re-baselining would have silenced it in one step and cost the ability to detect
-regressions from the original removed-keys migration. Instead `comment_lines()` normalises
-exactly the two dead forms to the canonical one — both sides of the comparison, so a
-line-1 **deletion** is still caught. Back to 0 fail / 29 files.
+Re-baselining would have silenced it in one step and cost the ability to detect regressions
+from the removed-keys migration. Instead `comment_lines()` normalises the dead forms to the
+canonical one on **both** sides, so a line-1 deletion is still caught. Back to 0 fail / 29
+files. TASK-060's rename later added a third dead form to that list.
 
-The exemption does mean the harness would not notice a dead URL being reintroduced into a
-user config. That is out of its scope by design; `TestGeneratorCorpusURLs` covers the repo,
-and user trees have no guard.
+It does mean the harness would not notice a dead URL reintroduced into a user config. Out
+of scope by design: `TestGeneratorCorpusURLs` covers the repo, user trees have no guard.
 
 ## README.md — no longer an escalation, the rename resolves it
 
 `README.md:25`'s release-download URL and `:15`'s `go install` line both name
-`ScriptonBasestar/dva`, which 404s today. The user chose **option B of
+`ScriptonBasestar/dva`, which 404'd when this was written. The user chose **option B of
 [TASK-060](../decision/060-go-module-path-does-not-resolve.md)** — rename the GitHub repo
-to `dva` — which makes both lines correct without touching the file. That matters here
-because root `README.md` is `core` level, **ai=deny**: this was the one finding no agent
-could fix, and the rename retires it instead.
+to `dva` — which fixes the *name* in both lines without touching this ai=deny file.
+
+Half of it is genuinely retired: `go install` now works. The download URL still 404s,
+because the repo has never published a release or a tag — a different defect, found while
+verifying this claim rather than assuming it, and tracked in
+[TASK-063](063-documented-release-download-has-no-release.md).
 
 That decision inverts what this task standardised on: every URL now says
 `dev-virtual-auto`, and after the rename the canonical name is `dva`. The post-rename
@@ -183,4 +183,4 @@ tracked in TASK-060, not here.
 - `git log --all --oneline -- schema.json` → empty (root schema never existed).
 - `git branch -r` → `origin/HEAD -> origin/master`, `origin/master` only; no `main`.
 - `git remote -v` → `git@github.com:ScriptonBasestar/dev-virtual-auto.git`.
-- Counts measured 2026-07-30 against `bin/dva` @ `b20fee8`.
+- Counts measured 2026-07-30 @ `b20fee8`.
