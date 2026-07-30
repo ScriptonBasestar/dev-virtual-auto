@@ -3,7 +3,7 @@ id: TASK-071
 title: "Four nameserver host ports are published but absent from the port registry"
 type: fix
 priority: P4
-status: todo
+status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox — PORT_MAPPINGS.yaml only"
@@ -55,10 +55,10 @@ because it ignored protocol; do not "fix" them.
 
 ## Acceptance criteria
 
-- [ ] All four ports registered | verify: `/usr/bin/grep -cE 'POWERDNS_DNS_PORT|COREDNS_DNS_PORT|POWERDNS_API_PORT|ETCD_PORT' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml` — expect 4
-- [ ] Registry agrees with the compose defaults | verify: `human — for each of the four, registry port == the ${VAR:-NNNNN} default in compose/infra-nameserver.yaml`
-- [ ] Registry still parses | verify: `python3 -c "import yaml; yaml.safe_load(open('$HOME/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml'))"`
-- [ ] No published port remains unregistered | verify: `human — re-run the three-way reconciliation from TASK-062; the UNREGISTERED list must be empty`
+- [x] All four ports registered | verify: `/usr/bin/grep -cE 'POWERDNS_DNS_PORT|COREDNS_DNS_PORT|POWERDNS_API_PORT|ETCD_PORT' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml` — expect 4
+- [x] Registry agrees with the compose defaults | verify: `human — three-way reconciliation below; VALUE MISMATCH empty on both axes`
+- [x] Registry still parses | verify: `python3 -c "import yaml; yaml.safe_load(open('$HOME/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml'))"`
+- [x] No published port remains unregistered | verify: `human — reconciliation below; UNREGISTERED is empty over 23 compose vars`
 
 ## Evidence
 
@@ -67,3 +67,30 @@ Measured 2026-07-30 while closing TASK-062, by diffing every `${VAR:-NNNNN}` def
 All shared variables agreed on their value; these four were present in compose and absent
 from the registry. `.env.example` also declares all four, so the registry is the only
 source missing them.
+
+## Resolution
+
+Fixed in dns-bridge `aec4a7d`. A `nameserver:` group was added between `monitoring:` and
+`dev:` with the four entries as filed — no renumbering, no compose, `.env.example` or
+`dva.yml` change.
+
+The group spans **two** decades (1125x for DNS, 1126x for the control plane) where every
+other group occupies one. Recorded in the group comment rather than normalized: renumbering
+was an explicit non-goal, and the numbers are uncontested.
+
+Re-running the three-way reconciliation after the edit:
+
+```
+compose vars=23  registry entries=24  .env.example vars=27
+UNREGISTERED (compose default but not in registry): none
+VALUE MISMATCH compose vs registry: none
+VALUE MISMATCH .env.example vs registry: none
+```
+
+The non-zero counts matter more than the three `none` lines — an empty parse would produce
+the same three verdicts vacuously, which is exactly how TASK-062's first five port checks
+passed while measuring nothing. Registry entries (24) exceed compose vars (23) because
+`API_PORT` and friends are application-level and not published through a compose default.
+
+The tcp+udp double bind on 11253/11254 is now stated in the group comment, so the next
+duplicate detector that ignores protocol has a written answer waiting for it.
