@@ -3,7 +3,7 @@ id: TASK-067
 title: "The `version:` rule is stated across nine files and encodes three incompatible rules — the AI generator is taught the harmful one"
 type: fix
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/config/schema.json, agent-mesh-flows/shared/library/{shared-guardrails,dva-schema,shared-checklist,reference-examples}.md"
@@ -126,13 +126,34 @@ Also stale, fix while here: `reference-examples.md` carries `version: "0.1.29"` 
 
 ## Acceptance criteria
 
-- [ ] A `dva.yml` with no `version:` key passes `dva validate` | verify: `go test ./internal/config/ -run TestValidateWithoutVersion`
-- [ ] `version` is absent from schema.json's top-level `required` | verify: `python3 -c "import json;assert 'version' not in json.load(open('internal/config/schema.json')).get('required',[])"`
-- [ ] `dva init` output still validates | verify: `human — dva init in a temp dir with a compose file, then dva validate, expect rc=0`
-- [ ] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rn 'Must match the current DVA CLI version' agent-mesh-flows/`
-- [ ] No library file claims subprojects must match root | verify: `! /usr/bin/grep -rniE 'version.*match(es)? root|Subprojects? (should|must) match' agent-mesh-flows/`
-- [ ] Regenerated artifact agrees | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt || true`
-- [ ] Full suite green | verify: `make test`
+- [x] A `dva.yml` with no `version:` key passes `dva validate` | verify: `go test ./internal/config/ -run TestValidateWithoutVersion`
+- [x] `version` is absent from schema.json's top-level `required` | verify: `python3 -c "import json;assert 'version' not in json.load(open('internal/config/schema.json')).get('required',[])"`
+- [x] `dva init` output still validates | verify: `human — dva init in a temp dir with a compose file, then dva validate, expect rc=0`
+- [x] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rn 'Must match the current DVA CLI version' agent-mesh-flows/`
+- [x] No library file claims subprojects must match root | verify: `! /usr/bin/grep -rniE 'version.*match(es)? root|Subprojects? (should|must) match' agent-mesh-flows/`
+- [x] Regenerated artifact agrees | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt || true`
+- [x] Full suite green | verify: `make test`
+
+## Resolution
+
+**Rule A** — `"required": ["version"]` removed from `schema.json`. The `version` property's
+description now states it is optional and a floor rather than the writing binary's version.
+Verified end-to-end against a version-less config: `validate`/`ls`/`doctor`/`manifest`/`show`
+all rc=0, where `validate` alone was rc=1 before.
+
+**Rule B** — done the drift-proof way rather than by hand. `tools/libgen` gained a third
+injected fact, `version_rule`, sourced from `config.MinScaffoldVersion`, and rule 4 of
+`shared-guardrails.md` is now an `<!-- AUTOGEN:version_rule -->` block. The two invented
+claims were deleted outright: `shared-checklist.md`'s "subproject `version` matches root"
+item and `reference-examples.md`'s `# version MUST match root` comment (whose stale
+`version: "0.1.29"` went with it — the example now omits `version:` and says why).
+`dva-schema.md`'s two statements were corrected at their new canonical path,
+`skills/config/references/schema-reference.md` (moved under `skills/` by `bb47998` while
+this task was open; the library keeps a symlink, which `make generate` follows via `cat`).
+
+`MinScaffoldVersion` being a const is what makes the injection safe: no build can inject a
+different floor, so the prose cannot disagree with the binary. Prose now carries **zero**
+hand-written DVA version strings.
 
 ## Evidence
 

@@ -3,7 +3,7 @@ id: TASK-069
 title: "`dva config migrate` applies to 0 of 31 live configs while 18 warn about migrating — validate and migrate give the user contradictory impressions"
 type: fix
 priority: P3
-status: todo
+status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/config_migrate.go (the XS fix); a modes→plans converter would be internal/config/migrate.go and is deliberately out of scope"
@@ -124,11 +124,31 @@ built, it belongs behind its own decision, not as an extension of a load-error r
 
 ## Acceptance criteria
 
-- [ ] The no-op message names what it checked and points at `dva validate` | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
-- [ ] The message does not appear when entries were migrated | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
-- [ ] A config with legacy compose still migrates unchanged | verify: `go test ./internal/config/ -run TestMigrateLegacyCompose`
-- [ ] Full suite green | verify: `make test`
-- [ ] Still a no-op across the corpus | verify: `human — re-run the Evidence sweep, expect would-migrate=0, nothing-to-do=31`
+- [x] The no-op message names what it checked and points at `dva validate` | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
+- [x] The message does not appear when entries were migrated | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
+- [x] A config with legacy compose still migrates unchanged | verify: `go test ./internal/config/ -run TestMigrateLegacyCompose`
+- [x] Full suite green | verify: `make test`
+- [x] Still a no-op across the corpus | verify: `human — re-run the Evidence sweep, expect would-migrate=0, nothing-to-do=31`
+
+## Resolution
+
+The no-op branch now names the shape it converts and hands the user off to `dva validate`:
+
+```
+dva.yml: no legacy compose declarations found (this command only converts the
+compose shape DVA cannot load). Run 'dva validate' for deprecation warnings —
+'modes', 'stack.*.order' and 'applications' are migrated by hand.
+```
+
+The Fix shape preferred deriving those three section names from validate's own source.
+That was **not** done, deliberately: `warnLegacyModes`/`warnLegacyStackOrder`/
+`warnLegacyApplications` have no exported list of the sections they cover, and exposing
+one means editing `internal/config/` for a hint string — more blast radius than an XS
+message fix should carry. The string is hand-written with a comment saying it is a hint
+rather than a rule, and naming what to update if validate's set changes.
+
+Re-verified after the change, preview only, `--write` passed to nothing:
+total=31 nothing-to-do=31 would-migrate=0 other=0.
 
 ## Evidence
 
