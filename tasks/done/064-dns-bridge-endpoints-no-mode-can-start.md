@@ -3,7 +3,7 @@ id: TASK-064
 title: "dns-bridge advertises six endpoints no mode can start, and a compose profile shares a name with an unrelated mode"
 type: fix
 priority: P3
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox/dva.yml — endpoints:/modes:; needs the user's go-ahead to edit"
@@ -77,10 +77,10 @@ partial guard — worth noting, not worth claiming as a fix.
 
 ## Acceptance criteria
 
-- [ ] Direction chosen for the six unreachable endpoints | verify: `human — decision recorded here`
-- [ ] The `dev` name collision is resolved or explicitly accepted | verify: `human — recorded here`
-- [ ] Every remaining endpoint is startable by some mode | verify: `human — re-run the mapping in Evidence; expect 0 "NO" rows`
-- [ ] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
+- [x] Direction chosen for the six unreachable endpoints | verify: `human — decision recorded in Resolution`
+- [x] The `dev` name collision is resolved or explicitly accepted | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva up --mode dev --dry-run 2>&1 | /usr/bin/grep -q -- '--profile dev'`
+- [x] Every remaining endpoint is startable by some mode | verify: `human — re-run the mapping in Evidence; expect 0 "NO" rows`
+- [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
 
 ## Evidence
 
@@ -89,3 +89,56 @@ each endpoint's `source:` service to its `profiles:` list — not by grep. An ea
 pass put the count at 10 by treating the monitoring group as unreachable; it is reachable
 through `full-stack-monitoring`, and the indentation-sensitive grep that produced that
 answer had already missed two files in TASK-062.
+
+## Resolution
+
+Added the modes. Fixed in dns-bridge `d310013`; no endpoint was deleted, so the non-goal
+about not gutting `endpoints:` held.
+
+```
+kafka       -> compose_profiles: [kafka]       (kafka, zookeeper)
+nameserver  -> compose_profiles: [nameserver]  (powerdns, etcd, coredns)
+dev         -> compose_profiles: [dev]         (mock-auth)  — compose_services dropped
+```
+
+All three also start `postgres` and `redis`: those declare no profile, so every `up`
+includes them whichever profile is selected.
+
+### Dropping `compose_services` from `dev` was the load-bearing detail
+
+Giving mode `dev` a `compose_profiles: [dev]` while leaving
+`compose_services: [postgres, redis]` in place would **not** have started `mock-auth`.
+`internal/lifecycle/compose.go:197-202` appends that list as positional service names to
+`docker compose up`, and naming services suppresses profile activation — so the mode would
+have gained a `--profile dev` flag that changed nothing, reproducing exactly the
+"looks wired, isn't" defect this task was filed about. Omitting the key instead means
+`nil`, documented in `config.go:141` as "start all services", which under `--profile dev`
+is the two unprofiled services plus the profile.
+
+Confirmed by argv rather than by reading the code twice:
+
+```
+--mode dev    -> compose ... --profile dev up -d --wait          (no service names)
+--mode infra  -> compose ... up -d --wait postgres redis         (unchanged)
+```
+
+`infra` still exists as the minimal DB+Redis mode, so making `dev` heavier cost nothing.
+
+### DVA does not check profile names
+
+`compose_profiles` values are never validated: `validate_warnings.go` has no
+profile-aware check, and DVA does not read external compose files at all (established in
+[TASK-062](062-dns-bridge-host-port-collisions.md)). A typo in `nameserver` would produce
+a mode that silently starts only postgres and redis. The compensating measurement was
+`docker compose --profile <p> config --services`, i.e. asking docker rather than trusting
+the spelling — it returned exactly `{mock-auth, postgres, redis}`,
+`{kafka, postgres, redis, zookeeper}` and `{coredns, etcd, postgres, powerdns, redis}`.
+
+That check belongs to the same unfiled compose-parsing proposal as TASK-062's warning
+idea and TASK-068's `include:` gap; recorded here rather than filed a third time.
+
+### Result
+
+13 endpoints, 0 unreachable. `dva validate` rc=0; the remaining warnings
+(`applications.*` compose ownership, `stack.*.order` → plans migration) predate this
+change and are untouched by it.
