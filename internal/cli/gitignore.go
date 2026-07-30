@@ -64,17 +64,45 @@ func ensureGitignore(configDir string) (bool, error) {
 }
 
 // isDvaIgnored checks if the config directory is already ignored in the gitignore content.
+//
+// Matching the full path literally is not enough. DotDirName is a two-segment path
+// (".sb/dva"), and git excludes an entire subtree when any ancestor directory is listed, so
+// a .gitignore saying ".sb/" already ignores ".sb/dva". The literal check called that
+// unignored and told the user to add a rule they did not need — on the better-written
+// config, since ".sb/" covers DVA's whole dot directory rather than one child.
+//
+// A later negation cannot make this conclusion wrong: git documents that a file cannot be
+// re-included once a parent directory is excluded, so an ancestor rule is decisive.
+//
+// This deliberately stops short of implementing gitignore semantics — globs (".sb/*"),
+// negations, and non-root anchoring stay uninterpreted. The goal is to stop warning about
+// rules that plainly cover the path, not to become a second git.
 func isDvaIgnored(content string) bool {
-	dir := config.DotDirName
-	dirSlash := dir + "/"
-	lines := strings.Split(content, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == dir || line == dirSlash {
+	covering := ignoreRulesCovering(config.DotDirName)
+	for _, line := range strings.Split(content, "\n") {
+		if covering[strings.TrimSpace(line)] {
 			return true
 		}
 	}
 	return false
+}
+
+// ignoreRulesCovering returns the set of .gitignore lines that would exclude dir, being
+// every ancestor prefix of dir plus dir itself, in each spelling git treats alike: bare,
+// trailing slash, and root-anchored with a leading slash.
+func ignoreRulesCovering(dir string) map[string]bool {
+	rules := make(map[string]bool)
+	parts := strings.Split(dir, "/")
+	for i := range parts {
+		prefix := strings.Join(parts[:i+1], "/")
+		if prefix == "" {
+			continue
+		}
+		for _, form := range []string{prefix, prefix + "/", "/" + prefix, "/" + prefix + "/"} {
+			rules[form] = true
+		}
+	}
+	return rules
 }
 
 // checkGitignoreForWarning checks if the config directory is ignored and prints a warning if not.
