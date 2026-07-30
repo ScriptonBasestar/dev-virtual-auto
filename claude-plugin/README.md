@@ -32,6 +32,10 @@ am run dva-improve     # AI 기반 dva.yml 개선
 
 ## Skills
 
+> ⚠️ `claude-plugin/skills`는 루트 `skills/`의 **심볼릭 링크**입니다 (`→ ../skills`).
+> 이 디렉토리는 별도 소스가 아닙니다 — 편집은 항상 `skills/<name>/SKILL.md`에서 하고
+> `make generate`로 동기화하세요. 단일 소스 원칙은 `skills/README.md` 참조.
+
 | Skill | 경로 | 역할 |
 |-------|------|------|
 | **dva** | `skills/dva/SKILL.md` | DVA CLI 실행 — build/test/run/lifecycle, 설정 작성 패턴, 반복 작업 템플릿 |
