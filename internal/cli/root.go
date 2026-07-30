@@ -11,6 +11,7 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 	"github.com/ScriptonBasestar/dva/internal/logger"
+	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
 var (
@@ -219,6 +220,7 @@ func Execute() {
 
 	if err := rootCmd.Execute(); err != nil {
 		errMsg := err.Error()
+		emitFailureJSON(errMsg)
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 
 		// Only suggest similar commands for unknown/unrecognized commands, not execution failures
@@ -282,10 +284,43 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
+// emitFailureJSON puts a parseable failure on stdout when the caller asked for --json.
+// The flag's audience is a program (internal/cli/CLAUDE.md: "LLM 파이프라인용"), and a
+// failed command used to leave stdout empty, making the exit code the only signal — one
+// that cannot say why. The message is the same string stderr gets, so everything recent
+// work put into it (TASK-073's build-vs-config blame, TASK-074's route) travels with it.
+//
+// Two conditions, and the second is the one worth explaining. A command that already
+// printed its document must not get a second one appended: `dva doctor --json` exits 1
+// with a complete {"checks": …} object whose "passed": false IS the failure — measured,
+// 488 bytes on stdout with exit 1 — and adding an envelope there would make stdout two
+// concatenated documents, which is not what a consumer piping to `jq` reads. The envelope
+// exists to keep stdout from being empty, so it yields to a stdout that is not.
+//
+// Its error is dropped deliberately: the map below holds only strings and an int and
+// cannot fail to marshal, and both callers print the same message to stderr and exit 1
+// immediately after, so there is no path where dropping it loses the failure.
+func emitFailureJSON(message string) {
+	if !jsonOutput || output.StdoutHasDocument() {
+		return
+	}
+	_ = output.PrintJSON(map[string]any{
+		"error": map[string]any{
+			"message":   message,
+			"exit_code": 1,
+		},
+	})
+}
+
 func mustLoadConfig() *config.Config {
 	c, err := loadConfig()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", err)
+		// The second failure choke point, and not reachable from the first: this exits
+		// before rootCmd.Execute() returns, so the envelope has to be emitted here too.
+		// Fifteen commands reach a missing or unreadable config through this function.
+		errMsg := err.Error()
+		emitFailureJSON(errMsg)
+		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 		os.Exit(1)
 	}
 	return c
