@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
@@ -21,9 +22,10 @@ var validateCmd = &cobra.Command{
 	Short: "Validate the syntax and schema of 'dva.yml'",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
+		report := newValidateReport(c)
 
 		if err := c.Validate(); err != nil {
-			return err
+			return report.fail(err)
 		}
 
 		// Check compose file project name alignment
@@ -34,6 +36,12 @@ var validateCmd = &cobra.Command{
 			fixComposeNameWarnings(c, warnings)
 		} else {
 			printComposeNameWarnings(warnings)
+			// Only when they were reported: --fix rewrote the files, so the mismatch no
+			// longer exists and putting it in the report would describe a fixed state as
+			// an outstanding warning.
+			for _, w := range warnings {
+				report.addComposeNameWarning(w)
+			}
 		}
 
 		// Semantic warnings (version, health checks, duplicate commands, etc.)
@@ -41,13 +49,18 @@ var validateCmd = &cobra.Command{
 		for _, w := range semanticWarnings {
 			fmt.Fprintf(os.Stderr, "[warn] semantic: %s\n", w)
 		}
+		report.add("semantic", semanticWarnings...)
 
 		driftWarnings := detectConfigDriftWarnings(c)
 		printConfigDriftWarnings(driftWarnings)
-		printConfigSuggestionWarnings(detectConfigSuggestionWarnings(c))
+		report.add("config_drift", driftWarnings...)
+
+		suggestionWarnings := detectConfigSuggestionWarnings(c)
+		printConfigSuggestionWarnings(suggestionWarnings)
+		report.add("config_suggestion", suggestionWarnings...)
 
 		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0) {
-			return fmt.Errorf("config warnings detected; review warnings above or run 'am run dva-improve'")
+			return report.fail(fmt.Errorf("config warnings detected; review warnings above or run 'am run dva-improve'"))
 		}
 
 		// Check devcontainer sync
@@ -63,10 +76,14 @@ var validateCmd = &cobra.Command{
 				} else {
 					fmt.Fprintf(os.Stderr, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
 					fmt.Fprintf(os.Stderr, "       → run: dva config validate --fix\n")
+					report.add("devcontainer", "devcontainer section found but .devcontainer/devcontainer.json missing\n  → run: dva config validate --fix")
 				}
 			}
 		}
 
+		if jsonOutput {
+			return output.PrintJSON(report)
+		}
 		fmt.Println("✅ dva.yml is valid")
 		return nil
 	},
@@ -77,16 +94,34 @@ func init() {
 	configCmd.AddCommand(validateCmd)
 }
 
+// composeNameWarningLines renders one compose-name warning as its headline followed by
+// its continuation lines, without any of the prefixes either consumer adds.
+//
+// It exists so the prose on stderr and the JSON in validateReport are the same sentences
+// by construction rather than by two authors agreeing (TASK-088). The alternative — a
+// second set of format strings in validate_json.go — is the shape that produced the
+// note-printed-four-different-ways defect in TASK-086.
+func composeNameWarningLines(w config.ComposeNameWarning) []string {
+	if w.ComposeName == "" {
+		return []string{
+			fmt.Sprintf("%s: missing top-level 'name: %s'", w.File, w.DvaName),
+			"Running 'docker compose up' directly will use the directory name as project,",
+			fmt.Sprintf("causing port conflicts with dva. Fix: add 'name: %s' to %s", w.DvaName, w.File),
+		}
+	}
+	return []string{
+		fmt.Sprintf("%s: name '%s' differs from dva.yml project_name '%s'", w.File, w.ComposeName, w.DvaName),
+		fmt.Sprintf("Fix: change 'name: %s' to 'name: %s' in %s", w.ComposeName, w.DvaName, w.File),
+	}
+}
+
 // printComposeNameWarnings prints warnings about compose file name mismatches to stderr.
 func printComposeNameWarnings(warnings []config.ComposeNameWarning) {
 	for _, w := range warnings {
-		if w.ComposeName == "" {
-			fmt.Fprintf(os.Stderr, "[warn] semantic: %s: missing top-level 'name: %s'\n", w.File, w.DvaName)
-			fmt.Fprintf(os.Stderr, "       Running 'docker compose up' directly will use the directory name as project,\n")
-			fmt.Fprintf(os.Stderr, "       causing port conflicts with dva. Fix: add 'name: %s' to %s\n", w.DvaName, w.File)
-		} else {
-			fmt.Fprintf(os.Stderr, "[warn] semantic: %s: name '%s' differs from dva.yml project_name '%s'\n", w.File, w.ComposeName, w.DvaName)
-			fmt.Fprintf(os.Stderr, "       Fix: change 'name: %s' to 'name: %s' in %s\n", w.ComposeName, w.DvaName, w.File)
+		lines := composeNameWarningLines(w)
+		fmt.Fprintf(os.Stderr, "[warn] semantic: %s\n", lines[0])
+		for _, detail := range lines[1:] {
+			fmt.Fprintf(os.Stderr, "       %s\n", detail)
 		}
 	}
 }

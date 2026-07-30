@@ -118,7 +118,7 @@ still human-only, per the non-goal.
   `✅ dva.yml is valid` verdict and every `[warn] semantic:` line, which under `--json` are
   byte-identical to the run without the flag. The original wording ("returns no error, so the
   envelope never applies") holds only for the success path. Now filed with the four measured paths
-  as [TASK-088](../todo/088-validate-json-covers-only-the-failure-it-does-not-produce.md).
+  as [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md).
 - **The suggestion list and the `dva init` hint stay human-only.** `did_you_mean` and the init
   hint are printed after the envelope, to stderr. Keeping them out of the document follows the
   non-goal ("Do not change any error's text"), and the actionable content lives in `message`
