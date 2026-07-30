@@ -77,8 +77,15 @@ not get a second one appended:
 Rows 1 and 3 were `0 bytes` before this change; row 5 is the one that decided the design.
 `dva doctor --json` exits 1 while having already written a complete 488-byte `{"checks": …}`
 object whose failing check *is* the failure. An envelope appended there would make stdout two
-concatenated documents — `jq` reports `invalid character '{' after top-level value` — so
-`internal/output` records that a printer has written, and the envelope yields when it has.
+concatenated documents — Go's `encoding/json` rejects that with `invalid character '{' after
+top-level value`, which is what the test asserts — so `internal/output` records that a printer has
+written, and the envelope yields when it has.
+
+**`jq` cannot be used to check this.** `jq` reads a *stream* of documents: `jq -e .` exits 0 on
+two concatenated objects, so any "it parses" verdict built on it is vacuous. Measured:
+`printf '{"a":1}{"b":2}' | jq -e .` exits 0, while `| jq -s 'length'` prints 2. Only the slurped
+form counts documents, and only Go's `Unmarshal` rejects trailing data outright. Every
+single-document claim below is backed by `jq -s 'length'` or by the Go test, never by `jq -e .`.
 
 Candidate (2), per-command envelopes, stays rejected for the reason the task gave: it repeats one
 decision N times, which is how TASK-074's five duplicated literals happened.
@@ -94,7 +101,7 @@ still human-only, per the non-goal.
 ## Acceptance criteria
 
 - [x] A failed command under `--json` writes a parseable document to stdout | verify: `dva app up myapp --json 2>/dev/null | jq -e .error.message` — exits 0; was 4 (no output) before
-- [x] The `mustLoadConfig` path is covered too, since it exits before `Execute` returns | verify: `cd <dir with no dva.yml> && dva ls --json 2>/dev/null | jq -e .error.message` — exits 0, one document, `exit_code: 1`
+- [x] The `mustLoadConfig` path is covered too, since it exits before `Execute` returns | verify: `cd <dir with no dva.yml> && dva ls --json 2>/dev/null | jq -s 'length'` — prints **1**; `.[0].error.message` carries the "could not find dva.yml" text with its `dva init` hint, `.[0].error.exit_code` is 1, command exit 1
 - [x] It carries the message the human path prints | verify: `human — the stdout .error.message and the stderr ERROR: line were compared byte-for-byte on the same invocation and are identical, hint line included`
 - [x] Success output under `--json` is unchanged | verify: `go test ./internal/cli/ -run JSON` — passes; 17 pre-existing JSON tests selected besides the new one, so the regex is not matching an empty set
 - [x] Without `--json` nothing moves to stdout | verify: `test -z "$(dva app up myapp 2>/dev/null)"` — captured value was `''`, 0 bytes; `dva ls` without the flag likewise yields `jq` exit 4
@@ -117,6 +124,14 @@ still human-only, per the non-goal.
 - **`internal/output` has no test file** (0.0% coverage). `StdoutHasDocument` and
   `ResetStdoutDocument` are exercised from `internal/cli`, which is where the behaviour that
   needs pinning lives, but the package's own printers remain untested.
+- **`status.go`'s hazard path was not reached end-to-end.** An independent survey found exactly
+  two sites that write a JSON document to stdout and can still return a non-nil error afterwards:
+  `doctor.go:51-56` and `status.go:57-60` (`PrintJSON` then `lifecycle.StatusExitError`). `doctor`
+  is confirmed on the real binary — a failing `checks:` entry gives exit 1, `jq -s 'length'` = 1,
+  `has("error")` false, with 4 failing checks present as a positive control. `status` needs a
+  stack entry carrying a non-empty `Error`, which needs a live runtime; in a docker-less
+  environment it reported no error and exited 0, so its guard is covered by construction (the
+  record lives in `PrintJSON`, which both call) but not by measurement.
 - **`gitignore.go:178` left this task's scope.** [TASK-080](080-gitignore-warning-preempts-every-command.md)
   shipped the `if jsonOutput { return }` gate, so the warning no longer contaminates a `--json`
   stream and nothing is owed here.
