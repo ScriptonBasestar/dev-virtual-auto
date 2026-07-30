@@ -8,7 +8,7 @@
    rewritten configs. `modes:` and `applications:` are migration-only legacy
    sections.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
-3. **`version:` field** — Use the current DVA version (specified in the prompt's CRITICAL version section). Subprojects should match.
+3. **`version:` field** — Optional, and it declares the **minimum** DVA version the config requires of its reader — not the version of the binary that generated it. Omit it for no compatibility gate. Pinning it to the running CLI version makes every generated config refuse to load on an older DVA. Subproject `version:` is checked against the running DVA independently; it is never compared to root. Canonical source: `internal/config/version.go`.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
@@ -659,7 +659,8 @@ The following fields are NOT valid in dva.yml. Use the correct equivalents:
 ### Subproject Consistency
 
 Imported or directly executed subproject dva.yml files MUST follow the same rules as the root:
-- Version must match root (use current DVA version)
+- `version:` is optional and is **not** compared to root — DVA checks each file's floor
+  against the running binary independently, so do not require the two to agree
 - Same format rules apply (stack, runner:local, no echo wrappers)
 - Declared-only subprojects without import entries (`import` omitted or `import: {}`) may be initialized later
 

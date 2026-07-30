@@ -495,7 +495,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "description": "Specifies the minimum required version of DVA. Must not exceed the installed DVA version, or the config is rejected.",
+      "description": "Optional. Specifies the minimum version of DVA this config requires of its reader — not the version of the binary that wrote it. Must not exceed the installed DVA version, or the config is rejected. Omit it for no compatibility gate.",
       "examples": ["0.1.0"]
     },
     "vars": {
@@ -1613,6 +1613,5 @@
         }
       }]
     }
-  },
-  "required": ["version"]
+  }
 }

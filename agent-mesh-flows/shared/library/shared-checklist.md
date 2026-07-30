@@ -51,7 +51,6 @@
 - [ ] No synthetic default/full/reset profile without setup evidence
 
 ### Subprojects (if applicable)
-- [ ] Imported subproject `version` matches root
 - [ ] Subprojects use `exclude_tags: [infra]`
 - [ ] No `description:` field in subprojects (only `path`, `exclude_tags`, `import`)
 - [ ] Every imported subproject has its own `dva.yml`; placeholders without import entries (`import` omitted or `import: {}`) may be initialized later

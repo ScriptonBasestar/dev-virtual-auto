@@ -439,6 +439,36 @@ stack:
 	}
 }
 
+// TestValidateWithoutVersion locks TASK-067 rule A. `version:` is optional in Go —
+// checkConfigVersion returns nil early on "" and comments the empty case as allowed —
+// but schema.json listed it in the top-level `required`. So a config with no `version:`
+// key loaded and ran under ls/doctor/manifest/show and failed under `dva validate`
+// alone: the validator reported a defect in a config the rest of the tool ran without
+// complaint, which is the worst direction for a validator to be wrong in.
+//
+// Nothing pinned either behavior before this — no test in the repo contained the string
+// "version is required" or referenced checkConfigVersion, which is why the schema and
+// the loader could disagree for as long as they did.
+func TestValidateWithoutVersion(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `stack:
+  core-compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yml]
+        project_name: app
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if cfg.Version != "" {
+		t.Fatalf("Version = %q, want empty for a config with no version: key", cfg.Version)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want a version-less config to validate", err)
+	}
+}
+
 func loadConfigForSchemaTest(t *testing.T, dir, content string) *Config {
 	t.Helper()
 

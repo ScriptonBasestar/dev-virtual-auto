@@ -545,11 +545,11 @@ subprojects:
     exclude_tags: [infra]
 
 # Subproject dva.yml — app-specific commands only, NO stack section needed
-# version MUST match root
 # NOTE: Subprojects do NOT re-declare the parent's compose stack.
 # The parent's `subprojects.{name}.exclude_tags: [infra]` prevents duplicate infra.
 # Subproject dva.yml only needs interaction commands for app-specific operations.
-version: "0.1.29"
+# `version:` is optional and is NOT compared to the parent's — DVA checks each file's
+# floor against the running binary independently. Omitted here on purpose.
 
 # stack: is OPTIONAL in subprojects — omit if the subproject relies entirely on parent infra
 # Only add stack: if the subproject has its own compose services

@@ -5,6 +5,7 @@
 // Facts sourced from Go:
 //   - reserved + hookable commands → internal/config/reserved.go
 //   - canonical section order       → internal/config/validate_warnings.go
+//   - the `version:` rule           → internal/config/version.go
 //
 // Facts that live only in markdown (naming presets, forbidden ports, schema doc)
 // are intentionally NOT touched here — see shared/library/README.md.
@@ -41,6 +42,10 @@ func main() {
 	if err != nil {
 		fail(err)
 	}
+	out, err = replaceBlock(out, "version_rule", renderVersion(config.MinScaffoldVersion))
+	if err != nil {
+		fail(err)
+	}
 
 	if out == string(content) {
 		fmt.Println("libgen:", guardrailsPath, "already up-to-date")
@@ -63,6 +68,17 @@ func renderReserved(reserved, hookable []string) string {
 // renderSection formats the canonical section order joined by arrows.
 func renderSection(order []string) string {
 	return backtickListArrow(order)
+}
+
+// renderVersion formats the `version:` rule. The floor is the only version fact prose
+// should carry: MinScaffoldVersion is a const that changes when init's output stops
+// loading on older DVA, whereas Version changes every release — so pinning generated
+// configs to Version is exactly what version.go exists to prevent.
+func renderVersion(floor string) string {
+	return fmt.Sprintf("Omit `version:` for no compatibility gate. When declaring it, use `%s` — the floor `dva init` writes. "+
+		"Never scaffold the running CLI version: that makes every generated config refuse to load on an older DVA, "+
+		"ratcheting the floor up on each release. Subproject `version:` is checked against the running DVA "+
+		"independently; DVA never compares a subproject's version to root, so do not require them to agree.", floor)
 }
 
 // replaceBlock swaps the content between a named AUTOGEN marker pair. The leading
