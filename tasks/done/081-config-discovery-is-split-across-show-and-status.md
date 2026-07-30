@@ -96,8 +96,8 @@ with an unstable sort, so entries sharing an order — including the default whe
 `order:` — come out in map-iteration order, and `NewOrchestrator` computes that slice once for
 `Up`/`Down`/`Stop`/`Restart`/`Status`. Measured 5 distinct sequences in 20 runs on a config
 `validate` calls valid; filed as
-[TASK-084](../todo/084-stack-up-walks-a-different-sequence-each-run.md), whose half 1 has since
-given `SortedStack` that tiebreak and deleted `stackViews`' local copy.
+[TASK-084](084-stack-up-walks-a-different-sequence-each-run.md), since fixed: `SortedStack` has the
+tiebreak and `stackViews`' local copy is gone.
 
 **A fixture no config can load proves less than it appears to — and over-correcting is its own
 defect.** The first test built `infra` with an entry-level `Compose` struct, which load *rejects*

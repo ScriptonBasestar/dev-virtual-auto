@@ -4,7 +4,7 @@ title: "`dva stack up` walks a different entry sequence each run, and the warnin
 type: fix
 priority: P2
 effort: M
-status: todo
+status: done
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/config — lifecycle_helpers.go SortedStack, validate_warnings.go warnDuplicateStackOrder; internal/lifecycle — orchestrator.go"
 ---
@@ -58,26 +58,6 @@ default_plan". Plan order governs `dva up <plan>` only.
 So the advice funnel ends at the one configuration where the hazard is real and unannounced.
 Verified on D: silent at validate, 4 distinct sequences in 12 runs.
 
-## Proposed fix
-
-Two halves; the first needs no decision, the second does.
-
-1. **Make the sequence deterministic.** Tiebreak `SortedStack()` by `Name` after `Order`. This is
-   already the documented convention one function away — `PrimaryComposeEntry` says
-   "alphabetically first Name when Order values are equal" — so this makes the file
-   self-consistent rather than inventing a rule. Arbitrary-but-stable is strictly better than
-   arbitrary-and-varying: it makes ordering bugs reproducible.
-
-   Collect the copies while doing it. The `(Order, Name)` comparator is written out five times:
-   `lifecycle_helpers.go:113`, `:172`, `:190-195`, `:207-212`, and the local one TASK-081 added at
-   `internal/cli/show.go`. Four of the five live in the file being changed, and the fifth exists
-   only because `SortedStack` lacks the tiebreak — so this half should end with one copy, and
-   `show.go`'s sort deleted.
-2. **Decide what `dva stack up` owes plan order.** Either it consults the plan (contradicting its
-   own help, and ambiguous when several plans name an entry), or the suppression in
-   `warnDuplicateStackOrder` narrows to the commands plans actually govern, so state D warns
-   again. The second is smaller and matches what the code already believes about plans.
-
 ### Related, and not the same problem
 
 `dva up <plan>` never consults stack `order:` at all — `NewPlanOrchestrator`
@@ -118,6 +98,29 @@ comparator, so agreement needed case analysis on all three order relations rathe
 fires 26 assertions across 10 runs. **Collecting duplicated logic is not a safe refactor when the
 copies are untested** — the copies looking alike is what makes it feel safe.
 
+## Half 2: shipped — the suppression narrowed
+
+Decided: `warnDuplicateStackOrder` stops exempting configs that declare a plan, rather than
+`dva stack up` learning to read plans. The second would have made the warning's premise true by
+contradicting the command's own help, and is ambiguous when two plans name one entry at different
+orders — there is no answer to "which plan wins" that does not invent a rule.
+
+The four states are now coherent, measured through `dva validate`:
+
+| state | before | after |
+| --- | --- | --- |
+| A — no `order:`, no plans | warns | warns, without the plan clause |
+| C — explicit orders + plan | legacy-order warning | unchanged |
+| D — no `order:` + plan | **silent** | warns, naming what plan order does and does not govern |
+
+The message also had to change, which was not in the original plan. It said execution order "is
+undefined" — true when filed, false after half 1, which is the trap in fixing a hazard without
+re-reading what was written about it. The remaining concern is not that the sequence is unstable
+but that nobody chose it, so the wording names the sequence instead of calling it unknowable.
+
+That claim is factual, so it was executed rather than reasoned about: `dva stack up` on the
+no-order fixture walks alpha, bravo, charlie, delta, echo — identical across 6 runs.
+
 ## Non-goals
 
 - Not changing `Down`'s relationship to `Up` order; whether teardown should reverse the sequence
@@ -132,8 +135,10 @@ copies are untested** — the copies looking alike is what makes it feel safe.
 - [x] The tiebreak matches PrimaryComposeEntry's documented one | verify: `/usr/bin/grep -c 'alphabetically first Name' internal/config/lifecycle_helpers.go` — print the count, expect ≥1 (got 2)
 - [x] One comparator, not five | verify: `/usr/bin/grep -c 'Order < ' internal/config/lifecycle_helpers.go internal/cli/show.go` — print both counts, expect 1 and 0
 - [x] The listings that had no test now have one | verify: `go test ./internal/config/ -run TestEntryListingsShareOneComparator`
-- [ ] State D is no longer silent, or `stack up` honours plan order | verify: `human — state which half shipped; run validate on fixture D and paste the outcome`
-- [x] The suppression still holds where plans really do govern | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
+- [x] State D is no longer silent | verify: `human — dva validate on fixture D now prints "entries alpha … are all at the default order, so 'dva stack up' starts them in name order rather than one you chose; plan entry order governs 'dva up <plan>' only"`
+- [x] The mode-isolation exemption still holds | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
+- [x] The warning states the sequence rather than calling it undefined | verify: `human — dva stack up on the no-order fixture walked alpha, bravo, charlie, delta, echo, identical across 6 runs`
+- [x] The plan clause appears only with plans | verify: `human — mutation: emit it unconditionally, and the no-plans assertion fails from the same fixture`
 - [x] Not vacuous | verify: `human — revert the tiebreak: the determinism test fails, and so does show's TestShowStackOrderIsStableAcrossRenders, which is the only proof the delegation is real`
 - [x] Full suite passes | verify: `make test`
 
