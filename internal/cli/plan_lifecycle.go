@@ -35,6 +35,18 @@ type planUpOutput struct {
 	Endpoints []planEndpointOutput        `json:"endpoints,omitempty"`
 }
 
+// sortedPlanNames lists the configured plan names in a stable order. Every message that
+// names the plans a user may type reads them from here, so they cannot disagree about the
+// set or its order — map iteration would make the same message differ between runs.
+func sortedPlanNames(c *config.Config) []string {
+	names := make([]string, 0, len(c.Plans))
+	for name := range c.Plans {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func requirePlanSelection(c *config.Config, command string, args []string) error {
 	if c == nil || !c.HasPlans() {
 		return nil
@@ -44,12 +56,7 @@ func requirePlanSelection(c *config.Config, command string, args []string) error
 		return nil
 	}
 
-	names := make([]string, 0, len(c.Plans))
-	for name := range c.Plans {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return fmt.Errorf("multiple plans configured; specify one: dva %s <%s>", command, strings.Join(names, "|"))
+	return fmt.Errorf("multiple plans configured; specify one: dva %s <%s>", command, strings.Join(sortedPlanNames(c), "|"))
 }
 
 func detectPlanRoute(c *config.Config, args []string) (planName string, extraArgs []string, ok bool) {
@@ -116,12 +123,7 @@ func rejectUnknownPlanArg(c *config.Config, args []string) error {
 	if strings.HasPrefix(name, "-") {
 		return nil
 	}
-	available := make([]string, 0, len(c.Plans))
-	for plan := range c.Plans {
-		available = append(available, plan)
-	}
-	sort.Strings(available)
-	return fmt.Errorf("plan '%s' not found. Available: %s", name, strings.Join(available, ", "))
+	return fmt.Errorf("plan '%s' not found. Available: %s", name, strings.Join(sortedPlanNames(c), ", "))
 }
 
 // rejectUpPositionalArg guards the plan-name slot of 'up', which advertises

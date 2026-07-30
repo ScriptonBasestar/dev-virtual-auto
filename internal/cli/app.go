@@ -36,9 +36,11 @@ var appLsCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
+		// nil, not args: ls ignores positional arguments when applications exist (it lists
+		// every one regardless), so answering `dva app ls typo` with a per-target failure
+		// would make the same invocation succeed or fail depending on the section's presence.
 		if len(c.Applications) == 0 {
-			fmt.Fprintln(os.Stderr, "No applications defined in dva.yml")
-			return nil
+			return noApplications(c, "list", nil)
 		}
 
 		// Show active mode info (default mode only, no flag parsing for ls)
@@ -59,7 +61,7 @@ var appStopCmd = &cobra.Command{
 		e := loadEnv(c)
 
 		if len(c.Applications) == 0 {
-			return fmt.Errorf("no applications defined in dva.yml")
+			return noApplications(c, "stop", args)
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -76,7 +78,7 @@ var appDownCmd = &cobra.Command{
 		e := loadEnv(c)
 
 		if len(c.Applications) == 0 {
-			return fmt.Errorf("no applications defined in dva.yml")
+			return noApplications(c, "remove", args)
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -96,10 +98,6 @@ var appUpCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		if len(c.Applications) == 0 {
-			return fmt.Errorf("no applications defined in dva.yml")
-		}
-
 		mode, _, _, _, args := parseDvaFlags(args)
 		mode, isDefault := applyDefaultMode(c, mode)
 
@@ -111,6 +109,11 @@ var appUpCmd = &cobra.Command{
 			} else {
 				appNames = append(appNames, a)
 			}
+		}
+
+		// After flag parsing, so the answer can depend on whether a target was named.
+		if len(c.Applications) == 0 {
+			return noApplications(c, "start", appNames)
 		}
 
 		// Show mode header
@@ -177,10 +180,6 @@ var appRestartCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		if len(c.Applications) == 0 {
-			return fmt.Errorf("no applications defined in dva.yml")
-		}
-
 		mode, _, _, _, args := parseDvaFlags(args)
 		mode, _ = applyDefaultMode(c, mode)
 
@@ -192,6 +191,11 @@ var appRestartCmd = &cobra.Command{
 			} else {
 				appNames = append(appNames, a)
 			}
+		}
+
+		// After flag parsing, so the answer can depend on whether a target was named.
+		if len(c.Applications) == 0 {
+			return noApplications(c, "restart", appNames)
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -216,10 +220,6 @@ var appBuildCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		if len(c.Applications) == 0 {
-			return fmt.Errorf("no applications defined in dva.yml")
-		}
-
 		mode, _, _, _, args := parseDvaFlags(args)
 		mode, _ = applyDefaultMode(c, mode)
 
@@ -231,6 +231,11 @@ var appBuildCmd = &cobra.Command{
 			} else {
 				appNames = append(appNames, a)
 			}
+		}
+
+		// After flag parsing, so the answer can depend on whether a target was named.
+		if len(c.Applications) == 0 {
+			return noApplications(c, "build", appNames)
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -315,6 +320,69 @@ func printAppStatuses(statuses []lifecycle.AppStatus) {
 	_ = w.Flush()
 }
 
+// declaredSurfaces lists what the config does declare, with counts, in the order a user
+// meets them. `applications:` is deliberately absent — the caller is answering its absence.
+func declaredSurfaces(c *config.Config) []string {
+	var parts []string
+	if n := len(c.Plans); n > 0 {
+		parts = append(parts, fmt.Sprintf("plans (%d)", n))
+	}
+	if n := len(c.Stack); n > 0 {
+		parts = append(parts, fmt.Sprintf("stack (%d)", n))
+	}
+	if n := len(c.Interaction); n > 0 {
+		parts = append(parts, fmt.Sprintf("interaction (%d)", n))
+	}
+	return parts
+}
+
+// absentApplicationsAdvice states what the config declares instead of applications, and
+// which command acts on it. Three things it deliberately does not do:
+//
+//   - It never names a config file. Config is the merge of modules: and subprojects:, so the
+//     file that would need an `applications:` block is not knowable from the loaded config.
+//   - It never routes to `dva stack up` (USAGE.md — the stack is a declaration store, so
+//     that is no longer the recommended model) or to another `dva app` subcommand, which
+//     would land the reader back here.
+//   - It never suggests a `dva up` form that would refuse. Bare `dva up` fails with
+//     "multiple plans configured" when plans exist without a default, and reports
+//     "(no entries configured)" when nothing but interactions are declared.
+func absentApplicationsAdvice(c *config.Config) string {
+	surfaces := declaredSurfaces(c)
+	if len(surfaces) == 0 {
+		return "this config declares no plans, stack entries, or interactions either"
+	}
+	declares := fmt.Sprintf("this config declares %s", strings.Join(surfaces, ", "))
+	switch {
+	case c.DefaultPlan() != "":
+		return fmt.Sprintf("%s — run 'dva up %s' to start the declared lifecycle", declares, c.DefaultPlan())
+	case c.HasPlans():
+		return fmt.Sprintf("%s — run 'dva up <%s>' to start one of them", declares, strings.Join(sortedPlanNames(c), "|"))
+	case len(c.Stack) > 0:
+		return declares + " — run 'dva up' to start the declared lifecycle"
+	default:
+		return declares + " — run 'dva ls' to list them"
+	}
+}
+
+// noApplications answers an absent `applications:` section for every `dva app` subcommand.
+// action names what the subcommand would have done, and is used only by the named form.
+//
+// Bare invocation is not a failure: acting on all applications when there are none is a
+// no-op, and a script that chains `dva app up` in a stack-only project must keep working.
+// Naming a target is a failure — swallowing `dva app up myapp-typo` would report success
+// for something that never ran.
+//
+// The named form does not say the application was "not found". The set it would be found in
+// does not exist, and blaming the name for that sends the reader hunting for a typo.
+func noApplications(c *config.Config, action string, names []string) error {
+	if len(names) == 0 {
+		fmt.Fprintf(os.Stderr, "no applications declared; %s\n", absentApplicationsAdvice(c))
+		return nil
+	}
+	return fmt.Errorf("no applications declared, so there is no '%s' to %s; %s", names[0], action, absentApplicationsAdvice(c))
+}
+
 func boolToStrategy(docker bool) string {
 	if docker {
 		return "docker"
@@ -330,6 +398,13 @@ var appLogCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+
+		// log had no guard at all: with no applications: section the status loop below
+		// matched nothing and it fell through to "application 'x' not found", which blames
+		// the name for a section that does not exist.
+		if len(c.Applications) == 0 {
+			return noApplications(c, "show logs for", args)
+		}
 
 		am := lifecycle.NewAppManager(c, e)
 		statuses := am.AppStatuses()
