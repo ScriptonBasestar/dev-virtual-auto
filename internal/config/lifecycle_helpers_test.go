@@ -30,6 +30,153 @@ func sortedEntry(t *testing.T, cfg *Config, name string) LifecycleEntry {
 	return LifecycleEntry{}
 }
 
+// TestSortedStackIsDeterministic pins the sequence for entries that share an Order — which includes
+// every config where no entry declares `order:` at all, the shape `dva init` produces. Entries come
+// from a map, so before the Name tiebreak this returned Go's randomized iteration order and
+// NewOrchestrator handed a different startup sequence to Up/Down/Stop/Restart/Status on each run.
+//
+// One call cannot catch that: a single unstable sort agrees with the intended answer some fraction
+// of the time. The loop is what makes the assertion mean something, and 200 iterations was enough to
+// see the old code produce two distinct sequences.
+func TestSortedStackIsDeterministic(t *testing.T) {
+	cfg := loadStackConfig(t, `version: "0.1.44"
+stack:
+  echo-entry:
+    plugin: script
+    script: {up: "true"}
+  alpha:
+    plugin: script
+    script: {up: "true"}
+  delta:
+    plugin: script
+    script: {up: "true"}
+  bravo:
+    plugin: script
+    script: {up: "true"}
+  charlie:
+    plugin: script
+    script: {up: "true"}
+`)
+
+	names := func() []string {
+		entries := cfg.SortedStack()
+		out := make([]string, 0, len(entries))
+		for _, e := range entries {
+			out = append(out, e.Name)
+		}
+		return out
+	}
+
+	want := []string{"alpha", "bravo", "charlie", "delta", "echo-entry"}
+	for i := range 200 {
+		got := names()
+		if len(got) != len(want) {
+			t.Fatalf("call %d returned %d entries, want %d", i, len(got), len(want))
+		}
+		for j := range want {
+			if got[j] != want[j] {
+				t.Fatalf("call %d returned %v, want %v; equal orders must not depend on map-iteration order", i, got, want)
+			}
+		}
+	}
+}
+
+// TestSortedStackOrderBeatsName keeps the tiebreak in second place: it must break ties, not reorder
+// entries whose declared order already differs. Without this, sorting by Name alone would pass the
+// determinism test above.
+func TestSortedStackOrderBeatsName(t *testing.T) {
+	cfg := loadStackConfig(t, `version: "0.1.44"
+stack:
+  zulu:
+    order: 10
+    plugin: script
+    script: {up: "true"}
+  alpha:
+    order: 20
+    plugin: script
+    script: {up: "true"}
+`)
+	entries := cfg.SortedStack()
+	if len(entries) != 2 || entries[0].Name != "zulu" || entries[1].Name != "alpha" {
+		t.Fatalf("got %v, want zulu (order 10) before alpha (order 20)", entries)
+	}
+}
+
+// TestEntryListingsShareOneComparator covers the three listings that had 0% coverage across the
+// whole suite when they were rewired onto lessByOrderName: PrimaryKubectlConfig, ComposeEntries and
+// KubectlEntries. Each previously spelled `(Order, Name)` out by hand, so nothing would have caught
+// a transcription slip in the collection.
+//
+// Equal orders throughout, because that is the only input where the two comparators could differ —
+// on distinct orders any Order-first rule agrees. Names are declared in reverse so a listing that
+// returns map order, insertion order, or Name-descending all fail differently.
+func TestEntryListingsShareOneComparator(t *testing.T) {
+	cfg := loadStackConfig(t, `version: "0.1.44"
+stack:
+  zebra:
+    order: 5
+    runners:
+      compose:
+        files:
+          - zebra.yml
+  monkey:
+    order: 5
+    runners:
+      compose:
+        files:
+          - monkey.yml
+  aardvark:
+    order: 5
+    runners:
+      compose:
+        files:
+          - aardvark.yml
+  yak:
+    order: 5
+    kubectl:
+      manifests:
+        - yak.yaml
+  ibex:
+    order: 5
+    kubectl:
+      manifests:
+        - ibex.yaml
+`)
+
+	names := func(entries []*LifecycleEntry) []string {
+		out := make([]string, 0, len(entries))
+		for _, e := range entries {
+			out = append(out, e.Name)
+		}
+		return out
+	}
+	equal := func(got, want []string) bool {
+		if len(got) != len(want) {
+			return false
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	if got := names(cfg.ComposeEntries()); !equal(got, []string{"aardvark", "monkey", "zebra"}) {
+		t.Errorf("ComposeEntries() = %v, want [aardvark monkey zebra]", got)
+	}
+	if got := names(cfg.KubectlEntries()); !equal(got, []string{"ibex", "yak"}) {
+		t.Errorf("KubectlEntries() = %v, want [ibex yak]", got)
+	}
+	// The "primary" pair is the min under the same rule, so alphabetically first at equal order.
+	if e := cfg.PrimaryComposeEntry(); e == nil || e.Name != "aardvark" {
+		t.Errorf("PrimaryComposeEntry() = %v, want aardvark", e)
+	}
+	if kc := cfg.PrimaryKubectlConfig(); kc == nil || len(kc.Manifests) != 1 || kc.Manifests[0] != "ibex.yaml" {
+		t.Errorf("PrimaryKubectlConfig() = %v, want the ibex manifest", kc)
+	}
+}
+
 func TestSortedStackResolvesRunnerPlugin(t *testing.T) {
 	tests := []struct {
 		name       string

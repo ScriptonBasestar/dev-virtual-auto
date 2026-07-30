@@ -86,7 +86,21 @@ func (e *LifecycleEntry) resolveRunnerPlugin() {
 	e.Plugin = name
 }
 
-// SortedStack returns stack entries sorted by Order with Name populated.
+// lessByOrderName is the sequence every stack listing in this file uses: by declared Order, then
+// alphabetically by Name.
+//
+// The Name tiebreak is not cosmetic. Stack entries are collected from a map, so without it two
+// entries sharing an Order — including the common case where no entry declares `order:` at all —
+// come out in Go's randomized map-iteration order, and every caller walks a different sequence each
+// run. Arbitrary-but-stable is what makes an ordering bug reproducible.
+func lessByOrderName(a, b *LifecycleEntry) bool {
+	if a.Order != b.Order {
+		return a.Order < b.Order
+	}
+	return a.Name < b.Name
+}
+
+// SortedStack returns stack entries sorted by Order then Name, with Name populated.
 func (c *Config) SortedStack() []LifecycleEntry {
 	entries := make([]LifecycleEntry, 0, len(c.Stack))
 	for name, e := range c.Stack {
@@ -96,7 +110,7 @@ func (c *Config) SortedStack() []LifecycleEntry {
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Order < entries[j].Order
+		return lessByOrderName(&entries[i], &entries[j])
 	})
 	return entries
 }
@@ -110,7 +124,7 @@ func (c *Config) PrimaryComposeEntry() *LifecycleEntry {
 		if e.ComposeConfig() == nil {
 			continue
 		}
-		if best == nil || e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name) {
+		if best == nil || lessByOrderName(e, best) {
 			best = e
 		}
 	}
@@ -169,7 +183,7 @@ func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 		if e.Kubectl == nil {
 			continue
 		}
-		if best == nil || e.Order < best.Order || (e.Order == best.Order && e.Name < best.Name) {
+		if best == nil || lessByOrderName(e, best) {
 			best = e
 		}
 	}
@@ -188,10 +202,7 @@ func (c *Config) ComposeEntries() []*LifecycleEntry {
 		}
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Order != entries[j].Order {
-			return entries[i].Order < entries[j].Order
-		}
-		return entries[i].Name < entries[j].Name
+		return lessByOrderName(entries[i], entries[j])
 	})
 	return entries
 }
@@ -205,10 +216,7 @@ func (c *Config) KubectlEntries() []*LifecycleEntry {
 		}
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].Order != entries[j].Order {
-			return entries[i].Order < entries[j].Order
-		}
-		return entries[i].Name < entries[j].Name
+		return lessByOrderName(entries[i], entries[j])
 	})
 	return entries
 }
