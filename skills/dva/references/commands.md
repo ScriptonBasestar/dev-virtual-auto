@@ -171,7 +171,12 @@ dva app restart [NAME]    # restart application(s)
 
 ### `dva show`
 
-Display configuration summary: modes, environments, commands, provision profiles, health checks, endpoints, subprojects.
+Display a summary of what `dva.yml` declares. One section per declared area — stack entries with
+their runners, plans, modes, environments, interactions, and so on — and sections the config does
+not declare are omitted rather than printed empty. Read the output rather than this list; the
+sections follow the config, so an enumeration here would drift.
+
+Stack rows name the entry, which is the argument `dva stack up <name>` and the tag filters take.
 
 ```bash
 dva show                  # human-readable summary
