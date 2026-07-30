@@ -10,7 +10,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const migrationGuideURL = "https://github.com/ScriptonBasestar/dva/blob/main/docs/40-declarative-stack-and-plans.md#11-migration"
+// migrationGuideURL is printed in validate warnings, so it is the link users are most
+// likely to click. The repository is dev-virtual-auto on the master branch — not the Go
+// module path (github.com/ScriptonBasestar/dva), which is what this URL used to name, and
+// not "main", which this repo has never had.
+const migrationGuideURL = "https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md#11-migration"
 
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{

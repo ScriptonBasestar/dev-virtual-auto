@@ -78,14 +78,21 @@ and 1 was the compiled `bin/dva`. Real source occurrences are the 4 rows above.
 15 other files use the working relative form `$schema=../internal/config/schema.json`
 (the `examples/` directory), which is correct for in-repo editing and should stay.
 
-## Open question to settle before editing
+## Open question — settled 2026-07-30: the repo is public
 
-Is `ScriptonBasestar/dev-virtual-auto` a **public** repo? If it is private,
-`raw.githubusercontent.com` will not resolve for editors either, and the right answer
-is a relative path or a published schema URL rather than a corrected raw URL. Decide
-this first — it changes the fix.
+Probed directly rather than assumed (`gh` was unusable — the org forbids fine-grained
+tokens with a lifetime over 366 days):
 
-Candidate canonical form if public:
+| URL | status |
+| --- | --- |
+| `github.com/ScriptonBasestar/dev-virtual-auto` | **200** |
+| `raw.githubusercontent.com/.../dev-virtual-auto/master/internal/config/schema.json` | **200** |
+| `raw.githubusercontent.com/.../dev-virtual-auto/master/schema.json` | 404 |
+| `github.com/ScriptonBasestar/dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md` | **200** |
+| `github.com/ScriptonBasestar/dva` | 404 |
+| `github.com/ScriptonBasestar/dva/blob/main/docs/40-...` | 404 |
+
+So the canonical form is confirmed reachable, not merely plausible:
 `https://raw.githubusercontent.com/ScriptonBasestar/dev-virtual-auto/master/internal/config/schema.json`
 
 ## Fix shape
@@ -112,13 +119,64 @@ Candidate canonical form if public:
 
 ## Acceptance criteria
 
-- [ ] Authored corpus teaches a resolving `$schema` URL | verify: `grep -q 'internal/config/schema.json' agent-mesh-flows/shared/library/reference-examples.md`
-- [ ] Generated embed matches the source | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt`
-- [ ] No source file references the nonexistent root schema path | verify: `/usr/bin/find . -path ./.git -prune -o -path ./tmp -prune -o -path ./bin -prune -o -path ./.opencode -prune -o -type f -print0 | xargs -0 /usr/bin/grep -l 'master/schema.json' ; test $? -ne 0`
-- [ ] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
-- [ ] Corpus URL guard exists and fails on a planted bad URL | verify: `go test ./internal/config/ -run TestGeneratorCorpusURLs`
-- [ ] Full suite green | verify: `make test`
-- [ ] Corpus regression sweep unchanged: 83 configs, only the 9 negative fixtures fail | verify: `human — re-run the documented validate sweep and compare counts`
+- [x] Authored corpus teaches a resolving `$schema` URL | verify: `grep -q 'internal/config/schema.json' agent-mesh-flows/shared/library/reference-examples.md`
+- [x] Generated embed matches the source | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt`
+- [x] No source file references the nonexistent root schema path | verify: `/usr/bin/find . -path ./.git -prune -o -path ./tmp -prune -o -path ./bin -prune -o -path ./.opencode -prune -o -path ./tasks -prune -o -type f -print0 | xargs -0 /usr/bin/grep -l 'master/schema.json' ; test $? -ne 0`
+- [x] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
+- [x] Corpus URL guard exists and fails on a planted bad URL | verify: `go test ./internal/config/ -run TestGeneratorCorpusURLs`
+- [x] Full suite green | verify: `make test`
+- [ ] 56 user configs rewritten, or the sweep explicitly declined | verify: `human — the user's tree; needs their go-ahead`
+- [ ] README.md release-download URL resolved | verify: `human — README.md is ai=deny, see escalation below`
+
+(The `tasks` prune was added to the third criterion: this file quotes the dead URL as
+evidence, and a guard that forbids its own evidence is a guard that cannot be documented.)
+
+## Result — repo side done
+
+- `agent-mesh-flows/shared/library/reference-examples.md:12` → canonical raw URL,
+  propagated to `internal/cli/library_reference.txt:1151` via `make generate` (the
+  generated file is listed in `.claudeignore`, so it is never hand-edited).
+- `dva.yml:1` → canonical raw URL.
+- `migrationGuideURL` → `dev-virtual-auto` / `master`. Confirmed against a rebuilt
+  binary: the link `dva validate` prints in primeno1-devbox is now the 200 one.
+- New guard `TestGeneratorCorpusURLs` (`internal/config/corpus_urls_test.go`) audits
+  5 URLs across 125 files, offline. `TestGeneratorCorpusURLsDetectsPlantedDefects`
+  pins the detector against four planted defects so a regex edit cannot defang it.
+  Both counters (files and URLs) are asserted non-zero, because a walk that matches
+  nothing passes forever while guarding nothing.
+- `make test` green.
+
+The guard skips `_test.go` files. Its first run failed on its own fixtures — the
+planted bad URLs in the test file are the corpus it was auditing.
+
+## Escalation — root README.md is ai=deny and holds a dead URL
+
+`README.md:25` documents
+
+```
+curl -sL https://github.com/ScriptonBasestar/dva/releases/latest/download/dva_linux_amd64.tar.gz | tar xz
+```
+
+on the repo name that 404s. The same URL on `dev-virtual-auto/releases/latest` returns
+302, so the release path exists — only the repo name is wrong. Root `README.md` is
+`core` level, **ai=deny**, so a human must make this edit. The URL guard deliberately
+excludes README.md rather than failing the build on a file no agent may fix.
+
+## Follow-up found here — the Go module path does not resolve
+
+Bigger than this task and left untouched. `go.mod` declares
+`github.com/ScriptonBasestar/dva`, and README.md:15 plus
+`examples/MAKEFILE.md:11,163` document `go install
+github.com/ScriptonBasestar/dva/cmd/dva@latest`. Verified: the module proxy returns
+404 for that path, and `github.com/ScriptonBasestar/dva?go-get=1` serves no `go-import`
+meta tag, so there is no vanity redirect. **The documented install command cannot
+work.**
+
+The two possible fixes are a module-path rename (touches every import in the repo) or
+renaming/aliasing the GitHub repo to `dva` — a decision, not a mechanical edit. The URL
+guard intentionally does not flag these, because inside a Go import path
+`ScriptonBasestar/dva` is the module's real name; only `https://` URLs are audited.
+Needs its own decision record.
 
 ## Evidence
 
