@@ -65,10 +65,13 @@ Two consequences worth separating:
 1. The collisions are only reachable through raw `docker compose --profile ...`, not
    through `dva up --mode ...`. That lowers urgency but does not make it a non-issue —
    `compose.yaml:3` documents those profiles as the intended usage.
-2. `endpoints:` publishes 10 entries for services in profiles no mode can start
-   (kafka, zookeeper, powerdns, etcd, coredns, prometheus, grafana, jaeger,
-   otel-collector, mock-auth). `dva show` therefore advertises URLs that no declared
-   mode brings up. **Separate finding — do not fold it in here.**
+2. `endpoints:` publishes **6** entries for services no mode can start (kafka, zookeeper,
+   powerdns-api, etcd, coredns, mock-auth), so `dva show` advertises URLs no declared mode
+   brings up. **Separate finding — [TASK-064](064-dns-bridge-endpoints-no-mode-can-start.md).**
+   An earlier note here said 10 and included the monitoring group; that was wrong —
+   `full-stack-monitoring` activates `compose_profiles: [rust, monitoring]`, so prometheus,
+   grafana, jaeger and otel-collector are all reachable. Corrected by parsing each compose
+   file and mapping every endpoint's service to its `profiles:` list.
 
 ## Fix shape
 
