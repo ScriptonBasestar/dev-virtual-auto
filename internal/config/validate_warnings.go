@@ -270,16 +270,21 @@ func (c *Config) warnDuplicateParentSubcommand() []string {
 // sequence between them to control. Without this the warning tells users to order
 // entries that never meet.
 //
-// Declaring a plan is deliberately *not* an exemption (TASK-084). It was one, on the premise
-// that "plan order owns sequencing when plans exist" — false for the command this warns about:
-// `dva stack up`'s help states it "does NOT consult plans or default_plan", and plan order
-// reaches only `dva up <plan>`, which walks the plan's own entries. Suppressing here left the
-// single configuration dva's own advice funnels users into — default orders plus a plan — as
-// the one state that said nothing.
+// Entries a plan names are exempt too, and that exemption is the point of TASK-084. It used to be
+// `len(c.Plans) > 0` — any plan anywhere silenced everything — on the premise that "plan order owns
+// sequencing when plans exist". Too coarse in one direction: it hid entries no plan mentions. Too
+// coarse in the other: dropping it entirely warned about the shape `docs/40-declarative-stack-and-
+// plans.md` prescribes, where order belongs to the plan layer, so three shipped examples started
+// being told they had not chosen a sequence when their plan declares infra→api→worker→web.
+//
+// What is checkable is whether a plan names the entry, not whether some plan exists. An entry a
+// plan names has a declared position; the gap is only that `dva stack up` does not read plans
+// (its help says so), and that is a property of the command rather than of the config.
 func (c *Config) warnDuplicateStackOrder() []string {
 	if len(c.Stack) < 2 {
 		return nil
 	}
+	planned := c.entriesNamedByPlans()
 
 	orderMap := make(map[int][]string)
 	for name, entry := range c.Stack {
@@ -306,17 +311,30 @@ func (c *Config) warnDuplicateStackOrder() []string {
 		if c.modesIsolateEntries(group) {
 			continue
 		}
-		sort.Strings(names)
+		// Report only the entries no plan names. Dropping the covered ones rather than the whole
+		// group is what keeps the warning useful on a plan that names two entries of five: the
+		// other three still have no declared position anywhere, and they are the ones to say so
+		// about. Below two, there is no pair left to sequence.
+		unplanned := make([]string, 0, len(names))
+		for _, name := range names {
+			if !planned[name] {
+				unplanned = append(unplanned, name)
+			}
+		}
+		if len(unplanned) < 2 {
+			continue
+		}
+		sort.Strings(unplanned)
 		// Not "undefined": since TASK-084 half 1 the sequence is (Order, Name), so equal orders
-		// resolve alphabetically and repeat run to run. What is worth reporting is no longer a
-		// hazard but a choice never made — the entries start in an order nobody picked.
+		// resolve alphabetically and repeat run to run. What is left to report is not a hazard but
+		// a position never declared — for these entries, in the plan layer or anywhere else.
 		var msg string
 		if order == 0 {
-			msg = fmt.Sprintf("stack: entries %s are all at the default order, so `dva stack up` starts them in name order rather than one you chose",
-				strings.Join(names, ", "))
+			msg = fmt.Sprintf("stack: entries %s are at the default order and no plan names them, so `dva stack up` starts them in name order rather than one you chose",
+				strings.Join(unplanned, ", "))
 		} else {
-			msg = fmt.Sprintf("stack: entries %s share order value %d, so `dva stack up` starts them in name order rather than one you chose",
-				strings.Join(names, ", "), order)
+			msg = fmt.Sprintf("stack: entries %s share order value %d and no plan names them, so `dva stack up` starts them in name order rather than one you chose",
+				strings.Join(unplanned, ", "), order)
 		}
 		// Named only when plans exist, because that is the reader who would otherwise assume the
 		// plan already settled this. Saying it unconditionally would advertise plans to configs
@@ -328,6 +346,22 @@ func (c *Config) warnDuplicateStackOrder() []string {
 	}
 
 	return warnings
+}
+
+// entriesNamedByPlans is the set of stack entries some plan gives a position to. Membership is
+// what warnDuplicateStackOrder treats as "the author declared where this runs" — a plan walks its
+// entries in declaration order, so being listed is a position even with no explicit `order:`.
+func (c *Config) entriesNamedByPlans() map[string]bool {
+	planned := make(map[string]bool)
+	for _, plan := range c.Plans {
+		if plan == nil {
+			continue
+		}
+		for _, e := range plan.Entries {
+			planned[e.Name] = true
+		}
+	}
+	return planned
 }
 
 // warnMultiStackComposeSplit warns when compose entries that can run together were

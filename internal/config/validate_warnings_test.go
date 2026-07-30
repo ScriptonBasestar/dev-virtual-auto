@@ -195,25 +195,43 @@ func TestWarnDuplicateStackOrder(t *testing.T) {
 		t.Errorf("expected 'default' hint in warning, got: %s", warnings[0])
 	}
 
-	// A plan does not settle this (TASK-084 half 2). It used to suppress the warning entirely, on
-	// the premise that plan order owns sequencing once plans exist — but `dva stack up` does not
-	// read plans at all, so the state this produced was the one place the hazard was unannounced.
+	// A plan that names the tied entries settles them (TASK-084 half 2).
+	// docs/40-declarative-stack-and-plans.md puts order in the plan layer, so warning here would
+	// tell three of dva's own examples they had not chosen a sequence their plan spells out.
 	c.Plans = map[string]*PlanConfig{"local": {Entries: []PlanEntry{{Name: "a", Order: 10}, {Name: "b", Order: 20}}}}
-	warnings = c.warnDuplicateStackOrder()
-	if len(warnings) != 1 {
-		t.Fatalf("declaring a plan must not silence the stack-order warning, got %v", warnings)
-	}
-	if !strings.Contains(warnings[0], "dva up <plan>") {
-		t.Errorf("with plans declared the warning must say which command plan order governs, got: %s", warnings[0])
+	if warnings = c.warnDuplicateStackOrder(); len(warnings) != 0 {
+		t.Errorf("a plan naming every tied entry must silence the warning, got %v", warnings)
 	}
 
-	// ...and must not say it when there are no plans, or it advertises a section the config has
-	// none of. Asserted from the same fixture with Plans removed, so the two branches cannot both
-	// be satisfied by an unconditional string.
+	// A plan that names only some does not settle the rest — the failure mode of the original
+	// `len(c.Plans) > 0` rule, which let one planned entry hide every unplanned one. Three tied at
+	// the default order, one planned: the other two still have no declared position anywhere.
+	c = &Config{
+		Stack: map[string]*LifecycleEntry{"a": {}, "b": {}, "c": {}},
+		Plans: map[string]*PlanConfig{"local": {Entries: []PlanEntry{{Name: "a", Order: 10}}}},
+	}
+	warnings = c.warnDuplicateStackOrder()
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning for the entries no plan names, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "entries b, c") {
+		t.Errorf("warning must name only the entries no plan positions: %s", warnings[0])
+	}
+	if !strings.Contains(warnings[0], "dva up <plan>") {
+		t.Errorf("with plans declared the warning must say which command plan order governs: %s", warnings[0])
+	}
+
+	// Same fixture with the plan removed: `a` is no longer covered, so it rejoins the list. That
+	// the two assertions disagree about `a` is what proves the plan set does the filtering rather
+	// than the message being fixed text. The plan clause must go too, or it advertises a section
+	// the config has none of.
 	c.Plans = nil
 	warnings = c.warnDuplicateStackOrder()
 	if len(warnings) != 1 {
 		t.Fatalf("expected 1 warning without plans, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "entries a, b, c") {
+		t.Errorf("without plans every tied entry is unpositioned: %s", warnings[0])
 	}
 	if strings.Contains(warnings[0], "dva up <plan>") {
 		t.Errorf("the plan clause reached a config declaring no plans: %s", warnings[0])
