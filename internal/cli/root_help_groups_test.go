@@ -33,7 +33,7 @@ func TestLifecycleHelpSeparatesRecommendedFromDirectAccess(t *testing.T) {
 			t.Fatalf("lifecycle help is missing the %q block:\n%s", h.name, help)
 		}
 	}
-	if !(recommended < direct && direct < other) {
+	if recommended >= direct || direct >= other {
 		t.Fatalf("blocks out of order: Recommended=%d Direct=%d Other=%d\n%s",
 			recommended, direct, other, help)
 	}
