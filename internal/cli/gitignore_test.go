@@ -41,6 +41,17 @@ func TestIsDvaIgnored(t *testing.T) {
 		// elsewhere in .sb/dva are still committable and the warning is correct.
 		{"descendant only", ".sb/dva/cache/\n", false},
 
+		// Negations, verified against real git with the paths on disk. Before these cases
+		// the check returned on its first covering match and read every one of them as
+		// ignored — suppressing the warning on the two that git does not ignore.
+		{"ancestor negated after being excluded", ".sb/\n!.sb/\n", false},
+		{"exact path negated after being excluded", ".sb/dva/\n!.sb/dva/\n", false},
+		{"negation in another spelling still counts", "/.sb\n!.sb/\n", false},
+		{"negation before the exclusion loses", "!.sb/\n.sb/\n", true},
+		{"descendant negation cannot re-include", ".sb/\n!.sb/dva/\n", true},
+		{"negation alone excludes nothing", "!.sb/\n", false},
+		{"unrelated negation is not a match", ".sb/\n!dist/\n", true},
+
 		// Not interpreted on purpose — documented as out of scope in TASK-065. Pinned so
 		// the limitation is a decision on record rather than an accident.
 		{"glob is not interpreted", ".sb/*\n", false},

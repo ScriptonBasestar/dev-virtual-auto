@@ -71,34 +71,81 @@ func ensureGitignore(configDir string) (bool, error) {
 // unignored and told the user to add a rule they did not need — on the better-written
 // config, since ".sb/" covers DVA's whole dot directory rather than one child.
 //
-// A later negation cannot make this conclusion wrong: git documents that a file cannot be
-// re-included once a parent directory is excluded, so an ancestor rule is decisive.
+// Negations have to be read, and they do not behave the same way at every depth. Verified
+// against git with the paths on disk:
 //
-// This deliberately stops short of implementing gitignore semantics — globs (".sb/*"),
-// negations, and non-root anchoring stay uninterpreted. The goal is to stop warning about
-// rules that plainly cover the path, not to become a second git.
+//	.sb/ + !.sb/dva/   → still ignored. A path cannot be re-included once a parent
+//	                     directory is excluded, so negating a descendant loses.
+//	.sb/ + !.sb/        → NOT ignored. The exclusion and the negation name the same
+//	                     directory, no ancestor of it is excluded, so ordinary
+//	                     last-matching-pattern-wins applies and the negation wins.
+//
+// So each ancestor is resolved on its own, outermost first, and the first one that comes out
+// excluded is decisive. Reading the file for a single match and stopping — as this did
+// before — reports "already ignored" for the second case above and suppresses the warning
+// while git leaves the markers committable.
+//
+// This still stops short of implementing gitignore semantics: globs (".sb/*"), non-root
+// anchoring ("**/.sb/"), and .git/info/exclude stay uninterpreted. Every one of those gaps
+// makes DVA warn about a path that is in fact ignored, which is the harmless direction — an
+// extra warning, never a silently committed marker.
 func isDvaIgnored(content string) bool {
-	covering := ignoreRulesCovering(config.DotDirName)
-	for _, line := range strings.Split(content, "\n") {
-		if covering[strings.TrimSpace(line)] {
+	lines := strings.Split(content, "\n")
+	for _, prefix := range ancestorsAndSelf(config.DotDirName) {
+		if lastMatchExcludes(lines, pathSpellings(prefix)) {
 			return true
 		}
 	}
 	return false
 }
 
-// ignoreRulesCovering returns the set of .gitignore lines that would exclude dir, being
-// every ancestor prefix of dir plus dir itself, in each spelling git treats alike: bare,
-// trailing slash, and root-anchored with a leading slash.
-func ignoreRulesCovering(dir string) map[string]bool {
-	rules := make(map[string]bool)
+// lastMatchExcludes applies gitignore's last-matching-pattern-wins rule to one path: it
+// reports whether the last line naming that path excludes it rather than negates it, and
+// false when no line names it at all.
+func lastMatchExcludes(lines []string, forms map[string]bool) bool {
+	excluded := false
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		pattern := strings.TrimPrefix(line, "!")
+		if forms[pattern] {
+			excluded = line == pattern
+		}
+	}
+	return excluded
+}
+
+// pathSpellings returns the .gitignore lines that name path, in each spelling git treats
+// alike: bare, trailing slash, and root-anchored with a leading slash.
+func pathSpellings(path string) map[string]bool {
+	forms := make(map[string]bool, 4)
+	if path == "" {
+		return forms
+	}
+	for _, form := range []string{path, path + "/", "/" + path, "/" + path + "/"} {
+		forms[form] = true
+	}
+	return forms
+}
+
+// ancestorsAndSelf lists dir's path prefixes outermost first: ".sb/dva" → [".sb", ".sb/dva"].
+func ancestorsAndSelf(dir string) []string {
+	var prefixes []string
 	parts := strings.Split(dir, "/")
 	for i := range parts {
-		prefix := strings.Join(parts[:i+1], "/")
-		if prefix == "" {
-			continue
+		if prefix := strings.Join(parts[:i+1], "/"); prefix != "" {
+			prefixes = append(prefixes, prefix)
 		}
-		for _, form := range []string{prefix, prefix + "/", "/" + prefix, "/" + prefix + "/"} {
+	}
+	return prefixes
+}
+
+// ignoreRulesCovering returns every .gitignore line that names dir or one of its ancestors,
+// in every spelling. It is the union of what isDvaIgnored evaluates; isDvaIgnored keeps the
+// prefixes separate because a negation resolves differently at each depth.
+func ignoreRulesCovering(dir string) map[string]bool {
+	rules := make(map[string]bool)
+	for _, prefix := range ancestorsAndSelf(dir) {
+		for form := range pathSpellings(prefix) {
 			rules[form] = true
 		}
 	}
