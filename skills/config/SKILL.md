@@ -19,6 +19,9 @@ Read **`references/diagnosis.md`** when symptoms cross configuration, CLI, proje
 boundaries; when comparing installed/source/candidate DVA builds; when deciding root/subproject DVA
 need; or when validating process ownership and lifecycle migration behavior.
 
+Read **`references/schema-reference.md`** when authoring or reviewing the `dva.yml` field
+structure, section shapes, critical schema rules, or the canonical section/field ordering.
+
 For CLI execution (build/test/run/lifecycle), use the sibling `dva` skill; this skill owns
 configuration authoring, migration, and defect attribution.
 

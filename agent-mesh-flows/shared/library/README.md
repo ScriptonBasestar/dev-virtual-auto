@@ -10,7 +10,7 @@ of `skills/` — different purpose (see [Relationship to skills/](#relationship-
 | ---- | ---------------- | -------------- |
 | `shared-guardrails.md` | mixed (per rule) | partly hand-authored, partly generated |
 | `shared-checklist.md` | this file | hand-authored |
-| `dva-schema.md` | this file | hand-authored |
+| `dva-schema.md` | `skills/config/references/schema-reference.md` (symlink — skills is canonical) | hand-authored |
 | `naming-presets.md` | this file | hand-authored |
 | `reference-examples.md` | this file | hand-authored |
 
@@ -28,9 +28,9 @@ missing, so a stale checkout fails loudly instead of silently dropping facts.
 
 ## Facts still authored here (Phase 2 migration candidates)
 
-Naming presets (rule 23), forbidden ports (rule 7), and the full `dva-schema.md` have **no
-Go source of truth** yet — they are hand-maintained here. Migrating them into Go (and then
-this whole directory into `skills/`) is tracked as Phase 2.
+Naming presets (rule 23) and forbidden ports (rule 7) have **no Go source of truth** yet —
+they are hand-maintained here. `dva-schema.md` moved to
+`skills/config/references/schema-reference.md` (Phase 2-B; symlinked here).
 
 ## Relationship to skills/
 
