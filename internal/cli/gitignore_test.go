@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -86,5 +89,67 @@ func TestIgnoreRulesCoveringIsDerivedFromDotDirName(t *testing.T) {
 		if ignoreRulesCovering(dir)[""] {
 			t.Errorf("ignoreRulesCovering(%q) contains the empty rule, which matches blank lines", dir)
 		}
+	}
+}
+
+// TestGitignoreWarningNeedsSomethingCommittable pins the gate TASK-080 added. loadConfig calls
+// this on every command that reads a config, so before the gate `dva ls` in a fresh clone printed
+// two lines of hygiene advice above its own answer — about a directory that did not exist, and
+// that no read-only command creates (ls, show, validate, status and manifest were each measured
+// leaving the tree untouched).
+//
+// Every case flips exactly one condition away from the warning case, so a gate that stopped
+// consulting any single condition fails here instead of passing on the strength of the others.
+// The name has to contain "Gitignore": the task's acceptance criterion runs `-run Gitignore`,
+// which matches neither TestIsDvaIgnored nor TestIgnoreRulesCoveringIsDerivedFromDotDirName.
+func TestGitignoreWarningNeedsSomethingCommittable(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		git       bool
+		markers   bool
+		gitignore string
+		json      bool
+		wantWarn  bool
+	}{
+		{name: "markers on disk and nothing ignores them", git: true, markers: true, wantWarn: true},
+		{name: "no markers written yet", git: true, markers: false, wantWarn: false},
+		{name: "markers but exactly ignored", git: true, markers: true, gitignore: ".sb/dva/\n", wantWarn: false},
+		{name: "markers but an ancestor is ignored", git: true, markers: true, gitignore: ".sb/\n", wantWarn: false},
+		{name: "markers but not a git working tree", git: false, markers: true, wantWarn: false},
+		{name: "markers but json output has no schema for it", git: true, markers: true, json: true, wantWarn: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if tt.git {
+				if err := os.MkdirAll(filepath.Join(dir, ".git"), 0o755); err != nil {
+					t.Fatalf("MkdirAll .git: %v", err)
+				}
+			}
+			if tt.markers {
+				if err := os.MkdirAll(filepath.Join(dir, config.DotDirName), 0o755); err != nil {
+					t.Fatalf("MkdirAll %s: %v", config.DotDirName, err)
+				}
+			}
+			if tt.gitignore != "" {
+				if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(tt.gitignore), 0o644); err != nil {
+					t.Fatalf("WriteFile .gitignore: %v", err)
+				}
+			}
+
+			oldJSON := jsonOutput
+			jsonOutput = tt.json
+			defer func() { jsonOutput = oldJSON }()
+
+			out := captureOutput(t, func() { checkGitignoreForWarning(dir) })
+
+			if warned := strings.Contains(out, "is not in your .gitignore"); warned != tt.wantWarn {
+				t.Errorf("warned = %v, want %v; output was %q", warned, tt.wantWarn, out)
+			}
+			// A warning that does not name the remedy is the noise this task is about. Asserted
+			// only where one is expected, since elsewhere the absence is what passes.
+			if tt.wantWarn && !strings.Contains(out, "dva doctor --fix") {
+				t.Errorf("the warning must name the command that fixes it: %q", out)
+			}
+		})
 	}
 }

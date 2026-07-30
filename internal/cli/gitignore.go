@@ -152,14 +152,43 @@ func ignoreRulesCovering(dir string) map[string]bool {
 	return rules
 }
 
-// checkGitignoreForWarning checks if the config directory is ignored and prints a warning if not.
-// This is used for normal command execution.
+// checkGitignoreForWarning warns when this working tree would commit DVA's transient markers.
+// loadConfig calls it, so it sits in front of every command that reads a config; what keeps it
+// from preempting their output is that all three conditions below have to hold at once.
+//
+//   - No `.git`: nothing here is tracked, so nothing can be committed.
+//   - No `.sb/dva` on disk: the directory that would be committed does not exist. Read-only
+//     commands cannot create it — `ls`, `show`, `validate`, `status` and `manifest` were each
+//     measured leaving the working tree untouched — so on a fresh clone the warning named a
+//     hazard that had not happened and, for a reader who only ever inspects the config, never
+//     would. What creates the directory is the pid, log, module-cache and source-cache writers
+//     under internal/lifecycle and internal/config, and the invocation after one of those is
+//     where the warning has something to point at.
+//   - Already ignored: isDvaIgnored settles it, ancestors and negations included.
+//
+// `dva doctor` deliberately keeps the unconditional form (checkGitignoreStatus, doctor.go:181),
+// which does not gate on existence: "is my setup right?" is the question doctor is asked, and it
+// is asked before anything has run. This path answers the narrower one — something committable is
+// on disk right now — and that is the only version worth putting ahead of another command's
+// answer.
 func checkGitignoreForWarning(configDir string) {
+	// --json's audience is a program and this warning has no schema, so it is noise there whatever
+	// the streams do. Gating here rather than at the call site keeps the decision next to the
+	// message it silences; doctor's structured result already carries the same finding for
+	// consumers that want it.
+	if jsonOutput {
+		return
+	}
+
 	gitignorePath := filepath.Join(configDir, ".gitignore")
 
 	// If .gitignore doesn't exist, we might not be in a git repo or user doesn't care.
 	// But if we have a .git directory, we should probably warn.
 	if _, err := os.Stat(filepath.Join(configDir, ".git")); os.IsNotExist(err) {
+		return
+	}
+
+	if _, err := os.Stat(filepath.Join(configDir, config.DotDirName)); os.IsNotExist(err) {
 		return
 	}
 
