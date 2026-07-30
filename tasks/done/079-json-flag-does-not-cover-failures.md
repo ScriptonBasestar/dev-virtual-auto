@@ -111,9 +111,14 @@ still human-only, per the non-goal.
 
 ## Left open
 
-- **`dva validate --json` never reads `jsonOutput`.** It prints plain text on stdout and returns
-  no error, so the envelope never applies and a consumer gets prose. The flag is accepted and
-  silently ignored — a wrong answer to a machine, not a gap, and larger than this task's scope.
+- **`dva validate --json` never reads `jsonOutput`** — but the envelope covers more of it than
+  this entry originally claimed. Measured after the fix: a load failure and a schema failure each
+  yield one document with `.error.message` and exit 1, because `validate` returns an error and
+  this envelope catches it. What stays prose is everything `validate` says for itself — the
+  `✅ dva.yml is valid` verdict and every `[warn] semantic:` line, which under `--json` are
+  byte-identical to the run without the flag. The original wording ("returns no error, so the
+  envelope never applies") holds only for the success path. Now filed with the four measured paths
+  as [TASK-088](../todo/088-validate-json-covers-only-the-failure-it-does-not-produce.md).
 - **The suggestion list and the `dva init` hint stay human-only.** `did_you_mean` and the init
   hint are printed after the envelope, to stderr. Keeping them out of the document follows the
   non-goal ("Do not change any error's text"), and the actionable content lives in `message`
