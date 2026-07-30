@@ -124,5 +124,5 @@ provision:
 - [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — shipped the envelope that covers
   rows 1-2 here. Its *Left open* entry described this gap less precisely, before the envelope
   existed to measure against; corrected in the same commit as this file.
-- [TASK-087](087-unrecognized-stack-args-become-entry-names.md) — the other half of the
+- [TASK-087](../done/087-unrecognized-stack-args-become-entry-names.md) — the other half of the
   machine-consumer thread: an exit code that reports success over work that did not happen.

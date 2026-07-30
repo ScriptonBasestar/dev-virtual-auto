@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -71,6 +72,12 @@ start an explicit service subset.
 				default:
 					filteredNames = append(filteredNames, a)
 				}
+			}
+			if err := rejectUnknownFlags("up", filteredNames, "--force", "--no-wait"); err != nil {
+				return err
+			}
+			if err := validateStackNames(c, "up", filteredNames); err != nil {
+				return err
 			}
 
 		if err := applyEnv(e, c, envName); err != nil {
@@ -139,6 +146,14 @@ DVA-specific flags:
 		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
 		mode, _ = applyDefaultMode(c, mode)
 
+		// stop takes no flags of its own, so anything left with a leading dash is a typo.
+		if err := rejectUnknownFlags("stop", names); err != nil {
+			return err
+		}
+		if err := validateStackNames(c, "stop", names); err != nil {
+			return err
+		}
+
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
 		}
@@ -194,6 +209,12 @@ DVA-specific flags:
 			default:
 				filteredNames = append(filteredNames, a)
 			}
+		}
+		if err := rejectUnknownFlags("down", filteredNames, "-v", "--volumes"); err != nil {
+			return err
+		}
+		if err := validateStackNames(c, "down", filteredNames); err != nil {
+			return err
 		}
 
 		if err := applyEnv(e, c, envName); err != nil {
@@ -300,6 +321,106 @@ func showStackEntryLog(c *config.Config, name string) error {
 		fmt.Println(line)
 	}
 	return nil
+}
+
+// stackSelectorFlags are the flags parseDvaFlags consumes for every stack subcommand.
+// Listed here only to build the error message below — parseDvaFlags stays the one place
+// that interprets them.
+var stackSelectorFlags = []string{
+	"--mode", "-M", "--env", "-E", "--tag", "--tags", "-T",
+	"--exclude-tag", "--exclude-tags", "--dry-run", "--debug", "--json",
+}
+
+// rejectUnknownFlags fails on a leftover argument that still looks like a flag.
+//
+// up/stop/down read whatever parseDvaFlags leaves behind as stack entry NAMEs, and
+// DisableFlagParsing means cobra never vets it. A mistyped flag therefore became an
+// entry name, matched nothing, and the command exited 0 having silently dropped it:
+// `dva stack up infra --nowait` started infra with `--wait` still on, and `dva stack up
+// --nowait` started nothing at all and reported success (TASK-087). No stack entry can be
+// named "--nowait", so a leading dash surviving to this point is a user error, not a name.
+//
+// Deliberately not applied to `stack log`, which forwards its arguments verbatim to
+// `docker compose logs` — measured: `dva stack log infra --tail=5 --since=1h` reaches
+// docker as `logs infra --tail=5 --since=1h`. There an unrecognised flag is docker's to
+// interpret, and rejecting it would delete a working feature.
+func rejectUnknownFlags(sub string, args []string, own ...string) error {
+	known := append(append([]string{}, own...), stackSelectorFlags...)
+	for _, a := range args {
+		if len(a) < 2 || !strings.HasPrefix(a, "-") {
+			continue
+		}
+		msg := fmt.Sprintf("unknown flag %q for \"dva stack %s\"", a, sub)
+		msg += "\n       → a stack entry name cannot start with \"-\", so this was read as one and matched nothing"
+		msg += "\n       → accepted here: " + strings.Join(known, ", ")
+		if s := similarTo(a, known); len(s) > 0 {
+			msg += "\n\nDid you mean?"
+			for _, k := range s {
+				msg += fmt.Sprintf("\n  dva stack %s %s", sub, k)
+			}
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
+}
+
+// validateStackNames rejects a requested name that matches no stack entry.
+//
+// The orchestrator's filterByNames keeps the entries whose name was requested and never
+// asks the reverse question, so an unmatched name contributed nothing and was never
+// reported: `dva stack up nosuchentry` printed the generic "no lifecycle entries matched
+// filters" warning and exited 0 (TASK-087). Checked against c.Stack, which is the same map
+// SortedStack builds the orchestrator's entries from — so a name accepted here cannot then
+// fail to match there, and this cannot reject a name that would have worked.
+//
+// Only user-supplied names are checked. Entry lists that come from a mode or environment
+// profile are config, not input, and belong to validation.
+func validateStackNames(c *config.Config, sub string, names []string) error {
+	var unknown []string
+	for _, n := range names {
+		if c.FindStackEntry(n) == nil {
+			unknown = append(unknown, n)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+
+	available := make([]string, 0, len(c.Stack))
+	for name := range c.Stack {
+		available = append(available, name)
+	}
+	sort.Strings(available)
+
+	msg := fmt.Sprintf("no such stack entry: %s", strings.Join(unknown, ", "))
+	if len(available) == 0 {
+		msg += "\n       → dva.yml defines no stack entries"
+	} else {
+		msg += "\n       → defined in dva.yml: " + strings.Join(available, ", ")
+	}
+	var suggestions []string
+	for _, n := range unknown {
+		suggestions = append(suggestions, similarTo(n, available)...)
+	}
+	if len(suggestions) > 0 {
+		msg += "\n\nDid you mean?"
+		for _, k := range suggestions {
+			msg += fmt.Sprintf("\n  dva stack %s %s", sub, k)
+		}
+	}
+	return fmt.Errorf("%s", msg)
+}
+
+// similarTo returns the candidates within edit distance 2 of s, matching the threshold
+// resolveProvisionProfile already uses for its "Did you mean?".
+func similarTo(s string, candidates []string) []string {
+	var out []string
+	for _, c := range candidates {
+		if levenshtein(s, c) <= 2 {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 func init() {
