@@ -1,204 +1,156 @@
 ---
 id: TASK-076
-title: "`dva ls` and `dva manifest` advertise a conflicting interaction unmarked, and the manifest prints the one invocation that provably cannot reach it"
+title: "`dva ls` and `dva manifest` advertise a conflicting interaction unmarked, and the manifest prints the one invocation that cannot reach it"
 type: fix
 priority: P2
 effort: M
-status: todo
+status: done
 created-at: 2026-07-30T00:00:00+09:00
-scope: "internal/cli — manifest.go (dynamic command emission) + list.go (ls output) + tests; USAGE.md:643 severity claim"
+scope: "internal/cli — manifest.go, list.go; internal/config — reserved.go, validate.go; tests; USAGE.md"
 ---
 
 # Task 076: Do not advertise an interaction that the advertised command will not run
 
 ## Problem
 
-An `interaction:` key that collides with a reserved command is dropped from the top-level
-command set. Every discovery surface still lists it as if it were available, and one of them
-prints the exact invocation that is guaranteed to run something else.
+An `interaction:` key colliding with a built-in was described four different ways, none a
+superset of the others. `dva manifest` — the LLM-facing document — emitted `build` under both
+`static_commands` and `dynamic_commands`, the latter carrying `usage_example: "dva build"` with
+no marker and exit 0. `usage_example` promises that running it invokes the entry it sits inside,
+and `dva build` was the one form that did not. `dva ls` had the same shape for a human reader,
+and the load-time warning called the interaction ignored, which is false.
 
-`dva manifest` is the LLM-facing document — `internal/cli/CLAUDE.md` describes `--json`
-output as "LLM 파이프라인용". For an interaction named `build` it emits, in one document,
-with no conflict marker and exit 0:
+## Resolution
 
-```json
-"static_commands":  { "build": { "type": "compose_shortcut", "description": "Build service images" } },
-"dynamic_commands": { "build": { "command": "make build", "usage_example": "dva build" } }
-```
+`cli.Execute` rewrites `dva <name>` → `dva run <name>` only when name is not a built-in, so
+the accurate statement is **shadowing**, not being ignored — the declaration survives and
+`dva run <name>` reaches it. Two predicates now carry that:
 
-Two entries under the same key, two different meanings, and `usage_example: "dva build"` is
-the single form measured below that does **not** reach `make build`. A consumer that reads
-the manifest and executes the usage example runs the compose shortcut instead, silently.
+- `config.ShadowedByBuiltin(name, cmd)` — does the bare form reach this interaction?
+- `config.ConflictAdvice(name)` — what happened, and the way out.
 
-`internal/cli/manifest.go:163` builds that string as `fmt.Sprintf("dva %s", k)` for every
-key, unconditionally. Neither `manifest.go` nor `list.go` calls `IsReservedCommand` at all —
-the check exists only in `validate.go` and `reserved.go`.
+`ValidateReservedCommands` calls the first and `Validate` calls the second, so the validator and
+the surfaces that describe a conflict cannot disagree again.
 
-## Evidence (verified 2026-07-30)
+### The kinds of conflict, measured against `bin/dva` 0.1.44
 
-Fixture — one `dva.yml`, no `applications:`, two interactions that differ only in whether the
-name is reserved:
+| `interaction:` key | `validate` | bare `dva <key>` | `dva run <key>` |
+| --- | --- | --- | --- |
+| `build` + `command:` (hookable) | 1 | built-in runs | **interaction runs** |
+| `status` + `command:` (not hookable) | 1 | built-in runs (`DVA v0.1.44`) | **interaction runs** |
+| `build` + `replace:` (hook form) | **0** | dispatches to the hook, not the compose build | interaction runs |
+| `build fast` (sub of either parent) | as parent | built-in runs, `fast` ignored | **subcommand runs** |
+| `app:build` (reserved prefix) | 1 | not a built-in → 1 | `subproject 'app' not found` → 1 |
 
-```yaml
-version: "0.1.44"
+Advice per row comes from `ConflictAdvice`'s three branches; its `app-build` rename was executed
+and runs.
 
-stack:
-  infra:
-    description: PostgreSQL
-    default_runner: compose
-    runners:
-      compose:
-        files:
-          - compose.yml
+Three findings the problem statement lacked:
 
-interaction:
-  build:
-    description: build the thing
-    command: "make build"
-  my-build:
-    description: build the thing, non-reserved name
-    command: "make build"
-```
+**The hook exemption.** A hookable built-in declaring `before`/`replace`/`after` is not a
+conflict — `dva build` provably dispatches to the hook, not the default build. Keying the mark off
+`IsReservedCommand` alone, as the original fix shape proposed, would have stamped
+`shadowed_by_builtin` on correct hook declarations whose `usage_example: "dva build"` is right.
+The predicate asks "does the bare form reach this?", which also excludes `app:build` for free.
 
-Measured against `bin/dva` (0.1.44):
+**A namespaced key is reachable by nothing.** Found while writing the new warning, which offered
+`dva run app:build` — exit 1. The old wording was accidentally *correct* here and the accurate
+rewrite wrong. `ConflictAdvice` branches on it and does not print the failing form in full: a
+machine consumer scanning for a `dva run …` form would lift it out of the negation.
 
-| command | exit | what happened |
+**Subcommands are shadowed independently of their parent.** Tree keys are space-separated
+(`build fast`), so the whole-key check missed them and the first fix still printed
+`usage_example: "dva build fast"` — that runs the built-in with an argument. A hook-form parent
+does *not* rescue its children either: measured, `dva build fast` dispatches to the parent's
+`replace:` hook and ignores `fast`.
+
+### Surfaces
+
+- `manifest.go` — `usage_example` and `shadowed_by_builtin` both come from the shared
+  `interactionUsage`. The field is set **only** when shadowed, so its presence is the signal, and
+  its value names a real `static_commands` key (asserted in the same document).
+- `list.go` — the one source for both surfaces. The text row is marked in all three shapes
+  `printTable` produces (detailed, plain-with-description, plain).
+- `reserved.go` — `FormatConflictWarnings` emits one sorted clause per conflict. It detailed
+  `conflicts[0]` only, a map-iteration artifact: the same config named a different command run to
+  run, and the kinds do not share advice.
+- `USAGE.md` — the "**충돌** — 무시됨" rows became the validate outcome plus a "도달하는 호출"
+  column. `충돌은 에러가 아니라 경고` was false in both halves and is gone; the doc now states
+  that `validate`/`config validate` exit 1 while `ls`/`manifest`/`run` exit 0 on that config.
+  Its hook example also used `- run:` with no `step:`, which `validate` rejects though the runner
+  executes it — the repo's only two such lines, now `step:`/`run:` pairs like `examples/`
+  ([TASK-083](../todo/083-a-step-without-run-announces-work-it-never-does.md)).
+
+## Evidence
+
+Mutation checks — a not-contains assertion passes trivially if the path is never reached:
+
+| mutation | tests that must fail | result |
 | --- | --- | --- |
-| `dva validate` | **1** | `ERROR: reserved command conflict in dva.yml` |
-| `dva config validate` | **1** | same error |
-| `dva ls` | 0 | prints `build  # build the thing`, unmarked |
-| `dva ls --json` | 0 | `build` present, no conflict field |
-| `dva manifest` | 0 | `build` in both command maps, `usage_example: "dva build"` |
-| `dva build` | 1 | **builtin compose shortcut** — `open …/compose.yml: no such file or directory` |
-| `dva run build` | 2 | **the interaction ran** — `make: *** No rule to make target 'build'` |
-| `dva my-build` | 2 | the interaction ran, as expected for a non-reserved name |
+| `interactionUsage` returns `dva <k>` unconditionally | the 4 mark tests (6 subtests) | FAIL; the 3 leave-alone tests passed |
+| drop the hook exemption from `ShadowedByBuiltin` | both hook tests | FAIL; also 2 pre-existing config tests |
+| namespaced branch offers `dva run <key>` again | both advice tests | FAIL |
+| non-hookable branch reverts to the old wording | both advice tests | FAIL |
+| `FormatConflictWarnings` details `conflicts[0]` only | the stability test | FAIL |
+| drop the nesting branch from `interactionUsage` | both subcommand subtests | FAIL, mark tests unaffected |
 
-Every load also logs, on stderr, regardless of subcommand:
-
-```
-level=WARN msg="interaction command 'build' conflicts with reserved DVA command(s) and
-will be ignored. Rename to avoid shadowing (e.g., 'my-build' or 'custom-build')"
-```
-
-## One condition, four contracts
-
-| source | says |
-| --- | --- |
-| `internal/config/reserved.go:113` (WARN) | "will be ignored" |
-| `internal/config/validate.go:137` (ERROR) | fatal, exit 1 |
-| `USAGE.md:643` | "충돌은 에러가 아니라 경고이므로 `dva config validate`로 확인하세요" |
-| measured runtime | ignored as a **top-level shortcut**; still reachable via `dva run build` |
-
-None of the four is a superset of the others.
-
-- "will be ignored" is false as written: `dva run build` executed `make build`. The key is
-  dropped from top-level registration only.
-- `USAGE.md:643` says the conflict is a warning and not an error, and directs the reader at
-  `dva config validate` to see it. That command exits 1. The doc is wrong about the severity
-  of the very command it recommends.
-- `validate` is fatal, but nothing on the load path enforces it — `ls`, `manifest` and `run`
-  all load the same config and exit 0. So the config is simultaneously invalid and running.
-
-This matters for the fix, not just as trivia: a manifest cannot mark a conflict until the
-project decides what the conflict *means*. Marking `build` "ignored" would repeat the false
-claim. The accurate statement is narrower — the name is unavailable as a top-level command
-and reachable only through `dva run`.
-
-## Why it matters
-
-`dva manifest` exists to be read by a machine that will then run something. A field named
-`usage_example` carries an implicit promise that executing it invokes the entry it sits
-inside. Here it invokes a different code path with a different description, and the
-divergence is invisible in the document: no marker, no severity, exit 0.
-
-`dva ls` has the same shape with a human reader and lower stakes — the user sees `build`
-offered and types `dva build`.
-
-The WARN does reach stderr on every load, which is why this has not bitten a human hard yet.
-It does not reach a JSON consumer's stdout, and it is the message that is wrong about what
-happens.
-
-This is the same family as [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md):
-a discovery surface that describes a capability the next command does not honor. TASK-074's
-`dva app` advertises seven subcommands for an absent section; this one advertises a present
-interaction that the advertised invocation skips.
-
-## Fix shape
-
-Decide the contract sentence first, then make all surfaces repeat it:
-
-> A reserved-name interaction is not registered as a top-level command. It remains
-> executable as `dva run <name>`.
-
-Then:
-
-- `manifest.go:163` — when the key is reserved, `usage_example` must be `dva run <name>`,
-  and the entry must carry a machine-readable conflict field (a `shadowed_by` or
-  `conflict` key naming the static command that wins). A consumer must be able to detect
-  this without string-matching a description.
-- `list.go` — mark the row in both text and `--json`. The JSON shape is a consumer contract;
-  add a field, do not decorate the description string.
-- `reserved.go:113` — "will be ignored" becomes what was measured. Keep the rename hint.
-- `USAGE.md:643` — the severity claim is false; `dva validate` exits 1. Fix the sentence, and
-  check the table above it (lines 634-640) whose "**충돌** — 무시됨" rows carry the same
-  imprecision.
-
-Open decision, not settled here: whether `validate` should stay fatal while the load path
-proceeds. Fatal-and-ignored is defensible (the config is malformed; running commands are
-best-effort) but it is currently accidental rather than chosen. Whichever way it lands, the
-four sources above must agree afterward.
-
-Do not name `dva.yml` in any message this task touches — config is the merge of `modules:`
-and `subprojects:`, so the file needing the edit is not knowable from the loaded config.
-`validate.go:137` currently hardcodes it. Same misdirection TASK-073 removed.
+Each restore verified with `diff -q` reporting identical. Every invocation named in a new message
+or doc sentence was executed: `dva run build|status|build fast`, `dva status`, `dva build` on four
+hook fixtures (`step:`-only, `run:`-only, `step:`+`run:`, bare), `dva app-build`, `validate`,
+`config validate`, `ls`, `manifest`.
 
 ## Non-goals
 
-- Do not change which command wins. The builtin shadowing the interaction is the designed
-  behaviour and the rename hint is correct.
-- Do not remove the conflicting entry from `ls`/`manifest`. A user who declared it needs to
-  see that dva received it and what became of it; silence would be worse than a wrong label.
-- Do not add a `--json` error envelope. Still separate, still larger — recorded in TASK-074.
-- Do not touch the namespaced-prefix branch (`app:build`) beyond whatever falls out of the
-  shared helper. It has its own hint at `validate.go:126`.
+- Which command wins is unchanged; built-in shadowing is designed behaviour.
+- The conflicting entry stays in `ls`/`manifest`. A user who declared it needs to see dva received
+  it; silence would be worse than a wrong label.
+- No `--json` error envelope — [TASK-079](../todo/079-json-flag-does-not-cover-failures.md).
 
 ## Acceptance criteria
 
-- [ ] A reserved-name interaction is marked in the manifest with a machine-readable field | verify: `go test ./internal/cli/ -run TestManifestMarksReservedInteraction`
-- [ ] Its `usage_example` is the form that reaches it | verify: `go test ./internal/cli/ -run TestManifestUsageExampleReachesTheInteraction` — asserts `dva run build`, not `dva build`
-- [ ] A non-reserved interaction is unchanged | verify: `go test ./internal/cli/ -run TestManifestLeavesNonReservedInteractionAlone` — `my-build` keeps `usage_example: "dva my-build"` and carries no conflict field
-- [ ] `dva ls --json` exposes the same mark | verify: `go test ./internal/cli/ -run TestLsJSONMarksReservedInteraction`
-- [ ] `dva ls` text output marks the row | verify: `go test ./internal/cli/ -run TestLsTextMarksReservedInteraction`
-- [ ] The mark tests are not vacuous | verify: `human — drop the reserved check from manifest.go and list.go; all five tests above must FAIL`
-- [ ] No message on this path claims the interaction is ignored outright | verify: `/usr/bin/grep -c 'will be ignored' internal/config/reserved.go` — print the count, expect 0
-- [ ] No message on this path names a config filename | verify: `/usr/bin/grep -c 'conflict in dva.yml' internal/config/validate.go` — print the count, expect 0
-- [ ] The doc no longer calls the conflict a warning | verify: `/usr/bin/grep -c '에러가 아니라 경고' USAGE.md` — print the count, expect 0
-- [ ] The documented severity matches the binary | verify: `human — run dva validate on the fixture above and read USAGE.md:632-644 together; exit code and prose must agree`
-- [ ] Full suite passes under -race | verify: `make test`
-- [ ] Binary builds through the project's own path | verify: `make build`
+- [x] A reserved-name interaction carries a machine-readable mark in the manifest | verify: `go test ./internal/cli/ -run TestManifestMarksReservedInteraction`
+- [x] Its `usage_example` is the form that reaches it | verify: `go test ./internal/cli/ -run TestManifestUsageExampleReachesTheInteraction`
+- [x] A non-reserved interaction is unchanged | verify: `go test ./internal/cli/ -run TestManifestLeavesNonReservedInteractionAlone`
+- [x] A hook-form reserved name is NOT marked and keeps the bare form | verify: `go test ./internal/cli/ -run 'TestManifestDoesNotMarkHookFormReservedName|TestLsTextLeavesHookFormUnmarked'`
+- [x] A subcommand of a reserved parent is marked, under both parent shapes | verify: `go test ./internal/cli/ -run TestSubcommandOfReservedParentIsMarked`
+- [x] `dva ls --json` exposes the same mark | verify: `go test ./internal/cli/ -run TestLsJSONMarksReservedInteraction`
+- [x] `dva ls` text output marks the row | verify: `go test ./internal/cli/ -run TestLsTextMarksReservedInteraction`
+- [x] Advice names no invocation that refuses | verify: `go test ./internal/config/ -run TestConflictAdviceNamesOnlyInvocationsThatWork`
+- [x] The warning is stable and covers every conflict | verify: `go test ./internal/config/ -run TestFormatConflictWarningsIsStableAndCoversEveryConflict`
+- [x] The mark tests are not vacuous | verify: `human — the 6 mutations above; each failed only the tests that assert what it broke`
+- [x] No message here claims the interaction is ignored | verify: `/usr/bin/grep -c 'will be ignored' internal/config/reserved.go` — print the count, expect 0
+- [x] No message here names a config filename | verify: `/usr/bin/grep -c 'conflict in dva.yml' internal/config/validate.go` — print the count, expect 0
+- [x] The doc no longer calls the conflict a warning | verify: `/usr/bin/grep -c '에러가 아니라 경고' USAGE.md` — print the count, expect 0
+- [x] The documented severity matches the binary | verify: `human — validate 1, config validate 1, ls/manifest/run 0, all executed on the conflict fixture`
+- [x] Full suite passes | verify: `make test`
+- [x] Binary builds | verify: `make build`
+
+## Left open
+
+- **`app:build` is still advertised unmarked.** `manifest` prints `usage_example: "dva app:build"`
+  for a key no invocation reaches — this task's defect, in the branch the non-goals excluded.
+  `ShadowedByBuiltin` is correctly false: nothing shadows it, it is unroutable, so the surfaces
+  need a third state rather than a reuse of this one.
+- **`validate` is fatal while the load path proceeds.** `ls`/`manifest`/`run` exit 0 on a config
+  `validate` rejects — invalid and running at once. Accidental rather than chosen; USAGE.md
+  documents it as-is.
+- **`USAGE.md` is 729 lines / 27.6KB** vs the 500-line / 10KB standard — over before this change
+  too (714 / 26.3KB). Splitting it is its own task.
 
 ## Related — the loop that should have caught this
 
-`workflows/dva-dogfood/ref-evaluation.md` declares a `lifecycle_boundary` surface with
-`instances: per_overlap`, discovering "a service or process owned by more than one of stack,
-plans, applications, interaction".
-
-The overlap here is `interaction:` against the **builtin command namespace**, which is not one
-of the four listed owners. So this collision class never instantiates a case, and the quality
-of dva's answer to it has never been scored — structurally the same gap TASK-074 found, from
-the opposite direction: TASK-074's surface produced no case because a section was absent, this
-one produces no case because the second owner is not a config section at all.
-
-Candidate manifest amendment, deferred: widen `lifecycle_boundary`'s discover clause to include
-the reserved command set as an owner, which makes every reserved-name interaction an instance.
-Changing the manifest bytes changes `case_manifest_hash`, so stage 60 must treat the first run
-after it as a cross-run promotion rather than a regression.
+`ref-evaluation.md`'s `lifecycle_boundary` surface only discovers services owned by two of stack,
+plans, applications, interaction — never `interaction:` against the **built-in command namespace**,
+so dva's answer here was never scored. Same gap as
+[TASK-082](../decision/082-the-dogfood-loop-cannot-score-an-absent-section.md); adding the reserved
+set as an owner changes `case_manifest_hash`, so stage 60 must treat the next run as a cross-run
+promotion.
 
 ## Related
 
-- [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md) — the absent-section
-  half of the same discovery problem; shares the "do not name a config filename" constraint.
-- [TASK-073](../done/073-version-error-blames-the-config-for-a-build-defect.md) — precedent for
-  the mutation check on not-contains assertions.
-- [TASK-067](../done/067-version-field-rule-stated-three-incompatible-ways.md) — precedent for
-  one rule stated in mutually incompatible ways across code and docs.
+- [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md) — the absent-section
+  half of the same problem; shares the "no config filename in the message" constraint.
+- [TASK-073](073-version-error-blames-the-config-for-a-build-defect.md) — precedent for the
+  mutation check on not-contains assertions.
+- [TASK-067](067-version-field-rule-stated-three-incompatible-ways.md) — precedent for one rule
+  stated in mutually incompatible ways across code and docs.
