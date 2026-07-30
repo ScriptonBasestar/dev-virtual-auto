@@ -364,9 +364,28 @@
           "examples": ["web", "frontend", "db"]
         },
         "command": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          ],
+          "description": "Command to execute — a string, or a list run sequentially",
+          "examples": ["bundle exec rails", "npm", ["pnpm install", "pnpm build"]]
+        },
+        "script": {
           "type": "string",
-          "description": "Represents the command to be executed",
-          "examples": ["bundle exec rails", "npm", "psql -h db -U user myapp_development"]
+          "description": "Inline shell script, usually a block scalar. Execution precedence: steps > script_file > script > command",
+          "examples": ["set -e\nmake build\nmake test\n"]
+        },
+        "script_file": {
+          "type": "string",
+          "description": "Path to an external shell script, relative to dva.yml. Wins over 'script'",
+          "examples": ["scripts/seed.sh"]
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/provision_item" },
+          "description": "Named steps run sequentially with progress output. Wins over every other execution field",
+          "minItems": 1
         },
         "workdir": {
           "type": "string",

@@ -37,6 +37,24 @@ var removedSchemaKeys = map[string]string{
 	"priority":    "removed: precedence is fixed — environment: < env_file < OS environment",
 }
 
+// rootField is the path gojsonschema reports for an error on the document root.
+const rootField = "(root)"
+
+// removedRootKeys is the same idea as removedSchemaKeys for keys 17a74b9 folded
+// out of the document root, and it is separate for one reason: their names are
+// still valid elsewhere. 'compose' names a stack entry and a runner, 'kubectl' a
+// runner. Keying those by name alone would append "removed" guidance to the very
+// shape that replaced them, and would make the corpus test reject the correct
+// examples that teach it.
+//
+// Guidance from here is only appended when the error is on the root itself.
+var removedRootKeys = map[string]string{
+	"compose":   "removed from the root: declare it as a stack entry — stack.<name>.default_runner: compose + runners.compose",
+	"kubectl":   "removed from the root: declare it as a stack entry — stack.<name>.default_runner: kubectl + runners.kubectl",
+	"profiles":  "removed: renamed — use 'modes:'",
+	"lifecycle": "removed: renamed — use 'stack:'",
+}
+
 // Validate validates the dva.yml against the JSON schema.
 func (c *Config) Validate() error {
 	if c.filePath == "" {
@@ -84,7 +102,11 @@ func (c *Config) Validate() error {
 			line := fmt.Sprintf("  - %s: %s", desc.Field(), desc.Description())
 			if desc.Type() == "additional_property_not_allowed" {
 				if prop, ok := desc.Details()["property"].(string); ok {
-					if guidance, removed := removedSchemaKeys[prop]; removed {
+					guidance, removed := removedSchemaKeys[prop]
+					if !removed && desc.Field() == rootField {
+						guidance, removed = removedRootKeys[prop]
+					}
+					if removed {
 						line += "\n      " + guidance
 					}
 				}

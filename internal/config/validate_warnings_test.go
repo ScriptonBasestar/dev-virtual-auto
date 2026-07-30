@@ -394,7 +394,7 @@ func TestWarnMultiStackComposeSplit(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("expected 1 warning, got %d", len(warnings))
 	}
-	if !strings.Contains(warnings[0], "multiple compose entries") {
+	if !strings.Contains(warnings[0], "compose entries [compose, compose-full]") {
 		t.Errorf("unexpected warning: %s", warnings[0])
 	}
 
@@ -419,6 +419,70 @@ func TestWarnMultiStackComposeSplit(t *testing.T) {
 	warnings = c.warnMultiStackComposeSplit()
 	if len(warnings) != 0 {
 		t.Errorf("expected 0 warnings for different backends, got %d", len(warnings))
+	}
+}
+
+// TestWarnMultiStackComposeSplitModeIsolation covers the shape that replaced the
+// removed modes.<name>.compose: one compose entry per mode, picked by
+// modes.<name>.stack. The warning used to fire on it and tell users to consolidate,
+// which modes.compose_services cannot express when the entries load different files.
+func TestWarnMultiStackComposeSplitModeIsolation(t *testing.T) {
+	composeStack := func() map[string]*LifecycleEntry {
+		return map[string]*LifecycleEntry{
+			"compose-base": {Compose: &ComposePluginConfig{Files: []string{"docker-compose.yml"}}},
+			"compose-obs":  {Compose: &ComposePluginConfig{Files: []string{"docker-compose.yml", "docker-compose.obs.yml"}}},
+		}
+	}
+
+	tests := []struct {
+		name  string
+		modes map[string]ModeConfig
+		warn  bool
+	}{
+		{
+			name: "each entry owned by one mode",
+			modes: map[string]ModeConfig{
+				"infra":         {Stack: []string{"compose-base"}},
+				"observability": {Stack: []string{"compose-obs"}},
+			},
+			warn: false,
+		},
+		{
+			name: "one mode pulls in both entries",
+			modes: map[string]ModeConfig{
+				"infra": {Stack: []string{"compose-base"}},
+				"full":  {Stack: []string{"compose-base", "compose-obs"}},
+			},
+			warn: true,
+		},
+		{
+			name: "a mode without stack: selects every entry",
+			modes: map[string]ModeConfig{
+				"infra": {Stack: []string{"compose-base"}},
+				"full":  {ComposeProfiles: []string{"all"}},
+			},
+			warn: true,
+		},
+		{
+			name: "an entry no mode claims always runs",
+			modes: map[string]ModeConfig{
+				"infra": {Stack: []string{"compose-base"}},
+			},
+			warn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{Stack: composeStack(), Modes: tt.modes}
+			warnings := c.warnMultiStackComposeSplit()
+			if tt.warn && len(warnings) != 1 {
+				t.Fatalf("expected a warning, got %v", warnings)
+			}
+			if !tt.warn && len(warnings) != 0 {
+				t.Fatalf("expected silence, got %v", warnings)
+			}
+		})
 	}
 }
 

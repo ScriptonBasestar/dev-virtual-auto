@@ -291,26 +291,69 @@ func (c *Config) warnDuplicateStackOrder() []string {
 	return warnings
 }
 
-// warnMultiStackComposeSplit warns when multiple stack entries use the compose plugin,
-// which often indicates an overlay split that should be consolidated into one entry with modes.
+// warnMultiStackComposeSplit warns when compose entries that can run together were
+// split across stack entries. Each entry is its own `docker compose` invocation, so
+// an overlay entry cannot patch a base entry's service definitions.
+//
+// It stays quiet when modes divide the entries up, because that is the shape DVA
+// itself prescribes: modes.<name>.compose was removed, and one entry per mode
+// selected by modes.<name>.stack is the replacement. Warning there told users to
+// undo the migration DVA required of them.
 func (c *Config) warnMultiStackComposeSplit() []string {
-	var composeEntries []string
+	composeEntries := map[string]bool{}
 	for name, entry := range c.Stack {
 		// ComposeConfig(), not entry.Compose: the supported shape stores compose under
 		// runners, so reading the legacy field alone made this warning unreachable for
 		// every config that follows the current schema.
 		if entry.ComposeConfig() != nil {
-			composeEntries = append(composeEntries, name)
+			composeEntries[name] = true
 		}
 	}
-	if len(composeEntries) < 2 {
+	if len(composeEntries) < 2 || c.modesIsolateComposeEntries(composeEntries) {
 		return nil
 	}
-	sort.Strings(composeEntries)
-	return []string{
-		fmt.Sprintf("stack: multiple compose entries [%s] detected — consider consolidating into one entry and using modes.compose_services for service selection",
-			strings.Join(composeEntries, ", ")),
+
+	names := make([]string, 0, len(composeEntries))
+	for name := range composeEntries {
+		names = append(names, name)
 	}
+	sort.Strings(names)
+	return []string{
+		fmt.Sprintf("stack: compose entries [%s] can run in the same invocation set — each is a separate 'docker compose' call, so an overlay entry cannot patch another entry's services; give each its own mode (modes.<name>.stack: [entry]), or merge them into one entry whose files: lists the overlays",
+			strings.Join(names, ", ")),
+	}
+}
+
+// modesIsolateComposeEntries reports whether every compose entry is claimed by a mode
+// and no single mode pulls in two of them — the arrangement where only one compose
+// invocation is ever live, which is safe.
+//
+// A mode with no stack: filter selects every entry (see Orchestrator.filterEntries),
+// so it disqualifies the whole arrangement. Configs that set no default_mode leave the
+// same unfiltered path reachable from a bare `dva up`; warnMissingDefaultMode already
+// says so, and repeating it here would just be a second voice on one problem.
+func (c *Config) modesIsolateComposeEntries(composeEntries map[string]bool) bool {
+	if len(c.Modes) == 0 {
+		return false
+	}
+	claimed := make(map[string]bool, len(composeEntries))
+	for _, mode := range c.Modes {
+		selected := mode.StackEntries()
+		if len(selected) == 0 {
+			return false
+		}
+		hits := 0
+		for _, name := range selected {
+			if composeEntries[name] {
+				hits++
+				claimed[name] = true
+			}
+		}
+		if hits > 1 {
+			return false
+		}
+	}
+	return len(claimed) == len(composeEntries)
 }
 
 // warnMissingDefaultMode warns when modes are defined but no default_mode is set,

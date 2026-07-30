@@ -38,6 +38,17 @@ func TestRemovedKeysAbsentFromGeneratorCorpus(t *testing.T) {
 	for key := range removedSchemaKeys {
 		scanned[key] = regexp.MustCompile(`^\s*` + regexp.QuoteMeta(key) + `\s*:`)
 	}
+	// Root-only removals are matched at column 0 alone. Indented 'compose:' is the
+	// runner that replaced the root key, so the corpus has to keep teaching it.
+	guidance := func(key string) string {
+		if g, ok := removedSchemaKeys[key]; ok {
+			return g
+		}
+		return removedRootKeys[key]
+	}
+	for key := range removedRootKeys {
+		scanned[key] = regexp.MustCompile(`^` + regexp.QuoteMeta(key) + `\s*:`)
+	}
 
 	var files int
 	for _, root := range generatorCorpus() {
@@ -59,7 +70,7 @@ func TestRemovedKeysAbsentFromGeneratorCorpus(t *testing.T) {
 				for key, re := range scanned {
 					if re.MatchString(line) {
 						t.Errorf("%s:%d teaches removed key %q\n  %s\n  %s",
-							path, i+1, key, strings.TrimSpace(line), removedSchemaKeys[key])
+							path, i+1, key, strings.TrimSpace(line), guidance(key))
 					}
 				}
 			}

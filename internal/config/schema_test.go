@@ -253,6 +253,65 @@ checks:
 	}
 }
 
+// TestValidateAcceptsInteractionExecutionForms pins every execution form
+// LocalRunner.Execute dispatches on (steps > script_file > script > command list >
+// command) as schema-legal. Three of them — script, script_file, steps — were
+// implemented in the struct and both runners while interaction_command listed
+// neither, so `additionalProperties: false` made documented features unreachable and
+// left `runner: local` + a single command: the only way through.
+//
+// Asserting the parsed fields, not just Validate(), is the point: the defect was the
+// schema and the struct disagreeing, and only a round trip catches that.
+func TestValidateAcceptsInteractionExecutionForms(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+interaction:
+  seed:
+    description: "Inline script"
+    runner: local
+    script: |
+      set -e
+      echo seeding
+  seed-file:
+    description: "External script"
+    runner: local
+    script_file: scripts/seed.sh
+  bootstrap:
+    description: "Named steps"
+    runner: local
+    steps:
+      - step: "Install"
+        run: "pnpm install"
+      - "pnpm build"
+  bench:
+    description: "Command list"
+    runner: local
+    command:
+      - "go build ./..."
+      - "go test ./..."
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want accept script/script_file/steps/command list", err)
+	}
+
+	if got := cfg.Interaction["seed"]; !got.HasScript() || !strings.Contains(got.Script, "echo seeding") {
+		t.Errorf("seed.script = %q, want the inline block", got.Script)
+	}
+	if got := cfg.Interaction["seed-file"]; got.ScriptFile != "scripts/seed.sh" {
+		t.Errorf("seed-file.script_file = %q, want scripts/seed.sh", got.ScriptFile)
+	}
+	if got := cfg.Interaction["bootstrap"]; len(got.Steps) != 2 || got.Steps[0].Step != "Install" {
+		t.Errorf("bootstrap.steps = %+v, want 2 items starting with Install", got.Steps)
+	}
+	// command: as a list keeps Command set to the first line for display, so asserting
+	// CommandLines is what distinguishes a parsed list from a parsed scalar.
+	if got := cfg.Interaction["bench"]; !got.HasMultiCommand() || len(got.CommandLines) != 2 {
+		t.Errorf("bench.command lines = %+v, want 2", got.CommandLines)
+	}
+}
+
 // TestValidateRejectsDevcontainerConfigPath locks TASK-037: config_path was never
 // honored; schema must reject it rather than validate-green no-op.
 func TestValidateRejectsDevcontainerConfigPath(t *testing.T) {
