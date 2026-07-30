@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -74,6 +75,9 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 
 	// Built-in: Compose project name alignment
 	results = append(results, checkComposeProjectNameAlignment(c))
+
+	// Built-in: a subproject claiming the parent's compose project name
+	results = append(results, checkSubprojectComposeProjectNames(c)...)
 
 	// Built-in: Environment files exist
 	results = append(results, checkEnvFiles(c)...)
@@ -328,6 +332,106 @@ func checkComposeProjectNameAlignment(c *config.Config) DoctorResult {
 		Fixable: true,
 		fixFunc: func() error { return c.FixComposeProjectName(w) },
 	}
+}
+
+// checkSubprojectComposeProjectNames reports a subproject whose compose project name equals
+// the parent's while the two point at different compose files.
+//
+// Compose project identity is what `docker compose down` scopes to, so two configs sharing a
+// name while describing different stacks means `dva down` in the child reaps the parent's
+// containers. Every single-file view looks correct: checkComposeProjectNameAlignment passes
+// on both, because it checks a different axis — that one dva.yml's project_name matches its
+// own compose file's top-level name.
+//
+// This lives in doctor rather than validate because validate never sees the child. A
+// subproject is only loaded when it declares an import: block (config.resolveSubprojectImports),
+// and the collision arises in configs that declare just a path — so detecting it means opening
+// a file validate has no reason to open. doctor is diagnostic and already reads the filesystem.
+//
+// Comparing file sets rather than service sets is deliberate: DVA has no compose service
+// parser, and file identity is what decides whether two configs hand docker the same stack.
+// Identical files mean an overlay-style split, which is legitimate and stays silent.
+func checkSubprojectComposeProjectNames(c *config.Config) []DoctorResult {
+	parentName := c.ComposeProjectName()
+	if parentName == "" || len(c.Subprojects) == 0 {
+		return nil
+	}
+	parentFiles := absComposeFiles(c)
+
+	// Sorted so the output is stable; map iteration order would reshuffle results per run.
+	names := make([]string, 0, len(c.Subprojects))
+	for name := range c.Subprojects {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var results []DoctorResult
+	for _, name := range names {
+		sub := c.Subprojects[name]
+		// One subproject at a time: LoadSubprojects returns nil, err on any single failure,
+		// so passing the whole map would let one missing child hide every other result.
+		subs, err := config.LoadSubprojects(c.FileDir(), map[string]config.SubprojectConfig{name: sub},
+			config.SkipVersionCheck())
+		if err != nil {
+			// Unloadable child is not this check's business — checkStackFiles and the
+			// loader's own errors report it. Staying silent here avoids a second complaint
+			// about the same file.
+			continue
+		}
+		subCfg := subs[name]
+		if subCfg == nil || subCfg.ComposeProjectName() != parentName {
+			continue
+		}
+		if sameStringSet(parentFiles, absComposeFiles(subCfg)) {
+			continue // same stack under one project name — an overlay split, not a collision
+		}
+
+		results = append(results, DoctorResult{
+			Name: fmt.Sprintf("Subproject %q shares compose project name %q with the parent but references different compose files",
+				name, parentName),
+			Passed: false,
+			FixHint: fmt.Sprintf("Give %s its own project_name; otherwise 'dva down' in %s removes the parent's containers too",
+				name, name),
+		})
+	}
+	return results
+}
+
+// absComposeFiles returns c's compose files as absolute paths, so two configs in different
+// directories are compared by the file they actually resolve to rather than by the relative
+// spelling each happens to use.
+func absComposeFiles(c *config.Config) []string {
+	dir := c.FileDir()
+	files := c.AllComposeFiles()
+	out := make([]string, 0, len(files))
+	for _, f := range files {
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(dir, f)
+		}
+		out = append(out, filepath.Clean(f))
+	}
+	return out
+}
+
+// sameStringSet reports whether a and b contain the same elements, ignoring order and
+// duplicates. Order is irrelevant here: `docker compose -f x -f y` and `-f y -f x` merge to
+// the same project.
+func sameStringSet(a, b []string) bool {
+	if len(a) == 0 || len(b) == 0 {
+		return false // nothing to compare — do not claim the stacks match
+	}
+	set := make(map[string]bool, len(a))
+	for _, s := range a {
+		set[s] = true
+	}
+	seen := make(map[string]bool, len(b))
+	for _, s := range b {
+		if !set[s] {
+			return false
+		}
+		seen[s] = true
+	}
+	return len(seen) == len(set)
 }
 
 func checkEnvFiles(c *config.Config) []DoctorResult {

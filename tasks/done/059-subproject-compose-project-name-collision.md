@@ -3,10 +3,10 @@ id: TASK-059
 title: "Nothing detects a subproject declaring its parent's compose project name — dva down in the child reaps the parent's stack"
 type: feat
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
-scope: "dva repo — internal/config/validate.go (or validate_warnings.go); found in ~/mydevbox/scripton-nd-stack-devbox"
+scope: "dva repo — internal/cli/doctor.go; found in ~/mydevbox/scripton-nd-stack-devbox"
 ---
 
 # Task 059: Warn when a subproject shares its parent's compose project name
@@ -134,13 +134,48 @@ config-graph link — parent↔subproject is the only pair this check considers.
 
 ## Acceptance criteria
 
-- [ ] Warning fires for parent+subproject sharing a project name with differing compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
-- [ ] Silent when both point at the same compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
-- [ ] One unloadable subproject does not suppress the others | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
-- [ ] Existing per-config name alignment check unaffected | verify: `go test ./internal/config/ -run TestValidateComposeProjectNames`
-- [ ] Reproduces on the real config | verify: `cd ~/mydevbox/scripton-nd-stack-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva doctor 2>&1 \| /usr/bin/grep -q 'nd-stack-dev'`
-- [ ] Full suite green | verify: `make test`
-- [ ] No new doctor failures across the real corpus beyond this one | verify: `human — re-run the doctor sweep and compare counts`
+- [x] Warning fires for parent+subproject sharing a project name with differing compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
+- [x] Silent when both point at the same compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
+- [x] One unloadable subproject does not suppress the others | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
+- [x] Existing per-config name alignment check unaffected | verify: `go test ./internal/config/ -run TestValidateComposeProjectNames`
+- [x] Reproduces on the real config | verify: `cd ~/mydevbox/scripton-nd-stack-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva doctor 2>&1 \| /usr/bin/grep -q 'nd-stack-dev'`
+- [x] Full suite green | verify: `make test`
+- [x] No new doctor failures across the real corpus beyond this one | verify: `human — re-run the doctor sweep and compare counts`
+
+## Result
+
+`checkSubprojectComposeProjectNames` in `internal/cli/doctor.go`, registered in `runDoctor`
+next to the existing `checkComposeProjectNameAlignment`. Tests in
+`internal/cli/doctor_subproject_test.go` (new file), 14 subtests.
+
+Measured 2026-07-30:
+
+| check | outcome |
+| --- | --- |
+| `go test ./internal/cli/ -run 'TestCheckSubprojectComposeProjectNames\|TestSameStringSet' -v` | 14 subtests PASS |
+| `go test ./internal/config/ -run TestValidateComposeProjectNames -v` | 6 subtests PASS — sibling check untouched |
+| corpus sweep, 31 live configs | new check fired **1×** — the intended one, zero false positives |
+| `make test` | green |
+| `internal/cli` coverage | 54.5% → 55.1% |
+
+Real config output:
+
+```
+[FAIL] Subproject "nd-stack-rs" shares compose project name "nd-stack-dev" with the parent
+       but references different compose files
+    -> Give nd-stack-rs its own project_name; otherwise 'dva down' in nd-stack-rs removes
+       the parent's containers too
+```
+
+Two design points settled during implementation and recorded in the code comments:
+
+1. **doctor, not validate** — forced by the measurement in the Correction section above, not
+   chosen for convenience. validate never opens the child's file.
+2. **file sets, not service sets** — no compose service parser exists, and file identity is
+   what `docker compose -p X down` actually scopes to.
+
+The `~/mydevbox/scripton-nd-stack-devbox` config itself is **not** fixed here; per Non-goals
+that is the user's call. DVA now reports it.
 
 ## Evidence
 
