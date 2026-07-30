@@ -66,9 +66,13 @@ func (r *LocalRunner) executeSteps(env *config.Environment, steps []config.Provi
 			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
 			continue
 		}
-		if step.Note != "" {
+		// A note documents the step, it does not replace it. This branch used to `continue`,
+		// so adding a note to a working step silently stopped it running — while the same
+		// item under `dva provision` printed the note and executed. TASK-089; provision.go
+		// was the correct one, so both runners now fall through.
+		noted := step.Note != ""
+		if noted {
 			fmt.Printf("  → %s: %s\n", label, step.Note)
-			continue
 		}
 		cmds := step.RunCommands()
 		if len(cmds) == 0 && step.Raw != "" {
@@ -77,7 +81,10 @@ func (r *LocalRunner) executeSteps(env *config.Environment, steps []config.Provi
 		if len(cmds) == 0 {
 			continue
 		}
-		fmt.Printf("  → %s\n", label)
+		if !noted {
+			// The note line already named the step; printing the label again would double it.
+			fmt.Printf("  → %s\n", label)
+		}
 		if err := dvaexec.ExecSequential(env, cmds, true); err != nil {
 			return fmt.Errorf("step %q failed: %w", label, err)
 		}

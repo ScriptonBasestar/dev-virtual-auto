@@ -113,7 +113,7 @@ see Left open.
 ## Left open
 
 - **Note-before-run ordering** — now filed as
-  [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md), with a correction to what
+  [TASK-089](../done/089-note-suppresses-run-on-the-interaction-path-only.md), with a correction to what
   this entry originally said. Only the two *runners* `continue` after printing a note.
   `executeProvisionStep` does not: it prints the note at `provision.go:125-131` and falls through
   to execution. Measured — `{note, run}` executes under `dva provision` and silently does not

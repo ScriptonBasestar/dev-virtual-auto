@@ -97,7 +97,7 @@ interaction path is genuinely out of scope for the runners.
 
 Whichever is chosen, the deeper question is worth answering once: this is the fourth key-by-key
 disagreement between the runner and provision paths ([TASK-086](086-parallel-steps-discard-their-note.md),
-[TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md), and this task's two groups).
+[TASK-089](../done/089-note-suppresses-run-on-the-interaction-path-only.md), and this task's two groups).
 Reconciling them one key at a time is how the count got to four. A shared step executor would
 close the class.
 

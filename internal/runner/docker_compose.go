@@ -74,9 +74,11 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
 			continue
 		}
-		if step.Note != "" {
+		// Same fall-through as LocalRunner.executeSteps, for the same reason (TASK-089):
+		// a note must not swallow the step's work.
+		noted := step.Note != ""
+		if noted {
 			fmt.Printf("  → %s: %s\n", label, step.Note)
-			continue
 		}
 		cmds := step.RunCommands()
 		if len(cmds) == 0 && step.Raw != "" {
@@ -85,7 +87,9 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 		if len(cmds) == 0 {
 			continue
 		}
-		fmt.Printf("  → %s\n", label)
+		if !noted {
+			fmt.Printf("  → %s\n", label)
+		}
 		for _, c := range cmds {
 			c = strings.TrimSpace(c)
 			if c == "" {

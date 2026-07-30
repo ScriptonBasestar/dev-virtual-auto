@@ -4,7 +4,7 @@ title: "A step with both `note:` and `run:` executes under `dva provision` and s
 type: fix
 priority: P2
 effort: S
-status: todo
+status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/local.go, internal/runner/docker_compose.go — the Note branch continues; internal/cli/provision.go:125-131 falls through"
 ---
@@ -74,7 +74,7 @@ not survive the fixture above, because under that reading `provision` would be t
 Drop the `continue` in both runners so the note prints and execution proceeds, matching
 `provision.go`. Two lines.
 
-Deliberately paired with [TASK-086](086-parallel-steps-discard-their-note.md): that task adds the
+Deliberately paired with [TASK-086](../todo/086-parallel-steps-discard-their-note.md): that task adds the
 note to the paths that never print it, this one stops it swallowing work on the paths that do.
 Doing either alone leaves `note:` meaning something different in three places instead of two.
 
@@ -90,19 +90,59 @@ stdout. Not this task's decision, but the fix touches the same lines.
 
 ## Acceptance criteria
 
-- [ ] A note no longer suppresses a run on the interaction path | verify: `dva run noteandrun` on the fixture — `BOTH-RUN-EXECUTED` count must be >=1; today 0
-- [ ] A note-only step still runs nothing | verify: `go test ./internal/runner/ -run TestStepWithoutRunIsReported` — the 9 subtests from TASK-083 must still pass, print the count
-- [ ] The note is still printed | verify: same run — `BOTH-NOTE-SHOWN` count must stay >=1, so "fixed" cannot mean "dropped the note instead"
-- [ ] Both runners agree | verify: `go test ./internal/runner/ -run TestNoteDoesNotSuppressRun` — must drive both runners from one table, as the TASK-083 test does
-- [ ] The provision path is unchanged | verify: `dva provision seqboth` — `PROV-RUN-EXECUTED` count must stay 2 and `PROV-NOTE-SHOWN` 1
-- [ ] Not vacuous | verify: `human — restore the continue in local.go alone; only the local subtest may fail, proving the table tests each runner separately`
-- [ ] Full suite passes | verify: `make test`
+- [x] A note no longer suppresses a run on the interaction path | verify: `dva run noteandrun` on the fixture — `BOTH-RUN-EXECUTED` count must be >=1; today 0 — **measured 1**
+- [x] A note-only step still runs nothing | verify: `go test ./internal/runner/ -run TestStepWithoutRunIsReported` — the 9 subtests from TASK-083 must still pass, print the count — **9 passing**
+- [x] The note is still printed | verify: same run — `BOTH-NOTE-SHOWN` count must stay >=1, so "fixed" cannot mean "dropped the note instead" — **measured 1**
+- [x] Both runners agree | verify: `go test ./internal/runner/ -run TestNoteDoesNotSuppressRun` — must drive both runners from one table, as the TASK-083 test does — **8 subtests, 4 per runner, one table**
+- [x] The provision path is unchanged | verify: `dva provision seqboth` — `PROV-RUN-EXECUTED` count must stay 2 and `PROV-NOTE-SHOWN` 1 — **2 and 1**
+- [x] Not vacuous | verify: `human — restore the continue in local.go alone; only the local subtest may fail, proving the table tests each runner separately` — **restored the `continue` in local.go only: exactly `local/a_note_does_not_suppress_the_run` failed, all four docker_compose subtests stayed green**
+- [x] Full suite passes | verify: `make test` — **all packages ok**
+
+## Resolution
+
+Both runners now fall through instead of `continue`ing. A `noted` flag suppresses the plain
+label print when the note line already carried it, so a note+run step is still named exactly once:
+
+```go
+noted := step.Note != ""
+if noted {
+    fmt.Printf("  → %s: %s\n", label, step.Note)
+}
+cmds := step.RunCommands()
+...
+if len(cmds) == 0 {
+    continue          // a note-only step still executes nothing
+}
+if !noted {
+    fmt.Printf("  → %s\n", label)
+}
+```
+
+Covered by `internal/runner/note_run_test.go` — `TestNoteDoesNotSuppressRun`, four subtests per
+runner from one table.
+
+**Testing the compose runner needed care, and the reason is worth keeping.** `execCompose` ends in
+`ExecReplace` → `syscall.Exec`, which on success *replaces the running process*. A test that let
+`DockerComposeRunner.executeSteps` reach a real binary would have deleted the test binary
+mid-run. The test points its compose command at a name that cannot resolve, so `exec.LookPath`
+fails *before* the exec: the attempt is observable as an error, and nothing is ever executed.
+That is also why the two runners need different evidence — the local runner's subprocess returns
+and its output is capturable, the compose runner's does not return at all.
+
+### Found while fixing, not fixed here
+
+`docker_compose.go` calls `execCompose` inside `for _, c := range cmds`. Since `syscall.Exec`
+never returns on success, only the **first** command of a multi-command step on the compose path
+can run — the loop cannot reach a second iteration. Not touched here because it is a different
+defect with a different fix, and this task's scope was the `note:` branch. This is a code reading,
+not yet a measurement, so it is recorded here rather than asserted; it needs its own fixture
+before being filed as a defect.
 
 ## Related
 
-- [TASK-086](086-parallel-steps-discard-their-note.md) — the mirror image: paths that never print
+- [TASK-086](../todo/086-parallel-steps-discard-their-note.md) — the mirror image: paths that never print
   the note at all. Fix together.
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the third disagreement between
+- [TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md) — the third disagreement between
   the runner and provision paths over the same `ProvisionItem` keys. Three now, all found in the
   TASK-083 audit; worth asking whether the two paths should share one step executor rather than
   being reconciled key by key.
