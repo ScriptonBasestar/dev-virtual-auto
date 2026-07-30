@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"strings"
@@ -23,6 +24,174 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	out, _ := io.ReadAll(r)
 	return string(out)
+}
+
+// stackShapedConfig covers each shape a runner declaration takes, plus the equal-order pair the
+// sequence has to break deterministically. The first three shapes are what `dva.yml` files
+// actually load into — entry-level `compose:` is rejected outright by load, so no fixture here
+// uses it.
+func stackShapedConfig() *config.Config {
+	return &config.Config{
+		Stack: map[string]*config.LifecycleEntry{
+			// One runner, named again by default_runner: the redundant default stays out of the
+			// text row.
+			"infra": {
+				Order:         10,
+				Description:   "PostgreSQL and Redis",
+				DefaultRunner: "compose",
+				Runners:       map[string]any{"compose": map[string]any{}},
+			},
+			// Multi-runner: which one runs is a declaration in its own right.
+			"api": {
+				Order:         20,
+				Description:   "REST API",
+				DefaultRunner: "helm",
+				Runners: map[string]any{
+					"helm":    map[string]any{},
+					"kubectl": map[string]any{},
+				},
+			},
+			// `plugin:` plus a nested config and no runners map — RunnerNames falls back to the
+			// detected plugin. Shares api's order, so the name tiebreak decides which comes first.
+			"bare": {
+				Order:  20,
+				Plugin: "script",
+				Script: &config.ScriptPluginConfig{Up: "echo up"},
+			},
+			// Declares nothing at all: no runner by any route, and no order. The missing order is
+			// what keeps the "order:0 is not a decision" assertion honest — with every entry
+			// declaring one, that assertion has nothing to catch. This shape loads and validates
+			// from a real dva.yml: a stack entry has no required fields, and DetectPlugin infers
+			// nothing because `void` is not a known plugin name.
+			"void": {},
+			// default_runner and the runners key spelled differently for the same runner, which
+			// schema.json accepts. Both sides normalize to podman-compose, so this must read as one
+			// runner with a redundant default, not as a default naming an undeclared runner.
+			"vms": {
+				Order:         30,
+				DefaultRunner: "podman_compose",
+				Runners:       map[string]any{"podman_compose": map[string]any{}},
+			},
+		},
+	}
+}
+
+// TestShowNamesStackEntries is the point of the section: before it, `dva show` printed a
+// `Compose:` heading — a runner's name — and no way to learn that the entry is called `infra`,
+// which is the word `dva stack up <name>` and the tag filters actually take.
+func TestShowNamesStackEntries(t *testing.T) {
+	out := captureStdout(t, func() {
+		showText(stackShapedConfig())
+	})
+
+	if !strings.Contains(out, "Stack (dva stack up <name>):") {
+		t.Fatalf("no stack section; the entry names are unreachable from show output.\ngot:\n%s", out)
+	}
+	for _, name := range []string{"infra", "api", "bare", "void", "vms"} {
+		if !strings.Contains(out, name) {
+			t.Errorf("stack entry %q is not named anywhere in show output.\ngot:\n%s", name, out)
+		}
+	}
+
+	// Naming an entry without its runner leaves the reader knowing a name they cannot act on:
+	// the runner decides which of `dva stack up`'s backends handles it.
+	for _, want := range []string{"runner:compose", "runners:helm,kubectl", "default:helm", "runner:script", "runner:podman-compose"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("show output is missing %q.\ngot:\n%s", want, out)
+		}
+	}
+	// vms spells default_runner and its runners key both as podman_compose. Canonicalizing only one
+	// side made the row claim the default named an undeclared runner
+	// (`[runner:podman-compose, default:podman_compose]`), so the underscore spelling must not
+	// survive anywhere in the row.
+	if strings.Contains(out, "podman_compose") {
+		t.Errorf("the podman_compose spelling reached the output, so the two sides were compared uncanonicalized.\ngot:\n%s", out)
+	}
+	if !strings.Contains(out, "no runner declared") {
+		t.Errorf("an entry declaring no runner rendered as an empty bracket, which reads as a formatting bug rather than a config fact.\ngot:\n%s", out)
+	}
+	// infra's default_runner names its only runner, so repeating it would be noise the reader has
+	// to rule out; the multi-runner row above is where the field carries information.
+	if strings.Contains(out, "default:compose") {
+		t.Errorf("a default_runner naming the entry's only runner was printed anyway.\ngot:\n%s", out)
+	}
+
+	// Rows follow declaration order, so they have to be in it: void declares no order and so leads
+	// at 0, and api precedes bare on the tiebreak because both are order 20.
+	iVoid, iInfra, iAPI, iBare, iVMS := strings.Index(out, "void"), strings.Index(out, "infra"), strings.Index(out, "api"), strings.Index(out, "bare"), strings.Index(out, "vms")
+	if iVoid > iInfra || iInfra > iAPI || iAPI > iBare || iBare > iVMS {
+		t.Errorf("rows are not in (order, name) sequence: void@%d infra@%d api@%d bare@%d vms@%d\ngot:\n%s", iVoid, iInfra, iAPI, iBare, iVMS, out)
+	}
+	// order:N is a fact only when declared; printing order:0 on every undeclared entry would
+	// dress the default up as a decision.
+	if !strings.Contains(out, "order:10") || strings.Contains(out, "order:0") {
+		t.Errorf("declared orders must show and undeclared ones must not.\ngot:\n%s", out)
+	}
+}
+
+// TestShowStackOrderIsStableAcrossRenders guards the tiebreak that a single assertion cannot:
+// `api` and `bare` share order 20, and SortedStack sorts on Order alone with an unstable sort, so
+// without the name tiebreak the two rows swap at Go's map-iteration whim (TASK-084). One render
+// would pass about half the time — a flaky test, which is worse than none.
+func TestShowStackOrderIsStableAcrossRenders(t *testing.T) {
+	c := stackShapedConfig()
+	first := captureStdout(t, func() { showText(c) })
+	for i := 0; i < 20; i++ {
+		if got := captureStdout(t, func() { showText(c) }); got != first {
+			t.Fatalf("render %d differs from the first; the listing is not reproducible.\nfirst:\n%s\ngot:\n%s", i, first, got)
+		}
+	}
+}
+
+// TestShowJSONNamesStackEntries: a consumer reading `compose` with no `stack` has the same gap as
+// the text reader — settings with no owner. Both surfaces come from stackViews for that reason.
+func TestShowJSONNamesStackEntries(t *testing.T) {
+	out := captureStdout(t, func() {
+		showJSON(stackShapedConfig())
+	})
+
+	var got struct {
+		Stack map[string]struct {
+			Description   string   `json:"description"`
+			Runners       []string `json:"runners"`
+			DefaultRunner string   `json:"default_runner"`
+			Order         int      `json:"order"`
+		} `json:"stack"`
+	}
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("show --json is not valid JSON: %v\ngot:\n%s", err, out)
+	}
+	if len(got.Stack) != 5 {
+		t.Fatalf("stack has %d entries, want 5: %+v", len(got.Stack), got.Stack)
+	}
+	// schema.json says default_runner "Must reference a key in the runners map", so a consumer is
+	// entitled to match it against an element of runners. That only holds if both are canonical.
+	if vms := got.Stack["vms"]; vms.DefaultRunner != "podman-compose" ||
+		len(vms.Runners) != 1 || vms.Runners[0] != "podman-compose" {
+		t.Errorf("vms default_runner=%q runners=%v; default_runner must match a runners element, canonicalized",
+			vms.DefaultRunner, vms.Runners)
+	}
+	if r := got.Stack["infra"].Runners; len(r) != 1 || r[0] != "compose" {
+		t.Errorf("infra runners = %v, want [compose]", r)
+	}
+	if r := got.Stack["api"].Runners; len(r) != 2 || r[0] != "helm" || r[1] != "kubectl" {
+		t.Errorf("api runners = %v, want [helm kubectl]", r)
+	}
+	if d := got.Stack["api"].DefaultRunner; d != "helm" {
+		t.Errorf("api default_runner = %q, want %q", d, "helm")
+	}
+	// The order field is what lets a consumer reconstruct the sequence a JSON object loses.
+	if o := got.Stack["api"].Order; o != 20 {
+		t.Errorf("api order = %d, want 20", o)
+	}
+	if _, ok := got.Stack["void"]; !ok {
+		t.Errorf("an entry declaring no runner was dropped from JSON: %+v", got.Stack)
+	}
+	// The text row suppresses a default that repeats the only runner; JSON does not, because a
+	// consumer reconstructing the file needs to know the key was written.
+	if d := got.Stack["infra"].DefaultRunner; d != "compose" {
+		t.Errorf("infra default_runner = %q, want %q", d, "compose")
+	}
 }
 
 func TestShowText_MinimalConfig(t *testing.T) {
@@ -217,9 +386,15 @@ func TestShowJSON_FullConfig(t *testing.T) {
 	output := captureStdout(t, func() {
 		showJSON(c)
 	})
-	// Verify all sections are present
+	// Top-level keys, not substrings: this fixture's stack entry is *keyed* "compose", so a
+	// strings.Contains check for "compose" is satisfied by the stack section alone and would pass
+	// with the compose block gone entirely.
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(output), &decoded); err != nil {
+		t.Fatalf("showJSON did not emit valid JSON: %v", err)
+	}
 	for _, key := range []string{"compose", "modes", "environments", "interaction_commands", "provision", "health_checks", "infra"} {
-		if !strings.Contains(output, key) {
+		if _, ok := decoded[key]; !ok {
 			t.Errorf("showJSON output missing %q section", key)
 		}
 	}

@@ -13,10 +13,14 @@ import (
 
 var showCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show registered configuration summary (modes, environments, commands)",
+	Short: "Show registered configuration summary (stack entries, plans, commands)",
 	Long: `Display a human-readable summary of the current dva.yml configuration.
-Shows all registered modes (--mode), environments (--env), interaction commands,
-provision profiles, health checks, and subprojects at a glance.`,
+
+One section per declared area — stack entries and the runners each declares, plans,
+modes (--mode), environments (--env), interaction commands, provision profiles,
+health checks, subprojects — and areas the config does not declare are omitted.
+
+Stack rows name the entry, which is the argument 'dva stack up <name>' takes.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 
@@ -27,12 +31,117 @@ provision profiles, health checks, and subprojects at a glance.`,
 	},
 }
 
+// stackEntryView is the declaration-level answer to "what did dva.yml register?": the entry's own
+// name, the runners it declares, and where it sits in the sequence.
+//
+// `dva status` answers the runtime question instead — it asks the orchestrator what is currently
+// up — so its `[infra] script` labels cannot be reused here. `show` has to work with nothing
+// running, which is when a reader most needs to know what the names are.
+type stackEntryView struct {
+	Name        string
+	Description string
+	Runners     []string
+	Default     string
+	Order       int
+}
+
+// stackViews returns one view per declared stack entry in declaration order — by `order`, then by
+// name — which is what the entries themselves declare, not a prediction of any command's sequence.
+// `dva stack up` reads the same field but currently rotates equal orders (TASK-084), and
+// `dva up <plan>` ignores stack order entirely: NewPlanOrchestrator walks the plan's own entries,
+// each carrying its own order and runner.
+//
+// SortedStack() is the source for both the order and for populating Name from the map key. It sorts
+// on Order alone with an unstable sort, so equal orders arrive here in map-iteration order; the
+// name tiebreak below is local until TASK-084 gives SortedStack the same tiebreak
+// PrimaryComposeEntry already documents, at which point this sort can go.
+func stackViews(c *config.Config) []stackEntryView {
+	entries := c.SortedStack()
+	views := make([]stackEntryView, 0, len(entries))
+	for _, e := range entries {
+		views = append(views, stackEntryView{
+			Name:        e.Name,
+			Description: e.Description,
+			Runners:     e.RunnerNames(),
+			// Canonicalized, so it is comparable with Runners below and so a JSON consumer can
+			// match it against an element of `runners` as the schema promises.
+			Default: e.DefaultRunnerName(),
+			Order:   e.Order,
+		})
+	}
+	// Not SliceStable: Name comes from a map key, so (Order, Name) is already a strict total order
+	// and stability would add nothing. Saying Slice makes it clear the comparator supplies the
+	// determinism, not the incoming sequence.
+	sort.Slice(views, func(i, j int) bool {
+		if views[i].Order != views[j].Order {
+			return views[i].Order < views[j].Order
+		}
+		return views[i].Name < views[j].Name
+	})
+	return views
+}
+
+// stackEntryDetail renders one entry's declared runners and sequence position.
+//
+// Runner names are echoed as the author spelled them — RunnerNames() canonicalizes only the
+// podman_compose spelling — so the output greps back to a key in the reader's own dva.yml rather
+// than to a plugin name they never typed.
+func stackEntryDetail(v stackEntryView) string {
+	var parts []string
+	switch {
+	case len(v.Runners) == 0:
+		// A live shape, not a test artifact: a stack entry has no required fields in schema.json,
+		// so `void: {description: ...}` loads and validates. Plugin inference does not rescue it
+		// either — DetectPlugin only fires when the entry name is itself a known plugin name.
+		// Saying "no runner declared" beats an empty bracket that reads like a rendering bug.
+		parts = append(parts, "no runner declared")
+	case len(v.Runners) == 1:
+		parts = append(parts, "runner:"+v.Runners[0])
+	default:
+		parts = append(parts, "runners:"+strings.Join(v.Runners, ","))
+	}
+	// Named unless it is already the single runner printed above: with two or more runners it is
+	// the one that runs, and a default naming a runner the entry does not declare is worth
+	// seeing rather than hiding behind the list. Both sides are canonicalized, so a
+	// `podman_compose` default against a `podman-compose` runner counts as the same runner.
+	//
+	// showJSON deliberately keeps the default even when this hides it: a consumer reconstructing
+	// the file needs to know the key was written, while a human does not need the word twice.
+	if v.Default != "" && (len(v.Runners) != 1 || v.Runners[0] != v.Default) {
+		parts = append(parts, "default:"+v.Default)
+	}
+	if v.Order != 0 {
+		parts = append(parts, fmt.Sprintf("order:%d", v.Order))
+	}
+	detail := "[" + strings.Join(parts, ", ") + "]"
+	if v.Description != "" {
+		return v.Description + " " + detail
+	}
+	return detail
+}
+
 func showText(c *config.Config) error {
 	// Header
 	fmt.Printf("DVA v%s\n", config.Version)
 	fmt.Printf("Config: %s\n", c.FilePath())
 	if c.Version != "" {
 		fmt.Printf("  Required version: %s\n", c.Version)
+	}
+
+	// Stack entries, before Compose: the Compose block reports one *runner*'s settings, so on its
+	// own it never names the entry those settings belong to — and the entry name is what
+	// `dva stack up <name>` and the tag filters take.
+	if views := stackViews(c); len(views) > 0 {
+		fmt.Println()
+		fmt.Println("Stack (dva stack up <name>):")
+		names := make([]string, 0, len(views))
+		for _, v := range views {
+			names = append(names, v.Name)
+		}
+		maxLen := maxKeyLen(names)
+		for _, v := range views {
+			fmt.Printf("  %-*s  %s\n", maxLen, v.Name, stackEntryDetail(v))
+		}
 	}
 
 	// Lifecycle / Compose
@@ -247,6 +356,24 @@ func showJSON(c *config.Config) error {
 		"dva_version":    config.Version,
 		"config_path":    c.FilePath(),
 		"config_version": c.Version,
+	}
+
+	// Same source as the text view: a consumer that sees `compose` but no `stack` cannot tell
+	// which entry the compose settings came from.
+	if views := stackViews(c); len(views) > 0 {
+		stack := make(map[string]any, len(views))
+		for _, v := range views {
+			entry := map[string]any{
+				"description": v.Description,
+				"runners":     v.Runners,
+				"order":       v.Order,
+			}
+			if v.Default != "" {
+				entry["default_runner"] = v.Default
+			}
+			stack[v.Name] = entry
+		}
+		data["stack"] = stack
 	}
 
 	if cc := c.PrimaryComposeConfig(); cc != nil {
