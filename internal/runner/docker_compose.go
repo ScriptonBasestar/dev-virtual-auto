@@ -96,7 +96,9 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 				continue
 			}
 			args := r.buildStepArgs(env, c)
-			if err := execCompose(env, r.Opts.Config, args); err != nil {
+			// execComposeStep, not execCompose: the latter replaces the process, which
+			// would make this loop's second iteration unreachable (TASK-091).
+			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
 				return fmt.Errorf("step %q failed: %w", label, err)
 			}
 		}

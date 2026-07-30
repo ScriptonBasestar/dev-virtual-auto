@@ -4,7 +4,7 @@ title: "On the compose path only the first command of an interaction ever runs �
 type: fix
 priority: P1
 effort: M
-status: todo
+status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/compose.go execCompose → ExecReplace; internal/runner/docker_compose.go executeSteps loop. Contrast internal/runner/local.go:44,50,88 which already distinguishes the two cases"
 ---
@@ -88,9 +88,9 @@ interaction:
 
 ## Why this outranks the other silent-drop tasks
 
-[TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
-[TASK-086](086-parallel-steps-discard-their-note.md) and
-[TASK-089](../done/089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
+[TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md),
+[TASK-086](../todo/086-parallel-steps-discard-their-note.md) and
+[TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
 This drops **all remaining work** in the interaction, no matter how it is written, and reports
 success. A provisioning sequence that looks like it completed has actually performed only its
 first command.
@@ -118,15 +118,62 @@ The same question should be asked of `internal/cli/compose.go:769,786` and
 
 ## Acceptance criteria
 
-- [ ] A two-step compose interaction runs both steps | verify: `dva run composesteps` on the fixture — print both marker counts; both must be 1, today 1 and 0
-- [ ] A two-command compose step runs both commands | verify: `dva run composetwo` — same, today 1 and 0
-- [ ] Every step's label is printed | verify: same run — `step two` must appear in the output; today it does not
-- [ ] The single-command path still replaces the process | verify: `human — confirm dva run <a service: interaction with command:> still hands over the tty; ExecReplace must remain at docker_compose.go:55`
-- [ ] A failing step still aborts the sequence with a non-zero exit | verify: fixture step 1 returns non-zero — dva must exit non-zero and not run step 2
-- [ ] Covered by a test | verify: `go test ./internal/runner/ -run TestComposeStepsRunToCompletion`
-- [ ] Not vacuous | verify: `human — restore ExecReplace in the steps path and confirm only the new test fails`
-- [ ] TASK-089's tests still pass | verify: `go test ./internal/runner/ -run 'TestNoteDoesNotSuppressRun|TestStepWithoutRunIsReported'` — 8 + 9 subtests
-- [ ] Full suite passes | verify: `make test`
+- [x] A two-step compose interaction runs both steps | verify: `dva run composesteps` on the fixture — print both marker counts; both must be 1, today 1 and 0 — **1 and 1**
+- [x] A two-command compose step runs both commands | verify: `dva run composetwo` — same, today 1 and 0 — **1 and 1**
+- [x] Every step's label is printed | verify: same run — `step two` must appear in the output; today it does not — **count 1**
+- [x] The single-command path still replaces the process | verify: `human — confirm dva run <a service: interaction with command:> still hands over the tty; ExecReplace must remain at docker_compose.go:55` — **`docker_compose.go:55` still calls `execCompose`, and `compose.go` holds exactly one `ExecReplace` (line 61) against one `ExecSubprocess` (line 70)**
+- [x] A failing step still aborts the sequence with a non-zero exit | verify: fixture step 1 returns non-zero — dva must exit non-zero and not run step 2 — **exit 1, `STEP-TWO-LABEL` count 0, error names the step and the exact command**
+- [x] Covered by a test | verify: `go test ./internal/runner/ -run TestComposeStepsRunToCompletion` — **3 subtests, all passing**
+- [x] Not vacuous | verify: `human — restore ExecReplace in the steps path and confirm only the new test fails` — **restored: 2 of the 3 subtests failed with the child's truncated output attached; the whole runner package was otherwise green. See "Why the test re-executes itself" below — the first attempt at this test was vacuous**
+- [x] TASK-089's tests still pass | verify: `go test ./internal/runner/ -run 'TestNoteDoesNotSuppressRun|TestStepWithoutRunIsReported'` — 8 + 9 subtests — **21 PASS lines = 15 leaves + 4 group parents + 2 tops, i.e. the same 9 + 8 as before**
+- [x] Full suite passes | verify: `make test` — **all packages ok under `-race`; 0 FAIL lines in `internal/runner`**
+
+## Resolution
+
+`compose.go` now separates *what to run* from *how to hand off*. `composeArgv` builds the argv;
+`execCompose` ends in `ExecReplace` and `execComposeStep` in `ExecSubprocess`. The steps loop in
+`docker_compose.go:101` calls the latter. Single-command behaviour at `docker_compose.go:55` is
+untouched.
+
+Measured after the fix — the compose rows now match their local controls exactly:
+
+| invocation | path | 1st marker | 2nd marker | `step two` label | exit |
+| --- | --- | --- | --- | --- | --- |
+| `dva run localsteps` (control) | local | 1 | 1 | 1 | 0 |
+| `dva run composesteps` | compose | 1 | **1** | **1** | 0 |
+| `dva run localtwo` (control) | local | 1 | 1 | n/a | 0 |
+| `dva run composetwo` | compose | 1 | **1** | n/a | 0 |
+| `dva run failfast` (compose command = `false`) | compose | — | — | 0 | **1** |
+
+The last row matters as much as the others: "runs to completion" must not mean "swallows errors".
+Step one fails, dva exits 1, the error names the step *and* the exact command, and step two never
+starts.
+
+### Why the test re-executes itself
+
+**The first version of this test was vacuous, and it passed.** It drove `executeSteps` in-process
+against `echo`. With `ExecReplace` restored — the bug fully present — `go test` printed `ok`. The
+verbose run showed why: `=== RUN` for the first subtest, then `echo`'s output, then `ok`, with
+**no PASS or FAIL line anywhere**. `syscall.Exec` had replaced the *test binary* with `echo`,
+which exited 0, and `go test` read that exit status as success.
+
+This generalises, and it is the reason worth keeping: **any in-process Go test that lets
+`ExecReplace` succeed silently passes, no matter what it asserts.** The assertions are never
+reached; there is no stack left to reach them with.
+
+`compose_steps_test.go` therefore re-executes its own binary with a mode variable
+(`DVA_COMPOSE_STEPS_CHILD`) and asserts on the child's captured output. The destruction happens in
+the child; the parent survives to observe that the output simply stops early. With the bug
+restored the parent now reports a real failure and prints the truncated child output as evidence:
+
+```
+  → step one
+compose exec app STEP-ONE-MARKER      ← and nothing further; no PASS, no FAIL, exit 0
+```
+
+The third subtest stays in-process deliberately: it points the compose command at an unresolvable
+binary, so `exec.LookPath` fails *before* any replacement can occur, and fail-fast semantics can be
+asserted directly. TASK-089's test uses the same technique for the same reason.
 
 ## Left open
 
@@ -139,6 +186,6 @@ The same question should be asked of `internal/cli/compose.go:769,786` and
 
 ## Related
 
-- [TASK-089](../done/089-note-suppresses-run-on-the-interaction-path-only.md) — found while writing
+- [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) — found while writing
   its test, which could not let the compose runner reach execution for exactly this reason.
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.
+- [TASK-085](../todo/085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.
