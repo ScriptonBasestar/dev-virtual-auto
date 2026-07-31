@@ -134,7 +134,7 @@ func TestKubectlStepsRunToCompletion(t *testing.T) {
 		if !strings.Contains(out, "STEP-ONE-MARKER") {
 			t.Errorf("the step did not run through Execute; child output was:\n%s", out)
 		}
-		for _, line := range strings.Split(out, "\n") {
+		for line := range strings.SplitSeq(out, "\n") {
 			if strings.HasSuffix(strings.TrimSpace(line), "--") {
 				t.Errorf("argv ends in a bare separator: %q", line)
 			}

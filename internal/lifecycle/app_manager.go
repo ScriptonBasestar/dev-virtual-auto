@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -550,9 +551,7 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 
 	// Build environment: base env + app-specific vars
 	appEnv := cloneEnv(am.env)
-	for k, v := range app.Environment {
-		appEnv.Vars[k] = v
-	}
+	maps.Copy(appEnv.Vars, app.Environment)
 	cmd.Env = appEnv.EnvSlice()
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

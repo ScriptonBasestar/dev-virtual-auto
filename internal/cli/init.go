@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -453,12 +454,7 @@ func detectComposeFilesIn(dir string) []string {
 }
 
 func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, item)
 }
 
 // detectInfraComposeFiles finds compose files in common infrastructure subdirectories.
@@ -554,8 +550,8 @@ func collectMakefileTargets(path string, seen map[string]bool, targets *[]string
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, ".PHONY") {
-			if idx := strings.Index(trimmed, ":"); idx >= 0 {
-				for _, t := range strings.Fields(trimmed[idx+1:]) {
+			if _, after, ok := strings.Cut(trimmed, ":"); ok {
+				for t := range strings.FieldsSeq(after) {
 					if !strings.HasPrefix(t, ".") && !strings.Contains(t, "$") {
 						phonyTargets[t] = true
 					}
@@ -664,7 +660,7 @@ func extractMakefileRecipes(lines []string) map[string][]string {
 	const maxRecipeLines = 5
 	result := map[string][]string{}
 
-	for i := 0; i < len(lines); i++ {
+	for i := range lines {
 		line := lines[i]
 		// Detect target definition: starts at column 0, contains ':', not a comment/variable
 		if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, " ") ||

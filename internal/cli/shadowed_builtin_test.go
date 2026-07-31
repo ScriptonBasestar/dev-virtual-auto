@@ -201,7 +201,7 @@ func TestLsTextMarksReservedInteraction(t *testing.T) {
 			})
 
 			lines := map[string]string{}
-			for _, line := range strings.Split(out, "\n") {
+			for line := range strings.SplitSeq(out, "\n") {
 				if strings.HasPrefix(line, "build") {
 					lines["build"] = line
 				} else if strings.HasPrefix(line, "my-build") {

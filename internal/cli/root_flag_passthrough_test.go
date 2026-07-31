@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -263,10 +264,11 @@ func TestConsumeRootPersistentFlags(t *testing.T) {
 // hasArg reports whether the space-joined argv contains arg as a whole argument, so a check
 // for "--debug" is not satisfied by "--debug-something" or by a path that embeds it.
 func hasArg(line, arg string) bool {
-	for _, f := range strings.Fields(line) {
-		if f == arg {
-			return true
-		}
-	}
-	return false
+	// Written by hand, not by `golangci-lint --fix`: modernize produced two overlapping edits
+	// here (slicescontains and stringsseq) and golangci-lint skipped the file rather than merge
+	// them. One candidate rewrite it printed reduced this body to a bare `return false`. That
+	// would not have passed silently — the `present` assertions at the call site are positive,
+	// and substituting `return false` fails 4 of 4 subtests — but it is why this one line was
+	// written by hand and the other 46 findings were not.
+	return slices.Contains(strings.Fields(line), arg)
 }

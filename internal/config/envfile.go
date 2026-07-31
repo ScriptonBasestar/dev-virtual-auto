@@ -141,7 +141,7 @@ func unquoteEnvValue(value string) string {
 
 func interpolateEnvVars(env *Environment) {
 	maxIterations := 10
-	for i := 0; i < maxIterations; i++ {
+	for range maxIterations {
 		changed := false
 		for k, v := range env.Vars {
 			newV := env.Interpolate(v)

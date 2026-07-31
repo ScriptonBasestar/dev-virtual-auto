@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"maps"
+)
 
 // mergeStringMap merges src into dst (key-level merge).
 // Existing keys in dst are overwritten by src.
@@ -11,9 +14,7 @@ func mergeStringMap(dst, src map[string]string) map[string]string {
 	if dst == nil {
 		dst = make(map[string]string, len(src))
 	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 
@@ -50,9 +51,7 @@ func MergeLifecycleEntry(base, other *LifecycleEntry) (*LifecycleEntry, error) {
 		if base.HealthChecks == nil {
 			base.HealthChecks = make(map[string]HealthCheckConfig)
 		}
-		for k, v := range other.HealthChecks {
-			base.HealthChecks[k] = v
-		}
+		maps.Copy(base.HealthChecks, other.HealthChecks)
 	}
 
 	// Plugin configs: merge if same type, set if base had none
@@ -178,9 +177,7 @@ func mergeComposeConfig(base, other *ComposePluginConfig) {
 		if base.Services == nil {
 			base.Services = make(map[string]ServiceTagConfig)
 		}
-		for k, v := range other.Services {
-			base.Services[k] = v
-		}
+		maps.Copy(base.Services, other.Services)
 	}
 }
 
@@ -322,9 +319,7 @@ func mergeEndpointConfig(base, other EndpointConfig) EndpointConfig {
 		if base.Paths == nil {
 			base.Paths = make(map[string]string)
 		}
-		for k, v := range other.Paths {
-			base.Paths[k] = v
-		}
+		maps.Copy(base.Paths, other.Paths)
 	}
 	return base
 }
@@ -698,12 +693,8 @@ func mergeRunnerConfig(base, other any) any {
 	otherMap, otherOk := other.(map[string]any)
 	if baseOk && otherOk {
 		result := make(map[string]any, len(baseMap))
-		for k, v := range baseMap {
-			result[k] = v
-		}
-		for k, v := range otherMap {
-			result[k] = v
-		}
+		maps.Copy(result, baseMap)
+		maps.Copy(result, otherMap)
 		return result
 	}
 	return other

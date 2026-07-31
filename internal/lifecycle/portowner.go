@@ -43,7 +43,7 @@ func portOwnerPIDs(port int) []int {
 		return nil
 	}
 	var pids []int
-	for _, f := range strings.Fields(string(out)) {
+	for f := range strings.FieldsSeq(string(out)) {
 		if pid, err := strconv.Atoi(f); err == nil && pid > 0 {
 			pids = append(pids, pid)
 		}
@@ -113,7 +113,7 @@ func reclaimPort(port int) []int {
 	for _, pid := range owners {
 		_ = syscall.Kill(pid, syscall.SIGTERM)
 	}
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		time.Sleep(100 * time.Millisecond)
 		if len(portOwnerPIDs(port)) == 0 {
 			return owners

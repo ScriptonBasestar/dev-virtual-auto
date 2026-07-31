@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -73,8 +74,8 @@ func MigrateLegacyCompose(src []byte) ([]byte, []string, error) {
 
 	// Apply back to front so earlier spans keep their original line numbers.
 	out := lines
-	for i := len(edits) - 1; i >= 0; i-- {
-		e := edits[i]
+	for _, v := range slices.Backward(edits) {
+		e := v
 		tail := append([]string{}, out[e.end:]...)
 		out = append(out[:e.start-1], append(strings.Split(e.body, "\n"), tail...)...)
 	}

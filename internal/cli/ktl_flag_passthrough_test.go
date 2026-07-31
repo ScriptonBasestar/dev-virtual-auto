@@ -232,9 +232,9 @@ func runKtlChild(t *testing.T, name string) {
 // own test chatter before exec'ing, so this cannot just take the whole stream.
 func ktlArgvFrom(out string) (string, bool) {
 	const marker = "KTL-ARGV: "
-	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, marker) {
-			return strings.TrimPrefix(line, marker), true
+	for line := range strings.SplitSeq(out, "\n") {
+		if after, ok := strings.CutPrefix(line, marker); ok {
+			return after, true
 		}
 	}
 	return "", false

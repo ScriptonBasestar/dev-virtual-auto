@@ -59,7 +59,6 @@ func TestDirectHelpDoesNotExecuteManualFlagCommands(t *testing.T) {
 	}
 
 	for _, command := range commands {
-		command := command
 		t.Run(command.CommandPath(), func(t *testing.T) {
 			helpCalled := false
 			originalHelp := command.HelpFunc()

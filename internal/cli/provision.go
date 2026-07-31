@@ -126,7 +126,7 @@ func writeNote(w io.Writer, note string) {
 		return
 	}
 	fmt.Fprintln(w)
-	for _, line := range strings.Split(note, "\n") {
+	for line := range strings.SplitSeq(note, "\n") {
 		fmt.Fprintf(w, "    %s\n", line)
 	}
 	fmt.Fprintln(w)
@@ -388,15 +388,16 @@ func resolveProvisionProfile(provision map[string][]config.ProvisionItem, defaul
 		}
 	}
 
-	msg := fmt.Sprintf("provision profile '%s' not found. Available: %s", requested, strings.Join(available, ", "))
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "provision profile '%s' not found. Available: %s", requested, strings.Join(available, ", "))
 	if len(suggestions) > 0 {
-		msg += "\n\nDid you mean?"
+		msg.WriteString("\n\nDid you mean?")
 		for _, s := range suggestions {
-			msg += fmt.Sprintf("\n  dva provision %s", s)
+			fmt.Fprintf(&msg, "\n  dva provision %s", s)
 		}
 	}
 
-	return "", nil, fmt.Errorf("%s", msg)
+	return "", nil, fmt.Errorf("%s", msg.String())
 }
 
 // listProvisionProfiles prints provision profiles in the requested format.

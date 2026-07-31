@@ -383,16 +383,17 @@ func rejectUnknownFlags(sub string, args []string, own ...string) error {
 		if len(a) < 2 || !strings.HasPrefix(a, "-") {
 			continue
 		}
-		msg := fmt.Sprintf("unknown flag %q for \"dva stack %s\"", a, sub)
-		msg += "\n       → a stack entry name cannot start with \"-\", so this was read as one and matched nothing"
-		msg += "\n       → accepted here: " + strings.Join(known, ", ")
+		var msg strings.Builder
+		fmt.Fprintf(&msg, "unknown flag %q for \"dva stack %s\"", a, sub)
+		msg.WriteString("\n       → a stack entry name cannot start with \"-\", so this was read as one and matched nothing")
+		msg.WriteString("\n       → accepted here: " + strings.Join(known, ", "))
 		if s := similarTo(a, known); len(s) > 0 {
-			msg += "\n\nDid you mean?"
+			msg.WriteString("\n\nDid you mean?")
 			for _, k := range s {
-				msg += fmt.Sprintf("\n  dva stack %s %s", sub, k)
+				fmt.Fprintf(&msg, "\n  dva stack %s %s", sub, k)
 			}
 		}
-		return fmt.Errorf("%s", msg)
+		return fmt.Errorf("%s", msg.String())
 	}
 	return nil
 }
@@ -425,23 +426,24 @@ func validateStackNames(c *config.Config, sub string, names []string) error {
 	}
 	sort.Strings(available)
 
-	msg := fmt.Sprintf("no such stack entry: %s", strings.Join(unknown, ", "))
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "no such stack entry: %s", strings.Join(unknown, ", "))
 	if len(available) == 0 {
-		msg += "\n       → dva.yml defines no stack entries"
+		msg.WriteString("\n       → dva.yml defines no stack entries")
 	} else {
-		msg += "\n       → defined in dva.yml: " + strings.Join(available, ", ")
+		msg.WriteString("\n       → defined in dva.yml: " + strings.Join(available, ", "))
 	}
 	var suggestions []string
 	for _, n := range unknown {
 		suggestions = append(suggestions, similarTo(n, available)...)
 	}
 	if len(suggestions) > 0 {
-		msg += "\n\nDid you mean?"
+		msg.WriteString("\n\nDid you mean?")
 		for _, k := range suggestions {
-			msg += fmt.Sprintf("\n  dva stack %s %s", sub, k)
+			fmt.Fprintf(&msg, "\n  dva stack %s %s", sub, k)
 		}
 	}
-	return fmt.Errorf("%s", msg)
+	return fmt.Errorf("%s", msg.String())
 }
 
 // similarTo returns the candidates within edit distance 2 of s, matching the threshold

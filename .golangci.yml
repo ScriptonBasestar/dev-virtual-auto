@@ -7,6 +7,13 @@ run:
   timeout: 5m
 
 linters:
+  # golangci-lint's default set is errcheck/govet/ineffassign/staticcheck/unused,
+  # none of which look at language modernity. `modernize` ships in the same pinned
+  # binary and is off by default, so `0 issues.` used to be silent about 47 findings
+  # it could see. Enabled for tests too: excluding _test.go would restore exactly the
+  # unstated coverage gap this was enabled to close. TASK-111.
+  enable:
+    - modernize
   exclusions:
     generated: lax
     # `legacy` keeps the default exclusions close to golangci-lint v1 so the

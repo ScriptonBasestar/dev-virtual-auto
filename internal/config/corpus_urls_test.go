@@ -32,7 +32,7 @@ func canonicalRepo(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("read go.mod: %v", err)
 	}
-	for _, line := range strings.Split(string(content), "\n") {
+	for line := range strings.SplitSeq(string(content), "\n") {
 		if repo := repoFromModuleDirective(line); repo != "" {
 			return repo
 		}

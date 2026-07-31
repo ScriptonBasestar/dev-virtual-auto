@@ -147,7 +147,7 @@ func newValidateWarning(category, text string) validateWarning {
 // not an error case.
 func parseValidateErrors(err error) []validateError {
 	var out []validateError
-	for _, line := range strings.Split(err.Error(), "\n") {
+	for line := range strings.SplitSeq(err.Error(), "\n") {
 		if m := schemaErrorPattern.FindStringSubmatch(line); m != nil {
 			out = append(out, validateError{Path: m[1], Message: m[2]})
 		}

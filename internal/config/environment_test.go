@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -85,13 +86,7 @@ func TestEnvSlice(t *testing.T) {
 	}, "/tmp", "/tmp")
 
 	slice := env.EnvSlice()
-	found := false
-	for _, s := range slice {
-		if s == "MY_VAR=my_value" {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(slice, "MY_VAR=my_value")
 	if !found {
 		t.Error("MY_VAR=my_value not found in EnvSlice output")
 	}

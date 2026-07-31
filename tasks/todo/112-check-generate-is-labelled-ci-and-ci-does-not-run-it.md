@@ -102,5 +102,5 @@ probe must be reverted with care rather than casually.
 
 - [TASK-078](../done/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — found this while
   adding the format gate; same class, and its `Format` step is the pattern to copy.
-- [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
+- [TASK-111](../done/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
   instance: a green gate whose coverage nobody had stated.

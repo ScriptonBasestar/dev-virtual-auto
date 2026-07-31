@@ -464,8 +464,8 @@ func collectDocumentedTargetNames(path string, seen map[string]bool, targets *[]
 	}
 
 	dir := filepath.Dir(path)
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		// Follow include/-include directives

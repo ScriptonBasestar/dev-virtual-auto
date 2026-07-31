@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -46,9 +47,7 @@ func materializeResolvedEntry(resolved ResolvedEntry) (config.LifecycleEntry, er
 	entry.Name = resolved.Name
 	entry.Order = resolved.Order
 	entry.Vars = make(map[string]string, len(resolved.Vars))
-	for key, value := range resolved.Vars {
-		entry.Vars[key] = value
-	}
+	maps.Copy(entry.Vars, resolved.Vars)
 	entry.Plugin = ""
 	entry.Compose = nil
 	entry.Process = nil

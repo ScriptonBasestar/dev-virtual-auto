@@ -160,7 +160,7 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		// Note display
 		if step.Note != "" {
 			fmt.Fprintln(os.Stderr)
-			for _, line := range strings.Split(step.Note, "\n") {
+			for line := range strings.SplitSeq(step.Note, "\n") {
 				fmt.Fprintf(os.Stderr, "  %s\n", line)
 			}
 			fmt.Fprintln(os.Stderr)

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"sort"
 	"strings"
 )
@@ -36,9 +37,7 @@ func IsHookableCommand(name string) bool {
 // HookableCommands returns a copy of the hookable command set.
 func HookableCommands() map[string]bool {
 	cp := make(map[string]bool, len(hookableCommands))
-	for k, v := range hookableCommands {
-		cp[k] = v
-	}
+	maps.Copy(cp, hookableCommands)
 	return cp
 }
 
@@ -48,9 +47,7 @@ func HookableCommands() map[string]bool {
 // for the way out, which differs by the kind of collision.
 func ReservedCommands() map[string]bool {
 	cp := make(map[string]bool, len(reservedCommands))
-	for k, v := range reservedCommands {
-		cp[k] = v
-	}
+	maps.Copy(cp, reservedCommands)
 	return cp
 }
 

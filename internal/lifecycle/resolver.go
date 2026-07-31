@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"strings"
 
@@ -320,9 +321,7 @@ func mergeStringMap(dst map[string]string, src map[string]string) {
 	if len(src) == 0 {
 		return
 	}
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 }
 
 func copyStringSlice(in []string) []string {

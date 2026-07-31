@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"maps"
 	"sort"
 	"strings"
 
@@ -340,8 +341,6 @@ func copyMap(m map[string]string) map[string]string {
 		return nil
 	}
 	result := make(map[string]string, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
+	maps.Copy(result, m)
 	return result
 }

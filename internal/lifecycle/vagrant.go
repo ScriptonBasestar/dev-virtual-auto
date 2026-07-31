@@ -122,7 +122,7 @@ func parseVagrantStatus(output string) []ServiceStatus {
 	var services []ServiceStatus
 	seen := make(map[string]bool)
 
-	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -741,9 +742,7 @@ func copyStringMap(m map[string]string) map[string]string {
 		return nil
 	}
 	result := make(map[string]string, len(m))
-	for k, v := range m {
-		result[k] = v
-	}
+	maps.Copy(result, m)
 	return result
 }
 
@@ -1003,9 +1002,7 @@ func (c *Config) mergeFrom(other *Config) error {
 		if c.Provision.Profiles == nil {
 			c.Provision.Profiles = make(map[string][]ProvisionItem)
 		}
-		for k, v := range other.Provision.Profiles {
-			c.Provision.Profiles[k] = v
-		}
+		maps.Copy(c.Provision.Profiles, other.Provision.Profiles)
 	}
 
 	// health_checks: deep merge per entry (struct fields replace individually)
@@ -1041,9 +1038,7 @@ func (c *Config) mergeFrom(other *Config) error {
 		if c.Infra == nil {
 			c.Infra = make(map[string]InfraConfig)
 		}
-		for k, v := range other.Infra {
-			c.Infra[k] = v
-		}
+		maps.Copy(c.Infra, other.Infra)
 	}
 
 	// default_mode: scalar replace

@@ -1,12 +1,9 @@
 package config
 
+import "slices"
+
 func (c *Config) HasTag(tag string) bool {
-	for _, t := range c.ComposeTags() {
-		if t == tag {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.ComposeTags(), tag)
 }
 
 func (c *Config) FilterInteractions(excludeTags []string) map[string]*InteractionCommand {

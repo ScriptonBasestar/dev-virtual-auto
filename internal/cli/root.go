@@ -374,16 +374,16 @@ func loadEnv(c *config.Config) *config.Environment {
 // message — the first double-quoted run in the string. Empty when the message is not in that
 // shape, which callers must read as "cannot tell", not as a match. TASK-098.
 func unknownCommandToken(errMsg string) string {
-	start := strings.Index(errMsg, `"`)
-	if start < 0 {
+	_, after, ok := strings.Cut(errMsg, `"`)
+	if !ok {
 		return ""
 	}
-	rest := errMsg[start+1:]
-	end := strings.Index(rest, `"`)
-	if end < 0 {
+	rest := after
+	before0, _, ok0 := strings.Cut(rest, `"`)
+	if !ok0 {
 		return ""
 	}
-	return rest[:end]
+	return before0
 }
 
 // levenshtein calculates the edit distance between two strings.

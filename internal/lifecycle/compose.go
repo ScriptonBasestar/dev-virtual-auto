@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -70,13 +71,7 @@ func composeUpArgs(pctx *PluginContext) []string {
 		}
 	}
 	if pctx.Force {
-		hasForce := false
-		for _, o := range upOpts {
-			if o == "--force-recreate" {
-				hasForce = true
-				break
-			}
-		}
+		hasForce := slices.Contains(upOpts, "--force-recreate")
 		if !hasForce {
 			upOpts = append(upOpts, "--force-recreate")
 		}
@@ -271,8 +266,8 @@ func (e *ComposeConfigError) Unwrap() error { return e.cause }
 // firstLine returns the first line of s (docker's diagnostics are typically a
 // single line; guard against multi-line output leaking into the summary).
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return strings.TrimSpace(s[:i])
+	if before, _, ok := strings.Cut(s, "\n"); ok {
+		return strings.TrimSpace(before)
 	}
 	return s
 }
@@ -319,7 +314,7 @@ func parseComposeServicesJSON(out []byte) ([]ServiceStatus, error) {
 	var infos []composeServiceInfo
 	if err := json.Unmarshal(out, &infos); err != nil {
 		// Try JSON lines format
-		for _, line := range strings.Split(trimmed, "\n") {
+		for line := range strings.SplitSeq(trimmed, "\n") {
 			line = strings.TrimSpace(line)
 			if line == "" {
 				continue

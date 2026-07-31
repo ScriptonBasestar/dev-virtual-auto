@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -583,8 +584,6 @@ func hasAnyTag(tags []string, tagSet map[string]bool) bool {
 // cloneEnv creates a shallow copy of an Environment with a new Vars map.
 func cloneEnv(e *config.Environment) *config.Environment {
 	clone := config.NewEnvironment(nil, e.WorkDir(), e.CfgDir())
-	for k, v := range e.Vars {
-		clone.Vars[k] = v
-	}
+	maps.Copy(clone.Vars, e.Vars)
 	return clone
 }
