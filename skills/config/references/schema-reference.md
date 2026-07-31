@@ -103,11 +103,12 @@ applications:                   # Long-running app processes (API servers, worke
       docker:
         service: api-rs
         command: "cargo build"
-    health:                     # Readiness check (same format as health_checks entries)
+    health:                     # Readiness check (probe fields shared with top-level health_checks; applications additionally support `required`)
       type: http
       url: "http://localhost:11200/health"
       timeout: 5
       ready_timeout: 120
+      required: false           # default false (advisory on timeout); true promotes to strict failure (non-zero exit)
 
   # --- String shorthand for exec paths ---
   # run/dev/build accept a string shorthand that sets the native path only:

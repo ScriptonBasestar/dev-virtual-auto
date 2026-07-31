@@ -266,6 +266,8 @@ dva app stop myapp        # 중지 (빠른 재시작을 위해 상태 보존)
 dva app log myapp         # 최근 로그 확인
 ```
 
+`dva app up` waits for application health by default. An alive process that misses `ready_timeout` remains advisory (exit 0) unless `applications.<name>.health.required: true`, which makes the command fail with non-zero exit and `[FAIL]` output. `dva app up --no-wait` skips readiness. This contract is application-only; top-level `health_checks` does not support `required` (omitted/false = advisory/zero, required:true = strict failure/non-zero).
+
 #### clean
 
 ```bash
