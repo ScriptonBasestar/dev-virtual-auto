@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
@@ -493,18 +494,27 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 	return results
 }
 
+// checkComposeFiles reports whether each compose file named in the config is on disk.
+//
+// The name is interpolated before the lookup, as every runner does. Without that, a
+// `files:` entry of compose.${STAGE}.yml was checked under that literal name, no such file
+// existed, and doctor reported a failure against a config that runs perfectly — measured on
+// a fixture whose compose.dev.yml was present the whole time. The result still reports the
+// written form rather than the expanded one, because that is the line the user has to go
+// and edit. TASK-119.
 func checkComposeFiles(c *config.Config) []DoctorResult {
 	var results []DoctorResult
 	seen := make(map[string]struct{})
+	e := loadEnv(c)
 
 	for _, f := range c.AllComposeFiles() {
 		if f == "" {
 			continue
 		}
 
-		path := f
+		path := e.Interpolate(f)
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(c.FileDir(), f)
+			path = filepath.Join(c.FileDir(), path)
 		}
 		path = filepath.Clean(path)
 		if _, ok := seen[path]; ok {
@@ -523,36 +533,61 @@ func checkComposeFiles(c *config.Config) []DoctorResult {
 	return results
 }
 
-// checkComposeConfigResolves runs `docker compose config -q` for the primary
-// compose file set so a compose.yaml whose -f or include: target does not
-// resolve is caught here (before `dva up`) rather than only failing at up time.
-// `docker compose config` only parses/merges files and needs no daemon; the
-// check is skipped when the docker CLI is absent (the daemon check reports that).
+// checkComposeConfigResolves runs `compose config -q` for the primary compose file set so a
+// compose.yaml whose -f or include: target does not resolve is caught here (before `dva up`)
+// rather than only failing at up time. `compose config` only parses and merges files and
+// needs no daemon.
+//
+// The argv comes from dvaexec.ComposeArgv, the same builder every runner uses, and that is
+// the point rather than an implementation detail. This function used to hardcode `docker`
+// and never read `command:`, so a config saying `command: podman-compose` was checked by
+// running docker — the check passed or failed on a tool the user was not running. Measured
+// with a PATH shim: `docker compose -f … config --quiet` was executed and podman-compose was
+// never invoked at all. Going through ComposeArgv also brings the interpolation the four
+// runners already had, so a `files:` entry of compose.${STAGE}.yml is no longer checked
+// under that literal name. TASK-119.
 func checkComposeConfigResolves(c *config.Config) []DoctorResult {
 	cc := c.PrimaryComposeConfig()
 	if cc == nil || len(cc.Files) == 0 {
 		return nil
 	}
-	if _, err := exec.LookPath("docker"); err != nil {
-		return nil
+
+	composeCmd, args, err := dvaexec.ComposeArgv(loadEnv(c), cc, c.FileDir())
+	if err != nil {
+		// A command: that splits to no words. `dva doctor` is the command people run to
+		// find out what is wrong, so this is the one place it should certainly not be
+		// silent about.
+		return []DoctorResult{{
+			Name:    "Compose config resolves",
+			Passed:  false,
+			FixHint: err.Error(),
+		}}
 	}
 
-	args := []string{"compose"}
-	for _, f := range cc.Files {
-		path := f
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(c.FileDir(), f)
-		}
-		args = append(args, "-f", path)
+	if _, lookErr := exec.LookPath(composeCmd); lookErr != nil {
+		// Reported, not skipped. This used to `return nil`, which meant a podman-only
+		// machine got no compose check and no note that one had been dropped — and the
+		// old comment justified it by pointing at the daemon check, which reports the
+		// absence of docker, not the absence of this check. A check that silently does
+		// not run is the defect shape this repo keeps producing.
+		//
+		// The name has to carry the whole fact because printDoctorResults has two states,
+		// pass and FAIL, and prints FixHint only on FAIL. Passed is true because a missing
+		// binary is not evidence that the user's compose files are wrong, which is what
+		// this check claims to be about; the hint below therefore reaches --json consumers
+		// only, and the name is what a human reads.
+		return []DoctorResult{{
+			Name:    fmt.Sprintf("Compose config resolves (skipped: %s is not on PATH)", composeCmd),
+			Passed:  true,
+			FixHint: fmt.Sprintf("install %s, or point stack.<entry>.runners.compose.command at a binary on PATH", composeCmd),
+		}}
 	}
-	if cc.ProjectName != "" {
-		args = append(args, "--project-name", cc.ProjectName)
-	}
+
 	args = append(args, "config", "--quiet")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(ctx, composeCmd, args...)
 	cmd.Dir = c.FileDir()
 	out, err := cmd.CombinedOutput()
 	if err == nil {
