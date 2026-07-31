@@ -153,16 +153,16 @@ func TestWriteNoteHandlesMultilineAndEmpty(t *testing.T) {
 	}
 }
 
-// TestNativeBuildLoopPrintsNote covers the third call site, and documents the one
-// condition under which it runs at all.
+// TestNativeBuildLoopPrintsNote covers the third call site. TASK-086 wrote it against the copy of
+// the step loop that lived in compose.go; TASK-093 deleted that copy, so `build: native` renders
+// through runHookSteps like every other hook phase and these assertions moved with it — stderr
+// rather than stdout, two-space indent rather than four, note after the commands rather than
+// before. What is guaranteed did not change: a `note:` on the native build path is visible, and
+// the sibling step still runs. The name keeps "Loop" because two task files name it in their
+// verify commands; there is no loop here any more.
 //
-// `dva build` is wrapped by wrapWithHooks, whose replace phase fires on exactly the same
-// condition as compose.go's native-build branch (len(ic.Replace) > 0). The wrapper wins,
-// so in a normal invocation runHookSteps prints the note — to stderr, two-space indented,
-// after the commands — and compose.go's loop is never reached. It is reached when the
-// wrapper's recursion guard trips, i.e. when `dva build` is invoked from inside a hook
-// step, which is what DVA_HOOK_DEPTH simulates here. Filed as TASK-093; this test asserts
-// the branch behaves correctly rather than asserting the duplication is acceptable.
+// DVA_HOOK_DEPTH=1 stays because it is the interesting invocation — the one that used to take the
+// second implementation. TestNativeBuildDelegatesToTheHookExecutor pins both to the same bytes.
 func TestNativeBuildLoopPrintsNote(t *testing.T) {
 	c := loadNoteFixture(t, `version: "0.1.44"
 modes:
@@ -181,18 +181,23 @@ interaction:
 	}
 	t.Setenv(config.EnvHookDepthKey, "1")
 
-	out := captureStdout(t, func() {
-		if err := buildCmd.RunE(buildCmd, []string{"--mode", "nativemode"}); err != nil {
-			t.Errorf("dva build --mode nativemode: %v", err)
-		}
+	stdout, stderr, err := captureValidateOutput(t, func() error {
+		return buildCmd.RunE(buildCmd, []string{"--mode", "nativemode"})
 	})
-
-	if want := "\n    BUILD-NOTE-VISIBLE\n\n"; !strings.Contains(out, want) {
-		t.Errorf("note block %q missing from the native build loop:\n%s", want, out)
+	if err != nil {
+		t.Fatalf("dva build --mode nativemode: %v\nstderr: %s", err, stderr)
 	}
-	// Control: the loop ran. Without it a note printed by a loop that had stopped
+
+	if want := "\n  BUILD-NOTE-VISIBLE\n\n"; !strings.Contains(stderr, want) {
+		t.Errorf("note block %q missing from the native build path:\n%s", want, stderr)
+	}
+	// Control: the steps ran. Without it a note printed by a path that had stopped
 	// building would read as a pass.
-	if !strings.Contains(out, "$ echo BUILD-CONTROL-RAN") {
-		t.Errorf("the native build loop stopped running its commands:\n%s", out)
+	if !strings.Contains(stderr, "$ echo BUILD-CONTROL-RAN") {
+		t.Errorf("the native build path stopped running its commands:\n%s", stderr)
+	}
+	// And nothing renders it a second time on stdout, which is what the deleted copy did.
+	if strings.Contains(stdout, "BUILD-NOTE-VISIBLE") {
+		t.Errorf("the note reached stdout as well — a second renderer is back:\n%s", stdout)
 	}
 }

@@ -172,7 +172,7 @@ guard trips, i.e. `dva build` invoked from inside a hook step. Setting `DVA_HOOK
 produced the four-space stdout note (count 1 on stdout vs 0 through the normal path), which
 is the evidence that this fix's line is the one running.
 
-Filed as [TASK-093](../todo/093-native-build-loop-is-shadowed-by-the-hook-wrapper.md) — the shadowing
+Filed as [TASK-093](093-native-build-loop-is-shadowed-by-the-hook-wrapper.md) — the shadowing
 and the two divergent renderings are a structural problem beyond this task's scope, which is
 `executeParallelBatch` and the compose.go loop, not which of the two should exist.
 

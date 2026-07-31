@@ -460,41 +460,18 @@ var buildCmd = &cobra.Command{
 				case "docker":
 					return execComposePassthrough(e, c, append([]string{"build"}, remaining...))
 				case "native":
-					// Look for interaction.build.replace steps or run native build
+					// One executor, not two. This branch and wrapWithHooks fire on the same
+					// len(ic.Replace) > 0 condition and the wrapper always wins, so the only way
+					// in is DVA_HOOK_DEPTH>0 — `dva build` invoked from inside another hook step,
+					// where the wrapper defers to the original RunE. The second copy that used to
+					// live here rendered the same steps differently (stdout instead of stderr,
+					// four-space instead of two, note before the commands instead of after) and,
+					// because it never consulted dryRun, `dva build --dry-run --mode <native>`
+					// executed for real once nested. Delegating settles all of it, and brings the
+					// compose keys — which the copy did not implement — to the nested path.
+					// TASK-093.
 					if ic, ok := c.Interaction["build"]; ok && len(ic.Replace) > 0 {
-						for i, step := range ic.Replace {
-							// The quietest of the seven call sites: this loop prints no step
-							// labels at all, so an inert item here made `--mode` with
-							// build=native report success having neither run nor said
-							// anything. The label is synthesised to name which item it was.
-							if step.IsInert() {
-								label := step.Step
-								if label == "" {
-									label = fmt.Sprintf("step %d", i+1)
-								}
-								fmt.Printf("  ⚠ %s: %s\n", label, config.InertStepMessage)
-								continue
-							}
-							// The gap TASK-083 left above: the inert notice was added, Note
-							// still was not read here, so a `note:` on a native build step
-							// went nowhere. A note-only step is deliberately not inert
-							// (config.IsInert checks Note), so it reaches this line, prints,
-							// and then runs nothing.
-							//
-							// Reached only from inside a hook: wrapWithHooks intercepts
-							// `build` on the same len(ic.Replace) > 0 condition this branch
-							// tests, so normally runHookSteps prints the note instead — to
-							// stderr, differently indented. See TASK-093.
-							writeNote(os.Stdout, step.Note)
-							cmds := step.RunCommands()
-							for _, cmdStr := range cmds {
-								fmt.Printf("  $ %s\n", cmdStr)
-								if err := runShellCommand(e, cmdStr); err != nil {
-									return fmt.Errorf("native build failed: %w", err)
-								}
-							}
-						}
-						return nil
+						return runHookSteps(e, c, "replace", "build", ic.Replace)
 					}
 					return fmt.Errorf("mode %q build=native but no interaction.build.replace defined", mode)
 				default:
