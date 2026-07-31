@@ -72,10 +72,24 @@ Not a recommendation between B and C without knowing whether anything runs `dva 
 
 ## Acceptance criteria
 
-- [ ] The grouping is confirmed against the current check list | verify: `grep -n 'results = append(results' internal/cli/doctor.go` — enumerate every built-in and say which are diagnoses and which are advice
+- [x] The grouping is confirmed against the current check list | verify: `grep -n 'results = append(results' internal/cli/doctor.go` — enumerate every built-in and say which are diagnoses and which are advice
 - [ ] A direction is chosen | verify: `human — A, B, or C, recorded here with the reason`
 - [ ] If A, the trap is documented where a reader meets it | verify: `human — doctor's --help or USAGE.md must say built-in failures do not affect the exit code`
-- [ ] If B or C, the advisory test is updated rather than deleted | verify: `go test ./internal/cli/ -run 'DoctorExitError' -v` — `TestDoctorExitError_BuiltinFailedOnly_Advisory` encodes the current contract and must be rewritten to encode the new one
+- [x] If B or C, the advisory test is updated rather than deleted | verify: `go test ./internal/cli/ -run 'DoctorExitError' -v` — `TestDoctorExitError_BuiltinFailedOnly_Advisory` encodes the current contract and must be rewritten to encode the new one
+
+## Progress (landed while the direction stays open)
+
+The grouping (criterion 1) is done — an agent pass classified every built-in check:
+
+- **Advice** (transient/environmental): Docker daemon accessible; Docker socket permissions; `.sb/dva/` gitignored; compose project-name alignment (nit); app port ownership (runtime orphan).
+- **Diagnosis** (config names a missing path, or the tool rejected the files): compose file exists; env file exists; stack kubeconfig exists; compose config resolves. Borderline: subproject project-name collision (runs but silently reaps the parent stack on `dva down`).
+
+CI runs no `dva doctor` today (`.github/workflows/ci.yml` has zero references; `Makefile` has no doctor target). The only in-repo callers are agent-mesh flows and all swallow the exit with `|| echo`.
+
+**C's implementation landed as default-off** (criterion 4 satisfied by preservation, not rewrite):
+`doctorExitError(results, strict)` counts every failing check under `--strict`, the advisory test is kept unchanged at `false`, and two new tests pin the strict side. `make test` and `make lint` are green; a mutant that drops the `|| strict` branch is killed by `TestDoctorExitError_StrictCountsBuiltins`.
+
+This does not close the decision. Two human calls remain: (a) the direction itself — A, B, or C — and (b) under C, whether transient checks (Docker-daemon, socket-perms) should count. The code chose "yes, all built-ins count" because that is the plain reading of C and it is trivially revertible if the human picks B or wants C narrower. If B wins, this flag is removed; if C wins with a narrower scope, a severity field supersedes it.
 
 ## Related
 

@@ -32,6 +32,15 @@ type DoctorResult struct {
 
 var doctorFix bool
 
+// doctorStrict inverts the advisory contract: by default a built-in check that fails is reported
+// on screen but does not reach the exit code (TestDoctorExitError_BuiltinFailedOnly_Advisory
+// pins this), because most built-ins are advice — a closed Docker Desktop, a missing gitignore
+// line. --strict counts every failing check, so `dva doctor --strict && dva up` stops before up
+// walks into a failure doctor already diagnosed, such as compose files that do not parse. The
+// decision to keep advice out of the default exit code is TASK-122's to confirm; the switch
+// itself lands now because it changes no caller's behaviour when off.
+var doctorStrict bool
+
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Check environment prerequisites and diagnose common setup issues",
@@ -39,7 +48,13 @@ var doctorCmd = &cobra.Command{
 Also runs built-in checks for Docker availability and compose file existence.
 
 Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.
-Use --fix to automatically resolve fixable issues.`,
+Use --fix to automatically resolve fixable issues.
+
+By default a built-in check that fails is advisory: it prints [FAIL] but the exit
+code stays 0, because most built-ins diagnose transient or environmental state
+(Docker not running) rather than the configuration. Pass --strict to make every
+failing check count toward the exit code, so CI fails when, for example, the
+compose files do not parse.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 
@@ -53,16 +68,17 @@ Use --fix to automatically resolve fixable issues.`,
 			if err := output.PrintJSON(map[string]any{"checks": results}); err != nil {
 				return err
 			}
-			return doctorExitError(results)
+			return doctorExitError(results, doctorStrict)
 		}
 
 		printDoctorResults(results)
-		return doctorExitError(results)
+		return doctorExitError(results, doctorStrict)
 	},
 }
 
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Automatically fix issues that can be resolved")
+	doctorCmd.Flags().BoolVar(&doctorStrict, "strict", false, "Count every failing check toward the exit code (built-in checks are advisory by default)")
 	doctorCmd.GroupID = "project"
 	rootCmd.AddCommand(doctorCmd)
 }
@@ -655,15 +671,25 @@ func printDoctorResults(results []DoctorResult) {
 	fmt.Println(summary)
 }
 
-func doctorExitError(results []DoctorResult) error {
+// doctorExitError decides whether failing checks reach the exit code.
+//
+// The default contract is advisory: only user-defined checks (the dva.yml 'checks' section)
+// count, so a built-in [FAIL] prints but leaves exit 0. strict inverts that and counts every
+// failing check, so a compose config that does not resolve fails the run under --strict. The
+// advisory default is pinned by TestDoctorExitError_BuiltinFailedOnly_Advisory; strict is pinned
+// by TestDoctorExitError_StrictCountsBuiltins. TASK-122.
+func doctorExitError(results []DoctorResult, strict bool) error {
 	failed := 0
 	for _, r := range results {
-		if r.UserDefined && !r.Passed {
+		if (r.UserDefined || strict) && !r.Passed {
 			failed++
 		}
 	}
 	if failed == 0 {
 		return nil
+	}
+	if strict {
+		return fmt.Errorf("%d check(s) failed (--strict)", failed)
 	}
 	return fmt.Errorf("%d user check(s) failed", failed)
 }

@@ -149,7 +149,7 @@ func TestDoctorExitError_AllPassed(t *testing.T) {
 		{Name: "ok", Passed: true},
 		{Name: "fixed", Passed: true, Fixed: true, UserDefined: true},
 	}
-	if err := doctorExitError(results); err != nil {
+	if err := doctorExitError(results, false); err != nil {
 		t.Fatalf("doctorExitError() = %v, want nil when all checks passed", err)
 	}
 }
@@ -160,7 +160,7 @@ func TestDoctorExitError_UserDefinedFailed(t *testing.T) {
 		{Name: "Impossible check", Passed: false, FixHint: "never", UserDefined: true},
 		{Name: "fixed", Passed: true, Fixed: true},
 	}
-	err := doctorExitError(results)
+	err := doctorExitError(results, false)
 	if err == nil {
 		t.Fatal("doctorExitError() = nil, want non-nil when a user-defined check failed")
 	}
@@ -175,14 +175,53 @@ func TestDoctorExitError_BuiltinFailedOnly_Advisory(t *testing.T) {
 		{Name: ".sb/dva/ is ignored", Passed: false},
 		{Name: "user ok", Passed: true, UserDefined: true},
 	}
-	if err := doctorExitError(results); err != nil {
+	if err := doctorExitError(results, false); err != nil {
 		t.Fatalf("doctorExitError() = %v, want nil when only built-in checks failed", err)
 	}
 }
 
 func TestDoctorExitError_EmptyResults(t *testing.T) {
-	if err := doctorExitError(nil); err != nil {
-		t.Fatalf("doctorExitError(nil) = %v, want nil", err)
+	if err := doctorExitError(nil, false); err != nil {
+		t.Fatalf("doctorExitError(nil, false) = %v, want nil", err)
+	}
+}
+
+// TestDoctorExitError_StrictCountsBuiltins is the other half of TASK-122. The advisory test
+// above pins the default: built-in failures do not reach the exit code. This pins --strict:
+// the same result set that returned nil now returns an error naming the count, so
+// `dva doctor --strict && dva up` stops before up hits a failure doctor already named on screen.
+//
+// The error string carries the count and the flag, not a per-check breakdown — doctor already
+// printed every [FAIL] line, and the exit code's job is to be non-zero, not to redescribe.
+func TestDoctorExitError_StrictCountsBuiltins(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "Docker socket accessible", Passed: false},
+		{Name: ".sb/dva/ is ignored", Passed: false},
+		{Name: "Compose config resolves", Passed: false},
+		{Name: "user ok", Passed: true, UserDefined: true},
+	}
+	err := doctorExitError(results, true)
+	if err == nil {
+		t.Fatal("doctorExitError(strict) = nil, want non-nil when built-in checks failed under --strict")
+	}
+	if !strings.Contains(err.Error(), "3 check") {
+		t.Errorf("doctorExitError(strict) = %q, want a count of the 3 failing built-ins", err)
+	}
+	if !strings.Contains(err.Error(), "--strict") {
+		t.Errorf("doctorExitError(strict) = %q, want the error to name the flag that produced it", err)
+	}
+}
+
+// TestDoctorExitError_StrictAllPassed pins that --strict does not invent failures: a clean run
+// still exits 0 under strict, otherwise the flag would be unusable in green CI.
+func TestDoctorExitError_StrictAllPassed(t *testing.T) {
+	results := []DoctorResult{
+		{Name: "Docker socket accessible", Passed: true},
+		{Name: "Compose config resolves", Passed: true},
+		{Name: "user ok", Passed: true, UserDefined: true},
+	}
+	if err := doctorExitError(results, true); err != nil {
+		t.Fatalf("doctorExitError(strict) = %v, want nil when every check passed", err)
 	}
 }
 
