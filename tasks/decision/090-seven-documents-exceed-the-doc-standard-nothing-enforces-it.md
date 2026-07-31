@@ -123,6 +123,30 @@ non-vacuous. A gate that everything is exempt from (C) is decoration; a gate tha
   falsify the archive.
 - Not removing the `dva-schema.md` symlink. It is the architecture working, not duplication.
 
+## Progress (option B accepted)
+
+Option B is accepted. Status of the work it implies:
+
+- **docs/30-config-merge-semantics.md — split, done.** The worked example and migration note
+  (§8–9) moved to `docs/30-config-merge-examples.md`. Semantics is now 345 lines / 9640 bytes;
+  examples is 83 lines / 1615 bytes. No inbound link targeted §8–9, so nothing broke. Committed.
+- **workflows/dva-dogfood/METHODOLOGY.md — exempt.** A split plan exists (move §"Session and
+  resume" to `ref-resume.md`, 2716 bytes), but the file is a load-bearing spec that every one of
+  the 9 numbered stages loads whole via `METHODOLOGY = ./METHODOLOGY.md`, and `ref-session.md`
+  caches references by path + Git revision. Splitting silently drops the resume protocol from
+  the load unless the `METHODOLOGY =` lines and the reuse registry are updated in the same commit
+  — a larger change than the limit is worth. Exempting it matches the exemption class's spirit
+  (splitting harms the contract), so it joins USAGE.md / skills-references / library.
+- **docs/40-declarative-stack-and-plans.md — split pending.** A 3-way plan exists (40 stays as
+  entry, 41 = execution-plans-and-cli, 42 = migration-and-compatibility), but `#11-migration` is
+  referenced by code, not just docs: `internal/config/validate_warnings.go:17` (URL const),
+  `corpus_urls_test.go:221,226`, `validate_warnings_test.go:199`. Moving it requires updating the
+  const + the corpus test in the same commit. Filed as the next step before the gate can turn on.
+
+The gate (`make doc-check`), AGENTS.md statement, and `.github/workflows/ci.yml` line are
+mechanical once docs/40 is split — they are the last step, not the first, so the gate is green
+the moment it lands.
+
 ## Acceptance criteria
 
 - [ ] The repo states its own limit and exemption classes | verify: `human — AGENTS.md names the limit, the enforced paths, and the reason each exempt class is exempt`

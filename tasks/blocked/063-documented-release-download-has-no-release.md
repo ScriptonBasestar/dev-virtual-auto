@@ -124,6 +124,17 @@ Three things change and each is deliberate:
 `@latest` to the pseudo-version `v0.0.0-20260729101905-eebf11135a70`, which installs. It is only
 `@v0.1.44` that would fail, and no document instructs that.
 
+## Patch prepared (awaiting the human edit — README.md is ai=deny)
+
+A ready-to-apply patch and the resulting file are staged in tmp/:
+
+- `tmp/task-063/README.patch` — `git apply --check` passes cleanly against the current README.
+- `tmp/task-063/README.proposed` — the post-edit file; equivalently `cp tmp/task-063/README.proposed README.md`.
+
+Either path removes L9's "또는 release binary를 사용할 수 있습니다" clause, the `### Binary (추천)`
+heading, and the entire `### From Release` block. `go install` / `make build` (L13–20) stay. No
+other tracked file repeats the claim — `.goreleaser.yml:4` already debunks it.
+
 ## Acceptance criteria
 
 - [x] Option chosen and recorded here | verify: `grep -c '^decision:' tasks/blocked/063-documented-release-download-has-no-release.md` — 1, B
