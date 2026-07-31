@@ -66,8 +66,12 @@ down:
 | 4 | `app_manager.go:81-83` | `if len(apps) == 0 { return nil }` |
 
 The Debug line is invisible without `--debug`. `StartApps` returns nil, so the command **exits 0
-having started nothing and printed nothing**. The user asked to start their apps in dev mode and
-was told it worked.
+having started nothing**. The user asked to start their apps in dev mode and was told it worked.
+
+**Correction from the measured run below:** this file originally said "printed nothing". It prints
+the application status table. That is worse, not better — the output looks like a report of work
+done, and the only thing distinguishing it from success is the `stopped` in a column the user has no
+reason to be checking.
 
 Note step 4 is not reached through the `len(c.Applications) == 0` guard at `app.go:115` — that
 guard fires only when *no* applications are configured. With applications configured and a
@@ -82,12 +86,47 @@ anything.
 So the repo already knows how to do this, and the two commands most likely to be typed by hand are
 the ones that skipped it.
 
-## Evidence status
+## Evidence status — reproduced against a built binary
 
-Structurally confirmed by reading all four files listed in `scope`. Two independent probe sessions
-also measured it against a real `bin/dva`; their reports agreed on behaviour. **A measured
-reproduction against a built binary has not yet been recorded in this task** — that is the first
-acceptance criterion, and it should produce the exit code and the empty output, not a description.
+Fixture `tmp/task-113/dva.yml`: one application `web`, `port: 13113`, `run.native` and `dev.native`
+set to inert `echo` commands so a start that should not happen is visible if it does. `make build`,
+then `bin/dva` run from that directory.
+
+```
+$ dva app ls
+  web   stopped   stopped   -   http://localhost:13113   -      # the app exists
+
+$ dva app up --dev=true            # mistyped flag
+exit=0
+(blank line)
+Applications:
+  NAME  STRATEGY  STATUS   HEALTH  URL                     PID
+  web   stopped   stopped  -       http://localhost:13113  -
+
+$ dva app up nosuchapp             # no flag involved at all
+exit=0
+  web   stopped   stopped  -       …                       -    # identical output
+
+$ dva app up --dev=true --debug
+DEBUG msg="app not found" name="--dev=true" err="application \"--dev=true\" not found"
+DEBUG msg="app not found" name="--dev=true" err="application \"--dev=true\" not found"
+
+$ dva up --forse                   # unknown flag on up
+exit=0                             # --forse ignored; the up proceeded in full
+
+$ dva up --force=true              # the habitual form
+exit=0                             # identical to the line above — indistinguishable from success
+```
+
+Three things the reading did not predict:
+
+1. The command prints a **status table**, not nothing. See the correction above.
+2. The `app not found` Debug line is emitted **twice** for one name, so `ResolveApp` runs at least
+   twice per unresolved name. Harmless, but it means the resolution path is entered more than once
+   and a fix that errors on the first failure should not produce two messages.
+3. `dva app up nosuchapp` is byte-for-byte identical to the mistyped-flag case. Proposed-fix point 4
+   is therefore not a secondary concern: it is the same user-visible bug, and fixing only the flag
+   parsing would leave an unchanged reproduction.
 
 ## Proposed fix
 
@@ -105,7 +144,7 @@ silence. That is the same defect reachable without any flag at all.
 
 ## Acceptance criteria
 
-- [ ] The current behaviour is reproduced and recorded | verify: `human — build with make build, run 'dva app up --dev=true' in a fixture with >=1 application, record exit code and full stdout+stderr`
+- [x] The current behaviour is reproduced and recorded | verify: `human — build with make build, run 'dva app up --dev=true' in a fixture with >=1 application, record exit code and full stdout+stderr` — done, see Evidence status; exit=0, 138 bytes of output, app left stopped
 - [ ] An unknown flag is an error on `dva up` | verify: `dva up --forse` — must exit non-zero and name the offending token
 - [ ] An unknown flag is an error on the `app` family | verify: `dva app up --dev=true` — must exit non-zero, and must not report success
 - [ ] A named app that does not exist is an error | verify: `dva app up nosuchapp` — must exit non-zero naming the app; print the exit code
@@ -119,3 +158,6 @@ silence. That is the same defect reachable without any flag at all.
   problem: flags DVA should have consumed reaching docker. Here they reach nothing at all.
 - [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — also `exit 0` while doing
   less than asked; the recurring failure shape in this codebase is silence, not crashes.
+- [TASK-117](117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
+  same code path but a distinct defect: `StartApps` prints `[FAIL]` for a readiness failure and still
+  returns nil. Fixing 113 alone still leaves `dva up` exiting 0 on an app that never started.
