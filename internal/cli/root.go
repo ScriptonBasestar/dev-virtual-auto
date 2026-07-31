@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -394,6 +395,12 @@ func unknownCommandToken(errMsg string) string {
 }
 
 // suggestCommands returns commands similar to the input using Levenshtein distance.
+//
+// The result is sorted because ReservedCommands() is a map and Go randomizes map iteration:
+// measured, `dva sta` produced 16 different orderings of the same four names across 30 runs of the
+// same binary. A list read top-down is advice, and shuffling advice between runs makes the first
+// entry — the one a reader acts on — a property of the map seed. Same defect class as TASK-104 in
+// the command tree and as FormatConflictWarnings before it. TASK-107.
 func suggestCommands(input string) []string {
 	var suggestions []string
 	for cmd := range config.ReservedCommands() {
@@ -401,6 +408,7 @@ func suggestCommands(input string) []string {
 			suggestions = append(suggestions, cmd)
 		}
 	}
+	sort.Strings(suggestions)
 	return suggestions
 }
 
