@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -224,22 +223,15 @@ func Execute() {
 		emitFailureJSON(errMsg)
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 
-		// Only suggest similar commands for unknown/unrecognized commands, not execution failures.
+		// Cobra already prints its own "Did you mean this?" block for an unknown command, so dva
+		// no longer prints a second one. The two disagreed: for `dva sta`, cobra offered five names
+		// including `status` while dva offered four and omitted it, because `levenshtein("sta",
+		// "status")` is 3 and dva's cutoff was 2 — cobra also matches on prefix. Two answers to one
+		// question, with nothing telling the reader which to trust. TASK-108, TASK-098.
 		//
-		// The unknownCommandToken guard matters now that a nested subcommand can also produce
-		// "unknown command" (TASK-098). suggestCommands only knows top-level names — it ranges
-		// over config.ReservedCommands() — so for `dva stack nosuchsub` it would score args[0],
-		// "stack", find "stack" itself within edit distance 2, and answer "Did you mean? dva
-		// stack": the exact command that just failed. Suggesting nothing beats that.
-		if len(args) > 0 && !isFlag(args[0]) && strings.Contains(errMsg, "unknown command") &&
-			unknownCommandToken(errMsg) == args[0] {
-			if suggestions := suggestCommands(args[0]); len(suggestions) > 0 {
-				fmt.Fprintf(os.Stderr, "\nDid you mean?\n")
-				for _, s := range suggestions {
-					fmt.Fprintf(os.Stderr, "  dva %s\n", s)
-				}
-			}
-		}
+		// One suggestion is lost by design: cobra never offers `help`, because IsAvailableCommand()
+		// returns false for the parent's helpCommand and SuggestionsFor only considers available
+		// commands. `dva hlep` therefore gets no suggestion at all. Measured, not assumed.
 
 		// Hint for dva init if no config found
 		if strings.Contains(errMsg, "could not find dva.yml") {
@@ -394,25 +386,9 @@ func unknownCommandToken(errMsg string) string {
 	return rest[:end]
 }
 
-// suggestCommands returns commands similar to the input using Levenshtein distance.
-//
-// The result is sorted because ReservedCommands() is a map and Go randomizes map iteration:
-// measured, `dva sta` produced 16 different orderings of the same four names across 30 runs of the
-// same binary. A list read top-down is advice, and shuffling advice between runs makes the first
-// entry — the one a reader acts on — a property of the map seed. Same defect class as TASK-104 in
-// the command tree and as FormatConflictWarnings before it. TASK-107.
-func suggestCommands(input string) []string {
-	var suggestions []string
-	for cmd := range config.ReservedCommands() {
-		if levenshtein(input, cmd) <= 2 {
-			suggestions = append(suggestions, cmd)
-		}
-	}
-	sort.Strings(suggestions)
-	return suggestions
-}
-
 // levenshtein calculates the edit distance between two strings.
+// Retained after TASK-108 removed suggestCommands: stack.go and provision.go still use it to
+// suggest near-miss stack entries and plan names, which cobra knows nothing about.
 func levenshtein(a, b string) int {
 	la, lb := len(a), len(b)
 	d := make([][]int, la+1)

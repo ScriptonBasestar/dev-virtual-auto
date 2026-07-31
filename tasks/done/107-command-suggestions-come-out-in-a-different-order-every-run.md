@@ -126,5 +126,5 @@ at the same distance, so it would produce the same list; it is a different featu
 
 - [TASK-104](104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md) — the same
   map-iteration defect class, in the command tree instead of the suggestion list.
-- [TASK-108](../todo/108-two-did-you-mean-blocks-answer-one-error-differently.md) — found in the same
+- [TASK-108](108-two-did-you-mean-blocks-answer-one-error-differently.md) — found in the same
   measurement: this list is printed directly below cobra's, and the two disagree.

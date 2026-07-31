@@ -63,27 +63,6 @@ func TestLevenshtein(t *testing.T) {
 	}
 }
 
-func TestSuggestCommands_KnownSimilar(t *testing.T) {
-	// "urn" is 2 edits from "run"
-	suggestions := suggestCommands("urn")
-	found := false
-	for _, s := range suggestions {
-		if s == "run" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("suggestCommands(%q) = %v, want to contain 'run'", "urn", suggestions)
-	}
-}
-
-func TestSuggestCommands_NoMatch(t *testing.T) {
-	suggestions := suggestCommands("zzzzzzzzz")
-	if len(suggestions) != 0 {
-		t.Errorf("suggestCommands(%q) = %v, want empty", "zzzzzzzzz", suggestions)
-	}
-}
-
 func TestLoadConfig_ValidConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldDir, _ := os.Getwd()
@@ -238,15 +217,3 @@ func TestIsTerminal(t *testing.T) {
 	}
 }
 
-func TestSuggestCommands_ExactMatch(t *testing.T) {
-	suggestions := suggestCommands("up")
-	found := false
-	for _, s := range suggestions {
-		if s == "up" {
-			found = true
-		}
-	}
-	if !found {
-		t.Errorf("suggestCommands(%q) should include 'up'", "up")
-	}
-}
