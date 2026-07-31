@@ -34,9 +34,7 @@ import (
 // aborts unless `docker` resolves to the shim — a real docker must not be reachable.
 func composePassthroughFixture(t *testing.T) func() []string {
 	t.Helper()
-
-	dir := t.TempDir()
-	body := `version: "0.1.44"
+	return composePassthroughFixtureWith(t, `version: "0.1.44"
 stack:
   infra:
     order: 1
@@ -45,7 +43,15 @@ stack:
       compose:
         files:
           - docker-compose.yml
-`
+`)
+}
+
+// composePassthroughFixtureWith is the same fixture over a caller-supplied config, for tests
+// where the stack's declaration shape is itself the thing under test.
+func composePassthroughFixtureWith(t *testing.T, body string) func() []string {
+	t.Helper()
+
+	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(body), 0644); err != nil {
 		t.Fatal(err)
 	}

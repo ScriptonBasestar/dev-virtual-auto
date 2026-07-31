@@ -20,6 +20,31 @@ func (e *LifecycleEntry) ComposeConfig() *ComposePluginConfig {
 	return nil
 }
 
+// KubectlConfig returns the entry's kubectl settings from either declaration shape, exactly as
+// ComposeConfig does for compose.
+//
+// It exists because compose was the only plugin with such an accessor, so every helper that
+// tested e.Kubectl directly was blind to runners.kubectl on any entry that had not been through
+// resolveRunnerPlugin — which is every entry reached by name rather than via SortedStack. The
+// visible symptom was `dva ktl` silently dropping a declared namespace. TASK-102.
+func (e *LifecycleEntry) KubectlConfig() *KubectlPluginConfig {
+	if e == nil {
+		return nil
+	}
+	if e.Kubectl != nil {
+		return e.Kubectl
+	}
+	for name, runnerCfg := range e.Runners {
+		if normalizeRunnerName(name) != "kubectl" {
+			continue
+		}
+		if cfg, ok := runnerCfg.(*KubectlPluginConfig); ok {
+			return cfg
+		}
+	}
+	return nil
+}
+
 // applyRunnerConfig assigns a runner config to its typed plugin field.
 func (e *LifecycleEntry) applyRunnerConfig(cfg any) bool {
 	switch c := cfg.(type) {
@@ -180,7 +205,7 @@ func (c *Config) ComposeCommand() string {
 func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 	var best *LifecycleEntry
 	for _, e := range c.Stack {
-		if e.Kubectl == nil {
+		if e.KubectlConfig() == nil {
 			continue
 		}
 		if best == nil || lessByOrderName(e, best) {
@@ -188,7 +213,7 @@ func (c *Config) PrimaryKubectlConfig() *KubectlPluginConfig {
 		}
 	}
 	if best != nil {
-		return best.Kubectl
+		return best.KubectlConfig()
 	}
 	return nil
 }
@@ -211,7 +236,7 @@ func (c *Config) ComposeEntries() []*LifecycleEntry {
 func (c *Config) KubectlEntries() []*LifecycleEntry {
 	var entries []*LifecycleEntry
 	for _, e := range c.Stack {
-		if e.Kubectl != nil {
+		if e.KubectlConfig() != nil {
 			entries = append(entries, e)
 		}
 	}

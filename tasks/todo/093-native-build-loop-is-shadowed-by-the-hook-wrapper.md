@@ -103,5 +103,5 @@ four times independently.
   call site. Its `grep -c '.Note' internal/cli/compose.go` criterion passed, but the runtime
   evidence for it had to come from the `DVA_HOOK_DEPTH=1` path, which is what exposed the
   shadowing.
-- [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md) — also carries the
+- [TASK-088](../done/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — also carries the
   `hooks.go` stderr vs `provision.go` stdout observation.

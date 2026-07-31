@@ -681,11 +681,15 @@ func (e *LifecycleEntry) rejectLegacyComposeShape() error {
 }
 
 func (e *LifecycleEntry) resolvePluginFromName() error {
-	if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil {
-		return nil
-	}
+	// Checked before the guard below, not after it: DetectPlugin now resolves the runners
+	// shape too (TASK-102), so a runners entry would exit at that guard and leave rawNode
+	// holding its parsed YAML for the life of the config. Nothing reads rawNode outside
+	// this function, so this only keeps it from being retained — the return is the same.
 	if len(e.Runners) > 0 {
 		e.rawNode = nil
+		return nil
+	}
+	if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil {
 		return nil
 	}
 	if pt, ok := knownPluginNames[e.Name]; ok {
@@ -733,6 +737,21 @@ func (e *LifecycleEntry) DetectPlugin() string {
 		return "serverless"
 	case e.Multipass != nil:
 		return "multipass"
+	}
+
+	// The modern default_runner:/runners: shape writes none of the fields above — only
+	// resolveRunnerPlugin backfills them, and it runs solely on the copies SortedStack
+	// returns. Entries reached by name (FindStackEntry is a bare c.Stack read) are still
+	// raw, so without this they detect as "" and every caller falls through to its default
+	// branch. Resolved read-only rather than by backfilling, because that pointer is shared
+	// through c.Stack and because a non-nil e.Compose is what rejectLegacyComposeShape uses
+	// to identify the legacy shape. TASK-102.
+	if name := e.runnerPluginName(); name != "" {
+		if name == "native" {
+			// runners.native is an alias for the process plugin, as applyRunnerConfig maps it.
+			return "process"
+		}
+		return name
 	}
 	return ""
 }

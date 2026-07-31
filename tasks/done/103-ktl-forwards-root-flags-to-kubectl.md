@@ -144,9 +144,11 @@ The child rebuilds `PATH` as `shim:/bin:/usr/bin` and `t.Fatal`s unless
   not measured, so `dva --dry-run ktl …` may or may not be meaningful. Not changed here
   because diverging from the other three passthroughs needs its own decision.
 - `--debug=true` is still neither applied nor stripped, family-wide — see TASK-092.
-- The fixtures use the deprecated top-level `kubectl:` form because the modern one is
-  invisible to `KubectlEntries()`; that is [TASK-102](../todo/102-detectplugin-blind-to-runners-form.md),
-  and when it is fixed these cases should be re-pointed at `runners.kubectl`.
+- ~~The fixtures use the deprecated top-level `kubectl:` form because the modern one is
+  invisible to `KubectlEntries()`~~ — closed by
+  [TASK-102](102-detectplugin-blind-to-runners-form.md), which added a `runners.kubectl` case
+  here rather than re-pointing the existing ones: keeping both shapes means a regression in
+  either is caught.
 
 ## Related
 
@@ -154,6 +156,6 @@ The child rebuilds `PATH` as `shim:/bin:/usr/bin` and `t.Fatal`s unless
   contributes the `consumeRootPersistentFlags` helper this task reuses
 - [TASK-094](094-kubectl-runner-discards-steps.md) — source of the child-process test
   pattern, and of the `syscall.Exec`-in-a-test false-pass this task must avoid
-- [TASK-102](../todo/102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
+- [TASK-102](102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
   (`kubectl.go:46`, `KubectlEntries`) is also blind to the `runners:` form; independent defect
   in the same command

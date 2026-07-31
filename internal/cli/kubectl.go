@@ -50,7 +50,9 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 			// Multiple entries: first arg must be entry name
 			matched := false
 			if len(args) > 0 {
-				if found := c.FindStackEntry(args[0]); found != nil && found.Kubectl != nil {
+				// KubectlConfig, not .Kubectl: FindStackEntry returns the raw entry, whose
+				// typed field is nil for the runners.kubectl shape. TASK-102.
+				if found := c.FindStackEntry(args[0]); found != nil && found.KubectlConfig() != nil {
 					entry = found
 					passArgs = args[1:]
 					matched = true
@@ -67,8 +69,8 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 		}
 
 		var kubectlArgs []string
-		if entry.Kubectl != nil && entry.Kubectl.Namespace != "" {
-			kubectlArgs = append(kubectlArgs, "--namespace", e.Interpolate(entry.Kubectl.Namespace))
+		if kc := entry.KubectlConfig(); kc != nil && kc.Namespace != "" {
+			kubectlArgs = append(kubectlArgs, "--namespace", e.Interpolate(kc.Namespace))
 		}
 		kubectlArgs = append(kubectlArgs, passArgs...)
 		return dvaexec.ExecReplace(e, "kubectl", kubectlArgs, false)

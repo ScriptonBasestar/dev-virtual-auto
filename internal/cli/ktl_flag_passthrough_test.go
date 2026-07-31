@@ -38,11 +38,10 @@ type ktlCase struct {
 	present []string
 }
 
-// The fixtures use the deprecated top-level `kubectl:` form rather than `runners.kubectl`.
-// That is not an oversight: entries reached by name are never runner-resolved, so
-// KubectlEntries() cannot see the modern form at all and `ktl` would take its zero-entries
-// fallback for every case here, collapsing three distinct paths into one. See TASK-102 —
-// until that is fixed, this is the only form that exercises the resolved-entry path.
+// Most fixtures use the deprecated top-level `kubectl:` form, which is what the entry
+// resolution originally understood; the last case pins the modern `runners.kubectl` shape,
+// which KubectlEntries() could not see at all until TASK-102 fixed it. Keeping both means a
+// regression in either shape is caught here.
 var ktlCases = []ktlCase{
 	{
 		// kubectl.go:30-35 — no kubectl entries, so args are appended to the
@@ -108,6 +107,25 @@ stack:
 		args:    []string{"apply", "-f", "pod.yaml", "--dry-run=client"},
 		absent:  nil,
 		present: []string{"apply", "-f", "pod.yaml", "--dry-run=client"},
+	},
+	{
+		// The modern shape, promised by TASK-103 and delivered by TASK-102. Before that fix
+		// KubectlEntries() returned nothing here, so `ktl` took its zero-entry fallback and the
+		// declared namespace never reached kubectl at all — the command still ran, against
+		// whatever namespace the kubeconfig happened to point at.
+		name: "runners.kubectl contributes the namespace too",
+		config: `version: "0.1.44"
+stack:
+  cluster:
+    order: 1
+    default_runner: kubectl
+    runners:
+      kubectl:
+        namespace: modern-ns
+`,
+		args:    []string{"--debug", "get", "pods"},
+		absent:  []string{"--debug"},
+		present: []string{"--namespace", "modern-ns", "get", "pods"},
 	},
 }
 

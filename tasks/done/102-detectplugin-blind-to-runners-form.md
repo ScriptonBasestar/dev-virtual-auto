@@ -4,7 +4,7 @@ title: "Stack entries reached by name are never runner-resolved, so the `runners
 type: fix
 priority: P2
 effort: M
-status: todo
+status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/config/lifecycle_helpers.go:109,211,225 — resolveRunnerPlugin runs only inside SortedStack, and only on a copy"
 ---
@@ -119,7 +119,11 @@ all, so any future name-lookup site will inherit the same blindness by default.
 
 ## Proposed fix
 
-**Option B — resolve once at load.** `ResolvePluginFromName()` (`lifecycle.go:654`) is already
+> **Superseded during implementation.** Option B below was the original recommendation and it is
+> wrong — it would have made every valid modern compose config fail to load. Kept here because
+> the reason is the useful part; see **Resolution** for what was actually done.
+
+**~~Option B — resolve once at load.~~** `ResolvePluginFromName()` (`lifecycle.go:654`) is already
 described as "the only hook both load paths (`Config.Load` and `Config.Merge`) run per entry
 once Name is known". Calling `resolveRunnerPlugin()` there makes `c.Stack` hold resolved
 entries, so every access path agrees by construction and `SortedStack`'s call becomes redundant
@@ -127,28 +131,100 @@ entries, so every access path agrees by construction and `SortedStack`'s call be
 `rejectLegacyComposeShape()`, which runs in the same hook and reasons about `e.Compose` being
 nil in the modern form — backfilling before it runs would change what it sees.
 
-Alternatives considered and why they are worse:
+That last sentence understated the problem. `resolveRunnerPlugin` → `applyRunnerConfig`
+(`lifecycle_helpers.go:50`) assigns `e.Compose = c` for `runners.compose`, and a non-nil
+`e.Compose` is not merely *seen differently* by `rejectLegacyComposeShape` — it is the **sole
+signal** that identifies the deprecated shape (`lifecycle.go:661-681`). The two run in the same
+function. Backfilling first therefore makes every `runners.compose` entry indistinguishable from
+a legacy one, and the loader rejects it with *"compose must be declared under runners.compose"* —
+advice the config was already following. Option B trades a silent misroute for a total load
+failure on the most common modern config there is.
+
+The general lesson: **backfill is not free when a field carries a second meaning.** `e.Compose`
+is doing double duty as "the compose config" and "this entry used the old syntax", and any fix
+that writes it destroys the second meaning.
+
+Alternatives considered:
 
 - **A — resolve inside `FindStackEntry`**: it returns the shared `*LifecycleEntry` from the map,
   so this mutates shared state lazily on read. Idempotent and backfill-only, so probably benign,
-  but it makes "has this entry been resolved?" depend on access history.
+  but it makes "has this entry been resolved?" depend on access history. Rejected — and it shares
+  Option B's `e.Compose` hazard, just on a later schedule.
 - **C — add `KubectlConfig()` etc. mirroring `ComposeConfig()`**: fixes the measured symptoms but
   leaves `DetectPlugin()` blind, so `stack.go:299` still needs its own fix and every future
-  plugin type needs another accessor.
+  plugin type needs another accessor. Adopted **in part** — see Resolution.
 
 ## Acceptance criteria
 
-- [ ] `stack log` routes by declared runner, not declaration form | verify: the two-entry fixture above — `dva stack log modernproc` must look for `.sb/dva/logs/modernproc.log`, not reach docker
-- [ ] `ktl` honours a `runners.kubectl` namespace | verify: `dva ktl get pods` on the modern fixture must send `--namespace my-namespace`
-- [ ] Legacy form is unchanged | verify: both legacy fixtures produce byte-identical argv to the pre-fix run — this fix must not regress the deprecated shape
-- [ ] `DetectPlugin()` non-empty for a runners-form entry reached by name | verify: unit test on `FindStackEntry(...).DetectPlugin()`
-- [ ] Tests are non-vacuous | verify: reverting the fix makes each FAIL, and the kubectl one names the missing `--namespace`
-- [ ] Full suite passes | verify: `make test`
+- [x] `stack log` routes by declared runner, not declaration form | verify: the two-entry fixture above — `dva stack log modernproc` must look for `.sb/dva/logs/modernproc.log`, not reach docker
+- [x] `ktl` honours a `runners.kubectl` namespace | verify: `dva ktl get pods` on the modern fixture must send `--namespace my-namespace`
+- [x] Legacy form is unchanged | verify: both legacy fixtures produce byte-identical argv to the pre-fix run — this fix must not regress the deprecated shape
+- [x] `DetectPlugin()` non-empty for a runners-form entry reached by name | verify: unit test on `FindStackEntry(...).DetectPlugin()`
+- [x] Tests are non-vacuous | verify: reverting the fix makes each FAIL, and the kubectl one names the missing `--namespace`
+- [x] Full suite passes | verify: `make test`
+
+## Resolution
+
+Fixed read-only, in two independent halves. Neither writes to the shared `*LifecycleEntry` in
+`c.Stack`, which is what makes it safe where Option B was not.
+
+**1. `DetectPlugin()` falls back to the runners map** (`lifecycle.go`). After the existing switch
+over the typed pointers finds nothing, it consults `e.runnerPluginName()` and returns that,
+mapping `native` → `process` exactly as `applyRunnerConfig` does. This is a *derivation*, not a
+backfill: `e.Compose` stays nil for modern entries, so `rejectLegacyComposeShape` keeps working.
+
+Doing so required reordering `resolvePluginFromName`: its first guard is
+`if e.Plugin != "" || e.DetectPlugin() != "" || e.rawNode == nil { return nil }`, and now that
+`DetectPlugin()` answers for runners entries, they exited there with `rawNode` — a parsed YAML
+node — retained for the lifetime of the config. The `len(e.Runners) > 0` check now runs first and
+clears it. Same return value, no retention.
+
+**2. `KubectlConfig()` accessor** (`lifecycle_helpers.go`), mirroring `ComposeConfig()`, wired
+into `PrimaryKubectlConfig`, `KubectlEntries`, and both `cli/kubectl.go` sites. Alternative C in
+full for kubectl only — the other plugin types have no name-lookup consumer today, and adding
+fourteen unused accessors is the over-engineering this repo's rules forbid. Half 1 means a future
+one starts from a correct `DetectPlugin()` rather than from nothing.
+
+### Measured after (same fixtures as Evidence)
+
+```
+stack log legacyproc  -> ERROR: no log file … legacyproc.log                  (control, unchanged)
+stack log modernproc  -> ERROR: no log file … modernproc.log                  (was: DOCKER-SHIM-GOT compose logs modernproc)
+ktl get pods (modern) -> KUBECTL-SHIM-GOT: --namespace my-namespace get pods  (was: get pods)
+ktl get pods (legacy) -> KUBECTL-SHIM-GOT: --namespace my-namespace get pods  (control, unchanged)
+```
+
+### Tests
+
+- `internal/config/runners_form_detection_test.go` (new) — 4 tests. Every fixture declares the
+  same plugin in both shapes so the legacy rows act as controls;
+  `TestNameLookupAgreesWithSortedStack` states the invariant rather than a case list, so a shape
+  added later is covered without editing the file.
+- `internal/cli/stack_log_routing_test.go` (new) — the command-level symptom, with a compose
+  positive control so "docker was never invoked" cannot pass vacuously.
+- `internal/cli/ktl_flag_passthrough_test.go` — gained the `runners.kubectl` case TASK-103's
+  "Left open" promised once this landed; `composePassthroughFixture` was generalised to
+  `composePassthroughFixtureWith(t, body)` so a test can vary the stack shape.
+
+### Non-vacuity probe
+
+Each half reverted independently in a scratch copy of the tree:
+
+| reverted | fails | still passes |
+|---|---|---|
+| half 1 (`DetectPlugin` fallback) | `…RunnersFormOnNameLookup` (modernproc/modernnative/modernk8s), `…AgreesWithSortedStack`, `TestRunnersOnlyEntryStillLoads`, `stack log modernproc` | every legacy control, and all kubectl tests |
+| half 2 (accessor call sites) | `KubectlEntries finds both shapes` → `[legacyk8s]`, `ktl … runners.kubectl` → `--namespace did not survive into "get pods"` | every `DetectPlugin` test |
+
+Under half 1 reverted, `stack log modernproc` fails as **"succeeded; expected the missing-log-file
+error"** — the original defect's real danger. The docker shim exits 0, so DVA reported success
+while shelling out to compose for an entry that has no container.
+
+`make test` green under `-race`; `internal/config` 65.9% → 66.5%, `internal/cli` 62.6% → 62.7%.
 
 ## Related
 
-- [TASK-103](../done/103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
+- [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
   command; 103 is about DVA's flags reaching kubectl, this is about the entry's config not
   reaching it. Fixing either does not fix the other.
-- [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md) — found while tracing
+- [TASK-092](092-stack-log-forwards-root-flags-to-docker.md) — found while tracing
   `stack log`'s passthrough; `stack.go:299` is the branch immediately after 092's fix.
