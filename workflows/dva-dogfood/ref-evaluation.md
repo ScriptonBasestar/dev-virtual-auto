@@ -28,7 +28,7 @@ surfaces:
     discover: provision entries or profiles declared by the target
     instances: single
   - id: lifecycle_boundary
-    discover: a service or process owned by more than one of stack, plans, applications, interaction
+    discover: a service or process owned by more than one of stack, plans, applications, interaction, or the reserved built-in command namespace
     instances: per_overlap
   - id: subproject
     discover: subprojects declared in the root dva.yml, and directories holding their own dva.yml
@@ -39,6 +39,9 @@ surfaces:
   - id: runtime_truth
     discover: long-running services the target declares with a tracked PID or bound port
     instances: single
+  - id: absent_section_route
+    discover: a section a command family reads (stack, applications, plans) that is absent in this target's dva.yml
+    instances: per_absent_section
   - id: no_change
     discover: always instantiable
     instances: single
@@ -57,6 +60,14 @@ the declared target:
 - `instances: per_subproject` / `per_overlap` yields one case per discovered
   instance, `id` = `<surface>:<instance>`, instances sorted lexically so the
   order is reproducible.
+- `instances: per_absent_section` inverts the rule: the absent section is the
+  instance, not a non-instance. It yields one case per section a command family
+  reads that the target's `dva.yml` lacks, `id` = `absent_section_route:<section>`,
+  absent sections sorted lexically. File this surface not-applicable only when no
+  command family reads a section the target lacks — absence here is the thing
+  tested, not the reason to skip. Each case asks whether the command's answer (a)
+  states a next action, (b) states what the config does declare, and (c) is
+  parseable under `--json`.
 - A surface with no instance in this target is **not** a case. Record it in
   `evaluation.not_applicable_surfaces` with the evidence that showed its absence
   — the absent file, the empty section, the command output. Never invent a case

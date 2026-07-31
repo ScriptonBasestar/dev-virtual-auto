@@ -3,7 +3,7 @@ id: TASK-082
 title: "The dogfood evaluation files an absent surface as not-applicable, so no cycle can score how dva answers it"
 type: decision
 priority: P3
-status: decision
+status: done
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 60 cross-run comparison"
@@ -62,9 +62,33 @@ must be treated as a **cross-run promotion**, not a regression. Whoever takes th
 the task how stage 60 learns that — a recorded baseline reset, or a hash-change branch in the
 comparison itself.
 
+## Resolution
+
+**Decision: A.** An `absent_section_route` surface is the only option where the finding class
+shows up in the score, and the loop's whole purpose is to find what 074 found by hand.
+
+Shipped, coupled with [TASK-123](123-dogfood-loop-cannot-score-a-reserved-name-collision.md) as
+one manifest edit so the two surface changes share a single `case_manifest_hash` bump:
+
+- `workflows/dva-dogfood/ref-evaluation.md` — added the `absent_section_route` surface
+  (`instances: per_absent_section`) before `no_change`; added the `per_absent_section` dispatch
+  bullet, which states the inversion (the absent section is the instance, not a non-instance) and
+  carries the (a) next-action / (b) what-config-declares / (c) `--json`-parseable rubric in-place.
+- `workflows/dva-dogfood/60-evaluate.md` — one cross-run-promotion clause: a run whose
+  `case_manifest_hash` differs from its predecessor's is itself a promotion, so the
+  manifest-induced case-set delta is not reported as a regression.
+
+The (c) caveat at line 52-55 is now partly moot: [TASK-079](../done/079-json-flag-does-not-cover-failures.md)
+shipped the `--json` failure envelope, so the route commands are `--json`-parseable on the
+absent-section path (measured: `app up myapp --json` emits `{"error":{…}}`). Criterion (c) is no
+longer universally failing on day one.
+
+Criteria 2-4 are runtime verifications: they fire when the dogfood loop next runs against a
+stack-only target, not at this edit. The manifest + stage-60 change is the actionable scope.
+
 ## Acceptance criteria
 
-- [ ] A decision is recorded here with its rationale | verify: `human — this file names the chosen option`
-- [ ] If A or C: an absent section produces a scored case | verify: `human — run one cycle against a stack-only fixture and read evaluation.cases for the absent applications section`
-- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 60 output on the run after the hash change`
-- [ ] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: `human — a compose-less target still files the compose surface as not applicable`
+- [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
+- [ ] If A or C: an absent section produces a scored case | verify: `human — run one cycle against a stack-only fixture and read evaluation.cases for the absent applications section` — **deferred to the next dogfood cycle; the surface is in the manifest**
+- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 60 output on the run after the hash change` — **the promotion clause is in 60-evaluate.md; deferred to the next cycle**
+- [ ] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: `human — a compose-less target still files the compose surface as not applicable` — **deferred to the next cycle; the `per_absent_section` bullet scopes not-applicable explicitly**

@@ -102,4 +102,10 @@ surface set. Compare models only when model sensitivity is the stated
 hypothesis; do not multiply models by default. Cross-run evidence may support
 promotion but never replaces current-run gates.
 
+A run whose `case_manifest_hash` differs from its predecessor's is itself a
+cross-run promotion: the manifest was edited (a surface added or widened), so
+the case set is not comparable to the predecessor's. Compare this run only
+against its own fresh baseline; do not report the manifest-induced case-set
+delta as a regression. Record the hash change as the promotion reason.
+
 </scoring>
