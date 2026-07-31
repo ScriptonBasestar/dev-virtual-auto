@@ -15,7 +15,11 @@ import (
 )
 
 var stackCmd = &cobra.Command{
-	Use:   "stack [command]",
+	// "stack", not "stack [command]": cobra prints UseLine() as a second Usage row now that
+	// this command is runnable, and with the old value that row read `dva stack [command]
+	// [flags]` — which reads as though the runnable form takes a subcommand, when in fact
+	// NoArgs rejects one. Cobra appends the `dva stack [command]` row itself. TASK-098.
+	Use:   "stack",
 	Short: "Manage infrastructure lifecycle (compose, helm, kubectl, ...)",
 	Long: `Manage stack entries defined in the 'stack' section of dva.yml.
 
@@ -29,6 +33,20 @@ Use subcommands to control individual or all stack entries.`,
   dva stack down                  # Remove all stack resources
   dva stack status                # Show stack entry statuses
   dva stack log compose           # View logs for a stack entry`,
+
+	// NoArgs and RunE are a pair, and neither works alone. cobra's legacyArgs() lets a
+	// non-root command with subcommands accept arbitrary args for backwards compatibility,
+	// so `dva stack nosuchsub` fell through to this parent; and execute() returns
+	// flag.ErrHelp for a command with no Run/RunE *before* it ever calls ValidateArgs, so
+	// NoArgs by itself would never be consulted. Making the parent runnable moves the
+	// unknown subcommand into NoArgs' hands, which reports it as an error. TASK-098.
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		// Reached only with no args — NoArgs has already rejected anything else. Bare
+		// `dva stack` keeps printing help and exiting 0, as does `dva stack --help`, which
+		// cobra answers earlier still.
+		return cmd.Help()
+	},
 }
 
 var stackUpCmd = &cobra.Command{
@@ -248,6 +266,14 @@ var stackStatusCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e := loadEnv(c)
+
+		// status filters inline rather than through orchestrator.filterEntries, so neither
+		// helper TASK-087 added reached it: a name matching nothing produced an empty table,
+		// which reads exactly like "the stack is empty". Checked before Status() runs, so a
+		// typo costs nothing — the sibling subcommands validate before acting too. TASK-098.
+		if err := validateStackNames(c, "status", args); err != nil {
+			return err
+		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
 		status, err := orch.Status(context.Background())

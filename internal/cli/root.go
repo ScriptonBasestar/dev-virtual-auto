@@ -223,8 +223,15 @@ func Execute() {
 		emitFailureJSON(errMsg)
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 
-		// Only suggest similar commands for unknown/unrecognized commands, not execution failures
-		if len(args) > 0 && !isFlag(args[0]) && strings.Contains(errMsg, "unknown command") {
+		// Only suggest similar commands for unknown/unrecognized commands, not execution failures.
+		//
+		// The unknownCommandToken guard matters now that a nested subcommand can also produce
+		// "unknown command" (TASK-098). suggestCommands only knows top-level names — it ranges
+		// over config.ReservedCommands() — so for `dva stack nosuchsub` it would score args[0],
+		// "stack", find "stack" itself within edit distance 2, and answer "Did you mean? dva
+		// stack": the exact command that just failed. Suggesting nothing beats that.
+		if len(args) > 0 && !isFlag(args[0]) && strings.Contains(errMsg, "unknown command") &&
+			unknownCommandToken(errMsg) == args[0] {
 			if suggestions := suggestCommands(args[0]); len(suggestions) > 0 {
 				fmt.Fprintf(os.Stderr, "\nDid you mean?\n")
 				for _, s := range suggestions {
@@ -369,6 +376,22 @@ func mustLoadConfig() *config.Config {
 		}
 		return env
 	}
+
+// unknownCommandToken returns the offending name from cobra's `unknown command %q for %q`
+// message — the first double-quoted run in the string. Empty when the message is not in that
+// shape, which callers must read as "cannot tell", not as a match. TASK-098.
+func unknownCommandToken(errMsg string) string {
+	start := strings.Index(errMsg, `"`)
+	if start < 0 {
+		return ""
+	}
+	rest := errMsg[start+1:]
+	end := strings.Index(rest, `"`)
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
+}
 
 // suggestCommands returns commands similar to the input using Levenshtein distance.
 func suggestCommands(input string) []string {
