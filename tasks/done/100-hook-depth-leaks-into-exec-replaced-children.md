@@ -4,8 +4,10 @@ title: "`DVA_HOOK_DEPTH=1` is inherited by every `syscall.Exec`-replaced child, 
 type: fix
 priority: P4
 effort: S
-status: todo
+status: done
 created-at: 2026-07-31T00:00:00+09:00
+resolved-at: 2026-07-31T00:00:00+09:00
+resolution: "A, corrected — EnvSlice filters the guard out of the os.Environ() passthrough; hook steps opt back in via WithHookDepth"
 scope: "internal/cli/hooks.go:52-53 — Setenv plus a defer that cannot fire on the ExecReplace path; internal/config/environment.go:88-106 — EnvSlice passes os.Environ() through"
 ---
 
@@ -60,13 +62,77 @@ that reason, not because the mechanism is uncertain.
 
 A is the smallest change that fixes the class rather than the instance.
 
+## Resolution
+
+**Option A, with a correction that A as written required.**
+
+### Why literal A would have been a regression
+
+A says the guard "has no business in a child's environment". That is true of one child and false
+of another, and `EnvSlice` cannot tell them apart because it serves both:
+
+| call site | child | should it see the guard? |
+| --- | --- | --- |
+| `internal/exec/exec.go:28` — `ExecReplace` → `syscall.Exec` | the target `docker`/`kubectl` | **no** — this is the leak |
+| `internal/cli/provision.go:516` — `runShellCommand` | a **hook step**'s `sh -c` | **yes** — this is what the guard is for |
+| `internal/cli/provision.go:492` — `runProvisionCompose` | a hook step's compose call | yes |
+
+A blanket filter in `EnvSlice` closes the first row and opens a worse hole in the second: a hook
+step that shells back into `dva` would no longer be suppressed, its nested `dva` would run its own
+hooks, and those hooks would shell back into `dva` again. Unbounded recursion is strictly worse
+than the latent leak being fixed.
+
+### What was implemented
+
+The guard stops travelling by ambient inheritance and starts travelling explicitly.
+
+1. `EnvSlice` skips `EnvHookDepthKey` in the `os.Environ()` passthrough. Not-leaking is now the
+   default, so no future `ExecReplace` call site has to remember anything — which is the part of
+   A's rationale worth keeping, and the reason B was rejected.
+2. `Environment.WithHookDepth()` returns a **copy** whose `Vars` carry `DVA_HOOK_DEPTH=1`.
+   `EnvSlice` appends `Vars` after the filter and is not subject to it, so hook children opt back
+   in. `wrapWithHooks` passes that copy to all three `runHookSteps` phases.
+
+The copy is not stylistic. `cli.loadEnv` (`root.go:356-359`) caches one `*Environment` in a package
+global and returns the same pointer to the hook executor and to the built-in path that reaches
+`ExecReplace`. Mutating in place would have put the guard straight back into the target's
+environment — the bug, reintroduced by the fix. `TestWithHookDepthDoesNotMutateSource` pins it.
+
+`os.Setenv` at `hooks.go:52` is **kept**. It no longer carries the guard to hook steps, but it
+still covers subprocesses that inherit this process's environment wholesale rather than through
+`EnvSlice`. There is exactly one such production call site:
+`internal/runner/docker_compose.go:216` → `ExecSubprocessOutput("docker", "compose", "ps", ...)`,
+which sets no `Cmd.Env`. Its child is docker, which cannot recurse into `dva`, so the residual is
+recorded rather than closed.
+
+### The gap that let this sit
+
+`grep` over `internal/**/*_test.go` found **no test asserting either direction** before this
+change. A blanket strip would therefore have passed `make test` green while introducing the
+recursion. Three tests now pin both directions and the aliasing hazard.
+
+### Non-vacuity, measured rather than assumed
+
+Each new assertion was mutation-tested — the fix was disabled, the test was confirmed to fail for
+the right reason, and the disable was reverted:
+
+| mutation | result |
+| --- | --- |
+| `if false && key == EnvHookDepthKey` (filter off) | `TestEnvSliceDropsHookDepth` FAILs: slice grows 93 → 94 entries, reports `[DVA_HOOK_DEPTH=1]` |
+| `WithHookDepth` stops setting the var | `TestWithHookDepthCarriesGuardToHookChildren` FAILs: `got [], want exactly [DVA_HOOK_DEPTH=1]` |
+| both reverted | `ok` — and Go's content-keyed test cache reported `(cached)`, confirming the revert was byte-exact |
+
+`TestEnvSliceDropsHookDepth` also carries its own control: it fails fast if the guard is not in the
+process environment to begin with, and if `EnvSlice` returns zero entries. Without those, "no
+`DVA_HOOK_DEPTH` in the output" would be satisfied by an empty slice.
+
 ## Acceptance criteria
 
-- [ ] The child does not inherit the guard | verify: PATH-shadowed shim that prints its own environment — `DVA_HOOK_DEPTH` must be absent; print the grep count
-- [ ] The guard still works where it is needed | verify: the genuine subprocess-recursion case must still be suppressed — print evidence that a nested hook did not re-run
-- [ ] `forceSubprocess` behaviour is unchanged | verify: `go test ./internal/cli/ -run Hook` — print the number of tests selected
-- [ ] Not vacuous | verify: human — revert the fix and confirm the shim sees the variable again
-- [ ] Full suite passes | verify: `make test`
+- [x] The child does not inherit the guard | verify: `go test ./internal/config/ -run HookDepth -v` — `TestEnvSliceDropsHookDepth`, 93 entries returned, 0 matching `DVA_HOOK_DEPTH`
+- [x] The guard still works where it is needed | verify: `go test ./internal/config/ -run HookDepth -v` — `TestWithHookDepthCarriesGuardToHookChildren` asserts a hook child gets exactly `[DVA_HOOK_DEPTH=1]`
+- [x] `forceSubprocess` behaviour is unchanged | verify: `go test ./internal/cli/ -run Hook` — 18 tests selected, ok
+- [x] Not vacuous | verify: mutation table above — both directions fail when their fix is disabled, and both revert to green
+- [x] Full suite passes | verify: `make test` — all ok; `internal/config` coverage 66.6% → 66.7%. `make lint` reports `0 issues.`
 
 ## Related
 
