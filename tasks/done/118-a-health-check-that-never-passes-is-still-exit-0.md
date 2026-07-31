@@ -124,7 +124,7 @@ support `required` (scope guard).
 | `a653ca7` feat(config): add required application health contract | config + schema + contract test | `internal/config/config.go`, `internal/config/schema.json`, `internal/config/health_required_schema_test.go` |
 | `7c16ebc` fix(lifecycle): fail required application readiness timeout | lifecycle else-arm + contract test | `internal/lifecycle/app_manager.go`, `internal/lifecycle/app_health_required_test.go` |
 | `c5ea2d6` docs(config): document required application readiness | docs + generated library | `USAGE.md`, `skills/config/references/schema-reference.md`, `internal/cli/library_reference.txt` |
-| (t5d) docs(tasks): close TASK-118 | this file move only | `tasks/done/118-a-health-check-that-never-passes-is-still-exit-0.md` |
+| c3232b9 docs(tasks): close TASK-118 | this file move only | `tasks/done/118-a-health-check-that-never-passes-is-still-exit-0.md` |
 
 Behaviour in `startWave` alive/not-ready else arm:
 
@@ -135,6 +135,7 @@ Behaviour in `startWave` alive/not-ready else arm:
 ### Verification evidence (machine-verifiable)
 
 Evidence root: `.omo/evidence/task-118-health-required/`
+Four-commit path audit: `.omo/evidence/task-118-health-required/commit-audit.txt`
 
 **Focused tests**
 
