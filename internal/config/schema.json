@@ -406,7 +406,7 @@
         },
         "default_args": {
           "type": "string",
-          "description": "Default arguments for the command",
+          "description": "Default arguments, used when the invocation supplies none. Inherited by a subcommand only while that subcommand does not declare a command of its own: a child's command replaces the parent's rather than extending it, so its arguments start empty. A container subcommand that declares only a description still inherits both.",
           "examples": ["server -p 3000 -b 0.0.0.0"]
         },
         "environment": {

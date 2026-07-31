@@ -86,7 +86,11 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 			"pod":         cmd.Pod,
 			"shell_mode":  cmd.Shell,
 			"environment": cmd.Environment,
-			"arguments":   cmd.Argv,
+			// The effective arguments, not cmd.Argv: default_args is passed to every runner
+			// through commandArgs when Argv is empty, so reporting Argv alone described a
+			// plan the exec would not follow. That gap is why TASK-101 stayed invisible to
+			// anyone checking `dva run rails console --explain` by hand.
+			"arguments": commandArgs(cmd),
 		}
 		if cmd.Service != "" {
 			plan["compose_method"] = cmd.Compose.Method
@@ -108,8 +112,15 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 	if cmd.Pod != "" {
 		fmt.Printf("Pod: %s\n", cmd.Pod)
 	}
-	if len(cmd.Argv) > 0 {
-		fmt.Printf("Arguments: %s\n", strings.Join(cmd.Argv, " "))
+	// Same source as the exec path — see the JSON branch above. Annotated when they came from
+	// default_args rather than from the invocation, because those are precisely the arguments
+	// the user did not type and would otherwise have no way to account for. TASK-101.
+	if args := commandArgs(cmd); len(args) > 0 {
+		origin := ""
+		if len(cmd.Argv) == 0 {
+			origin = "  (from default_args)"
+		}
+		fmt.Printf("Arguments: %s%s\n", strings.Join(args, " "), origin)
 	}
 	fmt.Printf("Shell Mode: %v\n", cmd.Shell)
 	if len(cmd.Environment) > 0 {

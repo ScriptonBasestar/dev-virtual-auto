@@ -162,21 +162,39 @@ func TestInteractionMergeTakesTheChildsSubcommands(t *testing.T) {
 	}
 }
 
-// TestInteractionDefaultArgsInheritIntoSubcommands characterizes behaviour this fix did NOT
-// change and does not endorse: DefaultArgs inherits even when the child replaces Command
-// outright, so `dva run rails console` executes `console server -p 3000 -b 0.0.0.0`. Measured at
-// depth 2 against bin/dva before TASK-095, so it is pre-existing — the fix merely lets depth 3
-// reach the same code. Tracked as TASK-101; when that lands, this assertion is meant to fail and
-// be rewritten deliberately rather than to be discovered by surprise.
-func TestInteractionDefaultArgsInheritIntoSubcommands(t *testing.T) {
+// TestInteractionDefaultArgsStopAtACommandOverride is the deliberate rewrite of the
+// characterization test TASK-095 left behind, TestInteractionDefaultArgsInheritIntoSubcommands.
+// That one asserted the defect it had measured — DefaultArgs inherited even where the child
+// replaced Command outright, so `dva run rails console` executed
+// `console server -p 3000 -b 0.0.0.0` — and was written to fail loudly when TASK-101 landed
+// rather than to be discovered by surprise. It did; this is the inversion, on the same shipped
+// fixture.
+//
+// `rails db` is the control that keeps this honest. It declares no command of its own, so it must
+// STILL inherit: without that row, "never inherit DefaultArgs at all" — option B, a larger change
+// that was not taken — would pass this test too.
+func TestInteractionDefaultArgsStopAtACommandOverride(t *testing.T) {
+	const parentArgs = "server -p 3000 -b 0.0.0.0"
+
+	cases := []struct {
+		name []string
+		want string
+		why  string
+	}{
+		{[]string{"rails"}, parentArgs, "the node that declares them"},
+		{[]string{"rails", "console"}, "", "declares command: console, so the parent's arguments are not its own"},
+		{[]string{"rails", "db"}, parentArgs, "pure container, description: only — inheritance still applies"},
+		{[]string{"rails", "db", "migrate"}, "", "declares command: db:migrate, three levels down"},
+	}
+
 	tree := NewInteractionTree(railsFixture())
-	for _, name := range [][]string{{"rails", "console"}, {"rails", "db", "migrate"}} {
-		cmd := tree.Find(name[0], name[1:]...)
+	for _, tc := range cases {
+		cmd := tree.Find(tc.name[0], tc.name[1:]...)
 		if cmd == nil {
-			t.Fatalf("Find%v = nil", name)
+			t.Fatalf("Find%v = nil", tc.name)
 		}
-		if cmd.DefaultArgs != "server -p 3000 -b 0.0.0.0" {
-			t.Errorf("%v DefaultArgs = %q; if TASK-101 changed this, update the test and its comment", name, cmd.DefaultArgs)
+		if cmd.DefaultArgs != tc.want {
+			t.Errorf("%v DefaultArgs = %q, want %q — %s", tc.name, cmd.DefaultArgs, tc.want, tc.why)
 		}
 	}
 }

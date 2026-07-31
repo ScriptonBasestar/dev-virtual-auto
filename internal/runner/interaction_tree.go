@@ -223,8 +223,21 @@ func mergeInteraction(parent, child *config.InteractionCommand) *config.Interact
 	if child.User != "" {
 		merged.User = child.User
 	}
-	if child.DefaultArgs != "" {
+	// default_args belongs to the command it was written for. A child's command: *replaces* the
+	// parent's outright — see the child.Command / child.CommandLines blocks above, which assign
+	// rather than append — so inheriting the parent's arguments across that replacement attaches
+	// them to a command that never asked for them: in examples/full-stack.yml `dva run rails
+	// console` ran `console server -p 3000 -b 0.0.0.0`, and so did `rails db migrate` and
+	// `rails db seed` with their own command names.
+	//
+	// A pure container child — description: only, like `rails db` — still inherits both the
+	// command and its arguments, which is what lets a group share one argument list. Only
+	// redeclaring the command starts the arguments clean. TASK-101.
+	switch {
+	case child.DefaultArgs != "":
 		merged.DefaultArgs = child.DefaultArgs
+	case child.Command != "" || len(child.CommandLines) > 0:
+		merged.DefaultArgs = ""
 	}
 	if child.Shell != nil {
 		merged.Shell = child.Shell
