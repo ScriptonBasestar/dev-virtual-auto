@@ -1,6 +1,9 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -144,6 +147,73 @@ func TestConflictAdviceNamesOnlyInvocationsThatWork(t *testing.T) {
 			}
 		})
 	}
+}
+
+// usageDocSection returns the body of a USAGE.md section, from its heading to the next heading of
+// the same or higher level.
+func usageDocSection(t *testing.T, heading string) string {
+	t.Helper()
+	_, file, _, _ := runtime.Caller(0)
+	path := filepath.Join(filepath.Dir(file), "..", "..", "USAGE.md")
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read USAGE.md: %v", err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	start := -1
+	for i, l := range lines {
+		if strings.TrimSpace(l) == heading {
+			start = i + 1
+			break
+		}
+	}
+	// Not a soft skip. A renamed heading has to fail loudly, because the alternative is a guard
+	// that scans an empty string and passes — which is the shape of every doc check that was
+	// present and still let the claim through.
+	if start < 0 {
+		t.Fatalf("USAGE.md has no section titled %q; if it was renamed, update this guard", heading)
+	}
+
+	for i := start; i < len(lines); i++ {
+		if strings.HasPrefix(lines[i], "## ") || strings.HasPrefix(lines[i], "### ") {
+			return strings.Join(lines[start:i], "\n")
+		}
+	}
+	return strings.Join(lines[start:], "\n")
+}
+
+// TestUsageDocDoesNotSayReservedConflictsAreIgnored extends the `mustNotHav: "ignored"` guard above
+// from the Go advice strings to the document. The Go strings were covered; USAGE.md was not, and so
+// it told the reader a conflicting name was "조용히 무시" — silently ignored — thirty lines above the
+// paragraph saying the conflict is a hard error that fails validate with exit 1. Both cannot be
+// true, and it is the earlier one a reader acts on.
+//
+// reserved.go's own comment already says why this matters: telling the reader the declaration was
+// ignored sends them looking for a command that never ran. TASK-099.
+func TestUsageDocDoesNotSayReservedConflictsAreIgnored(t *testing.T) {
+	section := usageDocSection(t, "### interaction (예약어와 훅)")
+	if strings.TrimSpace(section) == "" {
+		t.Fatal("the section is empty, so every assertion below would pass vacuously")
+	}
+
+	for _, claim := range []string{"조용히 무시", "silently ignored"} {
+		if strings.Contains(section, claim) {
+			t.Errorf("USAGE.md still says %q; a reserved-name conflict fails `dva validate` with "+
+				"exit 1 and warns on every config load — see ValidateReservedCommands", claim)
+		}
+	}
+
+	// The negative alone is satisfied by deleting the sentence outright. This half requires the
+	// section to still answer the question the reader arrived with.
+	for _, fact := range []string{"exit 1", "에러"} {
+		if !strings.Contains(section, fact) {
+			t.Errorf("USAGE.md's interaction section no longer states %q; removing the wrong "+
+				"claim is only half the fix", fact)
+		}
+	}
+
+	t.Logf("section scanned: %d lines", len(strings.Split(section, "\n")))
 }
 
 // FormatConflictWarnings used to detail conflicts[0] only, which is a map-iteration artifact: the
