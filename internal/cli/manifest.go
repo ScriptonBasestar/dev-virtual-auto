@@ -100,6 +100,19 @@ func buildManifest(c *config.Config) *Manifest {
 		ConfigFile:    c.FilePath(),
 		ProjectDir:    c.FileDir(),
 		ComposeFiles:  c.AllComposeFiles(),
+		// StaticCommands must name every command registered on rootCmd — this document's own doc
+		// comment says the audience is an LLM, and an agent that reads a subset concludes the
+		// missing commands do not exist. It was a hand-copied 13 of 27 until TASK-096.
+		//
+		// It stays a literal rather than a walk over rootCmd.Commands() because Type and Options
+		// have no cobra equivalent (GroupID is 5 coarse groups against 8 types here), and a walk
+		// would still need this table for them. TestStaticCommandsCoverEveryRootCommand is what
+		// actually stops the drift; the derivation would not have.
+		//
+		// The 14 added by TASK-096 take their description from the command's own Short. The
+		// original 13 do not — 12 of them paraphrase it and two (`up`, `down`) predate the plan
+		// concept and no longer describe what the command does. Left alone here deliberately;
+		// filed as TASK-105.
 		StaticCommands: map[string]ManifestCmd{
 			"run": {
 				Description: "Run configured command (run prefix may be omitted)",
@@ -121,6 +134,25 @@ func buildManifest(c *config.Config) *Manifest {
 			"manifest":  {Description: "Output command manifest", Type: "meta"},
 			"ktl":       {Description: "Run kubectl commands", Type: "passthrough"},
 			"version":   {Description: "Show DVA version", Type: "info"},
+
+			// Added by TASK-096. The 13 above are the original curated set and are left byte
+			// for byte as they were; these 14 take their text from the command's Short.
+			"stack":   {Description: "Manage infrastructure lifecycle (compose, helm, kubectl, ...)", Type: "lifecycle"},
+			"app":     {Description: "Manage application lifecycle (ls, up, build, down, restart, log)", Type: "lifecycle"},
+			"ssh":     {Description: "Manage the workspace SSH agent container", Type: "lifecycle"},
+			"infra":   {Description: "Manage infrastructure services (deprecated — folded into stack, use 'dva up')", Type: "lifecycle"},
+			"logs":    {Description: "View output from containers", Type: "compose_shortcut"},
+			"restart": {Description: "Restart services (stop + start)", Type: "compose_shortcut"},
+			"console": {Description: "Launch or inject into a DVA-integrated shell", Type: "passthrough"},
+			"status":  {Description: "Display workspace status (config, lifecycle entries, services)", Type: "query"},
+			"show":    {Description: "Show registered configuration summary (stack entries, plans, commands)", Type: "query"},
+			"doctor":  {Description: "Check environment prerequisites and diagnose common setup issues", Type: "query"},
+			"config":  {Description: "View or manage DVA configuration settings", Type: "config"},
+			"init":    {Description: "Scaffold a new 'dva.yml' configuration in the current directory", Type: "config"},
+			"help":    {Description: "Help about any command", Type: "meta"},
+			// completion and help are registered by cobra inside Execute(), not by an AddCommand
+			// call, so a reader grepping for AddCommand finds 25 and this table lists 27.
+			"completion": {Description: "Generate the autocompletion script for the specified shell", Type: "meta"},
 		},
 		Runners: map[string]ManifestRunner{
 			runner.RunnerDockerCompose: {

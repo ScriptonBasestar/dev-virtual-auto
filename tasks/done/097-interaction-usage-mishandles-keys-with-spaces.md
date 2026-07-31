@@ -197,4 +197,4 @@ for the input class that was broken.
   before any shadowing check runs. Same function, same symptom, different input class.
 - [TASK-095](../done/095-third-level-subcommands-never-expand.md) — the other defect in the same flat key
   space; option A fixes both.
-- [TASK-096](../todo/096-manifest-static-commands-undercounts.md) — the other manifest-correctness defect.
+- [TASK-096](096-manifest-static-commands-undercounts.md) — the other manifest-correctness defect.
