@@ -223,6 +223,7 @@ type HealthCheckConfig struct {
 	StartHint    string `yaml:"start_hint"`    // human-readable start instructions
 	Timeout      int    `yaml:"timeout"`       // health check timeout in seconds (default: 2)
 	ReadyTimeout int    `yaml:"ready_timeout"` // max wait after start in seconds (default: 30)
+	Required     bool   `yaml:"required"`      // opt-in strict readiness (default: false)
 }
 
 // ServiceTagConfig defines per-service tag configuration.

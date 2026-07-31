@@ -1555,7 +1555,12 @@
                 "address": { "type": "string" },
                 "command": { "type": "string" },
                 "timeout": { "type": "integer", "default": 2 },
-                "ready_timeout": { "type": "integer", "default": 30 }
+                "ready_timeout": { "type": "integer", "default": 30 },
+                "required": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "When true, app readiness fails if this health check does not pass (opt-in strict readiness)."
+                }
               },
               "required": ["type"]
             },
@@ -1595,7 +1600,12 @@
                         "address": { "type": "string" },
                         "command": { "type": "string" },
                         "timeout": { "type": "integer", "default": 2 },
-                        "ready_timeout": { "type": "integer", "default": 30 }
+                        "ready_timeout": { "type": "integer", "default": 30 },
+                        "required": {
+                          "type": "boolean",
+                          "default": false,
+                          "description": "When true, app readiness fails if this health check does not pass (opt-in strict readiness)."
+                        }
                       },
                       "required": ["type"]
                     },
