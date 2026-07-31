@@ -216,16 +216,14 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 						// hands back to the shell. Both are emitted once.
 						recordErr(fmt.Errorf("app %s exited during startup (see %s)", name, am.logPath(name)))
 					} else {
-						// Deliberately still a warning, decided on the record in TASK-117:
-						// the process is alive and only the health probe is unhappy, which
-						// DVA cannot distinguish from "slow to warm up". The sharper signal
-						// for a genuinely broken start is the port-ownership check below,
-						// which does error. Promoting this one would change the exit code of
-						// every existing setup with a flaky probe, so it is a product
-						// decision rather than a defect — filed as TASK-118, which also
-						// records the hole this leaves: an app that binds its port but
-						// never answers its probe is caught by neither branch.
-						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
+						// Alive but probe failed. Omitted/false stays advisory (TASK-117);
+						// health.required:true promotes to FAIL + recordErr (TASK-118).
+						if app.Health.Required {
+							fmt.Fprintf(os.Stderr, "[FAIL] app %s not ready after %s\n", name, timeout)
+							recordErr(fmt.Errorf("app %s not ready after %s", name, timeout))
+						} else {
+							fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
+						}
 					}
 				}
 			}
