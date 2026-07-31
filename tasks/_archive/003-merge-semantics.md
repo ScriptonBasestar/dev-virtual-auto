@@ -43,5 +43,5 @@ verification-summary: Verified implementation via git commits 2e25daf through 55
 
 ## References
 
-- [30-config-merge-semantics.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/30-config-merge-semantics.md)
+- [30-config-merge-semantics.md](../../docs/30-config-merge-semantics.md)
 

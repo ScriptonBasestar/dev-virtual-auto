@@ -43,5 +43,5 @@ verification-summary: Verified implementation via git commits 2e25daf through 55
 
 ## References
 
-- [31-execution-plan-resolution.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/31-execution-plan-resolution.md)
+- [31-execution-plan-resolution.md](../../docs/31-execution-plan-resolution.md)
 

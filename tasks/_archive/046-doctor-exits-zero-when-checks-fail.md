@@ -82,5 +82,5 @@ RED proof: before `doctorExitError` existed, tests failed with `undefined: docto
 
 ## References
 
-- [041-status-exit-code-on-unrunnable-entry.md](../decision/041-status-exit-code-on-unrunnable-entry.md) — same exit-code family for `stack status` (still open)
-- [045-doctor-check-fix-implemented-but-schema-forbids-it.md](../decision/045-doctor-check-fix-implemented-but-schema-forbids-it.md)
+- [041-status-exit-code-on-unrunnable-entry.md](../_archive/041-status-exit-code-on-unrunnable-entry.md) — same exit-code family for `stack status` (still open)
+- [045-doctor-check-fix-implemented-but-schema-forbids-it.md](../_archive/045-doctor-check-fix-implemented-but-schema-forbids-it.md)

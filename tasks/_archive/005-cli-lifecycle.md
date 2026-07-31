@@ -42,6 +42,6 @@ CLI를 `plans` 기반 실행 모델에 맞춘다.
 
 ## References
 
-- [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)
-- [USAGE.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/USAGE.md)
+- [40-declarative-stack-and-plans.md](../../docs/40-declarative-stack-and-plans.md)
+- [USAGE.md](../../USAGE.md)
 

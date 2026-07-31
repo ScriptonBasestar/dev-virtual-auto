@@ -165,4 +165,4 @@ down -v` is destructive and worth documenting once someone can prove what it doe
 
 - [027-up-silently-ignores-unknown-args.md](../_archive/027-up-silently-ignores-unknown-args.md) — records `--var`'s absence from help as out of scope; this task picks it up
 - [028-flag-suppresses-default-plan-route.md](./028-flag-suppresses-default-plan-route.md) — owns whether `--var` should work off the plan path
-- [033-restart-discards-service-names.md](../todo/033-restart-discards-service-names.md) — adjacent hunk in compose.go; this task's +9 line shift is why 033 cites its code by content rather than line number
+- [033-restart-discards-service-names.md](../_archive/033-restart-discards-service-names.md) — adjacent hunk in compose.go; this task's +9 line shift is why 033 cites its code by content rather than line number

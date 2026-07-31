@@ -101,6 +101,6 @@ binary. Recorded as TASK-027 rather than fixed here, to keep one task per commit
 
 ## References
 
-- [023-repo-wide-precedence-sweep.md](../_archive/023-repo-wide-precedence-sweep.md) — the sweep that missed this root
-- [012-fix-env-precedence-claim.md](../_archive/012-fix-env-precedence-claim.md) — the original class
-- [018-fix-env-file-precedence.md](../_archive/018-fix-env-file-precedence.md) — why `env_file` > `environment:`
+- [023-stale-os-chain-docs31-docs40.md](../_archive/023-stale-os-chain-docs31-docs40.md) — the sweep that missed this root
+- [012-fix-env-precedence-docs.md](../_archive/012-fix-env-precedence-docs.md) — the original class
+- [018-fix-claude-md-env-precedence.md](../_archive/018-fix-claude-md-env-precedence.md) — why `env_file` > `environment:`

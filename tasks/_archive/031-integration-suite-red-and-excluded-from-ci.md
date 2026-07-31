@@ -237,4 +237,4 @@ this task.
 ## References
 
 - [026-shipped-examples-validate-green-runtime-red.md](./026-shipped-examples-validate-green-runtime-red.md) — same theme: verification reporting something other than the truth
-- [010-schema-runner-allowlist.md](../_archive/010-schema-runner-allowlist.md) — last change to `schema.json`; initially suspected, disproved by the baseline check
+- [010-schema-validate-all-runners.md](../_archive/010-schema-validate-all-runners.md) — last change to `schema.json`; initially suspected, disproved by the baseline check

@@ -41,5 +41,5 @@ subproject import를 새 구조에 맞게 정리한다.
 
 ## References
 
-- [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)
+- [40-declarative-stack-and-plans.md](../../docs/40-declarative-stack-and-plans.md)
 

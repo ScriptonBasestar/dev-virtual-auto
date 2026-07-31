@@ -39,6 +39,6 @@ verification-summary: Verified implementation via git commits 2e25daf through 55
 
 ## References
 
-- [30-config-merge-semantics.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/30-config-merge-semantics.md)
-- [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)
+- [30-config-merge-semantics.md](../../docs/30-config-merge-semantics.md)
+- [40-declarative-stack-and-plans.md](../../docs/40-declarative-stack-and-plans.md)
 

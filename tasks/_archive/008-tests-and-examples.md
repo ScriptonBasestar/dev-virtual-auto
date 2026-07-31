@@ -41,5 +41,5 @@ verification-summary: Verified implementation via git commits 2e25daf through 55
 
 ## References
 
-- [examples/README.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/examples/README.md)
-- [USAGE.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/USAGE.md)
+- [examples/README.md](../../examples/README.md)
+- [USAGE.md](../../USAGE.md)

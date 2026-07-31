@@ -107,5 +107,5 @@ silently fall through: tell the user to name the plan explicitly (`dva up p1 --d
 
 ## References
 
-- [027-up-silently-ignores-unknown-args.md](../todo/027-up-silently-ignores-unknown-args.md) — same function, unknown-positional case
+- [027-up-silently-ignores-unknown-args.md](../_archive/027-up-silently-ignores-unknown-args.md) — same function, unknown-positional case
 - [031-execution-plan-resolution](../../docs/31-execution-plan-resolution.md) — §4-1
