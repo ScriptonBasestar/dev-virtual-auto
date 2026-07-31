@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,6 +17,51 @@ import (
 )
 
 var validateStrict bool
+
+// detectInteractionCollisionWarnings reports command names that more than one declaration
+// produces.
+//
+// Two different YAML keys can flatten to one command name — a subcommand literally named "b c"
+// under `a`, and `a` → `b` → `c` — because the tree joins path segments with a space and
+// schema.json admits a space inside a key. The expansion keeps the first and drops the second,
+// which used to be decided by Go's map seed and is now decided by the sorted walk. Deterministic
+// is not the same as visible, and losing a declared command without a word is the part that had
+// to stop. TASK-104.
+//
+// It asks the tree rather than re-walking c.Interaction here: the paths are the tree's to
+// construct, and a second walk that agreed today would drift the first time expansion changed.
+func detectInteractionCollisionWarnings(c *config.Config) []string {
+	_, collisions := runner.NewInteractionTree(c.Interaction).ListWithCollisions()
+
+	warnings := make([]string, 0, len(collisions))
+	for _, col := range collisions {
+		warnings = append(warnings, fmt.Sprintf(
+			"%s and %s both resolve to the command %q; only the first is reachable — rename one",
+			describeInteractionPath(col.Winner), describeInteractionPath(col.Loser), col.Key))
+	}
+	return warnings
+}
+
+// describeInteractionPath renders a command path as the dva.yml location that declares it, so the
+// warning points at a line the author can edit rather than at the flattened name they never wrote.
+// A segment is quoted only when it contains whitespace — which is exactly the segment that caused
+// the collision, so the quoting doubles as the explanation.
+func describeInteractionPath(path []string) string {
+	var b strings.Builder
+	b.WriteString("interaction")
+	for i, seg := range path {
+		if i > 0 {
+			b.WriteString(".subcommands")
+		}
+		b.WriteString(".")
+		if strings.ContainsAny(seg, " \t\n") {
+			b.WriteString(strconv.Quote(seg))
+		} else {
+			b.WriteString(seg)
+		}
+	}
+	return b.String()
+}
 
 var validateCmd = &cobra.Command{
 	Use:   "validate",
@@ -51,6 +97,12 @@ var validateCmd = &cobra.Command{
 		}
 		report.add("semantic", semanticWarnings...)
 
+		collisionWarnings := detectInteractionCollisionWarnings(c)
+		for _, w := range collisionWarnings {
+			fmt.Fprintf(os.Stderr, "[warn] interaction: %s\n", w)
+		}
+		report.add("interaction_collision", collisionWarnings...)
+
 		driftWarnings := detectConfigDriftWarnings(c)
 		printConfigDriftWarnings(driftWarnings)
 		report.add("config_drift", driftWarnings...)
@@ -59,7 +111,7 @@ var validateCmd = &cobra.Command{
 		printConfigSuggestionWarnings(suggestionWarnings)
 		report.add("config_suggestion", suggestionWarnings...)
 
-		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0) {
+		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0 || len(collisionWarnings) > 0) {
 			return report.fail(fmt.Errorf("config warnings detected; review warnings above or run 'am run dva-improve'"))
 		}
 

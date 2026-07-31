@@ -4,9 +4,10 @@ title: "A declared interaction key that spells a composite key silently deletes 
 type: fix
 priority: P2
 effort: M
-status: todo
+status: done
 created-at: 2026-07-31T11:05:00+09:00
-scope: "internal/runner/interaction_tree.go:96-115 — expandInto writes result[name] unconditionally; reached by both List (listing) and expand (execution, via Find)"
+completed-at: 2026-07-31T11:20:00+09:00
+scope: "internal/runner/interaction_tree.go — expandInto writes result[name] unconditionally; reached by both List (listing) and expand (execution, via Find). internal/cli/validate.go — the warning channel that reports it."
 ---
 
 # Task 104: one map, two key shapes, last writer wins
@@ -144,20 +145,110 @@ callable`), so the channel exists and only the check is missing.
 
 ## Acceptance criteria
 
-- [ ] Execution is deterministic | verify: `dva run a b c --explain` 20× on the intra-entry fixture; print the count of distinct `Command:` lines — must be 1
-- [ ] Listing is deterministic | verify: `dva manifest --format json` 20× on both fixtures; print the count of distinct outputs — must be 1 each
-- [ ] The collision is not silent | verify: `dva validate` must name both colliding declarations and the key they share; print the message
-- [ ] No command disappears without a word | verify: `dva manifest --format json \| jq '.dynamic_commands \| length'` — print it next to the number of declared commands, for both fixtures
-- [ ] Collision-free configs are untouched | verify: compare `dva manifest` across all `examples/*.yml` before and after; print the number of files compared and the number differing (must be 0)
-- [ ] Not vacuous | verify: human — revert each part separately and confirm the determinism assertion and the report assertion fail independently
-- [ ] Full suite passes | verify: `make test`
+- [x] Execution is deterministic | verify: `dva run a b c --explain` 20× on the intra-entry fixture; print the count of distinct `Command:` lines — must be 1
+- [x] Listing is deterministic | verify: `dva manifest --format json` 30× on both fixtures; print the count of distinct `.dynamic_commands` — must be 1 each
+- [x] The collision is not silent | verify: `dva validate` must name both colliding declarations and the key they share; print the message
+- [x] No command disappears without a word | verify: `dva manifest --format json \| jq '.dynamic_commands \| length'` — print it next to the number of declared commands, for both fixtures
+- [x] Collision-free configs are untouched | verify: compare `dva manifest` across all `examples/*.yml` before and after; print the number of files compared and the number differing (must be 0)
+- [x] Not vacuous | verify: human — revert each part separately and confirm the determinism assertion and the report assertion fail independently
+- [x] Full suite passes | verify: `make test`
+
+## Resolution
+
+Both parts of decision A, implemented and measured against a baseline binary built from `7b1669e`
+(`git archive HEAD`), which is this repo without the fix.
+
+**Part 1 — determinism.** `internal/runner/interaction_tree.go`: `sortedNames()` fixes the iteration
+order of both `t.entries` and `entry.Subcommands`, and `expandInto` changes from last-writer-wins to
+**first**-writer-wins. Sorting alone would have been enough for determinism — last-writer-wins over a
+sorted walk is equally reproducible — but first-writer-wins is what gives the surviving command the
+shorter, more specific path and gives the report a stable Winner/Loser to name.
+
+Recursion continues into a *losing* declaration's subcommands: its children sit at longer paths that
+need not collide with anything, and skipping them would turn one dropped command into a dropped
+subtree. `TestSubcommandsOfALoserStillExpand` pins that.
+
+**Part 2 — report.** `List()` now delegates to a new `ListWithCollisions()`, which is **one walk**,
+not a detector running beside the expansion. A second traversal that re-derives what the expansion
+already knows is a second source of truth, and the two drift — the lesson from
+[TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
+[TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md). `internal/cli/validate.go` renders
+each `Collision` through `describeInteractionPath`, which addresses a declaration the way the author
+wrote it in `dva.yml` (`interaction.a.subcommands."b c"`) rather than by the flattened name they
+never wrote. Emitted under category `interaction_collision`; counts toward `--strict`.
+
+### Measured
+
+| criterion | fixed | baseline (7b1669e) |
+| --- | --- | --- |
+| `dva run a b c` × 20 (intra-entry) | 20 × `RAN-NESTED-SUB` | 18 × `RAN-NESTED-SUB`, **2 × `RAN-LITERAL-SUB`** |
+| `dva run a b c --explain` × 20 | 1 distinct `Command:` line | — |
+| distinct `.dynamic_commands` × 30, intra-entry | **1** | 2 |
+| distinct `.dynamic_commands` × 30, cross-entry | **1** | 2 |
+| `dva validate` on either fixture | names both declarations + the shared key | silent, `✅ dva.yml is valid` |
+
+The message, verbatim:
+
+```
+[warn] interaction: interaction.a.subcommands.b.subcommands.c and interaction.a.subcommands."b c"
+  both resolve to the command "a b c"; only the first is reachable — rename one
+```
+
+Command counts, still short by one per collision — which is the point of part 2, since A diagnoses
+rather than resolves:
+
+| fixture | declarations | `dynamic_commands` | collisions reported |
+| --- | --- | --- | --- |
+| intra-entry | 4 | 3 | 1 |
+| cross-entry | 3 | 2 | 1 |
+
+Blast radius across the whole corpus: **19 files compared, 18 producing a manifest** (`modules/main.yml`
+yields none standalone), **89 dynamic commands, 0 manifests differing** from baseline, **0 new
+`[warn] interaction:` lines**. No shipped example spells one path two ways, which is what kept this
+below P1.
+
+### Non-vacuity
+
+Each half reverted separately in its own copy of the tree, full packages run with no `-run` selector:
+
+| probe | `TestList/FindIsDeterministic…` | `TestTheLoserIsMissing…`, `TestCollisionWarningNames…` | `TestCollisionsAreReported` |
+| --- | --- | --- | --- |
+| A — sorted iteration reverted, report kept | **FAIL** | pass | FAIL |
+| B — report gutted, sorting kept | pass | **FAIL** | FAIL |
+| control — both parts present | pass | pass | pass |
+
+The two halves fail independently. `TestCollisionsAreReported` fails under both because it asserts
+*which* declaration wins, which needs the sort and the report together.
+
+### Two things the probes caught
+
+- **`-run 'Collision'` does not select `TestTheLoserIsTheOneMissingFromTheMap`.** The first probe run
+  used that selector and silently skipped two of the tests it was supposed to exercise — the same
+  vacuous-selector trap recorded in [TASK-096](096-manifest-static-commands-undercounts.md). Both
+  probes were re-run against the full packages.
+- **The test's own failure message lost the boundary it was testing.** `t.Errorf("winner = %v")` on a
+  path prints both `["a","b","c"]` and `["a","b c"]` as `[a b c]`, so probe A's failure read
+  `winner = [a b c], want [a b c]`. Changed to `%q`. Exactly the defect this task is about, occurring
+  in the report of the report.
+
+### Left open
+
+- `manifest`'s `generated_at` is a second-resolution wall clock, so "distinct whole-manifest outputs
+  over N runs" is not a determinism measurement — a loop crossing a second boundary reports 2 either
+  way. The criterion above was corrected mid-verification to compare `.dynamic_commands`. Nothing is
+  wrong with `generated_at`; it just cannot be part of a reproducibility check.
+- Part 2 diagnoses; it does not make both commands listable. That is decision A working as chosen —
+  see the SOUL.md reasoning above — not an omission. A config hitting this warning has two commands
+  and one name, and the fix is to rename one.
+- `gofmt -l` still flags `internal/runner/interaction_tree.go`. Verified pre-existing at HEAD (the
+  `ResolvedCommand` struct comment alignment), owned by TASK-078, deliberately not mixed in here.
 
 ## Related
 
-- [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — found while measuring it. 097
+- [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — found while measuring it. 097
   fixed the *rendering* for space-containing keys and added `ResolvedCommand.Path`, which is the
   structure option B would key on. After 097 whichever entry survives gets a correct
   `usage_example` — `dva 'rails console'` reaches the literal, `dva rails console` reaches the
   subcommand — so the two are coherent; only the disappearance remains.
-- [TASK-095](../done/095-third-level-subcommands-never-expand.md) — the other defect in this flat
+- [TASK-095](095-third-level-subcommands-never-expand.md) — the other defect in this flat
   key space.

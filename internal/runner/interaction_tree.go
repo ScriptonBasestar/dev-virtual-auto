@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -77,20 +78,58 @@ func (t *InteractionTree) Find(name string, argv ...string) *ResolvedCommand {
 	return nil
 }
 
+// Collision records two declarations that resolve to the same command name.
+//
+// Winner is the path that keeps the name; Loser is the one dropped. Which is which is decided by
+// the sorted walk — that is, by the config — and not by Go's map seed, so it is reproducible.
+type Collision struct {
+	Key    string
+	Winner []string
+	Loser  []string
+}
+
 // List returns all commands (including subcommands) as a flat map.
 func (t *InteractionTree) List() map[string]*ResolvedCommand {
+	commands, _ := t.ListWithCollisions()
+	return commands
+}
+
+// ListWithCollisions returns the same map as List plus every command name that more than one
+// declaration produces.
+//
+// It is one walk rather than a second traversal beside List, because a collision detector that
+// re-derives what the expansion already knows is a second source of truth and the two drift —
+// the lesson TASK-101 and TASK-097 both landed on.
+func (t *InteractionTree) ListWithCollisions() (map[string]*ResolvedCommand, []Collision) {
 	result := make(map[string]*ResolvedCommand)
-	for name, entry := range t.entries {
-		t.expandInto([]string{name}, entry, result)
+	var collisions []Collision
+	for _, name := range sortedNames(t.entries) {
+		t.expandInto([]string{name}, t.entries[name], result, &collisions)
 	}
-	return result
+	return result, collisions
 }
 
 // expand builds a flat map of all commands for a given entry.
 func (t *InteractionTree) expand(name string, entry *config.InteractionCommand) map[string]*ResolvedCommand {
 	result := make(map[string]*ResolvedCommand)
-	t.expandInto([]string{name}, entry, result)
+	t.expandInto([]string{name}, entry, result, nil)
 	return result
+}
+
+// sortedNames returns an interaction map's keys in a fixed order.
+//
+// Go randomizes map iteration, and expandInto writes into one flat key space where two different
+// declarations can spell the same key. Ranging at random meant the survivor changed between runs
+// of the same binary on the same file — including inside Find, so `dva run a b c` executed
+// different commands on consecutive invocations. Sorting does not resolve the collision; it makes
+// the resolution a property of the config, which is what SOUL.md 신념 2 requires. TASK-104.
+func sortedNames(m map[string]*config.InteractionCommand) []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // expandInto walks entry and its subcommands into result, keyed by the space-joined path.
@@ -98,19 +137,33 @@ func (t *InteractionTree) expand(name string, entry *config.InteractionCommand) 
 // It takes the path rather than the joined name so that ResolvedCommand can carry the segments
 // it was built from: the join is one-way once any segment contains a space, and a consumer that
 // re-splits the key gets the boundary wrong. TASK-097.
-func (t *InteractionTree) expandInto(path []string, entry *config.InteractionCommand, result map[string]*ResolvedCommand) {
+//
+// collisions may be nil, for callers that only want the map.
+func (t *InteractionTree) expandInto(path []string, entry *config.InteractionCommand, result map[string]*ResolvedCommand, collisions *[]Collision) {
 	name := strings.Join(path, " ")
-	cmd := buildResolved(name, entry)
-	cmd.Path = path
-	result[name] = cmd
 
-	for subName, subEntry := range entry.Subcommands {
-		merged := mergeInteraction(entry, subEntry)
+	// First writer wins, and the walk above is sorted, so the winner is stable. Overwriting was
+	// what made the survivor depend on the map seed; refusing to overwrite is what makes it not.
+	// Reporting the loser is Collisions' job — dropping it silently is the defect. TASK-104.
+	if existing, taken := result[name]; taken {
+		if collisions != nil {
+			*collisions = append(*collisions, Collision{Key: name, Winner: existing.Path, Loser: path})
+		}
+	} else {
+		cmd := buildResolved(name, entry)
+		cmd.Path = path
+		result[name] = cmd
+	}
+
+	// Recursion continues even when the name above was refused: the losing declaration's own
+	// children sit at longer paths that need not collide with anything.
+	for _, subName := range sortedNames(entry.Subcommands) {
+		merged := mergeInteraction(entry, entry.Subcommands[subName])
 		// A fresh backing array per child. append(path, subName) would let two siblings share
 		// one array and overwrite each other's last segment, so the paths would come out
 		// correct only for whichever child ran last.
 		child := append(append(make([]string, 0, len(path)+1), path...), subName)
-		t.expandInto(child, merged, result)
+		t.expandInto(child, merged, result, collisions)
 	}
 }
 
