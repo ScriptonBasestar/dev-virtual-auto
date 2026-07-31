@@ -171,8 +171,11 @@ and after; it exists to stop the fix from trading a false failure for a blanket 
 
 - **`dva doctor` exits 0 with `[FAIL]` lines on screen.** `doctorExitError` counts only
   `r.UserDefined && !r.Passed`, so no built-in check can reach the exit code. Measured: the before
-  binary printed `3 passed, 2 failed` and exited **0**. Filed separately — it is a different defect
-  from this one and changing it changes doctor's contract with CI.
+  binary printed `3 passed, 2 failed` and exited **0**. This is deliberate and pinned —
+  `TestDoctorExitError_BuiltinFailedOnly_Advisory` says so in its name — so it is not a defect
+  found here. What this task does raise is narrower: `Compose config resolves` failing is not a
+  heuristic like the `.gitignore` advice it is grouped with, it means the files genuinely do not
+  parse. Filed as a decision, not a fix.
 - **Whether "the configured compose binary is absent" deserves its own failing check.** It is a real
   problem on that machine — `dva up` will fail — but it is not a statement about whether the compose
   files resolve, and this check should say only what it measured.
