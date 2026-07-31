@@ -119,17 +119,54 @@ Without plans, use the legacy stack and applications lifecycle.
 		noWait := false
 		devMode := false
 		docker := false
-		for _, a := range args {
-			switch a {
-			case "--force":
+		var leftover []string
+		for i := 0; i < len(args); i++ {
+			a := args[i]
+			switch {
+			case a == "--force":
 				force = true
-			case "--no-wait":
+			case a == "--no-wait":
 				noWait = true
-			case "--dev":
+			case a == "--dev":
 				devMode = true
-			case "--docker":
+			case a == "--docker":
 				docker = true
+
+			// --var belongs to the plan path (runPlanUp consumes it before this loop is
+			// reached) and upCmd.Long documents it as "Ignored off the plan path". So it is a
+			// known flag here, not an unknown one, and the guard below must not reject it —
+			// TestUpWithoutPlansGuardOnlyInspectsPlanNameSlot pins that. Its VALUE has to be
+			// consumed with it or `--var FOO=bare` would leave FOO=bare behind, which carries
+			// no leading dash and would then be rejected as a stray positional argument.
+			//
+			// Ignoring it silently is the same shape as the defect this task is about, so it
+			// says so on stderr. The exit code and the documented semantics are unchanged.
+			case a == "--var":
+				if i+1 < len(args) {
+					i++
+				}
+				fmt.Fprintln(os.Stderr, "[warn] --var applies only when running a plan ('dva up <plan>'); ignored here")
+			case strings.HasPrefix(a, "--var="):
+				fmt.Fprintln(os.Stderr, "[warn] --var applies only when running a plan ('dva up <plan>'); ignored here")
+
+			default:
+				leftover = append(leftover, a)
 			}
+		}
+		// Before TASK-113 this switch had no default and nothing followed it, so every
+		// unrecognised token was discarded: `dva up --force=true` and `dva up --forse` both
+		// ran as if no flag had been given and exited 0.
+		//
+		// Two guards, because `dva up` accepts no positional names either. rejectUpPositionalArg
+		// already ran above, but only on args[0] — with a flag in front of it, as in
+		// `dva up --dev nosuchthing`, it returns nil at its leading-dash check and the name
+		// reached here to be dropped. Measured: exit 0, the whole stack started, the argument
+		// silently gone.
+		if err := rejectUnknownFlags("up", "", leftover, withSelectors([]string{"--force", "--no-wait", "--dev", "--docker", "--var"}, stackSelectorFlags)); err != nil {
+			return err
+		}
+		if err := rejectUpPositionalArg(c, leftover); err != nil {
+			return err
 		}
 
 		if err := applyEnv(e, c, envName); err != nil {

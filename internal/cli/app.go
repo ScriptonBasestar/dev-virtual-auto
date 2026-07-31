@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 
@@ -63,6 +64,12 @@ var appStopCmd = &cobra.Command{
 		if len(c.Applications) == 0 {
 			return noApplications(c, "stop", args)
 		}
+		// stop and down leave flag parsing to cobra (no DisableFlagParsing), so a mistyped
+		// flag is already rejected there. An unknown NAME was not: HaltApps and DownApps
+		// return nothing, so they walked an empty selection and exited 0 in silence.
+		if err := validateAppNames(c, args); err != nil {
+			return err
+		}
 
 		am := lifecycle.NewAppManager(c, e)
 		am.HaltApps(args...)
@@ -79,6 +86,9 @@ var appDownCmd = &cobra.Command{
 
 		if len(c.Applications) == 0 {
 			return noApplications(c, "remove", args)
+		}
+		if err := validateAppNames(c, args); err != nil {
+			return err
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -110,10 +120,23 @@ var appUpCmd = &cobra.Command{
 				appNames = append(appNames, a)
 			}
 		}
+		// Before the len(c.Applications) check, not after: a malformed argument is wrong
+		// whatever the config holds, and noApplications would otherwise be handed "--dve"
+		// as though it were an application name. Measured before TASK-113:
+		// `dva app up --dev=true` started every app in non-dev mode and exited 0.
+		if err := rejectUnknownFlags("app up", "an application name", appNames,
+			withSelectors([]string{"--dev"}, appSelectorFlags)); err != nil {
+			return err
+		}
 
 		// After flag parsing, so the answer can depend on whether a target was named.
 		if len(c.Applications) == 0 {
 			return noApplications(c, "start", appNames)
+		}
+		// After that guard, so an unknown name in a project with no applications: section
+		// still gets noApplications' explanation rather than an empty "declared in dva.yml".
+		if err := validateAppNames(c, appNames); err != nil {
+			return err
 		}
 
 		// Show mode header
@@ -192,10 +215,17 @@ var appRestartCmd = &cobra.Command{
 				appNames = append(appNames, a)
 			}
 		}
+		if err := rejectUnknownFlags("app restart", "an application name", appNames,
+			withSelectors([]string{"--dev"}, appSelectorFlags)); err != nil {
+			return err
+		}
 
 		// After flag parsing, so the answer can depend on whether a target was named.
 		if len(c.Applications) == 0 {
 			return noApplications(c, "restart", appNames)
+		}
+		if err := validateAppNames(c, appNames); err != nil {
+			return err
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -232,10 +262,17 @@ var appBuildCmd = &cobra.Command{
 				appNames = append(appNames, a)
 			}
 		}
+		if err := rejectUnknownFlags("app build", "an application name", appNames,
+			withSelectors([]string{"--docker"}, appSelectorFlags)); err != nil {
+			return err
+		}
 
 		// After flag parsing, so the answer can depend on whether a target was named.
 		if len(c.Applications) == 0 {
 			return noApplications(c, "build", appNames)
+		}
+		if err := validateAppNames(c, appNames); err != nil {
+			return err
 		}
 
 		am := lifecycle.NewAppManager(c, e)
@@ -381,6 +418,62 @@ func noApplications(c *config.Config, action string, names []string) error {
 		return nil
 	}
 	return fmt.Errorf("no applications declared, so there is no '%s' to %s; %s", names[0], action, absentApplicationsAdvice(c))
+}
+
+// validateAppNames fails on an APP argument that matches no configured application.
+//
+// The app family's counterpart to validateStackNames, and the other half of TASK-113.
+// Rejecting unknown flags does not reach this: `dva app up nosuchapp` involves no flag at
+// all, yet produced byte-for-byte the same output as `dva app up --dev=true` did — an
+// application status table and exit 0. The path is selectApps -> ResolveApp fails ->
+// logger.Debug (invisible without --debug) -> continue -> empty map -> StartApps'
+// `if len(apps) == 0 { return nil }`. "Nothing matched" and "no names given, so match
+// everything" both arrive there as an empty selection, and the second is a success.
+//
+// Checked in the CLI rather than in StartApps because HaltApps and DownApps return no
+// error at all, so lifecycle has no seam that covers the whole family. Here one call per
+// subcommand covers up/restart/build/stop/down with the same message.
+//
+// Variants count as names: ResolveApp accepts "app.variant", so `available` lists them
+// too or the suggestion line would omit a name that actually works.
+func validateAppNames(c *config.Config, names []string) error {
+	var unknown []string
+	for _, n := range names {
+		if _, _, err := c.ResolveApp(n); err != nil {
+			unknown = append(unknown, n)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+
+	available := make([]string, 0, len(c.Applications))
+	for name, app := range c.Applications {
+		available = append(available, name)
+		for vName := range app.Variants {
+			available = append(available, name+"."+vName)
+		}
+	}
+	sort.Strings(available)
+
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "no such application: %s", strings.Join(unknown, ", "))
+	if len(available) == 0 {
+		msg.WriteString("\n       → dva.yml declares no applications")
+	} else {
+		msg.WriteString("\n       → declared in dva.yml: " + strings.Join(available, ", "))
+	}
+	var suggestions []string
+	for _, n := range unknown {
+		suggestions = append(suggestions, similarTo(n, available)...)
+	}
+	if len(suggestions) > 0 {
+		msg.WriteString("\n\nDid you mean?")
+		for _, k := range suggestions {
+			fmt.Fprintf(&msg, "\n  dva app up %s", k)
+		}
+	}
+	return fmt.Errorf("%s", msg.String())
 }
 
 func boolToStrategy(docker bool) string {

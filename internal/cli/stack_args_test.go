@@ -164,7 +164,7 @@ func TestStackLogKeepsForwardingUnknownFlags(t *testing.T) {
 
 	// The other half of the same distinction: `stack up` does not forward anything to
 	// docker, so the identical flag is a typo there and must be rejected.
-	if err := rejectUnknownFlags("up", []string{"--tail=5"}, "--force"); err == nil {
+	if err := rejectUnknownFlags("stack up", "a stack entry name", []string{"--tail=5"}, []string{"--force"}); err == nil {
 		t.Error("rejectUnknownFlags accepted --tail=5 for `stack up`, which has no passthrough to forward it to")
 	}
 }

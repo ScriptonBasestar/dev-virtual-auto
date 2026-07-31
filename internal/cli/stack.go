@@ -91,7 +91,7 @@ start an explicit service subset.
 				filteredNames = append(filteredNames, a)
 			}
 		}
-		if err := rejectUnknownFlags("up", filteredNames, "--force", "--no-wait"); err != nil {
+		if err := rejectUnknownFlags("stack up", "a stack entry name", filteredNames, withSelectors([]string{"--force", "--no-wait"}, stackSelectorFlags)); err != nil {
 			return err
 		}
 		if err := validateStackNames(c, "up", filteredNames); err != nil {
@@ -165,7 +165,7 @@ DVA-specific flags:
 		mode, _ = applyDefaultMode(c, mode)
 
 		// stop takes no flags of its own, so anything left with a leading dash is a typo.
-		if err := rejectUnknownFlags("stop", names); err != nil {
+		if err := rejectUnknownFlags("stack stop", "a stack entry name", names, stackSelectorFlags); err != nil {
 			return err
 		}
 		if err := validateStackNames(c, "stop", names); err != nil {
@@ -228,7 +228,7 @@ DVA-specific flags:
 				filteredNames = append(filteredNames, a)
 			}
 		}
-		if err := rejectUnknownFlags("down", filteredNames, "-v", "--volumes"); err != nil {
+		if err := rejectUnknownFlags("stack down", "a stack entry name", filteredNames, withSelectors([]string{"-v", "--volumes"}, stackSelectorFlags)); err != nil {
 			return err
 		}
 		if err := validateStackNames(c, "down", filteredNames); err != nil {
@@ -364,6 +364,24 @@ var stackSelectorFlags = []string{
 	"--exclude-tag", "--exclude-tags", "--dry-run", "--debug", "--json",
 }
 
+// appSelectorFlags is the subset of the above that the `dva app` family actually honours.
+//
+// app up/restart/build call parseDvaFlags like everything else, so it consumes --env and the
+// tag filters without complaint — but they take only its first return value
+// (`mode, _, _, _, args := parseDvaFlags(args)` at app.go:101, :183 and :223) and drop env and
+// both tag lists on the floor. --dry-run/--debug/--json are kept because parseDvaFlags sets the
+// package globals directly rather than returning them.
+//
+// Advertising the discarded ones as "accepted here" would be a false statement in an error
+// message whose whole purpose is to tell the user what works. That they are silently ignored
+// rather than rejected is a separate defect, recorded in TASK-113.
+var appSelectorFlags = []string{"--mode", "-M", "--dry-run", "--debug", "--json"}
+
+// withSelectors returns a command's own flags followed by the shared ones it honours.
+func withSelectors(own []string, selectors []string) []string {
+	return append(append([]string{}, own...), selectors...)
+}
+
 // rejectUnknownFlags fails on a leftover argument that still looks like a flag.
 //
 // up/stop/down read whatever parseDvaFlags leaves behind as stack entry NAMEs, and
@@ -377,20 +395,40 @@ var stackSelectorFlags = []string{
 // `docker compose logs` — measured: `dva stack log infra --tail=5 --since=1h` reaches
 // docker as `logs infra --tail=5 --since=1h`. There an unrecognised flag is docker's to
 // interpret, and rejecting it would delete a working feature.
-func rejectUnknownFlags(sub string, args []string, own ...string) error {
-	known := append(append([]string{}, own...), stackSelectorFlags...)
+//
+// path is the command as the user types it after `dva` ("stack up", "up", "app up"), and
+// noun names what a bare word here would have meant ("a stack entry name") so the message
+// can explain why the token was not read as one. Pass an empty noun for a command that
+// takes no positional names at all — `dva up` — where that sentence would be a lie.
+//
+// TASK-113 generalised these two from the hardcoded "dva stack %s" and "stack entry": the
+// same defect existed on `dva up` and the `dva app` family, and reusing the helper verbatim
+// would have told a user of `dva app up` to consult `dva stack app up`.
+//
+// known is the full list to advertise, supplied by the caller rather than assembled here.
+// It used to be `own... + stackSelectorFlags` unconditionally, which is right for the stack
+// commands but wrong for the app family: those call parseDvaFlags too, so --env and the tag
+// filters are consumed without error, but they keep only mode and discard the rest. Listing
+// them as "accepted here" would advertise flags that silently do nothing. See appSelectorFlags.
+//
+// NOTE: known is used only to build the message. The rejection itself fires on ANY
+// dash-prefixed argument, so callers must pass what is LEFT after the flags they recognise
+// have been consumed, never the raw args.
+func rejectUnknownFlags(path, noun string, args, known []string) error {
 	for _, a := range args {
 		if len(a) < 2 || !strings.HasPrefix(a, "-") {
 			continue
 		}
 		var msg strings.Builder
-		fmt.Fprintf(&msg, "unknown flag %q for \"dva stack %s\"", a, sub)
-		msg.WriteString("\n       → a stack entry name cannot start with \"-\", so this was read as one and matched nothing")
+		fmt.Fprintf(&msg, "unknown flag %q for \"dva %s\"", a, path)
+		if noun != "" {
+			fmt.Fprintf(&msg, "\n       → %s cannot start with \"-\", so this was read as one and matched nothing", noun)
+		}
 		msg.WriteString("\n       → accepted here: " + strings.Join(known, ", "))
 		if s := similarTo(a, known); len(s) > 0 {
 			msg.WriteString("\n\nDid you mean?")
 			for _, k := range s {
-				fmt.Fprintf(&msg, "\n  dva stack %s %s", sub, k)
+				fmt.Fprintf(&msg, "\n  dva %s %s", path, k)
 			}
 		}
 		return fmt.Errorf("%s", msg.String())
