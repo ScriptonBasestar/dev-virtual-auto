@@ -240,24 +240,62 @@ func TestPrintYAMLRoundTrips(t *testing.T) {
 	}
 }
 
-// TestMarshalFailureLeavesStdoutClean covers the half of the original comment that was
-// already true, so that a future change to printDocument cannot quietly make it false.
+// TestMarshalFailureLeavesStdoutClean feeds the same unmarshalable value to both printers.
 //
-// PrintJSON only. The YAML twin cannot be written yet: yaml.Marshal reaches
-// panic("cannot marshal type: " + ...) at encode.go:182, and its own handleErr recovers
-// only its private yamlError type and re-panics everything else — so PrintYAML crashes the
-// process on an input PrintJSON reports an error for, and its error return can never carry
-// this class of failure at all. Asserting that panic here would write the defect down as
-// the requirement. It is TASK-120 instead.
+// A channel has no JSON or YAML representation. encoding/json returns UnsupportedTypeError;
+// yaml.v3 used to panic — its own recover re-panics anything that is not its private yamlError
+// type — so before TASK-120 the YAML row here crashed the test binary instead of failing it,
+// and PrintYAML's error branch read as 75 percent coverage because the statement was
+// unreachable. The recover in PrintYAML turns that panic into a returned error, and both rows
+// now assert the same contract: a marshal failure is reported, and stdout stays empty.
 func TestMarshalFailureLeavesStdoutClean(t *testing.T) {
+	unmarshalable := make(chan int)
+
+	t.Run("PrintJSON", func(t *testing.T) {
+		ResetStdoutDocument()
+		defer ResetStdoutDocument()
+
+		if err := PrintJSON(unmarshalable); err == nil {
+			t.Error("PrintJSON accepted a value it cannot marshal")
+		}
+		if StdoutHasDocument() {
+			t.Error("nothing was printed, so stdout must still count as empty")
+		}
+	})
+
+	t.Run("PrintYAML", func(t *testing.T) {
+		ResetStdoutDocument()
+		defer ResetStdoutDocument()
+
+		if err := PrintYAML(unmarshalable); err == nil {
+			t.Error("PrintYAML accepted a value it cannot marshal")
+		}
+		if StdoutHasDocument() {
+			t.Error("nothing was printed, so stdout must still count as empty")
+		}
+	})
+}
+
+// yamlErrorFailer makes yaml.Marshal return a plain error rather than panic, so the marshal-
+// error branch of PrintYAML — the `if err != nil { return err }` the recover sits beside — is
+// exercised separately from the unsupported-kind panic the channel above drives. Without this
+// row that branch reads as uncovered and looks like the dead code TASK-120 removed.
+type yamlErrorFailer struct{}
+
+func (yamlErrorFailer) MarshalYAML() (any, error) {
+	return nil, errors.New("intentional yaml marshal error")
+}
+
+func TestPrintYAMLReturnsMarshalError(t *testing.T) {
 	ResetStdoutDocument()
 	defer ResetStdoutDocument()
 
-	// A channel has no JSON representation.
-	unmarshalable := make(chan int)
-
-	if err := PrintJSON(unmarshalable); err == nil {
-		t.Error("PrintJSON accepted a value it cannot marshal")
+	err := PrintYAML(yamlErrorFailer{})
+	if err == nil {
+		t.Fatal("PrintYAML returned nil for a value whose MarshalYAML failed")
+	}
+	if !strings.Contains(err.Error(), "intentional yaml marshal error") {
+		t.Errorf("the marshal error must survive; got %v", err)
 	}
 	if StdoutHasDocument() {
 		t.Error("nothing was printed, so stdout must still count as empty")

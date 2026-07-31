@@ -2,6 +2,7 @@ package output
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 
@@ -52,6 +53,11 @@ func printDocument(w io.Writer, s string) error {
 
 // PrintJSON marshals data as indented JSON and prints to stdout.
 //
+// The error return covers marshal failures and write failures alike: encoding/json returns
+// json.UnsupportedTypeError for a value it cannot encode, and printDocument returns whatever
+// the write returned. PrintYAML keeps the same contract — see its comment for the one
+// library difference that makes that non-trivial.
+//
 // os.Stdout is read here rather than captured in a package variable because several CLI
 // tests capture output by assigning a pipe to it — internal/cli/show_test.go unmarshals
 // what this function writes — and a writer resolved once at init would keep writing past
@@ -66,7 +72,21 @@ func PrintJSON(data any) error {
 }
 
 // PrintYAML marshals data as YAML and prints to stdout.
-func PrintYAML(data any) error {
+//
+// The error return covers marshal failures and write failures alike, matching PrintJSON.
+// The non-trivial part is that gopkg.in/yaml.v3 raises an unsupported-kind condition as a
+// panic rather than an error — its own recover (yaml.v3 handleErr) re-panics anything that is
+// not its private yamlError type — so without the recover below a value yaml cannot encode
+// terminates the process instead of reaching this return. That is why this function's error
+// branch used to read as 75 percent coverage while every other function in the package reached
+// full coverage: the statement was unreachable. Recovering here converts that panic into the
+// same kind of returned error encoding.json hands back for the identical input. TASK-120.
+func PrintYAML(data any) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("yaml marshal: %v", r)
+		}
+	}()
 	bytes, err := yaml.Marshal(data)
 	if err != nil {
 		return err
