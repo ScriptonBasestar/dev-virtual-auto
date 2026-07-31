@@ -24,6 +24,13 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
+		// The fourth site of TASK-092's leak: both exec paths below append args straight
+		// into kubectl's argv, so `dva --debug ktl get pods` ran `kubectl get pods --debug`.
+		// This must run before the args[0] entry lookup, or `dva --debug ktl <entry> …`
+		// would try to resolve "--debug" as the entry name. --dry-run is deliberately left
+		// in place, as on the compose passthroughs: kubectl has its own. TASK-103.
+		args = consumeRootPersistentFlags(args)
+
 		kubectlEntries := c.KubectlEntries()
 		if len(kubectlEntries) == 0 {
 			// Fallback: use primary kubectl config for backward compatibility
