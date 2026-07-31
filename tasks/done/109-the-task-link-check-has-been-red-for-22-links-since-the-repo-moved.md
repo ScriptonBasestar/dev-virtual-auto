@@ -140,5 +140,5 @@ So the headline number from this task deserves its caveat: the check is green ag
 
 - [TASK-110](../todo/110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — found by
   this task's non-vacuity probe rather than by its main check.
-- [TASK-106](../todo/106-usage-md-is-46-percent-over-the-doc-size-standard.md) — the other unenforced
+- [TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md) — the other unenforced
   standard found this week; same shape, in that nothing measures it until someone counts by hand.

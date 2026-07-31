@@ -36,6 +36,26 @@ The seven:
 | 223 | 12040 | `workflows/dva-dogfood/METHODOLOGY.md` | 1.2× bytes only |
 | 418 | 10915 | `docs/30-config-merge-semantics.md` | 1.07× bytes only |
 
+### Update 2026-07-31 — the root documents, and USAGE.md is still growing
+
+Carried over from [TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md), filed
+and withdrawn as a duplicate of this task. Of the six root documents, `USAGE.md` is the only one over
+the limit — the rest have room:
+
+| document | lines | bytes | within standard |
+| --- | --- | --- | --- |
+| **USAGE.md** | **730** | **27792** | **no** |
+| README.md | 203 | ~6K | yes |
+| AGENTS.md | 172 | ~8K | yes |
+| ARCHITECTURE.md | 171 | ~7K | yes |
+| PRODUCT.md | 71 | ~3K | yes |
+| SOUL.md | 68 | ~3K | yes |
+
+`USAGE.md` was 729/27633 in the sweep above and is **730/27792** today — it gained a line while
+[TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) corrected a sentence inside
+it. Whichever option is chosen, the number is not static, which is the argument for the gate rather
+than for a one-time split.
+
 `agent-mesh-flows/shared/library/dva-schema.md` is **not** an eighth entry. It is a git symlink
 (mode `120000`) to `skills/config/references/schema-reference.md`, md5-identical — the intended
 single-source skills architecture working correctly. Counting it separately would report one

@@ -4,8 +4,10 @@ title: "USAGE.md is 730 lines against a 500-line standard and 27KB against a 10K
 type: chore
 priority: P4
 effort: M
-status: todo
+status: superseded
+superseded-by: TASK-090
 created-at: 2026-07-31T11:35:00+09:00
+closed-at: 2026-07-31T12:55:00+09:00
 scope: "USAGE.md — 730 lines / 27KB vs the 500-line / 10KB per-document standard in skill:docs:doc-standards"
 ---
 
@@ -58,19 +60,47 @@ because no reader routinely holds the whole file at once.
 
 ## Decision needed
 
-Which of A / B / C. This is a structural change to the document a user is most likely to have
-bookmarked, so it is not a call to make silently — B is legitimate if the manual is deliberately one
-long reference.
+~~Which of A / B / C.~~ — see Resolution.
 
 ## Acceptance criteria
 
-- [ ] The outcome is measured, not asserted | verify: print line count and byte size for every root `*.md` after the change
-- [ ] No link is orphaned | verify: run the repo link check; print links checked and broken (broken must not increase from its current 22, all of which are pre-existing in `tasks/_archive/`)
-- [ ] The standard is enforced or the exception is recorded | verify: whichever of A/B/C is chosen, print the artifact — the test output, or the written exception
-- [ ] Full suite passes | verify: `make test`
+- [x] Superseded before any criterion applied | verify: `grep -c 'USAGE.md' tasks/decision/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md` — non-zero, i.e. 090 already covers this file
+
+## Resolution — withdrawn as a duplicate of TASK-090
+
+Filed 2026-07-31, withdrawn the same day. **Not a defect report; a duplicate one.**
+
+[TASK-090](../decision/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) was
+already open in `decision/` asking the same question, and asking it better:
+
+| | this task (106) | TASK-090 |
+| --- | --- | --- |
+| files measured | 6 root `*.md` | **147 tracked `.md`** |
+| documents found over the limit | 1 | **7** |
+| headline claim | "USAGE.md is the single outlier" | USAGE.md is one of seven |
+| notes the standard is unstated in-repo | no | yes — 0 hits for `500`/`10240`/`doc-standards` |
+| costs a split would incur | not measured | 33 inbound refs; `skillgen` link rewriting |
+| recommendation | none | B, with reasoning |
+
+**The narrow measurement produced a wrong headline.** "USAGE.md is the single outlier" is true of the
+six root documents and false of the repository — `skills/config/references/schema-reference.md` is
+larger, at 794 lines / 34708 bytes. Measuring the convenient corpus instead of the real one is how a
+subset masquerades as a survey.
+
+Two open tasks asking one question is the defect this repo keeps closing elsewhere — `SOUL.md` 신념 3,
+하나의 동작에는 하나의 소유자만 둔다. The owner is 090.
+
+**Carried across to 090** (the one thing here that was not already there): the root-document
+comparison, and that `USAGE.md` is still growing — 729/27633 when 090 measured it, **730/27792**
+today, having gained a line while [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md)
+corrected a sentence in it.
+
+Nothing else from this file was worth moving.
 
 ## Related
 
+- [TASK-090](../decision/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) — the
+  owner of this question. Decide there.
 - [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) — measured this while closing it;
   the contradiction 099 fixed is the kind of thing document length produces.
 - [TASK-096](../done/096-manifest-static-commands-undercounts.md) — the same audience argument, applied
