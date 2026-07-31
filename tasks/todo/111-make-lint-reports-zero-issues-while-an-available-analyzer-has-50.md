@@ -53,8 +53,11 @@ Run it and it reports **50 findings — 39 of them in non-test code**, across 13
 None of these are correctness bugs, and that is the point worth being precise about: **this is not a
 claim that the code is broken.** It is a claim about what a green gate licenses a reader to believe.
 
-Two analyzers that are already installed disagree with `0 issues.`: `modernize` at 50, and `gofmt -s`
-at 9 files ([TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md), still open — re-confirmed at 9 today). A gate whose
+Two analyzers that are already installed disagreed with `0 issues.`: `modernize` at 50, and
+`gofmt -s` at 9 files. The second half has since been closed —
+[TASK-078](../done/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) formatted the nine
+files in `621d55a` and added `make fmt-check` to the Makefile and to CI, so `make lint` now depends
+on `fmt-check` and formatting is genuinely gated. **`modernize` at 50 is what remains.** A gate whose
 coverage nobody has stated is a gate whose silence means nothing in particular, which is the same
 shape as [TASK-109](../done/109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md)
 and [TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — a
@@ -77,9 +80,10 @@ caused [TASK-107](../done/107-command-suggestions-come-out-in-a-different-order-
 
 ## Decision needed
 
-Which of A / B / C, and — if A or B — whether it lands before or after
-[TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md), since both produce wide mechanical diffs over overlapping files and
-interleaving them would make either one hard to review.
+Which of A / B / C. **The sequencing question is settled**: gofmt first, modernize second, separate
+commits — decided 2026-07-31, and TASK-078's half has landed, so a `modernize` diff can no longer be
+confused with a formatting diff. Whichever option is chosen, it starts from a tree that is already
+`gofmt -s` clean and gated.
 
 ## Acceptance criteria
 
@@ -90,6 +94,6 @@ interleaving them would make either one hard to review.
 
 ## Related
 
-- [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
+- [TASK-078](../done/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
 - [TASK-107](../done/107-command-suggestions-come-out-in-a-different-order-every-run.md) — touched two
   of the 16 `maps.Copy` sites while fixing the map-iteration defect in that same function.

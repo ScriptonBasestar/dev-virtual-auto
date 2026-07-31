@@ -142,7 +142,7 @@ fail safe.
 - `suggestCommands` still cannot answer for a nested miss at all. `dva stack statu` now errors
   correctly but offers nothing, where suggesting `status` from the parent's own subcommands
   would be natural. Left out deliberately: it needs a second suggestion path, not a guard.
-- `internal/cli/stack.go` and `internal/cli/root.go` are both in [TASK-078](../todo/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s
+- `internal/cli/stack.go` and `internal/cli/root.go` are both in [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s
   nine gofmt-drifting files, unchanged by this task. Every line added here is gofmt-canonical;
   reformatting the rest is 078's call, and 078 is a pending decision.
 

@@ -184,7 +184,7 @@ for the input class that was broken.
   silently rewritten by `make fmt`. Cost one round trip here; worth knowing before someone
   documents shell quoting again.
 - `internal/runner/interaction_tree.go` still fails `gofmt` — it was already in
-  [TASK-078](../todo/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s set at HEAD (the struct
+  [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s set at HEAD (the struct
   comment alignment, untouched by this change), so it is left for that task rather than mixed in.
 
 ## Related

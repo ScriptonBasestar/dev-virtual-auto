@@ -184,7 +184,7 @@ because this task's Left open section already scoped the stream question out; it
 carried by TASK-093 alongside the shadowing.
 
 `internal/cli/compose.go` is gofmt-dirty at HEAD (4 hunks, all far from this change) and was
-left alone — [TASK-078](../todo/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) owns that decision.
+left alone — [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) owns that decision.
 
 ## Left open
 

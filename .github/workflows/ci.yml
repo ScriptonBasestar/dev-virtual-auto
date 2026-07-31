@@ -40,6 +40,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # golangci-lint's default set does not check formatting, so a green Lint
+      # job said nothing about gofmt and nine files had drifted. TASK-078.
+      - name: Format
+        run: make fmt-check
+
       # Pin golangci-lint to the version in .mise.toml. It must be built with
       # Go >= the go.mod directive, so keep these in sync when bumping Go.
       - name: Lint

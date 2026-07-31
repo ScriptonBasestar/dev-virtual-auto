@@ -12,7 +12,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration lint clean fmt vet help generate check-generate
+.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate
 
 ## build: Build the dva binary
 build: generate
@@ -41,7 +41,7 @@ test-integration:
 	go test -tags=integration -race ./internal/integration/...
 
 ## lint: Run linters (golangci-lint v2, pinned in .mise.toml)
-lint: vet
+lint: vet fmt-check
 	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
 		mise exec -- golangci-lint run ./...; \
 	elif command -v golangci-lint >/dev/null 2>&1; then \
@@ -57,6 +57,20 @@ vet:
 ## fmt: Format code
 fmt:
 	gofmt -w -s .
+
+## fmt-check: Verify every Go file satisfies gofmt -s (CI)
+fmt-check:
+	@total=$$(find . -path ./tmp -prune -o -name '*.go' -print | wc -l | tr -d ' '); \
+	if [ "$$total" -eq 0 ]; then \
+		echo "ERROR: fmt-check found no .go files — it would have passed vacuously"; exit 1; \
+	fi; \
+	bad=$$(gofmt -s -l .); \
+	if [ -n "$$bad" ]; then \
+		echo "ERROR: not gofmt -s formatted — run 'make fmt' and commit:"; \
+		printf '%s\n' "$$bad" | sed 's/^/  /'; \
+		exit 1; \
+	fi; \
+	echo "gofmt -s: $$total files checked, 0 unformatted"
 
 ## clean: Remove build artifacts
 clean:

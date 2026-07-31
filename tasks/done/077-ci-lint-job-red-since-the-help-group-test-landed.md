@@ -69,4 +69,4 @@ Seven files under `internal/cli/` do not satisfy `gofmt` — nine repo-wide — 
 where a top-level `func loadEnv` and the root command's `PersistentPreRun` block are indented one
 level too deep. It predates `6fca01e` (identical `gofmt -d` output at `600f1db` and `6fca01e`) and
 no CI job checks formatting, so it is not the cause of this failure. Filed separately as
-[TASK-078](../todo/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md).
+[TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md).
