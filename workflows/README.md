@@ -35,7 +35,7 @@ content, not its owner.
 **decoupled** from that framework's gateway / catalog / CE controller, so it runs
 **standalone with only this repo** — hand `00-start-cycle.md` to any agent; no
 `prmpt-gateway` or devenv access is needed. `prmpt` keeps a reference pointer only
-(see `tasks/todo/054-thin-prmpt-dva-dogfood-after-workflow-import.md`).
+(see `tasks/blocked/054-thin-prmpt-dva-dogfood-after-workflow-import.md`).
 
 Scope boundary: only `packages/dva` is DVA-specific and belongs here. The rest of
 `prmpt` (its gateway CLI, catalog, and ~31 non-DVA domain packages) is
