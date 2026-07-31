@@ -150,7 +150,7 @@ not a repair — the redirect dies if `dev-virtual-auto` is ever reused as a rep
 
 ## Follow-ups, not folded in
 
-- **[TASK-063](../todo/063-documented-release-download-has-no-release.md)** — `go install`
+- **[TASK-063](../blocked/063-documented-release-download-has-no-release.md)** — `go install`
   works, but `README.md:25`'s download URL 404s because **no release and no tag has ever
   existed**. The rename made that line name the right repo; it did not make it work. An
   earlier note in TASK-057 called this resolved by the rename, which was wrong.

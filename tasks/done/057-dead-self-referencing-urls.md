@@ -171,7 +171,7 @@ to `dva` — which fixes the *name* in both lines without touching this ai=deny 
 Half of it is genuinely retired: `go install` now works. The download URL still 404s,
 because the repo has never published a release or a tag — a different defect, found while
 verifying this claim rather than assuming it, and tracked in
-[TASK-063](../todo/063-documented-release-download-has-no-release.md).
+[TASK-063](../blocked/063-documented-release-download-has-no-release.md).
 
 That decision inverts what this task standardised on: every URL now says
 `dev-virtual-auto`, and after the rename the canonical name is `dva`. The post-rename
