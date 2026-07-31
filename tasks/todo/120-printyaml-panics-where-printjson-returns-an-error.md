@@ -1,0 +1,96 @@
+---
+id: TASK-120
+title: "`output.PrintYAML` panics on a value it cannot marshal, so its `error` return can never carry that failure"
+type: fix
+priority: P3
+effort: S
+status: todo
+created-at: 2026-07-31T00:00:00+09:00
+scope: "internal/output/output.go:67 PrintYAML — yaml.Marshal panics rather than returning; four call sites in internal/cli"
+---
+
+# Task 120: the error return that cannot report the error
+
+Found while writing the tests for [TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md).
+A test that fed the same unmarshalable value to both printers passed on the JSON side and
+crashed the test binary on the YAML side.
+
+## Measured
+
+```
+go test ./internal/output/ -run MarshalFailure -v
+  --- FAIL: TestMarshalFailureLeavesStdoutClean (0.00s)
+  panic: cannot marshal type: chan int [recovered, repanicked]
+    gopkg.in/yaml.v3.(*encoder).marshal   encode.go:182
+    gopkg.in/yaml.v3.Marshal              yaml.go:222
+    …/internal/output.PrintYAML           output.go:68
+
+go tool cover -func=cov.out
+  PrintJSON    100.0%
+  PrintYAML     75.0%      <- the uncovered statement is `return err`
+```
+
+The coverage gap is the defect. `PrintYAML`'s error branch sits at 75% while every other
+function in the package reaches 100%, because the statement it guards is unreachable.
+
+## Why
+
+`gopkg.in/yaml.v3` raises a plain string panic for an unsupported kind
+(`encode.go:182`: `panic("cannot marshal type: " + in.Type().String())`), and its own
+recovery helper only converts its private error type back into a return value
+(`yaml.go:288-296`):
+
+```go
+func handleErr(err *error) {
+	if v := recover(); v != nil {
+		if e, ok := v.(yamlError); ok {
+			*err = e.err
+		} else {
+			panic(v)          // <- everything else keeps going up
+		}
+	}
+}
+```
+
+So `yaml.Marshal` returns an error for a malformed document and terminates the process for
+an unsupported type. `encoding/json` makes the opposite choice and returns
+`UnsupportedTypeError` for the same input, which is why the two printers diverge.
+
+## Reachability
+
+Four call sites: `internal/cli/manifest.go:27`, `internal/cli/list.go:229`,
+`internal/cli/list.go:250`, `internal/cli/config_dump.go:27`. The first three marshal
+purpose-built structs. `config_dump` marshals a whole `*config.Config`, so its exposure is
+whatever that type grows to hold — the risk is a future field, not a present one. Nothing
+here is known to crash today; what is wrong today is that the signature promises a report
+it cannot make.
+
+## The decision this needs
+
+Not mechanical, which is why it was not folded into TASK-114:
+
+- **Recover and return.** Matches `PrintJSON`, makes the signature honest, and makes the
+  75% statement reachable. Costs the fail-fast: a `chan` reaching a config dump is a
+  programming error, and converting it into a returned error means it surfaces as a tidy
+  CLI message in production instead of a loud crash in a test.
+- **Leave the panic and drop the pretence.** Document that an unmarshalable value is a
+  programming error and that the error return covers write failures only. Cheaper, and
+  arguably the correct reading of what yaml.v3 intends — but it leaves the two printers
+  behaving differently on identical input, which is the thing that caused this to be found
+  in the first place.
+
+Pick one before writing code. Whichever is chosen, `PrintJSON` and `PrintYAML` must
+document the same contract.
+
+## Acceptance criteria
+
+- [ ] The divergence is reproduced first | verify: `go test ./internal/output/ -run MarshalFailure -v` — a test feeding `make(chan int)` to both printers, recording which returns and which panics
+- [ ] The chosen contract is implemented | verify: `go test ./internal/output/ -run 'MarshalFailure' -v`
+- [ ] Both printers document the same contract | verify: `human — read the two doc comments side by side; they must not disagree about what the error return covers`
+- [ ] No unreachable statement is left behind | verify: `go test ./internal/output/ -coverprofile=/tmp/c.out && go tool cover -func=/tmp/c.out` — PrintYAML must not sit below PrintJSON because of dead code
+- [ ] Full suite passes | verify: `make test`
+
+## Related
+
+- [TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md) — added the
+  first tests this package ever had, which is how this surfaced.

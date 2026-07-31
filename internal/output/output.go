@@ -2,14 +2,16 @@ package output
 
 import (
 	"encoding/json"
-	"fmt"
+	"io"
+	"os"
 
 	"gopkg.in/yaml.v3"
 )
 
-// stdoutHasDocument records that one of the printers below has already put a document on
-// stdout. It is set only on a successful write, so a marshalling failure — which prints
-// nothing — leaves stdout still empty as far as callers are concerned.
+// stdoutHasDocument records that one of the printers below has already put bytes of a
+// document on stdout. It is set when a write actually delivered bytes, not when one was
+// merely attempted: a marshalling failure prints nothing and leaves it false, and so does
+// a write that fails having delivered nothing. A write that fails partway does set it.
 var stdoutHasDocument bool
 
 // StdoutHasDocument reports whether a document has been printed to stdout in this process.
@@ -24,15 +26,43 @@ func StdoutHasDocument() bool { return stdoutHasDocument }
 // first case to print would suppress every later case's envelope.
 func ResetStdoutDocument() { stdoutHasDocument = false }
 
+// printDocument writes one marshalled document to w, records whether stdout ended up
+// holding bytes, and reports what the write returned.
+//
+// The record is keyed on the byte count rather than on the error, and that is the whole
+// point of splitting this out. A write that fails after delivering part of a document has
+// dirtied stdout exactly as thoroughly as one that succeeded, and the flag has one
+// consumer — emitFailureJSON in internal/cli/root.go — that asks precisely whether stdout
+// is dirty. Keying on err == nil instead would let a failure envelope be appended to a
+// truncated document, handing a consumer two half-objects where the fix was supposed to
+// leave it one whole one and an exit code.
+//
+// w is os.Stdout at both call sites. It is a parameter because the failure paths are hard
+// to reach otherwise: a full filesystem under stdout does produce the error, but measuring
+// it took a 1 MB disk image, and HFS+ returned a byte count of zero on both attempts — so
+// the partial case the branch above exists for was never observed in the wild and is
+// reachable only from a writer that stops short deliberately.
+func printDocument(w io.Writer, s string) error {
+	n, err := io.WriteString(w, s)
+	if n > 0 {
+		stdoutHasDocument = true
+	}
+	return err
+}
+
 // PrintJSON marshals data as indented JSON and prints to stdout.
+//
+// os.Stdout is read here rather than captured in a package variable because several CLI
+// tests capture output by assigning a pipe to it — internal/cli/show_test.go unmarshals
+// what this function writes — and a writer resolved once at init would keep writing past
+// them to the real one.
 func PrintJSON(data any) error {
 	bytes, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(bytes))
-	stdoutHasDocument = true
-	return nil
+	// The trailing newline is the one fmt.Println used to supply.
+	return printDocument(os.Stdout, string(bytes)+"\n")
 }
 
 // PrintYAML marshals data as YAML and prints to stdout.
@@ -41,7 +71,7 @@ func PrintYAML(data any) error {
 	if err != nil {
 		return err
 	}
-	fmt.Print(string(bytes))
-	stdoutHasDocument = true
-	return nil
+	// yaml.Marshal already terminates its output with a newline, which is why this half of
+	// the package used fmt.Print where PrintJSON used fmt.Println.
+	return printDocument(os.Stdout, string(bytes))
 }
