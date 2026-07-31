@@ -65,6 +65,34 @@ Option 3 is the only one that does not force a choice on existing users, and it 
 one that adds surface area to a config file the project's own guardrails try to keep small.
 That trade-off is the decision.
 
+## Recommendation (recorded for the human decision, not yet confirmed)
+
+**C — configurable, defaulting to today's warning.** Add `health.required: bool` (default
+`false`) on the application's health-check config; when `true`, the `[warn] app %s not ready`
+branch calls `recordErr` exactly as the three sibling `[FAIL]` branches TASK-117 fixed do, so
+the run exits non-zero. When `false`/absent, behaviour is byte-for-byte today.
+
+The reasoning, for the human to confirm or override:
+
+- This branch is reached **only when the user already opted in to waiting** (`if !opts.Wait { return }`
+  gates it at `app_manager.go:181-183`). So whoever hits it asked DVA to confirm readiness — that
+  is the audience option 2 protects. But option 2 makes the choice for every project at once, and
+  a probe slower than `ready_timeout` is a common, non-broken condition. C lets the opt-in that
+  already exists at `Wait` extend one level deeper, to per-app strictness, without breaking the
+  default.
+- It is the only option that does not regress an existing caller. Option 1 keeps the bind-but-
+  never-healthy app reporting success — the gap this task exists to name. Option 2 closes the gap
+  by changing the default exit code for every project with a slow probe.
+- The "one more knob" cost is real but bounded: it sits beside `ready_timeout`, which is already a
+  per-app health knob, so it does not open a new category of config so much as complete one.
+
+If the human picks C, the change is: `Required bool` on `HealthCheckConfig` (`config.go:217`),
+honoured in the `else` arm at `app_manager.go:218-229`, one test in `app_start_exit_test.go`, and
+a USAGE.md line stating `dva up` means "started" unless `health.required: true` opts into "ready".
+
+If the human picks 1 or 2 instead, this recommendation is wrong and the implementation differs —
+hence the recorded recommendation rather than code.
+
 ## Acceptance criteria
 
 - [ ] The option is chosen and recorded here with its reasoning | verify: `human — this file names the chosen option`
