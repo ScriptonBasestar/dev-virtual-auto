@@ -39,10 +39,10 @@ func captureStdout(t *testing.T, fn func()) string {
 // emptiness check and `continue` without printing anything at all — so the step vanished,
 // and the profile reported success.
 //
-// The table runs through BOTH runners on purpose. LocalRunner.executeSteps and
-// DockerComposeRunner.executeSteps are line-for-line identical apart from how they hand a
-// command off, and the task's acceptance criterion is that they take the same branch; a fix
-// applied to one and not the other passes a single-runner test and fails this one.
+// The table runs through EVERY runner on purpose. The three executeSteps differ only in how they
+// hand a command off — since TASK-094 they literally share one loop, runStepLoop — and the task's
+// acceptance criterion is that they take the same branch; a fix applied to one and not the others
+// passes a single-runner test and fails this one.
 func TestStepWithoutRunIsReported(t *testing.T) {
 	env := &config.Environment{}
 
@@ -51,14 +51,7 @@ func TestStepWithoutRunIsReported(t *testing.T) {
 	// config was harmless; now they execute it, and a nil config would have meant a real
 	// `docker compose up -d postgres` from a unit test.
 	cfg := composeConfig("echo")
-	runners := map[string]func(*config.Environment, []config.ProvisionItem) error{
-		"local": (&LocalRunner{
-			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
-		}).executeSteps,
-		"docker_compose": (&DockerComposeRunner{
-			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
-		}).executeSteps,
-	}
+	runners := stepRunners(t, cfg)
 
 	for name, executeSteps := range runners {
 		t.Run(name, func(t *testing.T) {

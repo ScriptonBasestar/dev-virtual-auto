@@ -61,44 +61,7 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 	// Ensure container state is detected once up front.
 	r.autoDetectComposeMethod()
 
-	for i, step := range steps {
-		label := step.Step
-		if label == "" {
-			label = fmt.Sprintf("step %d", i+1)
-		}
-		// Same branch, same wording as LocalRunner.executeSteps — these two loops are
-		// otherwise line-for-line identical, and the acceptance criterion for TASK-083 is
-		// that they take the same branch.
-		if step.IsInert() {
-			fmt.Printf("  → %s\n", label)
-			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
-			continue
-		}
-		// Same fall-through as LocalRunner.executeSteps, for the same reason (TASK-089):
-		// a note must not swallow the step's work.
-		noted := step.Note != ""
-		if noted {
-			fmt.Printf("  → %s: %s\n", label, step.Note)
-		}
-		cmds := step.RunCommands()
-		if len(cmds) == 0 && step.Raw != "" {
-			cmds = []string{step.Raw}
-		}
-		// Same payload test as LocalRunner.executeSteps, for the same reason (TASK-085): the
-		// five keys below are not `run:` commands, and `len(cmds) == 0` discarded them.
-		if len(cmds) == 0 && !hasStepKeys(step) {
-			continue
-		}
-		if !noted {
-			fmt.Printf("  → %s\n", label)
-		}
-		handled, err := runComposeStepKeys(env, r.Opts.Config, step)
-		if err != nil {
-			return fmt.Errorf("step %q failed: %w", label, err)
-		}
-		if handled {
-			continue
-		}
+	return runStepLoop(env, r.Opts.Config, steps, func(cmds []string) error {
 		for _, c := range cmds {
 			c = strings.TrimSpace(c)
 			if c == "" {
@@ -108,15 +71,11 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			// execComposeStep, not execCompose: the latter replaces the process, which
 			// would make this loop's second iteration unreachable (TASK-091).
 			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
-				return fmt.Errorf("step %q failed: %w", label, err)
+				return err
 			}
 		}
-		// After run:, matching provision.go's ordering — an item may carry both.
-		if err := runLegacyStepKeys(env, step); err != nil {
-			return fmt.Errorf("step %q failed: %w", label, err)
-		}
-	}
-	return nil
+		return nil
+	})
 }
 
 // buildStepArgs builds docker compose exec args for a single command string.

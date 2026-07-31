@@ -12,7 +12,7 @@ import (
 // item under `dva provision` printed the note and executed. Adding a comment to a working
 // step silently stopped it working, with exit 0 and nothing reported.
 //
-// The two runners need different evidence that execution was *attempted*:
+// The three runners need different evidence that execution was *attempted*:
 //
 //   - LocalRunner runs a real subprocess (ExecSequential → ExecSubprocess → cmd.Run), so the
 //     marker its command echoes is visible on captured stdout.
@@ -21,8 +21,15 @@ import (
 //     binary mid-run. Pointing its compose command at a name that cannot resolve makes
 //     exec.LookPath fail *before* the exec, so the attempt surfaces as an error and nothing
 //     is ever executed.
+//   - KubectlRunner (TASK-094) runs a subprocess like the local one, but `kubectl` on a
+//     developer machine talks to a real cluster, so kubectlShim stands in for it and echoes the
+//     argv it received. Its evidence is stdout carrying both the shim's own `kubectl ` prefix
+//     and the marker — the prefix is what distinguishes "the shim ran" from "something printed
+//     the marker". Per-subtest, because captureStdout resets between subtests while the shim's
+//     invocation log accumulates across them.
 func TestNoteDoesNotSuppressRun(t *testing.T) {
 	env := &config.Environment{}
+	kubectlShim(t)
 
 	const (
 		marker         = "NOTE-RUN-EXECUTED"
@@ -59,6 +66,16 @@ func TestNoteDoesNotSuppressRun(t *testing.T) {
 			}).executeSteps,
 			attempted: func(_ string, err error) bool {
 				return err != nil && strings.Contains(err.Error(), absentCompose)
+			},
+		},
+		{
+			runner: "kubectl",
+			exec: (&KubectlRunner{
+				Cmd:  &ResolvedCommand{Pod: "note-pod"},
+				Opts: RunOptions{Config: composeCfg},
+			}).executeSteps,
+			attempted: func(out string, _ error) bool {
+				return strings.Contains(out, "kubectl ") && strings.Contains(out, marker)
 			},
 		},
 	}

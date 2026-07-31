@@ -21,6 +21,31 @@ func composeConfig(binary string) *config.Config {
 	}
 }
 
+// stepRunners returns every runner's executeSteps, keyed by runner name. The tables that drive
+// step behaviour all build their runners here so a key handled by one runner and not another
+// fails somewhere. That divergence, repeated key by key, is what produced TASK-083, TASK-085,
+// TASK-089, TASK-091 and TASK-094 — five defects, one shape. Adding a fourth runner should mean
+// adding one entry to this map, not remembering to edit three tables.
+//
+// The kubectl entry is only safe because kubectlShim rebuilds PATH and refuses to run unless
+// `kubectl` resolves to the fake; /bin and /usr/bin stay on it so the other two runners still
+// find sh, echo and true.
+func stepRunners(t *testing.T, cfg *config.Config) map[string]func(*config.Environment, []config.ProvisionItem) error {
+	t.Helper()
+	kubectlShim(t)
+	return map[string]func(*config.Environment, []config.ProvisionItem) error{
+		"local": (&LocalRunner{
+			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
+		}).executeSteps,
+		"docker_compose": (&DockerComposeRunner{
+			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
+		}).executeSteps,
+		"kubectl": (&KubectlRunner{
+			Cmd: &ResolvedCommand{Pod: "steps-pod"}, Opts: RunOptions{Config: cfg},
+		}).executeSteps,
+	}
+}
+
 // TestComposeKeysOnInteractionPath covers TASK-085. Both runners handled exactly two of
 // ProvisionItem's seven payload keys — `note:` and `run:`. An interaction step written with
 // `compose_up:`, `compose_exec:`, `compose_run:`, `echo:` or `cmd:` fell through their
@@ -34,14 +59,7 @@ func TestComposeKeysOnInteractionPath(t *testing.T) {
 	env := &config.Environment{}
 	cfg := composeConfig("echo")
 
-	runners := map[string]func(*config.Environment, []config.ProvisionItem) error{
-		"local": (&LocalRunner{
-			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
-		}).executeSteps,
-		"docker_compose": (&DockerComposeRunner{
-			Cmd: &ResolvedCommand{}, Opts: RunOptions{Config: cfg},
-		}).executeSteps,
-	}
+	runners := stepRunners(t, cfg)
 
 	cases := []struct {
 		name string
