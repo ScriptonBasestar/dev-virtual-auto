@@ -1,6 +1,7 @@
 package config
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -546,4 +547,87 @@ stack:
 	if !strings.Contains(err.Error(), "restricted field") {
 		t.Errorf("error = %q, want mention of restricted field", err.Error())
 	}
+}
+
+// captureStd runs fn with os.Stdout and os.Stderr replaced by pipes and returns
+// what each received. Both are restored before returning.
+//
+// The writers are closed before the reads so a read cannot block waiting for
+// more; the payloads here are one line each, well under the pipe buffer.
+func captureStd(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+
+	outR, outW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	errR, errW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+
+	origOut, origErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = outW, errW
+	defer func() {
+		os.Stdout, os.Stderr = origOut, origErr
+	}()
+
+	fn()
+
+	if err := outW.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+	if err := errW.Close(); err != nil {
+		t.Fatalf("close stderr writer: %v", err)
+	}
+
+	outB, err := io.ReadAll(outR)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	errB, err := io.ReadAll(errR)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	return string(outB), string(errB)
+}
+
+// TestStackOverrideConflictWarnsOnStderrNotStdout pins TASK-116.
+//
+// mergeEnvironmentProfile cannot return an error, so a plugin-type conflict in
+// stack_overrides can only be reported by printing. It printed to stdout — the
+// one production [warn] in the repo that did — and it fires during config load,
+// before any command has produced output. Under --json that put a non-JSON line
+// ahead of the document, so `dva … | jq` failed on line 1 while the command
+// still exited 0.
+//
+// Asserting stdout is empty is the half that would regress silently; asserting
+// the warning still reaches stderr is what stops the "fix" from being a deletion.
+func TestStackOverrideConflictWarnsOnStderrNotStdout(t *testing.T) {
+	base := EnvironmentProfile{
+		StackOverrides: map[string]*LifecycleEntry{
+			"api": {Name: "api", Plugin: "compose"},
+		},
+	}
+	other := EnvironmentProfile{
+		StackOverrides: map[string]*LifecycleEntry{
+			"api": {Name: "api", Plugin: "helm"},
+		},
+	}
+
+	stdout, stderr := captureStd(t, func() {
+		mergeEnvironmentProfile(base, other)
+	})
+
+	if stdout != "" {
+		t.Errorf("config merge wrote %d bytes to stdout, which corrupts --json output:\n%s",
+			len(stdout), stdout)
+	}
+	if !strings.Contains(stderr, "[warn] stack_override") {
+		t.Errorf("the warning did not reach stderr; got %q — a conflict must still be reported", stderr)
+	}
+	if !strings.Contains(stderr, "api") {
+		t.Errorf("stderr %q does not name the offending key", stderr)
+	}
+	t.Logf("stdout=%d bytes, stderr=%d bytes", len(stdout), len(stderr))
 }
