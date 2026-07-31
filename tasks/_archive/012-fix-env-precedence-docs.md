@@ -92,6 +92,6 @@ None. Doc-only, zero runtime risk.
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G4
-- [doc-to-code.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/doc-to-code.md) — L1
-- [evidence-contradictions.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/evidence-contradictions.md)
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G4
+- `doc-to-code.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — L1
+- `evidence-contradictions.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked)

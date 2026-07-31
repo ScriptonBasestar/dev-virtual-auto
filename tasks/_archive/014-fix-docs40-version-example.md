@@ -63,5 +63,5 @@ None. Doc-only. Shares `docs/40` with TASK-013 — sequence to avoid edit confli
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G6
-- [doc-to-code.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/doc-to-code.md) — L3
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G6
+- `doc-to-code.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — L3

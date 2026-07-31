@@ -90,7 +90,7 @@ Option **A** — all 22 repointed, none dropped. Measured 2026-07-31:
 | markdown links inside `_archive` | 114 | **114** (nothing deleted) |
 
 The `after` count is higher because this task file and
-[TASK-110](../todo/110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) added links
+[TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) added links
 of their own.
 
 **The three groups, as repaired:**
@@ -130,7 +130,7 @@ Exactly +1, and the injected link appeared by name in the output. The check stil
 The scratch copy reporting **41** rather than 0 is not a defect in the repair — the copy contains
 only `tasks/`, so every `../../docs/…`, `../../USAGE.md` and `../../internal/…` link escapes it. But
 reading that list surfaced a real finding, now filed as
-[TASK-110](../todo/110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md): 23 archive
+[TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md): 23 archive
 links point into `tmp/`, which `.gitignore:34` excludes and which holds 0 tracked files. They resolve
 here and in no clone, and a filesystem-based check can never say so.
 
@@ -138,7 +138,7 @@ So the headline number from this task deserves its caveat: the check is green ag
 
 ## Related
 
-- [TASK-110](../todo/110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — found by
+- [TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — found by
   this task's non-vacuity probe rather than by its main check.
 - [TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md) — the other unenforced
   standard found this week; same shape, in that nothing measures it until someone counts by hand.

@@ -63,7 +63,7 @@ files in `621d55a` and added `make fmt-check` to the Makefile and to CI, so `mak
 on `fmt-check` and formatting is genuinely gated. **`modernize` at 50 is what remains.** A gate whose
 coverage nobody has stated is a gate whose silence means nothing in particular, which is the same
 shape as [TASK-109](109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md)
-and [TASK-110](../todo/110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — a
+and [TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — a
 check that passes for a reason other than the one assumed.
 
 The `maps.Copy` cluster is the one with a concrete tie to recent work: two of the 16 are the

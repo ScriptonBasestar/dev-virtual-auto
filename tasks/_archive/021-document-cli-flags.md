@@ -100,5 +100,5 @@ per-flag.
 
 ## References
 
-- [evidence-flags.md](../../tmp/gap-analysis/evidence-flags.md) — full set comparison
+- `evidence-flags.md` (gap-analysis working set, 2026-07-16, untracked) — full set comparison
 - [016-document-missing-surface.md](../_archive/016-document-missing-surface.md) — command paths (this task covers flags)

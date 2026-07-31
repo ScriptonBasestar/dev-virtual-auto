@@ -99,5 +99,5 @@ the docker plugin is a **design decision**, deliberately excluded — see TASK-0
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G2
-- [code-to-doc.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/code-to-doc.md) — C3
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G2
+- `code-to-doc.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — C3

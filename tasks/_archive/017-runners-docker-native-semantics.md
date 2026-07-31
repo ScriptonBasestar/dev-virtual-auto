@@ -95,5 +95,5 @@ Not chosen: shipped docs/examples already recommend `runners.docker`.
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G1/G2 맥락
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G1/G2 맥락
 - [009-fix-runners-plugin-resolution.md](../_archive/009-fix-runners-plugin-resolution.md)

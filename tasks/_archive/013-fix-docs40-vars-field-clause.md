@@ -89,5 +89,5 @@ None. Doc-only.
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G5
-- [doc-to-code.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/doc-to-code.md) — L2
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G5
+- `doc-to-code.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — L2

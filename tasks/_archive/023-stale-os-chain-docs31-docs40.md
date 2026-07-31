@@ -78,4 +78,4 @@ find cannot detect the ones it missed. The criteria below grep the whole docs tr
 ## References
 
 - [012-fix-env-precedence-docs.md](../_archive/012-fix-env-precedence-docs.md) — fixed only three of five sources
-- [convergence.md](../../tmp/gap-analysis/convergence.md) — found by the convergence check
+- `convergence.md` (gap-analysis working set, 2026-07-16, untracked) — found by the convergence check

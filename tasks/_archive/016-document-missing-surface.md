@@ -79,6 +79,6 @@ None. Doc-only.
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G8
-- [evidence-cli.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/evidence-cli.md) — §3.2
-- [code-to-doc.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/code-to-doc.md) — C4, C5
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G8
+- `evidence-cli.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — §3.2
+- `code-to-doc.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — C4, C5

@@ -102,5 +102,5 @@ None.
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G3
-- [code-to-doc.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/code-to-doc.md) — C1
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G3
+- `code-to-doc.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — C1

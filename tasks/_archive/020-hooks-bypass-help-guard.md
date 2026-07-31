@@ -96,4 +96,4 @@ Place it before `loadConfig()` so `--help` also works in a directory with no/inv
 ## References
 
 - [011-honor-help-flag.md](../_archive/011-honor-help-flag.md) — the incomplete fix
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G3, same hazard class
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G3, same hazard class

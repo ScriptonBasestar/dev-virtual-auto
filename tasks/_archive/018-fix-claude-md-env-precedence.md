@@ -73,4 +73,4 @@ statements must be true for their own path; only the `CLAUDE.md` one is currentl
 ## References
 
 - [012-fix-env-precedence-docs.md](../_archive/012-fix-env-precedence-docs.md) — discovered here
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G4 (same defect class)
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G4 (same defect class)

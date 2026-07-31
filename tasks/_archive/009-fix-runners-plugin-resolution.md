@@ -100,5 +100,5 @@ None. Blocks TASK-010 (schema must match the working resolution contract).
 
 ## References
 
-- [unified.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md) — G1
-- [code-to-doc.md](../../tmp/gap-analysis-runs/20260716T091912Z-73dc094/code-to-doc.md) — C2
+- `unified.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — G1
+- `code-to-doc.md` (gap-analysis run `20260716T091912Z-73dc094`, untracked) — C2
