@@ -48,20 +48,32 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 
 		e := loadEnv(c)
 
-		// Set hook depth to prevent recursion in subprocesses
+		// Set hook depth to prevent recursion in subprocesses.
+		//
+		// This still guards subprocesses that inherit this process's environment wholesale
+		// (exec.ExecSubprocessOutput sets no Cmd.Env), but it is no longer what carries the
+		// guard to hook steps: Environment.EnvSlice filters this key out of the os.Environ()
+		// passthrough, because the same EnvSlice also builds the environment for the
+		// ExecReplace'd target command, where the guard has no business being. The defer
+		// below cannot fire on that path either — syscall.Exec replaces the process image.
 		_ = os.Setenv(config.EnvHookDepthKey, "1")
 		defer func() { _ = os.Unsetenv(config.EnvHookDepthKey) }()
 
+		// he is the one environment that re-adds the guard, so a hook step that shells back
+		// into dva is still suppressed. It is a copy: loadEnv caches a package global and e
+		// is also the environment the built-in path below hands to ExecReplace.
+		he := e.WithHookDepth()
+
 		// Phase 1: before hooks (fail-fast)
 		if len(ic.Before) > 0 {
-			if err := runHookSteps(e, c, "before", cmdName, ic.Before); err != nil {
+			if err := runHookSteps(he, c, "before", cmdName, ic.Before); err != nil {
 				return err
 			}
 		}
 
 		// Phase 2: built-in or replace
 		if len(ic.Replace) > 0 {
-			if err := runHookSteps(e, c, "replace", cmdName, ic.Replace); err != nil {
+			if err := runHookSteps(he, c, "replace", cmdName, ic.Replace); err != nil {
 				return err
 			}
 		} else {
@@ -78,7 +90,7 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 
 		// Phase 3: after hooks
 		if len(ic.After) > 0 {
-			if err := runHookSteps(e, c, "after", cmdName, ic.After); err != nil {
+			if err := runHookSteps(he, c, "after", cmdName, ic.After); err != nil {
 				return err
 			}
 		}

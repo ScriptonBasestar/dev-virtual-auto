@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -83,6 +84,21 @@ func (e *Environment) Interpolate(value string) string {
 	})
 }
 
+// WithHookDepth returns a copy of e whose Vars carry the hook recursion guard, so that
+// processes started from a hook step inherit it and every other child does not.
+//
+// It must copy rather than mutate: cli.loadEnv caches one *Environment in a package global
+// and hands the same pointer to the hook executor and to the built-in command path, so
+// setting the key on e would put it straight back into the ExecReplace'd target's
+// environment — the leak this exists to close.
+func (e *Environment) WithHookDepth() *Environment {
+	c := *e
+	c.Vars = make(map[string]string, len(e.Vars)+1)
+	maps.Copy(c.Vars, e.Vars)
+	c.Vars[EnvHookDepthKey] = "1"
+	return &c
+}
+
 // EnvSlice returns environment variables as KEY=VALUE slice for exec.
 // Config vars override OS environment variables with the same key.
 func (e *Environment) EnvSlice() []string {
@@ -92,6 +108,19 @@ func (e *Environment) EnvSlice() []string {
 	// Pass through OS env vars, skipping keys that config will override
 	for _, kv := range osEnv {
 		key, _, _ := strings.Cut(kv, "=")
+		// The hook recursion guard is this process's state. cli.wrapWithHooks sets it with
+		// os.Setenv and cleans up with a defer, but the hookable commands end in
+		// syscall.Exec, which replaces the process image so that defer can never run — the
+		// value would otherwise be inherited by docker/kubectl and by everything they spawn,
+		// and a nested dva down there would read it and silently skip its own hooks.
+		//
+		// Dropping it here rather than at each ExecReplace call site makes not-leaking the
+		// default. Hook steps, which are the one consumer that genuinely needs the guard to
+		// cross a process boundary, opt back in through WithHookDepth: Vars are appended
+		// below and are not subject to this filter.
+		if key == EnvHookDepthKey {
+			continue
+		}
 		if _, overridden := e.Vars[key]; !overridden {
 			result = append(result, kv)
 		}
