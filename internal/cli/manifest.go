@@ -164,7 +164,7 @@ func buildManifest(c *config.Config) *Manifest {
 		// inside. It used to be `dva <k>` unconditionally, which for a shadowed key was the one
 		// form that provably ran something else — a different command with a different
 		// description, in the same document, silently.
-		usage, shadowedBy := interactionUsage(c, k)
+		usage, shadowedBy := interactionUsage(c, cmd)
 		dynCmd := ManifestDynCmd{
 			Description:       cmd.Description,
 			Command:           cmd.Command,

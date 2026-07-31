@@ -64,5 +64,5 @@ impossible. **Decision needed.**
 
 - [TASK-088](../done/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
   audience getting a worse answer than the human one.
-- [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
+- [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
   defect; both surface through `dva manifest`, which is documented as the agent-facing entry point.

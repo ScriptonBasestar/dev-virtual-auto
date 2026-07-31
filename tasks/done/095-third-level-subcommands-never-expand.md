@@ -134,7 +134,7 @@ owned by TASK-078, so it was left alone rather than reformatted inside a behavio
 ## Related
 
 - [TASK-096](../todo/096-manifest-static-commands-undercounts.md) and
-  [TASK-097](../todo/097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
+  [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
   same flat `parent + " " + child` key space. 097 in particular is the reason this key encoding is
   worth revisiting rather than patching three times.
 - [TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) — the

@@ -60,7 +60,7 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 		// A shadowed row is still listed — the user declared it and needs to see dva received
 		// it — but it must carry the form that reaches it, or the listing reads as an offer of
 		// `dva <k>`, which runs the built-in instead.
-		usage, shadowedBy := interactionUsage(c, k)
+		usage, shadowedBy := interactionUsage(c, cmd)
 		mark := ""
 		if shadowedBy != "" {
 			mark = fmt.Sprintf("  (built-in '%s' takes this name; run: %s)", shadowedBy, usage)
@@ -107,32 +107,61 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 	return nil
 }
 
-// interactionUsage returns the invocation that reaches the interaction named k, and the built-in
-// that runs instead when the bare `dva k` form is typed ("" when nothing does).
+// shellJoin renders a command path as the tokens a shell has to receive for the whole path to
+// arrive as separate arguments. Only whitespace forces quoting: every other character the
+// interaction key pattern admits (\w, -, ., :, /) is inert to a shell, and quoting all of them
+// would make every example `dva ls` prints read as a literal. TASK-097.
+func shellJoin(path []string) string {
+	tokens := make([]string, len(path))
+	for i, seg := range path {
+		if strings.ContainsAny(seg, " \t\n") {
+			seg = "'" + strings.ReplaceAll(seg, "'", `'\''`) + "'"
+		}
+		tokens[i] = seg
+	}
+	return strings.Join(tokens, " ")
+}
+
+// interactionUsage returns the invocation that reaches cmd, and the built-in that runs instead
+// when the bare form is typed ("" when nothing does).
 //
 // One function because `dva ls` and `dva manifest` describe the same key to the same reader and
 // must not disagree about which form works — the manifest used to print `dva build` for an
 // interaction that `dva build` provably could not reach.
 //
-// Subcommand keys arrive from the resolved tree space-separated ("build fast"), and a subcommand
-// is reached through its parent, so it is the parent's name the built-in set is asked about. The
-// parent's hook exemption does not carry over: measured, a `build` declaring replace: dispatches
-// to that hook for `dva build fast` and ignores the argument, so the subcommand is reachable only
-// through `dva run` even though the parent itself is reachable bare. That is why the exemption
-// lives in ShadowedByBuiltin, consulted here for top-level keys only.
-func interactionUsage(c *config.Config, k string) (usage, shadowedBy string) {
-	if parent, _, nested := strings.Cut(k, " "); nested {
-		if config.IsReservedCommand(parent) {
-			return fmt.Sprintf("dva run %s", k), parent
-		}
-		return fmt.Sprintf("dva %s", k), ""
+// It reads cmd.Path, not cmd.Name. The two carry the same information only while no segment
+// contains a space, and one legally can: schema.json's interaction key pattern includes \s and
+// nothing Go-side rejects it, so `interaction: {"my task": ...}` parses. Splitting the joined
+// name on its first space then reports the parent as `my`, and the emitted `dva my task` is the
+// one form that provably does not run — bare routing looks up `args[0]`, and `my` is not a key.
+// Measured: `dva my task` exits 1, `dva 'my task'` runs it.
+//
+// A subcommand is reached through its parent, so it is the parent's name the built-in set is
+// asked about. The parent's hook exemption does not carry over: measured, a `build` declaring
+// replace: dispatches to that hook for `dva build fast` and ignores the argument, so the
+// subcommand is reachable only through `dva run` even though the parent itself is reachable
+// bare. That is why the exemption lives in ShadowedByBuiltin, consulted here for top-level
+// paths only.
+func interactionUsage(c *config.Config, cmd *runner.ResolvedCommand) (usage, shadowedBy string) {
+	path := cmd.Path
+	if len(path) == 0 {
+		// A ResolvedCommand that did not come from the tree walk. Treating the whole name as one
+		// segment is the honest reading — it is what the caller named — and it is what this
+		// function did for every key before the path existed.
+		path = []string{cmd.Name}
 	}
-	// c.Interaction, not the tree: hooks live on the declared command, and a top-level tree key
-	// is always a declared key, so this lookup is exact.
-	if config.ShadowedByBuiltin(k, c.Interaction[k]) {
-		return fmt.Sprintf("dva run %s", k), k
+	root := path[0]
+	form := shellJoin(path)
+
+	switch {
+	case len(path) > 1 && config.IsReservedCommand(root):
+		return fmt.Sprintf("dva run %s", form), root
+	case len(path) == 1 && config.ShadowedByBuiltin(root, c.Interaction[root]):
+		// c.Interaction, not the tree: hooks live on the declared command, and a single-segment
+		// path is always a declared key, so this lookup is exact.
+		return fmt.Sprintf("dva run %s", form), root
 	}
-	return fmt.Sprintf("dva %s", k), ""
+	return fmt.Sprintf("dva %s", form), ""
 }
 
 func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
@@ -156,7 +185,7 @@ func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedC
 		}
 		// Only on the shadowed entries, so the field's presence is the signal and a consumer
 		// never has to parse the description to learn the short form will not reach this.
-		if _, shadowedBy := interactionUsage(c, k); shadowedBy != "" {
+		if _, shadowedBy := interactionUsage(c, cmd); shadowedBy != "" {
 			entry["shadowed_by_builtin"] = shadowedBy
 		}
 		entries[k] = entry

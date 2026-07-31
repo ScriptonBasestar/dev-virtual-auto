@@ -8,6 +8,11 @@ import (
 
 // ResolvedCommand is the result of InteractionTree.Find().
 type ResolvedCommand struct {
+	// Path is the segments this command was reached through — ["rails"] for a top-level entry,
+	// ["rails", "db", "migrate"] for a subcommand. Name is these joined by a space, and that join
+	// is lossy: a segment may itself contain a space (schema.json admits \s in an interaction
+	// key), so splitting Name back apart guesses. Read Path instead. TASK-097.
+	Path         []string
 	Name         string
 	Description  string
 	Service      string
@@ -76,7 +81,7 @@ func (t *InteractionTree) Find(name string, argv ...string) *ResolvedCommand {
 func (t *InteractionTree) List() map[string]*ResolvedCommand {
 	result := make(map[string]*ResolvedCommand)
 	for name, entry := range t.entries {
-		t.expandInto(name, entry, result)
+		t.expandInto([]string{name}, entry, result)
 	}
 	return result
 }
@@ -84,17 +89,28 @@ func (t *InteractionTree) List() map[string]*ResolvedCommand {
 // expand builds a flat map of all commands for a given entry.
 func (t *InteractionTree) expand(name string, entry *config.InteractionCommand) map[string]*ResolvedCommand {
 	result := make(map[string]*ResolvedCommand)
-	t.expandInto(name, entry, result)
+	t.expandInto([]string{name}, entry, result)
 	return result
 }
 
-func (t *InteractionTree) expandInto(name string, entry *config.InteractionCommand, result map[string]*ResolvedCommand) {
+// expandInto walks entry and its subcommands into result, keyed by the space-joined path.
+//
+// It takes the path rather than the joined name so that ResolvedCommand can carry the segments
+// it was built from: the join is one-way once any segment contains a space, and a consumer that
+// re-splits the key gets the boundary wrong. TASK-097.
+func (t *InteractionTree) expandInto(path []string, entry *config.InteractionCommand, result map[string]*ResolvedCommand) {
+	name := strings.Join(path, " ")
 	cmd := buildResolved(name, entry)
+	cmd.Path = path
 	result[name] = cmd
 
 	for subName, subEntry := range entry.Subcommands {
 		merged := mergeInteraction(entry, subEntry)
-		t.expandInto(name+" "+subName, merged, result)
+		// A fresh backing array per child. append(path, subName) would let two siblings share
+		// one array and overwrite each other's last segment, so the paths would come out
+		// correct only for whichever child ran last.
+		child := append(append(make([]string, 0, len(path)+1), path...), subName)
+		t.expandInto(child, merged, result)
 	}
 }
 
