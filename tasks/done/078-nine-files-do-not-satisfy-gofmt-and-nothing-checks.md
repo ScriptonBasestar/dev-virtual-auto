@@ -154,5 +154,5 @@ later "fixes" a discrepancy that isn't one.
 shape as this task one level up: a gate that exists and does not run. It currently passes
 (exit 0, no diff), so this is latent rather than broken, and switching it on changes what CI
 enforces for generated files. Filed as
-[TASK-112](../todo/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) rather than folded
+[TASK-112](../done/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) rather than folded
 in here.

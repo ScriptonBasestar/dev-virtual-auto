@@ -4,8 +4,10 @@ title: "`make check-generate` is labelled `(CI)` and no CI job runs it"
 type: chore
 priority: P4
 effort: S
-status: todo
+status: done
 created-at: 2026-07-31T00:00:00+09:00
+resolved-at: 2026-07-31T00:00:00+09:00
+resolution: "C — dropped the `(CI)` label; no enforcement added"
 scope: "Makefile:88 check-generate, .github/workflows/ci.yml — the gate exists, is documented as a CI gate, and is never invoked"
 ---
 
@@ -90,13 +92,66 @@ requires perturbing a source file and confirming the target goes red — deliber
 because `make generate` rewrites `shared-guardrails.md` in place (libgen injects into it), so the
 probe must be reverted with care rather than casually.
 
+## Resolution
+
+**Option C — drop the `(CI)` label.** One line, `Makefile:102`:
+
+```diff
+-## check-generate: Verify generated files are up-to-date (CI)
++## check-generate: Verify generated files are up-to-date
+```
+
+### What C buys
+
+The Makefile now carries exactly one `(CI)` label, and it is true:
+
+| target | `(CI)` label | invoked by `ci.yml` |
+| --- | --- | --- |
+| `fmt-check` | yes | yes — `ci.yml:46`, `run: make fmt-check` |
+| `check-generate` | no (was yes) | no |
+
+That is the entire point. The suffix was not a description, it was a claim, and the claim was
+false. The vocabulary now reads correctly in both directions: a labelled target is in CI, an
+unlabelled one is not. C adds no enforcement and no longer pretends to.
+
+### What C deliberately does not do
+
+Two of the five original criteria were written for options A and B. They are left unchecked rather
+than reworded, because C's premise is to stop asserting a guarantee — not to build one:
+
+- CI still never runs the gate, so generated files can still go stale unnoticed;
+- the gate still prints nothing on success, so a vacuous run is indistinguishable from a real one.
+
+The residual risk is exactly as stated in Problem above, and is now accepted rather than closed: if
+`skills/` or `agent-mesh-flows/shared/library/` is edited without `make generate`, the committed
+projections drift and only a developer who happens to run the target locally finds out.
+
+### Measured while resolving — the gate is narrower than its path list suggests
+
+`git diff --exit-code` is handed five paths. Two are tracked as symlinks:
+
+```
+120000 42c5394a18a882778ebf50eb940fb5a96bc4a6d9 0	.agents/skills
+120000 42c5394a18a882778ebf50eb940fb5a96bc4a6d9 0	claude-plugin/skills
+```
+
+git compares a symlink by its target string, so those two entries can only go red if `skillgen`
+*retargets* them — never if the content behind `../skills` changes. The paths actually carrying the
+check are `internal/cli/library_reference.txt`, `agent-mesh-flows/shared/library/shared-guardrails.md`
+and `AGENTS.md`. So the five-path list overstates the coverage by two.
+
+The two remaining projections `skillgen` writes are correctly outside a git-diff check, and this was
+verified rather than assumed: `git check-ignore` reports both `.cursor/rules` and `.opencode/skills`
+ignored and untracked, so a diff-based gate could not observe them at all. An initial reading that
+called `.cursor/rules` an uncovered gap was wrong — `.gitignore:30` excludes it on purpose.
+
 ## Acceptance criteria
 
-- [ ] The gate is proven able to fail | verify: `human — perturb a source under agent-mesh-flows/shared/library/, confirm make check-generate exits non-zero naming the stale file, revert and confirm it returns to 0`
-- [ ] The gate is non-vacuous | verify: `make check-generate` — it must name the paths it compared, not just exit silently; a run that compares zero paths must fail
-- [ ] The label matches reality | verify: `grep -c check-generate .github/workflows/ci.yml` — non-zero under A/B, or the `(CI)` suffix is gone under C
-- [ ] Nothing regenerates dirty | verify: `make check-generate && git status --porcelain` — empty
-- [ ] Full suite passes | verify: `make test`
+- [x] The label matches reality | verify: `grep -c '(CI)' Makefile` — 1, on `fmt-check`, which `ci.yml:46` runs
+- [x] Nothing regenerates dirty | verify: `make check-generate && git status --porcelain` — measured: exit 0, empty
+- [x] Full suite passes | verify: `make test` — cli 63.6%, config 66.6%, exec 63.3%, lifecycle 56.1%, runner 53.6%, all ok
+- [ ] The gate is proven able to fail | verify: `human — A/B criterion, not met by C: no CI gate was added, so there is no enforced failure mode to prove`
+- [ ] The gate is non-vacuous | verify: `make check-generate` — **A/B criterion, not met by C**: the target still exits silently and still names none of the paths it compared
 
 ## Related
 

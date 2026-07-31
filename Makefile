@@ -99,7 +99,7 @@ generate:
 	@echo "Generating platform skill artifacts from skills/..."
 	@go run ./tools/skillgen
 
-## check-generate: Verify generated files are up-to-date (CI)
+## check-generate: Verify generated files are up-to-date
 check-generate: generate
 	@git diff --exit-code $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills \
 		|| { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
