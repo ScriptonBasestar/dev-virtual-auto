@@ -103,6 +103,18 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 	var errs []error
 	var wg sync.WaitGroup
 
+	// recordErr is the only way a failure reaches the exit code: startWave ends in
+	// errors.Join(errs...), so anything not appended here is a message and nothing more.
+	// Before TASK-117 only the two pre-start failures below called it (open-coded), while
+	// all three post-start [FAIL] branches wrote to stderr alone — DVA waited the full
+	// timeout, correctly concluded the process never listened, printed a precise message
+	// with a log path, and exited 0. Called from the per-app goroutines, hence the lock.
+	recordErr := func(err error) {
+		mu.Lock()
+		errs = append(errs, err)
+		mu.Unlock()
+	}
+
 	for _, name := range names {
 		app := apps[name]
 		strategy := am.resolveStrategy(name, opts)
@@ -140,9 +152,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 					// Record the skip as an error so `up` exits non-zero. The
 					// post-start PortConflicts check can't see it: no pidfile is
 					// written for an app we never spawned.
-					mu.Lock()
-					errs = append(errs, fmt.Errorf("app %s: port %d held by PID %d not started by dva", name, port, foreign))
-					mu.Unlock()
+					recordErr(fmt.Errorf("app %s: port %d held by PID %d not started by dva", name, port, foreign))
 					continue
 				}
 			}
@@ -161,9 +171,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 			}
 
 			if err != nil {
-				mu.Lock()
-				errs = append(errs, fmt.Errorf("app start %s (%s): %w", name, strategy, err))
-				mu.Unlock()
+				recordErr(fmt.Errorf("app start %s (%s): %w", name, strategy, err))
 				cancel()
 				return
 			}
@@ -203,7 +211,20 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 					if strategy != "docker" && pid > 0 && !IsProcessRunning(pid) {
 						fmt.Fprintf(os.Stderr, "[FAIL] app %s exited during startup — see %s. A common cause is the process binding a different port than its health check expects; set PORT to match the health URL.\n", name, am.logPath(name))
 						crashReported = true
+						// Terser than the printed line on purpose: the [FAIL] above is
+						// written for a human at a terminal, this one is what `dva up`
+						// hands back to the shell. Both are emitted once.
+						recordErr(fmt.Errorf("app %s exited during startup (see %s)", name, am.logPath(name)))
 					} else {
+						// Deliberately still a warning, decided on the record in TASK-117:
+						// the process is alive and only the health probe is unhappy, which
+						// DVA cannot distinguish from "slow to warm up". The sharper signal
+						// for a genuinely broken start is the port-ownership check below,
+						// which does error. Promoting this one would change the exit code of
+						// every existing setup with a flaky probe, so it is a product
+						// decision rather than a defect — filed as TASK-118, which also
+						// records the hole this leaves: an app that binds its port but
+						// never answers its probe is caught by neither branch.
 						fmt.Fprintf(os.Stderr, "[warn] app %s not ready after %s\n", name, timeout)
 					}
 				}
@@ -218,8 +239,10 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 				if port := effectivePort(app); port > 0 && !waitForPortOwnership(waveCtx, pid, port, timeout) {
 					if foreign, _ := resolvePortOwnership(pid, port); foreign > 0 {
 						fmt.Fprintf(os.Stderr, "[FAIL] app %s: port %d is held by PID %d, not the process dva started — likely a stale orphan or a crash on bind. See %s\n", name, port, foreign, am.logPath(name))
+						recordErr(fmt.Errorf("app %s: port %d held by PID %d, not the process dva started", name, port, foreign))
 					} else {
 						fmt.Fprintf(os.Stderr, "[FAIL] app %s: process did not listen on port %d within %s — see %s\n", name, port, timeout, am.logPath(name))
+						recordErr(fmt.Errorf("app %s: process did not listen on port %d within %s", name, port, timeout))
 					}
 				}
 			}

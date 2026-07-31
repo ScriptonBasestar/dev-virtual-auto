@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -159,14 +160,17 @@ var appUpCmd = &cobra.Command{
 		}
 
 		am := lifecycle.NewAppManager(c, e)
-		if err := am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
+		// Held, not returned. Since TASK-117 a readiness failure produces an error here,
+		// and returning it immediately would have cost the user the status and endpoint
+		// tables below — exactly when they are most useful, because `dva app up web api`
+		// with one bad app still needs to say what the good one is listening on. `dva up`
+		// defers its own error to the end of the command for the same reason.
+		startErr := am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
 			Names:   appNames,
 			DevMode: devMode,
 			Wait:    true,
 			Mode:    mode,
-		}); err != nil {
-			return err
-		}
+		})
 
 		fmt.Fprintln(os.Stderr)
 		statuses := am.AppStatuses()
@@ -185,10 +189,10 @@ var appUpCmd = &cobra.Command{
 		// dva did not start — otherwise a crash-on-bind or a stale orphan
 		// masquerades as a successful `up`.
 		if conflicts := am.PortConflicts(appNames...); len(conflicts) > 0 {
-			return fmt.Errorf("%d application port(s) held by processes dva did not start (see FAIL lines above); run 'dva app down' to reclaim the port(s), then retry", len(conflicts))
+			return errors.Join(startErr, fmt.Errorf("%d application port(s) held by processes dva did not start (see FAIL lines above); run 'dva app down' to reclaim the port(s), then retry", len(conflicts)))
 		}
 
-		return nil
+		return startErr
 	},
 }
 

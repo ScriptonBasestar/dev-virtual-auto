@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -204,21 +205,20 @@ Without plans, use the legacy stack and applications lifecycle.
 		})
 
 		// Phase 2: App up (applications) — only if applications are defined
+		var appErr error
 		if upErr == nil && len(c.Applications) > 0 {
 			strategy := ""
 			if docker {
 				strategy = "docker"
 			}
 			am := lifecycle.NewAppManager(c, e)
-			if err := am.StartApps(context.Background(), lifecycle.AppStartOptions{
+			appErr = am.StartApps(context.Background(), lifecycle.AppStartOptions{
 				Strategy: strategy,
 				DevMode:  devMode,
 				DryRun:   dryRun,
 				Wait:     !noWait,
 				Mode:     mode,
-			}); err != nil {
-				fmt.Fprintf(os.Stderr, "[warn] app start: %v\n", err)
-			}
+			})
 		}
 
 		// Print status summary and endpoints regardless of up errors,
@@ -242,7 +242,17 @@ Without plans, use the legacy stack and applications lifecycle.
 			printEndpointTable(c.Endpoints, epTags, allHC)
 		}
 
-		return upErr
+		// Both, joined, and only after the tables have printed.
+		//
+		// appErr used to be swallowed into "[warn] app start: %v" here, which is why
+		// TASK-117's fix to StartApps was not enough on its own: the app manager could
+		// report every readiness failure it wanted and `dva up` still returned nil. A
+		// wrapper script or a `dva up && next-step` chain saw success.
+		//
+		// It is returned here rather than at the call site so the status and endpoint
+		// tables above still print — the same reason upErr waits until this line. A user
+		// whose app failed to bind wants the connection details of what did come up.
+		return errors.Join(upErr, appErr)
 	},
 }
 
