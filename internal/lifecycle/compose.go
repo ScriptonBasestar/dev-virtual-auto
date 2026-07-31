@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -27,7 +26,10 @@ func (p *ComposePlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 	args := composeUpArgs(pctx)
 
 	if pctx.DryRun {
-		cmd, cmdArgs := p.buildArgs(pctx, args)
+		cmd, cmdArgs, err := p.buildArgs(pctx, args)
+		if err != nil {
+			return nil, err
+		}
 		pctx.Logger.Info("dry-run", "command", cmd, "args", cmdArgs)
 		return &Result{}, nil
 	}
@@ -87,7 +89,10 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	args := composeDownArgs(pctx)
 
 	if pctx.DryRun {
-		cmd, cmdArgs := p.buildArgs(pctx, args)
+		cmd, cmdArgs, err := p.buildArgs(pctx, args)
+		if err != nil {
+			return err
+		}
 		pctx.Logger.Info("dry-run", "command", cmd, "args", cmdArgs)
 		return nil
 	}
@@ -123,7 +128,10 @@ func (p *ComposePlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	args := composeStopArgs(pctx)
 
 	if pctx.DryRun {
-		cmd, cmdArgs := p.buildArgs(pctx, args)
+		cmd, cmdArgs, err := p.buildArgs(pctx, args)
+		if err != nil {
+			return err
+		}
 		pctx.Logger.Info("dry-run", "command", cmd, "args", cmdArgs)
 		return nil
 	}
@@ -146,19 +154,8 @@ func (p *ComposePlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 // buildArgs constructs the docker compose command and arguments from plugin config.
 // Mode-derived profiles are injected before the subcommand; mode-derived services
 // are appended after the subcommand args (only for "up").
-func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (string, []string) {
+func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (string, []string, error) {
 	cfg := pctx.Entry.ComposeConfig()
-
-	cmd := "docker"
-	args := []string{"compose"}
-
-	if cfg.Command != "" {
-		parts := dvaexec.SplitCommand(cfg.Command)
-		cmd = parts[0]
-		if len(parts) > 1 {
-			args = parts[1:]
-		}
-	}
 
 	// For sourced entries (TASK-051), relative compose files resolve against the
 	// fetched/referenced source dir. The command also runs with that dir as its
@@ -170,16 +167,9 @@ func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 		baseDir = wd
 	}
 
-	for _, f := range cfg.Files {
-		f = pctx.Env.Interpolate(f)
-		if !filepath.IsAbs(f) {
-			f = baseDir + "/" + f
-		}
-		args = append(args, "-f", f)
-	}
-
-	if cfg.ProjectName != "" {
-		args = append(args, "--project-name", pctx.Env.Interpolate(cfg.ProjectName))
+	cmd, args, err := dvaexec.ComposeArgv(pctx.Env, cfg, baseDir)
+	if err != nil {
+		return "", nil, fmt.Errorf("entry %q: %w", pctx.Entry.Name, err)
 	}
 
 	// Inject mode-derived --profile flags (before subcommand args)
@@ -196,7 +186,7 @@ func (p *ComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string) (stri
 		}
 	}
 
-	return cmd, args
+	return cmd, args, nil
 }
 
 // composeWorkdir returns the working directory a sourced compose entry runs in.
@@ -216,7 +206,10 @@ func composeWorkdir(pctx *PluginContext) string {
 
 // runSubprocess executes a docker compose command as a subprocess.
 func (p *ComposePlugin) runSubprocess(pctx *PluginContext, args []string) error {
-	cmd, cmdArgs := p.buildArgs(pctx, args)
+	cmd, cmdArgs, err := p.buildArgs(pctx, args)
+	if err != nil {
+		return err
+	}
 	pctx.Logger.Debug("compose subprocess", "command", cmd, "args", cmdArgs)
 	return dvaexec.ExecSubprocessInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
 }
@@ -227,7 +220,10 @@ func (p *ComposePlugin) runSubprocess(pctx *PluginContext, args []string) error 
 // ComposeConfigError carrying docker's own diagnostic, rather than being
 // streamed raw ahead of a bare exit status.
 func (p *ComposePlugin) preflightConfig(pctx *PluginContext) error {
-	cmd, cmdArgs := p.buildArgs(pctx, []string{"config", "--quiet"})
+	cmd, cmdArgs, err := p.buildArgs(pctx, []string{"config", "--quiet"})
+	if err != nil {
+		return err
+	}
 	pctx.Logger.Debug("compose preflight", "command", cmd, "args", cmdArgs)
 	out, err := dvaexec.ExecSubprocessCaptureInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
 	if err != nil {
@@ -292,7 +288,10 @@ func (p *ComposePlugin) queryServices(pctx *PluginContext) ([]ServiceStatus, err
 		return nil, nil
 	}
 
-	cmd, cmdArgs := p.buildArgs(pctx, []string{"ps", "--format", "json"})
+	cmd, cmdArgs, err := p.buildArgs(pctx, []string{"ps", "--format", "json"})
+	if err != nil {
+		return nil, err
+	}
 	c := exec.Command(cmd, cmdArgs...)
 	c.Dir = composeWorkdir(pctx)
 	out, err := c.Output()

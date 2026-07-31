@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
@@ -63,6 +64,38 @@ func describeInteractionPath(path []string) string {
 	return b.String()
 }
 
+// detectUnrunnableComposeCommands reports stack entries whose compose `command:` is
+// non-empty but contains no command word: three spaces, a lone tab, or a pair of
+// single quotes around nothing.
+//
+// This cannot live in config.Validate(): that is JSON-schema-only, and to the schema
+// "   " is a perfectly good string. It cannot live in the config package at all, since
+// internal/exec imports config and the answer has to come from SplitCommand — the very
+// function the runners use. That is the point of asking it here rather than
+// approximating it with a trimmed-quotes predicate: an approximation would disagree with
+// the runners on some input, and two conditions that disagree is the shape of the bug
+// this check exists to catch. TASK-115.
+func detectUnrunnableComposeCommands(c *config.Config) []string {
+	names := make([]string, 0, len(c.Stack))
+	for name := range c.Stack {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var problems []string
+	for _, name := range names {
+		cc := c.Stack[name].ComposeConfig()
+		if cc == nil || cc.Command == "" {
+			continue
+		}
+		if len(dvaexec.SplitCommand(cc.Command)) == 0 {
+			problems = append(problems, fmt.Sprintf(
+				"stack.%s.runners.compose.command: %q contains no command word", name, cc.Command))
+		}
+	}
+	return problems
+}
+
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate the syntax and schema of 'dva.yml'",
@@ -72,6 +105,17 @@ var validateCmd = &cobra.Command{
 
 		if err := c.Validate(); err != nil {
 			return report.fail(err)
+		}
+
+		// A hard failure rather than a warning. The schema accepts this config, and then
+		// every compose runner rejects it at the moment it tries to run — so `dva validate`
+		// exiting 0 here is the whole defect: a green check that is evidence about the
+		// checker, not the config.
+		if problems := detectUnrunnableComposeCommands(c); len(problems) > 0 {
+			for _, p := range problems {
+				fmt.Fprintf(os.Stderr, "[error] compose: %s\n", p)
+			}
+			return report.fail(fmt.Errorf("%d compose runner command(s) contain no command word", len(problems)))
 		}
 
 		// Check compose file project name alignment

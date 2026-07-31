@@ -29,7 +29,7 @@ func TestComposePlugin_BuildArgs_SourcedGit(t *testing.T) {
 	p := &ComposePlugin{}
 	pctx := sourcedPctx("postgres", &config.SourceConfig{Git: "https://example.com/r.git", Ref: "v1"}, []string{"docker-compose.yml"})
 
-	_, args := p.buildArgs(pctx, []string{"up", "-d"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up", "-d"})
 	joined := strings.Join(args, " ")
 
 	wantDir := filepath.Join("/project", config.DotDirName, "sources", "postgres")
@@ -45,7 +45,7 @@ func TestComposePlugin_BuildArgs_SourcedPath(t *testing.T) {
 	p := &ComposePlugin{}
 	pctx := sourcedPctx("shared", &config.SourceConfig{Path: "../shared-infra"}, []string{"docker-compose.yml"})
 
-	_, args := p.buildArgs(pctx, []string{"up"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up"})
 	joined := strings.Join(args, " ")
 
 	wantDir := filepath.Join("/project", "../shared-infra")
@@ -63,7 +63,7 @@ func TestComposePlugin_BuildArgs_SourcedNoFiles(t *testing.T) {
 	p := &ComposePlugin{}
 	pctx := sourcedPctx("postgres", &config.SourceConfig{Git: "https://example.com/r.git"}, nil)
 
-	_, args := p.buildArgs(pctx, []string{"up"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up"})
 	joined := strings.Join(args, " ")
 
 	if strings.Contains(joined, "-f ") {
@@ -79,7 +79,7 @@ func TestComposePlugin_BuildArgs_NoSource_UsesConfigDir(t *testing.T) {
 	p := &ComposePlugin{}
 	pctx := sourcedPctx("web", nil, []string{"docker-compose.yml"})
 
-	_, args := p.buildArgs(pctx, []string{"up"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up"})
 	joined := strings.Join(args, " ")
 
 	if !strings.Contains(joined, "-f /project/docker-compose.yml") {

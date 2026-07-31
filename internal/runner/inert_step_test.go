@@ -107,7 +107,10 @@ func TestStepWithoutRunIsReported(t *testing.T) {
 				if strings.Contains(out, config.InertStepMessage) {
 					t.Errorf("compose_up is a payload; got %q", out)
 				}
-				if !strings.Contains(out, "compose up -d postgres") {
+				// Anchored to the start of the echoed line: `command: echo` is one word, so
+				// the argv is `echo up -d postgres` and a leading "compose" would mean the
+				// seed the user replaced had survived. TASK-115.
+				if !strings.Contains(out, "\nup -d postgres") {
 					t.Errorf("compose_up must now execute, not merely avoid the notice; got %q", out)
 				}
 			})

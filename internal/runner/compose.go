@@ -3,7 +3,6 @@ package runner
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -13,51 +12,37 @@ import (
 // composeArgv builds the compose command and its arguments from the config's compose
 // settings. Split out from execCompose so the two execution strategies below cannot drift:
 // they must differ only in how they hand off, never in what they run.
-func composeArgv(env *config.Environment, cfg *config.Config, args []string) (string, []string) {
-	composeCmd := "docker"
-	var fullArgs []string
-	fullArgs = append(fullArgs, "compose")
-
+func composeArgv(env *config.Environment, cfg *config.Config, args []string) (string, []string, error) {
+	// A nil cfg means the interaction runs outside a loaded project; dvaexec.ComposeArgv
+	// then yields the plain `docker compose` default, which is what the old code did too.
+	var cc *config.ComposePluginConfig
+	var baseDir string
 	if cfg != nil {
-		cc := cfg.PrimaryComposeConfig()
-		if cc != nil {
-			if cc.Command != "" {
-				parts := dvaexec.SplitCommand(cc.Command)
-				composeCmd = parts[0]
-				if len(parts) > 1 {
-					fullArgs = parts[1:]
-				}
-			}
-
-			cfgDir := cfg.FileDir()
-			for _, f := range cc.Files {
-				f = env.Interpolate(f)
-				if !filepath.IsAbs(f) {
-					f = filepath.Join(cfgDir, f)
-				}
-				fullArgs = append(fullArgs, "-f", f)
-			}
-
-			if cc.ProjectName != "" {
-				fullArgs = append(fullArgs, "--project-name", env.Interpolate(cc.ProjectName))
-			}
-		}
+		cc = cfg.PrimaryComposeConfig()
+		baseDir = cfg.FileDir()
 	}
 
+	composeCmd, fullArgs, err := dvaexec.ComposeArgv(env, cc, baseDir)
+	if err != nil {
+		return "", nil, err
+	}
 	fullArgs = append(fullArgs, args...)
 
 	if dvaexec.Debug {
 		fmt.Fprintf(os.Stderr, "[debug] compose: %s %s\n", composeCmd, strings.Join(fullArgs, " "))
 	}
 
-	return composeCmd, fullArgs
+	return composeCmd, fullArgs, nil
 }
 
 // execCompose replaces the current process with a docker compose command. Correct for the
 // single-command path, where handing over the tty and signals is the point — and only there:
 // syscall.Exec does not return, so this can never be called in a loop.
 func execCompose(env *config.Environment, cfg *config.Config, args []string) error {
-	composeCmd, fullArgs := composeArgv(env, cfg, args)
+	composeCmd, fullArgs, err := composeArgv(env, cfg, args)
+	if err != nil {
+		return err
+	}
 	return dvaexec.ExecReplace(env, composeCmd, fullArgs, false)
 }
 
@@ -66,6 +51,9 @@ func execCompose(env *config.Environment, cfg *config.Config, args []string) err
 // which replaced the process on the first command and left every later step unreachable —
 // silently, with exit 0. See TASK-091. LocalRunner has always drawn this same distinction.
 func execComposeStep(env *config.Environment, cfg *config.Config, args []string) error {
-	composeCmd, fullArgs := composeArgv(env, cfg, args)
+	composeCmd, fullArgs, err := composeArgv(env, cfg, args)
+	if err != nil {
+		return err
+	}
 	return dvaexec.ExecSubprocess(env, composeCmd, fullArgs, false)
 }

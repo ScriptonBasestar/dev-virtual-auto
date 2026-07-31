@@ -120,7 +120,10 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		if len(step.ComposeUp) > 0 {
 			composeArgs := append([]string{"up", "-d"}, step.ComposeUp...)
 			if dryRun {
-				cmd, args := buildComposeArgs(e, c, composeArgs)
+				cmd, args, err := buildComposeArgs(e, c, composeArgs)
+				if err != nil {
+					return fmt.Errorf("hook %s:%s step '%s': %w", phase, cmdName, label, err)
+				}
 				fmt.Fprintf(os.Stderr, "  [dry-run] $ %s %s\n", cmd, strings.Join(args, " "))
 			} else {
 				if err := runProvisionCompose(e, c, label, composeArgs); err != nil {
@@ -133,7 +136,10 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		if step.ComposeExec != "" {
 			composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
 			if dryRun {
-				cmd, args := buildComposeArgs(e, c, composeArgs)
+				cmd, args, err := buildComposeArgs(e, c, composeArgs)
+				if err != nil {
+					return fmt.Errorf("hook %s:%s step '%s': %w", phase, cmdName, label, err)
+				}
 				fmt.Fprintf(os.Stderr, "  [dry-run] $ %s %s\n", cmd, strings.Join(args, " "))
 			} else {
 				if err := runProvisionCompose(e, c, label, composeArgs); err != nil {
@@ -146,7 +152,10 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		if step.ComposeRun != "" {
 			composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
 			if dryRun {
-				cmd, args := buildComposeArgs(e, c, composeArgs)
+				cmd, args, err := buildComposeArgs(e, c, composeArgs)
+				if err != nil {
+					return fmt.Errorf("hook %s:%s step '%s': %w", phase, cmdName, label, err)
+				}
 				fmt.Fprintf(os.Stderr, "  [dry-run] $ %s %s\n", cmd, strings.Join(args, " "))
 			} else {
 				if err := runProvisionCompose(e, c, label, composeArgs); err != nil {

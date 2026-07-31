@@ -61,6 +61,11 @@ func TestComposeKeysOnInteractionPath(t *testing.T) {
 
 	runners := stepRunners(t, cfg)
 
+	// The compose expectations below open with "\n", which anchors them to the start of the
+	// echoed line. `command: echo` is one word, so the correct argv is `echo up -d …` with no
+	// "compose" in it — these cases used to expect `compose up -d …` and passed, because the
+	// builder kept a "compose" seed the user had replaced. The anchor is what makes the
+	// absence assertable: without it, a resurrected seed still satisfies Contains. TASK-115.
 	cases := []struct {
 		name string
 		step config.ProvisionItem
@@ -69,17 +74,17 @@ func TestComposeKeysOnInteractionPath(t *testing.T) {
 		{
 			name: "compose_up starts the named services",
 			step: config.ProvisionItem{Step: "start db", ComposeUp: []string{"postgres", "minio"}},
-			want: []string{"start db", "compose up -d postgres minio"},
+			want: []string{"start db", "\nup -d postgres minio"},
 		},
 		{
 			name: "compose_exec runs a command in a service",
 			step: config.ProvisionItem{Step: "wait for db", ComposeExec: "pg_isready -U app"},
-			want: []string{"wait for db", "compose exec pg_isready -U app"},
+			want: []string{"wait for db", "\nexec pg_isready -U app"},
 		},
 		{
 			name: "compose_run runs a one-off command",
 			step: config.ProvisionItem{Step: "migrate", ComposeRun: "migrate up"},
-			want: []string{"migrate", "compose run migrate up"},
+			want: []string{"migrate", "\nrun migrate up"},
 		},
 		{
 			name: "echo prints its message",
@@ -159,7 +164,7 @@ func TestComposeKeysOnInteractionPath(t *testing.T) {
 		if err != nil {
 			t.Fatalf("executeSteps: %v", err)
 		}
-		if !strings.Contains(out, "compose up -d postgres") {
+		if !strings.Contains(out, "\nup -d postgres") {
 			t.Errorf("the compose key must run; got %q", out)
 		}
 		if strings.Contains(out, "MUST-NOT-RUN") {

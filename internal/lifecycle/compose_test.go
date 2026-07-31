@@ -99,6 +99,19 @@ func TestComposePlugin_Stop_NilConfig(t *testing.T) {
 	}
 }
 
+// mustBuildArgs fails the test if the builder rejects the entry. buildArgs grew
+// an error return in TASK-115 — a `command:` that splits to no words is a config
+// error now, where it used to be a panic — and every entry below is well-formed,
+// so an error here means the builder broke, not the fixture.
+func mustBuildArgs(t *testing.T, p *ComposePlugin, pctx *PluginContext, extra []string) (string, []string) {
+	t.Helper()
+	cmd, args, err := p.buildArgs(pctx, extra)
+	if err != nil {
+		t.Fatalf("buildArgs returned an error: %v", err)
+	}
+	return cmd, args
+}
+
 func TestComposePlugin_BuildArgs_Default(t *testing.T) {
 	p := &ComposePlugin{}
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
@@ -111,7 +124,7 @@ func TestComposePlugin_BuildArgs_Default(t *testing.T) {
 		Logger:    slog.Default(),
 	}
 
-	cmd, args := p.buildArgs(pctx, []string{"up", "-d"})
+	cmd, args := mustBuildArgs(t, p, pctx, []string{"up", "-d"})
 
 	if cmd != "docker" {
 		t.Errorf("expected command 'docker', got %q", cmd)
@@ -138,7 +151,7 @@ func TestComposePlugin_BuildArgs_CustomCommand(t *testing.T) {
 		Logger:    slog.Default(),
 	}
 
-	cmd, args := p.buildArgs(pctx, []string{"up"})
+	cmd, args := mustBuildArgs(t, p, pctx, []string{"up"})
 
 	if cmd != "podman" {
 		t.Errorf("expected command 'podman', got %q", cmd)
@@ -162,7 +175,7 @@ func TestComposePlugin_BuildArgs_WithFiles(t *testing.T) {
 		Logger:    slog.Default(),
 	}
 
-	_, args := p.buildArgs(pctx, []string{"up"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up"})
 
 	// Should contain -f flags for each file
 	foundFiles := 0
@@ -190,7 +203,7 @@ func TestComposePlugin_BuildArgs_WithProjectName(t *testing.T) {
 		Logger:    slog.Default(),
 	}
 
-	_, args := p.buildArgs(pctx, []string{"up"})
+	_, args := mustBuildArgs(t, p, pctx, []string{"up"})
 
 	found := false
 	for i, a := range args {

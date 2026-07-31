@@ -154,7 +154,7 @@ func TestStackLogKeepsForwardingUnknownFlags(t *testing.T) {
 	c := mustLoadConfig()
 	e := loadEnv(c)
 
-	_, argv := buildComposeArgs(e, c, []string{"logs", "infra", "--tail=5", "--since=1h", "-f"})
+	_, argv := mustComposeArgs(t, e, c, []string{"logs", "infra", "--tail=5", "--since=1h", "-f"})
 	joined := strings.Join(argv, " ")
 	for _, want := range []string{"--tail=5", "--since=1h", "-f"} {
 		if !strings.Contains(joined, want) {

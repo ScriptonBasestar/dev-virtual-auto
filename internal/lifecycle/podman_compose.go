@@ -84,7 +84,7 @@ func (p *PodmanComposePlugin) buildArgs(pctx *PluginContext, extraArgs []string)
 	for _, f := range cfg.Files {
 		f = pctx.Env.Interpolate(f)
 		if !filepath.IsAbs(f) {
-			f = pctx.ConfigDir + "/" + f
+			f = filepath.Join(pctx.ConfigDir, f)
 		}
 		args = append(args, "-f", f)
 	}

@@ -152,7 +152,10 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 	if len(step.ComposeUp) > 0 {
 		composeArgs := append([]string{"up", "-d"}, step.ComposeUp...)
 		if dryRun {
-			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
 		} else {
 			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
@@ -165,7 +168,10 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 	if step.ComposeExec != "" {
 		composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
 		if dryRun {
-			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
 		} else {
 			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
@@ -178,7 +184,10 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 	if step.ComposeRun != "" {
 		composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
 		if dryRun {
-			composeCmd, args := buildComposeArgs(e, c, composeArgs)
+			composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
+			if err != nil {
+				return err
+			}
 			fmt.Printf("    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
 		} else {
 			if err := runProvisionCompose(e, c, step.Step, composeArgs); err != nil {
@@ -259,19 +268,26 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 			writeNote(&buf, s.Note)
 
 			if dryRun {
+				// A dry run that cannot build the argv has nothing true to print, so the
+				// error goes back through result.err exactly as an execution failure would.
+				// This branch runs in a goroutine, which is why it cannot simply return one.
+				var dryErr error
+				dryCompose := func(composeArgs []string) error {
+					composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+					return nil
+				}
+
 				// Dry run: just show what would run
 				if len(s.ComposeUp) > 0 {
-					composeArgs := append([]string{"up", "-d"}, s.ComposeUp...)
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+					dryErr = dryCompose(append([]string{"up", "-d"}, s.ComposeUp...))
 				} else if s.ComposeExec != "" {
-					composeArgs := append([]string{"exec"}, strings.Fields(s.ComposeExec)...)
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+					dryErr = dryCompose(append([]string{"exec"}, strings.Fields(s.ComposeExec)...))
 				} else if s.ComposeRun != "" {
-					composeArgs := append([]string{"run"}, strings.Fields(s.ComposeRun)...)
-					composeCmd, args := buildComposeArgs(e, c, composeArgs)
-					fmt.Fprintf(&buf, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+					dryErr = dryCompose(append([]string{"run"}, strings.Fields(s.ComposeRun)...))
 				} else {
 					for _, cmdStr := range s.RunCommands() {
 						fmt.Fprintf(&buf, "    [dry-run] $ %s\n", cmdStr)
@@ -283,7 +299,7 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 				if s.Echo != "" {
 					fmt.Fprintf(&buf, "    %s\n", s.Echo)
 				}
-				results[idx] = result{index: idx, output: buf.String()}
+				results[idx] = result{index: idx, output: buf.String(), err: dryErr}
 				return
 			}
 
@@ -482,7 +498,10 @@ func firstStepDescription(steps []config.ProvisionItem) string {
 // runProvisionCompose builds and runs a compose command for a provision step.
 // Uses exec.Command directly instead of shell to avoid command injection.
 func runProvisionCompose(e *config.Environment, c *config.Config, stepName string, args []string) error {
-	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+	composeCmd, composeArgs, err := buildComposeArgs(e, c, args)
+	if err != nil {
+		return fmt.Errorf("provision step '%s': %w", stepName, err)
+	}
 	fmt.Printf("    $ %s %s\n", composeCmd, strings.Join(composeArgs, " "))
 
 	cmd := exec.Command(composeCmd, composeArgs...)

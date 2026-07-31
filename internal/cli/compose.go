@@ -787,7 +787,10 @@ func init() {
 // execComposeSubprocess runs a docker compose command as a subprocess,
 // returning control to the caller after completion.
 func execComposeSubprocess(e *config.Environment, c *config.Config, args []string) error {
-	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+	composeCmd, composeArgs, err := buildComposeArgs(e, c, args)
+	if err != nil {
+		return err
+	}
 
 	if dvaexec.Debug {
 		fmt.Fprintf(os.Stderr, "[debug] compose subprocess: %s %v\n", composeCmd, composeArgs)
@@ -804,7 +807,10 @@ func execComposePassthrough(e *config.Environment, c *config.Config, args []stri
 		return execComposeSubprocess(e, c, args)
 	}
 
-	composeCmd, composeArgs := buildComposeArgs(e, c, args)
+	composeCmd, composeArgs, err := buildComposeArgs(e, c, args)
+	if err != nil {
+		return err
+	}
 
 	if dvaexec.Debug {
 		fmt.Fprintf(os.Stderr, "[debug] compose: %s %v\n", composeCmd, composeArgs)
@@ -815,15 +821,18 @@ func execComposePassthrough(e *config.Environment, c *config.Config, args []stri
 
 // execComposePassthroughForEntry runs docker compose against a specific stack entry.
 func execComposePassthroughForEntry(e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) error {
+	composeCmd, composeArgs, err := buildComposeArgsForEntry(e, c, entry, args)
+	if err != nil {
+		return err
+	}
+
 	if forceSubprocess {
-		composeCmd, composeArgs := buildComposeArgsForEntry(e, c, entry, args)
 		if dvaexec.Debug {
 			fmt.Fprintf(os.Stderr, "[debug] compose subprocess [%s]: %s %v\n", entry.Name, composeCmd, composeArgs)
 		}
 		return dvaexec.ExecSubprocess(e, composeCmd, composeArgs, false)
 	}
 
-	composeCmd, composeArgs := buildComposeArgsForEntry(e, c, entry, args)
 	if dvaexec.Debug {
 		fmt.Fprintf(os.Stderr, "[debug] compose [%s]: %s %v\n", entry.Name, composeCmd, composeArgs)
 	}
@@ -831,68 +840,20 @@ func execComposePassthroughForEntry(e *config.Environment, c *config.Config, ent
 }
 
 // buildComposeArgsForEntry builds docker compose arguments from a specific lifecycle entry.
-func buildComposeArgsForEntry(e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) (string, []string) {
-	composeCmd := "docker"
-	composeArgs := []string{"compose"}
-
-	cc := entry.ComposeConfig()
-	if cc != nil {
-		if cc.Command != "" {
-			parts := dvaexec.SplitCommand(cc.Command)
-			composeCmd = parts[0]
-			if len(parts) > 1 {
-				composeArgs = parts[1:]
-			}
-		}
-
-		cfgDir := c.FileDir()
-		for _, f := range cc.Files {
-			f = e.Interpolate(f)
-			if !filepath.IsAbs(f) {
-				f = cfgDir + "/" + f
-			}
-			composeArgs = append(composeArgs, "-f", f)
-		}
-
-		if cc.ProjectName != "" {
-			composeArgs = append(composeArgs, "--project-name", e.Interpolate(cc.ProjectName))
-		}
+func buildComposeArgsForEntry(e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) (string, []string, error) {
+	composeCmd, composeArgs, err := dvaexec.ComposeArgv(e, entry.ComposeConfig(), c.FileDir())
+	if err != nil {
+		return "", nil, fmt.Errorf("entry %q: %w", entry.Name, err)
 	}
-
-	composeArgs = append(composeArgs, args...)
-	return composeCmd, composeArgs
+	return composeCmd, append(composeArgs, args...), nil
 }
 
 // buildComposeArgs builds docker compose arguments using config settings.
 // Returns the command and args that can be used with exec or shell.
-func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (string, []string) {
-	composeCmd := "docker"
-	composeArgs := []string{"compose"}
-
-	cc := c.PrimaryComposeConfig()
-	if cc != nil {
-		if cc.Command != "" {
-			parts := dvaexec.SplitCommand(cc.Command)
-			composeCmd = parts[0]
-			if len(parts) > 1 {
-				composeArgs = parts[1:]
-			}
-		}
-
-		cfgDir := c.FileDir()
-		for _, f := range cc.Files {
-			f = e.Interpolate(f)
-			if !filepath.IsAbs(f) {
-				f = cfgDir + "/" + f
-			}
-			composeArgs = append(composeArgs, "-f", f)
-		}
-
-		if cc.ProjectName != "" {
-			composeArgs = append(composeArgs, "--project-name", e.Interpolate(cc.ProjectName))
-		}
+func buildComposeArgs(e *config.Environment, c *config.Config, args []string) (string, []string, error) {
+	composeCmd, composeArgs, err := dvaexec.ComposeArgv(e, c.PrimaryComposeConfig(), c.FileDir())
+	if err != nil {
+		return "", nil, err
 	}
-
-	composeArgs = append(composeArgs, args...)
-	return composeCmd, composeArgs
+	return composeCmd, append(composeArgs, args...), nil
 }

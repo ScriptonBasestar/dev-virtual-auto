@@ -268,6 +268,28 @@ func TestApplyEnv_MergesVars(t *testing.T) {
 
 // --- buildComposeArgs tests ---
 
+// mustComposeArgs fails the test if the builder rejects the config. Both builders
+// grew an error return in TASK-115 — a `command:` that splits to no words is a
+// config error now, where it used to index into a nil slice and panic — and every
+// config below is well-formed, so an error here means the builder broke.
+func mustComposeArgs(t *testing.T, e *config.Environment, c *config.Config, args []string) (string, []string) {
+	t.Helper()
+	cmd, argv, err := buildComposeArgs(e, c, args)
+	if err != nil {
+		t.Fatalf("buildComposeArgs returned an error: %v", err)
+	}
+	return cmd, argv
+}
+
+func mustComposeArgsForEntry(t *testing.T, e *config.Environment, c *config.Config, entry *config.LifecycleEntry, args []string) (string, []string) {
+	t.Helper()
+	cmd, argv, err := buildComposeArgsForEntry(e, c, entry, args)
+	if err != nil {
+		t.Fatalf("buildComposeArgsForEntry returned an error: %v", err)
+	}
+	return cmd, argv
+}
+
 func loadTestConfig(t *testing.T, yamlContent string) *config.Config {
 	t.Helper()
 	tmpDir := t.TempDir()
@@ -294,7 +316,7 @@ stack:
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	cmd, args := buildComposeArgs(e, c, []string{"up", "-d"})
+	cmd, args := mustComposeArgs(t, e, c, []string{"up", "-d"})
 	if cmd != "docker" {
 		t.Errorf("cmd = %q, want %q", cmd, "docker")
 	}
@@ -321,7 +343,7 @@ stack:
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	_, args := buildComposeArgs(e, c, []string{"ps"})
+	_, args := mustComposeArgs(t, e, c, []string{"ps"})
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "--project-name") {
 		t.Error("args should contain --project-name")
@@ -343,7 +365,7 @@ stack:
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	_, args := buildComposeArgs(e, c, nil)
+	_, args := mustComposeArgs(t, e, c, nil)
 	fCount := 0
 	for _, a := range args {
 		if a == "-f" {
@@ -427,7 +449,7 @@ stack:
 `)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	cmd, args := buildComposeArgs(e, c, []string{"ps"})
+	cmd, args := mustComposeArgs(t, e, c, []string{"ps"})
 	if cmd != "podman" {
 		t.Errorf("cmd = %q, want 'podman'", cmd)
 	}
@@ -449,7 +471,7 @@ stack:
 `)
 	e := config.NewEnvironment(map[string]string{"APP_NAME": "myapp"}, c.FileDir(), c.FileDir())
 
-	_, args := buildComposeArgs(e, c, []string{"up"})
+	_, args := mustComposeArgs(t, e, c, []string{"up"})
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "myapp") {
 		t.Errorf("args should contain interpolated project name 'myapp', got: %s", joined)
@@ -474,7 +496,7 @@ stack:
 		t.Fatal("compose entry not found")
 	}
 
-	cmd, args := buildComposeArgsForEntry(e, c, entry, []string{"ps"})
+	cmd, args := mustComposeArgsForEntry(t, e, c, entry, []string{"ps"})
 	joined := strings.Join(args, " ")
 	if cmd != "/bin/echo" {
 		t.Errorf("cmd = %q, want /bin/echo", cmd)
