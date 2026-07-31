@@ -286,6 +286,13 @@ var stackStatusCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
+		// DVA's own root flags must not travel into docker's argv. Every sibling
+		// DisableFlagParsing command strips them via parseDvaFlags; this one used to append
+		// args verbatim, so `dva --debug stack log infra` reached docker as
+		// `compose ... logs --debug infra`. Not parseDvaFlags here: it would also eat
+		// --dry-run, which compose owns on this path. TASK-092.
+		args = consumeRootPersistentFlags(args)
+
 		// If a name is given that matches a non-compose entry, show its log file
 		if len(args) > 0 {
 			if entry := c.FindStackEntry(args[0]); entry != nil {

@@ -192,7 +192,7 @@ splitting a case that no longer carries user typos.
 - **`--debug` leaks into docker's argv on the `stack log` path** — see the trace above:
   `logs --debug infra …`. `stack log` never calls `parseDvaFlags`, so root persistent flags
   are not stripped before the passthrough. Filed as
-  [TASK-092](../todo/092-stack-log-forwards-root-flags-to-docker.md).
+  [TASK-092](092-stack-log-forwards-root-flags-to-docker.md).
 - **`dva stack up --var FOO=x` now exits 1** where it used to be silently swallowed. That
   is the behaviour archived [TASK-027](../_archive/027-up-silently-ignores-unknown-args.md)
   called "correct" when it measured `dva run --var` rejecting the same flag, and it closes
@@ -246,5 +246,5 @@ folded in:
   over. It fixed `dva up <typo>`'s plan-name half and left the flag half open, warning that a
   guard scanning every argument would misread `--var FOO=x`. This guard classifies by leading
   dash instead of by position, so that hazard does not arise.
-- [TASK-092](../todo/092-stack-log-forwards-root-flags-to-docker.md) — found by the trace that
+- [TASK-092](092-stack-log-forwards-root-flags-to-docker.md) — found by the trace that
   decided the `stack log` exclusion.

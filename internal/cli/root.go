@@ -261,6 +261,33 @@ func applyRootPersistentFlagsFromArgs(args []string) {
 	}
 }
 
+// consumeRootPersistentFlags is applyRootPersistentFlagsFromArgs for the commands that hand
+// their arguments to another program: it applies --debug/--json and returns args with those
+// two removed, so DVA's own flags do not become the plugin's.
+//
+// It exists separately from parseDvaFlags because the raw passthroughs cannot use that one.
+// parseDvaFlags also consumes --dry-run, --mode, --env and the tag flags; for `dva compose`,
+// `dva logs` and `dva stack log` those belong to docker, and eating them would break the
+// passthrough this is meant to protect. --dry-run in particular is deliberately left in place,
+// for the reason applyRootPersistentFlagsFromArgs already documents: compose has its own.
+//
+// Matching is exact, like the function above — `--debug=true` is neither applied nor stripped
+// by either. Handling it here alone would leave the two disagreeing about what a root flag is.
+func consumeRootPersistentFlags(args []string) []string {
+	filtered := make([]string, 0, len(args))
+	for _, a := range args {
+		switch a {
+		case "--debug":
+			debug = true
+		case "--json":
+			jsonOutput = true
+		default:
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
 func helpRequested(args []string) bool {
 	for _, a := range args {
 		if a == "--help" || a == "-h" {

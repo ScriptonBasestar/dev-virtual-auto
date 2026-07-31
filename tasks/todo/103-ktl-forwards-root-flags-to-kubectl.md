@@ -1,0 +1,95 @@
+---
+id: TASK-103
+title: "`dva ktl` forwards DVA's own root flags into kubectl's argv, so `--debug` becomes a kubectl argument"
+type: fix
+priority: P3
+effort: S
+status: todo
+created-at: 2026-07-31T00:00:00+09:00
+scope: "internal/cli/kubectl.go:34,66 — ktlCmd appends raw args to kubectl's argv on both exec paths"
+---
+
+# Task 103: `ktl` leaks root flags into kubectl
+
+## Problem
+
+The fourth instance of the defect [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md)
+fixed for docker. `ktlCmd` sets `DisableFlagParsing: true` (`kubectl.go:19`) and its only
+argument guard is `helpRequested(args)` (`kubectl.go:21`). It never calls `parseDvaFlags` nor
+the `consumeRootPersistentFlags` helper TASK-092 added, so DVA's own root flags travel into
+kubectl's argv on **both** exec paths:
+
+- no-kubectl-entries fallback — `kubectl.go:30-35`
+- resolved-entry path — `kubectl.go:62-67`
+
+Both end in `dvaexec.ExecReplace(e, "kubectl", kubectlArgs, false)`, i.e. `syscall.Exec` of the
+real kubectl binary.
+
+```go
+kubectlArgs = append(kubectlArgs, passArgs...)          // kubectl.go:66
+return dvaexec.ExecReplace(e, "kubectl", kubectlArgs, false)
+```
+
+So `dva --debug ktl get pods` is expected to reach kubectl as `kubectl get pods --debug`
+(or `kubectl --namespace X get pods --debug` when the entry declares one).
+
+## How it was found
+
+An audit of every `DisableFlagParsing: true` command in `internal/cli/`, commissioned while
+closing TASK-092 to check whether the three sites fixed there were the whole set. 17 real
+commands examined (an 18th `grep` hit is an inline `cobra.Command` fixture in `hooks_test.go`,
+not a registered command):
+
+| verdict | count | commands |
+|---|---|---|
+| leaks | 1 | `ktl` — this task |
+| fixed in TASK-092 | 3 | `compose`, `logs`, `stack log` |
+| safe: strips via `parseDvaFlags` | 11 | `app up/restart/build`, `up`, `down`, `stop`, `restart`, `build`, `stack up/stop/down` |
+| safe: rejects flags before exec | 2 | `infra up`, `infra down` |
+
+The `infra` pair is worth recording as *why* it is safe rather than assuming it: it only calls
+`consumeDryRunFlag`, but `resolveInfraTargets` (`infra.go:53-74`) hard-errors on any remaining
+`-`-prefixed token before anything reaches the orchestrator, so a root flag produces a clean
+error instead of a leak.
+
+## Why it is not folded into TASK-092
+
+Same defect class, but a different target and no test seam. The docker passthroughs route
+through `execComposePassthrough`, which honours the package-global `forceSubprocess` and so can
+be driven from a test that survives to assert. `ktl` calls `ExecReplace` directly, so a
+naive test would `syscall.Exec` kubectl **over the test binary** — kubectl's exit status
+becomes the test's, and the assertions never run while `go test` prints `ok`. That is the
+exact false-pass that cost [TASK-094](../done/094-kubectl-runner-discards-steps.md) two
+probes.
+
+## Proposed fix
+
+Apply `consumeRootPersistentFlags(args)` in `ktlCmd.RunE` after `loadEnv`, before the entry
+resolution at `kubectl.go:42` — it must run before `args[0]` is read as an entry name, or
+`dva --debug ktl myentry ...` would look up `--debug` as the entry. Keep `--dry-run` forwarded
+for the same reason TASK-092 did, unless kubectl's own `--dry-run` semantics argue otherwise
+(kubectl's is `--dry-run=client|server`, a value flag — worth confirming while fixing).
+
+Test with the child-process pattern from `internal/runner/kubectl_steps_test.go`: re-exec the
+test binary with an env marker, put a `kubectl` shim first on a PATH rebuilt as
+`shim:/bin:/usr/bin`, and `t.Fatal` unless `exec.LookPath("kubectl")` resolves to the shim —
+a real kubectl is at `/opt/homebrew/bin/kubectl` on this machine and must not be reachable.
+
+## Acceptance criteria
+
+- [ ] `--debug` no longer reaches kubectl | verify: child-process test asserts the captured kubectl argv contains no `--debug`
+- [ ] Both exec paths covered | verify: one case with zero kubectl entries (`kubectl.go:34`) and one with a resolved entry (`kubectl.go:66`)
+- [ ] User args still pass through | verify: `get pods -o wide` survives intact, or the fix broke the passthrough
+- [ ] Entry-name resolution still works with a leading root flag | verify: `dva --debug ktl <entry> get pods` resolves `<entry>`, not `--debug`
+- [ ] Test is non-vacuous | verify: reverting the fix makes it FAIL, and the failure names the leaked flag
+- [ ] Full suite passes | verify: `make test`
+
+## Related
+
+- [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md) — same defect, docker side;
+  contributes the `consumeRootPersistentFlags` helper this task reuses
+- [TASK-094](../done/094-kubectl-runner-discards-steps.md) — source of the child-process test
+  pattern, and of the `syscall.Exec`-in-a-test false-pass this task must avoid
+- [TASK-102](102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
+  (`kubectl.go:46`, `KubectlEntries`) is also blind to the `runners:` form; independent defect
+  in the same command

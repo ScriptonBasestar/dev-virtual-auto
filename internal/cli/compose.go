@@ -35,6 +35,12 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
+		// Same leak as `dva stack log` (TASK-092), and worse-positioned: these args are
+		// appended before the compose subcommand, so `dva --debug --json compose logs`
+		// produced `docker compose -f … --debug --json logs`, offering both to `docker
+		// compose` itself rather than to `logs`.
+		args = consumeRootPersistentFlags(args)
+
 		composeEntries := c.ComposeEntries()
 		if len(composeEntries) == 0 {
 			return fmt.Errorf("no compose entries in stack")
@@ -568,6 +574,9 @@ var logsCmd = &cobra.Command{
 		}
 		c := mustLoadConfig()
 		e := loadEnv(c)
+		// TASK-092, third site: `dva --debug logs` sent --debug on to docker as a flag of
+		// `compose logs`.
+		args = consumeRootPersistentFlags(args)
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
 }
