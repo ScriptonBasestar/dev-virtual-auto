@@ -92,6 +92,40 @@ type ManifestRunner struct {
 	Description string `json:"description" yaml:"description"`
 }
 
+// fillStaticCommandDescriptions copies each command's cobra Short into its manifest entry.
+//
+// Description used to be a second, hand-written string per command, and the two drifted exactly
+// as two hand-maintained copies of one fact do. Of the original 13 entries, `version` was the
+// only one whose text still matched its Short; the other 12 paraphrased it, and two of those had
+// gone stale rather than merely reworded — `up` and `down` still described compose containers
+// after plans became the primary object, so the manifest did not contain the word "plan" while
+// `dva up --help` led with it.
+//
+// Deriving removes the class instead of correcting the 12 instances: there is now one string to
+// edit per command, and `dva <cmd> --help` and the manifest cannot disagree.
+//
+// The two Init calls are what cobra's Execute() does before dispatching. `help` and `completion`
+// are registered there rather than by an AddCommand call, so without them those two entries would
+// derive an empty description. Both are idempotent, so calling them here costs nothing on the
+// production path, where Execute() has already run them.
+//
+// An entry naming a command that does not exist keeps an empty description rather than being
+// dropped, so it stays visible: TestEveryStaticCommandCarriesAType fails on the empty string and
+// TestStaticCommandsCoverEveryRootCommand names it as a phantom.
+func fillStaticCommandDescriptions(static map[string]ManifestCmd) {
+	rootCmd.InitDefaultHelpCmd()
+	rootCmd.InitDefaultCompletionCmd()
+
+	for _, c := range rootCmd.Commands() {
+		entry, ok := static[c.Name()]
+		if !ok {
+			continue
+		}
+		entry.Description = c.Short
+		static[c.Name()] = entry
+	}
+}
+
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
 		DvaVersion:    config.Version,
@@ -109,50 +143,45 @@ func buildManifest(c *config.Config) *Manifest {
 		// would still need this table for them. TestStaticCommandsCoverEveryRootCommand is what
 		// actually stops the drift; the derivation would not have.
 		//
-		// The 14 added by TASK-096 take their description from the command's own Short. The
-		// original 13 do not — 12 of them paraphrase it and two (`up`, `down`) predate the plan
-		// concept and no longer describe what the command does. Left alone here deliberately;
-		// filed as TASK-105.
+		// Description is not here: fillStaticCommandDescriptions below copies it from each
+		// command's own cobra Short. See that function for why (TASK-105).
 		StaticCommands: map[string]ManifestCmd{
 			"run": {
-				Description: "Run configured command (run prefix may be omitted)",
-				Type:        "dynamic_router",
+				Type: "dynamic_router",
 				Options: map[string]string{
 					"publish": "Publish container ports to host",
 					"explain": "Show execution plan without running",
 				},
 			},
-			"ls":        {Description: "List available run commands", Type: "query"},
-			"compose":   {Description: "Run Docker Compose commands", Type: "passthrough"},
-			"up":        {Description: "Start compose + local services (--no-wait for immediate return)", Type: "compose_shortcut"},
-			"down":      {Description: "Stop and remove containers", Type: "compose_shortcut"},
-			"stop":      {Description: "Stop services", Type: "compose_shortcut"},
-			"build":     {Description: "Build service images", Type: "compose_shortcut"},
-			"clean":     {Description: "Remove all containers/networks/volumes", Type: "compose_shortcut"},
-			"provision": {Description: "Execute provision scripts", Type: "lifecycle"},
-			"validate":  {Description: "Validate dva.yml schema", Type: "config"},
-			"manifest":  {Description: "Output command manifest", Type: "meta"},
-			"ktl":       {Description: "Run kubectl commands", Type: "passthrough"},
-			"version":   {Description: "Show DVA version", Type: "info"},
+			"ls":        {Type: "query"},
+			"compose":   {Type: "passthrough"},
+			"up":        {Type: "compose_shortcut"},
+			"down":      {Type: "compose_shortcut"},
+			"stop":      {Type: "compose_shortcut"},
+			"build":     {Type: "compose_shortcut"},
+			"clean":     {Type: "compose_shortcut"},
+			"provision": {Type: "lifecycle"},
+			"validate":  {Type: "config"},
+			"manifest":  {Type: "meta"},
+			"ktl":       {Type: "passthrough"},
+			"version":   {Type: "info"},
 
-			// Added by TASK-096. The 13 above are the original curated set and are left byte
-			// for byte as they were; these 14 take their text from the command's Short.
-			"stack":   {Description: "Manage infrastructure lifecycle (compose, helm, kubectl, ...)", Type: "lifecycle"},
-			"app":     {Description: "Manage application lifecycle (ls, up, build, down, restart, log)", Type: "lifecycle"},
-			"ssh":     {Description: "Manage the workspace SSH agent container", Type: "lifecycle"},
-			"infra":   {Description: "Manage infrastructure services (deprecated — folded into stack, use 'dva up')", Type: "lifecycle"},
-			"logs":    {Description: "View output from containers", Type: "compose_shortcut"},
-			"restart": {Description: "Restart services (stop + start)", Type: "compose_shortcut"},
-			"console": {Description: "Launch or inject into a DVA-integrated shell", Type: "passthrough"},
-			"status":  {Description: "Display workspace status (config, lifecycle entries, services)", Type: "query"},
-			"show":    {Description: "Show registered configuration summary (stack entries, plans, commands)", Type: "query"},
-			"doctor":  {Description: "Check environment prerequisites and diagnose common setup issues", Type: "query"},
-			"config":  {Description: "View or manage DVA configuration settings", Type: "config"},
-			"init":    {Description: "Scaffold a new 'dva.yml' configuration in the current directory", Type: "config"},
-			"help":    {Description: "Help about any command", Type: "meta"},
+			"stack":   {Type: "lifecycle"},
+			"app":     {Type: "lifecycle"},
+			"ssh":     {Type: "lifecycle"},
+			"infra":   {Type: "lifecycle"},
+			"logs":    {Type: "compose_shortcut"},
+			"restart": {Type: "compose_shortcut"},
+			"console": {Type: "passthrough"},
+			"status":  {Type: "query"},
+			"show":    {Type: "query"},
+			"doctor":  {Type: "query"},
+			"config":  {Type: "config"},
+			"init":    {Type: "config"},
+			"help":    {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
 			// call, so a reader grepping for AddCommand finds 25 and this table lists 27.
-			"completion": {Description: "Generate the autocompletion script for the specified shell", Type: "meta"},
+			"completion": {Type: "meta"},
 		},
 		Runners: map[string]ManifestRunner{
 			runner.RunnerDockerCompose: {
@@ -169,6 +198,7 @@ func buildManifest(c *config.Config) *Manifest {
 			},
 		},
 	}
+	fillStaticCommandDescriptions(m.StaticCommands)
 	m.Plans = buildManifestPlans(c)
 
 	// Collect environment keys

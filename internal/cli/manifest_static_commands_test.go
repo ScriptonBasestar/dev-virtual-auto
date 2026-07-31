@@ -131,40 +131,58 @@ func TestEveryStaticCommandCarriesAType(t *testing.T) {
 	t.Logf("checked=%d", checked)
 }
 
-// TestStaticCommandDescriptionsMatchTheirShort covers only the entries TASK-096 added, by
-// construction: it asserts nothing about a command whose description already differed from its
-// Short. Twelve of the original thirteen do differ — `version` is the only one that matches — and
-// two of those (`up`, `down`) are stale rather than merely reworded. That is a real finding but
-// not this task's; it is TASK-105. The test still has teeth for the 14, which is where a future
-// copy-paste error would land.
+// TestStaticCommandDescriptionsMatchTheirShort covers every command, not the 14 TASK-096 added.
+//
+// It was scoped to those 14 by construction: it could assert nothing about the original 13, whose
+// descriptions were hand-written and already differed from their Short. TASK-105 removed that
+// asymmetry by deriving Description in fillStaticCommandDescriptions, so the scope here widens to
+// all of them.
+//
+// With the derivation in place this reads as a tautology. Mutation testing says what it actually
+// catches, and it is not what it looks like:
+//
+//   - Reintroducing a literal Description in the table does NOT fail here — measured. The
+//     derivation runs after the literal and overwrites it, so a stray literal is dead code, not
+//     drift. That is the intended outcome; it is recorded because the opposite is easy to assume.
+//   - Removing an entry from the derivation's reach DOES fail here, naming the command — measured
+//     with `if c.Name() == "up" { continue }` inside fillStaticCommandDescriptions. Both this test
+//     and TestEveryStaticCommandCarriesAType reported `up`.
+//
+// So this guards the derivation covering every entry, which is the failure mode that would
+// otherwise ship a manifest with a blank description for one command.
 func TestStaticCommandDescriptionsMatchTheirShort(t *testing.T) {
-	added := []string{
-		"stack", "app", "ssh", "infra", "logs", "restart", "console",
-		"status", "show", "doctor", "config", "init", "help", "completion",
-	}
-
-	rootCommandNames(t) // ensure help and completion exist before we look them up
+	names := rootCommandNames(t) // also ensures help and completion exist before we look them up
 	byName := map[string]*cobra.Command{}
 	for _, c := range rootCmd.Commands() {
 		byName[c.Name()] = c
 	}
 
 	m := buildManifest(&config.Config{})
-	for _, name := range added {
+	checked := 0
+	for _, name := range names {
 		cmd, ok := byName[name]
 		if !ok {
-			t.Errorf("%q is in the added set but not registered on rootCmd", name)
+			t.Errorf("%q was listed by rootCommandNames but is not registered on rootCmd", name)
 			continue
 		}
 		entry, ok := m.StaticCommands[name]
 		if !ok {
-			t.Errorf("%q is in the added set but has no static_commands entry", name)
+			// TestStaticCommandsCoverEveryRootCommand reports this; not duplicated here.
 			continue
 		}
+		checked++
 		if entry.Description != cmd.Short {
 			t.Errorf("%q description drifted from its Short:\n manifest: %q\n cobra:    %q",
 				name, entry.Description, cmd.Short)
 		}
+		// A command with no Short would satisfy the equality above while leaving the manifest
+		// entry blank, which is the failure the derivation is most likely to produce silently.
+		if strings.TrimSpace(cmd.Short) == "" {
+			t.Errorf("%q has an empty cobra Short, so its manifest description is blank", name)
+		}
 	}
-	t.Logf("checked=%d", len(added))
+	t.Logf("checked=%d of %d root commands", checked, len(names))
+	if checked < len(names) {
+		t.Errorf("only %d of %d root commands were compared", checked, len(names))
+	}
 }
