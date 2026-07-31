@@ -3,10 +3,26 @@ id: TASK-118
 title: "An app whose health check never passes exits 0 — decide whether that stays a warning"
 type: decision
 priority: P3
-status: decision
+status: done
 effort: S
 created-at: 2026-07-31T00:00:00+09:00
+decided-at: 2026-07-31T23:16:06+09:00
+completed-at: 2026-07-31T23:16:06+09:00
 scope: "internal/lifecycle/app_manager.go — the [warn] app %s not ready branch in startWave, the else arm of the crash check"
+decision-status: decided
+decision: "C — opt-in strict readiness via applications.*.health.required Boolean, default false, application/variant only"
+needs-human: false
+verification-status: verified
+completion-summary: |
+  Decision C implemented: applications.<name>.health.required (and variants.*.health.required)
+  Boolean, default false. Omitted/false keeps advisory [warn] + exit 0; required:true promotes
+  the alive/not-ready arm to [FAIL] + recordErr + non-zero exit. Top-level health_checks does
+  not gain required. Wait:false still skips the readiness path entirely.
+verification-evidence:
+  - "config red→green: TestValidateApplicationHealthRequiredContract 5/5 PASS EXIT=0"
+  - "lifecycle red→green: TestStartAppsHealthRequiredContract 5/5 PASS EXIT=0"
+  - "full gates: make build + make check-generate + make test -race + make lint EXIT=0"
+  - "cli-qa omitted EXIT=0 [warn]; required:false EXIT=0 [warn]; required:true fail EXIT=1 [FAIL]; required:true pass EXIT=0"
 ---
 
 # Task 118: the one readiness branch TASK-117 deliberately left alone
@@ -93,11 +109,78 @@ a USAGE.md line stating `dva up` means "started" unless `health.required: true` 
 If the human picks 1 or 2 instead, this recommendation is wrong and the implementation differs —
 hence the recorded recommendation rather than code.
 
+## Decision confirmed: C
+
+**Chosen: C — opt-in strict readiness via `applications.*.health.required` Boolean, default `false`, application/variant only.**
+
+Confirmed and implemented. Default remains advisory (exit 0 + `[warn]`); projects that want
+`dva app up` to mean "ready" set `health.required: true`. Top-level `health_checks` does **not**
+support `required` (scope guard).
+
+### Implementation paths (4 commits)
+
+| Commit | Scope | Files |
+| --- | --- | --- |
+| `a653ca7` feat(config): add required application health contract | config + schema + contract test | `internal/config/config.go`, `internal/config/schema.json`, `internal/config/health_required_schema_test.go` |
+| `7c16ebc` fix(lifecycle): fail required application readiness timeout | lifecycle else-arm + contract test | `internal/lifecycle/app_manager.go`, `internal/lifecycle/app_health_required_test.go` |
+| `c5ea2d6` docs(config): document required application readiness | docs + generated library | `USAGE.md`, `skills/config/references/schema-reference.md`, `internal/cli/library_reference.txt` |
+| (t5d) docs(tasks): close TASK-118 | this file move only | `tasks/done/118-a-health-check-that-never-passes-is-still-exit-0.md` |
+
+Behaviour in `startWave` alive/not-ready else arm:
+
+- `app.Health.Required == false` (omitted/zero): `[warn] app %s not ready after %s` — exit 0
+- `app.Health.Required == true`: `[FAIL] app %s not ready after %s` + `recordErr` — non-zero
+- `Wait: false`: readiness path skipped entirely (unchanged)
+
+### Verification evidence (machine-verifiable)
+
+Evidence root: `.omo/evidence/task-118-health-required/`
+
+**Focused tests**
+
+| Suite | Command | Result | Evidence |
+| --- | --- | --- | --- |
+| config contract | `go test ./internal/config -run '^TestValidateApplicationHealthRequiredContract$' -count=1 -v` | EXIT 0, 5/5 PASS | `task-2-config-green.txt` |
+| lifecycle contract | `go test ./internal/lifecycle -run '^TestStartAppsHealthRequiredContract$' -count=1 -v` | EXIT 0, 5/5 PASS | `task-3-lifecycle-green.txt` |
+
+Config subtests: `parent_required_true_loads_and_parses`, `variant_required_true_survives_resolve_app`, `omitted_defaults_false`, `non_boolean_application_value_rejected`, `top_level_health_checks_required_rejected`.
+
+Lifecycle subtests: `omitted_defaults_advisory`, `required_false_advisory`, `required_true_unhealthy_alive_and_port_owned`, `required_true_healthy`, `wait_false_skips_required_health`.
+
+**Full gates** (`task-5-full-gates.txt`, binary commit `c5ea2d6`)
+
+| Gate | Result |
+| --- | --- |
+| `make build` | EXIT 0 → `./bin/dva` v0.1.44 |
+| focused config + lifecycle re-run | EXIT 0 |
+| `make check-generate` | EXIT 0 |
+| `make test` (`go test -race -cover ./...`) | EXIT 0 (all packages) |
+| `make lint` | EXIT 0 (`0 issues`, gofmt clean) |
+
+**CLI QA end-to-end** (`task-5-cli-summary.txt`, binary `./bin/dva` @ `c5ea2d6`)
+
+| Case | EXIT | Label | Evidence |
+| --- | --- | --- | --- |
+| required omitted | 0 | exactly one `[warn] app sleeper not ready after 1s` | `task-5-cli-default.txt` |
+| `required: false` | 0 | exactly one `[warn] app sleeper not ready after 1s` | `task-5-cli-required-false.txt` |
+| `required: true` + probe fail | 1 | exactly one `[FAIL] app sleeper not ready after 1s` | `task-5-cli-required-true-fail.txt` |
+| `required: true` + probe pass | 0 | no not-ready line | `task-5-cli-required-true-pass.txt` |
+
+Cleanup: `dva app down` after every up (DOWN_EXIT=0); `tmp/task-118-qa/` removed; no leftover `sleep 30` / pid files.
+
+### Commit stats
+
+```
+a653ca7  internal/config/config.go (+1), health_required_schema_test.go (+182), schema.json (+14/-2)
+7c16ebc  internal/lifecycle/app_health_required_test.go (+206), app_manager.go (+18/-10)
+c5ea2d6  USAGE.md (+2), library_reference.txt (+3/-1), schema-reference.md (+3/-1)
+```
+
 ## Acceptance criteria
 
-- [ ] The option is chosen and recorded here with its reasoning | verify: `human — this file names the chosen option`
-- [ ] If 2 or 3: the behaviour change is implemented and USAGE.md says what `dva up` promises | verify: `human`
-- [ ] If 1: the code comment at the branch states the decision and links here | verify: `grep -n 'TASK-118' internal/lifecycle/app_manager.go` — non-zero
+- [x] The option is chosen and recorded here with its reasoning | verify: this file names **C** under "Decision confirmed: C"
+- [x] If 2 or 3: the behaviour change is implemented and USAGE.md says what `dva up` / `dva app up` promises | verify: commits `a653ca7` `7c16ebc` `c5ea2d6`; USAGE.md contract prose; focused tests + cli-qa EXIT codes above
+- [x] If 1: N/A (option 1 not chosen) | verify: decision is C, not 1
 
 ## Related
 
