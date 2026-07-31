@@ -19,15 +19,15 @@ var statusCmd = &cobra.Command{
 		c, err := loadConfig()
 		if err == nil {
 			e := loadEnv(c)
-				if planName, _, ok := detectPlanRoute(c, args); ok {
-					return runPlanStatus(c, e, planName)
-				}
-				if err := rejectSuppressedDefaultPlan(c, "status", args); err != nil {
-					return err
-				}
-				if err := rejectUnknownPlanArg(c, args); err != nil {
-					return err
-				}
+			if planName, _, ok := detectPlanRoute(c, args); ok {
+				return runPlanStatus(c, e, planName)
+			}
+			if err := rejectSuppressedDefaultPlan(c, "status", args); err != nil {
+				return err
+			}
+			if err := rejectUnknownPlanArg(c, args); err != nil {
+				return err
+			}
 		}
 
 		if jsonOutput {

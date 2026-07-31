@@ -67,36 +67,36 @@ start an explicit service subset.
 	  --env, -E ENV             Use a named environment from dva.yml environments section
 	  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
 	  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
-		DisableFlagParsing: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if helpRequested(args) {
-				return cmd.Help()
-			}
-			c := mustLoadConfig()
-			e := loadEnv(c)
+	DisableFlagParsing: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if helpRequested(args) {
+			return cmd.Help()
+		}
+		c := mustLoadConfig()
+		e := loadEnv(c)
 
-			mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
-			mode, isDefault := applyDefaultMode(c, mode)
+		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+		mode, isDefault := applyDefaultMode(c, mode)
 
-			force := false
-			noWait := false
-			var filteredNames []string
-			for _, a := range names {
-				switch a {
-				case "--force":
-					force = true
-				case "--no-wait":
-					noWait = true
-				default:
-					filteredNames = append(filteredNames, a)
-				}
+		force := false
+		noWait := false
+		var filteredNames []string
+		for _, a := range names {
+			switch a {
+			case "--force":
+				force = true
+			case "--no-wait":
+				noWait = true
+			default:
+				filteredNames = append(filteredNames, a)
 			}
-			if err := rejectUnknownFlags("up", filteredNames, "--force", "--no-wait"); err != nil {
-				return err
-			}
-			if err := validateStackNames(c, "up", filteredNames); err != nil {
-				return err
-			}
+		}
+		if err := rejectUnknownFlags("up", filteredNames, "--force", "--no-wait"); err != nil {
+			return err
+		}
+		if err := validateStackNames(c, "up", filteredNames); err != nil {
+			return err
+		}
 
 		if err := applyEnv(e, c, envName); err != nil {
 			return err
@@ -296,12 +296,12 @@ var stackStatusCmd = &cobra.Command{
 			status.Entries = filtered
 		}
 
-			lifecycle.PrintStatus(status, c.FileDir())
-			return lifecycle.StatusExitError(status)
-		},
-	}
+		lifecycle.PrintStatus(status, c.FileDir())
+		return lifecycle.StatusExitError(status)
+	},
+}
 
-	var stackLogCmd = &cobra.Command{
+var stackLogCmd = &cobra.Command{
 	Use:                "log [NAME] [OPTIONS]",
 	Short:              "View logs for a stack entry",
 	DisableFlagParsing: true,

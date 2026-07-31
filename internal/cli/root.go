@@ -37,18 +37,18 @@ intuitive shortcuts and uniform environments defined in 'dva.yml'.
 
 DVA ensures robust and reproducible development environments, 
 making it easy to onboard and manage projects.`,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
-			// DisableFlagParsing commands never let cobra parse root persistent
-			// flags. Pre-scan os.Args so --debug/--json reach logger.Init.
-			// Do not consume --dry-run here: composeCmd forwards it to docker.
-			applyRootPersistentFlagsFromArgs(os.Args[1:])
-			logger.Init(debug, jsonOutput)
-			if debug {
-				_ = os.Setenv(config.EnvDebugKey, "1")
-				dvaexec.Debug = true
-				slog.Debug("debug mode enabled", "json", jsonOutput)
-			}
-		},
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// DisableFlagParsing commands never let cobra parse root persistent
+		// flags. Pre-scan os.Args so --debug/--json reach logger.Init.
+		// Do not consume --dry-run here: composeCmd forwards it to docker.
+		applyRootPersistentFlagsFromArgs(os.Args[1:])
+		logger.Init(debug, jsonOutput)
+		if debug {
+			_ = os.Setenv(config.EnvDebugKey, "1")
+			dvaexec.Debug = true
+			slog.Debug("debug mode enabled", "json", jsonOutput)
+		}
+	},
 	// When unknown command is invoked, treat as dynamic "run" command
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -353,22 +353,22 @@ func mustLoadConfig() *config.Config {
 	return c
 }
 
-	func loadEnv(c *config.Config) *config.Environment {
-		if env != nil {
-			return env
-		}
-		wd, _ := os.Getwd()
-		// Precedence (lowest → highest among config layers):
-		// vars < environment: < env_file; OS env still wins per MergeVars.
-		env = config.NewEnvironment(c.Vars, wd, c.FileDir())
-		env.MergeVars(c.Environment)
-		if c.EnvFile != nil {
-			if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), env); err != nil {
-				fmt.Fprintf(os.Stderr, "WARN: env_file: %s\n", err)
-			}
-		}
+func loadEnv(c *config.Config) *config.Environment {
+	if env != nil {
 		return env
 	}
+	wd, _ := os.Getwd()
+	// Precedence (lowest → highest among config layers):
+	// vars < environment: < env_file; OS env still wins per MergeVars.
+	env = config.NewEnvironment(c.Vars, wd, c.FileDir())
+	env.MergeVars(c.Environment)
+	if c.EnvFile != nil {
+		if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), env); err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: env_file: %s\n", err)
+		}
+	}
+	return env
+}
 
 // unknownCommandToken returns the offending name from cobra's `unknown command %q for %q`
 // message — the first double-quoted run in the string. Empty when the message is not in that

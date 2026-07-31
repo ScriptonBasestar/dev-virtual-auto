@@ -18,9 +18,9 @@ type ResolvedCommand struct {
 	Description  string
 	Service      string
 	Command      string
-	CommandLines []string // non-nil when command: was a YAML list
-	Script       string   // inline shell script block
-	ScriptFile   string   // path to external shell script
+	CommandLines []string               // non-nil when command: was a YAML list
+	Script       string                 // inline shell script block
+	ScriptFile   string                 // path to external shell script
 	Steps        []config.ProvisionItem // named steps (sequential)
 	Workdir      string
 	User         string

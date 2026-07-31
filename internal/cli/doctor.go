@@ -39,26 +39,26 @@ Also runs built-in checks for Docker availability and compose file existence.
 
 Useful for diagnosing setup problems before running 'dva up' or 'dva provision'.
 Use --fix to automatically resolve fixable issues.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			c := mustLoadConfig()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		c := mustLoadConfig()
 
-			results := runDoctorChecks(c)
+		results := runDoctorChecks(c)
 
-			if doctorFix {
-				applyDoctorFixes(results)
+		if doctorFix {
+			applyDoctorFixes(results)
+		}
+
+		if jsonOutput {
+			if err := output.PrintJSON(map[string]any{"checks": results}); err != nil {
+				return err
 			}
-
-			if jsonOutput {
-				if err := output.PrintJSON(map[string]any{"checks": results}); err != nil {
-					return err
-				}
-				return doctorExitError(results)
-			}
-
-			printDoctorResults(results)
 			return doctorExitError(results)
-		},
-	}
+		}
+
+		printDoctorResults(results)
+		return doctorExitError(results)
+	},
+}
 
 func init() {
 	doctorCmd.Flags().BoolVar(&doctorFix, "fix", false, "Automatically fix issues that can be resolved")

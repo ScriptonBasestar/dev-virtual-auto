@@ -5,7 +5,7 @@
 //
 // Shapes handled (from skills/_targets.yaml):
 //   - agent-skill : symlink <output> → ../skills    (Claude Code, Antigravity, OpenCode
-//                   all read SKILL.md natively; the symlink is the whole projection)
+//     all read SKILL.md natively; the symlink is the whole projection)
 //   - mdc         : .cursor/rules/<name>.mdc         (Cursor; lazy-loaded → full body inlined)
 //   - agents-md   : AGENTS.md marked section         (Codex; always-injected → pointer-only)
 package main

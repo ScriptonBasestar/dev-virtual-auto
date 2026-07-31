@@ -110,102 +110,102 @@ func TestLoadConfig_NoConfig(t *testing.T) {
 	}
 }
 
-	func TestLoadEnv(t *testing.T) {
-		tmpDir := t.TempDir()
-		oldDir, _ := os.Getwd()
-		os.Chdir(tmpDir)
-		defer os.Chdir(oldDir)
+func TestLoadEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	os.Chdir(tmpDir)
+	defer os.Chdir(oldDir)
 
-		oldCfg := cfg
-		oldEnv := env
-		cfg = nil
-		env = nil
-		defer func() { cfg = oldCfg; env = oldEnv }()
+	oldCfg := cfg
+	oldEnv := env
+	cfg = nil
+	env = nil
+	defer func() { cfg = oldCfg; env = oldEnv }()
 
-		os.WriteFile(config.FileName, []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
+	os.WriteFile(config.FileName, []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
 
-		c, _ := loadConfig()
-		e := loadEnv(c)
-		if e == nil {
-			t.Fatal("expected non-nil environment")
-		}
-		if e.Vars["APP_ENV"] != "dev" {
-			t.Errorf("APP_ENV = %q, want 'dev'", e.Vars["APP_ENV"])
-		}
-
-		// Second call should return cached env
-		e2 := loadEnv(c)
-		if e2 != e {
-			t.Error("second call should return same cached env")
-		}
+	c, _ := loadConfig()
+	e := loadEnv(c)
+	if e == nil {
+		t.Fatal("expected non-nil environment")
+	}
+	if e.Vars["APP_ENV"] != "dev" {
+		t.Errorf("APP_ENV = %q, want 'dev'", e.Vars["APP_ENV"])
 	}
 
-	// TestLoadEnv_IncludesGlobalVars locks Option A (TASK-019): top-level vars:
-	// are injected on the run path as the lowest config layer, beneath
-	// environment: and env_file.
-	//
-	// Given: vars, environment, and env_file all set overlapping keys
-	// When:  loadEnv builds the run-path environment
-	// Then:  vars are present; environment overrides vars; env_file overrides both
-	func TestLoadEnv_IncludesGlobalVars(t *testing.T) {
-		tmpDir := t.TempDir()
-		oldDir, _ := os.Getwd()
-		if err := os.Chdir(tmpDir); err != nil {
-			t.Fatalf("chdir: %v", err)
-		}
-		defer os.Chdir(oldDir)
-
-		oldCfg := cfg
-		oldEnv := env
-		cfg = nil
-		env = nil
-		defer func() { cfg = oldCfg; env = oldEnv }()
-
-		// Ensure OS does not pin these keys (MergeVars prefers OS when set).
-		for _, k := range []string{"P_GLOBAL", "P_SHARED", "P_FROM_ENVFILE"} {
-			t.Setenv(k, "")
-			os.Unsetenv(k)
-		}
-
-		if err := os.WriteFile(".env", []byte("P_SHARED=from-env-file\nP_FROM_ENVFILE=from-env-file\n"), 0o644); err != nil {
-			t.Fatalf("write .env: %v", err)
-		}
-		yml := "" +
-			"version: \"0.1.22\"\n" +
-			"vars:\n" +
-			"  P_GLOBAL: from-global-vars\n" +
-			"  P_SHARED: from-global-vars\n" +
-			"environment:\n" +
-			"  P_SHARED: from-environment\n" +
-			"  P_ENV_ONLY: from-environment\n" +
-			"env_file: .env\n"
-		if err := os.WriteFile(config.FileName, []byte(yml), 0o644); err != nil {
-			t.Fatalf("write dva.yml: %v", err)
-		}
-
-		c, err := loadConfig()
-		if err != nil {
-			t.Fatalf("loadConfig: %v", err)
-		}
-		e := loadEnv(c)
-		if e == nil {
-			t.Fatal("expected non-nil environment")
-		}
-
-		if got := e.Vars["P_GLOBAL"]; got != "from-global-vars" {
-			t.Errorf("P_GLOBAL = %q, want from-global-vars (vars must reach run path)", got)
-		}
-		if got := e.Vars["P_ENV_ONLY"]; got != "from-environment" {
-			t.Errorf("P_ENV_ONLY = %q, want from-environment", got)
-		}
-		// environment: overrides vars for the same key
-		if got := e.Vars["P_SHARED"]; got != "from-env-file" {
-			t.Errorf("P_SHARED = %q, want from-env-file (env_file > environment > vars)", got)
-		}
-		if got := e.Vars["P_FROM_ENVFILE"]; got != "from-env-file" {
-			t.Errorf("P_FROM_ENVFILE = %q, want from-env-file", got)
-		}
+	// Second call should return cached env
+	e2 := loadEnv(c)
+	if e2 != e {
+		t.Error("second call should return same cached env")
 	}
+}
+
+// TestLoadEnv_IncludesGlobalVars locks Option A (TASK-019): top-level vars:
+// are injected on the run path as the lowest config layer, beneath
+// environment: and env_file.
+//
+// Given: vars, environment, and env_file all set overlapping keys
+// When:  loadEnv builds the run-path environment
+// Then:  vars are present; environment overrides vars; env_file overrides both
+func TestLoadEnv_IncludesGlobalVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	oldDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer os.Chdir(oldDir)
+
+	oldCfg := cfg
+	oldEnv := env
+	cfg = nil
+	env = nil
+	defer func() { cfg = oldCfg; env = oldEnv }()
+
+	// Ensure OS does not pin these keys (MergeVars prefers OS when set).
+	for _, k := range []string{"P_GLOBAL", "P_SHARED", "P_FROM_ENVFILE"} {
+		t.Setenv(k, "")
+		os.Unsetenv(k)
+	}
+
+	if err := os.WriteFile(".env", []byte("P_SHARED=from-env-file\nP_FROM_ENVFILE=from-env-file\n"), 0o644); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+	yml := "" +
+		"version: \"0.1.22\"\n" +
+		"vars:\n" +
+		"  P_GLOBAL: from-global-vars\n" +
+		"  P_SHARED: from-global-vars\n" +
+		"environment:\n" +
+		"  P_SHARED: from-environment\n" +
+		"  P_ENV_ONLY: from-environment\n" +
+		"env_file: .env\n"
+	if err := os.WriteFile(config.FileName, []byte(yml), 0o644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := loadConfig()
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	e := loadEnv(c)
+	if e == nil {
+		t.Fatal("expected non-nil environment")
+	}
+
+	if got := e.Vars["P_GLOBAL"]; got != "from-global-vars" {
+		t.Errorf("P_GLOBAL = %q, want from-global-vars (vars must reach run path)", got)
+	}
+	if got := e.Vars["P_ENV_ONLY"]; got != "from-environment" {
+		t.Errorf("P_ENV_ONLY = %q, want from-environment", got)
+	}
+	// environment: overrides vars for the same key
+	if got := e.Vars["P_SHARED"]; got != "from-env-file" {
+		t.Errorf("P_SHARED = %q, want from-env-file (env_file > environment > vars)", got)
+	}
+	if got := e.Vars["P_FROM_ENVFILE"]; got != "from-env-file" {
+		t.Errorf("P_FROM_ENVFILE = %q, want from-env-file", got)
+	}
+}
 
 func TestIsTerminal(t *testing.T) {
 	// A pipe is not a terminal
@@ -216,4 +216,3 @@ func TestIsTerminal(t *testing.T) {
 		t.Error("pipe should not be a terminal")
 	}
 }
-
