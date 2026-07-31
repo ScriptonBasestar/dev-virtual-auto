@@ -59,7 +59,7 @@ Same wrong value reaches `dva ls` (`list.go:159`), which shares the call.
 
 The function's own doc comment says it exists so `ls` and `manifest` agree. They do agree — on the
 wrong answer. The root cause is the flat key encoding, which is also what
-[TASK-095](095-third-level-subcommands-never-expand.md) trips over. Worth deciding whether to fix
+[TASK-095](../done/095-third-level-subcommands-never-expand.md) trips over. Worth deciding whether to fix
 the symptom here or to carry the nesting depth alongside the key so neither task has to guess.
 
 ## Options
@@ -88,6 +88,6 @@ the symptom here or to carry the nesting depth alongside the key so neither task
   fix landed in the branch below the `strings.Cut`, via `ShadowedByBuiltin`. A key containing a
   literal space never reaches that branch — it is caught by the `nested` test first and returned
   before any shadowing check runs. Same function, same symptom, different input class.
-- [TASK-095](095-third-level-subcommands-never-expand.md) — the other defect in the same flat key
+- [TASK-095](../done/095-third-level-subcommands-never-expand.md) — the other defect in the same flat key
   space; option A fixes both.
 - [TASK-096](096-manifest-static-commands-undercounts.md) — the other manifest-correctness defect.

@@ -182,6 +182,15 @@ func mergeInteraction(parent, child *config.InteractionCommand) *config.Interact
 		Compose:      parent.Compose,
 	}
 
+	// The one field taken from the child rather than inherited from the parent, and the
+	// reason it is not in the literal above: expandInto recurses on merged.Subcommands, so
+	// carrying the parent's map through would re-expand the parent's own children under
+	// every child name and never terminate. Leaving it nil — which is what this did before
+	// TASK-095 — terminated instead, one level too early: anything nested three deep was
+	// silently dropped, including `rails db migrate` and `rails db seed` in
+	// examples/full-stack.yml.
+	merged.Subcommands = child.Subcommands
+
 	// Override with child values
 	if child.Description != "" {
 		merged.Description = child.Description
