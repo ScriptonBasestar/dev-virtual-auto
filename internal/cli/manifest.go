@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/ScriptonBasestar/dva/internal/output"
@@ -92,6 +93,73 @@ type ManifestRunner struct {
 	Description string `json:"description" yaml:"description"`
 }
 
+// Shared flag descriptions for static_commands options (TASK-105).
+//
+// parseDvaFlags and parsePlanFlags consume these from the raw args rather than registering them on
+// cobra, so `dva up --help` documents them in prose and the Flags: block shows only -h. They
+// therefore cannot be derived from the flag set the way clean/provision/run's options are, and
+// they are accepted by several commands each — naming them once here stops the five copies
+// drifting the way the descriptions did before this task.
+//
+// Each string names the invocation form, because a consumer that only learns a flag exists still
+// cannot tell whether it takes a value.
+const (
+	optMode       = "Use a named mode from the dva.yml modes section; takes a value (--mode MODE, -M MODE)"
+	optEnv        = "Use a named environment from the dva.yml environments section; takes a value (--env ENV, -E ENV)"
+	optTag        = "Include only lifecycle entries matching any of the given tags; takes a value (--tag TAG[,TAG], -T TAG[,TAG])"
+	optExcludeTag = "Exclude lifecycle entries matching any of the given tags; takes a value (--exclude-tag TAG[,TAG])"
+	optVar        = "Override a plan variable; takes a KEY=VAL value (--var KEY=VAL). Plan path only — ignored when no plan is being run"
+	optNoWait     = "Return without waiting for readiness"
+	optForce      = "Compose only: pass --force-recreate; other plugins ignore it"
+)
+
+// fillStaticCommandOptions copies each cobra-registered flag into its command's options map.
+//
+// Eight root commands register local flags with cobra — clean, doctor, init, ls, manifest,
+// provision, run and validate — and for those the manifest has no business restating the usage
+// text by hand. run is the proof: its two hand-written entries had already drifted from cobra's
+// wording ("Publish container ports to host" against "Publish container port(s) to host",
+// "Show execution plan without running" against "Alias for --dry-run"), and five of the eight
+// were not in the table at all.
+//
+// The rest are hand-parsed out of the raw args (see the const block above) and are written
+// literally in the table, because there is no flag object to read them from.
+//
+// Persistent root flags (--debug, --dry-run, --json) and cobra's own --help are skipped: they
+// apply to all 27 commands, so repeating them 27 times would say nothing. That leaves them
+// undocumented in the manifest, which is recorded as a residual on TASK-105 rather than fixed
+// here — it wants a top-level field, not a per-command one.
+//
+// The obvious way to express "local flags only" is cobra's LocalFlags(), and it is wrong here:
+// LocalFlags calls mergePersistentFlags, which copies the root's persistent set into the
+// command's own FlagSet and leaves it there. The commands are package-level globals, so that
+// edit outlives the call. It surfaced as TestRootValidateMatchesConfigValidate failing in the
+// full suite while passing alone — after this ran, root `validate`.Flags() held --debug,
+// --dry-run and --json and `config validate`.Flags() did not.
+//
+// Flags() performs no merge, so reading it and filtering against the root's persistent set is
+// both side-effect free and order-independent.
+func fillStaticCommandOptions(static map[string]ManifestCmd) {
+	persistent := rootCmd.PersistentFlags()
+
+	for _, c := range rootCmd.Commands() {
+		entry, ok := static[c.Name()]
+		if !ok {
+			continue
+		}
+		c.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Name == "help" || persistent.Lookup(f.Name) != nil {
+				return
+			}
+			if entry.Options == nil {
+				entry.Options = map[string]string{}
+			}
+			entry.Options[f.Name] = f.Usage
+		})
+		static[c.Name()] = entry
+	}
+}
+
 // fillStaticCommandDescriptions copies each command's cobra Short into its manifest entry.
 //
 // Description used to be a second, hand-written string per command, and the two drifted exactly
@@ -144,21 +212,56 @@ func buildManifest(c *config.Config) *Manifest {
 		// actually stops the drift; the derivation would not have.
 		//
 		// Description is not here: fillStaticCommandDescriptions below copies it from each
-		// command's own cobra Short. See that function for why (TASK-105).
+		// command's own cobra Short. Options for clean, provision and run are not here either —
+		// their flags are registered on cobra, so fillStaticCommandOptions derives them. What
+		// remains is the hand-parsed set, which has no cobra flag to derive from. See both
+		// functions for why (TASK-105).
 		StaticCommands: map[string]ManifestCmd{
-			"run": {
-				Type: "dynamic_router",
+			"run": {Type: "dynamic_router"},
+			"ls":  {Type: "query"},
+			// compose, ktl and logs take no flags of their own; their --help Flags: block is
+			// just -h. Measured, not assumed — the task that filed this counted the two global
+			// flags and --help as three per-command flags.
+			"compose": {Type: "passthrough"},
+			"up": {
+				Type: "compose_shortcut",
 				Options: map[string]string{
-					"publish": "Publish container ports to host",
-					"explain": "Show execution plan without running",
+					"force":       optForce,
+					"no-wait":     optNoWait,
+					"dev":         "Start applications in dev mode (hot-reload)",
+					"docker":      "Force the docker strategy for applications",
+					"mode":        optMode,
+					"env":         optEnv,
+					"tag":         optTag,
+					"exclude-tag": optExcludeTag,
+					"var":         optVar,
 				},
 			},
-			"ls":        {Type: "query"},
-			"compose":   {Type: "passthrough"},
-			"up":        {Type: "compose_shortcut"},
-			"down":      {Type: "compose_shortcut"},
-			"stop":      {Type: "compose_shortcut"},
-			"build":     {Type: "compose_shortcut"},
+			"down": {
+				Type: "compose_shortcut",
+				Options: map[string]string{
+					"volumes":     "Also remove volumes (--volumes, -v)",
+					"mode":        optMode,
+					"env":         optEnv,
+					"tag":         optTag,
+					"exclude-tag": optExcludeTag,
+					"var":         optVar,
+				},
+			},
+			"stop": {
+				Type: "compose_shortcut",
+				Options: map[string]string{
+					"mode":        optMode,
+					"env":         optEnv,
+					"tag":         optTag,
+					"exclude-tag": optExcludeTag,
+					"var":         optVar,
+				},
+			},
+			// build reads only the mode out of parseDvaFlags (compose.go:453); the tag and env
+			// results are discarded, so listing them here would advertise a filter that does
+			// nothing.
+			"build":     {Type: "compose_shortcut", Options: map[string]string{"mode": optMode}},
 			"clean":     {Type: "compose_shortcut"},
 			"provision": {Type: "lifecycle"},
 			"validate":  {Type: "config"},
@@ -166,12 +269,22 @@ func buildManifest(c *config.Config) *Manifest {
 			"ktl":       {Type: "passthrough"},
 			"version":   {Type: "info"},
 
-			"stack":   {Type: "lifecycle"},
-			"app":     {Type: "lifecycle"},
-			"ssh":     {Type: "lifecycle"},
-			"infra":   {Type: "lifecycle"},
-			"logs":    {Type: "compose_shortcut"},
-			"restart": {Type: "compose_shortcut"},
+			"stack": {Type: "lifecycle"},
+			"app":   {Type: "lifecycle"},
+			"ssh":   {Type: "lifecycle"},
+			"infra": {Type: "lifecycle"},
+			"logs":  {Type: "compose_shortcut"},
+			"restart": {
+				Type: "compose_shortcut",
+				Options: map[string]string{
+					"no-wait":     optNoWait,
+					"mode":        optMode,
+					"env":         optEnv,
+					"tag":         optTag,
+					"exclude-tag": optExcludeTag,
+					"var":         optVar,
+				},
+			},
 			"console": {Type: "passthrough"},
 			"status":  {Type: "query"},
 			"show":    {Type: "query"},
@@ -199,6 +312,7 @@ func buildManifest(c *config.Config) *Manifest {
 		},
 	}
 	fillStaticCommandDescriptions(m.StaticCommands)
+	fillStaticCommandOptions(m.StaticCommands)
 	m.Plans = buildManifestPlans(c)
 
 	// Collect environment keys

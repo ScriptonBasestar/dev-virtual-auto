@@ -90,7 +90,7 @@ the 12 files the command definitions live in.
 
 Deriving `Description` from `Short` was also rejected here for a narrower reason: it would rewrite
 all 13 existing descriptions, which criterion 4 forbids. That is filed separately as
-[TASK-105](../todo/105-static-command-metadata-is-thinner-than-help.md).
+[TASK-105](../done/105-static-command-metadata-is-thinner-than-help.md).
 
 ## Resolution
 
@@ -155,7 +155,7 @@ The package was run with `-shuffle=on` three times, because `rootCommandNames` m
 - `Options` is populated for **1 of 27** commands (`run`), while `dva up --help` documents ~15 flag
   lines — and 12 of the 13 original descriptions paraphrase their own `Short`, two of them
   (`up`, `down`) predating the plan concept and never using the word "plan". Filed as
-  [TASK-105](../todo/105-static-command-metadata-is-thinner-than-help.md) with the per-command table. The
+  [TASK-105](../done/105-static-command-metadata-is-thinner-than-help.md) with the per-command table. The
   count is right now; what each entry *says* is the remaining half.
 - `--no-wait` was checked and is **not** stale — it is hand-parsed at `compose.go:120-131` on
   `upCmd` instead of registered as a cobra flag, which is why `dva up --help` lists it in `Long`
@@ -168,5 +168,5 @@ The package was run with `-shuffle=on` three times, because `rootCommandNames` m
   audience getting a worse answer than the human one.
 - [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
   defect; both surface through `dva manifest`, which is documented as the agent-facing entry point.
-- [TASK-105](../todo/105-static-command-metadata-is-thinner-than-help.md) — the contents half of this
+- [TASK-105](../done/105-static-command-metadata-is-thinner-than-help.md) — the contents half of this
   defect, split out because criterion 4 pinned the 13 descriptions.

@@ -14,6 +14,7 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // rootCommandNames returns every command name cobra will accept at the top level.
@@ -129,6 +130,108 @@ func TestEveryStaticCommandCarriesAType(t *testing.T) {
 		}
 	}
 	t.Logf("checked=%d", checked)
+}
+
+// TestStaticCommandOptionsCoverEveryRegisteredFlag is the enforceable half of TASK-105's options
+// work.
+//
+// static_commands carried options for 1 of 27 commands, so an agent reading the manifest could not
+// construct any invocation more specific than the bare command. Populating them once fixes the
+// snapshot; this stops the next registered flag from being forgotten.
+//
+// It can only cover flags cobra knows about. up/down/stop/restart/build parse theirs out of the
+// raw args in parseDvaFlags and parsePlanFlags, so there is no flag object to compare against and
+// those entries are asserted by TestHandParsedOptionsAreDocumented below instead.
+//
+// Measured, so the description comparison below is not mistaken for more than it is: writing a
+// literal Options entry for a cobra-registered flag does NOT fail here, because
+// fillStaticCommandOptions runs after the table and overwrites it — the same shape as
+// fillStaticCommandDescriptions. Restoring run's old `"publish": "Publish container ports to
+// host"` to the literal left this test green. What does fail is a flag the fill misses:
+// `f.Name == "help" || f.Name == "images"` inside the fill made this test report clean --images
+// by name.
+func TestStaticCommandOptionsCoverEveryRegisteredFlag(t *testing.T) {
+	rootCommandNames(t)
+	m := buildManifest(&config.Config{})
+
+	commandsWithFlags, flagsChecked := 0, 0
+	for _, c := range rootCmd.Commands() {
+		entry, ok := m.StaticCommands[c.Name()]
+		if !ok {
+			continue
+		}
+		local := 0
+		// Flags(), not LocalFlags(), for the reason spelled out on fillStaticCommandOptions:
+		// LocalFlags merges the root's persistent set into these package-global commands and
+		// leaves it there, which breaks TestRootValidateMatchesConfigValidate downstream.
+		c.Flags().VisitAll(func(f *pflag.Flag) {
+			if f.Name == "help" || rootCmd.PersistentFlags().Lookup(f.Name) != nil {
+				return
+			}
+			local++
+			flagsChecked++
+			got, present := entry.Options[f.Name]
+			if !present {
+				t.Errorf("%s registers --%s but static_commands[%q].options does not list it",
+					c.Name(), f.Name, c.Name())
+				return
+			}
+			if got != f.Usage {
+				t.Errorf("%s --%s description drifted:\n manifest: %q\n cobra:    %q",
+					c.Name(), f.Name, got, f.Usage)
+			}
+		})
+		if local > 0 {
+			commandsWithFlags++
+		}
+	}
+
+	t.Logf("commands with registered flags=%d, flags checked=%d", commandsWithFlags, flagsChecked)
+	if flagsChecked == 0 {
+		t.Fatal("no registered flags were compared — the assertions above are vacuous")
+	}
+}
+
+// TestHandParsedOptionsAreDocumented pins the entries that cannot be derived.
+//
+// parseDvaFlags (compose.go:566) and parsePlanFlags (plan_lifecycle.go:153) read these out of the
+// raw args, so `dva up --help` documents them in prose while its Flags: block shows only -h. That
+// is exactly why they were missing from the manifest, and it is why nothing but an explicit list
+// can check them. The list is the contract: a flag added to either parser and not added here is
+// invisible to an agent, and this test does not know that — so it asserts what it can, that every
+// command the parsers serve advertises the flags they accept.
+func TestHandParsedOptionsAreDocumented(t *testing.T) {
+	want := map[string][]string{
+		"up":      {"force", "no-wait", "dev", "docker", "mode", "env", "tag", "exclude-tag", "var"},
+		"down":    {"volumes", "mode", "env", "tag", "exclude-tag", "var"},
+		"stop":    {"mode", "env", "tag", "exclude-tag", "var"},
+		"restart": {"no-wait", "mode", "env", "tag", "exclude-tag", "var"},
+		"build":   {"mode"},
+	}
+
+	rootCommandNames(t)
+	m := buildManifest(&config.Config{})
+
+	checked := 0
+	for cmd, flags := range want {
+		entry, ok := m.StaticCommands[cmd]
+		if !ok {
+			t.Errorf("%q has no static_commands entry", cmd)
+			continue
+		}
+		for _, f := range flags {
+			checked++
+			desc, present := entry.Options[f]
+			if !present {
+				t.Errorf("%s accepts --%s but static_commands[%q].options does not list it", cmd, f, cmd)
+				continue
+			}
+			if strings.TrimSpace(desc) == "" {
+				t.Errorf("%s --%s has an empty description", cmd, f)
+			}
+		}
+	}
+	t.Logf("checked=%d hand-parsed flags across %d commands", checked, len(want))
 }
 
 // TestStaticCommandDescriptionsMatchTheirShort covers every command, not the 14 TASK-096 added.
