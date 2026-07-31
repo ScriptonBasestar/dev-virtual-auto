@@ -74,7 +74,15 @@ type RunOptions struct {
 }
 
 // Explain prints the execution plan without running anything.
-func Explain(cmd *ResolvedCommand, jsonOutput bool) {
+//
+// It returns an error only from the JSON branch, where output.PrintJSON can fail at the write
+// (a full filesystem under stdout, TASK-114). The text branch's dozen fmt.Print* calls return
+// errors too and ignore them, and that is deliberate rather than a copy of this function's old
+// shape: that branch is human-facing, so a closed downstream pipe already kills the process via
+// SIGPIPE — a silent success needs the write to succeed-and-be-lost, which a tty or a regular
+// file does not produce. Propagating fmt errors here would widen this change into every caller
+// of every print the text plan makes, for a failure mode that is already noisy. TASK-121.
+func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	runner := DetectRunnerType(cmd)
 
 	if jsonOutput {
@@ -95,8 +103,7 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 		if cmd.Service != "" {
 			plan["compose_method"] = cmd.Compose.Method
 		}
-		_ = output.PrintJSON(plan)
-		return
+		return output.PrintJSON(plan)
 	}
 
 	fmt.Println("=== Command Execution Plan ===")
@@ -129,6 +136,7 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) {
 			fmt.Printf("  %s=%s\n", k, v)
 		}
 	}
+	return nil
 }
 
 // commandArgs returns the effective arguments for a command.

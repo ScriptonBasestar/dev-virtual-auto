@@ -51,8 +51,7 @@ var runCmd = &cobra.Command{
 		e.MergeVars(resolved.Environment)
 
 		if dryRun {
-			runner.Explain(resolved, jsonOutput)
-			return nil
+			return runner.Explain(resolved, jsonOutput)
 		}
 
 		r := runner.NewRunner(resolved, runner.RunOptions{
@@ -94,8 +93,7 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 
 	if dryRun {
 		fmt.Printf("[subproject: %s]\n", project)
-		runner.Explain(resolved, jsonOutput)
-		return nil
+		return runner.Explain(resolved, jsonOutput)
 	}
 
 	r := runner.NewRunner(resolved, runner.RunOptions{
