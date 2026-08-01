@@ -125,11 +125,14 @@ func writeNote(w io.Writer, note string) {
 	if note == "" {
 		return
 	}
-	fmt.Fprintln(w)
+	// Errors dropped explicitly rather than by a config-level exclusion: w is either
+	// stdout or the parallel path's per-step bytes.Buffer, neither of which can fail
+	// in a way this function could act on.
+	_, _ = fmt.Fprintln(w)
 	for line := range strings.SplitSeq(note, "\n") {
-		fmt.Fprintf(w, "    %s\n", line)
+		_, _ = fmt.Fprintf(w, "    %s\n", line)
 	}
-	fmt.Fprintln(w)
+	_, _ = fmt.Fprintln(w)
 }
 
 // executeProvisionStep runs a single provision step sequentially.

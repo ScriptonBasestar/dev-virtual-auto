@@ -36,13 +36,15 @@ linters:
         - shadow
   exclusions:
     generated: lax
-    # `legacy` keeps the default exclusions close to golangci-lint v1 so the
-    # migration does not surface a new wave of style-only findings.
-    presets:
-      - comments
-      - common-false-positives
-      - legacy
-      - std-error-handling
+    # No `presets:`. There were four, and measuring them one at a time showed
+    # `comments`, `common-false-positives` and `legacy` suppressed nothing at all
+    # while `std-error-handling` alone suppressed 6 errcheck findings — including an
+    # unchecked f.Close() on a temp script that was then chmod'ed and executed
+    # (internal/exec/exec.go). A preset is an exclusion whose contents are decided
+    # elsewhere and change when the linter updates, so it cannot carry a reason that
+    # stays true; `legacy`'s comment claimed a migration-smoothing effect it did not
+    # have. The six are now dropped explicitly at their call sites with `_ =`, which
+    # puts the reason next to the code. TASK-127.
     rules:
       # Unchecked error returns in tests are acceptable: the real assertion
       # fails loudly, and defensive error checks add noise to fixtures.

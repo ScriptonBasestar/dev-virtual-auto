@@ -163,7 +163,7 @@ func ExecScriptInline(env *config.Environment, script string) error {
 	if err != nil {
 		return fmt.Errorf("creating temp script: %w", err)
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 
 	// Auto-prepend shebang when absent so the script is always executable
 	// regardless of which shell the user happens to be running.
@@ -172,10 +172,17 @@ func ExecScriptInline(env *config.Environment, script string) error {
 	}
 
 	if _, err := f.WriteString(script); err != nil {
-		f.Close()
+		_ = f.Close()
 		return fmt.Errorf("writing temp script: %w", err)
 	}
-	f.Close()
+	// Checked rather than deferred or dropped: this file is chmod'ed and executed
+	// three lines below. A buffered write can surface a short write or ENOSPC only
+	// at Close, so ignoring it here means running a truncated script as if it were
+	// the whole one — a shell script that stops early is not a script that failed,
+	// it is a different script. TASK-127.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("closing temp script: %w", err)
+	}
 
 	if err := os.Chmod(f.Name(), 0700); err != nil {
 		return fmt.Errorf("chmod temp script: %w", err)

@@ -35,7 +35,7 @@ func TestComposeConfigError_Error_MultilineDetailUsesFirstLine(t *testing.T) {
 		Detail: "open /repo/compose.nexus.yaml: no such file\nvalidating ...: extra noise",
 	}
 	// The summary line (before the first hint) must not carry the trailing noise.
-	summary := strings.SplitN(e.Error(), "\n", 2)[0]
+	summary, _, _ := strings.Cut(e.Error(), "\n")
 	if strings.Contains(summary, "extra noise") {
 		t.Errorf("summary line leaked multi-line detail: %q", summary)
 	}
