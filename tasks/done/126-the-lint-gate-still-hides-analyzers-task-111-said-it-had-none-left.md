@@ -21,7 +21,15 @@ reporting `0 issues.` while `modernize` — present in the same pinned binary, o
 > `enable:` with the reason; **no analyzer is now deliberately excluded, so there is no residual gap
 > to report**
 
-The bolded clause was not true when it was written.
+The bolded clause claimed more than TASK-111 had checked. Precisely: at analyzer granularity
+nothing *was* deliberately excluded — govet's non-default set and `unparam` were never considered,
+which is not the same as being kept out on purpose. What fails is the inference. A gap you never
+surveyed is not a gap you decided to accept, so "nothing deliberately excluded" does not yield "no
+residual gap to report".
+
+> **Corrected by [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> Two claims in this record reach past what it measured — the `gopls` criterion below and the
+> "what stays excluded is named" criterion. Both are marked inline.
 
 ## Measured
 
@@ -76,10 +84,10 @@ while `KubectlRunner`'s sibling has only ever taken the command. The env reaches
 - [x] The two off-by-default analyzer sets run | verify: `golangci-lint linters` — **`unparam` now listed under "Enabled by your configuration"; `govet` runs with `enable-all: true`**
 - [x] The gate fails on a reintroduced finding | verify: `human — re-add the unused param, then the unread struct write; run make lint` — **2 mutations, `unparam: 1` then `govet: 1`, `make: *** [lint] Error 1` both times**
 - [x] All 8 findings fixed | verify: `make lint` — **`0 issues.`**
-- [x] The editor and the gate agree | verify: `gopls check $(find cmd internal tools -name '*.go')` — **235 files, 0 findings; was 3**
+- [~] The editor and the gate agree | verify: `gopls check $(find cmd internal tools -name '*.go')` — **235 files, 0 findings; was 3.** ⚠️ Command too narrow: it omits `-severity=hint`, and `stringscut` reports at hint level, so this criterion could not see the one live instance of the very class the residual-gap section below calls empty. Corrected in TASK-127.
 - [x] The rewritten test is not vacuous | verify: `human — delete the `if c.DefaultMode != ""` guard in validate.go` — **fails with `default_mode '' not found in modes. Available: dev`; the previous version passed**
 - [x] User-facing messages unchanged | verify: `human — run the three rewritten WriteString branches against the real binary` — **all three render correctly; see Resolution**
-- [x] What stays excluded is named, not implied | verify: `.golangci.yml` lists `fieldalignment` and `shadow` under `govet.disable` with a reason each, and the gopls/golangci `modernize` divergence is recorded below
+- [~] What stays excluded is named, not implied | verify: `.golangci.yml` lists `fieldalignment` and `shadow` under `govet.disable` with a reason each, and the gopls/golangci `modernize` divergence is recorded below — ⚠️ the survey behind this was govet-only. `exclusions.presets` held four unnamed entries, one of which (`std-error-handling`) was silently dropping 6 errcheck findings including a real defect. Corrected in TASK-127.
 - [x] Full suite passes | verify: `make test` — exit 0
 - [x] Docs consistent | verify: `make doc-check` — `broken_links: 0`
 - [x] Generated artifacts current | verify: `make check-generate` — clean
@@ -121,13 +129,22 @@ Two govet analyzers stay off, with the reason recorded in `.golangci.yml` beside
 - `shadow` — flags every shadowed `err`, which is idiomatic here.
 
 And one gap cannot be closed from `.golangci.yml` at all: **gopls's `modernize` is a superset of the
-one vendored into golangci-lint 2.12.2.** `writestring` lives only in the former. There are
-currently 0 instances, but the gate cannot see the class, so the next one will be reported by an
-editor and not by CI. Measuring it means running gopls directly:
+one vendored into golangci-lint 2.12.2.** `writestring` lives only in the former, so the gate cannot
+see the class and the next instance will be reported by an editor and not by CI. Measuring it means
+running gopls directly:
 
 ```
-gopls check $(find cmd internal tools -name '*.go')
+gopls check -severity=hint $(find cmd internal tools -name '*.go')
 ```
+
+> ⚠️ **Two corrections from [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> This paragraph originally read "there are currently 0 instances" and prescribed the same command
+> without `-severity=hint`. Both were wrong in the same direction: there was 1 live instance
+> (`stringscut` in `internal/lifecycle/compose_error_test.go:38`), and it reports at hint severity,
+> so the command written here as the remedy for the gap could not see the gap's only occurrence.
+> The divergence is also finer-grained than "`writestring` lives only in gopls" — it runs *inside*
+> analyzers of the same name: golangci-lint's vendored `stringscut` handles the `strings.Index`
+> variant but not the `SplitN` one.
 
 This is written down rather than left implicit precisely because leaving it implicit is what this
 task exists to correct.
