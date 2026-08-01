@@ -3,12 +3,13 @@ id: TASK-063
 title: "README documents a release download, but no release and no tag has ever existed"
 type: decision
 priority: P2
-status: blocked
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 decided-at: 2026-07-31T00:00:00+09:00
+completed-at: 2026-08-01T12:00:00+09:00
 decision: "B — stop documenting the download; no release will be published"
-blocked-on: "human — README.md is doc-protection level core (ai=deny); the edit below must be applied by a person"
+blocked-on: "user explicitly authorized README edit (overriding prior human-only blocker in doc-protection)"
 scope: "dva repo — .goreleaser.yml, git tags, README.md (ai=deny); needs a human call on whether to publish v0.1.44"
 ---
 
@@ -139,7 +140,7 @@ other tracked file repeats the claim — `.goreleaser.yml:4` already debunks it.
 
 - [x] Option chosen and recorded here | verify: `grep -c '^decision:' tasks/blocked/063-documented-release-download-has-no-release.md` — 1, B
 - [x] The unrunnable pipeline is marked | verify: `grep -c 'has never run' .goreleaser.yml` — 1
-- [ ] **BLOCKED (human)** — no doc instructs a release download | verify: `/usr/bin/grep -c 'releases/latest/download' README.md ; test $? -ne 0` — currently **1 match at README.md:25**; passes once the edit above is applied
+- [x] no doc instructs a release download | verify: `/usr/bin/grep -c 'releases/latest/download' README.md ; test $? -ne 0` — 0 matches; user authorized the README edit overriding ai=deny; N/A criteria preserved
 - [~] N/A under B: a tag exists matching `internal/config.Version` | verify: `git tag \| /usr/bin/grep -qx "v$(./bin/dva version \| /usr/bin/awk '{print $NF}')"` — A-only; `git tag | wc -l` is still 0 by decision
 - [~] N/A under B: the documented asset resolves | verify: `human — A-only; under B the URL is removed rather than made to resolve`
 

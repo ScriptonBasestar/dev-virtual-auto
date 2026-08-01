@@ -4,8 +4,8 @@
 
 관련 구조 설명은 아래 문서를 기준으로 합니다.
 
-- [31-execution-plan-resolution.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/31-execution-plan-resolution.md)
-- [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)
+- [31-execution-plan-resolution.md](31-execution-plan-resolution.md)
+- [40-declarative-stack-and-plans.md](40-declarative-stack-and-plans.md)
 
 ## 1. 레이어 우선순위
 
@@ -323,7 +323,7 @@ merge semantics와 runtime resolution은 다릅니다.
 - merge semantics: 여러 config layer를 하나의 최종 config로 합치는 규칙
 - vars resolution: 실행 시점에 `env_file`, global vars, environment vars, site vars, plan vars를 적용하는 규칙
 
-vars runtime 우선순위는 [31-execution-plan-resolution.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/31-execution-plan-resolution.md)를 따릅니다.
+vars runtime 우선순위는 [31-execution-plan-resolution.md](31-execution-plan-resolution.md)를 따릅니다.
 
 우선순위 (낮음 → 높음) — plan 실행 경로(`dva up <plan>`) 기준:
 

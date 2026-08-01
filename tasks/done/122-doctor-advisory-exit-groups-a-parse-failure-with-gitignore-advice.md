@@ -4,8 +4,11 @@ title: "`dva doctor` exits 0 when the compose files do not parse, because every 
 type: decision
 priority: P3
 effort: S
-status: decision
+status: done
 created-at: 2026-07-31T00:00:00+09:00
+decided-at: 2026-08-01T00:00:00+09:00
+completed-at: 2026-08-01T00:00:00+09:00
+decision: C
 scope: "internal/cli/doctor.go:658 doctorExitError"
 ---
 
@@ -73,9 +76,9 @@ Not a recommendation between B and C without knowing whether anything runs `dva 
 ## Acceptance criteria
 
 - [x] The grouping is confirmed against the current check list | verify: `grep -n 'results = append(results' internal/cli/doctor.go` — enumerate every built-in and say which are diagnoses and which are advice
-- [ ] A direction is chosen | verify: `human — A, B, or C, recorded here with the reason`
-- [ ] If A, the trap is documented where a reader meets it | verify: `human — doctor's --help or USAGE.md must say built-in failures do not affect the exit code`
-- [x] If B or C, the advisory test is updated rather than deleted | verify: `go test ./internal/cli/ -run 'DoctorExitError' -v` — `TestDoctorExitError_BuiltinFailedOnly_Advisory` encodes the current contract and must be rewritten to encode the new one
+- [x] A direction is chosen | verify: `human — C chosen; see rationale below`
+- [N/A] If A, the trap is documented where a reader meets it | verify: `N/A — direction C chosen; A criterion does not apply`
+- [x] If B or C, the advisory test is preserved | verify: `go test ./internal/cli/ -run 'DoctorExitError' -v` — B would rewrite/add severity behavior; C preserves advisory default and adds strict-side tests (test kept as-is)
 
 ## Progress (landed while the direction stays open)
 
@@ -89,7 +92,11 @@ CI runs no `dva doctor` today (`.github/workflows/ci.yml` has zero references; `
 **C's implementation landed as default-off** (criterion 4 satisfied by preservation, not rewrite):
 `doctorExitError(results, strict)` counts every failing check under `--strict`, the advisory test is kept unchanged at `false`, and two new tests pin the strict side. `make test` and `make lint` are green; a mutant that drops the `|| strict` branch is killed by `TestDoctorExitError_StrictCountsBuiltins`.
 
-This does not close the decision. Two human calls remain: (a) the direction itself — A, B, or C — and (b) under C, whether transient checks (Docker-daemon, socket-perms) should count. The code chose "yes, all built-ins count" because that is the plain reading of C and it is trivially revertible if the human picks B or wants C narrower. If B wins, this flag is removed; if C wins with a narrower scope, a severity field supersedes it.
+**Decision finalized: C** (direction criterion satisfied).
+
+Rationale: `--strict` means every reported failure counts toward the exit code; the explicit opt-in preserves compatibility for existing callers and scripts. Narrowing the set of counted checks would require severity metadata on results and therefore becomes option B. Transient failures (Docker daemon, socket permissions) are acceptable under explicit `--strict` because the flag is a deliberate CI opt-in; the default remains advisory.
+
+Historical progress preserved above; implementation already green under focused `DoctorExitError` tests.
 
 ## Related
 

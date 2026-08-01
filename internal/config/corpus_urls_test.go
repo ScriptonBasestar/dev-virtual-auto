@@ -218,12 +218,12 @@ func TestGeneratorCorpusURLsDetectsPlantedDefects(t *testing.T) {
 	}{
 		{
 			name: "wrong repository — the pre-rename name, which now survives only on GitHub's redirect",
-			line: `const u = "https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/docs/40-declarative-stack-and-plans.md#11-migration"`,
+			line: `const u = "https://github.com/ScriptonBasestar/dev-virtual-auto/blob/master/docs/42-migration-and-compatibility.md#11-migration"`,
 			want: "names repository",
 		},
 		{
 			name: "branch that does not exist",
-			line: `const u = "https://github.com/ScriptonBasestar/dva/blob/main/docs/40-declarative-stack-and-plans.md"`,
+			line: `const u = "https://github.com/ScriptonBasestar/dva/blob/main/docs/42-migration-and-compatibility.md"`,
 			want: "names branch",
 		},
 		{

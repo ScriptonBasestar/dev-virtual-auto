@@ -3,9 +3,34 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+// TestMigrationGuideURLTargetsCurrentMigrationSection locks the validate-warning
+// migration link to the doc that owns §11 after the docs/40 split (TASK-090).
+// The constant is what users click; a stale path is a silent dead end.
+func TestMigrationGuideURLTargetsCurrentMigrationSection(t *testing.T) {
+	const want = "https://github.com/ScriptonBasestar/dva/blob/master/docs/42-migration-and-compatibility.md#11-migration"
+	if migrationGuideURL != want {
+		t.Errorf("migrationGuideURL = %q\n  want %q", migrationGuideURL, want)
+	}
+
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	repoRoot := filepath.Join(filepath.Dir(file), "..", "..")
+	docPath := filepath.Join(repoRoot, "docs", "42-migration-and-compatibility.md")
+	content, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("migration guide doc missing at %s: %v", docPath, err)
+	}
+	if !strings.Contains(string(content), "## 11. 마이그레이션 원칙") {
+		t.Errorf("%s must retain heading ## 11. 마이그레이션 원칙 (anchor owner for #11-migration)", docPath)
+	}
+}
 
 func TestNoVersionFloorRatchetWarning(t *testing.T) {
 	// `version:` is the minimum DVA a config requires, so a floor below the running

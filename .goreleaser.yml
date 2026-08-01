@@ -1,4 +1,4 @@
-# This pipeline has never run. See tasks/blocked/063-documented-release-download-has-no-release.md.
+# This pipeline has never run. See tasks/done/063-documented-release-download-has-no-release.md.
 #
 # goreleaser releases from a tag and this repository has none, so no asset has ever been
 # published and `releases/latest/download/...` 404s. TASK-063 chose to stop documenting the

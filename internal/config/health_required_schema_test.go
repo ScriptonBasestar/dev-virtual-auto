@@ -3,7 +3,6 @@ package config
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 )
@@ -11,9 +10,6 @@ import (
 // TestValidateApplicationHealthRequiredContract locks TASK-118 option C:
 // applications.*.health.required and variants.*.health.required are Boolean,
 // default false, and top-level health_checks must not accept the field.
-//
-// Required is read via reflection so this file compiles before HealthCheckConfig
-// gains the field; missing field or wrong value still fails the contract.
 func TestValidateApplicationHealthRequiredContract(t *testing.T) {
 	t.Run("parent_required_true_loads_and_parses", func(t *testing.T) {
 		tmpDir := t.TempDir()
@@ -35,8 +31,8 @@ applications:
 		if app == nil || app.Health == nil {
 			t.Fatal("expected applications.api.health to be parsed")
 		}
-		if got := healthRequired(t, app.Health); !got {
-			t.Fatalf("applications.api.health.Required = %v, want true", got)
+		if !app.Health.Required {
+			t.Fatalf("applications.api.health.Required = %v, want true", app.Health.Required)
 		}
 	})
 
@@ -64,8 +60,8 @@ applications:
 		if variant == nil || variant.Health == nil {
 			t.Fatal("expected applications.api.variants.worker.health to be parsed")
 		}
-		if got := healthRequired(t, variant.Health); !got {
-			t.Fatalf("variant.Health.Required = %v, want true", got)
+		if !variant.Health.Required {
+			t.Fatalf("variant.Health.Required = %v, want true", variant.Health.Required)
 		}
 
 		_, resolved, err := cfg.ResolveApp("api.worker")
@@ -75,8 +71,8 @@ applications:
 		if resolved.Health == nil {
 			t.Fatal("ResolveApp result missing health")
 		}
-		if got := healthRequired(t, resolved.Health); !got {
-			t.Fatalf("ResolveApp health.Required = %v, want true", got)
+		if !resolved.Health.Required {
+			t.Fatalf("ResolveApp health.Required = %v, want true", resolved.Health.Required)
 		}
 	})
 
@@ -99,8 +95,8 @@ applications:
 		if app == nil || app.Health == nil {
 			t.Fatal("expected applications.api.health to be parsed")
 		}
-		if got := healthRequired(t, app.Health); got {
-			t.Fatalf("applications.api.health.Required = %v, want false when omitted", got)
+		if app.Health.Required {
+			t.Fatalf("applications.api.health.Required = %v, want false when omitted", app.Health.Required)
 		}
 	})
 
@@ -135,8 +131,7 @@ applications:
 			t.Fatal("Validate() expected error for applications.api.health.required: \"yes\"")
 		}
 		msg := err.Error()
-		// After the field exists, schema must reject by type (not coerce "yes" → true).
-		// Before the field exists, additional-property rejection also proves non-acceptance.
+		// Schema must reject by type (not coerce "yes" → true).
 		if !strings.Contains(msg, "Invalid type") &&
 			!strings.Contains(msg, "expected bool") &&
 			!strings.Contains(msg, "required") {
@@ -162,21 +157,4 @@ health_checks:
 			t.Fatalf("Validate() error = %v, want additional property rejection for top-level health_checks.required", err)
 		}
 	})
-}
-
-// healthRequired reads HealthCheckConfig.Required without a compile-time field
-// dependency so the red-phase test package builds before the struct is extended.
-func healthRequired(t *testing.T, hc *HealthCheckConfig) bool {
-	t.Helper()
-	if hc == nil {
-		t.Fatal("health config is nil")
-	}
-	v := reflect.ValueOf(hc).Elem().FieldByName("Required")
-	if !v.IsValid() {
-		t.Fatal("HealthCheckConfig.Required field is missing")
-	}
-	if v.Kind() != reflect.Bool {
-		t.Fatalf("HealthCheckConfig.Required kind = %s, want bool", v.Kind())
-	}
-	return v.Bool()
 }

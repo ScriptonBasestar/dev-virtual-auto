@@ -158,9 +158,29 @@ plans:
 ## Build & Test
 
 ```bash
-make build   # → ./bin/dva
-make test    # go test -race -cover ./...
+make build      # → ./bin/dva
+make test       # go test -race -cover ./...
+make doc-check  # repo-wide markdown links + docs/workflows size
 ```
+
+## Documentation gate (TASK-090 option B)
+
+Limits (LLM-friendly linear reads):
+
+- **Size:** ≤500 lines and ≤10240 bytes — enforced only under `docs/` and `workflows/`
+- **Links:** relative file targets and heading anchors — checked on **all** inventory Markdown (not only docs/workflows)
+- **Command:** `make doc-check` → `go run ./tools/doccheck`
+
+Size exemptions (lookup / contract documents — splitting harms the use case; links are still checked):
+
+| Path | Reason |
+|------|--------|
+| `USAGE.md` | User-facing manual kept as one document by design |
+| `skills/*/references/` | Lookup tables; skillgen rewrites reference links |
+| `agent-mesh-flows/shared/library/` | Lookup tables / schema corpus |
+| `workflows/dva-dogfood/METHODOLOGY.md` | Dogfood stages load the file whole; split drops resume protocol unless every stage + reuse registry update together |
+
+The checker inventories **tracked files that still exist in the worktree + non-ignored untracked** files (tracked deletions are excluded so mid-move index blobs cannot mask broken links; ignored `tmp/` cannot make a miss look valid), skips git symlink aliases (mode `120000`) and checks the canonical target once, and fails on zero candidates/links, any broken relative link/anchor in repository Markdown, or oversized docs under the size-enforced paths.
 
 <!-- skills:auto:start -->
 ## AI Skills

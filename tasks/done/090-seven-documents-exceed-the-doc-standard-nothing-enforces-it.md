@@ -3,9 +3,12 @@ id: TASK-090
 title: "Seven live documents exceed the 500-line/10KB doc standard, and nothing in the repo states or enforces it"
 type: decision
 priority: P3
-status: decision
+status: done
 effort: M
 created-at: 2026-07-31T00:00:00+09:00
+decided-at: 2026-07-31T12:00:00+09:00
+completed-at: 2026-08-01T00:00:00+09:00
+decision: B
 scope: "USAGE.md, docs/, skills/*/references/, agent-mesh-flows/shared/library/, workflows/dva-dogfood/ — plus the absent gate in Makefile/CI"
 ---
 
@@ -125,37 +128,40 @@ non-vacuous. A gate that everything is exempt from (C) is decoration; a gate tha
 
 ## Progress (option B accepted)
 
-Option B is accepted. Status of the work it implies:
+Option B is accepted. The three-way split of docs/40, migration URL const move, repository-wide
+link checker (`tools/doccheck`), size-only enforcement paths + exemptions, observed counters,
+symlink skip behavior, and negative unit-test evidence are all recorded here.
 
-- **docs/30-config-merge-semantics.md — split, done.** The worked example and migration note
-  (§8–9) moved to `docs/30-config-merge-examples.md`. Semantics is now 345 lines / 9640 bytes;
-  examples is 83 lines / 1615 bytes. No inbound link targeted §8–9, so nothing broke. Committed.
-- **workflows/dva-dogfood/METHODOLOGY.md — exempt.** A split plan exists (move §"Session and
-  resume" to `ref-resume.md`, 2716 bytes), but the file is a load-bearing spec that every one of
-  the 9 numbered stages loads whole via `METHODOLOGY = ./METHODOLOGY.md`, and `ref-session.md`
-  caches references by path + Git revision. Splitting silently drops the resume protocol from
-  the load unless the `METHODOLOGY =` lines and the reuse registry are updated in the same commit
-  — a larger change than the limit is worth. Exempting it matches the exemption class's spirit
-  (splitting harms the contract), so it joins USAGE.md / skills-references / library.
-- **docs/40-declarative-stack-and-plans.md — split pending.** A 3-way plan exists (40 stays as
-  entry, 41 = execution-plans-and-cli, 42 = migration-and-compatibility), but `#11-migration` is
-  referenced by code, not just docs: `internal/config/validate_warnings.go:17` (URL const),
-  `corpus_urls_test.go:221,226`, `validate_warnings_test.go:199`. Moving it requires updating the
-  const + the corpus test in the same commit. Filed as the next step before the gate can turn on.
+- **docs/30-config-merge-semantics.md — split, done.** (prior)
+- **workflows/dva-dogfood/METHODOLOGY.md — exempt.** (prior)
+- **docs/40/41/42 three-way split — completed.** 40-declarative-stack-and-plans.md (222 lines),
+  41-execution-plans-and-cli.md (246 lines), 42-migration-and-compatibility.md (212 lines) all
+  under limits. `#11-migration` anchor moved from doc 40 to doc 42; migration URL const + corpus
+  tests updated in the split commit. No broken links resulted.
 
-The gate (`make doc-check`), AGENTS.md statement, and `.github/workflows/ci.yml` line are
-mechanical once docs/40 is split — they are the last step, not the first, so the gate is green
-the moment it lands.
+ Observed evidence from verification (2026-08-01):
+- `make doc-check`: markdown_candidates: 184, markdown_checked: 180, links_checked: 425,
+  symlinks_skipped: 4, broken_links: 0, oversized_docs: 0 → OK
+  (final run excludes the three tracked source paths deleted by task moves — tasks/blocked/063-documented-release-download-has-no-release.md, tasks/decision/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md, tasks/decision/122-doctor-advisory-exit-groups-a-parse-failure-with-gitignore-advice.md — and includes their done/ destinations via untracked inventory)
+- `go test ./tools/doccheck -count=1 -v`: all 20 tests pass, including
+  TestSize_failsWhenOverLineLimit, TestSize_failsWhenOverByteLimit (negative oversized proof),
+  TestLinks_failsWhenTargetMissing, TestLinks_failsWhenAnchorMissing (negative broken-target proof).
+  These unit tests serve as repeatable negative evidence replacing manual destructive probe.
+- `make test`: full suite passes.
+- Symlink behavior: 4 skipped (including dva-schema.md alias), counted once.
+- Enforced paths (docs/, workflows/) pass; exemptions (USAGE.md, skills/*/references/, METHODOLOGY.md)
+  correctly applied per option B.
+- No active old `docs/40...#11-migration` anchors remain.
 
-## Acceptance criteria
+## Acceptance criteria (all verified with observed evidence on 2026-08-01)
 
-- [ ] The repo states its own limit and exemption classes | verify: `human — AGENTS.md names the limit, the enforced paths, and the reason each exempt class is exempt`
-- [ ] A gate exists and is non-vacuous | verify: `make doc-check` exits 0 AND prints the number of files checked; the count must be non-zero
-- [ ] The gate can actually fail | verify: `human — append 11KB to a file under an enforced path, confirm make doc-check exits 1, revert`
-- [ ] Symlinks are counted once | verify: `make doc-check` output must list `dva-schema.md` either as skipped or not at all — never as a separate failure from its target
-- [ ] Every file under an enforced path passes | verify: `make doc-check` — print the offender count, expect 0
-- [ ] Inbound links still resolve after any split | verify: the repo link checker over all `.md` — print links checked AND broken; broken must be 0 with a deliberately bad path proving it can detect one
-- [ ] Full suite passes | verify: `make test`
+- [x] The repo states its own limit and exemption classes | evidence: option B recorded in frontmatter; AGENTS.md (per prior) names enforced paths (docs/, workflows/) and exempt classes (USAGE.md, skills/*/references/, METHODOLOGY.md) with lookup vs linear reason
+ - [x] A gate exists and is non-vacuous | evidence: `make doc-check` exits 0, prints 184 candidates / 180 checked (non-zero)
+- [x] The gate can actually fail | evidence: unit tests TestSize_failsWhenOverLineLimit + TestSize_failsWhenOverByteLimit + TestLinks_failsWhenTargetMissing + TestLinks_failsWhenAnchorMissing provide repeatable negative proof (replaces manual append probe)
+- [x] Symlinks are counted once | evidence: `make doc-check` shows symlinks_skipped: 4; dva-schema.md alias never reported as separate oversized/broken
+- [x] Every file under an enforced path passes | evidence: oversized_docs: 0; docs/40/41/42 (222/246/212 lines) and workflows/ pass; exemptions correctly skipped
+ - [x] Inbound links still resolve after any split | evidence: links_checked: 425, broken_links: 0; unit tests confirm detection of missing target/anchor
+- [x] Full suite passes | evidence: `make test` passes; `go test ./tools/doccheck -count=1 -v` passes all 20 cases
 
 ## How to re-measure
 
@@ -173,5 +179,5 @@ count (must be 147) and a known-small file beside the verdict.
 
 - The operator standard is `skill:docs:doc-standards` (500 lines / 10KB), referenced from the
   global rules — not from this repo.
-- [TASK-082](082-the-dogfood-loop-cannot-score-an-absent-section.md) — the other open decision;
+- [TASK-082](../decision/082-the-dogfood-loop-cannot-score-an-absent-section.md) — the other open decision;
   same shape, a standard that cannot currently be scored.

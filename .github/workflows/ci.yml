@@ -19,6 +19,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Documentation
+        run: make doc-check
+
       - name: Build
         run: make build
 

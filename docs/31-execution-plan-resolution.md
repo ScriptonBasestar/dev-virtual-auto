@@ -3,7 +3,8 @@
 이 문서는 DVA의 새 실행 해석 모델을 정의합니다.
 핵심은 `stack`을 선언 저장소로 유지하고, 실제 실행은 이름 있는 실행 계획을 통해 수행하는 것입니다.
 
-관련 배경과 용어는 [40-declarative-stack-and-plans.md](/Users/archmagece/myopen/scripton/dev-virtual-auto/docs/40-declarative-stack-and-plans.md)를 기준 문서로 삼습니다.
+관련 배경과 용어는 [40-declarative-stack-and-plans.md](40-declarative-stack-and-plans.md)를 기준 문서로 삼습니다.
+실행 계획·CLI 상세는 [41-execution-plans-and-cli.md](41-execution-plans-and-cli.md)를 봅니다.
 
 ## 1. 목표
 

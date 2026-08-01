@@ -93,12 +93,10 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
 
 ### 🔄 Configuration Migration
 
-- **[MIGRATE.md](MIGRATE.md)** - DVA configuration upgrade guide
-  - Step-by-step migration walkthrough
-  - Common migration scenarios with before/after examples
-  - AI-assisted migration with Claude/ChatGPT
-  - Best practices for safe upgrades
-  - Use when: Upgrading DVA versions or adopting new features
+- **[docs/42-migration-and-compatibility.md](../docs/42-migration-and-compatibility.md)** - stack/plans migration and compatibility notes
+  - Declarative stack migration guidance
+  - Compatibility anchors referenced from validation warnings
+  - Use when: Upgrading DVA configs toward named plans
 
 ### 🔐 Environment Variables
 
@@ -359,8 +357,9 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 ## Learn More
 
 - [DVA Documentation](https://github.com/ScriptonBasestar/dva)
-- [Schema Reference](../schema.json)
-- [Roadmap](../docs/ROADMAP.md)
+- [Schema Reference](../internal/config/schema.json)
+- [Product scope](../PRODUCT.md)
+- [Usage manual](../USAGE.md)
 
 ---
 

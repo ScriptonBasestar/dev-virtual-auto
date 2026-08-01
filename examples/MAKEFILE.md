@@ -195,4 +195,4 @@ See [makefile-integration.yml](makefile-integration.yml) for a complete dva.yml 
 - [DVA README](../README.md) - Main documentation
 - [DVA Examples](README.md) - All configuration examples
 - [DVA Installation](../README.md#install) - Installation guide
-- [DVA Development Makefile](../Makefile.dev.mk) - Source of example targets
+- [DVA Makefile](../Makefile) - Build, test, and doc-check targets

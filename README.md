@@ -6,9 +6,7 @@
 
 ## Install
 
-DVA는 Go toolchain에서 직접 설치하거나 release binary를 사용할 수 있습니다.
-
-### Binary (추천)
+DVA는 Go toolchain에서 직접 설치하거나 로컬 빌드로 사용합니다.
 
 ```bash
 # From source
@@ -17,13 +15,6 @@ go install github.com/ScriptonBasestar/dva/cmd/dva@latest
 # Or build locally
 make build
 ./bin/dva version
-```
-
-### From Release
-
-```bash
-curl -sL https://github.com/ScriptonBasestar/dva/releases/latest/download/dva_linux_amd64.tar.gz | tar xz
-sudo mv dva /usr/local/bin/
 ```
 
 ## Quick Start

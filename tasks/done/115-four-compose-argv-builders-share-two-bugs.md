@@ -168,11 +168,11 @@ requirement. The expectations now anchor with a leading `\n`, so the assertion i
 `internal/cli/doctor.go:540` (`checkComposeConfigResolves`) is a fifth copy that hardcodes `docker`
 and ignores `cc.Command` entirely, so `dva doctor` checks a tool the user is not running. Folding it
 in also means changing its `exec.LookPath("docker")` skip logic, which is a different decision from
-this one. Filed as [TASK-119](../todo/119-doctor-compose-check-ignores-the-configured-command.md).
+this one. Filed as [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md).
 
 ## Related
 
 - [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — the compose execution path
   audit that made these builders worth reading in the first place.
-- [TASK-119](../todo/119-doctor-compose-check-ignores-the-configured-command.md) — the fifth copy,
+- [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md) — the fifth copy,
   in `dva doctor`.

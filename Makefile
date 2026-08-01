@@ -12,7 +12,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate
+.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check
 
 ## build: Build the dva binary
 build: generate
@@ -100,9 +100,16 @@ generate:
 	@go run ./tools/skillgen
 
 ## check-generate: Verify generated files are up-to-date
-check-generate: generate
-	@git diff --exit-code $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills \
-		|| { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
+check-generate:
+	@set -e; \
+		before=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		$(MAKE) generate; \
+		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		[ "$$before" = "$$after" ] || { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
+
+## doc-check: Enforce docs/workflows size limits and relative markdown links (TASK-090)
+doc-check:
+	go run ./tools/doccheck
 
 ## help: Show this help
 help:

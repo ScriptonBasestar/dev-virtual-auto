@@ -80,4 +80,4 @@ plans:
 - 실행 순서를 `plans.entries` 로 이동
 - environment/site는 stack 선택이 아니라 vars와 override 해석에 집중
 
-구형 구조와의 마이그레이션 표는 [40-declarative-stack-and-plans.md](40-declarative-stack-and-plans.md)를 따릅니다.
+구형 구조와의 마이그레이션 표는 [42-migration-and-compatibility.md](42-migration-and-compatibility.md)를 따릅니다.

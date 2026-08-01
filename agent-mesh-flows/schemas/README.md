@@ -150,11 +150,9 @@ types.go 변경  →  schemas/flow.schema.json 수동 업데이트  →  커밋
 ## SchemaStore 등록 (오픈소스화 시)
 
 [SchemaStore.org](https://www.schemastore.org/) 등록 시 에디터가 파일명 패턴만으로 스키마를 자동 인식합니다.
+등록 사전 조건·PR 절차는 상위 agent-mesh 문서 트리의 ADR-0024(schema hints / SchemaStore)를 따른다.
 
-사전 조건 및 PR 절차: [ADR-0024](../docs/90-decisions/ADR-0024-schema-hints-and-schemastore.md)
+## 관련
 
-## 관련 문서
-
-- [docs/50-workflows/05-ide-schema-hints.md](../docs/50-workflows/05-ide-schema-hints.md) — 에디터 설정 가이드
-- [docs/90-decisions/ADR-0024-schema-hints-and-schemastore.md](../docs/90-decisions/ADR-0024-schema-hints-and-schemastore.md) — 스키마 전략 ADR
-- [docs/20-system/03-data-model.md](../docs/20-system/03-data-model.md) — Pipeline/Step 데이터 모델
+- 이 README의 **IDE 통합** 절 — 에디터 `$schema` 주석·VSCode `yaml.schemas` 설정
+- `flow.schema.json` / `profile.schema.json` — Pipeline/Step 필드 계약 (본 디렉터리)

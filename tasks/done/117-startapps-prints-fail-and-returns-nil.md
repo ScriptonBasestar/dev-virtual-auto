@@ -79,7 +79,7 @@ the three `[FAIL]` sites are the ones this task claims are wrong.
 > into an error would change behaviour for anyone relying on `wait: false` semantics." That reason
 > is wrong: the goroutine returns at `if !opts.Wait { return }` well above this branch, so
 > `wait: false` never reaches it. The reason that does hold is that DVA cannot tell "slow" from
-> "broken" from this signal alone. [TASK-118](../decision/118-a-health-check-that-never-passes-is-still-exit-0.md)
+> "broken" from this signal alone. [TASK-118](../done/118-a-health-check-that-never-passes-is-still-exit-0.md)
 > carries the decision, and the hole it leaves.
 
 Decide `:207` explicitly rather than sweeping it in.
@@ -171,7 +171,7 @@ Each was mutation-tested by reverting the change it covers; all three mutants di
 ### Left open, deliberately
 
 `:228` — `[warn] app %s not ready after %s` — is still a warning and still exits 0. The code comment
-there now says so and points at [TASK-118](../decision/118-a-health-check-that-never-passes-is-still-exit-0.md),
+there now says so and points at [TASK-118](../done/118-a-health-check-that-never-passes-is-still-exit-0.md),
 which also records the hole that leaves: **an app that binds its port but never answers its probe is
 caught by neither branch.** Promoting it changes the exit code of every project with a slow or flaky
 probe, which is a product decision, not a defect to fix unilaterally.

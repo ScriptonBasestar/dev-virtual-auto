@@ -101,9 +101,9 @@ Decide point 2 before writing code — it is the only real design question here.
 - [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — introduced
   `stdoutHasDocument` and its consumer. This task is about the half of the contract that was
   documented but not implemented.
-- [TASK-120](../todo/120-printyaml-panics-where-printjson-returns-an-error.md) — found by
+- [TASK-120](../done/120-printyaml-panics-where-printjson-returns-an-error.md) — found by
   the tests this task added.
-- [TASK-121](../todo/121-explain-cannot-report-a-failed-json-write.md) — the one caller that
+- [TASK-121](../done/121-explain-cannot-report-a-failed-json-write.md) — the one caller that
   cannot receive the error this task made real.
 
 ---

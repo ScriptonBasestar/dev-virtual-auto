@@ -14,7 +14,7 @@ import (
 // likely to click. Repo dva on branch master — not "main", which this repo has never had.
 // It named dev-virtual-auto until the repo was renamed (TASK-060); that name still resolves
 // through GitHub's rename redirect, but the redirect dies if the old name is ever reused.
-const migrationGuideURL = "https://github.com/ScriptonBasestar/dva/blob/master/docs/40-declarative-stack-and-plans.md#11-migration"
+const migrationGuideURL = "https://github.com/ScriptonBasestar/dva/blob/master/docs/42-migration-and-compatibility.md#11-migration"
 
 // canonicalSectionOrder defines the recommended top-level key order for dva.yml.
 var canonicalSectionOrder = []string{
