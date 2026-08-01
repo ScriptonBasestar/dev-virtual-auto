@@ -235,6 +235,9 @@ env_file < global vars < environment vars < site vars < plan vars < CLI vars < O
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면 `dva.yml`의
 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
 
+`dva up <plan> --dry-run`은 이 레이어들이 특정 실행에서 실제로 무엇을 얹었는지 출력합니다
+([USAGE.md](../USAGE.md#실제-적용-결과-확인)).
+
 이 순서를 택하는 이유:
 
 - 전역 값은 기본값이어야 함

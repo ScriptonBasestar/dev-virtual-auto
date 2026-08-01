@@ -96,6 +96,12 @@ OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설
 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다 (`internal/config/environment.go`
 `MergeVars`가 해석된 map 위에 OS 값을 적용).
 
+레이어 1과 2는 `ResolvePlan`이 아니라 config 로드 단계(`internal/cli/root.go` `loadEnv`)가
+적용하며, plan이 만든 map은 그 위에 병합됩니다(`e.MergeVars(plan.EnvVars)`). 두 단계가
+합쳐져 위 순서를 만듭니다. 특정 실행에서 각 레이어가 실제로 무엇을 얹었는지는
+`dva up <plan> --dry-run`이 출력합니다 — 사용법은
+[USAGE.md](../USAGE.md#실제-적용-결과-확인)를 참조하세요.
+
 ### 4-4. stack entry 매핑
 
 plan의 각 `entries[].name`은 `stack.<name>` 선언을 참조합니다.

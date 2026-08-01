@@ -596,6 +596,34 @@ env_file < global vars < environment vars < site vars < plan vars < CLI vars < O
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
 `dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
 
+#### 실제 적용 결과 확인
+
+`--dry-run`은 실행 대신 **해석 결과**를 출력합니다. 위 순서의 각 레이어가 실제로 몇 개
+키를 얹었는지, 어떤 레이어가 비어 있는지를 그대로 보여주므로 "이 변수가 왜 이 값인가"를
+추측 없이 확인할 수 있습니다.
+
+```bash
+dva up <plan> --dry-run
+```
+
+```text
+Resolution:
+  plan: resolved "local-dev"
+  vars: env_file — declared [.env], applied at config load below every layer here
+  vars: environment: — not declared
+  vars: global vars — merged (2 keys)
+  vars: environments."dev" — merged (1 key)
+  vars: sites."local".vars — merged (1 key)
+  vars: plans."local-dev".vars — merged (1 key)
+  vars: cli --var — none passed
+  vars: OS environment overrides every layer above
+```
+
+`down`, `stop`, `restart`도 동일합니다. 출력은 stderr로 나가므로 `--json`을 함께 써도
+stdout의 JSON은 그대로 파싱됩니다. 각 레이어의 의미는
+[docs/31-execution-plan-resolution.md](docs/31-execution-plan-resolution.md#4-3-vars-병합)을
+참조하세요.
+
 ### health_checks
 
 비-compose 서비스(로컬 프로세스 등)의 상태를 확인합니다. `start` 필드가 있으면 자동 시작도 합니다.
