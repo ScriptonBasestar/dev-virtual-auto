@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -850,5 +852,179 @@ func TestWarnSuspiciousEnvPatterns(t *testing.T) {
 	}
 	if !strings.Contains(warnings[2], "environment.SPECIAL:") {
 		t.Errorf("unexpected warning text: %s", warnings[2])
+	}
+}
+
+// nestedInteractionConfig places the three mistakes the interaction-tree warnings look for
+// one level below where the depth-1 versions of those checks could see them: `db` duplicates
+// its own child's command and disagrees with its runner, and `nested` is a group node with
+// no execution target. All three sit under `rails`, so a check that only walks the top level
+// finds nothing here.
+func nestedInteractionConfig() *Config {
+	return &Config{
+		Interaction: map[string]*InteractionCommand{
+			"rails": {
+				Command: "bundle exec rails",
+				Subcommands: map[string]*InteractionCommand{
+					"db": {
+						Command: "db-group",
+						Runner:  "local",
+						Subcommands: map[string]*InteractionCommand{
+							"migrate": {Command: "db-group", Runner: "docker"},
+						},
+					},
+					"tools": {
+						Command: "tools-group",
+						Subcommands: map[string]*InteractionCommand{
+							"nested": {
+								Subcommands: map[string]*InteractionCommand{
+									"leaf": {Command: "echo leaf"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestInteractionWarningsRecurseIntoNestedSubcommands is the contract these three checks were
+// missing. `subcommands` is recursive in the schema and the runner executes it to unbounded
+// depth, so a warning that stops at depth 1 reports the shallow mistake and stays silent on
+// the identical deep one. Measured before the fix: 3 warnings at depth 1, 0 at depth 2.
+func TestInteractionWarningsRecurseIntoNestedSubcommands(t *testing.T) {
+	c := nestedInteractionConfig()
+
+	cases := []struct {
+		name     string
+		got      []string
+		wantPath string
+		wantText string
+	}{
+		{
+			name:     "warnDuplicateParentSubcommand",
+			got:      c.warnDuplicateParentSubcommand(),
+			wantPath: "interaction.rails.subcommands.db.subcommands.migrate",
+			wantText: "identical to parent",
+		},
+		{
+			name:     "warnChildOverridesParentCritical",
+			got:      c.warnChildOverridesParentCritical(),
+			wantPath: "interaction.rails.subcommands.db.subcommands.migrate",
+			wantText: "overrides parent runner",
+		},
+		{
+			name:     "warnUnreachableCommands",
+			got:      c.warnUnreachableCommands(),
+			wantPath: "interaction.rails.subcommands.tools.subcommands.nested",
+			wantText: "not directly callable",
+		},
+	}
+
+	for _, tc := range cases {
+		if len(tc.got) != 1 {
+			t.Errorf("%s: expected 1 nested warning, got %d: %v", tc.name, len(tc.got), tc.got)
+			continue
+		}
+		// The path must be the full YAML location, not just the top-level entry name —
+		// a user cannot act on a warning that does not say which node it means.
+		if !strings.Contains(tc.got[0], tc.wantPath) {
+			t.Errorf("%s: want path %q in warning, got: %s", tc.name, tc.wantPath, tc.got[0])
+		}
+		if !strings.Contains(tc.got[0], tc.wantText) {
+			t.Errorf("%s: want text %q in warning, got: %s", tc.name, tc.wantText, tc.got[0])
+		}
+	}
+}
+
+// TestInteractionWarningsDepth1WordingIsUnchanged pins the exact depth-1 strings.
+//
+// The three pre-existing tests for these checks assert a phrase and a count
+// (`strings.Contains(w, "identical to parent")`), never the config path, so every one of them
+// would still pass if the recursion rewrite had mangled the `interaction.x.subcommands.y`
+// prefix into something wrong. They are kept as-is, and this test supplies the byte-identity
+// they do not cover: the fixture is the same shape used to measure the before/after output of
+// the real binary, so a diff here is a diff a user would have seen.
+func TestInteractionWarningsDepth1WordingIsUnchanged(t *testing.T) {
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"rails": {
+				Command: "bundle exec rails",
+				Runner:  "local",
+				Subcommands: map[string]*InteractionCommand{
+					"console": {Command: "bundle exec rails", Runner: "docker"},
+				},
+			},
+			"grp": {
+				Subcommands: map[string]*InteractionCommand{
+					"leaf": {Command: "echo leaf"},
+				},
+			},
+		},
+	}
+
+	cases := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{
+			name: "warnDuplicateParentSubcommand",
+			got:  c.warnDuplicateParentSubcommand(),
+			want: []string{`interaction.rails.subcommands.console: command "bundle exec rails" is identical to parent; subcommand is redundant`},
+		},
+		{
+			name: "warnChildOverridesParentCritical",
+			got:  c.warnChildOverridesParentCritical(),
+			want: []string{"interaction.rails.subcommands.console: overrides parent runner (local → docker); this may change execution backend unexpectedly"},
+		},
+		{
+			name: "warnUnreachableCommands",
+			got:  c.warnUnreachableCommands(),
+			want: []string{"interaction.grp: has subcommands but is not directly callable; add an execution target or remove subcommands"},
+		},
+	}
+
+	for _, tc := range cases {
+		if !slices.Equal(tc.got, tc.want) {
+			t.Errorf("%s: depth-1 output changed\n want: %q\n got:  %q", tc.name, tc.want, tc.got)
+		}
+	}
+}
+
+// TestInteractionWarningsAreOrderStable pins the sort. Both the interaction tree and each
+// node's subcommands are maps, so without sorting the same dva.yml prints its warnings in a
+// different order on consecutive runs — measured at 3 distinct orderings across 20 runs of
+// `dva config validate` on a 3-warning fixture. That is the defect TASK-107 closed for
+// command suggestions, and recursion makes it more likely by raising the per-check count.
+func TestInteractionWarningsAreOrderStable(t *testing.T) {
+	c := &Config{
+		Interaction: map[string]*InteractionCommand{
+			"rails": {
+				Command: "shared-cmd",
+				Subcommands: map[string]*InteractionCommand{
+					"aaa": {Command: "shared-cmd"},
+					"bbb": {Command: "shared-cmd"},
+					"ccc": {Command: "shared-cmd"},
+				},
+			},
+		},
+	}
+
+	first := c.warnDuplicateParentSubcommand()
+	if len(first) != 3 {
+		t.Fatalf("expected 3 warnings, got %d: %v", len(first), first)
+	}
+	if !sort.StringsAreSorted(first) {
+		t.Errorf("warnings are not sorted: %v", first)
+	}
+	// Repeat: Go randomizes map iteration per range, so an unsorted implementation diverges
+	// within a handful of calls rather than needing a separate process.
+	for i := range 50 {
+		got := c.warnDuplicateParentSubcommand()
+		if !slices.Equal(got, first) {
+			t.Fatalf("run %d differs from run 0:\n first: %v\n got:   %v", i+1, first, got)
+		}
 	}
 }

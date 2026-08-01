@@ -297,25 +297,55 @@ func (c *Config) warnHealthCheckRedundancy() []string {
 	return warnings
 }
 
-// warnDuplicateParentSubcommand warns when a parent interaction command has
-// the same command value as one of its subcommands.
-// TODO: consider checking nested subcommands recursively (schema allows recursive subcommands).
+// eachInteractionNode visits every command in the interaction tree — top-level entries and
+// nested subcommands alike — passing each node with its dotted config path so a warning can
+// name the exact YAML location.
+//
+// `subcommands` is recursive by construction (map[string]*InteractionCommand), the runner
+// executes it to unbounded depth, and examples/full-stack.yml already ships three levels
+// (`dva rails db migrate`). A check that walks only the first level therefore reports a
+// mistake at the top and stays silent on the identical one below it, which is the reasoning
+// warnInertProvisionSteps already records for its own walker.
+func eachInteractionNode(interaction map[string]*InteractionCommand, visit func(path string, cmd *InteractionCommand)) {
+	var walk func(path string, cmd *InteractionCommand)
+	walk = func(path string, cmd *InteractionCommand) {
+		if cmd == nil {
+			return
+		}
+		visit(path, cmd)
+		for subName, sub := range cmd.Subcommands {
+			walk(path+".subcommands."+subName, sub)
+		}
+	}
+
+	for name, cmd := range interaction {
+		walk("interaction."+name, cmd)
+	}
+}
+
+// warnDuplicateParentSubcommand warns when an interaction command has the same command value
+// as one of its subcommands, at any depth.
+//
+// Results are sorted because both this tree and each node's subcommands are maps: without it
+// the same dva.yml prints its warnings in a different order on consecutive runs, which is the
+// defect TASK-107 closed for command suggestions.
 func (c *Config) warnDuplicateParentSubcommand() []string {
 	var warnings []string
 
-	for name, cmd := range c.Interaction {
-		if cmd.Command == "" || len(cmd.Subcommands) == 0 {
-			continue
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
+		if cmd.Command == "" {
+			return
 		}
 		for subName, sub := range cmd.Subcommands {
 			if sub.Command == cmd.Command {
 				warnings = append(warnings,
-					fmt.Sprintf("interaction.%s.subcommands.%s: command %q is identical to parent; subcommand is redundant",
-						name, subName, cmd.Command))
+					fmt.Sprintf("%s.subcommands.%s: command %q is identical to parent; subcommand is redundant",
+						path, subName, cmd.Command))
 			}
 		}
-	}
+	})
 
+	sort.Strings(warnings)
 	return warnings
 }
 
@@ -660,21 +690,22 @@ func validateCanonicalOrder(filePath string) []string {
 func (c *Config) warnChildOverridesParentCritical() []string {
 	var warnings []string
 
-	for name, cmd := range c.Interaction {
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
 		for subName, sub := range cmd.Subcommands {
 			if cmd.Runner != "" && sub.Runner != "" && cmd.Runner != sub.Runner {
 				warnings = append(warnings,
-					fmt.Sprintf("interaction.%s.subcommands.%s: overrides parent runner (%s → %s); this may change execution backend unexpectedly",
-						name, subName, cmd.Runner, sub.Runner))
+					fmt.Sprintf("%s.subcommands.%s: overrides parent runner (%s → %s); this may change execution backend unexpectedly",
+						path, subName, cmd.Runner, sub.Runner))
 			}
 			if cmd.Pod != "" && sub.Pod != "" && cmd.Pod != sub.Pod {
 				warnings = append(warnings,
-					fmt.Sprintf("interaction.%s.subcommands.%s: overrides parent pod (%s → %s); this may change execution backend unexpectedly",
-						name, subName, cmd.Pod, sub.Pod))
+					fmt.Sprintf("%s.subcommands.%s: overrides parent pod (%s → %s); this may change execution backend unexpectedly",
+						path, subName, cmd.Pod, sub.Pod))
 			}
 		}
-	}
+	})
 
+	sort.Strings(warnings)
 	return warnings
 }
 
@@ -722,21 +753,23 @@ func calculateSubcommandDepth(cmd *InteractionCommand, current int) int {
 func (c *Config) warnUnreachableCommands() []string {
 	var warnings []string
 
-	for name, cmd := range c.Interaction {
-		if len(cmd.Subcommands) > 0 {
-			// A parent is essentially a "group" node if it has no execution directives.
-			// Calling it directly typically requires at least one execution target.
-			isCallable := cmd.Command != "" || len(cmd.CommandLines) > 0 || cmd.HasScript() ||
-				cmd.ScriptFile != "" || cmd.HasSteps() || cmd.HasHooks() || cmd.Compose != nil ||
-				cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
-			if !isCallable {
-				warnings = append(warnings,
-					fmt.Sprintf("interaction.%s: has subcommands but is not directly callable; add an execution target or remove subcommands",
-						name))
-			}
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
+		if len(cmd.Subcommands) == 0 {
+			return
 		}
-	}
+		// A parent is essentially a "group" node if it has no execution directives.
+		// Calling it directly typically requires at least one execution target.
+		isCallable := cmd.Command != "" || len(cmd.CommandLines) > 0 || cmd.HasScript() ||
+			cmd.ScriptFile != "" || cmd.HasSteps() || cmd.HasHooks() || cmd.Compose != nil ||
+			cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
+		if !isCallable {
+			warnings = append(warnings,
+				fmt.Sprintf("%s: has subcommands but is not directly callable; add an execution target or remove subcommands",
+					path))
+		}
+	})
 
+	sort.Strings(warnings)
 	return warnings
 }
 
