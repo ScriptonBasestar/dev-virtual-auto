@@ -189,6 +189,23 @@ func parsePlanFlags(args []string) (planRunFlags, error) {
 	return flags, nil
 }
 
+// printPlanResolution writes the steps ResolvePlan recorded while building the plan.
+// It runs only on the dry-run path: there the user asked what would happen instead of
+// asking for it to happen, and the resolution is the answer. Off that path it would be
+// noise on every single invocation.
+//
+// stderr, not stdout, for the same reason the '[plan: ...]' header above it uses stderr —
+// --json output has to stay parseable (TASK-116).
+func printPlanResolution(plan *lifecycle.ExecutionPlan) {
+	if plan == nil || len(plan.ResolutionTrace) == 0 {
+		return
+	}
+	fmt.Fprintln(os.Stderr, "\nResolution:")
+	for _, step := range plan.ResolutionTrace {
+		fmt.Fprintf(os.Stderr, "  %s\n", step)
+	}
+}
+
 func setPlanVar(dst map[string]string, kv string) error {
 	parts := strings.SplitN(kv, "=", 2)
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
@@ -212,11 +229,15 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
+	effectiveDryRun := dryRun || flags.dryRun
+	if effectiveDryRun {
+		printPlanResolution(plan)
+	}
+
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
 	if err != nil {
 		return err
 	}
-	effectiveDryRun := dryRun || flags.dryRun
 	if err := orch.Up(context.Background(), lifecycle.UpOptions{
 		DryRun: effectiveDryRun,
 		Force:  flags.force,
@@ -269,12 +290,17 @@ func runPlanDown(c *config.Config, e *config.Environment, planName string, extra
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
+	effectiveDryRun := dryRun || flags.dryRun
+	if effectiveDryRun {
+		printPlanResolution(plan)
+	}
+
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
 	if err != nil {
 		return err
 	}
 	return orch.Down(context.Background(), lifecycle.DownOptions{
-		DryRun:  dryRun || flags.dryRun,
+		DryRun:  effectiveDryRun,
 		Volumes: flags.volumes,
 		Names:   planEntryNames(plan),
 		Env:     plan.EnvironmentName,
@@ -295,12 +321,17 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
+	effectiveDryRun := dryRun || flags.dryRun
+	if effectiveDryRun {
+		printPlanResolution(plan)
+	}
+
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
 	if err != nil {
 		return err
 	}
 	return orch.Stop(context.Background(), lifecycle.StopOptions{
-		DryRun: dryRun || flags.dryRun,
+		DryRun: effectiveDryRun,
 		Names:  planEntryNames(plan),
 		Env:    plan.EnvironmentName,
 	})
@@ -323,12 +354,17 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 	e.MergeVars(plan.EnvVars)
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
+	effectiveDryRun := dryRun || flags.dryRun
+	if effectiveDryRun {
+		printPlanResolution(plan)
+	}
+
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
 	if err != nil {
 		return err
 	}
 	return orch.Restart(context.Background(), lifecycle.UpOptions{
-		DryRun: dryRun || flags.dryRun,
+		DryRun: effectiveDryRun,
 		Force:  true,
 		Wait:   flags.wait,
 		Names:  planEntryNames(plan),

@@ -80,6 +80,7 @@ Without plans, use the legacy stack and applications lifecycle.
 	  --force                 Compose only: pass --force-recreate (other plugins ignore)
 	  --no-wait               Return without waiting for readiness
 	  --var KEY=VAL           Override a plan variable
+	  --dry-run               Print the variable resolution and the actions, without executing
 
 	Legacy flags:
 	  --force                   Compose only: pass --force-recreate (other plugins ignore)
@@ -302,7 +303,7 @@ Plan usage:
   dva down <plan>         Tear down the selected plan
   --var KEY=VAL           Override a plan variable
   --volumes, -v           Also remove volumes
-  --dry-run               Print actions without executing
+  --dry-run               Print the variable resolution and the actions, without executing
 
 Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
@@ -360,7 +361,7 @@ Without plans, use the legacy applications and stack lifecycle.
 Plan usage:
   dva stop <plan>         Stop the selected plan without removing resources
   --var KEY=VAL           Override a plan variable
-  --dry-run               Print actions without executing
+  --dry-run               Print the variable resolution and the actions, without executing
 
 Legacy flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
@@ -422,7 +423,7 @@ Plan usage:
   dva restart <plan>      Restart the selected plan
   --var KEY=VAL           Override a plan variable
   --no-wait               Return without waiting for readiness
-  --dry-run               Print actions without executing
+  --dry-run               Print the variable resolution and the actions, without executing
 
 Legacy usage:
   dva restart             Restart every stack entry

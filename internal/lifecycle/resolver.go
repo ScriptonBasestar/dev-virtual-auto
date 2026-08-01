@@ -80,17 +80,18 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		ResolutionTrace: make([]string, 0, 16),
 	}
 
-	resolved.ResolutionTrace = append(resolved.ResolutionTrace, "lookup: resolved plan")
+	resolved.trace("plan: resolved %q", name)
 
-	// TODO: Add dedicated config.LoadEnvFileVars helper and merge here directly.
-	if cfg.EnvFile != nil {
-		resolved.ResolutionTrace = append(resolved.ResolutionTrace, "vars: env_file merge skipped (TODO)")
-	} else {
-		resolved.ResolutionTrace = append(resolved.ResolutionTrace, "vars: env_file empty")
-	}
+	// Layers 1-2 of the documented precedence chain are applied by the config loader
+	// (loadEnv, internal/cli/root.go), not here — see appendUpstreamVarTrace.
+	appendUpstreamVarTrace(resolved, cfg)
 
+	// Layers 3-6. Each merge is recorded whether or not it contributed: a layer the config
+	// does not declare is the answer to "why is my variable not set", so it is stated rather
+	// than skipped (the reasoning TASK-082 settled for the dogfood loop applies to the
+	// precedence chain too — an absence is information).
+	resolved.traceLayer("vars: global vars", cfg.Vars, "not declared")
 	mergeStringMap(resolved.EnvVars, cfg.Vars)
-	resolved.ResolutionTrace = append(resolved.ResolutionTrace, "vars: merged global vars")
 
 	var envProfile *config.EnvironmentProfile
 	if plan.Environment != "" {
@@ -103,8 +104,10 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 			}
 		}
 		envProfile = &p
+		resolved.traceLayer(fmt.Sprintf("vars: environments.%q", plan.Environment), envProfile.Environment, "selected, declares no vars")
 		mergeStringMap(resolved.EnvVars, envProfile.Environment)
-		resolved.ResolutionTrace = append(resolved.ResolutionTrace, fmt.Sprintf("vars: merged environment %q", plan.Environment))
+	} else {
+		resolved.trace("vars: environments — none selected by this plan")
 	}
 
 	var site *config.SiteConfig
@@ -118,18 +121,25 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 			}
 		}
 		site = s
+		resolved.traceLayer(fmt.Sprintf("vars: sites.%q.vars", plan.Site), site.Vars, "selected, declares no vars")
 		mergeStringMap(resolved.EnvVars, site.Vars)
-		resolved.ResolutionTrace = append(resolved.ResolutionTrace, fmt.Sprintf("vars: merged site %q", plan.Site))
+	} else {
+		resolved.trace("vars: sites — none selected by this plan")
 	}
 
+	resolved.traceLayer(fmt.Sprintf("vars: plans.%q.vars", name), plan.Vars, "not declared")
 	mergeStringMap(resolved.EnvVars, plan.Vars)
-	resolved.ResolutionTrace = append(resolved.ResolutionTrace, "vars: merged plan vars")
 
+	resolved.traceLayer("vars: cli --var", cliVars, "none passed")
 	mergeStringMap(resolved.EnvVars, cliVars)
-	resolved.ResolutionTrace = append(resolved.ResolutionTrace, "vars: merged cli vars")
+
+	// Layer 7, and the reason the chain cannot be read as "last writer wins": Environment
+	// .MergeVars gives a key already present in the OS environment priority over every
+	// value above, so this is the last word on any variable the shell already exports.
+	resolved.trace("vars: OS environment overrides every layer above")
 
 	if len(plan.Entries) == 0 {
-		resolved.ResolutionTrace = append(resolved.ResolutionTrace, "entries: empty")
+		resolved.trace("entries: none declared by this plan")
 		return resolved, nil
 	}
 
@@ -224,10 +234,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		}
 
 		resolved.Entries = append(resolved.Entries, resolvedEntry)
-		resolved.ResolutionTrace = append(
-			resolved.ResolutionTrace,
-			fmt.Sprintf("entry: %s -> runner=%s order=%d deps=%d", entryName, finalRunner, resolvedEntry.Order, len(resolvedEntry.DependsOn)),
-		)
+		resolved.trace("entry: %s -> runner=%s order=%d deps=%d", entryName, finalRunner, resolvedEntry.Order, len(resolvedEntry.DependsOn))
 	}
 
 	if err := CalculateWaves(resolved.Entries); err != nil {
@@ -246,7 +253,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		return a.Name < b.Name
 	})
 
-	resolved.ResolutionTrace = append(resolved.ResolutionTrace, "waves: calculated and entries sorted")
+	resolved.trace("waves: calculated and entries sorted")
 
 	return resolved, nil
 }
@@ -315,6 +322,66 @@ func CalculateWaves(entries []ResolvedEntry) error {
 	}
 
 	return nil
+}
+
+// trace appends one resolution step. Everything the user reads under 'Resolution:' in
+// 'dva up <plan> --dry-run' comes from here, so a step must state what happened, not what
+// the code intended to do.
+func (p *ExecutionPlan) trace(format string, args ...any) {
+	p.ResolutionTrace = append(p.ResolutionTrace, fmt.Sprintf(format, args...))
+}
+
+// traceLayer records one layer of the variable precedence chain and how much it carried.
+// An empty layer is reported instead of omitted: "why did my variable never get set" is
+// answered by the layer that had nothing in it, so the layer has to appear either way.
+//
+// absent phrases the empty case for this particular layer, because the layers are not the
+// same kind of thing — a config section is declared or not, a --var flag is passed or not,
+// and saying "not declared" about a command-line flag would be wrong.
+func (p *ExecutionPlan) traceLayer(label string, vars map[string]string, absent string) {
+	if len(vars) == 0 {
+		p.trace("%s — %s", label, absent)
+		return
+	}
+	p.trace("%s — merged (%s)", label, pluralKeys(len(vars)))
+}
+
+// appendUpstreamVarTrace records the two layers that sit below everything ResolvePlan
+// merges but are applied by a different stage: the top-level `environment:` map and
+// `env_file:`, both loaded by loadEnv (internal/cli/root.go) into the Environment that
+// this plan's EnvVars are later merged onto (e.MergeVars(plan.EnvVars), plan_lifecycle.go).
+//
+// They are named here rather than merged here on purpose. loadEnv is the config-load stage
+// for every command — the legacy stack path has no plan to resolve and still needs env_file
+// — so re-reading those files during plan resolution would read the same paths twice per
+// invocation and give the resolver file I/O it otherwise does not do. What the trace owes
+// the user is the layer's position in the chain, which is knowable from the declaration
+// alone; the values themselves are already in the Environment by the time this runs.
+//
+// Verified against the real binary: an env_file key reaches the process, and a global
+// `vars:` key of the same name wins over it — exactly the documented order.
+func appendUpstreamVarTrace(resolved *ExecutionPlan, cfg *config.Config) {
+	// "declared", not "applied": an optional env_file that does not exist is skipped by
+	// config.LoadEnvFile without error, so naming the declared set is the strongest claim
+	// this function can make without opening the files itself.
+	if files := cfg.AllEnvFiles(); len(files) > 0 {
+		resolved.trace("vars: env_file — declared [%s], applied at config load below every layer here", strings.Join(files, ", "))
+	} else {
+		resolved.trace("vars: env_file — not declared")
+	}
+
+	if len(cfg.Environment) > 0 {
+		resolved.trace("vars: environment: — applied at config load, below every layer here (%s)", pluralKeys(len(cfg.Environment)))
+	} else {
+		resolved.trace("vars: environment: — not declared")
+	}
+}
+
+func pluralKeys(n int) string {
+	if n == 1 {
+		return "1 key"
+	}
+	return fmt.Sprintf("%d keys", n)
 }
 
 func mergeStringMap(dst map[string]string, src map[string]string) {
