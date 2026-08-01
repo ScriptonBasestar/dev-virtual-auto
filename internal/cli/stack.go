@@ -424,7 +424,8 @@ func rejectUnknownFlags(path, noun string, args, known []string) error {
 		if noun != "" {
 			fmt.Fprintf(&msg, "\n       → %s cannot start with \"-\", so this was read as one and matched nothing", noun)
 		}
-		msg.WriteString("\n       → accepted here: " + strings.Join(known, ", "))
+		msg.WriteString("\n       → accepted here: ")
+		msg.WriteString(strings.Join(known, ", "))
 		if s := similarTo(a, known); len(s) > 0 {
 			msg.WriteString("\n\nDid you mean?")
 			for _, k := range s {
@@ -469,7 +470,8 @@ func validateStackNames(c *config.Config, sub string, names []string) error {
 	if len(available) == 0 {
 		msg.WriteString("\n       → dva.yml defines no stack entries")
 	} else {
-		msg.WriteString("\n       → defined in dva.yml: " + strings.Join(available, ", "))
+		msg.WriteString("\n       → defined in dva.yml: ")
+		msg.WriteString(strings.Join(available, ", "))
 	}
 	var suggestions []string
 	for _, n := range unknown {

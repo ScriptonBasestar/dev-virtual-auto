@@ -108,12 +108,16 @@ func writeDoctorComposeFixture(t *testing.T, dir, command string, files ...strin
 	return c
 }
 
-// writeComposeFile drops a minimal compose file into dir under the given name.
-func writeComposeFile(t *testing.T, dir, name string) {
+// testComposeFileName is the compose file every doctor fixture in this file refers to.
+const testComposeFileName = "compose.dev.yml"
+
+// writeComposeFile drops a minimal compose file into dir under testComposeFileName.
+// The name is not a parameter: all six call sites passed the same string.
+func writeComposeFile(t *testing.T, dir string) {
 	t.Helper()
 	body := "name: task119\nservices:\n  db:\n    image: postgres:16\n"
-	if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
-		t.Fatalf("write %s: %v", name, err)
+	if err := os.WriteFile(filepath.Join(dir, testComposeFileName), []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", testComposeFileName, err)
 	}
 }
 
@@ -126,7 +130,7 @@ func TestDoctorComposeConfigRunsTheConfiguredCommand(t *testing.T) {
 	resetDoctorGlobals(t)
 
 	dir := t.TempDir()
-	writeComposeFile(t, dir, "compose.dev.yml")
+	writeComposeFile(t, dir)
 	c := writeDoctorComposeFixture(t, dir, "podman-compose", "compose.${"+stageVar+"}.yml")
 
 	invocations := composeShims(t, "docker", "podman-compose")
@@ -169,7 +173,7 @@ func TestDoctorComposeConfigReportsWhatTheCommandSaid(t *testing.T) {
 	resetDoctorGlobals(t)
 
 	dir := t.TempDir()
-	writeComposeFile(t, dir, "compose.dev.yml")
+	writeComposeFile(t, dir)
 	c := writeDoctorComposeFixture(t, dir, "podman-compose", "compose.${"+stageVar+"}.yml")
 
 	composeShims(t, "docker", "podman-compose")
@@ -197,7 +201,7 @@ func TestDoctorComposeMissingBinaryIsReportedNotSkipped(t *testing.T) {
 	resetDoctorGlobals(t)
 
 	dir := t.TempDir()
-	writeComposeFile(t, dir, "compose.dev.yml")
+	writeComposeFile(t, dir)
 	c := writeDoctorComposeFixture(t, dir, "podman-compose", "compose.${"+stageVar+"}.yml")
 
 	// Only docker is installed, and the config asks for podman-compose.
@@ -231,7 +235,7 @@ func TestDoctorComposeCommandWithNoWordsFails(t *testing.T) {
 	resetDoctorGlobals(t)
 
 	dir := t.TempDir()
-	writeComposeFile(t, dir, "compose.dev.yml")
+	writeComposeFile(t, dir)
 	c := writeDoctorComposeFixture(t, dir, "   ", "compose.${"+stageVar+"}.yml")
 
 	invocations := composeShims(t, "docker", "podman-compose")
@@ -260,7 +264,7 @@ func TestDoctorComposeFileExistenceUsesTheExpandedName(t *testing.T) {
 		resetDoctorGlobals(t)
 
 		dir := t.TempDir()
-		writeComposeFile(t, dir, "compose.dev.yml")
+		writeComposeFile(t, dir)
 		c := writeDoctorComposeFixture(t, dir, "", "compose.${"+stageVar+"}.yml")
 
 		results := checkComposeFiles(c)
@@ -304,7 +308,7 @@ func TestDoctorComposeFileExistenceUsesTheExpandedName(t *testing.T) {
 		resetDoctorGlobals(t)
 
 		dir := t.TempDir()
-		writeComposeFile(t, dir, "compose.dev.yml")
+		writeComposeFile(t, dir)
 		c := writeDoctorComposeFixture(t, dir, "", "compose.${"+stageVar+"}.yml", "compose.dev.yml")
 
 		results := checkComposeFiles(c)

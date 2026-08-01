@@ -12,8 +12,28 @@ linters:
   # binary and is off by default, so `0 issues.` used to be silent about 47 findings
   # it could see. Enabled for tests too: excluding _test.go would restore exactly the
   # unstated coverage gap this was enabled to close. TASK-111.
+  #
+  # `govet` runs its default analyzer subset, so unusedwrite/nilness/etc. were
+  # available in this same pinned binary and silently off — the identical shape
+  # TASK-111 closed for modernize. `unparam` likewise ships here and is off by
+  # default. Both are enabled by TASK-126.
   enable:
     - modernize
+    - unparam
+  settings:
+    govet:
+      enable-all: true
+      # The two govet analyzers that stay off, named rather than left implicit:
+      # TASK-111 closed by asserting "no analyzer is now deliberately excluded",
+      # which was already untrue, and that overstatement is what let unusedwrite
+      # sit unreported. Anything excluded here gets a reason.
+      disable:
+        # Reports struct field ordering for memory savings. Config structs here
+        # mirror dva.yml key order on purpose; that readability is worth more
+        # than the padding.
+        - fieldalignment
+        # Flags every shadowed `err`, which is idiomatic in this codebase.
+        - shadow
   exclusions:
     generated: lax
     # `legacy` keeps the default exclusions close to golangci-lint v1 so the

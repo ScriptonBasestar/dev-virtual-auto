@@ -165,7 +165,7 @@ func (am *AppManager) startWave(ctx context.Context, names []string, apps map[st
 			var pid int
 			var err error
 			if strategy == "docker" {
-				err = am.startDockerApp(waveCtx, name, app, command)
+				err = am.startDockerApp(waveCtx, app, command)
 			} else {
 				pid, err = am.startNativeApp(name, app, command)
 			}
@@ -619,7 +619,10 @@ func watchProcessExit(ctx context.Context, pid int, cancel context.CancelFunc) {
 }
 
 // startDockerApp starts an application via docker compose.
-func (am *AppManager) startDockerApp(ctx context.Context, name string, app *config.ApplicationConfig, command string) error {
+//
+// Unlike startNativeApp it takes no app name: the container is addressed by the
+// command compose builds, and nothing here tracks a PID by name.
+func (am *AppManager) startDockerApp(ctx context.Context, app *config.ApplicationConfig, command string) error {
 	dir := am.resolveDir(app)
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)

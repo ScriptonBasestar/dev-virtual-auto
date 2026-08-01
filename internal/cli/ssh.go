@@ -35,7 +35,7 @@ var sshUpCmd = &cobra.Command{
 		}
 
 		// Create volume
-		runSilent("docker", "volume", "create", "--name", "ssh_data")
+		runDockerSilent("volume", "create", "--name", "ssh_data")
 
 		// Run ssh-agent container
 		runArgs := []string{"run", "--detach", "--volume", "ssh_data:/ssh", "--name=ssh-agent"}
@@ -43,7 +43,7 @@ var sshUpCmd = &cobra.Command{
 			runArgs = append(runArgs, "-u", user)
 		}
 		runArgs = append(runArgs, agentImage)
-		runSilent("docker", runArgs...)
+		runDockerSilent(runArgs...)
 
 		// Add key
 		addArgs := []string{"run", "--rm", "--volume", "ssh_data:/ssh"}
@@ -63,9 +63,9 @@ var sshDownCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop and remove SSH agent container",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		runSilent("docker", "stop", "ssh-agent")
-		runSilent("docker", "rm", "-v", "ssh-agent")
-		runSilent("docker", "volume", "rm", "ssh_data")
+		runDockerSilent("stop", "ssh-agent")
+		runDockerSilent("rm", "-v", "ssh-agent")
+		runDockerSilent("volume", "rm", "ssh_data")
 		fmt.Println("SSH agent stopped and removed")
 		return nil
 	},
@@ -90,9 +90,10 @@ func init() {
 	sshCmd.AddCommand(sshUpCmd, sshDownCmd, sshStatusCmd)
 }
 
-// runSilent runs a command suppressing all output.
-func runSilent(name string, args ...string) {
-	c := exec.Command(name, args...)
+// runDockerSilent runs a docker subcommand suppressing all output. Every call site
+// in this file targets docker, so the binary is fixed here rather than repeated.
+func runDockerSilent(args ...string) {
+	c := exec.Command("docker", args...)
 	c.Stdout = nil
 	c.Stderr = nil
 	_ = c.Run()

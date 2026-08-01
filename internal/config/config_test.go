@@ -1087,15 +1087,28 @@ func TestDefaultMode_InvalidReference(t *testing.T) {
 }
 
 func TestDefaultMode_Empty(t *testing.T) {
-	cfg := &Config{
-		DefaultMode: "",
-		Modes: map[string]ModeConfig{
-			"dev": {Description: "dev mode"},
-		},
-	}
-	// Empty default_mode should not cause issues
+	// Validate() cross-checks default_mode against modes only when it is set
+	// (validate.go: `if c.DefaultMode != ""`). Omitting it must therefore pass
+	// even though "" is not a key in modes — drop that guard and this fails
+	// with `default_mode '' not found in modes`.
+	//
+	// Asserting through a real load is the point. The previous version built a
+	// Config literal and checked that the "" it had just assigned was still "",
+	// which held no matter what the validator did and left Modes written but
+	// never read — the unused write an analyzer eventually flagged.
+	cfg := loadConfigForSchemaTest(t, t.TempDir(), `version: "0.1.44"
+modes:
+  dev:
+    description: dev mode
+`)
 	if cfg.DefaultMode != "" {
-		t.Errorf("expected empty default_mode")
+		t.Fatalf("fixture should omit default_mode, got %q", cfg.DefaultMode)
+	}
+	if len(cfg.Modes) != 1 {
+		t.Fatalf("fixture should define exactly 1 mode, got %d", len(cfg.Modes))
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("empty default_mode should validate, got: %v", err)
 	}
 }
 

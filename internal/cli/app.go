@@ -465,7 +465,8 @@ func validateAppNames(c *config.Config, names []string) error {
 	if len(available) == 0 {
 		msg.WriteString("\n       → dva.yml declares no applications")
 	} else {
-		msg.WriteString("\n       → declared in dva.yml: " + strings.Join(available, ", "))
+		msg.WriteString("\n       → declared in dva.yml: ")
+		msg.WriteString(strings.Join(available, ", "))
 	}
 	var suggestions []string
 	for _, n := range unknown {

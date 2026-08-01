@@ -67,7 +67,7 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			if c == "" {
 				continue
 			}
-			args := r.buildStepArgs(env, c)
+			args := r.buildStepArgs(c)
 			// execComposeStep, not execCompose: the latter replaces the process, which
 			// would make this loop's second iteration unreachable (TASK-091).
 			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
@@ -80,7 +80,10 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 
 // buildStepArgs builds docker compose exec args for a single command string.
 // Does NOT mutate r.Cmd state.
-func (r *DockerComposeRunner) buildStepArgs(env *config.Environment, cmd string) []string {
+//
+// Takes no Environment: the env reaches the child through execComposeStep, which
+// is also why KubectlRunner.buildStepArgs has only ever had the one parameter.
+func (r *DockerComposeRunner) buildStepArgs(cmd string) []string {
 	var args []string
 	if r.detectedProject != "" {
 		args = append(args, "--project-name", r.detectedProject)
