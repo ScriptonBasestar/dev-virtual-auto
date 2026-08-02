@@ -12,6 +12,12 @@ const (
 	PidsDirName = "pids"
 	LogsDirName = "logs"
 
+	// EnvPrefix is shared by every environment variable DVA defines for itself, both the
+	// settings it reads and the runtime vars it injects. Callers that forward the merged
+	// environment somewhere it does not belong — into a container, for instance — filter on
+	// this prefix, so a new DVA_ variable must keep it to stay excluded.
+	EnvPrefix = "DVA_"
+
 	// Environment Variables (DVA settings)
 	EnvFileKey       = "DVA_FILE"
 	EnvDebugKey      = "DVA_DEBUG"

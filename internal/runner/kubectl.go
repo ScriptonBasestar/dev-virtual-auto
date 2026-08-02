@@ -73,6 +73,15 @@ func (r *KubectlRunner) executeSteps(env *config.Environment, steps []config.Pro
 
 // buildStepArgs builds kubectl exec args for a single command string.
 // Does NOT mutate r.Cmd; constructs args independently per command.
+//
+// Takes no Environment, unlike its DockerComposeRunner counterpart, and that asymmetry is
+// not a pending decision. TASK-129 made compose forward the declared environment as -e;
+// kubectl cannot do the same, because `kubectl exec` has no env flag to forward it with
+// (measured against the installed client: six flags — container, filename,
+// pod-running-timeout, quiet, stdin, tty — and no occurrence of "env" in its help at all;
+// `kubectl run` does have --env=[], which is what makes the absence meaningful). Both of
+// this runner's paths build `exec`, the single-command one at Execute and steps here, so
+// there is no kubectl path that could carry it. A pod's environment comes from its spec.
 func (r *KubectlRunner) buildStepArgs(cmd string) []string {
 	pod, container := parsePod(r.Cmd.Pod)
 

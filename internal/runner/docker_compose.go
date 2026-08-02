@@ -2,7 +2,7 @@ package runner
 
 import (
 	"fmt"
-	"os"
+	"sort"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -67,7 +67,7 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			if c == "" {
 				continue
 			}
-			args := r.buildStepArgs(c)
+			args := r.buildStepArgs(env, c)
 			// execComposeStep, not execCompose: the latter replaces the process, which
 			// would make this loop's second iteration unreachable (TASK-091).
 			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
@@ -81,28 +81,23 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 // buildStepArgs builds docker compose exec args for a single command string.
 // Does NOT mutate r.Cmd state.
 //
-// Takes no Environment: it never read the one it used to be passed, and env is threaded to
-// execComposeStep separately. KubectlRunner.buildStepArgs has only ever had the one parameter.
+// Takes an Environment so a step's argv carries -e, the same as a non-step. It was created
+// with that parameter, never read it, and lost it to an unparam finding; TASK-129 restored it
+// with a body that uses it, so a step and the same command run outside `steps:` now hand the
+// container the same environment. Steps always build `exec`, which accepts -e.
 //
-// That is a statement about this function's arguments, not about what the step sees. Steps
-// always build `exec` (below) and nothing injects `-e` on that path, so env reaches the docker
-// CLI process and not the process inside the container.
-//
-// What this comment first said past that — that a step therefore sees a different environment
-// than the same command run as a non-step — claimed more than it had measured. `-e` is added in
-// exactly one place, composeArguments → runVars, and only when the *effective* method is `run`.
-// Execute calls autoDetectComposeMethod before building argv, and that rewrites `run` to `exec`
-// whenever the service is already up, so a non-step against a running container is handed
-// nothing either. The split is fresh-container `run` against every other path, not step against
-// non-step. Whether any of that is a defect is TASK-129's question, not an assertion to make
-// here. TASK-128.
-func (r *DockerComposeRunner) buildStepArgs(cmd string) []string {
+// env still reaches the docker CLI process separately, via execComposeStep — that is the CLI's
+// own environment, used for ${VAR} substitution in compose files, and is not the container's.
+// -e is the only mechanism that crosses that boundary.
+func (r *DockerComposeRunner) buildStepArgs(env *config.Environment, cmd string) []string {
 	var args []string
 	if r.detectedProject != "" {
 		args = append(args, "--project-name", r.detectedProject)
 	}
 	// Always use exec for steps (container must be running)
 	args = append(args, "exec")
+	// Declared environment (exec accepts -e; see composeMethodAcceptsEnv)
+	args = append(args, r.envVars(env)...)
 	// User / workdir overrides
 	if r.Cmd.User != "" {
 		args = append(args, "--user", r.Cmd.User)
@@ -145,9 +140,14 @@ func (r *DockerComposeRunner) composeArguments(env *config.Environment) []string
 	argv = append(argv, r.Cmd.Compose.RunOptions...)
 
 	method := r.Cmd.Compose.Method
+	// -e goes on every method that accepts it, not just `run`. It used to share the `run`
+	// guard with --publish and --rm, which do not exist on `exec` — so the environment was
+	// withheld from a path that supports it, and autoDetectComposeMethod's run→exec rewrite
+	// silently changed what the command saw depending on container uptime (TASK-129).
+	if composeMethodAcceptsEnv(method) {
+		argv = append(argv, r.envVars(env)...)
+	}
 	if method == "run" {
-		// Add runtime env vars
-		argv = append(argv, r.runVars(env)...)
 		// Publish ports
 		for _, p := range r.Opts.Publish {
 			argv = append(argv, "--publish="+p)
@@ -186,17 +186,52 @@ func (r *DockerComposeRunner) composeArguments(env *config.Environment) []string
 	return argv
 }
 
-func (r *DockerComposeRunner) runVars(env *config.Environment) []string {
-	// Pass through non-DVA_ vars that are already set in the OS environment
-	var args []string
-	for k, v := range env.Vars {
-		if strings.HasPrefix(k, "DVA_") {
+// composeMethodAcceptsEnv reports whether a compose subcommand takes -e/--env.
+//
+// Measured against Docker 29.5.3: `run` and `exec` both parse `-e, --env stringArray`;
+// `up` does not (34 flags parsed, zero of them env), and composeProfiles switches the
+// method to `up` whenever profiles are configured. Passing -e there would abort the
+// invocation on an unknown flag, so the check is by supported flag, not by path.
+func composeMethodAcceptsEnv(method string) bool {
+	return method == "run" || method == "exec"
+}
+
+// envVars renders the environment as `-e KEY=VALUE` pairs for the container.
+//
+// The set is env.Vars minus the DVA_ prefix — the whole merged variable set, without regard
+// to which layer produced a key: env_file, global `vars`, `environment:` profiles, site vars,
+// plan vars, `--var` (lifecycle/resolver.go merges those five into Plan.EnvVars) and an
+// interaction command's own `environment:`.
+//
+// That is still bounded by what was written down. MergeVars lets an OS value win for a key,
+// but only for keys it was already given, so an undeclared host variable never enters
+// env.Vars and never crosses. This forwards the declared environment, never os.Environ().
+//
+// The DVA_ skip covers every runtime var DVA injects (DVA_OS, DVA_WORK_DIR_REL_PATH,
+// DVA_CURRENT_USER, DVA_CURRENT_UID, DVA_HOOK_DEPTH): they exist for dva's own
+// interpolation and mean nothing inside a container.
+//
+// Until TASK-129 this also required os.Getenv(k) != "", so a variable declared only in
+// dva.yml never crossed — which made examples/DISCOURSE.md's `RAILS_ENV: test` inert and
+// disagreed with internal/lifecycle/docker.go, which forwards a declared env: unfiltered.
+//
+// Keys are sorted because map iteration order is not, and argv has to be reproducible.
+func (r *DockerComposeRunner) envVars(env *config.Environment) []string {
+	if env == nil {
+		return nil
+	}
+	keys := make([]string, 0, len(env.Vars))
+	for k := range env.Vars {
+		if strings.HasPrefix(k, config.EnvPrefix) {
 			continue
 		}
-		if os.Getenv(k) == "" {
-			continue
-		}
-		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	args := make([]string, 0, len(keys)*2)
+	for _, k := range keys {
+		args = append(args, "-e", fmt.Sprintf("%s=%s", k, env.Vars[k]))
 	}
 	return args
 }
