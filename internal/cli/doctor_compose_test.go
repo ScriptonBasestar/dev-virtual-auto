@@ -157,7 +157,7 @@ func TestDoctorComposeConfigRunsTheConfiguredCommand(t *testing.T) {
 	// The interpolation half. Asserting the absence of the dollar sign as well as the
 	// presence of the expanded name matters: appending the resolved path while still
 	// passing the literal one would satisfy a Contains check on its own.
-	if !strings.Contains(got[0], filepath.Join(dir, "compose.dev.yml")) {
+	if !strings.Contains(got[0], filepath.Join(dir, testComposeFileName)) {
 		t.Errorf("argv does not name the expanded compose file: %q", got[0])
 	}
 	if strings.Contains(got[0], "${") {
@@ -309,7 +309,9 @@ func TestDoctorComposeFileExistenceUsesTheExpandedName(t *testing.T) {
 
 		dir := t.TempDir()
 		writeComposeFile(t, dir)
-		c := writeDoctorComposeFixture(t, dir, "", "compose.${"+stageVar+"}.yml", "compose.dev.yml")
+		// The template stays a literal: the point of the case is that it expands to the
+		// same file the const names, which deriving one from the other would hide.
+		c := writeDoctorComposeFixture(t, dir, "", "compose.${"+stageVar+"}.yml", testComposeFileName)
 
 		results := checkComposeFiles(c)
 		if len(results) != 1 {
