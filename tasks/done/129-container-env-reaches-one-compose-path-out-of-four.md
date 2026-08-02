@@ -300,7 +300,8 @@ reference all state it.
 Not fixed here, found while measuring: `--project-name` is passed twice on paths where both
 `dvaexec.ComposeArgv` (`compose_argv.go:56`) and the runner's `detectedProject`
 (`docker_compose.go:46`, `:95`) supply it. Docker takes the last, so it is cosmetic today, but
-it surfaces in error output. Filed as [TASK-132](../todo/132-project-name-is-passed-twice-on-the-detected-project-paths.md).
+it surfaces in error output. Filed as
+[TASK-132](132-project-name-is-passed-twice-on-the-detected-project-paths.md), and fixed there.
 
 ## Related
 

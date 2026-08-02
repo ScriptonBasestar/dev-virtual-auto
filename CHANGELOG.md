@@ -60,6 +60,11 @@ All notable changes to DVA are documented here.
   `kubectl exec`은 env 플래그가 없어 해당 경로는 변경 없음
 
 ### Fixed
+- **`--project-name`이 두 번 붙던 문제** (TASK-132): `project_name:`을 선언한 설정에서
+  컨테이너가 이미 실행 중이면 — 즉 일반적인 개발 루프 상태 — argv에 플래그가 두 번
+  나타났고, 실패한 step의 에러 메시지에 그대로 노출됐습니다. 동작 자체는 옳았지만
+  (docker가 마지막 값을 취하고 그 값이 감지된 프로젝트였음) 우선순위가 argv 순서에만
+  의존했습니다. 이제 감지된 이름은 플래그를 쓰는 유일한 지점으로 전달됩니다
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)
 - `env_file` field was parsed but never loaded into environment
 - Tag filtering (`FilterInteractions`, `exclude_tags`) was implemented but not called for subprojects
