@@ -3,10 +3,12 @@ id: TASK-131
 title: "A cyclic YAML anchor kills dva before any check runs, and the crash is ours rather than yaml.v3's"
 type: decision
 priority: P2
-status: decision
+status: done
 effort: M
+resolved-at: 2026-08-02T00:00:00+09:00
+resolution: "Chose option A. A pre-decode yaml.Node cycle scan (internal/config/anchor_cycle.go) now runs from a new decodeConfig choke point that both loadFile and VerifyMigrated share, rejecting a self-referencing anchor by name and YAML path instead of ending the process"
 created-at: 2026-08-02T00:00:00+09:00
-scope: "internal/config/config.go — InteractionCommand.UnmarshalYAML:383-411, loadFile:932; internal/config/validate_warnings.go — MaxSubcommandDepth:762, calculateSubcommandDepth. No fix applied; this task decides which defense."
+scope: "internal/config/anchor_cycle.go (new), anchor_cycle_test.go (new), config.go — decodeConfig/loadFile, migrate.go — VerifyMigrated. InteractionCommand.UnmarshalYAML is left as-is; the defense is type-independent."
 ---
 
 # Task 131: Decide how a self-referencing anchor is rejected
@@ -112,7 +114,7 @@ body for a field of its own type, only `InteractionCommand` is self-referential
 
 ## What this corrects in TASK-125
 
-[TASK-125](../done/125-three-interaction-warnings-stop-at-depth-1.md) §"Why the walker needs no
+[TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) §"Why the walker needs no
 cycle guard" (`:130-142`) recorded three things that measurement contradicts:
 
 | TASK-125 said | measured |
@@ -171,9 +173,74 @@ in-process form works, which means the mutation check and the shipped test are n
 `internal/config/` currently has **no test at all** for cyclic or self-referential anchors, so
 there is nothing to extend and nothing to break.
 
+## Resolution
+
+Option A. `checkAnchorCycles` (`internal/config/anchor_cycle.go`) walks the parsed `yaml.Node`
+tree before any config type sees it and rejects a node reachable from itself, naming the anchor
+and the path where the loop closes.
+
+Implementation turned up two things the analysis above did not have.
+
+**`loadFile` was the wrong place, and this task said to put it there.** Option A names
+`loadFile` (`config.go:932`) as the site. `VerifyMigrated` (`migrate.go:91`) also decoded raw
+user bytes into config types — through its own `yaml.Unmarshal`, not through `loadFile` — so a
+guard in `loadFile` would have left `dva config migrate` crashing on exactly the input the
+migration exists to repair. Both now go through one `decodeConfig`, and that choke point, not
+`loadFile`, is what the guard defends. Measured on a legacy compose fixture carrying a
+self-referencing anchor: `dva config migrate .` exits 1 with **3 lines** and **0** `fatal error`/
+`goroutine` markers, the source file is left unwritten, and the guard's message arrives wrapped in
+migrate's own "nothing was written" framing.
+
+**Reachability is not a cycle.** A first cut that rejected any node seen twice would reject
+`<<: *base` and every shared anchor — valid YAML that this repo's own examples use. The walk is
+therefore three-colour: a node is marked on-path while its subtree is being walked and cleared
+afterwards, so only a node that is *its own ancestor* is an error. The cleared mark is also what
+keeps the walk proportional to the nodes rather than to the expansion; without it a document
+that aliases one anchor from many places takes longer to check than to run.
+
+### Where the guard is not
+
+Four decode paths still bypass `decodeConfig`: `MigrateLegacyCompose`, `Config.Validate`,
+`validateCanonicalOrder`, and `readComposeNameKey`. None of them crash on the cyclic fixture, and
+they do not for two different reasons — `Validate` decodes into `any`, which carries no custom
+unmarshaler to reset yaml.v3's own guard, so the library's `anchor '...' value contains itself`
+fires there; the others never reach `InteractionCommand`. That is a property of today's code, not
+a guarantee, so `TestCyclicAnchorSurvivesTheDecodesThatBypassDecodeConfig` pins all four: if any
+of them starts recursing, it takes the test binary down and the gate fails.
+
+### The subprocess this task predicted is not needed
+
+"The cost that needs deciding with it" states the red half of the mutation has to run through a
+subprocess, because an unfixed loader takes the test binary down rather than failing an assertion.
+Measured, that is wrong about the *detection* and right about the *attribution*. With
+`checkAnchorCycles` stubbed to `return nil`, `go test ./internal/config/` exits **1** — the
+mutation is caught in-process, no subprocess involved. But it is caught as `fatal error: stack
+overflow`: **538** lines of runtime dump, **2** stack-overflow marker lines, and the trace names
+`config.go:413 (*InteractionCommand).UnmarshalYAML → (*Node).Decode`, the exact mechanism this
+task diagnosed. Because a fatal crash aborts the whole package, there is no `--- FAIL: TestX`
+attribution and no other result in that run is trustworthy. The shipped tests are in-process, and
+the mutation evidence is the crash rather than an assertion — recorded here because reading only
+the exit code would suggest a cleanliness the failure does not have.
+
+## Acceptance criteria
+
+| # | criterion | measured |
+|---|---|---|
+| 1 | The cyclic fixture is rejected with an error naming the anchor and its path | `dva validate` exits **1** with 3 lines: `anchor 'entry' contains itself at stack.compose.self` — was ~508 lines of `fatal error` |
+| 2 | The test fails when the fix is reverted (TASK-116) | stub `checkAnchorCycles` → `return nil`: package exits **1**, 538 lines, 2 stack-overflow markers; restored → **7 tests / 11 subtests PASS** |
+| 3 | Shared anchors and `<<:` merge keys still load and still resolve | fixture aliasing one anchor from 3 places: `dva run two --dry-run` exits 0 and prints `Service: web`, i.e. the merge took effect |
+| 4 | Deep-but-acyclic nesting is unaffected and still warns | exits **0** with `nested 6 levels deep (max 5)` intact — the check TASK-125 added still runs |
+| 5 | No false positive across the shipped corpus | **19/19** `examples/` configs exit 0; a deliberately cyclic control in the same loop exits 1, so the loop is live |
+| 6 | `dva config migrate` no longer crashes on the input it exists to repair | exits **1**, 3 lines, **0** fatal markers, file unwritten |
+| 7 | Four gates | `make test` (240 test funcs in `internal/config`, `-race`), `make lint`, `make doc-check`, `make check-generate` — all exit 0 |
+| 8 | TASK-125's conclusion is preserved | decode still never yields a cyclic `Config`, so `eachInteractionNode`/`calculateSubcommandDepth` stay correct unguarded; no cycle guard was added to either walker |
+
+Criterion 3 is the one the design exists for. A guard that rejected shared anchors would pass
+criteria 1, 2 and 6 while breaking valid configs, and would also invalidate criterion 8.
+
 ## Related
 
-- [TASK-125](../done/125-three-interaction-warnings-stop-at-depth-1.md) — `:130-142` is the record
+- [TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) — `:130-142` is the record
   this corrects; its conclusion survives, its three stated pieces of evidence do not.
-- [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md) — the last time a
+- [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md) — the last time a
   comment in this area described a property the code did not have.

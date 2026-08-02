@@ -130,7 +130,7 @@ they never made, and they stay as-is so this change does not rewrite the tests t
 ### Why the walker needs no cycle guard
 
 > **The conclusion below holds; its evidence does not.**
-> [TASK-131](../decision/131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
+> [TASK-131](131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
 > claims in this section: it is a `fatal error`, not a panic; the trace has **18**
 > `internal/config` frames, one of which — `(*InteractionCommand).UnmarshalYAML` — is what drives
 > the recursion; and it is not upstream, because the same document decoded into a struct without a
