@@ -55,7 +55,10 @@ func runComposeStepKeys(env *config.Environment, cfg *config.Config, step config
 	// execComposeStep, never execCompose. Both callers are step loops, and execCompose ends in
 	// syscall.Exec, which would make every later step unreachable — silently, with exit 0
 	// (TASK-091).
-	return true, execComposeStep(env, cfg, args)
+	//
+	// No project override: these keys are reached from provision, which runs no container
+	// detection, so the config's project_name is the only name there is.
+	return true, execComposeStep(env, cfg, "", args)
 }
 
 // runLegacyStepKeys executes `echo:` and then `cmd:`, matching provision.go's order. Neither key

@@ -44,7 +44,7 @@ stack:
 func TestComposeArgv_NilConfig(t *testing.T) {
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
 
-	cmd, args, err := composeArgv(env, nil, []string{"ps"})
+	cmd, args, err := composeArgv(env, nil, "", []string{"ps"})
 	if err != nil {
 		t.Fatalf("composeArgv returned an error: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestComposeArgv_SingleTokenCommandDropsSeed(t *testing.T) {
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
 	c := argvTestConfig(t, "docker-compose")
 
-	cmd, args, err := composeArgv(env, c, []string{"ps"})
+	cmd, args, err := composeArgv(env, c, "", []string{"ps"})
 	if err != nil {
 		t.Fatalf("composeArgv returned an error: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestComposeArgv_RejectsCommandWithoutAWord(t *testing.T) {
 		t.Run(strings.ReplaceAll(command, "\t", "<tab>"), func(t *testing.T) {
 			c := argvTestConfig(t, command)
 
-			_, _, err := composeArgv(env, c, []string{"ps"})
+			_, _, err := composeArgv(env, c, "", []string{"ps"})
 			if err == nil {
 				t.Fatalf("composeArgv(%q) returned no error; before TASK-115 this input panicked", command)
 			}

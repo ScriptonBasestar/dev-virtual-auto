@@ -36,23 +36,24 @@ func (r *DockerComposeRunner) Execute(env *config.Environment) error {
 	// Auto-detect if container is running → switch run to exec
 	r.autoDetectComposeMethod()
 
+	return execCompose(env, r.Opts.Config, r.detectedProject, r.executeArgs(env))
+}
+
+// executeArgs builds the tail Execute hands to execCompose: profiles, the subcommand, and its
+// arguments. The shared prefix — binary, -f files, --project-name — comes from
+// dvaexec.ComposeArgv and is deliberately not repeated here (TASK-132).
+//
+// Split out of Execute so the argv is observable without running docker. Execute itself ends
+// in syscall.Exec, so before this there was no way to assert on what it had assembled.
+//
+// composeProfiles must be called before Method is read: it rewrites Method to "up" when
+// profiles are configured. That ordering is load-bearing, not incidental.
+func (r *DockerComposeRunner) executeArgs(env *config.Environment) []string {
 	var args []string
-
-	// Profiles
 	args = append(args, r.composeProfiles()...)
-
-	// Detected project name override
-	if r.detectedProject != "" {
-		args = append(args, "--project-name", r.detectedProject)
-	}
-
-	// Method (run/exec/up)
 	args = append(args, r.Cmd.Compose.Method)
-
-	// Arguments
 	args = append(args, r.composeArguments(env)...)
-
-	return execCompose(env, r.Opts.Config, args)
+	return args
 }
 
 // executeSteps runs each step as a separate docker compose exec command.
@@ -70,7 +71,7 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 			args := r.buildStepArgs(env, c)
 			// execComposeStep, not execCompose: the latter replaces the process, which
 			// would make this loop's second iteration unreachable (TASK-091).
-			if err := execComposeStep(env, r.Opts.Config, args); err != nil {
+			if err := execComposeStep(env, r.Opts.Config, r.detectedProject, args); err != nil {
 				return err
 			}
 		}
@@ -80,6 +81,10 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 
 // buildStepArgs builds docker compose exec args for a single command string.
 // Does NOT mutate r.Cmd state.
+//
+// Emits no --project-name: the detected project reaches the argv through execComposeStep, which
+// hands it to the one builder that writes the flag (TASK-132). This used to add its own copy on
+// top of ComposeArgv's, so a config project_name plus a detected project produced the flag twice.
 //
 // Takes an Environment so a step's argv carries -e, the same as a non-step. It was created
 // with that parameter, never read it, and lost it to an unparam finding; TASK-129 restored it
@@ -91,9 +96,6 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 // -e is the only mechanism that crosses that boundary.
 func (r *DockerComposeRunner) buildStepArgs(env *config.Environment, cmd string) []string {
 	var args []string
-	if r.detectedProject != "" {
-		args = append(args, "--project-name", r.detectedProject)
-	}
 	// Always use exec for steps (container must be running)
 	args = append(args, "exec")
 	// Declared environment (exec accepts -e; see composeMethodAcceptsEnv)

@@ -12,7 +12,15 @@ import (
 // composeArgv builds the compose command and its arguments from the config's compose
 // settings. Split out from execCompose so the two execution strategies below cannot drift:
 // they must differ only in how they hand off, never in what they run.
-func composeArgv(env *config.Environment, cfg *config.Config, args []string) (string, []string, error) {
+//
+// projectOverride is the project name DockerComposeRunner detected from a running container;
+// empty means none was detected. It replaces the config's project_name rather than being
+// appended after it, because that is the value the running container actually belongs to and
+// a compose invocation may name its project only once. Callers used to append their own
+// --project-name to args, which left the flag in the argv twice and made the right value win
+// only because docker takes the last occurrence — correct by argv ordering, which nothing
+// enforced (TASK-132).
+func composeArgv(env *config.Environment, cfg *config.Config, projectOverride string, args []string) (string, []string, error) {
 	// A nil cfg means the interaction runs outside a loaded project; dvaexec.ComposeArgv
 	// then yields the plain `docker compose` default, which is what the old code did too.
 	var cc *config.ComposePluginConfig
@@ -20,6 +28,19 @@ func composeArgv(env *config.Environment, cfg *config.Config, args []string) (st
 	if cfg != nil {
 		cc = cfg.PrimaryComposeConfig()
 		baseDir = cfg.FileDir()
+	}
+
+	if projectOverride != "" {
+		// Copy: cfg is shared with everything else holding this config, and a detection
+		// result from one interaction must not become another's declared project_name.
+		// The shallow copy is enough — ComposeArgv only reads Files and Command, and
+		// neither is written here.
+		var override config.ComposePluginConfig
+		if cc != nil {
+			override = *cc
+		}
+		override.ProjectName = projectOverride
+		cc = &override
 	}
 
 	composeCmd, fullArgs, err := dvaexec.ComposeArgv(env, cc, baseDir)
@@ -38,8 +59,8 @@ func composeArgv(env *config.Environment, cfg *config.Config, args []string) (st
 // execCompose replaces the current process with a docker compose command. Correct for the
 // single-command path, where handing over the tty and signals is the point — and only there:
 // syscall.Exec does not return, so this can never be called in a loop.
-func execCompose(env *config.Environment, cfg *config.Config, args []string) error {
-	composeCmd, fullArgs, err := composeArgv(env, cfg, args)
+func execCompose(env *config.Environment, cfg *config.Config, projectOverride string, args []string) error {
+	composeCmd, fullArgs, err := composeArgv(env, cfg, projectOverride, args)
 	if err != nil {
 		return err
 	}
@@ -50,8 +71,8 @@ func execCompose(env *config.Environment, cfg *config.Config, args []string) err
 // caller survives to run the next one. Used by the steps path: it used to call execCompose,
 // which replaced the process on the first command and left every later step unreachable —
 // silently, with exit 0. See TASK-091. LocalRunner has always drawn this same distinction.
-func execComposeStep(env *config.Environment, cfg *config.Config, args []string) error {
-	composeCmd, fullArgs, err := composeArgv(env, cfg, args)
+func execComposeStep(env *config.Environment, cfg *config.Config, projectOverride string, args []string) error {
+	composeCmd, fullArgs, err := composeArgv(env, cfg, projectOverride, args)
 	if err != nil {
 		return err
 	}
