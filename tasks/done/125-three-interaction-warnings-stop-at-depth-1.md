@@ -143,6 +143,12 @@ upstream of every check in this file and predates this change; it is not folded 
 
 ### Observed but deliberately not fixed
 
+> **Both items below are closed as of [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md)**
+> (`86539b0`). They are kept as written rather than deleted, because the reasoning for deferring
+> them is what that task had to overturn. Read them as history, not as open work — and note that
+> the first one's "maintenance trap" is exactly what let the same inheritance bug reach two path
+> conventions.
+
 `warnInertProvisionSteps` keeps its own walker rather than adopting `eachInteractionNode`, because
 the two build paths differently: it joins with `path+"."+subName`, producing
 `interaction.db.migrate.steps[0]`, while the shared walker joins with `path+".subcommands."+subName`
