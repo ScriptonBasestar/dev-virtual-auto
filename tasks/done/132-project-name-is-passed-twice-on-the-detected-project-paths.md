@@ -99,7 +99,7 @@ Both still print `test`, so TASK-129's forwarding is intact on both paths.
 
 - [TASK-129](129-container-env-reaches-one-compose-path-out-of-four.md) — found while
   measuring the `steps:` path; the duplicated flag is visible in that task's e2e evidence.
-- [TASK-133](../todo/133-container-detection-looks-in-a-different-project-than-execution.md) —
+- [TASK-133](133-container-detection-looks-in-a-different-project-than-execution.md) —
   the other half of project identity living in two places. Fixing this one made it visible:
-  `detectedProject` is trustworthy only if detection asked about the right project, and it does
-  not.
+  `detectedProject` is trustworthy only if detection asked about the right project, and it did
+  not. Fixed there; whether `detectedProject` should survive at all is left open there too.

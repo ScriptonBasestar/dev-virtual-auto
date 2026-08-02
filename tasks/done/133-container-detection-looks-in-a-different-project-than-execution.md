@@ -3,9 +3,11 @@ id: TASK-133
 title: "Running-container detection ignores files:, project_name: and command:"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: M
 created-at: 2026-08-02T00:00:00+09:00
+resolved-at: 2026-08-02T00:00:00+09:00
+resolution: "Detection routes through composeArgv, so it asks about the configured project with the configured files and binary. detectedProject keeps its shape; collapsing it to a boolean was considered and deliberately left out of a P2 bug fix."
 scope: "internal/runner/docker_compose.go:267 (serviceRunningProject) against internal/exec/compose_argv.go"
 ---
 
@@ -78,23 +80,42 @@ the environment look correct while the state is not.
 Not P1 only because the failure needs a non-default compose file location, a `project_name`
 that differs from the directory name, or a non-docker compose binary.
 
-## What needs deciding
+## Decision
 
-`ComposeArgv` returns `(cmd, args, error)` for a *prefix*, so detection can reuse it directly:
-`args = append(prefix, "ps", "--filter", ...)`. That fixes all three fields at once and is the
-same one-builder rule TASK-132 applied to `--project-name`.
+Detection goes through `composeArgv` — the runner-side wrapper, not `dvaexec.ComposeArgv`
+directly, so it picks up the same nil-config handling and debug logging every other invocation
+gets. The query is now the shared prefix plus `ps --filter status=running --format {{.Project}}
+<service>`, which fixes all three dropped fields at once. It is the same one-builder rule
+TASK-132 applied to `--project-name`.
 
-The open question is what to do about the resulting `--project-name`: once detection asks about
-the declared project, the answer it returns is that same declared name, so `detectedProject`
-stops carrying new information and collapses into "is it running, yes/no". That is arguably the
-right shape — but it changes what TASK-132's override means, so the two want reading together.
+**`detectedProject` keeps its shape.** The open question was whether to collapse it to a
+boolean, since detection now asks about the declared project and so can only report that same
+name back. That reasoning holds, and the simplification is probably right — but it deletes what
+TASK-132 had just added, on a P2 bug fix whose diff should be about the bug. Left as a separate
+judgement, to be made on its own merits rather than as a side effect.
 
-## Verification
+An error from the query still means "not running". That is correct for a service that is simply
+down, and it is also what happens when a configured non-docker compose binary rejects these
+flags; falling back to `run` is the safe answer in both cases.
 
-A fix wants a test that detection's argv carries the configured files, project name and binary
-— and it must fail when the fix is reverted. The behavioural half needs the fixture above:
-a running container reached through `files:`, and an assertion that the interaction exec'd into
-it rather than creating a second one. Comparing `hostname` output is enough, as measured here.
+## Acceptance criteria
+
+| # | Criterion | How it was verified | Result |
+|---|---|---|---|
+| 1 | Detection names the configured compose file | `TestDetectArgvCarriesTheConfiguredProject` | pass |
+| 2 | Detection names the configured project | same case | pass |
+| 3 | Detection runs the configured binary | `TestDetectArgvUsesTheConfiguredBinary` | pass |
+| 4 | Detection passes no project override, so a stale value cannot leak into its own query | `TestDetectArgvPassesNoOverride` | pass |
+| 5 | Without a config, detection stays the plain `docker compose ps` default | `TestDetectArgvWithoutConfig` | pass |
+| 6 | The tests fail when the fix is reverted | probe: restore the hardcoded bare argv | 3 of 4 broke; case 5 correctly still passed, since old and new agree when there is nothing to configure |
+| 7 | A running container reached through `files:` is exec'd into, not duplicated | e2e: container up as `dva-task133-app-1` (hostname `7e7b9282a02e`); `dva run whoami` printed `7e7b9282a02e`, and zero `*-app-run-*` containers were created | pass |
+| 8 | A stopped service still falls back to `run` | same fixture with the container stopped: argv shows `run --rm`, a fresh container printed `e6e6ac5856a3` | pass |
+| 9 | `--project-name` still appears once (TASK-132 holds on the new path) | both debug lines in the e2e carry it exactly once | pass |
+| 10 | Four gates | `make test` / `lint` / `doc-check` / `check-generate` | all exit 0 |
+
+The pre-fix control for criteria 7 is the measurement in the section above, taken on the same
+fixture earlier in the same session: printed `ebf2997233b0` against a running `b27734163afa`,
+with one throwaway container created.
 
 ## Related
 
