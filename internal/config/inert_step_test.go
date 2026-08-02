@@ -75,7 +75,10 @@ func TestWarnInertProvisionSteps(t *testing.T) {
 
 	want := []string{
 		`interaction.build.replace[1] "compile"`,
-		`interaction.db.migrate.before[0] "backup"`,
+		// `.subcommands.` spelled out, because `interaction.db.migrate` is not a path into
+		// the document — `migrate` lives under `db.subcommands`, and a user who searches
+		// their file for the shorter form finds nothing. TASK-128.
+		`interaction.db.subcommands.migrate.before[0] "backup"`,
 		`provision.default[1] "seed the db"`,
 	}
 	if len(warnings) != len(want) {

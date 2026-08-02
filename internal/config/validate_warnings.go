@@ -246,23 +246,17 @@ func (c *Config) warnInertProvisionSteps() []string {
 	// Recursive, because hooks nest: `interaction.db.subcommands.migrate.before` is as real
 	// a place to write an inert step as the top level, and a check that stopped at depth 1
 	// would report the shallow mistake and stay silent on the identical deep one.
-	var walk func(path string, cmd *InteractionCommand)
-	walk = func(path string, cmd *InteractionCommand) {
-		if cmd == nil {
-			return
-		}
+	//
+	// Uses the shared walker rather than its own. It previously joined segments with a bare
+	// dot, producing `interaction.db.migrate.before[0]` — a path that does not exist in the
+	// document, since `migrate` lives under `db.subcommands`. A user searching their file for
+	// it finds nothing. TASK-128.
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
 		collect(path+".steps", cmd.Steps)
 		collect(path+".before", cmd.Before)
 		collect(path+".replace", cmd.Replace)
 		collect(path+".after", cmd.After)
-		for subName, sub := range cmd.Subcommands {
-			walk(path+"."+subName, sub)
-		}
-	}
-
-	for name, cmd := range c.Interaction {
-		walk("interaction."+name, cmd)
-	}
+	})
 
 	for profile, items := range c.Provision.Profiles {
 		collect(fmt.Sprintf("provision.%s", profile), items)
@@ -294,6 +288,11 @@ func (c *Config) warnHealthCheckRedundancy() []string {
 		}
 	}
 
+	// Both sources are maps, so without this the same dva.yml prints these warnings in a
+	// different order between runs — 4 distinct orderings over 15 runs of the real binary with
+	// the sort removed, and that count is itself a sample, not a constant. TASK-125 sorted
+	// three interaction checks and left this one. TASK-128.
+	sort.Strings(warnings)
 	return warnings
 }
 
@@ -306,21 +305,65 @@ func (c *Config) warnHealthCheckRedundancy() []string {
 // (`dva rails db migrate`). A check that walks only the first level therefore reports a
 // mistake at the top and stays silent on the identical one below it, which is the reasoning
 // warnInertProvisionSteps already records for its own walker.
-func eachInteractionNode(interaction map[string]*InteractionCommand, visit func(path string, cmd *InteractionCommand)) {
-	var walk func(path string, cmd *InteractionCommand)
-	walk = func(path string, cmd *InteractionCommand) {
+//
+// The visitor also receives the execution context inherited from the node's ancestors. That
+// is not a convenience: runner.mergeInteraction copies every execution field parent → child
+// and lets the child override only what it sets, so the node the runtime executes is not the
+// node parsed from YAML. At depth 1 the two coincide — there is no ancestor — which is why
+// checks written against raw nodes were correct until they were made to recurse, and wrong
+// immediately afterwards. Any check that asks "does this node have X" must ask it of the
+// inherited view. TASK-128.
+func eachInteractionNode(interaction map[string]*InteractionCommand, visit func(path string, cmd *InteractionCommand, inherited inheritedExec)) {
+	var walk func(path string, cmd *InteractionCommand, inherited inheritedExec)
+	walk = func(path string, cmd *InteractionCommand, inherited inheritedExec) {
 		if cmd == nil {
 			return
 		}
-		visit(path, cmd)
+		visit(path, cmd, inherited)
+
+		descend := inheritedExec{
+			callable: inherited.callable || cmd.hasExecutionTarget(),
+			runner:   firstNonEmptyStr(cmd.Runner, inherited.runner),
+			pod:      firstNonEmptyStr(cmd.Pod, inherited.pod),
+		}
 		for subName, sub := range cmd.Subcommands {
-			walk(path+".subcommands."+subName, sub)
+			walk(path+".subcommands."+subName, sub, descend)
 		}
 	}
 
 	for name, cmd := range interaction {
-		walk("interaction."+name, cmd)
+		walk("interaction."+name, cmd, inheritedExec{})
 	}
+}
+
+// inheritedExec is what a node receives from its ancestors under
+// runner.mergeInteraction's rules. Only the fields the warnings below actually consult are
+// carried; adding a check that depends on another inherited field means adding it here too.
+type inheritedExec struct {
+	// callable records whether any ancestor supplies something to execute, which the child
+	// inherits and can therefore be invoked with.
+	callable bool
+	// runner and pod are the nearest ancestor's effective values, i.e. what the child ends
+	// up running under when it does not set its own.
+	runner string
+	pod    string
+}
+
+func firstNonEmptyStr(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// hasExecutionTarget reports whether this node itself supplies something to execute, ignoring
+// anything it would inherit.
+func (c *InteractionCommand) hasExecutionTarget() bool {
+	return c.Command != "" || len(c.CommandLines) > 0 || c.HasScript() ||
+		c.ScriptFile != "" || c.HasSteps() || c.HasHooks() || c.Compose != nil ||
+		c.Runner != "" || c.Service != "" || c.Pod != ""
 }
 
 // warnDuplicateParentSubcommand warns when an interaction command has the same command value
@@ -332,7 +375,7 @@ func eachInteractionNode(interaction map[string]*InteractionCommand, visit func(
 func (c *Config) warnDuplicateParentSubcommand() []string {
 	var warnings []string
 
-	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
 		if cmd.Command == "" {
 			return
 		}
@@ -690,17 +733,24 @@ func validateCanonicalOrder(filePath string) []string {
 func (c *Config) warnChildOverridesParentCritical() []string {
 	var warnings []string
 
-	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, inherited inheritedExec) {
+		// The effective values, not the raw ones. A middle node that sets no runner still
+		// hands its parent's down, so comparing against cmd.Runner made the warning fire
+		// only when an author happened to restate a value they would have inherited anyway
+		// — silent on the identical config written without the redundant line. TASK-128.
+		parentRunner := firstNonEmptyStr(cmd.Runner, inherited.runner)
+		parentPod := firstNonEmptyStr(cmd.Pod, inherited.pod)
+
 		for subName, sub := range cmd.Subcommands {
-			if cmd.Runner != "" && sub.Runner != "" && cmd.Runner != sub.Runner {
+			if parentRunner != "" && sub.Runner != "" && parentRunner != sub.Runner {
 				warnings = append(warnings,
 					fmt.Sprintf("%s.subcommands.%s: overrides parent runner (%s → %s); this may change execution backend unexpectedly",
-						path, subName, cmd.Runner, sub.Runner))
+						path, subName, parentRunner, sub.Runner))
 			}
-			if cmd.Pod != "" && sub.Pod != "" && cmd.Pod != sub.Pod {
+			if parentPod != "" && sub.Pod != "" && parentPod != sub.Pod {
 				warnings = append(warnings,
 					fmt.Sprintf("%s.subcommands.%s: overrides parent pod (%s → %s); this may change execution backend unexpectedly",
-						path, subName, cmd.Pod, sub.Pod))
+						path, subName, parentPod, sub.Pod))
 			}
 		}
 	})
@@ -727,6 +777,9 @@ func (c *Config) warnDeepSubcommandNesting() []string {
 		}
 	}
 
+	// c.Interaction is a map, so the order here is whatever Go's randomized range hands back.
+	// TestFlatMapWarningsAreOrderStable diverges on the first repeat with this removed. TASK-128.
+	sort.Strings(warnings)
 	return warnings
 }
 
@@ -753,16 +806,16 @@ func calculateSubcommandDepth(cmd *InteractionCommand, current int) int {
 func (c *Config) warnUnreachableCommands() []string {
 	var warnings []string
 
-	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand) {
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, inherited inheritedExec) {
 		if len(cmd.Subcommands) == 0 {
 			return
 		}
-		// A parent is essentially a "group" node if it has no execution directives.
-		// Calling it directly typically requires at least one execution target.
-		isCallable := cmd.Command != "" || len(cmd.CommandLines) > 0 || cmd.HasScript() ||
-			cmd.ScriptFile != "" || cmd.HasSteps() || cmd.HasHooks() || cmd.Compose != nil ||
-			cmd.Runner != "" || cmd.Service != "" || cmd.Pod != ""
-		if !isCallable {
+		// A parent is a "group" node only if neither it nor any ancestor supplies an
+		// execution target. Inheritance is the whole point: examples/full-stack.yml's
+		// `rails db` sets nothing itself, yet `dva run rails db` executes
+		// `bundle exec rails` inherited from `rails`. Testing the raw node alone reported
+		// that shipped, working config as unreachable. TASK-128.
+		if !cmd.hasExecutionTarget() && !inherited.callable {
 			warnings = append(warnings,
 				fmt.Sprintf("%s: has subcommands but is not directly callable; add an execution target or remove subcommands",
 					path))

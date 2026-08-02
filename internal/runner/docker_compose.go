@@ -81,8 +81,15 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 // buildStepArgs builds docker compose exec args for a single command string.
 // Does NOT mutate r.Cmd state.
 //
-// Takes no Environment: the env reaches the child through execComposeStep, which
-// is also why KubectlRunner.buildStepArgs has only ever had the one parameter.
+// Takes no Environment: it never read the one it used to be passed, and env is threaded to
+// execComposeStep separately. KubectlRunner.buildStepArgs has only ever had the one parameter.
+//
+// That is a statement about this function's arguments, not about what the step sees. Steps
+// always run through `exec` (below), and nothing injects `-e` on that path — only the `run`
+// path does, via composeArguments → runVars. So env reaches the docker CLI process and not
+// the process inside the container, and a step therefore sees a different environment than
+// the same command run as a non-step. That asymmetry predates this signature and is recorded
+// here rather than implied away. TASK-128.
 func (r *DockerComposeRunner) buildStepArgs(cmd string) []string {
 	var args []string
 	if r.detectedProject != "" {

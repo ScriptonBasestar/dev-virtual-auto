@@ -857,9 +857,14 @@ func TestWarnSuspiciousEnvPatterns(t *testing.T) {
 
 // nestedInteractionConfig places the three mistakes the interaction-tree warnings look for
 // one level below where the depth-1 versions of those checks could see them: `db` duplicates
-// its own child's command and disagrees with its runner, and `nested` is a group node with
-// no execution target. All three sit under `rails`, so a check that only walks the top level
-// finds nothing here.
+// its own child's command and disagrees with its runner, and `grp.mid` is a group node with
+// no execution target anywhere above it. A check that only walks the top level finds none of
+// them.
+//
+// `rails.tools.nested` is the opposite case and is why it is here: it also sets no execution
+// target, but inherits `tools-group` from its parent, so `dva run rails tools nested` runs.
+// Warning about it is a false positive — the one this fixture originally asserted as correct
+// (TASK-125), fixed in TASK-128.
 func nestedInteractionConfig() *Config {
 	return &Config{
 		Interaction: map[string]*InteractionCommand{
@@ -885,6 +890,17 @@ func nestedInteractionConfig() *Config {
 					},
 				},
 			},
+			// Nothing in this chain supplies anything to execute, so `grp` and `grp.mid`
+			// are both genuinely uncallable. `mid` is the depth-2 one.
+			"grp": {
+				Subcommands: map[string]*InteractionCommand{
+					"mid": {
+						Subcommands: map[string]*InteractionCommand{
+							"leaf": {Command: "echo leaf"},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -897,44 +913,115 @@ func TestInteractionWarningsRecurseIntoNestedSubcommands(t *testing.T) {
 	c := nestedInteractionConfig()
 
 	cases := []struct {
-		name     string
-		got      []string
-		wantPath string
-		wantText string
+		name      string
+		got       []string
+		wantCount int
+		wantPath  string
+		wantText  string
 	}{
 		{
-			name:     "warnDuplicateParentSubcommand",
-			got:      c.warnDuplicateParentSubcommand(),
-			wantPath: "interaction.rails.subcommands.db.subcommands.migrate",
-			wantText: "identical to parent",
+			name:      "warnDuplicateParentSubcommand",
+			got:       c.warnDuplicateParentSubcommand(),
+			wantCount: 1,
+			wantPath:  "interaction.rails.subcommands.db.subcommands.migrate",
+			wantText:  "identical to parent",
 		},
 		{
-			name:     "warnChildOverridesParentCritical",
-			got:      c.warnChildOverridesParentCritical(),
-			wantPath: "interaction.rails.subcommands.db.subcommands.migrate",
-			wantText: "overrides parent runner",
+			name:      "warnChildOverridesParentCritical",
+			got:       c.warnChildOverridesParentCritical(),
+			wantCount: 1,
+			wantPath:  "interaction.rails.subcommands.db.subcommands.migrate",
+			wantText:  "overrides parent runner",
 		},
 		{
-			name:     "warnUnreachableCommands",
-			got:      c.warnUnreachableCommands(),
-			wantPath: "interaction.rails.subcommands.tools.subcommands.nested",
-			wantText: "not directly callable",
+			// Two: `grp` at depth 0 and `grp.mid` at depth 2. The depth-2 one is the
+			// contract; `grp` is included so the count is exact rather than a floor.
+			name:      "warnUnreachableCommands",
+			got:       c.warnUnreachableCommands(),
+			wantCount: 2,
+			wantPath:  "interaction.grp.subcommands.mid",
+			wantText:  "not directly callable",
 		},
 	}
 
 	for _, tc := range cases {
-		if len(tc.got) != 1 {
-			t.Errorf("%s: expected 1 nested warning, got %d: %v", tc.name, len(tc.got), tc.got)
+		if len(tc.got) != tc.wantCount {
+			t.Errorf("%s: expected %d warning(s), got %d: %v", tc.name, tc.wantCount, len(tc.got), tc.got)
 			continue
 		}
 		// The path must be the full YAML location, not just the top-level entry name —
 		// a user cannot act on a warning that does not say which node it means.
-		if !strings.Contains(tc.got[0], tc.wantPath) {
-			t.Errorf("%s: want path %q in warning, got: %s", tc.name, tc.wantPath, tc.got[0])
+		var found string
+		for _, w := range tc.got {
+			if strings.Contains(w, tc.wantPath) {
+				found = w
+				break
+			}
 		}
-		if !strings.Contains(tc.got[0], tc.wantText) {
-			t.Errorf("%s: want text %q in warning, got: %s", tc.name, tc.wantText, tc.got[0])
+		if found == "" {
+			t.Errorf("%s: want path %q in warnings, got: %v", tc.name, tc.wantPath, tc.got)
+			continue
 		}
+		if !strings.Contains(found, tc.wantText) {
+			t.Errorf("%s: want text %q in warning, got: %s", tc.name, tc.wantText, found)
+		}
+	}
+
+	// The false positive this fixture used to assert as correct: `rails.tools.nested` sets no
+	// execution target but inherits one, so it must not be reported. Asserted separately from
+	// the count above because a count alone would not say which node went missing.
+	for _, w := range c.warnUnreachableCommands() {
+		if strings.Contains(w, "tools.subcommands.nested") {
+			t.Errorf("inherited execution target must not warn as unreachable, got: %s", w)
+		}
+	}
+}
+
+// TestChildOverrideComparesInheritedRunner pins the fix for a false negative that only shows
+// up below depth 1: the check read the parent's *raw* runner, but a middle node that sets no
+// runner still passes its own parent's down.
+//
+// The two configs below are runtime-identical — `db` resolves to `local` either way, `migrate`
+// to `docker` — and differ only in whether the author redundantly restated `runner: local` on
+// the middle node. Before TASK-128 only the redundant one warned, making the trigger condition
+// "did the author happen to type the value twice" rather than "does the backend change".
+func TestChildOverrideComparesInheritedRunner(t *testing.T) {
+	build := func(midRunner string) *Config {
+		mid := &InteractionCommand{
+			Subcommands: map[string]*InteractionCommand{
+				"migrate": {Command: "db:migrate", Runner: "docker"},
+			},
+		}
+		mid.Runner = midRunner
+		return &Config{
+			Interaction: map[string]*InteractionCommand{
+				"rails": {
+					Command:     "bundle exec rails",
+					Runner:      "local",
+					Subcommands: map[string]*InteractionCommand{"db": mid},
+				},
+			},
+		}
+	}
+
+	for _, tc := range []struct{ name, midRunner string }{
+		{"runner inherited implicitly", ""},
+		{"runner restated redundantly", "local"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := build(tc.midRunner).warnChildOverridesParentCritical()
+			if len(got) != 1 {
+				t.Fatalf("expected 1 warning, got %d: %v", len(got), got)
+			}
+			const wantPath = "interaction.rails.subcommands.db.subcommands.migrate"
+			if !strings.Contains(got[0], wantPath) {
+				t.Errorf("want path %q, got: %s", wantPath, got[0])
+			}
+			// The effective parent runner, so both spellings report the same transition.
+			if !strings.Contains(got[0], "(local → docker)") {
+				t.Errorf("want the effective transition (local → docker), got: %s", got[0])
+			}
+		})
 	}
 }
 
@@ -1026,5 +1113,73 @@ func TestInteractionWarningsAreOrderStable(t *testing.T) {
 		if !slices.Equal(got, first) {
 			t.Fatalf("run %d differs from run 0:\n first: %v\n got:   %v", i+1, first, got)
 		}
+	}
+}
+
+// TestFlatMapWarningsAreOrderStable covers the two checks TASK-125 sorted nothing for while
+// sorting its three siblings. Both range Go maps directly, so both printed a different order on
+// consecutive runs of the same file.
+//
+// It is a separate test rather than more cases in TestInteractionWarningsAreOrderStable because
+// neither check goes through eachInteractionNode: with either sort removed that test stays green
+// (measured — the whole package still passed both times), so without this one the two sorts would
+// ship with no automated guard and only a hand-run binary probe behind them. TASK-128.
+func TestFlatMapWarningsAreOrderStable(t *testing.T) {
+	redundant := HealthCheckConfig{Type: "tcp", Address: "localhost:1", Start: "up", StartHint: "up by hand"}
+
+	// depth links of subcommands; calculateSubcommandDepth counts links, so > MaxSubcommandDepth
+	// is what makes warnDeepSubcommandNesting fire.
+	chain := func(depth int) *InteractionCommand {
+		node := &InteractionCommand{Command: "echo leaf"}
+		for range depth {
+			node = &InteractionCommand{Subcommands: map[string]*InteractionCommand{"n": node}}
+		}
+		return node
+	}
+	deep := MaxSubcommandDepth + 1
+
+	cases := []struct {
+		name string
+		run  func() []string
+		want int
+	}{
+		{
+			name: "warnHealthCheckRedundancy",
+			run: (&Config{
+				HealthChecks: map[string]HealthCheckConfig{"alpha": redundant, "bravo": redundant},
+				Stack: map[string]*LifecycleEntry{
+					"infra": {HealthChecks: map[string]HealthCheckConfig{"charlie": redundant, "delta": redundant}},
+				},
+			}).warnHealthCheckRedundancy,
+			// Two per source, so an unsorted implementation can interleave the two maps as well
+			// as shuffle within each.
+			want: 4,
+		},
+		{
+			name: "warnDeepSubcommandNesting",
+			run: (&Config{
+				Interaction: map[string]*InteractionCommand{
+					"aaa": chain(deep), "bbb": chain(deep), "ccc": chain(deep),
+				},
+			}).warnDeepSubcommandNesting,
+			want: 3,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			first := tc.run()
+			if len(first) != tc.want {
+				t.Fatalf("expected %d warnings, got %d: %v", tc.want, len(first), first)
+			}
+			if !sort.StringsAreSorted(first) {
+				t.Errorf("warnings are not sorted: %v", first)
+			}
+			for i := range 50 {
+				if got := tc.run(); !slices.Equal(got, first) {
+					t.Fatalf("run %d differs from run 0:\n first: %v\n got:   %v", i+1, first, got)
+				}
+			}
+		})
 	}
 }
