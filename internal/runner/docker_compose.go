@@ -85,11 +85,17 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 // execComposeStep separately. KubectlRunner.buildStepArgs has only ever had the one parameter.
 //
 // That is a statement about this function's arguments, not about what the step sees. Steps
-// always run through `exec` (below), and nothing injects `-e` on that path — only the `run`
-// path does, via composeArguments → runVars. So env reaches the docker CLI process and not
-// the process inside the container, and a step therefore sees a different environment than
-// the same command run as a non-step. That asymmetry predates this signature and is recorded
-// here rather than implied away. TASK-128.
+// always build `exec` (below) and nothing injects `-e` on that path, so env reaches the docker
+// CLI process and not the process inside the container.
+//
+// What this comment first said past that — that a step therefore sees a different environment
+// than the same command run as a non-step — claimed more than it had measured. `-e` is added in
+// exactly one place, composeArguments → runVars, and only when the *effective* method is `run`.
+// Execute calls autoDetectComposeMethod before building argv, and that rewrites `run` to `exec`
+// whenever the service is already up, so a non-step against a running container is handed
+// nothing either. The split is fresh-container `run` against every other path, not step against
+// non-step. Whether any of that is a defect is TASK-129's question, not an assertion to make
+// here. TASK-128.
 func (r *DockerComposeRunner) buildStepArgs(cmd string) []string {
 	var args []string
 	if r.detectedProject != "" {
