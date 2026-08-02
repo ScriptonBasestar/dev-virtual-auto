@@ -34,7 +34,7 @@ func (r *DockerComposeRunner) Execute(env *config.Environment) error {
 	}
 
 	// Auto-detect if container is running → switch run to exec
-	r.autoDetectComposeMethod()
+	r.autoDetectComposeMethod(env)
 
 	return execCompose(env, r.Opts.Config, r.detectedProject, r.executeArgs(env))
 }
@@ -60,7 +60,7 @@ func (r *DockerComposeRunner) executeArgs(env *config.Environment) []string {
 // Does NOT mutate r.Cmd; constructs args independently per command.
 func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []config.ProvisionItem) error {
 	// Ensure container state is detected once up front.
-	r.autoDetectComposeMethod()
+	r.autoDetectComposeMethod(env)
 
 	return runStepLoop(env, r.Opts.Config, steps, func(cmds []string) error {
 		for _, c := range cmds {
@@ -238,7 +238,7 @@ func (r *DockerComposeRunner) envVars(env *config.Environment) []string {
 	return args
 }
 
-func (r *DockerComposeRunner) autoDetectComposeMethod() {
+func (r *DockerComposeRunner) autoDetectComposeMethod(env *config.Environment) {
 	if r.Cmd.Compose.Method != "run" {
 		return
 	}
@@ -247,7 +247,7 @@ func (r *DockerComposeRunner) autoDetectComposeMethod() {
 	}
 
 	// Check if container is already running
-	project := serviceRunningProject(r.Cmd.Service)
+	project := r.serviceRunningProject(env)
 	if project != "" {
 		r.Cmd.Compose.Method = "exec"
 		r.detectedProject = project
@@ -264,9 +264,25 @@ func (r *DockerComposeRunner) autoDetectComposeMethod() {
 
 // serviceRunningProject checks if a service has a running container and returns
 // its Docker Compose project name. Empty string = not running.
-func serviceRunningProject(service string) string {
-	// docker compose ps --filter "status=running" --format "{{.Project}}" for the service
-	out, err := dvaexec.ExecSubprocessOutput("docker", "compose", "ps", "--filter", "status=running", "--format", "{{.Project}}", service)
+//
+// Goes through composeArgv, the same builder every other compose call uses. It used to shell
+// out to a bare `docker compose ps` — no -f, no --project-name, and a hardcoded `docker` — so
+// it asked about whatever project the CWD happened to imply and the answer was used on the
+// configured one. With the compose file reached through `files:` rather than sitting in the
+// working directory, the bare command exits 1 with "no configuration file provided", detection
+// reports nothing, and `dva run` starts a throwaway `run --rm` container instead of exec'ing
+// into the one that is up — succeeding, in the wrong container, with --rm deleting the evidence
+// (TASK-133).
+//
+// An error still means "not running". That is right for a service that is merely down, and it
+// is also what happens when the configured compose binary does not accept these flags; falling
+// back to `run` is the safe answer either way.
+func (r *DockerComposeRunner) serviceRunningProject(env *config.Environment) string {
+	cmd, args, err := r.detectArgv(env)
+	if err != nil {
+		return ""
+	}
+	out, err := dvaexec.ExecSubprocessOutput(cmd, args...)
 	if err != nil || out == "" {
 		return ""
 	}
@@ -276,4 +292,17 @@ func serviceRunningProject(service string) string {
 		return strings.TrimSpace(lines[0])
 	}
 	return ""
+}
+
+// detectArgv builds the `ps` invocation serviceRunningProject runs. Split out so the argv can
+// be asserted on without a docker daemon — the defect it exists to prevent is entirely in which
+// project the command names, which is visible in the argv and nowhere else.
+//
+// No project override is passed: detection is what produces one, so there is nothing to
+// override yet. The config's own project_name is what the query has to use, because that is the
+// project `dva up` would have created.
+func (r *DockerComposeRunner) detectArgv(env *config.Environment) (string, []string, error) {
+	return composeArgv(env, r.Opts.Config, "", []string{
+		"ps", "--filter", "status=running", "--format", "{{.Project}}", r.Cmd.Service,
+	})
 }
