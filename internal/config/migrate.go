@@ -89,9 +89,12 @@ func MigrateLegacyCompose(src []byte) ([]byte, []string, error) {
 // single file, so it must not fail merely because a sibling that file references
 // is unavailable from where the command runs.
 func VerifyMigrated(content []byte) error {
-	cfg := &Config{}
-	if err := yaml.Unmarshal(content, cfg); err != nil {
-		return fmt.Errorf("parsing YAML: %w", err)
+	// Through decodeConfig, not yaml.Unmarshal: this is the second place raw config
+	// bytes reach config types, and a cyclic anchor that survives the rewrite would
+	// otherwise take the process down here instead of failing verification.
+	cfg, err := decodeConfig(content)
+	if err != nil {
+		return err
 	}
 	for name, entry := range cfg.Stack {
 		if entry == nil {

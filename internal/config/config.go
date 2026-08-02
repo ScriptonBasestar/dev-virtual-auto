@@ -922,18 +922,42 @@ func findConfig(workDir string) (string, error) {
 	}
 }
 
+// decodeConfig turns raw dva.yml bytes into a Config.
+//
+// Every path that decodes user-supplied bytes into config types goes through here,
+// because the anchor cycle scan it performs is not optional: the alternative to
+// rejecting a cyclic document is a runtime stack overflow that ends the process
+// (see checkAnchorCycles).
+func decodeConfig(data []byte) (*Config, error) {
+	// Parse to a node first: the scan must see the document before any config type
+	// does, and decoding the node tree costs no second parse of the text.
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+	if err := checkAnchorCycles(&doc); err != nil {
+		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+
+	cfg := &Config{}
+	if doc.IsZero() {
+		// Empty or comment-only input: nothing was parsed, so there is nothing to decode.
+		return cfg, nil
+	}
+	if err := doc.Decode(cfg); err != nil {
+		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+
+	return cfg, nil
+}
+
 func loadFile(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := &Config{}
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parsing YAML: %w", err)
-	}
-
-	return cfg, nil
+	return decodeConfig(data)
 }
 
 // mergeFrom merges another config into this one.
