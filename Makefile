@@ -40,7 +40,7 @@ test:
 test-integration:
 	go test -tags=integration -race ./internal/integration/...
 
-## lint: Run linters (golangci-lint v2, pinned in .mise.toml)
+## lint: Run linters (golangci-lint v2 + gopls check, both pinned in .mise.toml)
 lint: vet fmt-check
 	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
 		mise exec -- golangci-lint run ./...; \
@@ -48,6 +48,31 @@ lint: vet fmt-check
 		golangci-lint run ./...; \
 	else \
 		echo "Install golangci-lint v2 (https://golangci-lint.run/usage/install/) or run 'mise install'"; exit 1; \
+	fi
+	@# gopls check covers modernize-analyzer findings golangci-lint's vendored
+	@# copy misses (e.g. strings.SplitN where it only catches strings.Index). TASK-130.
+	@# gopls check reports findings on stdout and exits 0 even when it has some, so
+	@# the finding text is what decides the verdict. The corollary is that a non-zero
+	@# exit means the tool itself failed, and it fails with stdout empty (measured:
+	@# exit 2, nothing on stdout, message on stderr). make runs recipes under /bin/sh
+	@# without -e, so without the rc check below the assignment's failure is discarded
+	@# and an unrunnable gopls reads as a clean lint. That is the exact shape TASK-130
+	@# rejected option C for.
+	@if command -v mise >/dev/null 2>&1 && mise which gopls >/dev/null 2>&1; then \
+		gopls_cmd="mise exec -- gopls"; \
+	elif command -v gopls >/dev/null 2>&1; then \
+		gopls_cmd="gopls"; \
+	else \
+		echo "Install gopls (https://pkg.go.dev/golang.org/x/tools/gopls) or run 'mise install'"; exit 1; \
+	fi; \
+	findings=$$($$gopls_cmd check -severity=hint $$(find cmd internal tools -name '*.go')); rc=$$?; \
+	if [ $$rc -ne 0 ]; then \
+		echo "ERROR: gopls check could not run (exit $$rc); see stderr above."; exit 1; \
+	fi; \
+	if [ -n "$$findings" ]; then \
+		echo "ERROR: gopls check found issues:"; \
+		printf '%s\n' "$$findings" | sed 's/^/  /'; \
+		exit 1; \
 	fi
 
 ## vet: Run go vet

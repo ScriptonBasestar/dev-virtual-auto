@@ -55,6 +55,32 @@ jobs:
         with:
           version: v2.12.2
 
+      # gopls covers modernize-analyzer findings golangci-lint's vendored copy
+      # misses (TASK-130). No golangci-lint-action equivalent exists, so
+      # install it explicitly — pinned to the same version as .mise.toml, or
+      # the gate would mean different things locally and in CI.
+      - name: Install gopls
+        run: |
+          go install golang.org/x/tools/gopls@v0.22.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # gopls check reports findings on stdout and exits 0 even when it has some,
+      # so the finding text is what decides the verdict. A non-zero exit therefore
+      # means the tool itself failed, with stdout empty — checked explicitly rather
+      # than left to the runner's default `bash -e`, so the gate does not depend on
+      # a platform default to avoid passing silently. Mirrors the Makefile.
+      - name: gopls check
+        run: |
+          findings=$(gopls check -severity=hint $(find cmd internal tools -name '*.go')) || {
+            echo "ERROR: gopls check could not run; see stderr above."
+            exit 1
+          }
+          if [ -n "$findings" ]; then
+            echo "ERROR: gopls check found issues:"
+            printf '%s\n' "$findings" | sed 's/^/  /'
+            exit 1
+          fi
+
   goreleaser-check:
     runs-on: ubuntu-latest
     steps:

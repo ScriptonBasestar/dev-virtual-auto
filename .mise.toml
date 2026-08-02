@@ -1,6 +1,9 @@
 # Project toolchain pins (mise). Keep go in sync with the go.mod `go` directive.
 # golangci-lint is pinned to a v2 release built with a recent Go so `make lint`
 # cannot hit the "built with an older Go than the target" version gate.
+# gopls is pinned so `make lint` can catch the modernize-analyzer divergence
+# golangci-lint's vendored copy misses (TASK-130).
 [tools]
 go = "1.26.4"
 golangci-lint = "2.12.2"
+"go:golang.org/x/tools/gopls" = "0.22.0"
