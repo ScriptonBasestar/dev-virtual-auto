@@ -129,6 +129,16 @@ they never made, and they stay as-is so this change does not rewrite the tests t
 
 ### Why the walker needs no cycle guard
 
+> **The conclusion below holds; its evidence does not.**
+> [TASK-131](../decision/131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
+> claims in this section: it is a `fatal error`, not a panic; the trace has **18**
+> `internal/config` frames, one of which — `(*InteractionCommand).UnmarshalYAML` — is what drives
+> the recursion; and it is not upstream, because the same document decoded into a struct without a
+> custom unmarshaler returns a clean `anchor 'loop' value contains itself` on the same yaml.v3
+> version. The walker really is safe today, for the reason stated in the last sentence rather than
+> the ones stated first. Kept as written — the wrong evidence is why the crash was filed as
+> upstream and left alone.
+
 `eachInteractionNode` recurses without a depth limit, which is only safe if the tree cannot
 contain a cycle. It cannot: the sole way to express one in YAML is a self-referencing anchor
 (`loop: &loop { subcommands: { self: *loop } }`), and `yaml.v3` dies decoding it — the panic
