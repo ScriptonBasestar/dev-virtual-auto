@@ -693,7 +693,16 @@ These fields ARE valid but are frequently used incorrectly:
 
 - **`shell: true`** — Valid. Enables shell interpolation for multi-line or piped commands. Use when command contains `&&`, `||`, `|`, or shell variables.
 - **`compose: { method: "up", profiles: [] }`** — Valid. Controls how DVA invokes docker compose for this command.
-- **`environment:`** in interaction — Valid. Per-command environment variable overrides.
+- **`environment:`** in interaction — Valid. Per-command environment variable overrides. On the
+  compose path these reach the **container**: DVA injects the merged declared environment as
+  `-e KEY=VALUE` on every compose subcommand that accepts it (`run`, `exec`, including `steps:`
+  which always builds `exec`). `up` — the method used when `profiles:` is configured — has no
+  `-e` flag and is excluded, as is kubectl (`kubectl exec` has no env flag). What crosses is the
+  whole merged variable set — `env_file`, global `vars`, `environment:`, site vars, plan vars,
+  `--var`, and the command's own `environment:` — but only keys that were declared somewhere:
+  an OS value overrides a declared key, it does not add one, so undeclared host variables stay
+  out. `DVA_*` is excluded. A declared key overrides the image's own value — declaring `PATH`
+  replaces the container's `PATH` on exec.
 
 ## Validation
 

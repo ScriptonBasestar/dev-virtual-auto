@@ -46,6 +46,18 @@ All notable changes to DVA are documented here.
   post-up status summaries still swallow errors so a successful `up` stays exit 0
 - **`dva up --force` / `stack up --force`**: compose only — passes `--force-recreate` (TASK-040);
   help text states the scope; other plugins ignore Force
+- **선언된 환경변수가 compose 컨테이너까지 전달됩니다** (TASK-129): `dva run` 경로에서
+  `-e KEY=VALUE`가 `-e`를 받는 모든 compose 서브커맨드(`run`, `exec`)에 주입됩니다.
+  이전에는 `method: run`이면서 호스트 OS에도 export된 변수만 전달됐고,
+  `method: exec`(설정값 또는 실행 중 컨테이너에서 자동 전환된 경우)와 `steps:` 항목은
+  아무것도 받지 못했습니다. `profiles:` 사용 시의 `up`은 `-e` 플래그가 없어 제외입니다.
+  전달 대상은 병합된 변수 집합 전체입니다 — `env_file`, global `vars`, `environment:`,
+  site vars, plan vars, `--var`, 커맨드 자신의 `environment:`. 단 어딘가에 **선언된** 키만
+  해당하며, OS 값은 선언된 키를 덮어쓸 뿐 목록을 늘리지 않으므로 선언하지 않은 호스트
+  변수는 전달되지 않습니다. `DVA_*`는 계속 제외되고, 키는 정렬되어 argv가 결정적입니다.
+  **주의**: `dva.yml`에만 선언한 변수도 이제 전달되므로 이미지에 내장된 값을 덮어씁니다 —
+  `PATH`를 선언했다면 exec 시 컨테이너의 `PATH`가 교체됩니다.
+  `kubectl exec`은 env 플래그가 없어 해당 경로는 변경 없음
 
 ### Fixed
 - `DVA_CURRENT_USER` was returning UID (number) instead of username (string)

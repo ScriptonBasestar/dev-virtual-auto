@@ -3,9 +3,11 @@ id: TASK-129
 title: "Host env reaches a container on exactly one of four compose paths, and nothing records whether that is the design"
 type: decision
 priority: P2
-status: decision
+status: done
 effort: M
 created-at: 2026-08-02T00:00:00+09:00
+resolved-at: 2026-08-02T00:00:00+09:00
+resolution: "Yes to all three, with the forwarding set bounded by measured flag support rather than by path: -e is injected on run and exec, never on up. kubectl needs no second decision — kubectl exec has no env flag."
 scope: "internal/runner/docker_compose.go — runVars:189, composeArguments:147-150, buildStepArgs:105, autoDetectComposeMethod:204; internal/runner/kubectl.go for the comparison"
 ---
 
@@ -228,9 +230,81 @@ argv logic, step or non-step. It has the broader limitation without the asymmetr
 forward on compose raises the question for kubectl; a decision not to forward makes kubectl the
 model. Either way it should not be answered twice.
 
+## Resolution
+
+Answered yes to all three questions. Implemented in `internal/runner/docker_compose.go`:
+`-e` moved out of the `run` guard, the host-export filter deleted, `buildStepArgs` given back
+an `*config.Environment` it now reads.
+
+Three things implementation established that the analysis above did not have.
+
+**The approved shape was "every method", and that would have been a regression.** `docker
+compose up` does not parse `-e` — 34 flags, none of them env, against `run`'s 25 and `exec`'s 8
+which both carry `-e, --env stringArray`. `composeProfiles` sets `Method = "up"` whenever
+`profiles:` is configured, so injecting unconditionally would abort every profile-based
+invocation on an unknown flag: strictly worse than the bug. The guard is therefore not removed
+but **split by measured flag support** — `composeMethodAcceptsEnv` covers `run` and `exec`,
+while `--publish`/`--rm` stay under `run`, which is the only method that has them. That the old
+`if method == "run"` bundled three flags with three different support ranges is the structural
+cause of the defect, not an incidental grouping.
+
+**The kubectl question closes on measurement, not on a second decision.** The Comparison
+section below expected a decision to forward on compose to raise the same question for kubectl.
+It does not: `kubectl exec` has six flags — container, filename, pod-running-timeout, quiet,
+stdin, tty — and no occurrence of "env" in its help at all, while `kubectl run` does have
+`--env=[]`, which is what makes the absence meaningful rather than a failed search. Both
+`KubectlRunner` paths build `exec` (`kubectl.go:31` and `:79`); there is no kubectl path that
+could carry the flag. That is a platform limitation, not an inconsistency with compose, and it
+is now recorded in `KubectlRunner.buildStepArgs` so it is not refiled.
+
+**The forwarded set is wider than this task described.** The recommendation below says
+"`environment:`, `env_file`, mode/plan vars". `internal/lifecycle/resolver.go` also merges
+global `vars` (`:94`), environment profiles (`:108`), **site vars** (`:125`), plan vars
+(`:131`) and **CLI `--var`** (`:134`) into `Plan.EnvVars`, which `plan_lifecycle.go` merges
+into the Environment. So site vars and `--var` cross too. The docs and the `envVars` comment
+state the merged set rather than enumerating layers, because an enumeration goes stale the next
+time a layer is added.
+
+What made deleting the host filter safe is that `DVA_` covers all five runtime variables DVA
+injects (`DVA_OS`, `DVA_WORK_DIR_REL_PATH`, `DVA_CURRENT_USER`, `DVA_CURRENT_UID`,
+`DVA_HOOK_DEPTH`). The filter was doing two jobs — blocking non-host values and, incidentally,
+blocking those — and only the first was intended. `config.EnvPrefix` now names the invariant
+the second job depends on.
+
+Keys are sorted on the way out. `env.Vars` is a map and Go randomises iteration, so without it
+two identical `dva run` invocations produce different argv.
+
+## Acceptance criteria
+
+| # | criterion | result |
+|---|---|---|
+| 1 | A variable declared only in `dva.yml` reaches the container | e2e: `showenv-override` prints `test`; pre-fix binary prints empty |
+| 2 | The `steps:` path forwards it too | e2e: `showenv-steps` prints `test`; pre-fix binary fails the step, `printenv` exiting 1 |
+| 3 | The run→exec rewrite no longer changes what the command sees | e2e against an already-running container: no `Creating` line, value still arrives |
+| 4 | `up` is not given `-e` | `TestComposeArgumentsWithholdsEnvFromUp`, both the declared-`up` and profiles-forced routes |
+| 5 | `DVA_*` does not cross | `TestEnvVarsExcludesDVAPrefix`, seeded from `NewEnvironment`+`WithHookDepth` so a future unprefixed runtime var fails here |
+| 6 | An undeclared host variable does not cross | `TestEnvVarsExcludesUndeclaredHostVars` — the claim that bounds "declared values only" |
+| 7 | argv is deterministic | `TestEnvVarsIsSortedAndStable`, 21 calls compared |
+| 8 | Every criterion above fails when its fix is reverted | 5 probes run; each broke exactly its own test, file restored byte-identical each time |
+| 9 | Four gates green | `make test`, `make lint`, `make doc-check` (471 links, 0 broken), `make check-generate` — all exit 0 |
+
+Criterion 6 is the one that carries the risk. Dropping the host-export requirement is easy to
+misread as "dva now forwards your shell"; `MergeVars` overwrites keys it was given and never
+adds one, so the set stays bounded by what was written down. Without that test the docs'
+"declared values only" would be an unverified claim about a container boundary.
+
+The residual behaviour change is documented rather than mitigated: a declared key now overrides
+the image's own value, `PATH` being the obvious case. CHANGELOG, `USAGE.md` and the schema
+reference all state it.
+
+Not fixed here, found while measuring: `--project-name` is passed twice on paths where both
+`dvaexec.ComposeArgv` (`compose_argv.go:56`) and the runner's `detectedProject`
+(`docker_compose.go:46`, `:95`) supply it. Docker takes the last, so it is cosmetic today, but
+it surfaces in error output. Filed as [TASK-132](../todo/132-project-name-is-passed-twice-on-the-detected-project-paths.md).
+
 ## Related
 
-- [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md) — found this
+- [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md) — found this
   while correcting `buildStepArgs`' doc comment, and its first correction of that comment
   overstated the shape: it framed the split as step vs non-step when the measured split is
   fresh-container `run` vs everything else. Corrected there; the accurate framing is the table

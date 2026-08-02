@@ -596,6 +596,32 @@ env_file < global vars < environment vars < site vars < plan vars < CLI vars < O
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
 `dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
 
+#### 컨테이너로 전달되는 환경변수
+
+위 우선순위는 변수의 **값**을 정합니다. 그 값이 **어디까지 가는지**는 실행 경로가
+정합니다. `dva run`의 compose 경로에서 DVA는 병합된 선언 환경변수를 `-e KEY=VALUE`로
+argv에 주입합니다.
+
+| compose 경로 | `-e` 전달 |
+|---|---|
+| `method: run` (컨테이너 미실행) | O |
+| `method: exec` — 설정값, 또는 실행 중 컨테이너에서 `run`이 자동 전환된 경우 | O |
+| `steps:` 항목 (항상 `exec`) | O |
+| `profiles:` 설정 시의 `up` | X — `docker compose up`에 `-e` 플래그가 없음 |
+
+- 전달 대상은 **위 우선순위 체인이 만들어낸 병합 결과 전체**입니다 — `env_file`, global
+  `vars`, `environment:`, site vars, plan vars, `--var`, 그리고 커맨드 자신의
+  `environment:`. 어느 레이어에서 왔는지는 구분하지 않습니다.
+- 반대로 호스트 환경 전체가 넘어가는 것은 **아닙니다**. `dva.yml`(또는 `--var`)에 선언된
+  키만 대상이며, OS 값은 그 키를 덮어쓸 뿐 목록을 늘리지 않습니다. 선언하지 않은 호스트
+  변수는 컨테이너에 전달되지 않습니다.
+- `DVA_*`는 제외됩니다 (DVA 자체 런타임 변수 — [특수 변수](#특수-변수) 참조).
+- kubectl 경로는 전달하지 않습니다. `kubectl exec`에 env 플래그가 없으며, pod의
+  환경은 pod spec이 결정합니다.
+
+> **주의**: 선언한 변수는 이미지에 내장된 값을 덮어씁니다. `dva.yml`에 `PATH`를
+> 선언하면 exec 시 컨테이너의 `PATH`가 그 값으로 교체됩니다.
+
 #### 실제 적용 결과 확인
 
 `--dry-run`은 실행 대신 **해석 결과**를 출력합니다. 위 순서의 각 레이어가 실제로 몇 개
