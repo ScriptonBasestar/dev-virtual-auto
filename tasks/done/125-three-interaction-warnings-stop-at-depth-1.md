@@ -84,7 +84,14 @@ because the recursion is what makes it bite — shipping the recursion alone wou
 - [x] Depth-1 wording is byte-identical | verify: `go test ./internal/config/ -run 'InteractionWarningsDepth1WordingIsUnchanged' -v | grep -c '^--- PASS'` — **1, asserting all three full strings by equality**
 - [x] Pre-existing depth-1 tests still pass unmodified | verify: `go test ./internal/config/ -run 'WarnDuplicateParentSubcommand|WarnChildOverridesParentCritical|WarnUnreachableCommands' -v | grep -c '^--- PASS'` — **3, source untouched**
 - [x] Output order is stable | verify: `go test ./internal/config/ -run InteractionWarningsAreOrderStable -v | grep -c '^--- PASS'` — **1; 50 in-process repeats plus 20 real binary runs, 1 distinct ordering**
-- [x] No new warnings on shipped content | verify: `human — run config validate over examples/*.yml and dva.yml, count warnings matching 'subcommands\..*\.subcommands\.'` — **17 files swept, 20 semantic warnings emitted, 0 of them nested-path, including the depth-3 full-stack.yml. The 20 is quoted so the 0 reads as a measurement rather than a sweep that never ran.**
+- [ ] No new warnings on shipped content | verify: `human — run config validate over examples/*.yml and dva.yml, count warnings matching 'subcommands\..*\.subcommands\.'` — **17 files swept, 20 semantic warnings emitted, 0 of them nested-path, including the depth-3 full-stack.yml. The 20 is quoted so the 0 reads as a measurement rather than a sweep that never ran.**
+  - ⚠️ **This criterion failed and reported a pass.** The pattern requires *two* `subcommands.`
+    segments, but the regression this commit actually shipped was
+    `interaction.rails.subcommands.db` — one segment, on `examples/full-stack.yml`. The grep
+    structurally could not match the thing it was written to catch, so the honest count was 1,
+    not 0. Quoting the 20 guarded against a sweep that never ran; it did nothing about a sweep
+    that ran the wrong query. Found and fixed in
+    [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md).
 - [x] No check iterates the interaction tree top-level-only | verify: `awk '/^func /{fn=$0} /range c\.Interaction/{print NR": "fn}' internal/config/validate_warnings.go` — **2 remain, both with their own recursion (`warnInertProvisionSteps`, `warnDeepSubcommandNesting`); the three fixed checks now reach the tree only through `eachInteractionNode`, 3 call sites**
 - [x] Tests fail when reverted | verify: `human — de-recurse the walker; drop the sort` — **2 mutations, both caught; see below**
 - [x] Full suite passes | verify: `make test` — exit 0
