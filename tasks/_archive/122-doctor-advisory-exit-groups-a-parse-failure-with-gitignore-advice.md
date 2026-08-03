@@ -10,6 +10,20 @@ decided-at: 2026-08-01T00:00:00+09:00
 completed-at: 2026-08-01T00:00:00+09:00
 decision: C
 scope: "internal/cli/doctor.go:658 doctorExitError"
+verified-at: 2026-08-03T15:00:00+09:00
+archived-at: 2026-08-03T15:00:00+09:00
+verification-summary: |
+  doctorExitError is now `func doctorExitError(results []DoctorResult, strict bool)` (doctor.go:681) with
+  `if (r.UserDefined || strict) && !r.Passed`; both call sites (doctor.go:71 JSON, :75 text) pass doctorStrict.
+  Measured with ./bin/dva (0.1.44), $? read directly, fixtures under scratchpad/v122:
+  - built-in-only failure (missing compose file): default → "2 passed, 3 failed", EXIT=0; --strict → EXIT=1,
+    "ERROR: 3 check(s) failed (--strict)". Same pair on the --json path: EXIT=0 / EXIT=1.
+  - user check failing: default EXIT=1 "1 user check(s) failed"; --strict EXIT=1 "2 check(s) failed (--strict)".
+  - all-pass fixture: --strict EXIT=0 (flag invents no failures).
+  - --strict --fix on a fixable-only failure: EXIT=0, "3 passed, 0 failed (1 auto-fixed)" (applyDoctorFixes
+    sets Passed=true, so fixes are not double-counted).
+  Flag is discoverable: `dva doctor --help` lists --strict; `dva manifest` line 49 carries its help string.
+  Tests are non-vacuous — the strict test asserts both the count "3 check" and the literal "--strict".
 ---
 
 # Task 122: one bucket for two kinds of built-in check
@@ -87,6 +101,12 @@ The grouping (criterion 1) is done — an agent pass classified every built-in c
 - **Advice** (transient/environmental): Docker daemon accessible; Docker socket permissions; `.sb/dva/` gitignored; compose project-name alignment (nit); app port ownership (runtime orphan).
 - **Diagnosis** (config names a missing path, or the tool rejected the files): compose file exists; env file exists; stack kubeconfig exists; compose config resolves. Borderline: subproject project-name collision (runs but silently reaps the parent stack on `dva down`).
 
+⚠️ The inventory is one short: `devcontainer.json exists` (`internal/cli/doctor.go:120-127`) is a
+built-in check — `UserDefined` stays false — and belongs in the diagnosis group by the same test
+(the config declares a devcontainer, the file is missing). Verified live that it counts under
+`--strict`. Direction C is unaffected, since under C every built-in counts uniformly; only this
+classification table was incomplete.
+
 CI runs no `dva doctor` today (`.github/workflows/ci.yml` has zero references; `Makefile` has no doctor target). The only in-repo callers are agent-mesh flows and all swallow the exit with `|| echo`.
 
 **C's implementation landed as default-off** (criterion 4 satisfied by preservation, not rewrite):
@@ -103,3 +123,7 @@ Historical progress preserved above; implementation already green under focused 
 - [TASK-119](../_archive/119-doctor-compose-check-ignores-the-configured-command.md) — where this was
   measured. That task made `Compose config resolves` report on the right binary; it did not make
   anyone notice when it fails.
+- [TASK-159](../todo/159-doctor-strict-is-the-ci-flag-nobody-can-find.md) — ⚠️ `--strict`, the
+  flag this task added for CI, is in `--help` and the manifest and in no user-facing doc.
+  `USAGE.md:333-335` lists `--fix` and `--json` only, while the sibling
+  `dva config validate --strict` is documented at `USAGE.md:352`.

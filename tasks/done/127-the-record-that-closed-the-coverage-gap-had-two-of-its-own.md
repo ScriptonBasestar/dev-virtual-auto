@@ -13,7 +13,7 @@ scope: ".golangci.yml exclusions.presets — four unnamed entries, one suppressi
 
 # Task 127: the audit that TASK-126 asked for, applied to TASK-126
 
-[TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) closed by
+[TASK-126](../_archive/126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) closed by
 falsifying TASK-111's closing claim. It was then audited under its own standard, and two of its
 claims reach past what it measured. One of them was hiding a real defect.
 
@@ -122,7 +122,7 @@ test, and that is stated rather than papered over.
 
 ## Related
 
-- [TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) — the record
+- [TASK-126](../_archive/126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) — the record
   this audits and corrects. Its 8-findings measurement holds; its two completeness claims did not.
 - [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the first
   link. Same shape, two records earlier.

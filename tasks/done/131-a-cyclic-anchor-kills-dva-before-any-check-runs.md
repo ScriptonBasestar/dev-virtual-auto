@@ -114,7 +114,7 @@ body for a field of its own type, only `InteractionCommand` is self-referential
 
 ## What this corrects in TASK-125
 
-[TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) §"Why the walker needs no
+[TASK-125](../_archive/125-three-interaction-warnings-stop-at-depth-1.md) §"Why the walker needs no
 cycle guard" (`:130-142`) recorded three things that measurement contradicts:
 
 | TASK-125 said | measured |
@@ -240,7 +240,7 @@ criteria 1, 2 and 6 while breaking valid configs, and would also invalidate crit
 
 ## Related
 
-- [TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) — `:130-142` is the record
+- [TASK-125](../_archive/125-three-interaction-warnings-stop-at-depth-1.md) — `:130-142` is the record
   this corrects; its conclusion survives, its three stated pieces of evidence do not.
 - [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md) — the last time a
   comment in this area described a property the code did not have.

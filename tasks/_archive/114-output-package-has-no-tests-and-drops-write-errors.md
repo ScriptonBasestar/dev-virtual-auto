@@ -121,7 +121,7 @@ Decide point 2 before writing code — it is the only real design question here.
   documented but not implemented.
 - [TASK-120](120-printyaml-panics-where-printjson-returns-an-error.md) — found by
   the tests this task added.
-- [TASK-121](../done/121-explain-cannot-report-a-failed-json-write.md) — the one caller that
+- [TASK-121](121-explain-cannot-report-a-failed-json-write.md) — the one caller that
   cannot receive the error this task made real.
 
 ---

@@ -9,6 +9,23 @@ resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Added a shared eachInteractionNode walker, made the three checks recurse and sort; depth-2 coverage went 0→3 on the reproduction fixture with no new warnings on any shipped example"
 created-at: 2026-08-02T00:00:00+09:00
 scope: "internal/config/validate_warnings.go — warnDuplicateParentSubcommand:303, warnChildOverridesParentCritical:660, warnUnreachableCommands:722 (pre-change line numbers; after the fix they sit at 332/690/753 alongside eachInteractionNode:309)"
+verified-at: 2026-08-03T15:00:00+09:00
+archived-at: 2026-08-03T15:00:00+09:00
+verification-summary: |
+  The depth claim is real, not a code reading. A fixture repeating each of the three
+  mistakes at depths 1, 2 and 3 produces 10 warnings from the shipped binary; the
+  identical mistakes flattened to depth 1 produce 3. Every warning names the full
+  dotted path down to `...subcommands.lvl2.subcommands.lvl3`.
+  Order stability holds on that same nested fixture: 25 binary runs, 1 distinct ordering.
+  All three mutations in the task's table were reproduced out-of-tree with `go test -overlay`
+  and all three fail the intended test — the walker's recursion, the sort, and the path prefix
+  are each load-bearing.
+  The one criterion the task marks failed (the shipped-content sweep with a grep that
+  structurally could not match) I re-ran with a correct query: 17 files, 20 warnings emitted,
+  0 with any `subcommands.` segment, full-stack.yml clean. That gap is closed at HEAD.
+  The `// TODO: consider checking nested subcommands recursively` is gone; both items 125
+  filed under "deliberately not fixed" (inert-steps path convention, unsorted
+  warnHealthCheckRedundancy) are now closed in code at validate_warnings.go:254 and :295.
 ---
 
 # Task 125: the same mistake, one level down, is invisible
@@ -91,7 +108,7 @@ because the recursion is what makes it bite — shipping the recursion alone wou
     structurally could not match the thing it was written to catch, so the honest count was 1,
     not 0. Quoting the 20 guarded against a sweep that never ran; it did nothing about a sweep
     that ran the wrong query. Found and fixed in
-    [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md).
+    [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md).
 - [x] No check iterates the interaction tree top-level-only | verify: `awk '/^func /{fn=$0} /range c\.Interaction/{print NR": "fn}' internal/config/validate_warnings.go` — **2 remain, both with their own recursion (`warnInertProvisionSteps`, `warnDeepSubcommandNesting`); the three fixed checks now reach the tree only through `eachInteractionNode`, 3 call sites**
 - [x] Tests fail when reverted | verify: `human — de-recurse the walker; drop the sort` — **2 mutations, both caught; see below**
 - [x] Full suite passes | verify: `make test` — exit 0
@@ -130,7 +147,7 @@ they never made, and they stay as-is so this change does not rewrite the tests t
 ### Why the walker needs no cycle guard
 
 > **The conclusion below holds; its evidence does not.**
-> [TASK-131](131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
+> [TASK-131](../done/131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
 > claims in this section: it is a `fatal error`, not a panic; the trace has **18**
 > `internal/config` frames, one of which — `(*InteractionCommand).UnmarshalYAML` — is what drives
 > the recursion; and it is not upstream, because the same document decoded into a struct without a
@@ -153,7 +170,7 @@ upstream of every check in this file and predates this change; it is not folded 
 
 ### Observed but deliberately not fixed
 
-> **Both items below are closed as of [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md)**
+> **Both items below are closed as of [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md)**
 > (`86539b0`). They are kept as written rather than deleted, because the reasoning for deferring
 > them is what that task had to overturn. Read them as history, not as open work — and note that
 > the first one's "maintenance trap" is exactly what let the same inheritance bug reach two path

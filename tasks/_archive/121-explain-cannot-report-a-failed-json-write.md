@@ -7,6 +7,19 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/runner.go:77 Explain (no return value), :98 discards output.PrintJSON's error; two callers in internal/cli/run.go"
+verified-at: 2026-08-03T15:00:00+09:00
+archived-at: 2026-08-03T15:00:00+09:00
+verification-summary: |
+  Exercised the error path on ./bin/dva rather than reading it. With stdout dup'd from a
+  read-only fd (writes return EBADF, no SIGPIPE confound, no pipe/head involved):
+    `dva run hello --explain --json` → exit 1, stderr "ERROR: write /dev/stdout: bad file
+    descriptor", 0 bytes on stdout. The pre-fix shape (exit 0, 0 bytes) is gone.
+  The unit test is real, not a stub: brokenStdout (runner_explain_test.go:81-96) swaps the
+  os.Stdout variable for a pipe with a closed read end and TestExplainJSONBranchPropagates-
+  WriteError asserts Explain(&cmd, true) != nil. Under -v: 7 RUN / 7 PASS / 0 FAIL, so the
+  TASK-144 exec-erasure hazard does not apply here (no ExecReplace in this package's tests).
+  Both cobra RunE call sites return the error verbatim. The two surviving `_ = output.Print`
+  sites are production paths that provably still exit 1, each with the required comment.
 ---
 
 # Task 121: the one caller left that cannot pass the error on
@@ -65,6 +78,12 @@ calls with the same exposure, and fixing the JSON branch alone leaves `--explain
 
 - [TASK-114](../_archive/114-output-package-has-no-tests-and-drops-write-errors.md) — made the
   error real; this is the caller that cannot receive it.
+- [TASK-158](../todo/158-explains-text-branch-exits-0-on-a-write-that-failed.md) — ⚠️ the text
+  branch, and the judgement call left open below. Measured for archival: with stdout on a
+  read-only fd, `--explain --json` exits 1 with the write error and `--explain` exits 0 having
+  delivered nothing. The scoping decision holds; the reason recorded at `runner.go:77-84` does
+  not — `EBADF` makes the write fail rather than succeed-and-be-lost, so the exposure the comment
+  calls unreachable is the one reproduced here.
 
 ## Resolution
 

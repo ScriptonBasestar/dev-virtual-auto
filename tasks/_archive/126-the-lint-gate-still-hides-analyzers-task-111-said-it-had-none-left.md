@@ -9,6 +9,23 @@ created-at: 2026-08-02T09:00:00+09:00
 resolved-at: 2026-08-02T09:00:00+09:00
 resolution: "Enabled govet enable-all (minus two named exclusions) and unparam, fixed all 8 findings; make lint and gopls now agree at 0 across 235 files, and the analyzers that stay off are listed with reasons"
 scope: ".golangci.yml — govet ran its default analyzer subset and unparam was not enabled; both ship in the pinned golangci-lint 2.12.2"
+verified-at: 2026-08-03T15:00:00+09:00
+archived-at: 2026-08-03T15:00:00+09:00
+verification-summary: |
+  Toolchain matches the record: .mise.toml pins golangci-lint 2.12.2 and gopls 0.22.0;
+  `golangci-lint --version` -> 2.12.2, `gopls version` -> v0.22.0, ./bin/dva -> 0.1.44.
+  `make lint` exits 0 with `0 issues.` and the gopls hint pass silent.
+  The 0 is not vacuous: a throwaway module in the scratchpad, linted by that same
+  2.12.2 binary with `-c <repo>/.golangci.yml`, produced `unparam: 1` and
+  `govet: 1 (unusedwrite)` and exit 1 — both analyzer sets this task turned on.
+  All eight reported sites are fixed in tree, including the two "real" ones.
+  One nuance worth recording: `buildStepArgs`'s `env` parameter, removed here as
+  dead, was deliberately restored by TASK-129 with a body that uses it
+  (r.envVars(env)); docker_compose.go:88-96 documents that reversal explicitly, so
+  it is a later decision, not an undone fix.
+  The two `[~]` criteria carry accurate inline ⚠️ corrections pointing at TASK-127,
+  and both now hold in substance: gopls -severity=hint is 0 over 240 files and is
+  wired into Makefile:68, and the exclusion list is fully named with reasons.
 ---
 
 # Task 126: the gate closed a gap and announced there were none left
@@ -27,7 +44,7 @@ which is not the same as being kept out on purpose. What fails is the inference.
 surveyed is not a gap you decided to accept, so "nothing deliberately excluded" does not yield "no
 residual gap to report".
 
-> **Corrected by [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> **Corrected by [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
 > Two claims in this record reach past what it measured — the `gopls` criterion below and the
 > "what stays excluded is named" criterion. Both are marked inline.
 
@@ -137,7 +154,7 @@ running gopls directly:
 gopls check -severity=hint $(find cmd internal tools -name '*.go')
 ```
 
-> ⚠️ **Two corrections from [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> ⚠️ **Two corrections from [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
 > This paragraph originally read "there are currently 0 instances" and prescribed the same command
 > without `-severity=hint`. Both were wrong in the same direction: there was 1 live instance
 > (`stringscut` in `internal/lifecycle/compose_error_test.go:38`), and it reports at hint severity,

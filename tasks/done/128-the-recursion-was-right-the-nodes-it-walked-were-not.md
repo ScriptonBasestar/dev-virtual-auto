@@ -13,7 +13,7 @@ scope: "internal/config/validate_warnings.go — eachInteractionNode:316, inheri
 
 # Task 128: a check that recurses must ask its question of the node that runs
 
-[TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) made three interaction warnings
+[TASK-125](../_archive/125-three-interaction-warnings-stop-at-depth-1.md) made three interaction warnings
 recurse. The recursion was correct. What it recursed *over* was not: each check kept asking its
 question of the node as parsed from YAML, and below depth 1 that node is not what the runtime
 executes.
@@ -186,7 +186,7 @@ a task about validation warnings.
 
 ## Related
 
-- [TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) — this fixes what that shipped, and
+- [TASK-125](../_archive/125-three-interaction-warnings-stop-at-depth-1.md) — this fixes what that shipped, and
   the pair is the actual lesson: a check that changes *how far* it walks has also changed *what* it
   is looking at.
 - [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) — the map-ordering

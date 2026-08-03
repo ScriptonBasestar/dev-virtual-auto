@@ -136,7 +136,7 @@ containing whitespace.
 
 - [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md) — states
   this gap at `:114-121`; the `stringscut` divergence is mutation-tested there.
-- [TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) —
+- [TASK-126](../_archive/126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) —
   enabled `govet.enable-all` and `unparam`; its "editor and gate agree" claim was the overstatement
   TASK-127 corrected.
 - [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the

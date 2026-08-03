@@ -9,6 +9,20 @@ resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Deleted the false env_file TODO, rewrote the trace to report all 7 documented precedence layers including absent ones, surfaced it on the existing --dry-run for up/down/stop/restart; 13 tests, both directions mutation-tested"
 created-at: 2026-08-01T00:00:00+09:00
 scope: "internal/lifecycle/resolver.go ResolvePlan — 17 append sites with no reader; internal/cli/plan_lifecycle.go — the --dry-run path of up/down/stop/restart"
+verified-at: 2026-08-03T15:00:00+09:00
+archived-at: 2026-08-03T15:00:00+09:00
+verification-summary: |
+  Ran the real v0.1.44 binary on three scratchpad fixtures rather than trusting tests alone.
+  Full fixture (env_file [.env present, .env.local absent] + environment: + vars + environments +
+  sites + plan vars + --var) printed all 10 documented trace lines on stderr, byte-identical to the
+  task's Resolution block. Bare fixture printed every layer with its own empty phrasing.
+  The task's "Measured" claim reproduces: a script entry echoing vars gives FROM_ENV_FILE=1
+  SHARED=global (env_file applied, global vars win) and SHARED=os under an OS export — so the
+  deleted TODO string was indeed false about working behaviour.
+  Dead-code check both ways: ResolutionTrace now has 2 non-test readers (was 0); and 124's own new
+  helpers each have consumers (traceLayer 7, appendUpstreamVarTrace 4, printPlanResolution 6
+  non-test refs; captureStreams 8 test refs) — nothing of the TASK-147 shape was left behind.
+  Stream split is real, not vacuous: --json stdout parsed as a JSON object with the trace on stderr.
 ---
 
 # Task 124: the trace that was written for nobody
