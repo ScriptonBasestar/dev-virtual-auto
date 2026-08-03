@@ -164,7 +164,7 @@ not a repair — the redirect dies if `dev-virtual-auto` is ever reused as a rep
 
 ## Follow-ups, not folded in
 
-- **[TASK-063](../done/063-documented-release-download-has-no-release.md)** — `go install`
+- **[TASK-063](063-documented-release-download-has-no-release.md)** — `go install`
   works, but `README.md:25`'s download URL 404s because **no release and no tag has ever
   existed**. The rename made that line name the right repo; it did not make it work. An
   earlier note in TASK-057 called this resolved by the rename, which was wrong.
@@ -173,7 +173,7 @@ not a repair — the redirect dies if `dev-virtual-auto` is ever reused as a rep
 
 ## Related
 
-- [TASK-057](../done/057-dead-self-referencing-urls.md) — fixed the `$schema` and
+- [TASK-057](057-dead-self-referencing-urls.md) — fixed the `$schema` and
   migration-guide URLs, standardising on `dev-virtual-auto`; this decision inverted that
   choice one commit later. The URL guard deliberately does not flag module paths, because
   inside a Go import `ScriptonBasestar/dva` is the module's real name — and now the

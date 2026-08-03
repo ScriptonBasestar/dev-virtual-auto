@@ -58,7 +58,7 @@ claim that the code is broken.** It is a claim about what a green gate licenses 
 
 Two analyzers that are already installed disagreed with `0 issues.`: `modernize` at 50, and
 `gofmt -s` at 9 files. The second half has since been closed —
-[TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) formatted the nine
+[TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) formatted the nine
 files in `621d55a` and added `make fmt-check` to the Makefile and to CI, so `make lint` now depends
 on `fmt-check` and formatting is genuinely gated. **`modernize` at 50 is what remains.** A gate whose
 coverage nobody has stated is a gate whose silence means nothing in particular, which is the same
@@ -198,7 +198,7 @@ import "fmt"
 ```
 
 Legal Go, and `gofmt -s` does not merge separate import declarations — so
-[TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s new `make fmt-check`
+[TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s new `make fmt-check`
 reports `213 files checked, 0 unformatted` over it. Merged by hand. Noted because it is a live
 example of the same lesson one level down: the format gate is green here for a reason unrelated to
 this file being well-formed.
@@ -254,7 +254,7 @@ other so `other` wins. No filter or key/value transform was absorbed into a `map
 
 ## Related
 
-- [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
+- [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
 - [TASK-112](../done/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) — the third instance of a
   gate that does not cover what its greenness implies.
 - [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md) — touched two

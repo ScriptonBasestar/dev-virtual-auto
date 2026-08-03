@@ -7,6 +7,19 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/validate.go — 0 references to jsonOutput; the verdict at :70 and the warnings at :42/:84/:88"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  Re-measured all four paths on ./bin/dva with fresh fixtures built from the task's own YAML.
+  clean/warnings/schema/load-failure each yield exactly 1 document by `jq -s 'length'`;
+  `--json --strict` (a fifth path the task did not table) also yields 1. Warnings fixture gives
+  `.warnings|length` = 2 with `migration_guide`/`affected_entries`/`hint` extracted into `fields`;
+  schema fixture gives two `.errors` entries both keyed `provision.default.0`, exit 1, with
+  TASK-079's `.error.message`/`.error.exit_code` preserved inside the new document.
+  Human output is unmoved: stderr `diff`s IDENTICAL between plain and `--json` in all four rows,
+  plain stdout stays 21/21/0/0 bytes, and the commit diff (2e0cfd6) shows composeNameWarningLines
+  reproduces the old format strings verbatim. `go test ./internal/cli/ -run JSON -v` → 52 RUN+PASS
+  over 26 real test names, including the anti-double-document subtest; package coverage now 65.4%.
 ---
 
 # Task 088: the one command whose whole output is a machine answer does not produce one
@@ -16,7 +29,7 @@ scope: "internal/cli/validate.go — 0 references to jsonOutput; the verdict at 
 `internal/cli/CLAUDE.md` states `--json` exists for the LLM pipeline.
 `internal/cli/validate.go` contains **zero** references to `jsonOutput` — the flag is accepted and
 never consulted. What JSON a consumer does get comes entirely from
-[TASK-079](079-json-flag-does-not-cover-failures.md)'s failure envelope, which catches the
+[TASK-079](../_archive/079-json-flag-does-not-cover-failures.md)'s failure envelope, which catches the
 error `validate` returns without knowing anything about validation.
 
 Measured on 0.1.44, all four paths:
@@ -177,7 +190,7 @@ object" from "garbage" the way the task's `jq -s 'length'` criterion requires.
 
 ## Related
 
-- [TASK-079](079-json-flag-does-not-cover-failures.md) — shipped the envelope that covers
+- [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — shipped the envelope that covers
   rows 1-2 here. Its *Left open* entry described this gap less precisely, before the envelope
   existed to measure against; corrected in the same commit as this file.
 - [TASK-087](087-unrecognized-stack-args-become-entry-names.md) — the other half of the

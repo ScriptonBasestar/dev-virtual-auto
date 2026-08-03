@@ -53,8 +53,8 @@ only signal, and it cannot say *why*.
 
 The flag's stated audience is a program, and a program cannot read `ERROR: …` on stderr without
 parsing prose that no test pins. Every message this repo has recently made more actionable —
-[TASK-073](../done/073-version-error-blames-the-config-for-a-build-defect.md)'s build-vs-config
-blame, [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md)'s route —
+[TASK-073](073-version-error-blames-the-config-for-a-build-defect.md)'s build-vs-config
+blame, [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md)'s route —
 is invisible to that audience.
 
 Not P2: the human path works, and `--json` on the success path of commands that implement it
@@ -154,6 +154,6 @@ still human-only, per the non-goal.
 ## Related
 
 - [TASK-080](080-gitignore-warning-preempts-every-command.md) — the warning that shared this path.
-- [TASK-073](../done/073-version-error-blames-the-config-for-a-build-defect.md),
-  [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md) — the messages
+- [TASK-073](073-version-error-blames-the-config-for-a-build-defect.md),
+  [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md) — the messages
   this envelope now carries to a machine.

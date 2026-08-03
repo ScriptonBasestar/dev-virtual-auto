@@ -115,7 +115,7 @@ user to run validate. Do not print it when there was work to do.
 Prefer deriving the named sections from the same source validate uses rather than
 hand-listing them in a second place — this repo has been bitten repeatedly by a second copy of
 a rule that nothing compiles (TASK-057, TASK-060, TASK-065,
-[TASK-067](067-version-field-rule-stated-three-incompatible-ways.md)). If no such shared list
+[TASK-067](../todo/067-version-field-rule-stated-three-incompatible-ways.md)). If no such shared list
 exists, a hand-written string is acceptable here because it is a hint rather than a rule, but
 say so in a comment.
 

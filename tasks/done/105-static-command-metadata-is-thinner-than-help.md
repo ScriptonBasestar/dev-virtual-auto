@@ -61,7 +61,7 @@ documenting it in `Long`. Checked before filing; it is real.)
 
 ## Why it matters
 
-Same argument as 096 and [TASK-088](../done/088-validate-json-covers-only-the-failure-it-does-not-produce.md):
+Same argument as 096 and [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md):
 `manifest.go` states its audience is an LLM, and on the two fields that would let an agent actually
 *use* a command — what it does now, and what flags it takes — the human surface is still richer.
 096 fixed how many commands are listed; it did not fix what a listing is worth.
@@ -172,5 +172,5 @@ what B-then-A decided.
 - [TASK-096](../done/096-manifest-static-commands-undercounts.md) — the parent. It fixed the key
   set and pinned the 14 it added; `TestStaticCommandDescriptionsMatchTheirShort` is deliberately
   scoped to those 14 and is the test option B would widen to 27.
-- [TASK-088](../done/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
+- [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
   audience getting a worse answer than the human one.

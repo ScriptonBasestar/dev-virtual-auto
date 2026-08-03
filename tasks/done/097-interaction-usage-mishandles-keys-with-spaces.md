@@ -184,12 +184,12 @@ for the input class that was broken.
   silently rewritten by `make fmt`. Cost one round trip here; worth knowing before someone
   documents shell quoting again.
 - `internal/runner/interaction_tree.go` still fails `gofmt` — it was already in
-  [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s set at HEAD (the struct
+  [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s set at HEAD (the struct
   comment alignment, untouched by this change), so it is left for that task rather than mixed in.
 
 ## Related
 
-- [TASK-076](../done/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
+- [TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
   — **the direct predecessor, and not a duplicate.** 076 fixed this same function for the
   *reserved-name* case: `usage_example: "dva build"` when the built-in takes the bare form. Its
   fix landed in the branch below the `strings.Cut`, via `ShadowedByBuiltin`. A key containing a

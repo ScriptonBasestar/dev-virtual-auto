@@ -135,7 +135,7 @@ printed its `[debug] compose:` trace *while* leaking the flag.
 
 ## Related
 
-- [TASK-087](087-unrecognized-stack-args-become-entry-names.md) — found while tracing
+- [TASK-087](../_archive/087-unrecognized-stack-args-become-entry-names.md) — found while tracing
   `stack log`'s passthrough to decide whether it should reject unknown flags. It must not;
   that is what makes this leak visible.
 - [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md) — the fourth site, split out.

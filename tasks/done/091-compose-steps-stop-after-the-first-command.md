@@ -88,9 +88,9 @@ interaction:
 
 ## Why this outranks the other silent-drop tasks
 
-[TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
-[TASK-086](086-parallel-steps-discard-their-note.md) and
-[TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
+[TASK-085](../_archive/085-interaction-steps-silently-drop-compose-keys.md),
+[TASK-086](../_archive/086-parallel-steps-discard-their-note.md) and
+[TASK-089](../_archive/089-note-suppresses-run-on-the-interaction-path-only.md) each drop *one key*.
 This drops **all remaining work** in the interaction, no matter how it is written, and reports
 success. A provisioning sequence that looks like it completed has actually performed only its
 first command.
@@ -186,6 +186,6 @@ asserted directly. TASK-089's test uses the same technique for the same reason.
 
 ## Related
 
-- [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) — found while writing
+- [TASK-089](../_archive/089-note-suppresses-run-on-the-interaction-path-only.md) — found while writing
   its test, which could not let the compose runner reach execution for exactly this reason.
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.
+- [TASK-085](../_archive/085-interaction-steps-silently-drop-compose-keys.md) — the same silent-drop family.

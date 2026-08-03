@@ -113,5 +113,5 @@ change with its own blast radius, not something to fold into a one-sentence corr
 
 ## Related
 
-- [TASK-076](076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md) — this was found while
+- [TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md) — this was found while
   verifying that task's leftovers.

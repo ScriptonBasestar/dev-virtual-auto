@@ -7,6 +7,22 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner — local.go, docker_compose.go executeSteps; contrast with internal/cli/provision.go which implements all five keys"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  Fix is present and has since been generalized: the per-runner step loops were replaced by one
+  shared `runStepLoop` (internal/runner/steps.go:20, TASK-094), so local, docker_compose and
+  kubectl now share the corrected guard `len(cmds) == 0 && !hasStepKeys(step)` (steps.go:52).
+  The runner-independent half lives in internal/runner/step_keys.go — hasStepKeys:29,
+  runComposeStepKeys:42, runLegacyStepKeys:66 — with provision.go's ordering reproduced
+  (compose key short-circuits the item; run: before echo:/cmd:).
+  Measured on ./bin/dva 0.1.44 with a fixture using `runners.compose.command: echo`:
+  control 38B, viacompose 195B, viaexec 191B, viarun 179B, viacmd 45B, viaecho 30B — all exit 0,
+  every row non-zero where the task recorded 0 bytes. TestComposeKeysOnInteractionPath 17/17 PASS,
+  TestStepWithoutRunIsReported 10/10 PASS, ./internal/cli -run Provision 39 PASS / 0 FAIL.
+  examples sweep 16 swept / 0 failures with a broken control exiting 1.
+  The Resolution's open note about a duplicated compose-argv builder was subsequently closed by
+  TASK-115 (tasks/done/115-four-compose-argv-builders-share-two-bugs.md).
 ---
 
 # Task 085: an interaction step using anything but `run:` or `note:` does nothing, silently
@@ -69,7 +85,7 @@ access (`step.X`), and read the matched line before believing the count.
 
 ## Why TASK-083 did not cover this
 
-[TASK-083](083-a-step-without-run-announces-work-it-never-does.md) made a step with **no payload**
+[TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) made a step with **no payload**
 report itself. A `compose_up` item *has* a payload, so `ProvisionItem.IsInert()` correctly returns
 false and no notice fires — reporting it as "a label with no run:" would be a false statement
 about a config that is legitimate and works elsewhere. The two are the same defect class (silent
@@ -210,7 +226,7 @@ profile carrying the same key works. Same keys, same file.
 
 ## Related
 
-- [TASK-083](083-a-step-without-run-announces-work-it-never-does.md) — same class, opposite cause;
+- [TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) — same class, opposite cause;
   found while measuring its call sites.
 - [TASK-086](086-parallel-steps-discard-their-note.md) — the other half of the same survey: the
   parallel provision path drops `note:`.

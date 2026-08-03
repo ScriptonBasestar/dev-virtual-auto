@@ -26,8 +26,8 @@ on it as their first statement:
 Negative control: `grep -c 'Cmd.NoSuchField' internal/runner/kubectl.go` → 0, so the 0 above is a
 real absence and not a broken pattern.
 
-This is the same defect class as [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) and
-[TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md), which both resolved
+This is the same defect class as [TASK-085](../_archive/085-interaction-steps-silently-drop-compose-keys.md) and
+[TASK-089](../_archive/089-note-suppresses-run-on-the-interaction-path-only.md), which both resolved
 by implementing the keys in every runner rather than by documenting the gap.
 
 ## What actually happens
@@ -233,9 +233,9 @@ TestNoteDoesNotSuppressRun       : 3 entries -> docker_compose kubectl local
 
 ## Related
 
-- [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — same class, resolved by
+- [TASK-085](../_archive/085-interaction-steps-silently-drop-compose-keys.md) — same class, resolved by
   implementing in every runner. That decision is the precedent for option A.
-- [TASK-089](089-note-suppresses-run-on-the-interaction-path-only.md) — same class again,
+- [TASK-089](../_archive/089-note-suppresses-run-on-the-interaction-path-only.md) — same class again,
   one runner behaving differently from the others on a step key.
 - [TASK-091](091-compose-steps-stop-after-the-first-command.md) — why a steps loop must
   not use `ExecReplace`.

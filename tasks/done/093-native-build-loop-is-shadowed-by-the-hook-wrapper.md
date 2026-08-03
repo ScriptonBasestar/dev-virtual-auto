@@ -175,7 +175,7 @@ with the marker file present.
   change than this task — `writeNote` indents four spaces and `runHookSteps` two, so routing hook
   notes through `writeNote` would visibly reindent every hook in every config, and this task's
   non-goals forbid touching `writeNote`. Still open as
-  [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md)'s and
+  [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md)'s and
   TASK-086's shared observation.
 - A failing step's error message changed from `native build failed: %w` to
   `hook replace:build step '<label>' failed: %w`. Strictly more informative — it names the step —
@@ -183,9 +183,9 @@ with the marker file present.
 
 ## Related
 
-- [TASK-086](086-parallel-steps-discard-their-note.md) — found while measuring its third
+- [TASK-086](../_archive/086-parallel-steps-discard-their-note.md) — found while measuring its third
   call site. Its `grep -c '.Note' internal/cli/compose.go` criterion passed, but the runtime
   evidence for it had to come from the `DVA_HOOK_DEPTH=1` path, which is what exposed the
   shadowing.
-- [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md) — also carries the
+- [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — also carries the
   `hooks.go` stderr vs `provision.go` stdout observation.

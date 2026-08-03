@@ -89,7 +89,7 @@ Optionally also add `"pattern": "^v?\\d+\\.\\d+(\\.\\d+)?$"` to the schema's `ve
 so `dva validate` reports it too — secondary, because every command except `validate` bypasses
 the schema entirely (`Config.Validate()` has one call site, `internal/cli/validate.go:23-25`).
 
-**This is a tightening, unlike [TASK-067](067-version-field-rule-stated-three-incompatible-ways.md)'s
+**This is a tightening, unlike [TASK-067](../todo/067-version-field-rule-stated-three-incompatible-ways.md)'s
 rule A** — it can turn a config that loads today into one that does not, so the corpus check is
 a precondition, not a formality.
 

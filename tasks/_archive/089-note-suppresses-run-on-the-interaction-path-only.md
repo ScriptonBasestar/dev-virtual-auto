@@ -7,6 +7,21 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/local.go, internal/runner/docker_compose.go — the Note branch continues; internal/cli/provision.go:125-131 falls through"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  Verified against the live tree and binary (0.1.44, commit 15745f7), not metadata.
+  The fix survived a later refactor: the note branch named in the task's `scope:`
+  (local.go / docker_compose.go) has since been unified into internal/runner/steps.go:39-42,
+  where the note prints and execution falls through — with a `noted` flag at :55-58 keeping
+  the step named exactly once. Measured on a fixture: `dva run noteandrun` → BOTH-RUN-EXECUTED
+  x1 and BOTH-NOTE-SHOWN x1 (was 0 runs pre-fix); `dva run noteonly` executes nothing;
+  `dva provision seqboth` unchanged at PROV-RUN-EXECUTED x2 / PROV-NOTE-SHOWN x1.
+  TestNoteDoesNotSuppressRun passes with 12 subtests from one table (3 runners x 4; kubectl
+  added by TASK-094, so the recorded "8" understates current coverage). Non-vacuity re-proved
+  mechanically via `go test -overlay` against a mutant steps.go with the `continue` restored:
+  exactly the three `a_note_does_not_suppress_the_run` subtests fail, all 9 others stay green.
+  TASK-083's TestStepWithoutRunIsReported still passes (10 leaf subtests).
 ---
 
 # Task 089: the same item means two different things depending on who runs it
@@ -137,7 +152,7 @@ can run — the loop cannot reach a second iteration. Not touched here because i
 defect with a different fix, and this task's scope was the `note:` branch.
 
 Since confirmed on the binary and filed as
-[TASK-091](091-compose-steps-stop-after-the-first-command.md) — it is worse than the
+[TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — it is worse than the
 reading suggested: the truncation spans *steps* as well as commands, so a two-step compose
 interaction runs step one and exits 0 without ever printing step two's label.
 

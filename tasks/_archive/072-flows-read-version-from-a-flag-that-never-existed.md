@@ -51,7 +51,7 @@ This is the same defect class as [TASK-057](057-dead-self-referencing-urls.md),
 [TASK-060](060-go-module-path-does-not-resolve.md),
 [TASK-061](061-go-facts-hand-copied-into-flow-library.md),
 [TASK-064](064-dns-bridge-endpoints-no-mode-can-start.md) and
-[TASK-067](067-version-field-rule-stated-three-incompatible-ways.md): a second copy of
+[TASK-067](../todo/067-version-field-rule-stated-three-incompatible-ways.md): a second copy of
 knowledge that nothing compiles. Here the copy is the *interface* of a command — the flow
 asserted a flag exists and no build step, test, or lint could contradict it.
 

@@ -16,7 +16,7 @@ scope: "internal/cli — show.go (stack section, text + JSON, help text); intern
 ## Problem
 
 This task corrects a claim, so the correction comes first.
-[TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md) recorded that "no command
+[TASK-074](../_archive/074-app-subcommands-answer-an-absent-section-three-ways.md) recorded that "no command
 answers *what does this config declare?*" — **false**, and filed without being checked: `dva show`
 answers it for plans and interactions, `dva status` for stack entries.
 
@@ -65,7 +65,7 @@ Both already omitted `compose`, `plans` and `sites`.
 ## Evidence
 
 The header advertises a command, so it was executed rather than quoted
-([TASK-076](076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md) set
+([TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md) set
 that precedent): `dva show` printed `alpha`, and `dva stack up alpha` ran
 `[lifecycle] alpha (script)` → `$ echo up-alpha`. The name `show` prints is the name the command
 takes.
@@ -98,7 +98,7 @@ with an unstable sort, so entries sharing an order — including the default whe
 `order:` — come out in map-iteration order, and `NewOrchestrator` computes that slice once for
 `Up`/`Down`/`Stop`/`Restart`/`Status`. Measured 5 distinct sequences in 20 runs on a config
 `validate` calls valid; filed as
-[TASK-084](084-stack-up-walks-a-different-sequence-each-run.md), since fixed: `SortedStack` has the
+[TASK-084](../_archive/084-stack-up-walks-a-different-sequence-each-run.md), since fixed: `SortedStack` has the
 tiebreak and `stackViews`' local copy is gone.
 
 **A fixture no config can load proves less than it appears to — and over-correcting is its own
@@ -146,7 +146,7 @@ against a fixture whose stack entry is *keyed* `compose`.
 - **`dva stack up <typo>` exits 0.** Measured while verifying the header: an unmatched name prints
   `[warn] no lifecycle entries matched filters` and returns success, so a misspelled name reads as a
   completed start. Same class as
-  [TASK-083](../done/083-a-step-without-run-announces-work-it-never-does.md) — success reported for
+  [TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) — success reported for
   work not done — different code path.
 - **JSON keeps a redundant `default_runner` that the text row hides, and uses three emission rules
   in one object** — `description`/`order` unconditional (so `void` gets `""` and `0`),

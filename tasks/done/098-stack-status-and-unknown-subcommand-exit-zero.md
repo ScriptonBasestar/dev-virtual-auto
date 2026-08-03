@@ -11,7 +11,7 @@ scope: "internal/cli/stack.go — stackStatusCmd's inline nameSet filter; the st
 
 # Task 098: the two exit-0 paths TASK-087 deliberately left behind
 
-[TASK-087](087-unrecognized-stack-args-become-entry-names.md) fixed the orchestrator-backed
+[TASK-087](../_archive/087-unrecognized-stack-args-become-entry-names.md) fixed the orchestrator-backed
 subcommands and recorded these two in its *Left open* because they fail through different
 mechanisms. This file promotes them to their own task so they are worked rather than remembered.
 
@@ -142,12 +142,12 @@ fail safe.
 - `suggestCommands` still cannot answer for a nested miss at all. `dva stack statu` now errors
   correctly but offers nothing, where suggesting `status` from the parent's own subcommands
   would be natural. Left out deliberately: it needs a second suggestion path, not a guard.
-- `internal/cli/stack.go` and `internal/cli/root.go` are both in [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s
+- `internal/cli/stack.go` and `internal/cli/root.go` are both in [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md)'s
   nine gofmt-drifting files, unchanged by this task. Every line added here is gofmt-canonical;
   reformatting the rest is 078's call, and 078 is a pending decision.
 
 ## Related
 
-- [TASK-087](087-unrecognized-stack-args-become-entry-names.md) — fixed the sibling
+- [TASK-087](../_archive/087-unrecognized-stack-args-become-entry-names.md) — fixed the sibling
   subcommands and scoped these out; this file is its *Left open* section promoted to a task,
   and its `validateStackNames` helper is what hunk 1 calls.

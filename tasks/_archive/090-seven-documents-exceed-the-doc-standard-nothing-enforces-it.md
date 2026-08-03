@@ -10,6 +10,18 @@ decided-at: 2026-07-31T12:00:00+09:00
 completed-at: 2026-08-01T00:00:00+09:00
 decision: B
 scope: "USAGE.md, docs/, skills/*/references/, agent-mesh-flows/shared/library/, workflows/dva-dogfood/ — plus the absent gate in Makefile/CI"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  Re-measured 2026-08-03, not trusted from the task file. AGENTS.md:166-183 states the
+  500-line/10240-byte limit, the enforced paths (docs/, workflows/), and a reasoned exemption
+  table; tools/doccheck/policy.go:5-40 encodes the same numbers and prefixes. Makefile:136 runs
+  the gate and .github/workflows/ci.yml:23 makes it CI's first step.
+  Today's run: candidates 198 / checked 194 / links 477 / symlinks_skipped 4 / oversized_docs 0.
+  All 23 tracked docs/+workflows/ files re-measured: max 360 lines, 9472 bytes, except the
+  declared METHODOLOGY.md exemption (223/12040). docs/40 split verified real at 222/249/212 lines.
+  Negative proof is non-vacuous: the 4 named failure tests exist and pass (4 RUN / 4 PASS of
+  20 total), and the gate is failing on the real repo right now.
 ---
 
 # Task 090: decide whether this repo adopts the 500-line/10KB doc limit

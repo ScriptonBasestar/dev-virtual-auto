@@ -165,9 +165,9 @@ warns about exactly the other 3.
 
 ## Related
 
-- [TASK-081](../done/081-config-discovery-is-split-across-show-and-status.md) — found here. Its
+- [TASK-081](../todo/081-config-discovery-is-split-across-show-and-status.md) — found here. Its
   stack section carried a local `(Order, Name)` tiebreak for this reason; half 1 removed it, keeping
   `TestShowStackOrderIsStableAcrossRenders` at the `show` layer because the rendered listing is what
   a reader compares against `dva stack up`.
-- [TASK-067](../done/067-version-field-rule-stated-three-incompatible-ways.md) — same class: one rule
+- [TASK-067](../todo/067-version-field-rule-stated-three-incompatible-ways.md) — same class: one rule
   stated in incompatible ways, here two warnings that each undo the other's advice.

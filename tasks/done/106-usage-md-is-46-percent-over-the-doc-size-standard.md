@@ -70,7 +70,7 @@ because no reader routinely holds the whole file at once.
 
 Filed 2026-07-31, withdrawn the same day. **Not a defect report; a duplicate one.**
 
-[TASK-090](../done/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) was
+[TASK-090](../_archive/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) was
 already open in `decision/` asking the same question, and asking it better:
 
 | | this task (106) | TASK-090 |
@@ -99,7 +99,7 @@ Nothing else from this file was worth moving.
 
 ## Related
 
-- [TASK-090](../done/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) — the
+- [TASK-090](../_archive/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) — the
   owner of this question. Decide there.
 - [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) — measured this while closing it;
   the contradiction 099 fixed is the kind of thing document length produces.

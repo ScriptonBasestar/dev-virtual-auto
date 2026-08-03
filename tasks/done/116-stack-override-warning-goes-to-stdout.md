@@ -141,7 +141,7 @@ rather than filed, since fixing it means deciding whether `stack_overrides` entr
 
 ## Related
 
-- [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — the same invariant
+- [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — the same invariant
   from the other end: that task stopped DVA appending a *second* JSON document to stdout, this one
   stops it prepending a non-JSON line to the first.
 - [TASK-114](114-output-package-has-no-tests-and-drops-write-errors.md) — the third member of the

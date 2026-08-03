@@ -98,7 +98,7 @@ Decide point 2 before writing code — it is the only real design question here.
 
 ## Related
 
-- [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — introduced
+- [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — introduced
   `stdoutHasDocument` and its consumer. This task is about the half of the contract that was
   documented but not implemented.
 - [TASK-120](../done/120-printyaml-panics-where-printjson-returns-an-error.md) — found by

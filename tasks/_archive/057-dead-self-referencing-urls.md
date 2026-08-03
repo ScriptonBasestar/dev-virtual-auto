@@ -65,7 +65,7 @@ agent-mesh-flows/shared/library/reference-examples.md:12   ← authored source
 
 (An earlier diagram had a `→ compiled into bin/dva` step. Wrong: `init.go`'s `//go:embed`
 of that file bound a variable nothing referenced, so the binary was a dead end. Corrected
-in [TASK-061](../done/061-go-facts-hand-copied-into-flow-library.md).)
+in [TASK-061](061-go-facts-hand-copied-into-flow-library.md).)
 
 `TestRemovedKeysAbsentFromGeneratorCorpus` already guards this corpus against
 teaching *removed keys*. Nothing checks that URLs the corpus teaches resolve. That
@@ -187,7 +187,7 @@ to `dva` — which fixes the *name* in both lines without touching this ai=deny 
 Half of it is genuinely retired: `go install` now works. The download URL still 404s,
 because the repo has never published a release or a tag — a different defect, found while
 verifying this claim rather than assuming it, and tracked in
-[TASK-063](../done/063-documented-release-download-has-no-release.md).
+[TASK-063](063-documented-release-download-has-no-release.md).
 
 That decision inverts what this task standardised on: every URL now says
 `dev-virtual-auto`, and after the rename the canonical name is `dva`. The post-rename

@@ -92,7 +92,7 @@ does *not* rescue its children either: measured, `dva build fast` dispatches to 
   that `validate`/`config validate` exit 1 while `ls`/`manifest`/`run` exit 0 on that config.
   Its hook example also used `- run:` with no `step:`, which `validate` rejects though the runner
   executes it — the repo's only two such lines, now `step:`/`run:` pairs like `examples/`
-  ([TASK-083](../done/083-a-step-without-run-announces-work-it-never-does.md)).
+  ([TASK-083](083-a-step-without-run-announces-work-it-never-does.md)).
 
 ## Evidence
 
@@ -117,7 +117,7 @@ hook fixtures (`step:`-only, `run:`-only, `step:`+`run:`, bare), `dva app-build`
 - Which command wins is unchanged; built-in shadowing is designed behaviour.
 - The conflicting entry stays in `ls`/`manifest`. A user who declared it needs to see dva received
   it; silence would be worse than a wrong label.
-- No `--json` error envelope — [TASK-079](../done/079-json-flag-does-not-cover-failures.md).
+- No `--json` error envelope — [TASK-079](079-json-flag-does-not-cover-failures.md).
 
 ## Acceptance criteria
 
@@ -165,5 +165,5 @@ promotion.
   half of the same problem; shares the "no config filename in the message" constraint.
 - [TASK-073](073-version-error-blames-the-config-for-a-build-defect.md) — precedent for the
   mutation check on not-contains assertions.
-- [TASK-067](067-version-field-rule-stated-three-incompatible-ways.md) — precedent for one rule
+- [TASK-067](../todo/067-version-field-rule-stated-three-incompatible-ways.md) — precedent for one rule
   stated in mutually incompatible ways across code and docs.

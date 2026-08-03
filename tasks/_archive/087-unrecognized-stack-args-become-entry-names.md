@@ -8,6 +8,26 @@ status: done
 created-at: 2026-07-31T00:00:00+09:00
 completed-at: 2026-07-31T08:10:00+09:00
 scope: "internal/cli/stack.go — the hand-rolled arg loops behind DisableFlagParsing; internal/lifecycle/orchestrator.go:80-83"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  Re-measured against ./bin/dva (v0.1.44) on the task's own reproduction fixture (two compose
+  entries pointing at an absent does-not-exist.yml). All eight criteria hold.
+  Rejections: `stack up infra --nowait --dry-run` → exit 1, names --nowait, suggests --no-wait;
+  `--forse`, `--nowait` with no NAME, and `infr` all exit 1; `nosuchentry` exits 1 identically on
+  up, stop and down. Controls unchanged: `--no-wait` → `up -d` (0 × --wait), default → `up -d
+  --wait`, `--force` → `+ --force-recreate`, `down -v` → `down --remove-orphans --volumes`,
+  bare `stack up --dry-run` → 2 entries, exit 0. Exit channel proven live by `stack up infra`
+  without --dry-run → exit 1.
+  Implementation is at internal/cli/stack.go:417 (rejectUnknownFlags) and :451
+  (validateStackNames), called from up/stop/down at :94/:97, :168/:171, :231/:234 — exactly the
+  three sites the criterion names, with `stack log` excluded and pinned by
+  TestStackLogKeepsForwardingUnknownFlags. The two error strings exist nowhere else in internal/,
+  so the regression test's assertions are genuine discriminators, not tautologies.
+  Follow-up TASK-092 exists at tasks/done/092-stack-log-forwards-root-flags-to-docker.md.
+  Note: both items the task listed under "Left open" have since been closed by later work —
+  `dva stack nosuchsubcmd` now exits 1, and `dva stack status nosuchentry` now errors via
+  validateStackNames (stack.go:274). The section is stale, not owed.
 ---
 
 # Task 087: a mistyped flag is read as an entry name and then thrown away
@@ -192,7 +212,7 @@ splitting a case that no longer carries user typos.
 - **`--debug` leaks into docker's argv on the `stack log` path** — see the trace above:
   `logs --debug infra …`. `stack log` never calls `parseDvaFlags`, so root persistent flags
   are not stripped before the passthrough. Filed as
-  [TASK-092](092-stack-log-forwards-root-flags-to-docker.md).
+  [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md).
 - **`dva stack up --var FOO=x` now exits 1** where it used to be silently swallowed. That
   is the behaviour archived [TASK-027](../_archive/027-up-silently-ignores-unknown-args.md)
   called "correct" when it measured `dva run --var` rejecting the same flag, and it closes
@@ -240,11 +260,11 @@ folded in:
 - [TASK-085](085-interaction-steps-silently-drop-compose-keys.md),
   [TASK-086](086-parallel-steps-discard-their-note.md) — the same silent-drop family found in the
   TASK-083 audit; this one differs by producing a *wrong action*, not just lost output.
-- [TASK-079](079-json-flag-does-not-cover-failures.md) — the machine-consumer thread: an
+- [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — the machine-consumer thread: an
   exit code that says 0 is exactly the signal that task made loadbearing.
 - [TASK-027](../_archive/027-up-silently-ignores-unknown-args.md) — the same defect one command
   over. It fixed `dva up <typo>`'s plan-name half and left the flag half open, warning that a
   guard scanning every argument would misread `--var FOO=x`. This guard classifies by leading
   dash instead of by position, so that hazard does not arise.
-- [TASK-092](092-stack-log-forwards-root-flags-to-docker.md) — found by the trace that
+- [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md) — found by the trace that
   decided the `stack log` exclusion.

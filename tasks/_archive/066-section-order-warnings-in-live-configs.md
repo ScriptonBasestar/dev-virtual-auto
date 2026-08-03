@@ -109,7 +109,7 @@ Recorded so they are not re-investigated:
 - **dripter jaeger `6831`/`6832`/`14250`/`14268` undeclared in `endpoints:`** — absent but not
   a defect: ingest ports (two UDP), not browsable URLs. Jaeger's UI port is declared.
 - **`.sb/dva` gitignore hygiene** — a real defect, in DVA not in the configs; fixed in
-  [TASK-065](../done/065-gitignore-check-misses-ancestor-rules.md).
+  [TASK-065](065-gitignore-check-misses-ancestor-rules.md).
 
 ## Resolution
 

@@ -59,7 +59,7 @@ success path.
 The warning is correct and worth saying — `.sb/dva/` holds transient markers that should not be
 committed. But a warning that repeats on every invocation is read once and skipped forever, and
 while it is being skipped it trains the reader to skip the first lines of output. That is the
-opposite of what [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md)
+opposite of what [TASK-074](074-app-subcommands-answer-an-absent-section-three-ways.md)
 just spent effort on: the answer that routes the user somewhere is now the thing under the noise.
 
 It also interferes with measurement. Any check that reads the first line of a dva command's
@@ -117,7 +117,7 @@ have to store that marker inside the directory it is warning about.
 ## Left open
 
 - `dva validate --json` does not honor `--json` — `validate.go` never reads `jsonOutput`. Same
-  family as [TASK-079](../done/079-json-flag-does-not-cover-failures.md), not this task's scope.
+  family as [TASK-079](079-json-flag-does-not-cover-failures.md), not this task's scope.
 - `dva doctor`'s line reads `[FAIL] .sb/dva/ is ignored in .gitignore` — the label states the
   check, not the finding, so a failing row reads as if it passed. Cosmetic, noticed here.
 - Plain `dva doctor` prints the stderr banner *and* its own structured row for the same finding.

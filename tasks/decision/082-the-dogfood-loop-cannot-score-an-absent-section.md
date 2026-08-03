@@ -21,7 +21,7 @@ That is defensible for coverage — you cannot evaluate a compose runner in a pr
 compose files. It is wrong for *messages*, because the absence is exactly when dva has to say
 something, and what it says is what the user reads.
 
-[TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md) is the proof.
+[TASK-074](../_archive/074-app-subcommands-answer-an-absent-section-three-ways.md) is the proof.
 Seven `dva app` subcommands answered an absent `applications:` section three incompatible ways —
 two capitalizations, both exit codes, and one subcommand asserting the named app was "not found"
 in a set that did not exist. Nineteen cycles ran over it. None could have scored it, because
@@ -50,7 +50,7 @@ movement cannot be attributed.
 Recommendation: **A**. It is the only option where the finding class shows up in the score.
 
 Note that (c) currently fails for every command on this path — see
-[TASK-079](../done/079-json-flag-does-not-cover-failures.md). Adding the criterion before that is
+[TASK-079](../_archive/079-json-flag-does-not-cover-failures.md). Adding the criterion before that is
 fixed means every instance scores low on it at once, which is accurate but will look like a
 regression.
 
@@ -78,7 +78,7 @@ one manifest edit so the two surface changes share a single `case_manifest_hash`
   `case_manifest_hash` differs from its predecessor's is itself a promotion, so the
   manifest-induced case-set delta is not reported as a regression.
 
-The (c) caveat at line 52-55 is now partly moot: [TASK-079](../done/079-json-flag-does-not-cover-failures.md)
+The (c) caveat at line 52-55 is now partly moot: [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md)
 shipped the `--json` failure envelope, so the route commands are `--json`-parseable on the
 absent-section path (measured: `app up myapp --json` emits `{"error":{…}}`). Criterion (c) is no
 longer universally failing on day one.

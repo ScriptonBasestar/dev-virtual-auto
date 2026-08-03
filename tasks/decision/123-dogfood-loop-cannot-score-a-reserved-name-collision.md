@@ -18,7 +18,7 @@ surface with `instances: per_overlap`, discovering:
 
 > a service or process owned by more than one of **stack, plans, applications, interaction**
 
-All four owners are config sections. The collision [TASK-076](../done/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
+All four owners are config sections. The collision [TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
 fixed — an `interaction:` key that shadows a reserved builtin command — is between
 `interaction` and the **reserved command namespace**, which is not a config section and is not
 on that list. So the overlap never instantiated a case, and the quality of dva's answer
@@ -91,8 +91,8 @@ reserved-name interaction, not at this edit.
 
 - [TASK-082](082-the-dogfood-loop-cannot-score-an-absent-section.md) — the sibling blind spot
   (absent section). Same hash-bump cost; land together if both go.
-- [TASK-076](../done/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
+- [TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
   — the product fix whose regression this surface would catch. Its "Related — the loop that
   should have caught this" section is the origin of this task.
-- [TASK-074](../done/074-app-subcommands-answer-an-absent-section-three-ways.md) — the other
+- [TASK-074](../_archive/074-app-subcommands-answer-an-absent-section-three-ways.md) — the other
   discovery defect 082/123 exist to keep watch over.

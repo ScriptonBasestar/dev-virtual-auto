@@ -36,7 +36,7 @@ is the signature of a list that was written once and not updated as commands wer
 `static_commands` to decide what dva can do concludes there is no `dva doctor`, no `dva status`,
 no `dva stack`, and no `dva logs`. `dva help` documents all 27 for humans, so the machine-readable
 surface is strictly worse than the human one — the inverse of the flag's purpose, and the same
-theme as [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md).
+theme as [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md).
 
 ## Options
 
@@ -141,7 +141,7 @@ property worth having, and it is measured rather than argued.
   directions and names the commands, since two differing counts do not tell the reader which.
 - `TestStaticCommandsAgreeWithReservedCommands` — the third source. A command in root and in the
   manifest but missing from `reserved.go` would let a user declare an interaction that silently
-  never runs, which is [TASK-076](076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
+  never runs, which is [TASK-076](../_archive/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
   reached from the other side.
 - `TestEveryStaticCommandCarriesAType` — guards the half-filled entry that satisfies a count check
   but leaves `Type` empty, and rejects a type outside the eight in use.
@@ -164,7 +164,7 @@ The package was run with `-shuffle=on` three times, because `rootCommandNames` m
 
 ## Related
 
-- [TASK-088](088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
+- [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
   audience getting a worse answer than the human one.
 - [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
   defect; both surface through `dva manifest`, which is documented as the agent-facing entry point.

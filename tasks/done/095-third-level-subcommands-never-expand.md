@@ -53,7 +53,7 @@ example is validated for *parsing* while the thing it demonstrates does not work
 
 Three-level nesting is a documented feature that silently degrades. There is no error, no
 warning, and `dva validate` exits 0 — the user's declaration is accepted and then discarded,
-which is the same silent-loss shape as [TASK-085](../done/085-interaction-steps-silently-drop-compose-keys.md)
+which is the same silent-loss shape as [TASK-085](../_archive/085-interaction-steps-silently-drop-compose-keys.md)
 and [TASK-094](094-kubectl-runner-discards-steps.md).
 
 Whether depth is bounded deliberately is worth checking during the fix: if there is a reason to

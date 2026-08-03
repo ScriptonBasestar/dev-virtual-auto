@@ -41,7 +41,7 @@ a guarantee the repo does not have.
 This is latent, not broken. Measured today: `make check-generate` exits **0** and leaves no diff,
 so the generated files are currently in sync. The defect is that *nobody would find out* if they
 stopped being — which is the same shape as
-[TASK-078](../done/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) (nine files drifted
+[TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) (nine files drifted
 because no gate looked) and
 [TASK-109](../done/109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md) (a
 check that had been red for 22 links without anyone seeing it).
@@ -57,7 +57,7 @@ The blast radius is real because the generated set spans four projections of one
 
 A stale `shared-guardrails.md` means the AUTOGEN fact blocks disagree with the Go source they were
 extracted from — the exact single-source guarantee that
-[TASK-061](../done/061-go-facts-hand-copied-into-flow-library.md) built `tools/libgen` to provide.
+[TASK-061](../_archive/061-go-facts-hand-copied-into-flow-library.md) built `tools/libgen` to provide.
 That task replaced hand-copied Go facts with generated ones; an unrun freshness check is how they
 quietly become hand-copied again.
 
@@ -155,7 +155,7 @@ called `.cursor/rules` an uncovered gap was wrong — `.gitignore:30` excludes i
 
 ## Related
 
-- [TASK-078](../done/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — found this while
+- [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — found this while
   adding the format gate; same class, and its `Format` step is the pattern to copy.
 - [TASK-111](../done/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
   instance: a green gate whose coverage nobody had stated.

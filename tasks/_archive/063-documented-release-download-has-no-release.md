@@ -40,7 +40,7 @@ verification-summary: |
 curl -sL https://github.com/ScriptonBasestar/dva/releases/latest/download/dva_linux_amd64.tar.gz | tar xz
 ```
 
-That URL 404s. Not because of the repo name — [TASK-060](../done/060-go-module-path-does-not-resolve.md)'s
+That URL 404s. Not because of the repo name — [TASK-060](060-go-module-path-does-not-resolve.md)'s
 rename made the name correct — but because **the repository has never published a release,
 and has no tags at all**. There is no asset for `latest` to point at.
 
@@ -163,8 +163,8 @@ other tracked file repeats the claim — `.goreleaser.yml:4` already debunks it.
 
 ## Related
 
-- [TASK-060](../done/060-go-module-path-does-not-resolve.md) — the rename fixed
+- [TASK-060](060-go-module-path-does-not-resolve.md) — the rename fixed
   `README.md:15`'s `go install` line. It did **not** fix `:25`.
-- [TASK-057](../done/057-dead-self-referencing-urls.md) — its last criterion claimed the
+- [TASK-057](057-dead-self-referencing-urls.md) — its last criterion claimed the
   rename resolved the README download URL. That was wrong on this half, and is corrected
   there to point here.

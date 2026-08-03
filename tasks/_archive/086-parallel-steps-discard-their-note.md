@@ -8,6 +8,21 @@ status: done
 created-at: 2026-07-31T00:00:00+09:00
 completed-at: 2026-07-31T08:20:00+09:00
 scope: "internal/cli — provision.go executeParallelBatch, compose.go native build loop"
+verified-at: 2026-08-03T13:00:00+09:00
+archived-at: 2026-08-03T13:00:00+09:00
+verification-summary: |
+  writeNote is at internal/cli/provision.go:124 with two live call sites: os.Stdout at :152
+  (sequential) and &buf at :271 (parallel, inside the per-step bytes.Buffer so concurrent
+  steps cannot interleave). Runtime on the task's verbatim fixture through ./bin/dva:
+  PAR-NOTE-VISIBLE 1 executing / 1 under --dry-run, sibling PAR-CONTROL-RAN 2, exit 0;
+  sequential output 8 lines / 130 bytes, matching the recorded pre-change size, and the
+  aadebb8^ source block is byte-identical in rendering to writeNote.
+  The third call site no longer lives in compose.go — TASK-093 (commit 8ae8da5, done)
+  deleted that copy and routes `build: native` through runHookSteps, so `grep -c '.Note'
+  internal/cli/compose.go` is now 0 while the guarantee holds: DVA_HOOK_DEPTH=1
+  dva build --mode nativemode prints BUILD-NOTE-VISIBLE on stderr (1) and not on stdout (0).
+  All four tests in internal/cli/provision_note_test.go pass; the -run patterns match real
+  test names (2 subtests observed), so the binding is not vacuous.
 ---
 
 # Task 086: adding `parallel: true` deletes the step's message
@@ -72,14 +87,14 @@ provision:
 ```
 
 A second, independent path has the same hole: `compose.go`'s native build loop (the one
-[TASK-083](083-a-step-without-run-announces-work-it-never-does.md) had to add an inert-step notice
+[TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) had to add an inert-step notice
 to at `compose.go:464`) also never reads `Note`.
 
 ## Why this is P3 and not P2
 
 Nothing executes wrongly and no exit code lies — only an operator message is lost. It is filed
 because it is the same silent-drop family as
-[TASK-083](083-a-step-without-run-announces-work-it-never-does.md) and
+[TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) and
 [TASK-085](085-interaction-steps-silently-drop-compose-keys.md), and because a note is *by
 definition* the thing whose entire purpose is to be seen.
 
@@ -172,7 +187,7 @@ guard trips, i.e. `dva build` invoked from inside a hook step. Setting `DVA_HOOK
 produced the four-space stdout note (count 1 on stdout vs 0 through the normal path), which
 is the evidence that this fix's line is the one running.
 
-Filed as [TASK-093](093-native-build-loop-is-shadowed-by-the-hook-wrapper.md) — the shadowing
+Filed as [TASK-093](../done/093-native-build-loop-is-shadowed-by-the-hook-wrapper.md) — the shadowing
 and the two divergent renderings are a structural problem beyond this task's scope, which is
 `executeParallelBatch` and the compose.go loop, not which of the two should exist.
 
@@ -184,7 +199,7 @@ because this task's Left open section already scoped the stream question out; it
 carried by TASK-093 alongside the shadowing.
 
 `internal/cli/compose.go` is gofmt-dirty at HEAD (4 hunks, all far from this change) and was
-left alone — [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) owns that decision.
+left alone — [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) owns that decision.
 
 ## Left open
 
@@ -202,5 +217,5 @@ left alone — [TASK-078](078-nine-files-do-not-satisfy-gofmt-and-nothing-checks
 
 - [TASK-085](085-interaction-steps-silently-drop-compose-keys.md) — found in the same survey;
   compose keys dropped on the interaction path.
-- [TASK-083](083-a-step-without-run-announces-work-it-never-does.md) — the fix whose call-site
+- [TASK-083](../_archive/083-a-step-without-run-announces-work-it-never-does.md) — the fix whose call-site
   audit surfaced both.

@@ -122,7 +122,7 @@ correct when taken:
 - **445** counts only `+`/`-` lines, as `git show --numstat` reports them.
 - The corpus also changed underneath: **16 commits** touched these nine files between the task
   being filed on 2026-07-30 and the fix landing, including
-  [TASK-108](108-two-did-you-mean-blocks-answer-one-error-differently.md), which deleted three test
+  [TASK-108](../done/108-two-did-you-mean-blocks-answer-one-error-differently.md), which deleted three test
   functions from `root_test.go` — the file that dominated the estimate at 202 lines and landed
   at 179.
 
@@ -141,7 +141,7 @@ Without this half the task refiles itself, as the recommendation said. Three des
   and prints exactly the same nothing if it checked zero files. `make fmt-check` therefore reports
   `gofmt -s: 213 files checked, 0 unformatted` and **exits 1 if the file count is 0**, so the
   check cannot pass vacuously after a bad path edit. Same failure mode as
-  [TASK-109](109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md).
+  [TASK-109](../done/109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md).
 - **One owner.** The gofmt invocation lives in the Makefile; CI runs `make fmt-check`. The YAML
   does not restate the command, so local and CI cannot disagree — `SOUL.md` 신념 3.
 - **`lint` depends on it.** `lint: vet fmt-check`, so the local entry point covers formatting too.

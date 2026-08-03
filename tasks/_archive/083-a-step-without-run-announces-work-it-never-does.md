@@ -63,7 +63,7 @@ indistinguishable from the executing form's first line. The only signal was the 
 Both single-key forms were wrong, each in the way the other was right: the schema accepted the one
 that did nothing and rejected the one that worked.
 
-Found while fixing [TASK-076](../done/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md):
+Found while fixing [TASK-076](076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md):
 USAGE.md's hook example used `- run:` with no `step:`, the only two such lines in the repo.
 
 ## Shipped: one predicate, seven call sites, and a schema that stopped enforcing nothing
@@ -178,9 +178,9 @@ Found while measuring, none of it in this task's scope:
 
 ## Related
 
-- [TASK-076](../done/076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
+- [TASK-076](076-manifest-advertises-the-one-invocation-that-cannot-reach-the-interaction.md)
   — where this surfaced; the doc half is fixed there.
-- [TASK-073](../done/073-version-error-blames-the-config-for-a-build-defect.md) — same class: a
+- [TASK-073](073-version-error-blames-the-config-for-a-build-defect.md) — same class: a
   message that reads as success while the underlying action did not happen.
-- [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — also fixed by finding every call
+- [TASK-079](079-json-flag-does-not-cover-failures.md) — also fixed by finding every call
   site rather than the one the task named.

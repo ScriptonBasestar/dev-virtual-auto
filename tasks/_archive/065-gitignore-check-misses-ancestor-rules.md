@@ -59,8 +59,8 @@ when any ancestor directory is listed, so `.sb/` covers `.sb/dva` completely. An
 comparison cannot express that relationship, so the check holds a second, weaker copy of a
 rule git already owns.
 
-Same shape as [TASK-057](../done/057-dead-self-referencing-urls.md) and
-[TASK-060](../done/060-go-module-path-does-not-resolve.md): a fact restated where nothing
+Same shape as [TASK-057](057-dead-self-referencing-urls.md) and
+[TASK-060](060-go-module-path-does-not-resolve.md): a fact restated where nothing
 verifies the restatement. Here the authority is git's ignore semantics.
 
 Notably `.sb/` is the *more natural* way to write the rule — it ignores DVA's whole dot

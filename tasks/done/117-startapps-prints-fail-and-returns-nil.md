@@ -186,5 +186,5 @@ covers the same condition from the other side in `portowner_test.go`.
 - [TASK-113](../done/113-up-and-app-commands-swallow-unknown-flags.md) — found during its reproduction. 113
   is about input DVA never validates; this is about output DVA validates correctly and then discards.
 - [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) and
-  [TASK-079](../done/079-json-flag-does-not-cover-failures.md) — the same shape. The recurring defect
+  [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — the same shape. The recurring defect
   in this codebase is not a wrong answer, it is a correct answer that does not reach the exit code.
