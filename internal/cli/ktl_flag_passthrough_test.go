@@ -175,7 +175,12 @@ func TestKtlDoesNotForwardRootFlags(t *testing.T) {
 func runKtlParent(t *testing.T, name, dir string) string {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestKtlDoesNotForwardRootFlags$")
-	cmd.Env = append(os.Environ(), ktlChildCaseEnv+"="+name, ktlChildDirEnv+"="+dir)
+	// DVA_EXEC_REPLACE_OK is the deliberate opt-out to dvaexec's test-integrity guard (TASK-144).
+	// `dva ktl`'s whole job is to replace the process with kubectl, and this child exercises that
+	// on purpose: the shim records the argv and the child is meant to be gone the moment ktl runs.
+	// The guard would otherwise panic here — correctly, for every case that was NOT a child — so
+	// the opt-in is set in the one place the replacement is the behaviour under test.
+	cmd.Env = append(os.Environ(), ktlChildCaseEnv+"="+name, ktlChildDirEnv+"="+dir, "DVA_EXEC_REPLACE_OK=1")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("child %q exited with %v; output:\n%s", name, err, out)

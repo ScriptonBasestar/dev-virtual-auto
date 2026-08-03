@@ -189,8 +189,14 @@ func runKubectlStepsChild(mode string) {
 // TestKubectlStepsAddressTheContainer covers the `pod:container` form, which parsePod already
 // understood on the single-command path and which the new step path must not drop.
 //
-// Safe in-process: it asserts on argv shape, and the regressions it would catch do not replace
-// the process the way the two scenarios above do.
+// Safe in-process — but not because "the regressions it would catch do not replace the process",
+// which was the old comment's claim and is the one assumption a test may not make: the step path
+// used ExecSubprocess, so today it does not replace anything, but if it ever regressed to
+// ExecReplace this test would exec away the shim and report `ok`. What makes it safe now is the
+// test-integrity guard in dvaexec.ExecReplace (TASK-144): under `go test` that guard refuses to
+// run syscall.Exec without a subprocess boundary, so a regressed step path fails this test loudly
+// (panic) instead of masking it. The two scenarios in TestKubectlStepsRunToCompletion still run in
+// a child because they predate the guard and the child is what proves the regression there.
 func TestKubectlStepsAddressTheContainer(t *testing.T) {
 	invocations := kubectlShim(t)
 

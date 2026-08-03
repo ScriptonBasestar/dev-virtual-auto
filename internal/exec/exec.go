@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -23,6 +24,30 @@ func ExecReplace(env *config.Environment, cmd string, args []string, shell bool)
 	binary, err := exec.LookPath(cmdLine[0])
 	if err != nil {
 		return fmt.Errorf("command not found: %s", cmdLine[0])
+	}
+
+	// Test-integrity guard (TASK-144). syscall.Exec replaces the running process image and never
+	// returns, so a test that reaches this line in-process is gone the instant syscall.Exec runs:
+	// the substituted program's exit status becomes the test binary's, and `go test` reports the
+	// package as `ok` whatever it did. That masks the exact regressions a test exists to catch —
+	// TASK-091 and TASK-094 each shipped green this way once, three emitted `--- FAIL` lines and
+	// all still reported `ok`.
+	//
+	// The guard sits AFTER LookPath on purpose. Four tests point at a binary exec.LookPath cannot
+	// resolve precisely so execution stops at the error above (two in exec_test.go, two in
+	// execution_paths_test.go); the guard must not turn their expected "command not found" into a
+	// panic. It sits BEFORE syscall.Exec so the process is never actually replaced — under `go test`
+	// it refuses unless the caller set DVA_EXEC_REPLACE_OK, the explicit, visible opt-in a
+	// child-process test that genuinely needs the replacement would set. The ktl passthrough child
+	// (ktl_flag_passthrough_test.go) is the sole legitimate caller today; the opt-in is named so the
+	// next one cannot be written silently, and it belongs on a single cmd.Env — exporting it in a
+	// shell disables the guard for the whole `go test` run.
+	if testing.Testing() && os.Getenv("DVA_EXEC_REPLACE_OK") != "1" {
+		panic("dvaexec.ExecReplace reached under `go test` without a subprocess boundary: " +
+			"syscall.Exec would replace the test binary and mask every failure recorded so far " +
+			"(TASK-144). Run the code under test in a child process, or point it at a binary " +
+			"exec.LookPath cannot resolve; set DVA_EXEC_REPLACE_OK=1 only in a child that " +
+			"genuinely intends the replacement.")
 	}
 
 	envSlice := env.EnvSlice()
