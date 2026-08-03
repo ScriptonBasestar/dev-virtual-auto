@@ -124,7 +124,7 @@ test, and that is stated rather than papered over.
 
 - [TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) — the record
   this audits and corrects. Its 8-findings measurement holds; its two completeness claims did not.
-- [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the first
+- [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the first
   link. Same shape, two records earlier.
 - [TASK-116](116-stack-override-warning-goes-to-stdout.md) — the standard that a criterion counts
   only when the gate fails on reverted code, which is why the three mutations above exist and why

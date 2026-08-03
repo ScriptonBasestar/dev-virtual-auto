@@ -9,6 +9,21 @@ created-at: 2026-07-31T00:00:00+09:00
 resolved-at: 2026-07-31T00:00:00+09:00
 resolution: "C — dropped the `(CI)` label; no enforcement added"
 scope: "Makefile:88 check-generate, .github/workflows/ci.yml — the gate exists, is documented as a CI gate, and is never invoked"
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  Option C's deliverable is real and present: `Makefile:127` carries no `(CI)` suffix, and the
+  Makefile's sole `(CI)` label (`Makefile:86`, fmt-check) is backed by `ci.yml:49`. I read ci.yml
+  directly rather than trusting the task's table — the task's CI inventory (lines 30-34) is now
+  stale: CI also runs `make doc-check` (ci.yml:23), an `Install gopls` step, and an inline
+  `gopls check` step, none of which the task lists. `check-generate` is still absent from CI, as
+  the record says.
+  Side claims re-measured and confirmed: `.agents/skills` and `claude-plugin/skills` are both mode
+  120000 with the same blob (42c5394), so they can only go red on retarget; `git check-ignore -v`
+  reports `.cursor/rules` ignored by `.gitignore:30` and `.opencode/skills` by the user's global
+  ignore. The residual risk (CI never checks generated freshness) is untracked in
+  tasks/todo|blocked|decision|plan — but the record explicitly accepts it rather than deferring it,
+  so that is a decision, not missing follow-up.
 ---
 
 # Task 112: a gate that says `(CI)` and is not in CI
@@ -43,7 +58,7 @@ so the generated files are currently in sync. The defect is that *nobody would f
 stopped being — which is the same shape as
 [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) (nine files drifted
 because no gate looked) and
-[TASK-109](../done/109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md) (a
+[TASK-109](109-the-task-link-check-has-been-red-for-22-links-since-the-repo-moved.md) (a
 check that had been red for 22 links without anyone seeing it).
 
 The blast radius is real because the generated set spans four projections of one source:
@@ -114,6 +129,14 @@ That is the entire point. The suffix was not a description, it was a claim, and 
 false. The vocabulary now reads correctly in both directions: a labelled target is in CI, an
 unlabelled one is not. C adds no enforcement and no longer pretends to.
 
+⚠️ Only the first direction holds. Measured 2026-08-03: `ci.yml` invokes five make targets —
+`doc-check` (`:23`), `build` (`:26`), `test` (`:29`), `test-integration` (`:32`), `fmt-check`
+(`:49`) — and `grep -c '(CI)' Makefile` is **1**. Four of the five are in CI and unlabelled, so
+absence of the suffix says nothing. `(CI)` is sufficient, not necessary. The Problem table three
+lines above already lists `build`/`test`/`test-integration` as CI steps, which contradicts the
+sentence in the same file. Tracked as
+[TASK-154](../todo/154-the-ci-suffix-marks-one-of-the-five-targets-ci-actually-runs.md).
+
 ### What C deliberately does not do
 
 Two of the five original criteria were written for options A and B. They are left unchecked rather
@@ -157,5 +180,5 @@ called `.cursor/rules` an uncovered gap was wrong — `.gitignore:30` excludes i
 
 - [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — found this while
   adding the format gate; same class, and its `Format` step is the pattern to copy.
-- [TASK-111](../done/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
+- [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
   instance: a green gate whose coverage nobody had stated.

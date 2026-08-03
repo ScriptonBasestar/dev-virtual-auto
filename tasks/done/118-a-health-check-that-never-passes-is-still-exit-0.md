@@ -187,5 +187,5 @@ c5ea2d6  USAGE.md (+2), library_reference.txt (+3/-1), schema-reference.md (+3/-
 
 - [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md) — fixed the three sibling
   branches; this is the one it left, and the comment in the code points here.
-- [TASK-113](../done/113-up-and-app-commands-swallow-unknown-flags.md) — the same recurring
+- [TASK-113](../_archive/113-up-and-app-commands-swallow-unknown-flags.md) — the same recurring
   shape: DVA reaches the right conclusion and then does not let it reach the exit code.

@@ -11,7 +11,7 @@ scope: "internal/output/output.go:67 PrintYAML — yaml.Marshal panics rather th
 
 # Task 120: the error return that cannot report the error
 
-Found while writing the tests for [TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md).
+Found while writing the tests for [TASK-114](../_archive/114-output-package-has-no-tests-and-drops-write-errors.md).
 A test that fed the same unmarshalable value to both printers passed on the JSON side and
 crashed the test binary on the YAML side.
 
@@ -92,7 +92,7 @@ document the same contract.
 
 ## Related
 
-- [TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md) — added the
+- [TASK-114](../_archive/114-output-package-has-no-tests-and-drops-write-errors.md) — added the
   first tests this package ever had, which is how this surfaced.
 
 ## Resolution

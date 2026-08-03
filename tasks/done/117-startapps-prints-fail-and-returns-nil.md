@@ -13,7 +13,7 @@ scope: "internal/lifecycle/app_manager.go:79-232 StartApps — three [FAIL] bran
 
 ## Measured, not inferred
 
-Found while reproducing [TASK-113](../done/113-up-and-app-commands-swallow-unknown-flags.md) against a real
+Found while reproducing [TASK-113](../_archive/113-up-and-app-commands-swallow-unknown-flags.md) against a real
 binary. It is a different defect that happens to be on the same path, so it is filed separately.
 
 Fixture (`tmp/task-113/dva.yml`): one application `web`, `port: 13113`, `run.native: echo …`. The
@@ -183,7 +183,7 @@ covers the same condition from the other side in `portowner_test.go`.
 
 ## Related
 
-- [TASK-113](../done/113-up-and-app-commands-swallow-unknown-flags.md) — found during its reproduction. 113
+- [TASK-113](../_archive/113-up-and-app-commands-swallow-unknown-flags.md) — found during its reproduction. 113
   is about input DVA never validates; this is about output DVA validates correctly and then discards.
 - [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) and
   [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md) — the same shape. The recurring defect

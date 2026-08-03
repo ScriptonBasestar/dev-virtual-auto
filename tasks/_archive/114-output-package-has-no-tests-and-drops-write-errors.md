@@ -7,6 +7,24 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/output/output.go — the whole package is 47 lines with no _test.go; :33 and :44 discard the fmt error; :10-12 documents 'set only on a successful write'"
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  All six criteria verified against current source, not metadata. internal/output/output.go now
+  routes both printers through printDocument (output.go:46-52), which returns the write error and
+  keys stdoutHasDocument on the byte count; the package comment (output.go:12-15) states exactly
+  that contract, closing the doc-vs-code gap the task named.
+  Coverage re-measured today: 100.0% (task file records 92.9% — stale in the good direction, since
+  TASK-120 later made PrintYAML's error branch reachable).
+  All three `verify:` -run patterns match real tests (2, 1+3 subtests, 5) — none vacuous.
+  Independent mutation run in a scratchpad copy killed all three mutants with the exact test
+  attribution the task claims, so the "Not vacuous" human criterion is now machine-confirmed.
+  Both deliberately-deferred items are closed: TASK-120 (recover at output.go:84-89) and TASK-121
+  (runner.Explain now returns error, internal/runner/runner.go:85, both callers propagate at
+  internal/cli/run.go:54 and :96). Every one of the 24 PrintJSON/PrintYAML call sites captures the
+  error; the only greps without capture are comments.
+  No follow-up work for internal/output exists in tasks/todo, blocked, decision, or plan (TASK-140..150
+  checked). Related links resolve: tasks/_archive/079-*, tasks/done/120-*, tasks/done/121-* all exist.
 ---
 
 # Task 114: the package that decides whether stdout is parseable is the one with no tests

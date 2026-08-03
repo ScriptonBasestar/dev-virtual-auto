@@ -13,7 +13,7 @@ scope: ".golangci.yml — govet ran its default analyzer subset and unparam was 
 
 # Task 126: the gate closed a gap and announced there were none left
 
-[TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) found `make lint`
+[TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) found `make lint`
 reporting `0 issues.` while `modernize` — present in the same pinned binary, off by default — had
 47. It enabled `modernize`, fixed everything, and closed on this criterion:
 
@@ -151,7 +151,7 @@ task exists to correct.
 
 ## Related
 
-- [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — enabled
+- [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — enabled
   `modernize` and closed by asserting no analyzer was excluded. Same gate, same shape, and the
   claim this task falsifies.
 - [TASK-116](116-stack-override-warning-goes-to-stdout.md) — set the standard that a criterion

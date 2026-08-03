@@ -139,5 +139,5 @@ containing whitespace.
 - [TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md) —
   enabled `govet.enable-all` and `unparam`; its "editor and gate agree" claim was the overstatement
   TASK-127 corrected.
-- [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the
+- [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the
   first link in the chain: `make lint` green while a shipped, default-off analyzer had 47 findings.

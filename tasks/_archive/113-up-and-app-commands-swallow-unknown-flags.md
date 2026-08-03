@@ -7,6 +7,22 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/compose.go:122-133 (up), internal/cli/app.go:106-112 (app up), plus the sibling app subcommands; internal/lifecycle/app_manager.go:718-732 and :79-83 for the swallow"
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  Every criterion measured against ./bin/dva with a fresh fixture (one app `web`, port
+  13113, inert `echo` run/dev commands) at scratchpad/v113/, not read off the task file.
+  All ten measured rows in the task's "Measured after the fix" table reproduce with the
+  same exit codes; byte counts differ slightly on the `up` rows (243 vs 236, 216 vs 209)
+  because the accepted-here list is longer than when the table was written — behaviour is
+  identical.
+  Controls hold: `dva app build` exit=0 ("no build command"), `dva up --no-wait --dry-run`
+  exit=0. The `--var` warning is live on both spellings: `dva up --var FOO=bare` and
+  `--var=FOO=bare` both exit 0 and print `[warn] --var applies only when running a plan`.
+  `dva up --dev nosuchthing` exit=1 via the second rejectUpPositionalArg at compose.go:170.
+  TASK-117's fix is visible too: `dva app up --dev` now exits 1 on the readiness FAIL
+  rather than the exit=0 recorded in 113's control row.
+  Repo left clean (`git status --porcelain` empty); no repo files written.
 ---
 
 # Task 113: a typo'd flag that reports success and does nothing
@@ -255,7 +271,7 @@ run failed at `unknown command`. The numbers above are from argv arrays.
 ### Left open, deliberately
 
 - `dva app up --dev` exits **0** while printing `[FAIL] app web: process did not listen on
-  port 13113 within 30s`. That is [TASK-117](./117-startapps-prints-fail-and-returns-nil.md),
+  port 13113 within 30s`. That is [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md),
   filed while reproducing this one, and it is why the control row above shows exit=0 next to a
   FAIL line.
 - `--dev=true` gets no "Did you mean? --dev" suggestion — `levenshtein("--dev=true","--dev")`
@@ -264,6 +280,11 @@ run failed at `unknown command`. The numbers above are from argv arrays.
 - The `app not found` Debug line was emitted twice per unresolved name because `PortConflicts`
   calls `selectApps` again after `StartApps`. Unreachable now for unknown names (rejected
   earlier), but the duplicate call remains.
+- ⚠️ `--dry-run` is in `appSelectorFlags` as an honest survivor, and on `app up` / `app restart`
+  it is dropped one layer below parsing: neither passes `DryRun:` into `AppStartOptions`
+  (`app.go:168`, `:237`), so `dva app up --dry-run` starts the process for real. `app build`
+  (`:286`) and `dva up` both pass it. Found while verifying this task for archival; tracked as
+  [TASK-153](../todo/153-app-up-accepts-dry-run-and-starts-the-app-anyway.md).
 
 ## Related
 
@@ -271,6 +292,6 @@ run failed at `unknown command`. The numbers above are from argv arrays.
   problem: flags DVA should have consumed reaching docker. Here they reach nothing at all.
 - [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — also `exit 0` while doing
   less than asked; the recurring failure shape in this codebase is silence, not crashes.
-- [TASK-117](./117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
+- [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
   same code path but a distinct defect: `StartApps` prints `[FAIL]` for a readiness failure and still
   returns nil. Fixing 113 alone still leaves `dva up` exiting 0 on an app that never started.

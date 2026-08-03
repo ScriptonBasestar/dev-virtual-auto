@@ -8,6 +8,24 @@ status: done
 created-at: 2026-07-31T11:58:00+09:00
 completed-at: 2026-07-31T12:25:00+09:00
 scope: "tasks/_archive/ — 13 files, 22 links. Every target is determinable; none require a judgment call about intent."
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  Re-measured, not read off the task. Repo-wide doc-check is green (477 links, 0 broken) and the
+  tasks/ slice alone is 377 links / 0 broken — the archive is inside the checked set, so the repair
+  (Option A), not an exclusion, is what makes it green.
+  The repair commit 2b81af5 is a pure repoint: 22 links out, 22 in, per-file line counts symmetric,
+  zero deletions. All 14 group-1 `../../` links, and every group-2/group-3 target, are still present
+  and resolving in the current tree after today's archiving churn.
+  Meaning-not-just-existence spot checks land on the documents the citing sentences describe
+  (docs/30 titled "Config Merge Semantics"; 041 the stack-status exit-code decision; 018 the
+  env_file/environment precedence fix).
+  Non-vacuity holds against the real tool in a clone: +1 bogus link → exactly +1 checked, exactly 1
+  broken, named; all three historical break shapes are still detected (4/4).
+  The task's own caveat ("green against this disk") is now structurally closed: tools/doccheck
+  resolves links against the git inventory — tracked plus non-ignored untracked, tracked-deleted
+  excluded (tools/doccheck/inventory.go:19-64) — so ignored tmp/ paths cannot mask a miss, which was
+  the TASK-110 finding.
 ---
 
 # Task 109: a check that is always red is not a check

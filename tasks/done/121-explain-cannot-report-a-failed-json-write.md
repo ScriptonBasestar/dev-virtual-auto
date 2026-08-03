@@ -11,7 +11,7 @@ scope: "internal/runner/runner.go:77 Explain (no return value), :98 discards out
 
 # Task 121: the one caller left that cannot pass the error on
 
-[TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md) made
+[TASK-114](../_archive/114-output-package-has-no-tests-and-drops-write-errors.md) made
 `output.PrintJSON` report write failures instead of swallowing them. Of the twenty call
 sites, seventeen already returned the error and two drop it with a stated reason. This is
 the third, and it drops it because it has nowhere to put it.
@@ -63,7 +63,7 @@ calls with the same exposure, and fixing the JSON branch alone leaves `--explain
 
 ## Related
 
-- [TASK-114](../done/114-output-package-has-no-tests-and-drops-write-errors.md) — made the
+- [TASK-114](../_archive/114-output-package-has-no-tests-and-drops-write-errors.md) — made the
   error real; this is the caller that cannot receive it.
 
 ## Resolution

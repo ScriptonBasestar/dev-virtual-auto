@@ -9,6 +9,21 @@ decision: "A — enable modernize for all code including tests, take the full di
 created-at: 2026-07-31T12:45:00+09:00
 closed-at: 2026-07-31T12:30:00+09:00
 scope: ".golangci.yml — the `modernize` linter is available in the pinned golangci-lint 2.12.2 and disabled by default; nothing in the config enables it"
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  Re-measured, not taken from the record. golangci-lint 2.12.2 runs 7 linters with
+  modernize among them; modernize-only over ./... is a real `0 issues.` — proven live by a
+  scratchpad control module that trips mapsloop+rangeint on the same binary.
+  `make lint` exits 0 through all four stages (vet, gofmt-s over 240 files, golangci-lint,
+  gopls -severity=hint).
+  The rewrites are physically present: 17 `maps.Copy`, 15 `SplitSeq`/`FieldsSeq`, 17
+  `slices.Contains`, 1 `slices.Backward`, 11 `strings.Cut*` across cmd/internal/tools.
+  The two hand-fixed items survive: internal/config/merge.go:3-7 is a single merged import
+  block, and internal/cli/root_flag_passthrough_test.go:266-274 is
+  `return slices.Contains(strings.Fields(line), arg)` with the comment explaining why that one
+  line was not delegated to `--fix`.
+  Tests counted by marker, not exit code (TASK-144): 1242 PASS / 0 FAIL / 1 SKIP over 1243 RUN.
 ---
 
 # Task 111: the gate is green because of what it does not run
@@ -91,6 +106,14 @@ confused with a formatting diff. Whichever option is chosen, it starts from a tr
 ## Acceptance criteria
 
 - [x] The gate's coverage is stated, not implied | verify: `.golangci.yml` names `modernize` under `enable:` with the reason; no analyzer is now deliberately excluded, so there is no residual gap to report
+
+  ⚠️ The second clause was false when written and is false now. `.golangci.yml`
+  `settings.govet.disable:` names `fieldalignment` and `shadow` (`:34`, `:36`), and
+  `exclusions.rules` holds two more. Analyzers *were* deliberately excluded; what was true is
+  that `modernize` was no longer one of them. [TASK-126](../done/126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md)
+  measured 8 findings behind that clause, [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md)
+  found 6 more behind `exclusions.presets`, and [TASK-130](../done/130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md)
+  closed the gopls divergence. The gap is closed; only this sentence went uncorrected.
 - [x] No behaviour changed | verify: `make test` before and after; every rewritten user-facing path exercised against the real binary (see Resolution)
 - [x] The number moves or is explained | verify: `golangci-lint run --default=none --enable=modernize ./...` — `0 issues.`
 - [x] Full suite passes | verify: `make test`
@@ -255,7 +278,7 @@ other so `other` wins. No filter or key/value transform was absorbed into a `map
 ## Related
 
 - [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
-- [TASK-112](../done/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) — the third instance of a
+- [TASK-112](112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) — the third instance of a
   gate that does not cover what its greenness implies.
 - [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) — touched two
   of the 16 `maps.Copy` sites while fixing the map-iteration defect in that same function.

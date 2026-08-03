@@ -9,6 +9,24 @@ decision: "A — delink, keep the artifact name and run ID in prose"
 created-at: 2026-07-31T12:20:00+09:00
 closed-at: 2026-07-31T13:10:00+09:00
 scope: "tasks/_archive/ — 23 links across 13 files targeting ../../tmp/, which .gitignore:34 excludes and which holds 0 tracked files"
+verified-at: 2026-08-03T14:30:00+09:00
+archived-at: 2026-08-03T14:30:00+09:00
+verification-summary: |
+  All 23 links were really removed, not just claimed: commit 2c734a8 ("delink 23 archive
+  references to untracked tmp/ artifacts") deletes exactly 23 `](../../tmp/` lines and adds
+  24 `untracked)` prose lines across 13 archive files — the 24th is the illustrative diff
+  inside the task file itself, which is why occurrence counts read 24 repo-wide and 23
+  outside the task.
+  The premise still holds: .gitignore:34 is `tmp/`, `git ls-files tmp/` → 0, and
+  tmp/gap-analysis-runs/20260716T091912Z-73dc094/unified.md still exists on this disk — so a
+  filesystem-only checker would still pass it today. The tracking-aware sweep returns 0 over
+  377 relative links and provably distinguishes pass from fail on an injected target.
+  Option C, which the task explicitly deferred, has since been delivered independently by
+  tools/doccheck (TASK-090, landed 2026-08-01): its resolution set is git inventory minus
+  ignored paths, so a 24th instance would now fail `make doc-check` rather than pass silently.
+  The only stale text is the task's own line 110 ("there is no committed link checker to
+  teach"), accurate on its closing date and now superseded — a point-in-time record in a done
+  file, not a defect. TASK-143 (tasks/todo/) already owns the separate archiving-breaks-inbound-links gap.
 ---
 
 # Task 110: the link check validates against the disk, not against the repository
