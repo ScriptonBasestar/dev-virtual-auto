@@ -7,6 +7,21 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/cli — gitignore.go warning conditions"
+verified-at: 2026-08-03T12:30:00+09:00
+archived-at: 2026-08-03T12:30:00+09:00
+follow-up: TASK-139
+verification-summary: |
+  Verified against bin/dva 0.1.44 on two throwaway fixtures built from noAppsConfig, states
+  changed one fact at a time. Fresh clone (.git, no .gitignore, no markers): `dva app up myapp`
+  prints ERROR as its first non-blank line, `dva app up` its answer at line 1, no warning, and
+  `.sb/dva` is still absent afterwards. Add `.sb/dva`: warning returns above the answer and
+  `dva ls/show/validate/status` each emit exactly 1 warning line (positive control). Add `.sb/`
+  to .gitignore: all four go back to 0. Under `--json`, same directory and same state, stderr is
+  0 bytes while stdout carries 113 bytes of JSON — measured by redirecting each stream to a file,
+  since zsh's `2>&1 >/dev/null` in a pipeline is unreliable here. `dva doctor` keeps the
+  unconditional check and still reports the finding with its --fix remedy when no markers exist.
+  `go test ./internal/cli/ -run Gitignore` passes with 6 named subtests actually running; the
+  table gives exactly one subtest per gate, so neither gate can be dropped silently.
 ---
 
 # Task 080: Say it once, and not in front of the answer

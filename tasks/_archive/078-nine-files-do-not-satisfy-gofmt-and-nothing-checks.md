@@ -9,6 +9,16 @@ created-at: 2026-07-30T00:00:00+09:00
 closed-at: 2026-07-31T00:00:00+09:00
 decision: "A — run make fmt, commit whitespace alone, then gate it in CI"
 scope: "repo-wide gofmt run (9 files) + the decision on whether CI should gate formatting"
+verified-at: 2026-08-03T12:30:00+09:00
+archived-at: 2026-08-03T12:30:00+09:00
+verification-summary: |
+  Re-verified 2026-08-03 against the live tree, not the task's claims.
+  - `make fmt-check` → `gofmt -s: 240 files checked, 0 unformatted`, exit 0; `gofmt -s -l .` → 0 lines. (Count is 240 now vs 213 at closing: corpus growth, not drift.)
+  - `git diff -w --ignore-blank-lines --numstat 621d55a^ 621d55a` → empty; range touches exactly the 9 named files; `--numstat` totals 222+/223-.
+  - `internal/cli/root.go:356` `func loadEnv` is at column 0 and `PersistentPreRun` at :40 is correctly nested — the specific defect in the Problem section is gone.
+  - `mise exec -- golangci-lint run ./...` → `0 issues.` (v2.12.2 pinned).
+  - Gate is wired and non-vacuous: ci.yml:49 runs `make fmt-check`; Makefile:44 `lint: vet fmt-check`; Makefile:88-91 exits 1 if zero .go files found, Makefile:92-97 exits 1 naming offenders.
+  - `make test` / `make build` green per lead baseline; not re-run.
 ---
 
 # Task 078: Decide whether formatting is enforced, then make it true

@@ -7,6 +7,25 @@ effort: M
 status: done
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/runner — local.go, docker_compose.go executeSteps; internal/config — schema.json provision item oneOf; validate warnings"
+verified-at: 2026-08-03T12:30:00+09:00
+archived-at: 2026-08-03T12:30:00+09:00
+follow-up: TASK-138
+verification-summary: |
+  Verified against ./bin/dva 0.1.44 (commit 15745f7) plus source, not metadata.
+  Runtime notice confirmed on all six paths: hook replace (`dva build`), runner steps
+  (`dva run`), provision sequential, provision --dry-run, provision parallel batch, and
+  `dva build --mode native`. `validate` emits the sorted warnings, including the recursive
+  interaction case — `interaction.build.replace[0]`, `interaction.multi.steps[1]`,
+  `provision.default[0]` — and no false positive on `step:` + `note:`.
+  Schema relaxation is in place (provision_item branch 2 `anyOf` over six payload keys,
+  branch 3 still maxProperties:1); `run:`-only validates 0 and executes.
+  examples sweep: 16 swept, 0 failures, with a broken control that did exit 1.
+  Criterion 3's verify binding is stale — grep now yields 0/0 because TASK-094 replaced the
+  three per-runner copies with one shared runStepLoop (internal/runner/steps.go:20); the
+  criterion's intent is satisfied more strongly than when it was recorded.
+  All four "Left open" items were either fixed later (note-vs-run ordering by TASK-089, see
+  steps.go:36-38; `validate --json` by TASK-088, now emitting a real JSON envelope) or remain
+  cosmetic/unreachable as documented.
 ---
 
 # Task 083: A step that announces work it never does

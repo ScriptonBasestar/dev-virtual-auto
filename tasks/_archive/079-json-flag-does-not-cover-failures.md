@@ -7,6 +7,16 @@ status: done
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/cli — root.go error rendering, gitignore.go warning, and whichever commands own a --json envelope"
+verified-at: 2026-08-03T12:30:00+09:00
+archived-at: 2026-08-03T12:30:00+09:00
+verification-summary: |
+  Verified against bin/dva 0.1.44 (commit 15745f7) and current source; repo left clean (`git status --porcelain` empty).
+  Both choke points exist and are wired: internal/cli/root.go:223 (Execute error block) and root.go:349 (mustLoadConfig, which os.Exit(1)s before Execute returns), both calling emitFailureJSON (root.go:330).
+  Real-binary measurements: `app up myapp --json` → 1 doc, .error.message set, exit 1; `ls --json` with no dva.yml → jq -s length 1, .error.exit_code 1; both plain forms → 0 bytes on stdout.
+  Message parity is byte-exact: cmp of stdout .error.message against the stderr ERROR body returns 0 (230 bytes each, dva init hint included).
+  The yield condition holds on the real binary: `doctor --json` on a failing-check fixture gives exit 1, jq -s length 1, has("error") false, keys ["checks"], 2 failing checks present as positive control.
+  `go test ./internal/cli/ -run JSON` passes and selects 20 top-level tests, so the regex is not matching an empty set.
+  All five "Left open" items that owed work are now closed elsewhere: TASK-088 (validate --json) done, TASK-114 (output package tests) done — internal/output is now 100.0% statement coverage, TASK-080's `if jsonOutput { return }` gate present at internal/cli/gitignore.go (checkGitignoreForWarning).
 ---
 
 # Task 079: Make the failure reachable through the flag that exists for machines

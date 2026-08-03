@@ -3,9 +3,11 @@ id: TASK-081
 title: "`dva show` names plans and interactions but never a stack entry, so the answer to \"what is declared\" needs two commands"
 type: fix
 priority: P4
-status: done
+status: todo
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
+reopened-at: 2026-08-03T12:30:00+09:00
+reopened-because: "show.go's --help still hand-enumerates the sections, and the list is already stale by three"
 scope: "internal/cli — show.go (stack section, text + JSON, help text); internal/config — LifecycleEntry.DefaultRunnerName; skills/dva/references/commands.md; tests"
 ---
 
@@ -136,7 +138,7 @@ against a fixture whose stack entry is *keyed* `compose`.
 - [x] The advertised command accepts the name printed | verify: `human — dva stack up alpha ran the entry; see Evidence`
 - [x] The assertions are not vacuous | verify: `human — the 8 mutations above; two passed and each exposed a real gap`
 - [x] `default_runner` and `runners` are comparable in both surfaces | verify: `go test ./internal/config/ -run TestDefaultRunnerNameMatchesRunnerNames`
-- [x] No hand-written enumeration of show's sections is left | verify: `human — --help and commands.md describe rather than list; grep found no third copy`
+- [ ] No hand-written enumeration of show's sections is left | verify: `test $(/usr/bin/sed -n '14,24p' internal/cli/show.go | /usr/bin/grep -cE 'environments \(--env\)|stack entries, plans, commands') -eq 0`
 - [x] Full suite passes under -race | verify: `make test`
 
 ## Left open
@@ -159,3 +161,37 @@ against a fixture whose stack entry is *keyed* `compose`.
 ## Related
 
 TASK-084 (found here), TASK-074 (the claim corrected), TASK-083 and TASK-076 are linked above.
+
+## Reopened 2026-08-03 — the enumeration was never removed from `show --help`
+
+The stack section, the JSON surface, `DefaultRunnerName`, and `commands.md` are all
+genuinely delivered. One criterion is not: **"No hand-written enumeration of show's
+sections is left."**
+
+`internal/cli/show.go` still hand-lists them, in both help strings:
+
+```
+:16  Short: "Show registered configuration summary (stack entries, plans, commands)"
+:18  Long:  "One section per declared area — stack entries and the runners each declares,
+:19         plans, modes (--mode), environments (--env), interaction commands, provision
+:20         profiles, health checks, subprojects — and areas the config does not declare
+:21         are omitted."
+```
+
+`git log -L14,24:internal/cli/show.go` shows commit `f2c6a76` **added** "stack entries …
+plans" to the pre-existing list. The Resolution says both stale enumerations "were changed
+to stop enumerating rather than to add one item"; for `show.go` the opposite happened.
+
+The list is already stale by three. `showText` renders ten sections; the help text names
+seven of them and omits `Compose:` (`show.go:142`), `Sites:` (`:224`) and
+`Applications:` (`:247`).
+
+`skills/dva/references/commands.md:174-177` (commit `f156a8f`) *is* correct and is the
+model to copy: it describes the command rather than listing its sections.
+
+**To close:** rewrite `Long` (and `Short`) to describe rather than enumerate. The criterion
+was a `human —` binding, which is how a false claim passed; it now carries a shell binding
+that fails while either enumeration is present.
+
+Not a gap, for the record: the "Left open" note about `dva stack up <typo>` exiting 0 is
+tracked by TASK-087 and TASK-098.

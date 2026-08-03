@@ -7,6 +7,22 @@ effort: M
 status: done
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/config — lifecycle_helpers.go, validate_warnings.go; internal/cli — show.go"
+verified-at: 2026-08-03T12:30:00+09:00
+archived-at: 2026-08-03T12:30:00+09:00
+verification-summary: |
+  Verified against the built binary (bin/dva) and current source, read-only; working tree untouched.
+  Half 1: lessByOrderName (lifecycle_helpers.go:121) is the single comparator for all five listings;
+  grep bindings return exactly the stated 2, and 1/0. show.go carries no local sort — stackViews
+  delegates to SortedStack. 20 separate `dva stack status` processes on a 5-entry no-order fixture
+  yield 1 distinct sequence (alpha,bravo,charlie,delta,echo-entry), and `dva stack up` x6 executes in
+  that same order every run.
+  Half 2: warnDuplicateStackOrder filters the tied group by entriesNamedByPlans rather than skipping
+  on `len(c.Plans) > 0`. Measured through `dva validate`: state A warns without the plan clause;
+  state C emits only the unchanged legacy-order warning; state D is fully silent (exit 0); state D′
+  warns about exactly charlie, delta, echo-entry. Sweep of all 16 examples/*.yml: 0 emit it.
+  Message no longer says "undefined" and no such wording survives in docs/ or internal/.
+  All four verify-bound tests exist with substantive assertions and pass; config, cli and lifecycle
+  packages green. No TODO/FIXME in the three touched files and no open follow-up task.
 ---
 
 # Task 084: A startup sequence that is not the same twice
