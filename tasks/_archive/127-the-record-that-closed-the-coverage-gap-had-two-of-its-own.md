@@ -9,6 +9,21 @@ created-at: 2026-08-02T12:00:00+09:00
 resolved-at: 2026-08-02T12:00:00+09:00
 resolution: "Removed all four exclusion presets after measuring what each actually suppressed, fixed the unchecked f.Close() before a script is chmod'ed and executed, fixed the one live hint-severity modernize finding, and corrected the two TASK-126 claims that reached past their survey"
 scope: ".golangci.yml exclusions.presets — four unnamed entries, one suppressing 6 errcheck findings; internal/exec/exec.go — unchecked Close on a temp script that is then executed"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  Pinned tooling: golangci-lint 2.12.2 (go1.26.2), gopls v0.22.0, go1.26.4 darwin/arm64.
+  Repo HEAD moved 881f2e0 -> e8a4ba2 -> 1695f9d during the run (concurrent archiving);
+  `git diff 881f2e0 e8a4ba2 -- '*.go' .golangci.yml Makefile` is empty, so no code
+  measurement is affected. All work done on `git archive HEAD` copies in scratchpad.
+  Every "0" is backed by a control on the same binaries: golangci-lint 0 vs 6/2/1 under
+  reverted call sites; gopls hint 0 vs 1 under reverted strings.Cut; doc-check 0 vs 1
+  under a reverted link; check-generate clean vs stale under a tampered source.
+  The record's per-preset attribution reproduces exactly (std-error-handling 6, other
+  three 0 each and 0 combined), as do both mutation-table line numbers (exec.go:183,
+  compose_error_test.go:38). `golangci-lint linters` still reports 107 disabled by
+  configuration, matching the residual-gap count. writeNote's `w` is os.Stdout
+  (provision.go:152) or a bytes.Buffer (provision.go:271), as claimed.
 ---
 
 # Task 127: the audit that TASK-126 asked for, applied to TASK-126
@@ -88,6 +103,15 @@ mechanism to do.
 - [x] The unchecked Close is checked | verify: `human — read internal/exec/exec.go ExecScriptInline` — **`f.Close()` error returned as `closing temp script: %w`, with the reason it is not deferred recorded inline**
 - [x] The gate fails on either reverted error check | verify: `human — restore f.Close() and fmt.Fprintln(w), run make lint` — **`2 issues: * errcheck: 2`, `make: *** [lint] Error 1`**
 - [x] No exclusion is unnamed | verify: `.golangci.yml` has no `presets:` key; every remaining `rules:` entry carries a reason, and the 6 previously-suppressed call sites carry `_ =` with a comment
+
+  ⚠️ Four of the six do. `internal/exec/exec.go:166`
+  (`defer func() { _ = os.Remove(f.Name()) }()`) and `:175` (`_ = f.Close()` on the WriteString
+  error path) carry a bare `_ =` and no reason — at those two the exclusion moved from the config
+  to the call site and stayed unnamed, which is the half of this task's own point that did not
+  land. The prose above at lines 73-74 has the matching slip: it enumerates four of the five
+  benign sites and omits `exec.go:175`, and one of the three `fmt.Fprintln` calls it names is a
+  `Fprintf` (`provision.go:133`). Tracked as
+  [TASK-161](../todo/161-two-of-the-six-relocated-exclusions-are-still-unnamed.md).
 - [x] Each preset's real effect was measured, not assumed | verify: `golangci-lint run -c <probe>` per preset — **`std-error-handling` alone → 6; `comments`+`common-false-positives`+`legacy` together → 0**
 - [x] The gate is unchanged for everything else | verify: `make lint` — **`0 issues.`, 235 files gofmt-clean**
 - [x] The live hint-severity finding is fixed | verify: `gopls check -severity=hint $(find cmd internal tools -name '*.go')` — **0; was 1 (`stringscut`, `internal/lifecycle/compose_error_test.go:38`)**
@@ -119,6 +143,11 @@ test, and that is stated rather than papered over.
 - **gopls's modernize suite still exceeds golangci-lint 2.12.2's**, and the divergence is *inside*
   same-named analyzers: vendored `stringscut` catches the `strings.Index` form but not `SplitN`.
   Only `gopls check -severity=hint` sees the difference, and it is not wired into CI.
+
+  ⚠️ It is now. [TASK-130](130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md)
+  wired it into both `make lint` (`Makefile:60-77`, hard-failing when gopls is absent) and CI
+  (`.github/workflows/ci.yml:62-82`). TASK-130 anticipated updating this paragraph only under its
+  option D; option B landed, which closed the gap and left the sentence describing the old state.
 
 ## Related
 

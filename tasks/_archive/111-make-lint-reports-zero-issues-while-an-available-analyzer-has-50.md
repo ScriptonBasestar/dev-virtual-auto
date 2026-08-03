@@ -111,8 +111,8 @@ confused with a formatting diff. Whichever option is chosen, it starts from a tr
   `settings.govet.disable:` names `fieldalignment` and `shadow` (`:34`, `:36`), and
   `exclusions.rules` holds two more. Analyzers *were* deliberately excluded; what was true is
   that `modernize` was no longer one of them. [TASK-126](126-the-lint-gate-still-hides-analyzers-task-111-said-it-had-none-left.md)
-  measured 8 findings behind that clause, [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md)
-  found 6 more behind `exclusions.presets`, and [TASK-130](../done/130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md)
+  measured 8 findings behind that clause, [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md)
+  found 6 more behind `exclusions.presets`, and [TASK-130](130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md)
   closed the gopls divergence. The gap is closed; only this sentence went uncorrected.
 - [x] No behaviour changed | verify: `make test` before and after; every rewritten user-facing path exercised against the real binary (see Resolution)
 - [x] The number moves or is explained | verify: `golangci-lint run --default=none --enable=modernize ./...` — `0 issues.`

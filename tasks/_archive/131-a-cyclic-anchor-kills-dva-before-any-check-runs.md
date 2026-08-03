@@ -9,6 +9,24 @@ resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Chose option A. A pre-decode yaml.Node cycle scan (internal/config/anchor_cycle.go) now runs from a new decodeConfig choke point that both loadFile and VerifyMigrated share, rejecting a self-referencing anchor by name and YAML path instead of ending the process"
 created-at: 2026-08-02T00:00:00+09:00
 scope: "internal/config/anchor_cycle.go (new), anchor_cycle_test.go (new), config.go — decodeConfig/loadFile, migrate.go — VerifyMigrated. InteractionCommand.UnmarshalYAML is left as-is; the defense is type-independent."
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  Built the cyclic fixture from scratch in three shapes (interaction subcommand alias,
+  stack entry alias, and a cycle hidden behind `<<: *loop`) plus one inside an imported
+  module file. All four are rejected: exit 1, 3 stderr lines, zero `fatal error`/`goroutine
+  stack exceeds` markers, message naming both anchor and YAML path. No hang — every run
+  returned well inside `timeout 20`.
+  Billion-laughs (12 levels x 9 fanout): yaml.v3's own limit fires first —
+  `ERROR: invalid YAML syntax: yaml: document contains excessive aliasing`, exit 1,
+  0.01s real, 14.7 MB peak RSS. A 100k-deep acyclic document hits `exceeded max depth of
+  10000` in the parser before checkAnchorCycles runs, so the new walk's own recursion is
+  bounded by construction.
+  Criterion 2 verified without touching the repo: `go test -overlay` swapping in a stubbed
+  anchor_cycle.go. Mutation caught (exit 1) as a runtime fatal with no `--- FAIL`
+  attribution — exactly the caveat the task recorded, not a cleaner result than claimed.
+  Per TASK-144 I counted `=== RUN`/`--- PASS`/`--- FAIL` on both runs rather than trusting
+  the `ok` line.
 ---
 
 # Task 131: Decide how a self-referencing anchor is rejected
@@ -237,6 +255,16 @@ the exit code would suggest a cleanliness the failure does not have.
 
 Criterion 3 is the one the design exists for. A guard that rejected shared anchors would pass
 criteria 1, 2 and 6 while breaking valid configs, and would also invalidate criterion 8.
+
+⚠️ Criterion 3 is met as literally measured, but its wording — "still resolve" — is broader than
+its evidence. `Service: web` reaches the struct through `node.Decode(&p)`, which honours `<<:`.
+The one field `InteractionCommand.UnmarshalYAML` recovers by hand is `command:`, and that manual
+scan compares literal key names, so a `command:` inherited through a merge key is dropped and
+the interaction runs nothing at exit 0. Measured at `1695f9d`: `dva run three` (plain alias)
+prints `hello`; `dva run two` (`<<: *base`) prints nothing, rc 0, while `Description:` merges
+normally. Pre-existing — introduced by `f2c3e95` (2026-04-02) and outside this task's declared
+scope, which leaves `InteractionCommand.UnmarshalYAML` as-is. Tracked as
+[TASK-162](../todo/162-a-command-inherited-through-a-merge-key-is-dropped-and-the-run-exits-0.md).
 
 ## Related
 

@@ -9,6 +9,23 @@ created-at: 2026-08-02T00:00:00+09:00
 resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Detection routes through composeArgv, so it asks about the configured project with the configured files and binary. detectedProject keeps its shape; collapsing it to a boolean was considered and deliberately left out of a P2 bug fix."
 scope: "internal/runner/docker_compose.go:267 (serviceRunningProject) against internal/exec/compose_argv.go"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  The fix is real and behaves as claimed, verified live (docker daemon WAS running, 29.2.1 /
+  compose 5.1.4), not only from argv. Fixture with the compose file under `compose/` reached
+  through `files:` and `project_name: dva-t133v`: bare `docker compose ps` still exits 1 there
+  ("no configuration file provided"), while `dva --debug run whoami` now issues the ps query with
+  `-f …/compose/docker-compose.yml --project-name dva-t133v`, rewrites method to `exec`, and
+  prints 07f742e2f366 — the running `dva-t133v-app-1` itself — with zero `*-app-run-*` containers
+  created. Stopping it flips back to `run --rm` (fresh container b06147e92617). `--project-name`
+  appears exactly once on both lines.
+  Criterion 6 was reproduced independently, not taken on trust: a `git archive HEAD` copy in the
+  scratchpad with detectArgv reverted to the hardcoded bare argv fails exactly 3 of 4 cases and
+  keeps WithoutConfig passing. `detectedProject` does still keep its shape (docker_compose.go:17,
+  still a string) — the simplification really was not taken.
+  bin/dva (v0.1.44, commit 15745f7) contains ec57eec; repo left untouched (`git status` shows only
+  another agent's untracked tasks/todo/160-*.md), all fixture containers and networks torn down.
 ---
 
 # Task 133: detection and execution look at different projects
@@ -94,6 +111,19 @@ name back. That reasoning holds, and the simplification is probably right — bu
 TASK-132 had just added, on a P2 bug fix whose diff should be about the bug. Left as a separate
 judgement, to be made on its own merits rather than as a side effect.
 
+⚠️ The rationale above holds only when `project_name:` **is** declared. `dvaexec.ComposeArgv`
+emits `--project-name` only under `if cc.ProjectName != ""`
+(`internal/exec/compose_argv.go:56`), so a config with `files:` and no `project_name:` produces
+no flag and compose infers the project from the directory; `composeArgv`
+(`internal/runner/compose.go:31-44`) then writes the detected name into the copied config, which
+makes `detectedProject` the *only* source of the flag on that path — a name that appears nowhere
+in `dva.yml`. `internal/runner/compose_project_test.go:134`
+(`TestProjectNameUsesDetectionWhenConfigDeclaresNone`) already pins that case, and collapsing
+the field to a boolean would delete it. The deferral itself was also recorded only in this
+paragraph: `detectedProject` had 0 hits across `tasks/todo|blocked|decision|plan`, so nothing
+would have brought it back. Now filed as
+[TASK-163](../decision/163-decide-whether-detectedproject-survives-as-a-name-or-collapses-to-a-flag.md).
+
 An error from the query still means "not running". That is correct for a service that is simply
 down, and it is also what happens when a configured non-docker compose binary rejects these
 flags; falling back to `run` is the safe answer in both cases.
@@ -119,7 +149,7 @@ with one throwaway container created.
 
 ## Related
 
-- [TASK-132](../done/132-project-name-is-passed-twice-on-the-detected-project-paths.md) — the other
+- [TASK-132](132-project-name-is-passed-twice-on-the-detected-project-paths.md) — the other
   half of project identity being handled in two places; fixing that one made this one visible.
-- [TASK-129](../done/129-container-env-reaches-one-compose-path-out-of-four.md) — the
+- [TASK-129](129-container-env-reaches-one-compose-path-out-of-four.md) — the
   environment now reaching the container is what makes "which container" matter.

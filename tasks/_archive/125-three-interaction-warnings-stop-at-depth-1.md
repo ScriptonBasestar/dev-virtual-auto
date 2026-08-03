@@ -108,7 +108,7 @@ because the recursion is what makes it bite — shipping the recursion alone wou
     structurally could not match the thing it was written to catch, so the honest count was 1,
     not 0. Quoting the 20 guarded against a sweep that never ran; it did nothing about a sweep
     that ran the wrong query. Found and fixed in
-    [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md).
+    [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md).
 - [x] No check iterates the interaction tree top-level-only | verify: `awk '/^func /{fn=$0} /range c\.Interaction/{print NR": "fn}' internal/config/validate_warnings.go` — **2 remain, both with their own recursion (`warnInertProvisionSteps`, `warnDeepSubcommandNesting`); the three fixed checks now reach the tree only through `eachInteractionNode`, 3 call sites**
 - [x] Tests fail when reverted | verify: `human — de-recurse the walker; drop the sort` — **2 mutations, both caught; see below**
 - [x] Full suite passes | verify: `make test` — exit 0
@@ -147,7 +147,7 @@ they never made, and they stay as-is so this change does not rewrite the tests t
 ### Why the walker needs no cycle guard
 
 > **The conclusion below holds; its evidence does not.**
-> [TASK-131](../done/131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
+> [TASK-131](131-a-cyclic-anchor-kills-dva-before-any-check-runs.md) measured all three
 > claims in this section: it is a `fatal error`, not a panic; the trace has **18**
 > `internal/config` frames, one of which — `(*InteractionCommand).UnmarshalYAML` — is what drives
 > the recursion; and it is not upstream, because the same document decoded into a struct without a
@@ -170,7 +170,7 @@ upstream of every check in this file and predates this change; it is not folded 
 
 ### Observed but deliberately not fixed
 
-> **Both items below are closed as of [TASK-128](../done/128-the-recursion-was-right-the-nodes-it-walked-were-not.md)**
+> **Both items below are closed as of [TASK-128](128-the-recursion-was-right-the-nodes-it-walked-were-not.md)**
 > (`86539b0`). They are kept as written rather than deleted, because the reasoning for deferring
 > them is what that task had to overturn. Read them as history, not as open work — and note that
 > the first one's "maintenance trap" is exactly what let the same inheritance bug reach two path

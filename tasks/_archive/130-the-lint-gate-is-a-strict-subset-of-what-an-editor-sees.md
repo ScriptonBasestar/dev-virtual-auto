@@ -9,6 +9,19 @@ resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Chose option B. gopls 0.22.0 pinned in .mise.toml, a gopls check sweep added to make lint hard-failing like golangci-lint, and a matching pinned install plus check step added to the CI lint job"
 created-at: 2026-08-02T00:00:00+09:00
 scope: "Makefile lint target, .mise.toml, .github/workflows/ci.yml — no Go source changes"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  All eight criteria hold against real deliverables, and the central one was re-measured
+  independently rather than trusted. A throwaway module in the scratchpad carrying the exact
+  pre-072fbc5 form (`strings.SplitN(s, "\n", 2)[0]`, recovered from git history of
+  internal/lifecycle/compose_error_test.go:38) is reported clean by golangci-lint 2.12.2 under the
+  repo's own .golangci.yml ("0 issues.") and flagged by gopls v0.22.0 with -severity=hint. Both
+  binaries are the mise-pinned ones. The task's two implementation discoveries reproduce exactly:
+  gopls exits 0 while printing findings, and a tool failure yields exit 2 with empty stdout, which
+  the pre-fix recipe tail swallowed into "GATE PASSED SILENTLY" under /bin/sh. The shipped rc check
+  turns that into exit 1. The repo tree is clean of any TASK-130 residue; the only modified files
+  are unrelated task records from other sessions.
 ---
 
 # Task 130: Decide whether `gopls check` becomes a gate
@@ -131,6 +144,14 @@ Known and accepted: the `$(find cmd internal tools -name '*.go')` argument is un
 `actionlint` flags as SC2046. It is the command form TASK-127's own acceptance criteria used, and
 every path under those three directories is a plain Go source name. It would break on a filename
 containing whitespace.
+
+## Follow-up found at archival
+
+⚠️ Making `gopls` mandatory did not reach the repo's own config. `dva.yml:8-15` still declares two
+prerequisites — Go and golangci-lint — while `Makefile:60-66` hard-fails without gopls, so a
+contributor missing it gets a clean `dva doctor` and then a broken `make lint`. `dva.yml:55` also
+still calls the interaction `Run linters (golangci-lint)`. Tracked as
+[TASK-160](../todo/160-dvas-own-dva-yml-does-not-know-lint-needs-gopls.md).
 
 ## Related
 

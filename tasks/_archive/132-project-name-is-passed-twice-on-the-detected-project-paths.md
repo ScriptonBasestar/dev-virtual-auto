@@ -9,6 +9,26 @@ created-at: 2026-08-02T00:00:00+09:00
 resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "The runner stopped emitting its own flag and now hands the detected name to composeArgv, which substitutes it into the compose config it passes to ComposeArgv — the one place that writes --project-name. Precedence is stated where the flag is built instead of resting on argv order."
 scope: "internal/runner/docker_compose.go:46,95 against internal/exec/compose_argv.go:56-57"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  Measured on the real binary, not on code shape. ./bin/dva reports v0.1.44 commit 15745f7;
+  `git merge-base --is-ancestor c842dd8 15745f7` = YES, so the binary carries the fix.
+  Fixture: /private/tmp/.../scratchpad/v132/fx with project_name dva-v132 and a running
+  alpine service. Execute path -> 1 `--project-name`; steps path -> 1; container-down path
+  -> 1, value from config. All three counts printed via `grep -o -- '--project-name' | wc -l`
+  on the actual `[debug] compose:` line, and all three printed RAILS_ENV=test.
+  Unit tests: 13 `=== RUN`, 13 `--- PASS`, 0 `--- FAIL` (TASK-144 counting; these are pure
+  builders, no ExecReplace reached). All four mutation probes reproduced via `go test -overlay`
+  with mutated copies in the scratchpad — repo tree stayed clean throughout, verified after.
+  Structural check: all four runner call sites (docker_compose.go:39, :74, :305,
+  step_keys.go:61) pass projectOverride explicitly, and internal/exec/compose_argv.go:57 is
+  the only remaining writer of the flag in the runner path.
+  One wording imprecision in the task file, not a code defect: criterion 8 says each probe
+  "broke exactly its own case", but p1 breaks two cases (execute subtest plus
+  UsesDetectionWhenConfigDeclaresNone). Both failures are the same duplication defect on the
+  same path, so the probe is still valid evidence.
+  Docker fixture torn down; `docker ps -a --filter label=...project=dva-v132` = 0.
 ---
 
 # Task 132: `--project-name` is emitted twice
@@ -94,6 +114,13 @@ Both still print `test`, so TASK-129's forwarding is intact on both paths.
 | 8 | Each test fails when its own half of the fix is reverted | 4 mutation probes: re-add the append in `executeArgs`; re-add it in `buildStepArgs`; make the override unconditional; write through instead of copying | each broke exactly its own case; sources restored byte-identical |
 | 9 | The duplicate is gone in a real invocation | `dva --debug run` against a running container, control binary rebuilt with the appends restored | 2 occurrences → 1 |
 | 10 | Four gates | `make test` / `lint` / `doc-check` / `check-generate` | all exit 0 |
+
+⚠️ Criterion 8's "each broke exactly its own case" is one case too tidy. Re-running the four
+probes under `go test -overlay` at archival, probe 1 — re-adding the append in `executeArgs` —
+fails two: the `Execute` subtest *and* `TestProjectNameUsesDetectionWhenConfigDeclaresNone`.
+Both failures are the same duplication defect on the same path, so the probe is still valid
+evidence that the test is load-bearing; the criterion asserts a one-to-one mapping it did not
+measure. The other three probes do break exactly one case each.
 
 ## Related
 

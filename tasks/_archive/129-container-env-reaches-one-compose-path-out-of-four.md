@@ -9,6 +9,24 @@ created-at: 2026-08-02T00:00:00+09:00
 resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Yes to all three, with the forwarding set bounded by measured flag support rather than by path: -e is injected on run and exec, never on up. kubectl needs no second decision — kubectl exec has no env flag."
 scope: "internal/runner/docker_compose.go — runVars:189, composeArguments:147-150, buildStepArgs:105, autoDetectComposeMethod:204; internal/runner/kubectl.go for the comparison"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  Enumerated the paths from internal/runner/docker_compose.go myself rather than from the task:
+  Execute -> executeSteps (buildStepArgs, always `exec`) | script/script_file -> LocalRunner (host,
+  no container) | autoDetectComposeMethod -> executeArgs -> composeProfiles (forces `up`) ->
+  composeArguments. That is exactly four container-bound paths plus the `up` boundary; no fifth.
+  Exercised all four for real against Docker 29.5.3 / compose 5.1.4 (server 29.2.1) with a
+  scratchpad fixture: run-fresh, run-rewritten-to-exec, configured exec, and steps all print `test`
+  at exit 0; the rewritten row shows no `Creating` line, so it exec'd into the live container.
+  Three negative controls in the same container: undeclared host var exit=1, DVA_OS exit=1,
+  profiles/`up` starts with 0 unknown-flag errors.
+  Unit suite: 12 `=== RUN`, 12 `--- PASS`, 0 `--- FAIL` under -v -count=1 (checked per TASK-144).
+  Reversion probes rerun independently via `go test -overlay` (repo never written): 6/6 bind.
+  Docs: CHANGELOG.md:50-63 states the residual override risk (`PATH`), USAGE.md:599-614 carries the
+  four-path table, schema-reference.md:696-703 says it at the `environment:` key. kubectl's absence
+  is recorded at kubectl.go:74-84 with the measurement that makes it a platform limit, not a gap.
+  Probe containers removed; repo working tree carries only other sessions' files (127, 130, 160, 161).
 ---
 
 # Task 129: Decide what `-e` forwarding means on an `exec`

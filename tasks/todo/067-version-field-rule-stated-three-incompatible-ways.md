@@ -87,7 +87,7 @@ constraint DVA never checks.
 
 ## Root cause
 
-Same defect class as [TASK-057](../done/) (a hardcoded URL), TASK-060 (a module path) and
+Same defect class as [TASK-057](../_archive/057-dead-self-referencing-urls.md) (a hardcoded URL), TASK-060 (a module path) and
 [TASK-065](../_archive/065-gitignore-check-misses-ancestor-rules.md) (a hand-written gitignore
 predicate): **a second copy of knowledge that nothing compiles.** `schema.json` is data and
 the library files are prose, so neither can disagree with `checkConfigVersion` loudly enough

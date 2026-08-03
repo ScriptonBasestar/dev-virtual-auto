@@ -44,7 +44,7 @@ which is not the same as being kept out on purpose. What fails is the inference.
 surveyed is not a gap you decided to accept, so "nothing deliberately excluded" does not yield "no
 residual gap to report".
 
-> **Corrected by [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> **Corrected by [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
 > Two claims in this record reach past what it measured — the `gopls` criterion below and the
 > "what stays excluded is named" criterion. Both are marked inline.
 
@@ -154,7 +154,7 @@ running gopls directly:
 gopls check -severity=hint $(find cmd internal tools -name '*.go')
 ```
 
-> ⚠️ **Two corrections from [TASK-127](../done/127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
+> ⚠️ **Two corrections from [TASK-127](127-the-record-that-closed-the-coverage-gap-had-two-of-its-own.md).**
 > This paragraph originally read "there are currently 0 instances" and prescribed the same command
 > without `-severity=hint`. Both were wrong in the same direction: there was 1 live instance
 > (`stringscut` in `internal/lifecycle/compose_error_test.go:38`), and it reports at hint severity,

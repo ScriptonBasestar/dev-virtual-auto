@@ -9,6 +9,25 @@ resolved-at: 2026-08-02T00:00:00+09:00
 resolution: "Threaded inherited execution context through eachInteractionNode so recursive checks ask their question of the merged node the runtime executes, not the raw YAML node; removed the false positive TASK-125 shipped on examples/full-stack.yml and the matching false negative on inherited runners"
 created-at: 2026-08-02T00:00:00+09:00
 scope: "internal/config/validate_warnings.go — eachInteractionNode:316, inheritedExec:342, hasExecutionTarget:363, warnChildOverridesParentCritical:733, warnUnreachableCommands:806, warnInertProvisionSteps:230; internal/runner/docker_compose.go — buildStepArgs doc comment"
+verified-at: 2026-08-03T15:45:00+09:00
+archived-at: 2026-08-03T15:45:00+09:00
+verification-summary: |
+  Rebuilt the pre-fix binary (ec4c0b0) with `go build -overlay` into scratchpad and ran both
+  binaries over all 17 shipped configs. The claimed deltas reproduce exactly: 20→19 semantic
+  warnings, 2→1 `directly callable`, and the per-config diff shows one line removed and zero
+  added — so "no config gains a warning" is measured, not inferred.
+  Built a fixture deeper and wider than the bug (5 interaction trees, nesting to depth 4-5).
+  Inheritance holds at every depth: `deepinherit d1`/`d1 d2`/`d1 d2 d3` all run the inherited
+  `echo root`, `d1 d2 d3 d4` runs `echo leaf`, and validate stays correctly silent. The
+  all-group tree warns at all 4 nodes that have subcommands. Runner and pod overrides through
+  two silent intermediates are caught (local→docker, alpha→beta) and the runtime confirms both
+  warnings are true.
+  All 5 mutations reproduced independently via `-overlay` and were killed by exactly the tests
+  the task names. The two sort mutations pass with `-skip TestFlatMapWarningsAreOrderStable`
+  (exit=0, 381 PASS, 0 FAIL), confirming the new test is load-bearing rather than decorative.
+  TASK-125's record is genuinely corrected in place: the criterion is `[ ]` with the reason,
+  not rewritten green. The "observed but not fixed" step-env asymmetry is owned by TASK-129
+  (done), so it left no orphan.
 ---
 
 # Task 128: a check that recurses must ask its question of the node that runs
@@ -194,3 +213,8 @@ a task about validation warnings.
 - [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape. TASK-125
   was a check whose silence was read as a pass; this one is a check whose noise was read as a
   finding. Same root: output trusted beyond what it measured.
+- [TASK-165](../todo/165-a-leaf-interaction-with-nothing-to-run-draws-no-warning-and-exits-0.md) —
+  the coverage boundary next door, found while verifying this one and **not** introduced by it:
+  `hasExecutionTarget` (`:363`) is a byte-for-byte extraction of the pre-fix `isCallable`, so
+  this task moved the predicate without changing which nodes it is applied to. A leaf with no
+  target and no subcommands is still outside `warnUnreachableCommands` entirely.
