@@ -7,7 +7,7 @@ contract:
     - "dva.yml이 프로젝트 현재 상태와 동기화된다"
     - "누락된 필수 섹션이 추가된다"
     - "dva config validate가 ERROR 0으로 통과한다"
-    - "버전이 현재 DVA CLI 버전과 일치한다"
+    - "version 필드를 건드리지 않는다 — reader floor는 설정 작성자의 선언이다"
   success_criteria:
     - "DVA CLI가 설치되어 있어야 한다"
     - "dva config validate 통과 (최대 3회 재시도)"
@@ -56,8 +56,9 @@ steps:
           echo ""
         fi
       # `dva version` has no --short flag; it exits 1 and the fallback used to make this
-      # 'unknown', which fix_version then wrote into the target config. --json is the
-      # machine-readable contract, so parse that instead of the human first line.
+      # 'unknown'. --json is the machine-readable contract, so parse that instead of the
+      # human first line. This value describes the *running* binary and must never be
+      # written into a target's `version:` — that field is the reader floor (TASK-135).
       dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"' 2>/dev/null || echo 'unknown'"
       dva_version_json: "dva version --json 2>/dev/null || echo '{\"version\": \"unknown\"}'"
     exit_if_empty: dva_available
@@ -345,7 +346,11 @@ steps:
       {{load_guardrails.output}}
 
       ## CRITICAL: version 필드
-      - `version` 필드는 반드시 **현재 DVA 버전 `{{check_prerequisites.dva_version | trim}}`**로 설정하세요.
+      - `version` 필드는 **건드리지 마세요**. 이 필드는 설정이 *읽는 쪽*에 요구하는 최소 DVA
+        버전(reader floor)이지, 이 설정을 만든 바이너리의 버전이 아닙니다. 실행 중인 버전을
+        써넣으면 그 설정은 더 낮은 DVA에서 전부 로드에 실패합니다.
+      - 기존 값이 있으면 그대로 두고, 없으면 생략하세요. `version`은 optional이며 생략은
+        "읽는 쪽에 아무것도 요구하지 않는다"는 뜻입니다.
 
       ## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
       다음 이름은 DVA 내장 커맨드로 예약되어 있습니다:
@@ -483,8 +488,9 @@ steps:
 
       # Phase 4: Review Tasks
 
-      ## 0. MANDATORY: version 업데이트
-      `version` 필드를 반드시 `{{check_prerequisites.dva_version | trim}}`로 설정하세요.
+      ## 0. MANDATORY: version 필드는 그대로 둔다
+      `version` 필드를 새로 쓰거나 덮어쓰지 마세요. reader floor이지 빌드 스탬프가 아닙니다.
+      기존 값은 유지, 없으면 생략.
 
       ## 1. 드리프트 검출
       Phase 1 탐색 결과와 dva.yml 사이의 드리프트를 찾으세요.
@@ -541,7 +547,7 @@ steps:
       {{load_checklist.output}}
 
       추가 확인:
-      - [ ] `version` 필드가 `{{check_prerequisites.dva_version | trim}}`인가?
+      - [ ] `version` 필드를 손대지 않았는가? (기존 값 유지, 원래 없었으면 계속 없음)
       - [ ] `dva config validate` ERROR 0인가?
 
   # ══════════════════════════════════════════════
@@ -701,49 +707,24 @@ steps:
       is_valid: |
         cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
 
-  # ══════════════════════════════════════════════
-  # Phase 6: Version Fix (deterministic, no LLM needed)
-  # ══════════════════════════════════════════════
-  - id: fix_version
-    type: shell
-    depends_on: [validate_final]
-    action: |
-      cd '{{param.target}}'
-      DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
-      EXPECTED="{{check_prerequisites.dva_version | trim}}"
-
-      # This step rewrites a real config, so a broken prerequisite has to stop it. DVA
-      # rejects a malformed `version:` outright, so writing one makes every later dva
-      # command against this target fail. Guard on the two values check_prerequisites can
-      # actually produce on failure rather than re-encoding DVA's version grammar here — a
-      # shell copy of that grammar would be one more claim nothing checks.
-      if [ -z "$EXPECTED" ] || [ "$EXPECTED" = "unknown" ]; then
-        echo "refusing to rewrite version: dva_version resolved to '$EXPECTED'." >&2
-        echo "Check that 'dva version --json' works and that jq is installed." >&2
-        exit 1
-      fi
-
-      CURRENT=$(grep -E '^version:' "$DVA_FILE" 2>/dev/null | head -1 | sed 's/version: *"\?\([^"]*\)"\?/\1/')
-
-      if [ "$CURRENT" = "$EXPECTED" ]; then
-        echo "Version OK: $EXPECTED"
-        exit 0
-      fi
-
-      echo "Fixing version: $CURRENT → $EXPECTED"
-      sed -i "s/^version: *\".*\"/version: \"$EXPECTED\"/" "$DVA_FILE"
-      sed -i "s/^version: *[0-9].*/version: \"$EXPECTED\"/" "$DVA_FILE"
-      echo "Version updated to $EXPECTED"
+  # There is deliberately no version-rewrite phase here (TASK-135). `version:` is the
+  # minimum DVA a config requires of its *reader*, not a stamp of the binary that edited
+  # it — see internal/config/version.go. dva-improve edits somebody else's config and has
+  # no evidence about what floor that config actually needs, so it leaves the field alone:
+  # an existing value is the author's declaration, and an absent one is the no-gate
+  # default. The step that used to live here sed-rewrote `^version:` to the running
+  # binary's version unconditionally, raising every target's floor to whatever DVA
+  # happened to be installed on the machine that ran the flow.
 
   # ══════════════════════════════════════════════
-  # Phase 6.5: Semantic Warning Triage (non-destructive)
+  # Phase 6: Semantic Warning Triage (non-destructive)
   # Strict warnings are SEPARATE from hard validation errors.
   # They are surfaced as suggestions only — the LLM MUST NOT
   # change structural fields just to silence them.
   # ══════════════════════════════════════════════
   - id: semantic_triage_state
     type: context
-    depends_on: [fix_version]
+    depends_on: [validate_final]
     context:
       strict_result: |
         cd '{{param.target}}' && dva config validate --strict 2>&1 || true
