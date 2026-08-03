@@ -738,7 +738,7 @@ steps:
     depends_on: [semantic_triage_state]
     backend: fast
     instruction: |
-      # Phase 6.5: Semantic Warning Triage
+      # Phase 6: Semantic Warning Triage
 
       Hard validation (ERROR 0 required) 결과:
       ```text

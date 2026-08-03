@@ -159,3 +159,48 @@ Decide the policy before editing: writing `MinScaffoldVersion` keeps a floor tha
 honest about what the config needs; omitting `version:` entirely is what
 `internal/config/version.go` calls the no-gate default, and TASK-067 already made the
 field optional in `schema.json`. Both are defensible; picking one silently is not.
+
+Line numbers in the "Sites changed" table are the **pre-edit** locations, matching the
+Problem section they were measured from. After the edit the same headings sit a few lines
+lower (`:487` → `:491`, `:634` → `:635`).
+
+## Review follow-up
+
+`core:code-reviewer` on the landed commit found one real hole in the guard and one
+consequence of the removal worth recording. Both handled in a follow-up commit.
+
+**The guard skipped the lines most likely to carry the defect.** The corpus walk
+classified any `#`-prefixed line in a `.yaml` file as an inert YAML comment. But every
+prompt in `agent-mesh-flows/` is markdown inside an `instruction: |` block scalar, so its
+headings — `# Role & Objective`, `## CRITICAL: version 필드` — are `#`-prefixed lines that
+reach the LLM verbatim. `dva-improve.yaml:741` is one. A restatement of exactly the
+anti-pattern this task removed would have passed the guard if written as a heading, and
+this task's own fix sits one edit away from that shape: `## 0. MANDATORY: version 필드는
+그대로 둔다` is a heading whose body could be folded up into it.
+
+Fixed with `yamlCommentScanner`, which tracks block-scalar context instead of testing a
+prefix; a `#` line is a comment only outside a block. The heuristic errs toward strict — a
+misread keeps it "inside" a block, which examines more lines, never fewer.
+`TestYamlCommentScannerDoesNotSwallowPromptHeadings` is its falsification, because the
+corpus scan cannot be: misclassifying a heading makes the guard skip lines, which reads as
+the same green as a clean tree.
+
+**Two patterns were narrower than the rule they enforce.** The interpolation half matched
+only the literal `dva_version`, so a flow that renamed its context key to `cli_version`
+would have committed the same defect unseen; it now matches any `{{…version…}}`, which is
+safe because the field-reference half carries the specificity. And the rewrite pattern
+matched only `sed`, though the rule is that *no* flow rewrites a target's `version:`; it
+now covers `yq`/`perl`/`awk` and left-anchors `version` on a non-word character so a
+legitimate `sed … schema_version:` cannot trip a message naming the wrong field. Three
+near-miss offenders and two near-miss allowed lines were added to the falsification test.
+
+**What the removal cost, stated plainly.** `fix_version` hard-failed the flow when
+`dva version --json | jq` produced nothing, because it compared against that value. That
+fail-fast was incidental to a step whose actual purpose was the defect, and it fired only
+after Phases 1–5 had already run, but it is gone: `dva_version` is now used only
+cosmetically at `dva-improve.yaml:635`, so a broken toolchain degrades quietly instead of
+stopping. Accepted rather than re-added — a version lookup this flow no longer acts on is
+not worth a gate of its own.
+
+Also fixed: `dva-improve.yaml:741`'s LLM-facing heading still read `Phase 6.5` after the
+outer section comment was renumbered to `Phase 6`.
