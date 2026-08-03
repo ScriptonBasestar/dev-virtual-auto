@@ -3,7 +3,7 @@ id: TASK-067
 title: "The `version:` rule is stated across nine files and encodes three incompatible rules — the AI generator is taught the harmful one"
 type: fix
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 reopened-at: 2026-08-03T12:10:00+09:00
@@ -131,7 +131,7 @@ Also stale, fix while here: `reference-examples.md` carries `version: "0.1.29"` 
 - [x] A `dva.yml` with no `version:` key passes `dva validate` | verify: `go test ./internal/config/ -run TestValidateWithoutVersion`
 - [x] `version` is absent from schema.json's top-level `required` | verify: `python3 -c "import json;assert 'version' not in json.load(open('internal/config/schema.json')).get('required',[])"`
 - [x] `dva init` output still validates | verify: `human — dva init in a temp dir with a compose file, then dva validate, expect rc=0`
-- [ ] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rniE 'version.{0,20}(matches|must match|equal).{0,20}current DVA|현재 DVA (CLI )?버전' agent-mesh-flows/shared/library/ internal/cli/library_reference.txt`
+- [x] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rniE 'version.{0,20}(matches|must match|equal).{0,20}current DVA|현재 DVA (CLI )?버전' agent-mesh-flows/shared/library/ internal/cli/library_reference.txt` — the last offender was `shared-checklist.md:9` ("`version` field matches current DVA CLI version"), the line this task was reopened for. Corrected to "optional or set to the reader floor — never the running CLI version; subprojects checked independently, not against root" (matching the AUTOGEN:version_rule canonical statement), and `make generate` propagated the fix to `library_reference.txt`. Grep now clean across both.
 - [x] No library file claims subprojects must match root | verify: `! /usr/bin/grep -rniE 'version.*match(es)? root|Subprojects? (should|must) match' agent-mesh-flows/`
 - [x] Regenerated artifact agrees | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt || true`
 - [x] Full suite green | verify: `make test`

@@ -6,7 +6,7 @@
 ## Mandatory Checks (before finalizing dva.yml)
 
 ### Version & Header
-- [ ] `version` field matches current DVA CLI version
+- [ ] `version` is optional or set to the reader floor — never the running CLI version; subprojects are checked independently, not against root
 - [ ] `yaml-language-server: $schema=...` comment on first line
 
 ### Structure
