@@ -1183,3 +1183,77 @@ func TestFlatMapWarningsAreOrderStable(t *testing.T) {
 		})
 	}
 }
+
+// TestWarnLiteralKeyShadowsSubproject covers the one ambiguity TASK-167's routing change
+// introduces, and — just as importantly — the three shapes it must stay quiet about.
+//
+// A warning that fired on every colon key would be worse than none: the ordinary case this
+// task exists to fix (`mytool:fast`, prefix naming no subproject) is now simply a working
+// command, and warning about it would tell authors their correct config is suspect.
+func TestWarnLiteralKeyShadowsSubproject(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  *Config
+		want string // "" means: no warning at all
+	}{
+		{
+			// The shape that could not exist before TASK-167: the parent declares the
+			// literal key AND a subproject of the same prefix, so the child's `test`
+			// loses the `engine:test` spelling to it.
+			name: "prefix names a subproject: the child's command is shadowed",
+			cfg: &Config{
+				Subprojects: map[string]SubprojectConfig{"engine": {Path: "./engine"}},
+				Interaction: map[string]*InteractionCommand{"engine:test": {Command: "echo parent"}},
+			},
+			want: "interaction.engine:test: `dva engine:test` runs this key, not subproject " +
+				"`engine`'s `test` — the literal key takes precedence; use " +
+				"`dva run --project engine test` to reach the subproject",
+		},
+		{
+			// The headline TASK-167 case. Nothing is shadowed, because no subproject
+			// named `mytool` exists to lose anything.
+			name: "prefix names no subproject: nothing to shadow",
+			cfg: &Config{
+				Interaction: map[string]*InteractionCommand{"mytool:fast": {Command: "echo ok"}},
+			},
+		},
+		{
+			// ValidateReservedCommands already makes this a hard error, and
+			// LiteralKeyWins excepts it so the key stays unroutable. A second opinion
+			// here would describe a precedence that does not happen.
+			name: "reserved prefix: unroutable, so it shadows nothing",
+			cfg: &Config{
+				Subprojects: map[string]SubprojectConfig{"app": {Path: "./app"}},
+				Interaction: map[string]*InteractionCommand{"app:build": {Command: "echo x"}},
+			},
+		},
+		{
+			name: "no colon: not a candidate for splitting in the first place",
+			cfg: &Config{
+				Subprojects: map[string]SubprojectConfig{"engine": {Path: "./engine"}},
+				Interaction: map[string]*InteractionCommand{"test": {Command: "echo ok"}},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			warnings := tc.cfg.warnLiteralKeyShadowsSubproject()
+			if tc.want == "" {
+				if len(warnings) != 0 {
+					t.Fatalf("expected no warning, got %v", warnings)
+				}
+				return
+			}
+			if len(warnings) != 1 {
+				t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
+			}
+			// Compared whole, not by substring. The escape hatch is the half of this
+			// message the reader acts on, and `dva --project engine test` — the shorter
+			// spelling, without the verb — exits 1 with `unknown command "test"`. A
+			// Contains check on the first clause would pass while the advice sent the
+			// reader to a command that refuses.
+			if warnings[0] != tc.want {
+				t.Errorf("warning text drifted:\n got:  %s\n want: %s", warnings[0], tc.want)
+			}
+		})
+	}
+}

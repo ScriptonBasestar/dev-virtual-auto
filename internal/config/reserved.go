@@ -88,9 +88,12 @@ func ShadowedByBuiltin(name string, cmd *InteractionCommand) bool {
 // machine-readable surfaces and the validator cannot disagree about which keys it
 // covers.
 //
-// Scope is deliberately narrow: a *reserved* prefix. A free prefix (`mytool:fast`) is
-// unroutable for the same underlying reason — run.go splits every key on ':' — but the
-// answer there is a routing question rather than a marking one. See TASK-167.
+// Scope is deliberately narrow: a *reserved* prefix, and since TASK-167 that is the whole
+// unroutable class rather than a subset of it. A free prefix (`mytool:fast`) used to fail
+// the same way — run.go split every key on ':' — and TASK-167 answered that as the routing
+// question it was: LiteralKeyWins now routes such a key to the command the author declared.
+// The reserved prefix is the one case it excepts, so this predicate still describes exactly
+// the keys nothing can reach.
 func UnroutableNamespacePrefix(name string) string {
 	idx := strings.Index(name, ":")
 	if idx <= 0 {
@@ -100,6 +103,38 @@ func UnroutableNamespacePrefix(name string) string {
 		return prefix
 	}
 	return ""
+}
+
+// LiteralKeyWins reports whether a command name should be looked up as an interaction key
+// as written, rather than split on ':' and read as `<subproject>:<command>`.
+//
+// run.go used to split unconditionally, before asking whether the literal key existed. That
+// made every colon key whose prefix was not a declared subproject reachable by nothing:
+// `dva mytool:fast` exited 1 with "subproject `mytool` not found" while `dva config validate`
+// said the file was valid and `dva manifest` advertised `usage_example: dva mytool:fast`.
+// The colon was never reserved for subprojects by the schema, the docs, or the config model
+// — only by that one SplitN — so this makes routing agree with the four surfaces that
+// already treated the key as an ordinary command.
+//
+// An exact match beats an inference: a declared key is what the author wrote, a subproject
+// reference is what the shape suggests. A real subproject is unaffected, because a parent
+// declaring `subprojects: {engine: ...}` has no literal `engine:test` key of its own — that
+// command lives in the child's dva.yml.
+//
+// The reserved prefix is excepted so `app:build` keeps failing. Validate rejects such a
+// config outright (rc 1, reserved conflict), and routing it here would ship a file that one
+// surface calls a hard error while another runs it happily — the disagreement TASK-137 was
+// about. It also keeps `unroutable_reason` ("prefix is a reserved DVA command") a true and
+// complete account of what is left unroutable. TASK-167.
+func LiteralKeyWins(c *Config, name string) bool {
+	if !strings.Contains(name, ":") {
+		return false
+	}
+	if UnroutableNamespacePrefix(name) != "" {
+		return false
+	}
+	_, declared := c.Interaction[name]
+	return declared
 }
 
 // RenameSuggestion returns the name a colon-carrying key should be renamed to.

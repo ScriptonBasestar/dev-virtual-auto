@@ -29,7 +29,7 @@ var runCmd = &cobra.Command{
 
 		// Support namespace:command syntax (e.g., "engine:test")
 		resolvedProject := projectName
-		if resolvedProject == "" {
+		if resolvedProject == "" && !config.LiteralKeyWins(c, cmdName) {
 			if parts := strings.SplitN(cmdName, ":", 2); len(parts) == 2 {
 				resolvedProject = parts[0]
 				cmdName = parts[1]

@@ -61,6 +61,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnDefaultModeHeavyInfra()...)
 	warnings = append(warnings, c.warnChildOverridesParentCritical()...)
 	warnings = append(warnings, c.warnDeepSubcommandNesting()...)
+	warnings = append(warnings, c.warnLiteralKeyShadowsSubproject()...)
 	warnings = append(warnings, c.warnUnreachableCommands()...)
 	warnings = append(warnings, c.warnInertProvisionSteps()...)
 	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
@@ -827,6 +828,57 @@ func (c *Config) warnDeepSubcommandNesting() []string {
 
 	// c.Interaction is a map, so the order here is whatever Go's randomized range hands back.
 	// TestFlatMapWarningsAreOrderStable diverges on the first repeat with this removed. TASK-128.
+	sort.Strings(warnings)
+	return warnings
+}
+
+// warnLiteralKeyShadowsSubproject warns when a declared colon key's prefix also names a
+// subproject, so the literal key wins and the subproject's command of the same spelling
+// becomes unreachable.
+//
+// This shape could not occur before TASK-167: run.go split every colon key, so the
+// subproject always won and a literal `engine:test` in the parent was dead config. Routing
+// the literal key first fixes the far larger silent-failure class that task measured, and
+// creates exactly this one ambiguity in exchange — so the warning ships with the routing
+// change rather than after it. Closing one silent shadowing by opening another would be
+// TASK-137's silent-relocation shape, which is the thing that task exists to stop.
+//
+// A warning, not an error: both readings are legitimate config, the author may well mean the
+// local one, and it stays runnable either way. The message names the form that lost, because
+// knowing `engine:test` now runs the parent's command is only half of what a reader needs —
+// the other half is how to reach the child's.
+//
+// The escape hatch is spelled `dva run --project`, with the verb, and it was executed against
+// the binary before being written here — the bar ConflictAdvice sets. The shorter `dva
+// --project engine test` reads better and does not work: --project is registered on runCmd, so
+// it only parses after an explicit `run`, and the bare form's rewrite in cli.Execute does not
+// look past a leading flag. Measured, it exits 1 with `unknown command "test" for "dva"`.
+//
+// Severity: Semantic Warning
+func (c *Config) warnLiteralKeyShadowsSubproject() []string {
+	var warnings []string
+
+	for name := range c.Interaction {
+		idx := strings.Index(name, ":")
+		if idx <= 0 {
+			continue
+		}
+		prefix, sub := name[:idx], name[idx+1:]
+		if _, ok := c.Subprojects[prefix]; !ok {
+			continue
+		}
+		// A reserved prefix is still unroutable, so nothing is shadowed — that config has a
+		// hard error from ValidateReservedCommands already and does not need a second opinion.
+		if IsReservedCommand(prefix) {
+			continue
+		}
+		warnings = append(warnings, fmt.Sprintf(
+			"interaction.%s: `dva %s` runs this key, not subproject `%s`'s `%s` — "+
+				"the literal key takes precedence; use `dva run --project %s %s` to reach the subproject",
+			name, name, prefix, sub, prefix, sub))
+	}
+
+	// c.Interaction is a map; see warnDeepSubcommandNesting. TASK-128.
 	sort.Strings(warnings)
 	return warnings
 }
