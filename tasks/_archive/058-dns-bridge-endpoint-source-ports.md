@@ -7,6 +7,19 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox/dva.yml — user's real project, needs their go-ahead to edit"
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  All 7 criteria verified against the live config, not the task's prose.
+  The four corrected sources are present in ~/mydevbox/scripton-dns-bridge-devbox/dva.yml:
+  jaeger:11245 (:584), powerdns:11260 (:594), coredns:11254 (:602), mock-auth:11290 (:606).
+  Each cross-checks against its compose host-port binding (obs-monitoring.yaml:64,
+  infra-nameserver.yaml:11 and :58-59, dev-tools.yaml:11), the .env.example default,
+  and PORT_MAPPINGS.yaml. The full 13-endpoint reconciliation table was re-derived
+  independently and matches the task's table entry for entry.
+  `dva validate` → rc=0, "dva.yml is valid" (warnings only, no errors).
+  The loss-check script against the named backup reports "0 fail / 29 files" with
+  endpoints=13, matching the recorded Result verbatim. Follow-up TASK-062 exists.
 ---
 
 # Task 058: Correct four endpoint source ports in dns-bridge

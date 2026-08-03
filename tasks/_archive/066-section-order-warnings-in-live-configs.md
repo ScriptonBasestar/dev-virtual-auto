@@ -7,6 +7,23 @@ status: done
 effort: S
 scope: "Cross-repo: 10 ~/mydevbox/*/dva.yml; possibly internal/config/validate_warnings.go (canonicalSectionOrder). Needs the user's call — their tree"
 created-at: 2026-07-30T00:00:00+09:00
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  All 7 criteria MET, with the corpus count re-measured rather than trusted.
+  `dva validate` (v0.1.44) was run against all 31 live ~/mydevbox/*/dva.yml configs
+  matching the literal warning string "section order: found" emitted at
+  internal/config/validate_warnings.go:536 — TOTAL_CONFIGS=31, WARNED=0, with the
+  non-zero swept count printed beside the verdict so an empty result cannot read as a
+  vacuous pass. This confirms the claimed 10 → 0 reduction.
+  Option A was taken and Option B genuinely was not: canonicalSectionOrder
+  (validate_warnings.go:20-27) is unchanged — checks still at index 9, endpoints still
+  near-last — and shared-guardrails.md:54 still teaches the identical order.
+  All 10 recorded reorder commits exist in their respective repos with matching
+  messages and no uncommitted dva.yml. A spot-checked diff (9b58876) shows the
+  endpoints block relocated verbatim, a pure move with no line-level edits.
+  TASK-069's "18 warn" figure is a distinct migration check (missing plans: key), so
+  the two counts do not contradict.
 ---
 
 # Task 066: Decide whether the configs or the canonical order is wrong

@@ -7,6 +7,21 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox — compose/infra-redis-{cluster,sentinel}.yaml and PORT_MAPPINGS.yaml; needs the user's go-ahead to edit"
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  All 4 criteria re-verified against live repo state.
+  Commit b61ab84 ("fix(compose): move the alternative redis topologies off six
+  double-booked ports") is on branch in ~/mydevbox/scripton-dns-bridge-devbox.
+  PORT_MAPPINGS.yaml:30-80 registers all 8 alternative-topology ports at 11221-11228,
+  matching infra-redis-cluster.yaml (11221-11223) and infra-redis-sentinel.yaml
+  (11224-11228) exactly.
+  The acceptance criterion's own command was re-run with all 6 profiles active
+  (kafka, monitoring, redis-cluster, redis-sentinel, nameserver, dev): 24 published
+  port/protocol pairs, `uniq -d` empty — no host port published twice.
+  .env.example:73-76 replaced the old "by design" overlap comment with an honest one.
+  `dva validate` rc=0. No .env present to mask stale defaults. TASK-071, referenced
+  under "Left open", is itself closed.
 ---
 
 # Task 062: Resolve six duplicate host-port bindings in dns-bridge

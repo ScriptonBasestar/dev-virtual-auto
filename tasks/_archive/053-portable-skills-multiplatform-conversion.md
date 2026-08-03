@@ -7,6 +7,21 @@ status: done
 effort: M
 created-at: 2026-07-22T00:00:00+09:00
 scope: "dva repo — skills/, claude-plugin/, .cursor/, AGENTS.md, tools/"
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  All 12 acceptance criteria verified against real deliverables.
+  Canonical skills at skills/{dva,config}/SKILL.md; claude-plugin/skills and
+  .agents/skills are real symlinks to ../skills and are tracked as symlinks by git
+  (git ls-files), not copies. .cursor/rules/{dva,config}.mdc generated (8733/10186 B)
+  and .opencode/skills present, both gitignored per the decision table's "not
+  committed" column. AGENTS.md:185-207 carries the generated skills:auto block.
+  go vet ./tools/skillgen/ clean. README.md:170-173 lists the corrected Antigravity
+  path plus OpenCode and Codex.
+  The idempotency criterion the read-only verifier had to leave open was settled by
+  the supervisor: `make check-generate` (Makefile:128-133, before/after hash over
+  GEN_LIBRARY, shared-guardrails.md, AGENTS.md, .agents/skills, claude-plugin/skills)
+  exits 0 and `git status --porcelain` is empty after a real `make generate` run.
 ---
 
 # Task 053: Portable skills, one source, many platforms

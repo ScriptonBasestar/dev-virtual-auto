@@ -11,6 +11,23 @@ completed-at: 2026-08-01T12:00:00+09:00
 decision: "B — stop documenting the download; no release will be published"
 blocked-on: "user explicitly authorized README edit (overriding prior human-only blocker in doc-protection)"
 scope: "dva repo — .goreleaser.yml, git tags, README.md (ai=deny); needs a human call on whether to publish v0.1.44"
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  Decision B ("stop documenting the download; no release will be published") is
+  recorded in frontmatter, and the deliverables match it.
+  README.md's Install section (7-19) no longer offers a release download — only
+  `go install .../dva/cmd/dva@latest` and `make build`; grep for
+  "releases/latest/download" in README.md returns nothing.
+  .goreleaser.yml is kept and marked rather than deleted (:1 "This pipeline has never
+  run"), and the goreleaser-check CI job (.github/workflows/ci.yml:84) still validates
+  its syntax.
+  The premise was re-checked live on 2026-08-03: the GitHub API returns [] for both
+  releases and tags on ScriptonBasestar/dva, `git tag | wc -l` is 0, and the formerly
+  documented asset URL returns 404 — so decision B's assumption still holds.
+  One cosmetic residue: criterion 1's verify: binding still names the pre-move path
+  tasks/blocked/063-...md. The claim it checks is true at the file's current location;
+  the stale path is resolved by this archive move.
 ---
 
 # Task 063: Decide whether DVA publishes releases

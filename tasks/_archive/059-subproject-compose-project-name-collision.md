@@ -7,6 +7,21 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/doctor.go; found in ~/mydevbox/scripton-nd-stack-devbox"
+verified-at: 2026-08-03T11:52:20+09:00
+archived-at: 2026-08-03T11:52:20+09:00
+verification-summary: |
+  All criteria MET, including the corpus sweep the task had marked human-verify.
+  checkSubprojectComposeProjectNames (internal/cli/doctor.go:371-415) is registered in
+  runDoctor (doctor.go:97) after checkComposeProjectNameAlignment. All 14 subtests pass
+  (5 TestCheckSubprojectComposeProjectNames + 9 TestSameStringSet); sibling
+  TestValidateComposeProjectNames still passes its 6 subtests, so no regression.
+  Real-config repro in ~/mydevbox/scripton-nd-stack-devbox prints the exact FAIL line.
+  Supervisor re-ran the corpus sweep rather than trusting the recorded figure:
+  `dva doctor` executed in all 31 live ~/mydevbox configs (configs-swept=31), matching
+  the literal string "shares compose project name" → collision-hits=1, the nd-stack-rs
+  subproject only. Zero false positives, exactly as claimed.
+  TASK-132/133 were checked and are unrelated: they fix --project-name duplication and
+  detection scope in internal/runner, and touch neither doctor.go nor its tests.
 ---
 
 # Task 059: Warn when a subproject shares its parent's compose project name
