@@ -2,6 +2,8 @@ package runner
 
 import (
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -73,15 +75,45 @@ type RunOptions struct {
 	Config  *config.Config
 }
 
+// planWriter accumulates the first write error across the text plan's prints, so the branch
+// can report a failed write without an if-block after each of its 24 fmt calls.
+//
+// Sticky rather than fail-fast at the call site: once a write has failed the rest are skipped,
+// and the error that surfaces is the first one, which is the one that says what went wrong.
+// Writes go through an io.Writer captured at call time rather than fmt.Print*'s implicit
+// os.Stdout, which is what lets a test point the plan at a writer that fails.
+type planWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (p *planWriter) printf(format string, a ...any) {
+	if p.err != nil {
+		return
+	}
+	_, p.err = fmt.Fprintf(p.w, format, a...)
+}
+
+func (p *planWriter) println(a ...any) {
+	if p.err != nil {
+		return
+	}
+	_, p.err = fmt.Fprintln(p.w, a...)
+}
+
 // Explain prints the execution plan without running anything.
 //
-// It returns an error only from the JSON branch, where output.PrintJSON can fail at the write
-// (a full filesystem under stdout, TASK-114). The text branch's dozen fmt.Print* calls return
-// errors too and ignore them, and that is deliberate rather than a copy of this function's old
-// shape: that branch is human-facing, so a closed downstream pipe already kills the process via
-// SIGPIPE — a silent success needs the write to succeed-and-be-lost, which a tty or a regular
-// file does not produce. Propagating fmt errors here would widen this change into every caller
-// of every print the text plan makes, for a failure mode that is already noisy. TASK-121.
+// Both branches report a failed write. The JSON branch got this in TASK-121, where
+// output.PrintJSON can fail at the write (a full filesystem under stdout, TASK-114); the text
+// branch kept dropping its fmt errors until TASK-158, on the reasoning that a human-facing
+// path is protected by SIGPIPE from a closed downstream pipe. That reasoning was wrong by
+// omission. SIGPIPE covers EPIPE on fd 1 and nothing else: point stdout at a read-only
+// descriptor and every write returns EBADF, which is a failure, not a signal. Measured on
+// v0.1.44 before the fix — `--json` reported it and exited 1, the text branch delivered 0
+// bytes and exited 0, which is the same silent success TASK-121 was filed to remove.
+//
+// The cost that argument was really protecting against — an error check after each print — is
+// paid once by planWriter instead of 24 times.
 func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	runner := DetectRunnerType(cmd)
 
@@ -106,28 +138,32 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 		return output.PrintJSON(plan)
 	}
 
-	fmt.Println("=== Command Execution Plan ===")
+	// os.Stdout is read here rather than held in a package variable so that a test swapping it
+	// still reaches this branch, the same live resolution fmt.Print* had.
+	p := &planWriter{w: os.Stdout}
+
+	p.println("=== Command Execution Plan ===")
 	// A steps-only interaction has no single Command:, and a blank `Command:` line invites the
 	// reading that nothing will run. State that the interaction is step-driven instead; the steps
 	// themselves are listed below (TASK-146).
 	switch {
 	case cmd.Command != "":
-		fmt.Printf("Command: %s\n", cmd.Command)
+		p.printf("Command: %s\n", cmd.Command)
 	case len(cmd.Steps) > 0:
-		fmt.Println("Command: (step-driven — see Steps below)")
+		p.println("Command: (step-driven — see Steps below)")
 	default:
-		fmt.Println("Command:")
+		p.println("Command:")
 	}
 	if cmd.Description != "" {
-		fmt.Printf("Description: %s\n", cmd.Description)
+		p.printf("Description: %s\n", cmd.Description)
 	}
-	fmt.Printf("Runner: %s\n", runner)
+	p.printf("Runner: %s\n", runner)
 	if cmd.Service != "" {
-		fmt.Printf("Service: %s\n", cmd.Service)
-		fmt.Printf("Compose Method: %s\n", cmd.Compose.Method)
+		p.printf("Service: %s\n", cmd.Service)
+		p.printf("Compose Method: %s\n", cmd.Compose.Method)
 	}
 	if cmd.Pod != "" {
-		fmt.Printf("Pod: %s\n", cmd.Pod)
+		p.printf("Pod: %s\n", cmd.Pod)
 	}
 	// Same source as the exec path — see the JSON branch above. Annotated when they came from
 	// default_args rather than from the invocation, because those are precisely the arguments
@@ -137,19 +173,19 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 		if len(cmd.Argv) == 0 {
 			origin = "  (from default_args)"
 		}
-		fmt.Printf("Arguments: %s%s\n", strings.Join(args, " "), origin)
+		p.printf("Arguments: %s%s\n", strings.Join(args, " "), origin)
 	}
-	fmt.Printf("Shell Mode: %v\n", cmd.Shell)
+	p.printf("Shell Mode: %v\n", cmd.Shell)
 	if len(cmd.Environment) > 0 {
-		fmt.Println("Environment Variables:")
+		p.println("Environment Variables:")
 		for k, v := range cmd.Environment {
-			fmt.Printf("  %s=%s\n", k, v)
+			p.printf("  %s=%s\n", k, v)
 		}
 	}
 	if len(cmd.Steps) > 0 {
-		explainSteps(cmd)
+		explainSteps(p, cmd)
 	}
-	return nil
+	return p.err
 }
 
 // explainSteps renders a step-driven interaction's plan without running anything, mirroring the
@@ -158,8 +194,8 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 // checking what is about to happen hid the declared work. Steps run through the shared loop on
 // every runner, so this rendering is runner-independent; Explain must not re-fork what execution
 // unified. A note renders as `  → label: note`, the same line the executing path prints.
-func explainSteps(cmd *ResolvedCommand) {
-	fmt.Println("Steps:")
+func explainSteps(p *planWriter, cmd *ResolvedCommand) {
+	p.println("Steps:")
 	for i := range cmd.Steps {
 		step := &cmd.Steps[i]
 		label := step.Step
@@ -167,14 +203,14 @@ func explainSteps(cmd *ResolvedCommand) {
 			label = fmt.Sprintf("step %d", i+1)
 		}
 		if step.IsInert() {
-			fmt.Printf("  → %s\n", label)
-			fmt.Printf("    ⚠ %s\n", config.InertStepMessage)
+			p.printf("  → %s\n", label)
+			p.printf("    ⚠ %s\n", config.InertStepMessage)
 			continue
 		}
 		if step.Note != "" {
-			fmt.Printf("  → %s: %s\n", label, step.Note)
+			p.printf("  → %s: %s\n", label, step.Note)
 		} else {
-			fmt.Printf("  → %s\n", label)
+			p.printf("  → %s\n", label)
 		}
 		// What the step will execute, mirroring runStepLoop's dispatch exactly. A compose key
 		// short-circuits the whole step — runComposeStepKeys returns handled and the loop continues,
@@ -188,20 +224,20 @@ func explainSteps(cmd *ResolvedCommand) {
 		}
 		switch {
 		case len(step.ComposeUp) > 0:
-			fmt.Printf("    compose up: %s\n", strings.Join(step.ComposeUp, " "))
+			p.printf("    compose up: %s\n", strings.Join(step.ComposeUp, " "))
 		case step.ComposeExec != "":
-			fmt.Printf("    compose exec: %s\n", step.ComposeExec)
+			p.printf("    compose exec: %s\n", step.ComposeExec)
 		case step.ComposeRun != "":
-			fmt.Printf("    compose run: %s\n", step.ComposeRun)
+			p.printf("    compose run: %s\n", step.ComposeRun)
 		default:
 			for _, c := range runCmds {
-				fmt.Printf("    run: %s\n", c)
+				p.printf("    run: %s\n", c)
 			}
 			if step.Echo != "" {
-				fmt.Printf("    echo: %s\n", step.Echo)
+				p.printf("    echo: %s\n", step.Echo)
 			}
 			if step.Cmd != "" {
-				fmt.Printf("    cmd: %s\n", step.Cmd)
+				p.printf("    cmd: %s\n", step.Cmd)
 			}
 		}
 	}

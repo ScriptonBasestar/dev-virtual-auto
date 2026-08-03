@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -112,21 +113,103 @@ func TestExplainJSONBranchPropagatesWriteError(t *testing.T) {
 	}
 }
 
-// TestExplainTextBranchReturnsNil pins the asymmetry the doc comment promises: the text branch
-// ignores its fmt errors and returns nil. Without this, a future pass that "fixes" the branch by
-// returning the last fmt error would change a dozen call sites' contracts on a whim.
-func TestExplainTextBranchReturnsNil(t *testing.T) {
+// TestExplainTextBranchPropagatesWriteError covers TASK-158 and is the twin of the JSON test
+// above. It replaces TestExplainTextBranchReturnsNil, which pinned the opposite contract.
+//
+// That test was not wrong when written — TASK-121 deliberately scoped the text branch out, and
+// pinning the asymmetry was the right way to stop it drifting. What did not hold was the stated
+// reason: SIGPIPE covers EPIPE on fd 1 and nothing else, so a stdout that fails with EBADF
+// produced a write error, a discarded error, and exit 0 having delivered nothing — the exact
+// silent success TASK-121 existed to remove, on the branch beside it. The asymmetry is gone, so
+// the test that pinned it is replaced rather than deleted.
+func TestExplainTextBranchPropagatesWriteError(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cmd  ResolvedCommand
+	}{
+		{"plain command", ResolvedCommand{Command: "console", Argv: []string{"x"}}},
+		{"step-driven", ResolvedCommand{Steps: []config.ProvisionItem{{Step: "migrate", Run: "bin/migrate"}}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			restore := brokenStdout(t)
+			defer restore()
+
+			if err := Explain(&tc.cmd, false); err == nil {
+				t.Fatal("Explain(--text) = nil on a stdout that cannot be written; a plan " +
+					"nobody received must not report success")
+			}
+		})
+	}
+}
+
+// TestExplainTextBranchReturnsNilOnAHealthyWriter is the control for the test above: making the
+// failure path report must not have made the ordinary path report too.
+//
+// The output assertion is what stops it passing vacuously — a branch that returned nil by
+// writing nothing at all would satisfy the error check on its own.
+func TestExplainTextBranchReturnsNilOnAHealthyWriter(t *testing.T) {
 	cmd := ResolvedCommand{Command: "console", Argv: []string{"x"}}
 
-	// captureStdout so the text branch still writes somewhere real rather than to a closed pipe,
-	// which would be testing the wrong thing — the text branch is not on this task's hook.
 	out := captureStdout(t, func() {
 		if err := Explain(&cmd, false); err != nil {
-			t.Fatalf("Explain(--text) = %v, want nil by design", err)
+			t.Fatalf("Explain(--text) = %v on a writable stdout, want nil", err)
 		}
 	})
 	if !strings.Contains(out, "=== Command Execution Plan ===") {
 		t.Fatalf("text plan did not print; captured %q", out)
+	}
+}
+
+// failingWriter fails every write, standing in for the EBADF stdout the task measured.
+type failingWriter struct{ writes int }
+
+func (f *failingWriter) Write(b []byte) (int, error) {
+	f.writes++
+	return 0, errors.New("synthetic write failure")
+}
+
+// TestPlanWriterKeepsTheFirstErrorAndStopsWriting pins the two properties the text branch's
+// error reporting rests on, neither of which the end-to-end test above can distinguish.
+//
+// Sticky: the error survives the 23 prints that follow the one that failed, so it is still
+// there to be returned. First-error: what surfaces is the failure that explains the problem,
+// not whatever the last call happened to produce. And once it has failed the writer stops
+// issuing writes, so a broken stdout is not hammered once per line.
+func TestPlanWriterKeepsTheFirstErrorAndStopsWriting(t *testing.T) {
+	fw := &failingWriter{}
+	p := &planWriter{w: fw}
+
+	p.println("first")
+	first := p.err
+	if first == nil {
+		t.Fatal("planWriter.println swallowed the write error")
+	}
+	for i := range 5 {
+		p.printf("line %d\n", i)
+	}
+
+	if fw.writes != 1 {
+		t.Errorf("planWriter issued %d writes after the first failed; it must stop at 1", fw.writes)
+	}
+	if p.err != first {
+		t.Errorf("planWriter replaced the first error %v with %v", first, p.err)
+	}
+}
+
+// TestExplainStepsRecordsItsWriteError proves the steps renderer participates in the same error
+// accounting rather than printing into a void of its own.
+//
+// explainSteps is where 11 of the branch's 24 writes live. It takes the planWriter as a
+// parameter for exactly this reason, and a version that kept writing through fmt.Print* would
+// still render correctly on a healthy stdout — passing every other test in this file.
+func TestExplainStepsRecordsItsWriteError(t *testing.T) {
+	p := &planWriter{w: &failingWriter{}}
+	explainSteps(p, &ResolvedCommand{
+		Steps: []config.ProvisionItem{{Step: "migrate", Run: "bin/migrate"}},
+	})
+	if p.err == nil {
+		t.Fatal("explainSteps wrote to a failing writer and recorded nothing; its errors would " +
+			"never reach Explain's return")
 	}
 }
 
