@@ -7,6 +7,26 @@ status: done
 effort: S
 created-at: 2026-07-22T00:00:00+09:00
 scope: "Cross-repo: claude-ce-plugin (must be applied from a ce-plugin-scoped session)"
+verified-at: 2026-08-03T11:44:34+09:00
+archived-at: 2026-08-03T11:44:34+09:00
+verification-summary: |
+  All 5 acceptance criteria verified read-only against the live ce-plugin repo
+  (~/mywork/scripton/claude-ce-plugin @ 44a5639) and this repo.
+  1. No dva-config dir in src/plugins/tool/skills nor in any generated mirror
+     (plugins/, .opencode/, _agents/, build/codex/) — 0 matches each. The single
+     filesystem hit is tmp/global-install-bootstrap-backup-20260730/, a gitignored
+     (.gitignore:35 /tmp/), untracked backup snapshot — not a live tree.
+  2. `./build/ce validate skillref src/plugins` → EXIT=0, "✅ No issues found",
+     212 files / 94 skills, cross-plugin refs resolved. No dangling dva-config ref.
+  3. grep for dva-config|tool:dva-config across src/ returns nothing; the only
+     remaining mentions are prose blockquotes outside <ai-skill-selector> —
+     INDEX.md:201 and tool/CLAUDE.md:30-33. No skill content retained.
+  4. find ~/.claude/plugins/cache -type d -name '*dva-config*' → empty.
+  5. dva repo claude-plugin/skills is a symlink → ../skills; skills/config/SKILL.md
+     (10012 B) present. Root skills/ is the sole source; the documented
+     claude-plugin/skills/config/ path resolves to it.
+  URL enrichment of the pointers is already applied in ce-plugin and remains
+  tracked by TASK-055 (blocked on TASK-054) — no hidden follow-up.
 ---
 
 # Task 052: Make ce-plugin reference-only for DVA config
@@ -78,11 +98,13 @@ Repo: `~/mywork/scripton/claude-ce-plugin` (source of truth = `src/`; `plugins/`
 
 ## Acceptance criteria
 
-- [ ] No `dva-config`/`tool-dva-config` skill dir under ce-plugin `src/` or any generated tree.
-- [ ] `ce validate skillref src/plugins` exits 0 (no dangling refs).
-- [ ] ce-plugin docs contain only a prose pointer to the dva plugin, no skill content.
-- [ ] Global cache no longer serves `tool:dva-config`.
-- [ ] dva repo `claude-plugin/skills/config/` remains the sole source of truth.
+- [x] No `dva-config`/`tool-dva-config` skill dir under ce-plugin `src/` or any generated tree.
+- [x] `ce validate skillref src/plugins` exits 0 (no dangling refs).
+- [x] ce-plugin docs contain only a prose pointer to the dva plugin, no skill content.
+- [x] Global cache no longer serves `tool:dva-config`.
+- [x] dva repo `claude-plugin/skills/config/` remains the sole source of truth
+      (`claude-plugin/skills` → `../skills` symlink; canonical file is
+      `skills/config/SKILL.md`).
 
 ## Provenance
 
