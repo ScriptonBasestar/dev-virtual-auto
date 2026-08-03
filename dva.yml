@@ -13,6 +13,12 @@ checks:
     type: command
     command: "golangci-lint version > /dev/null 2>&1"
     fix_hint: "Install: https://golangci-lint.run/usage/install/"
+  - name: "gopls available"
+    type: command
+    # Mirror Makefile:60-66 — gopls is resolved via mise first, then PATH, so a contributor who
+    # has it only under mise must still pass this check (TASK-160).
+    command: "{ command -v mise >/dev/null 2>&1 && mise which gopls >/dev/null 2>&1; } || command -v gopls >/dev/null 2>&1"
+    fix_hint: "Install gopls (https://pkg.go.dev/golang.org/x/tools/gopls) or run 'mise install'"
 
 interaction:
   # 'build' and 'clean' are reserved DVA commands — use replace hooks
@@ -52,7 +58,7 @@ interaction:
         runner: local
 
   lint:
-    description: "Run linters (golangci-lint)"
+    description: "Run linters (golangci-lint, gopls)"
     command: "make lint"
     runner: local
 

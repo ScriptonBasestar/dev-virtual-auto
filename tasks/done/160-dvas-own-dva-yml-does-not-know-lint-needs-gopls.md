@@ -3,7 +3,7 @@ id: TASK-160
 title: "DVA's own dva.yml never learned that make lint requires gopls"
 type: bug
 priority: P3
-status: todo
+status: done
 effort: S
 created-at: 2026-08-03T15:15:00+09:00
 source: "TASK-130 finalize verification — the dogfood config, not updated with the tool the fix added"
@@ -47,20 +47,20 @@ Anyone reading `dva.yml` as the worked example learns a pattern that has already
 
 ## Acceptance criteria
 
-- [ ] `dva.yml` declares a `gopls available` prerequisite alongside the other two, with a
-      `fix_hint` naming both routes the Makefile accepts (`mise install`, or a direct install) —
-      the check must not fail for someone who only has it under `mise`, which is how
-      `Makefile:61-62` resolves it first.
-- [ ] `dva.yml:55`'s description names both linters.
-- [ ] Prove it fails when the tool is absent: run `dva doctor` with `gopls` masked off `PATH`
-      (and out of `mise`'s view) and paste the `[FAIL]` row and exit code. A check verified only
-      in its passing state is what
-      [TASK-112](../_archive/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) warns
-      about.
-- [ ] Diff `dva.yml`'s prerequisites against what `make lint`, `make test` and `make build`
-      actually invoke, and report the count of tools required but undeclared. A bare "none left"
-      is not a result with the denominator unstated.
-- [ ] `make test` exits 0.
+- [x] `dva.yml` declares a `gopls available` prerequisite. Its command mirrors Makefile:60-66
+      (`mise which gopls` first, then PATH), so a contributor with gopls only under `mise` passes;
+      fix_hint names both routes ("Install gopls … or run 'mise install'").
+- [x] The lint description now reads "Run linters (golangci-lint, gopls)".
+- [x] Proven to fail when absent: with `gopls` and `mise` masked off PATH (go + golangci-lint
+      still present), `dva doctor` prints `[FAIL] gopls available -> Install gopls … or run
+      'mise install'` and exits non-zero, while Go toolchain and golangci-lint stay `[pass]`.
+      Normal run: 6 passed, 0 failed (including `[pass] gopls available`).
+- [x] Tool diff: `make build`/`test` invoke `go` (declared); `make lint` invokes `go vet` +
+      `gofmt` (bundled with the Go toolchain) + `golangci-lint` (declared) + `gopls` (now
+      declared); `make generate` runs `skillgen`/`libgen` (Go programs, covered by `go`). Required
+      external tools: **3 (go, golangci-lint, gopls); all declared after this change; 0
+      required-but-undeclared.** `mise` itself is optional.
+- [x] `make test` exits 0; `dva validate` reports `dva.yml is valid`.
 
 ## Notes
 
