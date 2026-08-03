@@ -7,8 +7,12 @@
 //   - canonical section order       → internal/config/validate_warnings.go
 //   - the `version:` rule           → internal/config/version.go
 //
-// Facts that live only in markdown (naming presets, forbidden ports, schema doc)
-// are intentionally NOT touched here — see shared/library/README.md.
+// Naming presets (rule 23) and forbidden ports (rule 7) are deliberately NOT
+// generated. Nothing in internal/config enforces either — a config on a nonsense
+// tag binding 5432 validates clean — so there is no behaviour for the markdown to
+// contradict, and a Go const would exist only to be copied back out to its only
+// reader. The schema doc is canonical under skills/ and symlinked in. Decided in
+// TASK-134; see shared/library/README.md.
 package main
 
 import (

@@ -28,7 +28,8 @@
 ## Service Tier (default_plan 선택 기준)
 
 `default_plan`과 각 plan에 어떤 서비스를 포함할지 결정. Tier 1만 기본 plan에 포함 권장.
-`dva config validate`가 default plan에 Tier 2+ 서비스가 포함되면 경고한다.
+Tier는 생성 시점의 판단 기준일 뿐 DVA가 검사하지 않는다 — default plan에 Tier 4 서비스를
+넣어도 `dva validate`는 통과한다(2026-08-03 측정). 그래서 이 선택은 여기서 옳아야 한다.
 
 | Tier | Classification | Tags | Examples | 기본 plan 포함? |
 |------|---------------|------|----------|----------------|
@@ -46,7 +47,7 @@
 
 `dva up <plan>` / `down <plan>` 용(named lifecycle, 규칙 33). **하나의 stack entry +
 plans로 운영 변형을 모델링**(dva-schema 15 — multi-stack split 금지). `plans.*.entries[].services`
-로 서비스 선택. 새/rewrite 설정에는 실행 가능한 `plans:` 섹션 필수(규칙 4).
+로 서비스 선택. 새/rewrite 설정에는 실행 가능한 `plans:` 섹션 필수(규칙 2).
 
 | Plan | Includes | Use Case |
 |------|----------|----------|

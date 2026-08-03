@@ -28,7 +28,7 @@
    <!-- AUTOGEN:version_rule:end -->
 5. **`health_checks`: `start` and/or `start_hint`** — `start` is the auto-start command (optional). `start_hint` is human-readable hint text shown by `dva status` (optional). If `start` is set, `start_hint` is only needed when it differs from the start command. Do not set both to identical values (validation warning).
 6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
-7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017.
+7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017. Pick a project-specific range instead (e.g. 11100-11199).
 8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
 9. **Reserved commands** — DVA built-in commands that MUST NOT appear as plain interaction
    keys. Hookable ones use `replace:` hooks; others must be renamed (e.g., `service-status`,
@@ -178,7 +178,7 @@
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Optional, and it declares the **minimum** DVA version the config requires of its reader — not the version of the binary that generated it. Omit it for no compatibility gate. Pinning it to the running CLI version makes every generated config refuse to load on an older DVA. Subproject `version:` is checked against the running DVA independently; it is never compared to root. Canonical source: `internal/config/version.go`.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
-5. **Port conventions** — Never use common default ports (5432, 6379, 8080, 3000, etc.) as host ports. Use project-specific port ranges (e.g., 11100-11199).
+5. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017. Pick a project-specific range instead (e.g. 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
 8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
@@ -1001,7 +1001,8 @@ dva down                 # 5. Full infrastructure teardown
 ## Service Tier (default_plan 선택 기준)
 
 `default_plan`과 각 plan에 어떤 서비스를 포함할지 결정. Tier 1만 기본 plan에 포함 권장.
-`dva config validate`가 default plan에 Tier 2+ 서비스가 포함되면 경고한다.
+Tier는 생성 시점의 판단 기준일 뿐 DVA가 검사하지 않는다 — default plan에 Tier 4 서비스를
+넣어도 `dva validate`는 통과한다(2026-08-03 측정). 그래서 이 선택은 여기서 옳아야 한다.
 
 | Tier | Classification | Tags | Examples | 기본 plan 포함? |
 |------|---------------|------|----------|----------------|
@@ -1019,7 +1020,7 @@ dva down                 # 5. Full infrastructure teardown
 
 `dva up <plan>` / `down <plan>` 용(named lifecycle, 규칙 33). **하나의 stack entry +
 plans로 운영 변형을 모델링**(dva-schema 15 — multi-stack split 금지). `plans.*.entries[].services`
-로 서비스 선택. 새/rewrite 설정에는 실행 가능한 `plans:` 섹션 필수(규칙 4).
+로 서비스 선택. 새/rewrite 설정에는 실행 가능한 `plans:` 섹션 필수(규칙 2).
 
 | Plan | Includes | Use Case |
 |------|----------|----------|

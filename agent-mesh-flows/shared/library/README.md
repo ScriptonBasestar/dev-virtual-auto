@@ -26,11 +26,32 @@ Each block is bounded by `<!-- AUTOGEN:NAME:start -->` … `<!-- AUTOGEN:NAME:en
 Edit the Go source, then `make generate`. The generator refuses to run if a marker is
 missing, so a stale checkout fails loudly instead of silently dropping facts.
 
-## Facts still authored here (Phase 2 migration candidates)
+## Facts authored here on purpose
 
-Naming presets (rule 23) and forbidden ports (rule 7) have **no Go source of truth** yet —
-they are hand-maintained here. `dva-schema.md` moved to
-`skills/config/references/schema-reference.md` (Phase 2-B; symlinked here).
+Naming presets (rule 23) and forbidden ports (rule 7) are hand-authored, and stay that
+way. Generation exists to stop markdown contradicting **behaviour**: `IsReservedCommand`
+really does reject an interaction key and `CanonicalSectionOrder` really does order the
+file, so a hand-copied list can be wrong about what DVA does. These two rules have no
+behaviour to be wrong about. Measured 2026-08-03: a config binding 5432, 6379, 8080 and
+9092 as host ports, tagged `nonsense-tag`, on plan `wildly-nonstandard-plan-name` in
+environment `banana`, passes `dva validate` — exit 0, the only warning is about
+`stack.*.order` — and `dva doctor` never says "port". A Go const for either would put the
+source of truth downstream of its only reader, and `make check-generate` would be diffing
+markdown against a Go copy of that same markdown.
+
+They become generation candidates the day the validator enforces them, which is a product
+decision rather than cleanup: projects bind 5432 on the host deliberately, and rule 23
+itself says plan names should follow the project's own vocabulary.
+
+What these two *do* need is one copy each. Rule 7 was stated twice with different port
+lists — 12 ports here, 4 plus "etc." in `dva-schema.md` — and both shipped in the same
+`library_reference.txt`, so a flow read both and got two answers. They now carry the same
+sentence, and `TestPortConventionRuleStatedOnce` (`internal/config/library_corpus_test.go`)
+fails if they diverge again. That is a consistency check, not a source of truth: it names
+no ports itself, it only requires every statement of the rule to match the others.
+
+`dva-schema.md` is a third case: it has a canonical home under `skills/` already
+(`skills/config/references/schema-reference.md`) and is symlinked here.
 
 ## Relationship to skills/
 
