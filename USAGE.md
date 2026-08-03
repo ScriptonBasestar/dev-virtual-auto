@@ -750,6 +750,62 @@ interaction:
 안에서 `dva`를 다시 호출해도 재귀 가드가 걸려 안쪽 호출은 훅 없이 내장 커맨드만
 실행합니다.
 
+### interaction.subcommands (`default_args` 상속)
+
+`subcommands:`의 자식은 부모의 필드를 물려받습니다. 대부분은 "자식이 선언하면 자식 값,
+아니면 부모 값"이라는 단순한 규칙이지만 **`default_args`만 다릅니다** — 자식이 아무것도
+선언하지 않아도 버려질 수 있습니다.
+
+`default_args`는 *그것이 쓰여진 커맨드에 속한 인자*이기 때문입니다. 자식이 실행할 것을
+다시 선언하면 부모의 인자는 그 커맨드가 요구한 적 없는 인자가 됩니다.
+
+| 자식이 선언한 것 | `default_args` 결과 |
+| --- | --- |
+| `default_args:` | **자식 값**이 이깁니다 (부모 값은 버려짐) |
+| `command:` (스칼라 또는 리스트) | **비워집니다** — 인자 없이 시작 |
+| `script:` / `script_file:` / `steps:` | **비워집니다** — 위와 같은 이유 |
+| 아무것도 없음 (`description:`만 있는 컨테이너) | **부모 값을 물려받습니다** (커맨드도 함께) |
+
+마지막 줄이 그룹 하나가 인자 목록 하나를 공유하게 해 주는 규칙입니다.
+
+```yaml
+interaction:
+  rails:
+    command: "bundle exec rails"
+    default_args: "-e development"
+    subcommands:
+      db:                              # 컨테이너 → `bundle exec rails -e development`
+        subcommands:
+          migrate:
+            command: "db:migrate"      # 재선언 → `db:migrate` (인자 없음)
+      console:
+        command: "console"             # 재선언 → `console` (인자 없음)
+      test:
+        default_args: "-e test"        # 자식 값 → `bundle exec rails -e test`
+      lint:
+        script: "bundle exec rubocop"  # 재선언 → 인자 없음
+```
+
+확인은 `dva run <name> --explain`으로 합니다. `--json`을 붙이면 `arguments` 키에 같은
+값이 실립니다. 이 키는 *실제로 전달될 인자*이며, 명령줄에 직접 쓴 인자가 아닙니다.
+
+명령줄 인자를 직접 주면 `default_args`는 **덧붙지 않고 통째로 대체됩니다** —
+`dva run rails test smoke`는 `bundle exec rails smoke`이지
+`bundle exec rails -e test smoke`가 아닙니다.
+
+단, `-`로 시작하는 인자는 `dva run` 자신의 플래그로 먼저 해석됩니다. `dva run rails test -p
+4000`의 `-p`는 `--publish`로 먹히고 커맨드에는 아무것도 전달되지 않습니다 (`default_args`가
+그대로 남습니다). 플래그처럼 생긴 인자를 넘길 때는 `--`로 끊습니다 —
+`dva run rails test -- -p 4000`.
+
+`default_args`를 실제로 소비하는 것은 단일 `command:` 실행 경로뿐입니다. `script:`,
+`script_file:`, `steps:`로 실행되는 커맨드는 인자를 받지 않습니다 — 위 표에서 이들이
+상속에서 제외되는 이유이기도 합니다.
+
+> 여기서 말하는 상속은 **한 설정 파일 안에서 부모 노드 → 자식 노드** 방향입니다.
+> 설정 레이어 사이(base ← modules ← subprojects)의 병합은 다른 축이며
+> [docs/30-config-merge-semantics.md](docs/30-config-merge-semantics.md)가 다룹니다.
+
 ### subprojects
 
 모노레포에서 서브프로젝트별 dva.yml을 참조합니다.

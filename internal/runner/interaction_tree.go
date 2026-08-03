@@ -302,11 +302,23 @@ func mergeInteraction(parent, child *config.InteractionCommand) *config.Interact
 	//
 	// A pure container child — description: only, like `rails db` — still inherits both the
 	// command and its arguments, which is what lets a group share one argument list. Only
-	// redeclaring the command starts the arguments clean. TASK-101.
+	// redeclaring what runs starts the arguments clean. TASK-101.
+	//
+	// script:, script_file: and steps: are redeclarations too, and TASK-149 added them here.
+	// The blocks just above assign them onto merged, so such a child does not run the parent's
+	// command — but it kept the parent's arguments, and `--explain --json` reports arguments
+	// through commandArgs unconditionally. A `script:` child of `rails` therefore published
+	// "arguments": ["-e","development"] for an execution that consumes no arguments at all.
+	// Runtime is unaffected on the local and compose paths, where Execute returns at the
+	// steps/script branches before commandArgs is reached; this closes the reporting gap and
+	// keeps one rule instead of a command-shaped exception. See TASK-174 for the sibling
+	// defect this does *not* fix: merged.Command still carries the parent's command, so the
+	// same plan names a command the child will not run.
 	switch {
 	case child.DefaultArgs != "":
 		merged.DefaultArgs = child.DefaultArgs
-	case child.Command != "" || len(child.CommandLines) > 0:
+	case child.Command != "" || len(child.CommandLines) > 0,
+		child.Script != "" || child.ScriptFile != "" || len(child.Steps) > 0:
 		merged.DefaultArgs = ""
 	}
 	if child.Shell != nil {

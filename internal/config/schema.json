@@ -406,7 +406,7 @@
         },
         "default_args": {
           "type": "string",
-          "description": "Default arguments, used when the invocation supplies none. Inherited by a subcommand only while that subcommand does not declare a command of its own: a child's command replaces the parent's rather than extending it, so its arguments start empty. A container subcommand that declares only a description still inherits both.",
+          "description": "Default arguments, used when the invocation supplies none. Inherited by a subcommand only while that subcommand does not redeclare what it runs — command, script, script_file or steps: a child's declaration replaces the parent's rather than extending it, so its arguments start empty. A container subcommand that declares only a description still inherits both. See USAGE.md, interaction.subcommands.",
           "examples": ["server -p 3000 -b 0.0.0.0"]
         },
         "environment": {

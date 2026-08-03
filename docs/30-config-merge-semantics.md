@@ -232,6 +232,10 @@ site는 특정 stack entry의 runner 선택이나 일부 실행 설정을 overri
 주의:
 
 - interaction runner는 실행 backend 정체성과 밀접하므로, 필요하면 restricted field로 유지하는 것이 안전함
+- 위 `subcommands` 행은 **레이어 사이** 병합만 다룹니다. 한 파일 안에서 부모 노드가
+  자식 노드에게 물려주는 규칙은 다른 축이고, `default_args`는 그 축에서 자식이 실행 대상을
+  재선언하면 상속되지 않습니다 — [USAGE.md](../USAGE.md)의
+  `interaction.subcommands (default_args 상속)` 참조
 
 ### 5-7. `subprojects.<name>`
 
