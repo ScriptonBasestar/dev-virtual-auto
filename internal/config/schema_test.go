@@ -563,9 +563,8 @@ func missingFromStruct(schemaProps map[string]bool) []string {
 // modeConfigYamlKeys returns ModeConfig's yaml-tagged field names — the Go-side contract.
 func modeConfigYamlKeys() map[string]bool {
 	want := map[string]bool{}
-	typ := reflect.TypeFor[ModeConfig]()
-	for i := range typ.NumField() {
-		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("yaml"), ",")
+	for field := range reflect.TypeFor[ModeConfig]().Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
 		if name == "" || name == "-" {
 			continue
 		}

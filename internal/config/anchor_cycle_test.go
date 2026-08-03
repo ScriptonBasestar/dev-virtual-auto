@@ -270,3 +270,70 @@ func writeConfigFile(t *testing.T, content string) string {
 	}
 	return path
 }
+
+// TestMergeKeyInheritsCommand covers TASK-162. InteractionCommand.UnmarshalYAML recovered the
+// polymorphic `command:` by hand-scanning the mapping node for the literal key "command". A merge
+// key (`<<: *base`) is not a literal key, so a command inherited through a merge was dropped while
+// every other field (description, service, …) merged normally — the run then exited 0 having done
+// nothing. Moving command onto the Decode path (a custom type with its own UnmarshalYAML) makes it
+// honour `<<:` like its neighbours.
+func TestMergeKeyInheritsCommand(t *testing.T) {
+	dir := t.TempDir()
+	content := `version: "0.1.44"
+interaction:
+  base-scalar: &base-scalar
+    command: echo hello
+    description: from-base
+  via-merge-scalar:
+    <<: *base-scalar
+  base-list: &base-list
+    command: ["echo one", "echo two"]
+    description: list-base
+  via-merge-list:
+    <<: *base-list
+  override-after:
+    <<: *base-scalar
+    command: echo local
+  override-before:
+    command: echo local
+    <<: *base-scalar
+`
+	path := filepath.Join(dir, FileName)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	// Scalar form: command inherited through <<: must populate Command.
+	scalar := cfg.Interaction["via-merge-scalar"]
+	if scalar.Command != "echo hello" {
+		t.Errorf("via-merge-scalar.Command = %q, want \"echo hello\" (the merge key dropped it)", scalar.Command)
+	}
+	if scalar.Description != "from-base" {
+		t.Errorf("via-merge-scalar.Description = %q, want \"from-base\" (control: the merge itself worked)", scalar.Description)
+	}
+
+	// Sequence form: command inherited as a list must populate CommandLines too, not just Command.
+	list := cfg.Interaction["via-merge-list"]
+	if !list.HasMultiCommand() || len(list.CommandLines) != 2 {
+		t.Errorf("via-merge-list.CommandLines = %v, want 2 lines inherited through the merge", list.CommandLines)
+	}
+	if list.Command != "echo one" {
+		t.Errorf("via-merge-list.Command = %q, want first line \"echo one\"", list.Command)
+	}
+
+	// A local command overrides an inherited one, regardless of key order: merge key before the
+	// local key, and local key before the merge key. YAML 1.1 makes an explicit key win over a
+	// merge either way, and Decode honours that.
+	override := cfg.Interaction["override-after"]
+	if override.Command != "echo local" {
+		t.Errorf("override-after.Command = %q, want \"echo local\" (local must win over the merge)", override.Command)
+	}
+	overrideBefore := cfg.Interaction["override-before"]
+	if overrideBefore.Command != "echo local" {
+		t.Errorf("override-before.Command = %q, want \"echo local\" (local must win regardless of order)", overrideBefore.Command)
+	}
+}

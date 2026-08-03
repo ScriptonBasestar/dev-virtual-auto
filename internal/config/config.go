@@ -377,16 +377,51 @@ func (c *InteractionCommand) EffectiveCommand() string {
 	return c.Command
 }
 
-// UnmarshalYAML implements custom unmarshaling for InteractionCommand.
-// Handles the polymorphic `command` field (string or []string).
-// All other fields are decoded normally via a plain type alias.
+// polymorphicCommand holds the polymorphic `command:` field — a scalar string or a sequence of
+// strings — and is decoded by yaml.Decode rather than a hand-written node scan. Riding on Decode
+// is what makes `command` honour merge keys (`<<:`) like every other InteractionCommand field
+// (TASK-162).
+type polymorphicCommand struct {
+	scalar string
+	lines  []string
+}
+
+// UnmarshalYAML accepts a scalar string or a sequence of strings, exposing both the single
+// display form (scalar) and the list form (sequence).
+func (p *polymorphicCommand) UnmarshalYAML(value *yaml.Node) error {
+	switch value.Kind {
+	case yaml.ScalarNode:
+		p.scalar = strings.TrimSpace(value.Value)
+	case yaml.SequenceNode:
+		var lines []string
+		if err := value.Decode(&lines); err != nil {
+			return fmt.Errorf("command: expected string or list of strings: %w", err)
+		}
+		for i, l := range lines {
+			lines[i] = strings.TrimSpace(l)
+		}
+		p.lines = lines
+		if len(lines) > 0 {
+			p.scalar = lines[0] // first line for display/backward-compat
+		}
+	default:
+		return fmt.Errorf("command: unsupported YAML type (expected string or sequence)")
+	}
+	return nil
+}
+
+// UnmarshalYAML implements custom unmarshaling for InteractionCommand. Every field is decoded
+// normally via a plain type alias; the polymorphic `command` field goes through polymorphicCommand
+// so it stays on the Decode path and honours merge keys like its neighbours (TASK-162).
 func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("interaction command: expected mapping node")
 	}
 
-	// Decode all non-command fields using the tag-based alias.
-	// We use a plain alias that has no UnmarshalYAML to avoid recursion.
+	// Decode all fields using the tag-based alias. `command` is polymorphic (scalar or sequence),
+	// so it goes through polymorphicCommand rather than a bare string — that keeps it on the Decode
+	// path, which is what makes it honour merge keys like its neighbours (TASK-162). The alias has
+	// no UnmarshalYAML of its own to avoid recursion.
 	type plain struct {
 		Description string                         `yaml:"description"`
 		Service     string                         `yaml:"service"`
@@ -408,6 +443,7 @@ func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
 		Before      []ProvisionItem                `yaml:"before"`
 		Replace     []ProvisionItem                `yaml:"replace"`
 		After       []ProvisionItem                `yaml:"after"`
+		Command     polymorphicCommand             `yaml:"command"`
 	}
 	var p plain
 	if err := node.Decode(&p); err != nil {
@@ -433,33 +469,8 @@ func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
 	c.Before = p.Before
 	c.Replace = p.Replace
 	c.After = p.After
-
-	// Manually find and parse the `command` key for polymorphism.
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		if node.Content[i].Value != "command" {
-			continue
-		}
-		valNode := node.Content[i+1]
-		switch valNode.Kind {
-		case yaml.ScalarNode:
-			c.Command = strings.TrimSpace(valNode.Value)
-		case yaml.SequenceNode:
-			var lines []string
-			if err := valNode.Decode(&lines); err != nil {
-				return fmt.Errorf("command: expected string or list of strings: %w", err)
-			}
-			for j, l := range lines {
-				lines[j] = strings.TrimSpace(l)
-			}
-			c.CommandLines = lines
-			if len(lines) > 0 {
-				c.Command = lines[0] // first line for display/backward-compat
-			}
-		default:
-			return fmt.Errorf("command: unsupported YAML type (expected string or sequence)")
-		}
-		break
-	}
+	c.Command = p.Command.scalar
+	c.CommandLines = p.Command.lines
 	return nil
 }
 

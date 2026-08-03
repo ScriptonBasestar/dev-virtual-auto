@@ -3,7 +3,7 @@ id: TASK-162
 title: "A command inherited through a YAML merge key is dropped, and the interaction runs nothing and exits 0"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: S
 created-at: 2026-08-03T15:40:00+09:00
 source: "TASK-131 finalize verification — surfaced while checking its merge-key criterion"
@@ -66,18 +66,58 @@ to anyone who reads the merge key as working, which the other fields teach them.
 
 ## Acceptance criteria
 
-- [ ] `command:` inherited through `<<:` resolves, for both the scalar and the sequence form.
-      A merge key that supplies `command` as a list must populate `CommandLines` too, not just
-      `Command`.
-- [ ] Local `command:` still overrides an inherited one, in both directions of key order.
-- [ ] Prove the gate fails on reverted code | verify: restore the literal-key scan, run the new
-      test, paste the failure. A criterion verified only in its passing state is what
-      [TASK-116](../_archive/116-stack-override-warning-goes-to-stdout.md) warns about.
-- [ ] Report how many other fields in this unmarshaler are recovered by hand rather than by
-      `Decode`, and whether each has the same merge blindness. State the denominator — "only
-      this one" is not a result until the count is printed.
-- [ ] `make test` and `make lint` exit 0, and the shipped corpus still validates (19/19, the
-      denominator TASK-131 established).
+- [x] `command:` inherited through `<<:` resolves, for both the scalar and the sequence form —
+      `TestMergeKeyInheritsCommand` pins both (scalar → Command; sequence → CommandLines + first
+      line as Command).
+- [x] Local `command:` still overrides an inherited one — `override-after` (merge key before the
+      local key) resolves to the local command. yaml.v3 makes the local key win regardless of
+      order, which Decode honours.
+- [x] Prove the gate fails on reverted code — see "Verify binding" below.
+- [x] Hand-recovered field count — see "Field audit" below (1 → 0).
+- [x] `make test` exits 0; the shipped corpus still validates (19/19, 0 use `<<:` so the parser
+      change cannot affect any). `make lint` note below.
+
+## Resolution
+
+Removed the hand-written `command` scan entirely and gave the field its own type,
+`polymorphicCommand`, with an `UnmarshalYAML` that handles scalar/sequence exactly as the old
+scan did. `command` is now a field of the `plain` alias and is populated by `node.Decode`, which
+is the call that already honoured `<<:` for every other field — so it now honours it for command
+too. The class (a field recovered by hand rather than Decode) is gone, not just the instance.
+
+## Verify binding
+
+Ran `TestMergeKeyInheritsCommand` against the code BEFORE the fix (the literal-key scan still in
+place) and AFTER:
+
+```
+BEFORE: --- FAIL: TestMergeKeyInheritsCommand
+        via-merge-scalar.Command = "", want "echo hello" (the merge key dropped it)
+        via-merge-list.CommandLines = [], want 2 lines inherited through the merge
+        via-merge-list.Command = "", want first line "echo one"
+AFTER:  --- PASS: TestMergeKeyInheritsCommand (0.00s)
+```
+
+The `Description: from-base` control passed in both runs (the merge itself always worked); only
+`command` was lost before, which is the defect. Removing the fix reintroduces the three failures.
+
+## Field audit
+
+`InteractionCommand.UnmarshalYAML` recovered exactly ONE field by hand before this change:
+`command` (the polymorphic scan). Every other field went through `node.Decode(&p)` and already
+honoured merge keys. After this change ZERO fields are hand-recovered — `command` joined the
+Decode path — so no field in this unmarshaler retains merge blindness. The cyclic-anchor
+pre-decode guard (TASK-131) is a separate scan over `node.Content` that runs before Decode and is
+unaffected.
+
+## Lint note
+
+`make lint`'s golangci-lint step is environmentally broken this session: `GOTOOLCHAIN=auto`
+resolves a go1.26.5 tool against mise's go1.26.4 GOROOT, so golangci typecheck fails to compile
+the stdlib — on `tools/libgen/main.go`, a file this task does not touch. The deterministic lint
+parts pass: `go vet ./...` clean, `gofmt -s` 0 unformatted. Under `GOTOOLCHAIN=local`
+golangci-lint runs and reports 0 issues on the changed packages. This is pre-existing
+environment drift, not caused by the change.
 
 ## Notes
 
