@@ -8,6 +8,18 @@ status: done
 created-at: 2026-07-31T00:00:00+09:00
 closed-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/kubectl.go — 0 references to Steps in the whole file; internal/config/validate_warnings.go:722-741 treats HasSteps() as callable regardless of runner"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  The fix itself is real and correctly built. KubectlRunner.Execute now branches on Steps
+  (internal/runner/kubectl.go:24-26) into executeSteps, which delegates to the extracted shared
+  runStepLoop (internal/runner/steps.go:20) and issues one dvaexec.ExecSubprocess per command
+  (kubectl.go:66) — never ExecReplace. All three step tables fan out over 3 runners via
+  stepRunners (step_keys_test.go:33). Measured on the real binary: `dva validate` exits 0 and
+  `dva run seed --dry-run` on the task's repro emits no bare `--`. TestNewRunnerSelection still
+  passes with 3 subtests. Probe 1 (delete the Steps branch) was re-run via `go test -overlay=`
+  and fails with the exact exit-97 message the task records, so the new test is genuinely
+  non-vacuous against the defect TASK-094 targets.
 ---
 
 # Task 094: the third runner in the same three-runner family still drops `steps:`

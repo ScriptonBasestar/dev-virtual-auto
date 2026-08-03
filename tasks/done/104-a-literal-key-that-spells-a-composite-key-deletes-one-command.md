@@ -224,7 +224,7 @@ The two halves fail independently. `TestCollisionsAreReported` fails under both 
 
 - **`-run 'Collision'` does not select `TestTheLoserIsTheOneMissingFromTheMap`.** The first probe run
   used that selector and silently skipped two of the tests it was supposed to exercise — the same
-  vacuous-selector trap recorded in [TASK-096](096-manifest-static-commands-undercounts.md). Both
+  vacuous-selector trap recorded in [TASK-096](../_archive/096-manifest-static-commands-undercounts.md). Both
   probes were re-run against the full packages.
 - **The test's own failure message lost the boundary it was testing.** `t.Errorf("winner = %v")` on a
   path prints both `["a","b","c"]` and `["a","b c"]` as `[a b c]`, so probe A's failure read
@@ -250,5 +250,5 @@ The two halves fail independently. `TestCollisionsAreReported` fails under both 
   structure option B would key on. After 097 whichever entry survives gets a correct
   `usage_example` — `dva 'rails console'` reaches the literal, `dva rails console` reaches the
   subcommand — so the two are coherent; only the disappearance remains.
-- [TASK-095](095-third-level-subcommands-never-expand.md) — the other defect in this flat
+- [TASK-095](../_archive/095-third-level-subcommands-never-expand.md) — the other defect in this flat
   key space.

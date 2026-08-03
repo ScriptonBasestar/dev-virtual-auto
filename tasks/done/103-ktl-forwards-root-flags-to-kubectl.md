@@ -14,7 +14,7 @@ scope: "internal/cli/kubectl.go:34,66 — ktlCmd appends raw args to kubectl's a
 
 ## Problem
 
-The fourth instance of the defect [TASK-092](092-stack-log-forwards-root-flags-to-docker.md)
+The fourth instance of the defect [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md)
 fixed for docker. `ktlCmd` sets `DisableFlagParsing: true` (`kubectl.go:19`) and its only
 argument guard is `helpRequested(args)` (`kubectl.go:21`). It never calls `parseDvaFlags` nor
 the `consumeRootPersistentFlags` helper TASK-092 added, so DVA's own root flags travel into
@@ -60,7 +60,7 @@ through `execComposePassthrough`, which honours the package-global `forceSubproc
 be driven from a test that survives to assert. `ktl` calls `ExecReplace` directly, so a
 naive test would `syscall.Exec` kubectl **over the test binary** — kubectl's exit status
 becomes the test's, and the assertions never run while `go test` prints `ok`. That is the
-exact false-pass that cost [TASK-094](094-kubectl-runner-discards-steps.md) two
+exact false-pass that cost [TASK-094](../_archive/094-kubectl-runner-discards-steps.md) two
 probes.
 
 ## Proposed fix
@@ -88,7 +88,7 @@ a real kubectl is at `/opt/homebrew/bin/kubectl` on this machine and must not be
 ## Resolution
 
 One line in `internal/cli/kubectl.go` — `args = consumeRootPersistentFlags(args)` after
-`loadEnv`, reusing the helper [TASK-092](092-stack-log-forwards-root-flags-to-docker.md) added.
+`loadEnv`, reusing the helper [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md) added.
 Test: `internal/cli/ktl_flag_passthrough_test.go`.
 
 ### Measured, on a kubectl shim
@@ -152,9 +152,9 @@ The child rebuilds `PATH` as `shim:/bin:/usr/bin` and `t.Fatal`s unless
 
 ## Related
 
-- [TASK-092](092-stack-log-forwards-root-flags-to-docker.md) — same defect, docker side;
+- [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md) — same defect, docker side;
   contributes the `consumeRootPersistentFlags` helper this task reuses
-- [TASK-094](094-kubectl-runner-discards-steps.md) — source of the child-process test
+- [TASK-094](../_archive/094-kubectl-runner-discards-steps.md) — source of the child-process test
   pattern, and of the `syscall.Exec`-in-a-test false-pass this task must avoid
 - [TASK-102](102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
   (`kubectl.go:46`, `KubectlEntries`) is also blind to the `runners:` form; independent defect

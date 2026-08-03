@@ -7,6 +7,19 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/compose.go execCompose → ExecReplace; internal/runner/docker_compose.go executeSteps loop. Contrast internal/runner/local.go:44,50,88 which already distinguishes the two cases"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  Fix is real and end-to-end verified on ./bin/dva against fixtures under the scratchpad.
+  compose.go now splits composeArgv (shared argv) from execCompose (ExecReplace, single
+  command, called only at docker_compose.go:39) and execComposeStep (ExecSubprocess, called
+  from the steps loop at docker_compose.go:74). `dva run composesteps` prints both labels and
+  both markers; `composetwo` runs both commands; the `false`-backed failfast fixture exits 1,
+  names the step and the exact command, and never starts step two. All four compose rows now
+  match their local controls. TestComposeStepsRunToCompletion (compose_steps_test.go:41) passes
+  with 3 subtests, and its non-vacuity was re-proven independently: in a scratchpad copy of HEAD
+  with ExecReplace restored, 2 of 3 subtests fail. Task-file line references (docker_compose.go:55,
+  :101) have drifted to :39 and :74 through TASK-129/132; the symbols are intact.
 ---
 
 # Task 091: `steps:` on the compose path runs step one and stops

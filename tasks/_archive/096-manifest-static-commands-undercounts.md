@@ -7,6 +7,14 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/manifest.go:103-124 — StaticCommands, a hand-maintained literal; internal/config/reserved.go:12-20 — the 27-entry list it should agree with"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  Re-measured today, not taken from the task text. `dva manifest --format json | jq '.static_commands|length'` = 27, matching the 27-entry reservedCommands literal (internal/config/reserved.go:13-21) and USAGE.md:674 ("예약어 27개", all 27 listed). Set comparison of the 27 live manifest keys against reserved.go: 0 differences either direction. All 27 entries carry a non-empty description and a known type (0 blanks measured on live JSON output).
+  Non-vacuity re-probed with `go test -overlay=` so the repo was never modified (git status clean after each run). Deleting the `doctor` entry -> 3 tests fail, each naming it. Adding a `teleport` command to rootCmd with the manifest untouched -> `1 command(s) registered on rootCmd with no static_commands entry: teleport`. Both reproduce the task's recorded probe results.
+  Criterion 4 confirmed structurally: `git show 39d331e --numstat -- internal/cli/manifest.go` is `32 0` — purely additive, so the original 13 descriptions were byte-identical at the time. TASK-105 (done, commit 48c55f0) later replaced them with a derivation from cobra `Short` by design.
+  Criterion 3's `verify:` string `-run Manifest` selects 12 real tests but not the drift tests (they are `TestStaticCommands…`); `-run 'StaticCommand'` is the correct selector and runs 5 real tests. The task file already discloses this at lines 73-76, and the general class is tracked by TASK-136 (todo).
+  The task's "Left open" items are closed by TASK-105 (done): options are now populated for 13 of 27 commands, up from 1, and TestStaticCommandOptionsCoverEveryRegisteredFlag / TestHandParsedOptionsAreDocumented pin them.
 ---
 
 # Task 096: the machine-readable command list is a hand-copied subset
@@ -166,7 +174,7 @@ The package was run with `-shuffle=on` three times, because `rootCommandNames` m
 
 - [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
   audience getting a worse answer than the human one.
-- [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
+- [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
   defect; both surface through `dva manifest`, which is documented as the agent-facing entry point.
 - [TASK-105](../done/105-static-command-metadata-is-thinner-than-help.md) — the contents half of this
   defect, split out because criterion 4 pinned the 13 descriptions.

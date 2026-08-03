@@ -136,6 +136,6 @@ process environment to begin with, and if `EnvSlice` returns zero entries. Witho
 
 ## Related
 
-- [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — the audit of every
+- [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — the audit of every
   `ExecReplace` call site that turned this up. All 7 sites are otherwise correct: none is in a
   loop, none has stranded code after the call.

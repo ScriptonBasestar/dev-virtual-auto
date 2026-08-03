@@ -8,6 +8,24 @@ status: done
 created-at: 2026-07-31T08:10:00+09:00
 closed-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/stack.go:261-284 — stackLogCmd never calls parseDvaFlags before the passthrough"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  All three leaking call sites exist and are exercised: stack.go:320, compose.go:43 (composeCmd),
+  compose.go:604 (logsCmd), each calling consumeRootPersistentFlags (root.go:276), which applies
+  and strips only --debug/--json and leaves --dry-run/--mode/--env untouched.
+  Live binary against a docker shim on PATH:
+    dva --debug stack log infra --tail=5 --since=1h -> `compose -f … logs --tail=5 --since=1h`
+    dva --debug --json compose logs --tail=5        -> `compose -f … logs --tail=5`
+    dva --debug logs --tail=5                       -> `compose -f … logs --tail=5`
+    dva stack log infra --dry-run                   -> `compose -f … logs --dry-run`
+  All three pre-fix leaks from the task's evidence table are gone; --debug still turned debug
+  logging on in each case, so it is consumed, not merely deleted.
+  go test ./internal/cli/ -run TestStackLog: 8 subtests PASS (pattern matches real tests).
+  The "Left open" ktl site is closed: kubectl.go:32 uses the same helper and
+  TestKtlDoesNotForwardRootFlags (5 subtests) passes; tasks/done/103-… is done.
+  Audit claim of 17 DisableFlagParsing commands checks out: 18 occurrences in internal/cli/*.go,
+  one of which is in hooks_test.go.
 ---
 
 # Task 092: root flags travel into the plugin command
@@ -126,7 +144,7 @@ printed its `[debug] compose:` trace *while* leaking the flag.
 - **A fourth site: `dva ktl`** (`internal/cli/kubectl.go:34,66`) appends raw `args` straight into
   `kubectl`'s argv via `ExecReplace`, so `dva --debug ktl get pods` sends `--debug` to kubectl.
   Same defect class, found by an audit of all 17 `DisableFlagParsing` commands commissioned
-  while closing this task. Filed as [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md)
+  while closing this task. Filed as [TASK-103](../done/103-ktl-forwards-root-flags-to-kubectl.md)
   rather than folded in here: it exec's kubectl rather than docker and has no `forceSubprocess`
   seam, so it needs child-process test machinery of its own.
 - The audit cleared the other 13: 11 strip via `parseDvaFlags`, and `dva infra up`/`infra down`
@@ -138,4 +156,4 @@ printed its `[debug] compose:` trace *while* leaking the flag.
 - [TASK-087](../_archive/087-unrecognized-stack-args-become-entry-names.md) — found while tracing
   `stack log`'s passthrough to decide whether it should reject unknown flags. It must not;
   that is what makes this leak visible.
-- [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md) — the fourth site, split out.
+- [TASK-103](../done/103-ktl-forwards-root-flags-to-kubectl.md) — the fourth site, split out.

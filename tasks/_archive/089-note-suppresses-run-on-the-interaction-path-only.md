@@ -152,7 +152,7 @@ can run — the loop cannot reach a second iteration. Not touched here because i
 defect with a different fix, and this task's scope was the `note:` branch.
 
 Since confirmed on the binary and filed as
-[TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — it is worse than the
+[TASK-091](091-compose-steps-stop-after-the-first-command.md) — it is worse than the
 reading suggested: the truncation spans *steps* as well as commands, so a two-step compose
 interaction runs step one and exits 0 without ever printing step two's label.
 

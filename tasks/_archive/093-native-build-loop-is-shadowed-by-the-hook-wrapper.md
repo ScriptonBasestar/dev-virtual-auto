@@ -7,6 +7,22 @@ effort: M
 status: done
 created-at: 2026-07-31T08:15:00+09:00
 scope: "internal/cli/compose.go:457-481 (buildCmd native branch) vs internal/cli/hooks.go:63-64,91-170 (runHookSteps replace phase)"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  All five criteria verified against the live repo at 40edd6f; working tree clean, nothing modified.
+  compose.go's second implementation is gone — compose.go:521-522 delegates to runHookSteps, the
+  wrapper's executor (hooks.go:103-191). grep -c 'RunCommands()': compose.go 0, hooks.go 1.
+  Runtime check on a scratchpad fixture with the real binary: `dva build --mode nativemode` and
+  `DVA_HOOK_DEPTH=1 dva build --mode nativemode` produce byte-identical stderr (243B, diff empty)
+  and identical stdout (18B); BUILD-CONTROL-RAN count 2 on both; the note lands on stderr only.
+  The dry-run defect the task uncovered is fixed on both paths: 2 `[dry-run]` lines each and the
+  `touch SIDE-EFFECT-HAPPENED` marker absent after both runs.
+  Tests: TestNativeBuildLoopPrintsNote, TestNativeBuildDelegatesToTheHookExecutor (3 subtests),
+  TestNativeBuildHonoursDryRunWhenNested (2 subtests) — all PASS.
+  Criterion 4's `-run 'TestNativeBuildLoopPrintsNote|TestHook'` binding: the `TestHook` alternative
+  matches zero tests, so half the pattern is vacuous; the binding still exercises a real test. That
+  class of defect is already tracked by TASK-136.
 ---
 
 # Task 093: two implementations, one trigger, and the wrapper always wins

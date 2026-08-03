@@ -37,7 +37,7 @@ hand.
 ## Why it matters here specifically
 
 The stated audience for these documents includes LLM agents, and the same reasoning that made
-[TASK-096](../done/096-manifest-static-commands-undercounts.md) a defect applies: an agent that
+[TASK-096](../_archive/096-manifest-static-commands-undercounts.md) a defect applies: an agent that
 reads a truncated or partially-attended document concludes the missing part does not exist. A
 730-line reference read under a budget is a document whose tail is unreliable — and the tail of
 USAGE.md is where the reserved-name rules, the hook table, and the plan `vars` precedence live.
@@ -103,5 +103,5 @@ Nothing else from this file was worth moving.
   owner of this question. Decide there.
 - [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) — measured this while closing it;
   the contradiction 099 fixed is the kind of thing document length produces.
-- [TASK-096](../done/096-manifest-static-commands-undercounts.md) — the same audience argument, applied
+- [TASK-096](../_archive/096-manifest-static-commands-undercounts.md) — the same audience argument, applied
   to the command manifest instead of the manual.

@@ -172,7 +172,7 @@ this one. Filed as [TASK-119](../done/119-doctor-compose-check-ignores-the-confi
 
 ## Related
 
-- [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — the compose execution path
+- [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — the compose execution path
   audit that made these builders worth reading in the first place.
 - [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md) — the fifth copy,
   in `dva doctor`.

@@ -267,9 +267,9 @@ run failed at `unknown command`. The numbers above are from argv arrays.
 
 ## Related
 
-- [TASK-092](../done/092-stack-log-forwards-root-flags-to-docker.md) — the other end of the same
+- [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md) — the other end of the same
   problem: flags DVA should have consumed reaching docker. Here they reach nothing at all.
-- [TASK-091](../done/091-compose-steps-stop-after-the-first-command.md) — also `exit 0` while doing
+- [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — also `exit 0` while doing
   less than asked; the recurring failure shape in this codebase is silence, not crashes.
 - [TASK-117](./117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
   same code path but a distinct defect: `StartApps` prints `[FAIL]` for a readiness failure and still

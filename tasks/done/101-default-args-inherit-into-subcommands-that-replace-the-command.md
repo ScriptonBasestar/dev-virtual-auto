@@ -207,6 +207,6 @@ by all three runners.
 
 ## Related
 
-- [TASK-095](095-third-level-subcommands-never-expand.md) — found while verifying that
+- [TASK-095](../_archive/095-third-level-subcommands-never-expand.md) — found while verifying that
   fix; it is what made depth-3 subcommands reach this code, and it left the characterization test
   behind.

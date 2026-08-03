@@ -7,6 +7,24 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/interaction_tree.go — mergeInteraction (~:165-245) never copies child.Subcommands; expandInto (~:93-99) recurses on the merged value"
+verified-at: 2026-08-03T13:20:00+09:00
+archived-at: 2026-08-03T13:20:00+09:00
+verification-summary: |
+  Fix is present and load-bearing: internal/runner/interaction_tree.go:262 assigns the CHILD's
+  Subcommands map, with the comment at :255-261 recording why it cannot be in the struct literal.
+  Live binary on examples/full-stack.yml lists 5 rails* rows (was 3) and resolves
+  `dva run rails db migrate --explain` to `Command: db:migrate` with argv empty, service `web`
+  and RAILS_LOG_TO_STDOUT inherited across two merge levels.
+  Depth is unbounded, not merely deeper: a scratch depth-4 fixture validates rc=0, lists all
+  4 keys, and runs `echo L4` — so the "explicit limit or expand" criterion resolves to expand.
+  Non-vacuity re-proved independently, not taken from the task file: HEAD sources archived to
+  scratch with line 262 deleted → 5 of 5 tests in interaction_depth_test.go fail with the exact
+  pre-fix values (3 keys, `bundle exec rails` + argv [migrate], depth-4 count 2).
+  `go test ./internal/runner/ -run Interaction`: 8 top-level / 32 with subtests, 0 failures.
+  Both "Left open" items have since closed: TASK-101 is in tasks/done/ and deliberately rewrote
+  the characterization test to TestInteractionDefaultArgsStopAtACommandOverride (documented at
+  interaction_depth_test.go:165-175), and TASK-078's gofmt drift is gone — `gofmt -l` on both
+  files is clean, task archived.
 ---
 
 # Task 095: the shipped example declares two commands that cannot be reached
@@ -123,7 +141,7 @@ expands and runs; no validate-time depth message was added because there is no d
 `default_args` inherits into a subcommand that replaces `command:` outright, so
 `dva run rails console` executes `console server -p 3000 -b 0.0.0.0`. Measured at depth 2 against
 the pre-fix binary, so it is pre-existing — this fix only lets depth 3 reach the same code. Filed
-as [TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
+as [TASK-101](../done/101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
 pinned by `TestInteractionDefaultArgsInheritIntoSubcommands` so fixing it cannot silently change
 what depth-3 commands run.
 
@@ -134,8 +152,8 @@ owned by TASK-078, so it was left alone rather than reformatted inside a behavio
 ## Related
 
 - [TASK-096](096-manifest-static-commands-undercounts.md) and
-  [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
+  [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
   same flat `parent + " " + child` key space. 097 in particular is the reason this key encoding is
   worth revisiting rather than patching three times.
-- [TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) — the
+- [TASK-101](../done/101-default-args-inherit-into-subcommands-that-replace-the-command.md) — the
   merge-semantics defect this fix surfaced but did not cause.

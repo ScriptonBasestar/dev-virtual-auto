@@ -13,7 +13,7 @@ scope: "internal/cli/manifest.go — StaticCommands: the Description field of th
 
 # Task 105: the count is right now; the contents are still second-hand
 
-[TASK-096](../done/096-manifest-static-commands-undercounts.md) closed the coverage gap — all 27
+[TASK-096](../_archive/096-manifest-static-commands-undercounts.md) closed the coverage gap — all 27
 commands appear. It deliberately did not touch what each entry *says*, because its own acceptance
 criteria required the original 13 descriptions to stay byte-identical. This is what was left.
 
@@ -169,7 +169,7 @@ what B-then-A decided.
 
 ## Related
 
-- [TASK-096](../done/096-manifest-static-commands-undercounts.md) — the parent. It fixed the key
+- [TASK-096](../_archive/096-manifest-static-commands-undercounts.md) — the parent. It fixed the key
   set and pinned the 14 it added; `TestStaticCommandDescriptionsMatchTheirShort` is deliberately
   scoped to those 14 and is the test option B would widen to 27.
 - [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
