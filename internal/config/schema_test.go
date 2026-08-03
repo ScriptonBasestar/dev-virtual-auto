@@ -1,8 +1,12 @@
 package config
 
 import (
+	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -467,6 +471,149 @@ func TestValidateWithoutVersion(t *testing.T) {
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want a version-less config to validate", err)
 	}
+}
+
+// TestValidateAcceptsModeBuildRunKeys covers TASK-138: schema.json's `modes` object rejected
+// `build` and `run` even though ModeConfig declares them and the build runner reads Build
+// (compose.go). The schema and the struct disagreed, so `dva validate` failed on a config every
+// other command ran. Asserting the parsed fields, not just Validate(), is the point — the defect
+// was the schema forbidding what the struct parses, and only a round trip catches that.
+func TestValidateAcceptsModeBuildRunKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := `version: "0.1.44"
+modes:
+  native:
+    build: native
+    run: native
+`
+	cfg := loadConfigForSchemaTest(t, tmpDir, content)
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want modes.<name>.build/.run accepted", err)
+	}
+	mode, ok := cfg.Modes["native"]
+	if !ok {
+		t.Fatalf("modes.native not parsed; got %+v", cfg.Modes)
+	}
+	if mode.Build != "native" {
+		t.Errorf("modes.native.build = %q, want \"native\"", mode.Build)
+	}
+	if mode.Run != "native" {
+		t.Errorf("modes.native.run = %q, want \"native\"", mode.Run)
+	}
+}
+
+// TestModeConfigSchemaAgreesWithStruct is the guard TASK-138 leaves behind. A field added to
+// ModeConfig but not to schema.json is invisible until someone writes a config using it and runs
+// `dva validate` — the last moment to learn the schema disagrees. This test compares the struct's
+// yaml tags against the schema's `modes` properties and fails the moment their KEY SETS diverge
+// in either direction. Scope is presence only, not type agreement — type drift is caught by the
+// round-trip test above (TestValidateAcceptsModeBuildRunKeys).
+//
+// Non-vacuous: the second half removes a key from a copy of the schema and asserts the SAME
+// comparison surfaces it — through the shared helper, not a re-implementation, so a refactor of
+// the main assertions cannot make the proof vacuous while the test still passes.
+func TestModeConfigSchemaAgreesWithStruct(t *testing.T) {
+	schemaProps := modeSchemaPropertyKeys(t)
+
+	for _, k := range missingFromSchema(schemaProps) {
+		t.Errorf("ModeConfig field %q has no matching property in schema.json modes — the schema rejects what the struct parses", k)
+	}
+	for _, k := range missingFromStruct(schemaProps) {
+		t.Errorf("schema.json modes property %q has no matching ModeConfig field — the struct silently drops it", k)
+	}
+
+	// Prove the comparison is not vacuous through the same code path the main assertions use.
+	t.Run("detects a removed schema key", func(t *testing.T) {
+		trimmed := maps.Clone(schemaProps)
+		// `environment` is always present; removing it must surface as missing-from-schema.
+		delete(trimmed, "environment")
+		missing := missingFromSchema(trimmed)
+		if !slices.Contains(missing, "environment") {
+			t.Fatalf("removing 'environment' was not detected (missing=%v) — the agreement check is vacuous", missing)
+		}
+	})
+}
+
+// missingFromSchema returns ModeConfig yaml keys absent from schemaProps; missingFromStruct the
+// reverse. Both derive ModeConfig's keys from modeConfigYamlKeys, so the agreement test and its
+// non-vacuous proof share one notion of the Go-side contract.
+func missingFromSchema(schemaProps map[string]bool) []string {
+	want := modeConfigYamlKeys()
+	var missing []string
+	for k := range want {
+		if !schemaProps[k] {
+			missing = append(missing, k)
+		}
+	}
+	return missing
+}
+
+func missingFromStruct(schemaProps map[string]bool) []string {
+	want := modeConfigYamlKeys()
+	var missing []string
+	for k := range schemaProps {
+		if !want[k] {
+			missing = append(missing, k)
+		}
+	}
+	return missing
+}
+
+// modeConfigYamlKeys returns ModeConfig's yaml-tagged field names — the Go-side contract.
+func modeConfigYamlKeys() map[string]bool {
+	want := map[string]bool{}
+	typ := reflect.TypeFor[ModeConfig]()
+	for i := range typ.NumField() {
+		name, _, _ := strings.Cut(typ.Field(i).Tag.Get("yaml"), ",")
+		if name == "" || name == "-" {
+			continue
+		}
+		want[name] = true
+	}
+	return want
+}
+
+// modeSchemaPropertyKeys reads the embedded schema.json and returns the property keys declared
+// under modes.patternProperties.<pattern>.properties.
+func modeSchemaPropertyKeys(t *testing.T) map[string]bool {
+	t.Helper()
+	raw, err := embeddedSchema.ReadFile("schema.json")
+	if err != nil {
+		t.Fatalf("read embedded schema: %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+	modes, ok := schema["properties"].(map[string]any)["modes"].(map[string]any)
+	if !ok {
+		t.Fatal("schema has no modes object")
+	}
+	patternProps, ok := modes["patternProperties"].(map[string]any)
+	if !ok {
+		t.Fatal("modes has no patternProperties")
+	}
+	// Exactly one pattern is expected; a second would otherwise be silently dropped by the loop.
+	if len(patternProps) != 1 {
+		t.Fatalf("expected exactly 1 pattern under modes.patternProperties, got %d", len(patternProps))
+	}
+	var props map[string]any
+	for _, v := range patternProps {
+		if entry, ok := v.(map[string]any); ok {
+			if p, ok := entry["properties"].(map[string]any); ok {
+				props = p
+			}
+		}
+	}
+	if props == nil {
+		t.Fatal("no properties found under modes.patternProperties")
+	}
+	keys := make(map[string]bool, len(props))
+	for k := range props {
+		keys[k] = true
+	}
+	return keys
 }
 
 func loadConfigForSchemaTest(t *testing.T, dir, content string) *Config {

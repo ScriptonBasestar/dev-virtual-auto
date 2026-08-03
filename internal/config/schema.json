@@ -1275,6 +1275,16 @@
               "description": "Provision profile to suggest when services start for the first time",
               "examples": ["setup", "reset"]
             },
+            "build": {
+              "type": "string",
+              "description": "Build strategy for this mode: \"docker\" (compose build), \"native\" (run interaction.build.replace steps; errors if undefined), or a custom shell command. Read by the build runner (compose.go).",
+              "examples": ["native", "docker", "make build"]
+            },
+            "run": {
+              "type": "string",
+              "description": "Run strategy for this mode: \"docker\" (compose up), \"native\" (process via health_checks.start), or a custom shell command.",
+              "examples": ["native", "docker"]
+            },
             "applications": {
               "description": "App execution strategy for this mode. String applies to all apps; object maps per-app.",
               "oneOf": [
