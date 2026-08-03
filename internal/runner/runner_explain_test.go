@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 // TestExplainReportsTheArgumentsThatWillBePassed pins the plan to the same source the runners
@@ -125,5 +127,86 @@ func TestExplainTextBranchReturnsNil(t *testing.T) {
 	})
 	if !strings.Contains(out, "=== Command Execution Plan ===") {
 		t.Fatalf("text plan did not print; captured %q", out)
+	}
+}
+
+// TestExplainListsStepsForStepDrivenInteraction covers TASK-146. A steps-only interaction has no
+// single Command:, and Explain used to print a blank `Command:` line and name no step — so the
+// one tool for checking what is about to happen hid the declared work. The plan must now state
+// the interaction is step-driven and list each step with what it will run, mirroring runStepLoop's
+// labels (a note renders as `  → label: note`, the same line the executing path prints).
+//
+// Fails on the reverted code: it printed `Command: \n` (blank) and no Steps section. Explain never
+// reaches ExecReplace, so the in-process hazard TASK-144 guards does not apply here.
+func TestExplainListsStepsForStepDrivenInteraction(t *testing.T) {
+	cmd := ResolvedCommand{
+		Steps: []config.ProvisionItem{
+			{Step: "build assets", Run: "pnpm build"},
+			{Step: "migrate db", Note: "safe to re-run", Run: "bin/migrate"},
+		},
+	}
+
+	out := captureStdout(t, func() {
+		if err := Explain(&cmd, false); err != nil {
+			t.Fatalf("Explain: %v", err)
+		}
+	})
+
+	// The plan must not print a blank Command: line for a steps-only interaction.
+	if strings.Contains(out, "Command: \n") {
+		t.Errorf("plan printed a blank Command: line instead of naming the steps:\n%s", out)
+	}
+	if !strings.Contains(out, "Command: (step-driven") {
+		t.Errorf("plan does not state the interaction is step-driven:\n%s", out)
+	}
+	if !strings.Contains(out, "Steps:") {
+		t.Errorf("plan has no Steps section:\n%s", out)
+	}
+	// Each step named, in order, with what it will run; the note renders as the exec path.
+	for _, want := range []string{"build assets", "run: pnpm build", "migrate db: safe to re-run", "run: bin/migrate"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("plan missing %q; got:\n%s", want, out)
+		}
+	}
+}
+
+// TestExplainStepsMirrorDispatch pins the cases TestExplainListsStepsForStepDrivenInteraction does
+// not reach, all of which mirror runStepLoop's contract: a compose key short-circuits the step
+// (so run:/echo:/cmd: on the same step must NOT appear), an inert step shows its marker, and an
+// unnamed step falls back to "step N". Without the compose short-circuit assertion this task
+// would ship the very misrendering the exec path avoids.
+func TestExplainStepsMirrorDispatch(t *testing.T) {
+	cmd := ResolvedCommand{
+		Steps: []config.ProvisionItem{
+			// compose_up AND run: — the exec path runs only compose_up; the plan must not list run:.
+			{Step: "start db", ComposeUp: []string{"postgres"}, Run: "echo seed"},
+			// a label-only step is inert.
+			{Step: "manual deploy"},
+			// no label → "step 3" fallback.
+			{Run: "echo unnamed"},
+		},
+	}
+
+	out := captureStdout(t, func() {
+		if err := Explain(&cmd, false); err != nil {
+			t.Fatalf("Explain: %v", err)
+		}
+	})
+
+	// Compose short-circuit: compose_up shows, the run: on the SAME step does not. (A run: line
+	// for the third step is expected; assert the short-circuited "echo seed" specifically is absent.)
+	if !strings.Contains(out, "compose up: postgres") {
+		t.Errorf("compose_up step did not show its payload:\n%s", out)
+	}
+	if strings.Contains(out, "echo seed") {
+		t.Errorf("compose_up short-circuit violated: run: echo seed is shown but the exec path would skip it:\n%s", out)
+	}
+	// Inert step: named, with the shared inert marker.
+	if !strings.Contains(out, "manual deploy") || !strings.Contains(out, config.InertStepMessage) {
+		t.Errorf("inert step not rendered with its marker:\n%s", out)
+	}
+	// Label fallback: an unnamed step is "step 3", and its run command still shows.
+	if !strings.Contains(out, "step 3") || !strings.Contains(out, "run: echo unnamed") {
+		t.Errorf("unnamed step label fallback or its run command missing:\n%s", out)
 	}
 }
