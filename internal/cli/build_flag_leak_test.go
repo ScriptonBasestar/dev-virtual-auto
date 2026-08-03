@@ -158,6 +158,24 @@ func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 		}
 	})
 
+	t.Run("the stop verb reads the same way", func(t *testing.T) {
+		// teardownCommon serves both verbs and interpolates `verb` into the message three
+		// times. With only the "down" rows above, a hardcoded "down" in the new branch would
+		// go unnoticed and `dva stop --bogus` would advise a command the user did not run.
+		composePassthroughFixtureWith(t, buildFixtureYAML)
+
+		_, _, _, _, _, err := teardownCommon([]string{"--bogus"}, "stop")
+		if err == nil {
+			t.Fatal("teardownCommon accepted an unknown flag for stop")
+		}
+		if !strings.Contains(err.Error(), `"dva stop"`) {
+			t.Errorf("error = %q, want it to name the verb it was called with", err)
+		}
+		if strings.Contains(err.Error(), "down") {
+			t.Errorf("error = %q, want no trace of the other verb", err)
+		}
+	})
+
 	t.Run("a real name still gets the selective hint", func(t *testing.T) {
 		// The control. The selective-teardown suggestion is useful when the leftover really is
 		// a name, and a fix that removed it for everything would be a regression.

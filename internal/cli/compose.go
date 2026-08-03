@@ -708,8 +708,10 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// flags it does not recognise — this is the last code that knows `--debug` is DVA's.
 	// TASK-172.
 	//
-	// The first bad flag wins: reporting one is what the user has to fix first, and the scan
-	// continues only so `mode`/`env` are still populated for callers that log before checking.
+	// The first bad flag wins: reporting one is what the user has to fix first. The loop then
+	// runs to the end rather than returning early because a closure has no return to take —
+	// not because anything reads the values it keeps filling in. All 12 callers check err
+	// before touching any other return value, so those values are never observed.
 	takeBool := func(name, value string, hasValue bool, target *bool) {
 		if v, ok := flagBoolValue(value, hasValue); ok {
 			*target = v

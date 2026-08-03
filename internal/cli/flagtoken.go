@@ -65,7 +65,17 @@ func dvaFlagEnd(args []string) int {
 
 // flagBoolValue reads a boolean flag's value. A bare `--debug` is true; `--debug=X` takes X.
 //
-// ok is false when X is not a boolean, and both callers reject it rather than guess.
+// ok is false when X is not a boolean. What happens next is the caller's business, and the
+// four callers do three different things. Do not summarise them as one:
+//
+//	parseDvaFlags                     rejects — see the paragraph below
+//	consumeRootPersistentFlags        rejects — the last code that knows the flag is DVA's
+//	applyRootPersistentFlagsFromArgs  skips, deliberately: it runs before RunE, so it has
+//	                                  no way to return an error and leaves it to the above
+//	consumeDryRunFlag                 leaves the token in its output, and that is safe only
+//	                                  because each of its three callers names a flag-shaped
+//	                                  leftover itself — hooks.go re-enters the built-in's
+//	                                  RunE, infra.go's resolveInfraTargets rejects it
 //
 // parseDvaFlags used to instead leave the token in filtered "for its caller's own
 // unknown-flag rejection to name". That held for 7 of its 12 call sites. The other 5 have no
