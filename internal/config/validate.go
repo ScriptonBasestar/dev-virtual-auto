@@ -3,9 +3,11 @@ package config
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -130,11 +132,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("reserved command conflict in this config:\n%s", strings.Join(errs, "\n"))
 	}
 
-	// Validate hook fields are only used on hookable commands
-	for name, cmd := range c.Interaction {
-		if cmd.HasHooks() && !IsHookableCommand(name) {
-			return fmt.Errorf("interaction.%s: before/replace/after hooks are only supported on hookable commands (up, down, stop, restart, build, clean, logs)", name)
-		}
+	if err := c.validateHookPlacement(); err != nil {
+		return err
 	}
 
 	for entryName, entry := range c.Stack {
@@ -177,6 +176,70 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// validateHookPlacement rejects before/replace/after wherever they cannot execute.
+//
+// Hooks run through exactly one path: wrapWithHooks (cli/hooks.go:20), wired at
+// cli/root.go:129 for the seven hookable built-ins, which reads `c.Interaction[cmdName]` —
+// a top-level lookup. Nothing walks Subcommands looking for hooks, so a nested one has no
+// path on which it could fire, whatever it or its parent is named.
+//
+// This used to iterate c.Interaction only, so moving the identical hook one level down
+// turned a rc-1 validation failure into silence. Measured on v0.1.44, all three shapes
+// validated clean with the hook dead:
+//
+//	interaction.db.subcommands.migrate.before      `dva db migrate` → MIGRATING, rc 0
+//	interaction.up.subcommands.fast.before         parent hookable; `fast` never registers
+//	interaction.db.subcommands.up.before           `dva db up` → DB-UP, rc 0
+//
+// The third is why the nested rule takes no account of the node's name. A check keyed off
+// IsHookableCommand(leaf) waves it through — the leaf is literally called `up` — while the
+// hook is exactly as dead as the other two.
+//
+// An error, not a warning, against the warnInertProvisionSteps precedent that a
+// long-inert key should not start failing configs at upgrade. That precedent rests on the
+// failure being observable: warnIgnoredParallelSteps records that a dropped `parallel:`
+// "produces exactly the right output and merely takes twice as long". A skipped
+// `before: [backup]` produces exactly the right output and no signal at all — and measured,
+// semantic warnings do not reach the run path, so `dva db migrate` prints MIGRATING and
+// nothing else. Warning here would reach nobody except someone already suspicious, which is
+// not the person running a migration. The config an error breaks at upgrade is a config
+// whose backup was never running; saying so is the point.
+//
+// Not fixed by making nested hooks execute: that is a runner change, not a validation one,
+// and it would give `before:` a second meaning at depth before anyone has asked for one.
+// Rejecting where it cannot run keeps the door open for that to be added deliberately.
+func (c *Config) validateHookPlacement() error {
+	var problems []string
+
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
+		if !cmd.HasHooks() {
+			return
+		}
+		if strings.Contains(path, ".subcommands.") {
+			problems = append(problems, fmt.Sprintf(
+				"%s: before/replace/after hooks run only on a top-level hookable command "+
+					"(up, down, stop, restart, build, clean, logs); a hook nested under a "+
+					"subcommand never runs, whatever the subcommand is named", path))
+			return
+		}
+		// Top-level. The message is unchanged from when this check lived inline, and the
+		// path is `interaction.<name>` there, so it renders identically.
+		if name := strings.TrimPrefix(path, "interaction."); !IsHookableCommand(name) {
+			problems = append(problems, fmt.Sprintf(
+				"%s: before/replace/after hooks are only supported on hookable commands "+
+					"(up, down, stop, restart, build, clean, logs)", path))
+		}
+	})
+
+	if len(problems) == 0 {
+		return nil
+	}
+	// c.Interaction is a map, so without this a config with two violations names a different
+	// one on each run. First-only matches how the rest of Validate reports. TASK-128.
+	sort.Strings(problems)
+	return errors.New(problems[0])
 }
 
 // ComposeNameWarning holds details about a compose file project name mismatch.
