@@ -171,12 +171,28 @@ func ignoreRulesCovering(dir string) map[string]bool {
 // is asked before anything has run. This path answers the narrower one — something committable is
 // on disk right now — and that is the only version worth putting ahead of another command's
 // answer.
+// gitignoreWarningSuppressedFor reports whether the banner should stay quiet because the
+// command about to run reports this finding itself.
+//
+// Only `dva doctor` does. Its whole job is to enumerate findings of exactly this class, and
+// it emits the gitignore state as its own [FAIL] row — so the banner made it the one finding
+// doctor reported twice, once on stderr before the report and once inside it. Two reports of
+// one problem read as two problems, which is the opposite of what a diagnostic owes its
+// reader. Every other command gets the banner, because for them it is the only warning there
+// is (TASK-139).
+func gitignoreWarningSuppressedFor(cmdName string) bool {
+	return cmdName == "doctor"
+}
+
 func checkGitignoreForWarning(configDir string) {
 	// --json's audience is a program and this warning has no schema, so it is noise there whatever
 	// the streams do. Gating here rather than at the call site keeps the decision next to the
 	// message it silences; doctor's structured result already carries the same finding for
 	// consumers that want it.
 	if jsonOutput {
+		return
+	}
+	if gitignoreWarningSuppressedFor(runningCommand) {
 		return
 	}
 

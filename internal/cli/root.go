@@ -42,6 +42,7 @@ making it easy to onboard and manage projects.`,
 		// flags. Pre-scan os.Args so --debug/--json reach logger.Init.
 		// Do not consume --dry-run here: composeCmd forwards it to docker.
 		applyRootPersistentFlagsFromArgs(os.Args[1:])
+		runningCommand = cmd.Name()
 		logger.Init(debug, jsonOutput)
 		if debug {
 			_ = os.Setenv(config.EnvDebugKey, "1")
@@ -53,6 +54,11 @@ making it easy to onboard and manage projects.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }
+
+// runningCommand is the name of the cobra command PersistentPreRun dispatched to. It exists
+// for pre-command warnings that need to know whether the command they are warning ahead of
+// is itself the one that reports that finding properly — see gitignoreWarningSuppressedFor.
+var runningCommand string
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "Enable debug logging")

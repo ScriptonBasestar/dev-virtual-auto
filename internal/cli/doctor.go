@@ -20,8 +20,24 @@ import (
 )
 
 // DoctorResult holds the outcome of a single doctor check.
+// DoctorResult is one check's outcome.
+//
+// Name and Finding are deliberately different jobs, because one string cannot do both.
+// Name is the check's stable identity — it must read the same whether the check passed or
+// failed, so that a --json consumer can correlate runs and so that [pass] rows read as
+// English. That forces Name into the shape of the assertion the check makes
+// ("Docker daemon accessible"), which is exactly why it cannot also be the failure line:
+// printed after [FAIL] it states the desired state as though it had been observed, and the
+// only thing carrying the negation is a four-character tag that a grep, a copied line or a
+// summary drops (TASK-139).
+//
+// Finding is what was actually observed, phrased so it cannot read as its own opposite. It
+// is set only on rows that can fail, rendered only on the failure path, and omitted from
+// JSON when empty. A check whose Name is already finding-shaped — those emitted only on
+// failure, one per offending item — needs no Finding.
 type DoctorResult struct {
 	Name        string `json:"name"`
+	Finding     string `json:"finding,omitempty"`
 	Passed      bool   `json:"passed"`
 	FixHint     string `json:"fix_hint,omitempty"`
 	Fixable     bool   `json:"fixable,omitempty"`
@@ -191,6 +207,10 @@ func applyDoctorFixes(results []DoctorResult) {
 			} else {
 				r.Fixed = true
 				r.Passed = true
+				// The finding described the state before the fix ran, so it is no longer
+				// true. Leaving it would ship a row that is passed:true with a finding
+				// saying otherwise — the same contradiction this field exists to remove.
+				r.Finding = ""
 			}
 		}
 	}
@@ -204,6 +224,7 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 	if err != nil {
 		if os.IsNotExist(err) {
 			r.Passed = false
+			r.Finding = fmt.Sprintf("no .gitignore here, so %s/ is not ignored", config.DotDirName)
 			r.Fixable = true
 			r.FixHint = fmt.Sprintf("Create .gitignore and add '%s/' to avoid committing transient state", config.DotDirName)
 			r.fixFunc = func() error {
@@ -213,6 +234,7 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 			return r
 		}
 		r.Passed = false
+		r.Finding = fmt.Sprintf(".gitignore could not be read, so %s/ cannot be confirmed ignored: %v", config.DotDirName, err)
 		return r
 	}
 
@@ -220,6 +242,7 @@ func checkGitignoreStatus(configDir string) DoctorResult {
 		r.Passed = true
 	} else {
 		r.Passed = false
+		r.Finding = fmt.Sprintf("%s/ is NOT ignored in .gitignore", config.DotDirName)
 		r.Fixable = true
 		r.FixHint = fmt.Sprintf("Add '%s/' to .gitignore to avoid committing transient state", config.DotDirName)
 		r.fixFunc = func() error {
@@ -237,6 +260,11 @@ func runSingleCheck(check config.DoctorCheck, configDir string) DoctorResult {
 		FixHint: check.FixHint,
 	}
 
+	// check.Name comes from dva.yml, so it is whatever the author wrote — and authors write
+	// assertions ("devcontainer.json exists", and the built-in devcontainer check below is
+	// itself routed through here). The finding is derived from the check's own inputs rather
+	// than from that name, so a user-defined row cannot state the opposite of what happened
+	// either. Same convention as the built-ins, applied where the wording is not ours.
 	switch check.Type {
 	case "file_exists":
 		path := check.Path
@@ -244,23 +272,29 @@ func runSingleCheck(check config.DoctorCheck, configDir string) DoctorResult {
 			path = filepath.Join(configDir, path)
 		}
 		r.Passed = fileExists(path)
+		r.Finding = condStr(!r.Passed, fmt.Sprintf("no file at %s", check.Path))
 
 	case "command":
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		r.Passed = exec.CommandContext(ctx, "sh", "-c", check.Command).Run() == nil
+		r.Finding = condStr(!r.Passed, fmt.Sprintf("command exited non-zero: %s", check.Command))
 
 	case "docker_socket":
 		r.Passed = isDockerSocketAccessible()
+		r.Finding = condStr(!r.Passed, "Docker socket is NOT accessible")
 
 	default:
 		r.Passed = false
+		r.Finding = fmt.Sprintf("check %q declares unknown type %q, so nothing was verified", check.Name, check.Type)
 		r.FixHint = fmt.Sprintf("Unknown check type: %s", check.Type)
 	}
 
-	// Clear fix hint on success
+	// Clear fix hint and finding on success: a finding describes something observed to be
+	// wrong, and leaving one on a passing row would put it in --json for consumers to trip on.
 	if r.Passed {
 		r.FixHint = ""
+		r.Finding = ""
 	}
 
 	// If check has a fix command, mark as fixable
@@ -292,6 +326,7 @@ func checkDocker() DoctorResult {
 	r.Passed = cmd.Run() == nil
 
 	if !r.Passed {
+		r.Finding = "Docker daemon is NOT accessible ('docker info' failed)"
 		r.FixHint = "Start Docker Desktop or ensure dockerd is running"
 	}
 	return r
@@ -308,6 +343,7 @@ func checkDockerSocketPermissions() DoctorResult {
 	if err != nil {
 		return DoctorResult{
 			Name:    "Docker socket accessible",
+			Finding: fmt.Sprintf("no Docker socket at %s", sockPath),
 			Passed:  false,
 			FixHint: "Docker not running or socket path incorrect",
 		}
@@ -318,6 +354,7 @@ func checkDockerSocketPermissions() DoctorResult {
 	if err != nil {
 		return DoctorResult{
 			Name:    "Docker socket permissions",
+			Finding: fmt.Sprintf("%s exists but this user cannot open it", sockPath),
 			Passed:  false,
 			FixHint: "Add user to docker group or use sudo",
 		}
@@ -343,8 +380,13 @@ func checkComposeProjectNameAlignment(c *config.Config) DoctorResult {
 	msg := fmt.Sprintf("Compose file %s has %s", w.File,
 		condStr(w.ComposeName == "", "missing project name", fmt.Sprintf("name '%s'", w.ComposeName)))
 
+	// Name is the same string the passing branch above returns. It used to be msg, so this
+	// one check reported itself under two different JSON names depending on the outcome, and
+	// a consumer keying on "name" could not correlate a failing run with a passing one. The
+	// observation moved to Finding, which is where it belonged: the human line is unchanged.
 	return DoctorResult{
-		Name:    msg,
+		Name:    "Compose project name alignment",
+		Finding: msg,
 		Passed:  false,
 		FixHint: fmt.Sprintf("Set 'name: %s' in %s", w.DvaName, w.File),
 		Fixable: true,
@@ -468,6 +510,7 @@ func checkEnvFiles(c *config.Config) []DoctorResult {
 		passed := fileExists(path)
 		results = append(results, DoctorResult{
 			Name:    fmt.Sprintf("Environment file exists: %s", envFile),
+			Finding: condStr(!passed, fmt.Sprintf("Environment file is MISSING: %s", envFile)),
 			Passed:  passed,
 			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", envFile)),
 		})
@@ -502,6 +545,7 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 			passed := fileExists(path)
 			results = append(results, DoctorResult{
 				Name:    fmt.Sprintf("Stack file exists: %s (%s)", name, f),
+				Finding: condStr(!passed, fmt.Sprintf("Stack entry %q references a MISSING file: %s", name, f)),
 				Passed:  passed,
 				FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
 			})
@@ -542,6 +586,7 @@ func checkComposeFiles(c *config.Config) []DoctorResult {
 		passed := fileExists(path)
 		results = append(results, DoctorResult{
 			Name:    fmt.Sprintf("Compose file exists: %s", f),
+			Finding: condStr(!passed, fmt.Sprintf("Compose file is MISSING: %s", f)),
 			Passed:  passed,
 			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", f)),
 		})
@@ -576,6 +621,7 @@ func checkComposeConfigResolves(c *config.Config) []DoctorResult {
 		// silent about.
 		return []DoctorResult{{
 			Name:    "Compose config resolves",
+			Finding: "compose config could NOT be run: the configured command splits to no words",
 			Passed:  false,
 			FixHint: err.Error(),
 		}}
@@ -625,6 +671,7 @@ func checkComposeConfigResolves(c *config.Config) []DoctorResult {
 	}
 	return []DoctorResult{{
 		Name:    "Compose config resolves",
+		Finding: fmt.Sprintf("compose config does NOT resolve (%s config exited non-zero)", composePrefix),
 		Passed:  false,
 		FixHint: hint,
 	}}
@@ -645,6 +692,18 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// failureLine is what a reader sees after [FAIL]: the finding when the check recorded one,
+// and otherwise the name, which the fail-only checks already phrase as a finding. Falling
+// back rather than requiring Finding everywhere keeps rows like
+// `App "web" port 3000 held by a process dva did not start` unchanged — they never render
+// on the pass path, so their name is already the observation.
+func (r DoctorResult) failureLine() string {
+	if r.Finding != "" {
+		return r.Finding
+	}
+	return r.Name
+}
+
 func printDoctorResults(results []DoctorResult) {
 	fmt.Println("Environment Checks:")
 	fmt.Println()
@@ -661,7 +720,7 @@ func printDoctorResults(results []DoctorResult) {
 			fmt.Printf("  [pass] %s\n", r.Name)
 			passed++
 		} else {
-			fmt.Printf("  [FAIL] %s\n", r.Name)
+			fmt.Printf("  [FAIL] %s\n", r.failureLine())
 			if r.FixHint != "" {
 				fmt.Printf("         -> %s\n", r.FixHint)
 			}
