@@ -170,7 +170,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	o.stopModeProcesses(opts.Mode)
+	o.stopModeProcesses(opts.Mode, opts.DryRun)
 
 	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if err != nil {
@@ -225,7 +225,7 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	o.haltModeProcesses(opts.Mode)
+	o.haltModeProcesses(opts.Mode, opts.DryRun)
 
 	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if err != nil {
@@ -525,19 +525,27 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 
 // haltModeProcesses sends SIGTERM to mode health_check processes but preserves
 // PID files so they can be restarted by the next `up` call (halt semantics).
-func (o *Orchestrator) haltModeProcesses(mode string) {
-	o.signalModeProcesses(mode, false)
+func (o *Orchestrator) haltModeProcesses(mode string, dryRun bool) {
+	o.signalModeProcesses(mode, false, dryRun)
 }
 
 // stopModeProcesses sends SIGTERM to mode health_check processes and removes
 // PID files (destroy semantics).
-func (o *Orchestrator) stopModeProcesses(mode string) {
-	o.signalModeProcesses(mode, true)
+func (o *Orchestrator) stopModeProcesses(mode string, dryRun bool) {
+	o.signalModeProcesses(mode, true, dryRun)
 }
 
 // signalModeProcesses terminates health_check native processes. When removePID
 // is true, the PID files are deleted after signalling (down semantics).
-func (o *Orchestrator) signalModeProcesses(mode string, removePID bool) {
+//
+// dryRun is threaded down rather than checked at the two callers because they are the
+// first statement of Down and Stop, before the entry filtering that could exit early — a
+// guard there would have to be repeated and would drift. startModeProcesses, the `up`
+// half of this pair, has checked opts.DryRun since it was written (see its "would start"
+// branch); this half never did, so `dva stop --mode dev --dry-run` sent a real SIGTERM
+// and printed "stopped worker" — output indistinguishable from the run without the flag.
+// Measured, then fixed under TASK-166.
+func (o *Orchestrator) signalModeProcesses(mode string, removePID, dryRun bool) {
 	if mode == "" {
 		return
 	}
@@ -561,6 +569,19 @@ func (o *Orchestrator) signalModeProcesses(mode string, removePID bool) {
 		var pid int
 		_, _ = fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
 		if pid > 0 {
+			if dryRun {
+				// The signal line is conditional on the process existing because the real
+				// path's is: it prints only when Kill returns nil. The delete line is not,
+				// because the real path's os.Remove runs for any pid > 0 whether the kill
+				// succeeded or not — a preview that hid it would understate the loss.
+				if IsProcessRunning(pid) {
+					fmt.Fprintf(os.Stderr, "[native] (dry-run) would stop %s (pid %d)\n", hcName, pid)
+				}
+				if removePID {
+					fmt.Fprintf(os.Stderr, "[native] (dry-run) would delete %s\n", pidFile)
+				}
+				continue
+			}
 			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
 				fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", hcName, pid)
 			}

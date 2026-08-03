@@ -338,7 +338,13 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
-			am.DownApps()
+			// The same split as `stop`, one step more destructive: orch.Down previews while
+			// DownApps deleted the pid and log files for real (TASK-166).
+			if dryRun {
+				am.DownAppsDryRun()
+			} else {
+				am.DownApps()
+			}
 		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
@@ -396,7 +402,14 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
-			am.HaltApps()
+			// parseDvaFlags above already consumed --dry-run into the global, and orch.Stop
+			// below honours it — so without this branch the stack half previewed while the
+			// app half sent a real SIGTERM, in one command (TASK-166).
+			if dryRun {
+				am.HaltAppsDryRun()
+			} else {
+				am.HaltApps()
+			}
 		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
@@ -566,13 +579,30 @@ var cleanCmd = &cobra.Command{
 
 		// When removing volumes, also clear provision markers
 		if volumes {
-			clearProvisionMarkers(c.FileDir())
+			// The sixth site in this command where --dry-run was accepted and ignored, and
+			// the only one that is not a halt. Guarding the app half alone would have left
+			// `dva clean --volumes --dry-run` still deleting these for real while every
+			// other line it printed said "would" — a half-honest preview is harder to
+			// distrust than a plainly dishonest one. TASK-166.
+			if dryRun {
+				for _, m := range provisionMarkers(c.FileDir()) {
+					fmt.Fprintf(os.Stderr, "[dry-run] would delete provision marker %s\n", m)
+				}
+			} else {
+				clearProvisionMarkers(c.FileDir())
+			}
 		}
 
 		// App down first (apps depend on infra)
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
-			am.DownApps()
+			// `clean` passes dryRun to orch.Down below, so it made the same half-preview
+			// promise the other three paths did (TASK-166).
+			if dryRun {
+				am.DownAppsDryRun()
+			} else {
+				am.DownApps()
+			}
 		}
 
 		// Orchestrator down for all lifecycle entries (with volume/image cleanup if requested)

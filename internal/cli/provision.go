@@ -543,16 +543,32 @@ func runShellCommand(e *config.Environment, cmdStr string) error {
 // clearProvisionMarkers removes all provision marker files from .sb/dva/.
 // Called by `dva clean --volumes` so that provision suggestions reappear after a reset.
 func clearProvisionMarkers(configDir string) {
+	for _, m := range provisionMarkers(configDir) {
+		_ = os.Remove(m)
+	}
+}
+
+// provisionMarkers lists what clearProvisionMarkers would delete, as full paths.
+//
+// The probe-only half of the same walk, in the shape of portOwnerPIDs against reclaimPort:
+// `dva clean --dry-run` needs to name the files without removing them, and a preview that
+// re-derived the "provisioned-" prefix itself would be free to drift from the deletion it
+// claims to describe. Returns nil for an unreadable directory, which is the same silence
+// clearProvisionMarkers has always kept — a missing .sb/dva is the ordinary case on a
+// project that has never provisioned. TASK-166.
+func provisionMarkers(configDir string) []string {
 	markerDir := filepath.Join(configDir, config.DotDirName)
 	entries, err := os.ReadDir(markerDir)
 	if err != nil {
-		return
+		return nil
 	}
+	var found []string
 	for _, e := range entries {
 		if strings.HasPrefix(e.Name(), "provisioned-") {
-			_ = os.Remove(filepath.Join(markerDir, e.Name()))
+			found = append(found, filepath.Join(markerDir, e.Name()))
 		}
 	}
+	return found
 }
 
 // writeProvisionMarker creates a marker file indicating that a provision

@@ -410,6 +410,56 @@ func (am *AppManager) DownApps(names ...string) {
 	}
 }
 
+// DownAppsDryRun is the preview half of `dva down --dry-run`, `dva app down --dry-run` and
+// `dva clean --dry-run`. It reports everything DownApps would do — signal the group, reclaim
+// the declared port, delete the pid and log files — and does none of it.
+//
+// It has three things to report where HaltAppsDryRun has one, because DownApps destroys more
+// than a process: the file removal is what makes `dva app up` treat the app as never-started,
+// and the port reclaim can kill a PID that is not the app's own (that is the point of it —
+// it clears survivors a group signal missed). A preview that mentioned only the SIGTERM
+// would understate the blast radius of the command it is previewing.
+//
+// Port owners are read with portOwnerPIDs, which is reclaimPort without the kill, so the
+// pids named here are the pids that would be signalled. Selection mirrors DownApps; only the
+// effects are withheld. (TASK-166)
+func (am *AppManager) DownAppsDryRun(names ...string) {
+	apps := am.selectApps(names)
+
+	for name, app := range apps {
+		pidFile := am.pidPath(name)
+		logFile := am.logPath(name)
+
+		hadPidfile := false
+		if data, err := os.ReadFile(pidFile); err == nil {
+			hadPidfile = true
+			if pid, perr := strconv.Atoi(strings.TrimSpace(string(data))); perr == nil && pid > 0 && IsProcessRunning(pid) {
+				fmt.Fprintf(os.Stderr, "[app] (dry-run) would remove app %s (pid %d)\n", name, pid)
+			}
+		}
+
+		// Gated on the pidfile exactly as DownApps gates it: a docker app's port is held by
+		// docker-proxy, and naming it here would advertise a kill that the real path does not
+		// perform.
+		if hadPidfile {
+			if port := effectivePort(app); port > 0 && portOwnershipSupported() {
+				if owners := portOwnerPIDs(port); len(owners) > 0 {
+					fmt.Fprintf(os.Stderr, "[app] (dry-run) would free port %d for app %s (would signal pid %v)\n", port, name, owners)
+				}
+			}
+		}
+
+		// Only files that exist. DownApps removes both unconditionally — harmless there,
+		// since removing a missing file is a no-op, but a preview that announced the deletion
+		// of files that are not there would be reporting work that will not happen.
+		for _, f := range []string{pidFile, logFile} {
+			if _, err := os.Stat(f); err == nil {
+				fmt.Fprintf(os.Stderr, "[app] (dry-run) would delete %s\n", f)
+			}
+		}
+	}
+}
+
 // AppStatuses returns the current status of all configured applications.
 func (am *AppManager) AppStatuses() []AppStatus {
 	var statuses []AppStatus

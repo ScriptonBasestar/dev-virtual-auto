@@ -73,7 +73,15 @@ var appStopCmd = &cobra.Command{
 		}
 
 		am := lifecycle.NewAppManager(c, e)
-		am.HaltApps(args...)
+		// `stop` parses flags through cobra, so the inherited persistent --dry-run reaches
+		// the dryRun global and is silently accepted. Without this branch HaltApps sent a
+		// real SIGTERM under a flag that promises a preview — measured, the stand-in process
+		// was dead and the output said "stopped", not "would stop" (TASK-166).
+		if dryRun {
+			am.HaltAppsDryRun(args...)
+		} else {
+			am.HaltApps(args...)
+		}
 		return nil
 	},
 }
@@ -93,7 +101,13 @@ var appDownCmd = &cobra.Command{
 		}
 
 		am := lifecycle.NewAppManager(c, e)
-		am.DownApps(args...)
+		// Same silent acceptance as `stop` above, with more to lose: DownApps also deletes
+		// the pid and log files and can signal a port owner that is not the app (TASK-166).
+		if dryRun {
+			am.DownAppsDryRun(args...)
+		} else {
+			am.DownApps(args...)
+		}
 		return nil
 	},
 }
