@@ -329,7 +329,7 @@
             },
             "parallel": {
               "type": "boolean",
-              "description": "Run this step concurrently with other consecutive parallel steps",
+              "description": "Run this step concurrently with other consecutive parallel steps. Honoured under 'provision:' only — interaction steps and hooks always run sequentially, and 'dva validate' warns when the key appears there.",
               "default": false
             }
           },

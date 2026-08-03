@@ -101,6 +101,13 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 
 // runHookSteps executes a list of provision items as hook steps.
 func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string, steps []config.ProvisionItem) error {
+	// Hooks are a second executor, so they need their own copy of the notice runStepLoop
+	// prints — `dva up` never reaches runStepLoop, and a before-hook marked `parallel:`
+	// otherwise runs at half the expected speed with nothing said. Once per list, matching
+	// the other executor. TASK-140.
+	if config.StepsIgnoreParallel(steps) {
+		fmt.Fprintf(os.Stderr, "  ⚠ %s\n", config.IgnoredParallelMessage)
+	}
 	for i, step := range steps {
 		label := step.Step
 		if label == "" {

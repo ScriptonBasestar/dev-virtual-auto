@@ -63,6 +63,7 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnDeepSubcommandNesting()...)
 	warnings = append(warnings, c.warnUnreachableCommands()...)
 	warnings = append(warnings, c.warnInertProvisionSteps()...)
+	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
 
 	// Build a contextual environment for accurate interpolation checks
 	env := NewEnvironment(c.Environment, c.FileDir(), c.FileDir())
@@ -261,6 +262,53 @@ func (c *Config) warnInertProvisionSteps() []string {
 	for profile, items := range c.Provision.Profiles {
 		collect(fmt.Sprintf("provision.%s", profile), items)
 	}
+
+	sort.Strings(warnings)
+	return warnings
+}
+
+// warnIgnoredParallelSteps flags interaction steps that ask for concurrency the interaction
+// path does not implement.
+//
+// `parallel:` reaches `interaction.*.steps` only because that field and `provision.*` share
+// the ProvisionItem type, and schema.json documents the type. `Parallel` appears zero times
+// in non-test code under internal/runner/, so runStepLoop has no batching: the key parses,
+// validates, and is dropped. Measured — two `sleep 1` steps both marked parallel take 2.02s
+// under `dva run` and 1.01s under `dva provision`, off one config.
+//
+// A warning rather than an error, for the reason warnInertProvisionSteps records: the key has
+// been quietly doing nothing since it existed, and rejecting it would fail configs that
+// validate today. The difference from an inert step is why the runtime notice matters more
+// here — an inert step betrays itself by producing nothing, while this one produces exactly
+// the right output and merely takes twice as long, so `validate` alone would reach nobody who
+// was not already suspicious.
+//
+// Provision items are deliberately not walked: there the key works.
+func (c *Config) warnIgnoredParallelSteps() []string {
+	var warnings []string
+
+	collect := func(path string, items []ProvisionItem) {
+		for i, item := range items {
+			if !item.Parallel {
+				continue
+			}
+			label := item.Step
+			if label == "" {
+				label = fmt.Sprintf("step %d", i+1)
+			}
+			warnings = append(warnings, fmt.Sprintf("%s[%d] %q: %s", path, i, label, IgnoredParallelMessage))
+		}
+	}
+
+	// Hooks as well as steps, and recursively: `interaction.db.subcommands.migrate.before` runs
+	// through the same loop with the same absent scheduler, so a check that stopped at
+	// `.steps` would report the shallow case and stay silent on the identical deep one.
+	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
+		collect(path+".steps", cmd.Steps)
+		collect(path+".before", cmd.Before)
+		collect(path+".replace", cmd.Replace)
+		collect(path+".after", cmd.After)
+	})
 
 	sort.Strings(warnings)
 	return warnings

@@ -18,6 +18,14 @@ import (
 // execCommands receives every non-empty `run:` string of the step at once; a runner that must
 // issue them one at a time loops inside its own callback.
 func runStepLoop(env *config.Environment, cfg *config.Config, steps []config.ProvisionItem, execCommands func(cmds []string) error) error {
+	// Said once, before any step runs, rather than once per marked step: the key is a property
+	// of how the list is scheduled, so repeating it per step would grow with the config while
+	// telling the author nothing new. It is printed here rather than left to `validate` because
+	// the symptom is wall-clock — the output is byte-identical to the concurrent run the author
+	// expected, so nothing else in this run would mention it. TASK-140.
+	if config.StepsIgnoreParallel(steps) {
+		fmt.Printf("  ⚠ %s\n", config.IgnoredParallelMessage)
+	}
 	for i, step := range steps {
 		label := step.Step
 		if label == "" {

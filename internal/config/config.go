@@ -596,6 +596,36 @@ func (p *ProvisionItem) RunCommands() []string {
 // whether to print anything.
 const InertStepMessage = "nothing ran — this item is a label with no 'run:'. Add 'run:' to execute a command, or 'note:' if it is a message."
 
+// IgnoredParallelMessage is what the interaction step loop prints when a step asks for
+// concurrency it will not get. `parallel:` is honoured on the provision path only; the
+// interaction path has no scheduler, so the key parses, validates, and changes nothing.
+//
+// It is worded as a timing claim because that is the only symptom. An inert step announces
+// itself by producing no output, which is why InertStepMessage can afford to be a
+// description; a step that runs sequentially instead of concurrently produces byte-identical
+// output and is simply slower, so nothing but this line tells the author the key was read
+// and dropped. TASK-140.
+const IgnoredParallelMessage = "'parallel:' is ignored here — interaction steps always run sequentially. It is honoured under 'provision:'."
+
+// StepsIgnoreParallel reports whether a step list asks for concurrency the executor will not
+// give it, so both executors decide to warn from one place.
+//
+// Two of them exist. `steps:` runs through runner.runStepLoop; `before:`/`replace:`/`after:`
+// run through cli.runHookSteps, a separate loop in a package internal/runner cannot import.
+// The first cut of TASK-140 put the check inline in runStepLoop only, and `dva up` with a
+// parallel-marked before-hook stayed silent while `validate` warned — the exact split this
+// change exists to close, since validate is the surface an author may never visit. A
+// predicate rather than a bool field because the answer is derived, and rather than a copied
+// three-line loop because runStepLoop's own header records what copied loops cost here.
+func StepsIgnoreParallel(steps []ProvisionItem) bool {
+	for _, s := range steps {
+		if s.Parallel {
+			return true
+		}
+	}
+	return false
+}
+
 // IsInert reports whether this item carries no payload at all: nothing to run, nothing to
 // print.
 //
