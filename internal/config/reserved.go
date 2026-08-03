@@ -77,6 +77,46 @@ func ShadowedByBuiltin(name string, cmd *InteractionCommand) bool {
 	return true
 }
 
+// UnroutableNamespacePrefix returns the reserved built-in named by a namespaced
+// interaction key's prefix, or "" when the key carries no such prefix.
+//
+// This is a third state, distinct from ShadowedByBuiltin. A shadowed key still runs —
+// `dva run <name>` reaches it — so the surfaces can name a working invocation. A key
+// like `app:build` is reached by nothing: the colon keeps it out of the built-in set,
+// and the run form reads `app:` as a subproject reference. ConflictAdvice carries the
+// full reason and the way out; this reports only whether the condition holds, so the
+// machine-readable surfaces and the validator cannot disagree about which keys it
+// covers.
+//
+// Scope is deliberately narrow: a *reserved* prefix. A free prefix (`mytool:fast`) is
+// unroutable for the same underlying reason — run.go splits every key on ':' — but the
+// answer there is a routing question rather than a marking one. See TASK-167.
+func UnroutableNamespacePrefix(name string) string {
+	idx := strings.Index(name, ":")
+	if idx <= 0 {
+		return ""
+	}
+	if prefix := name[:idx]; IsReservedCommand(prefix) {
+		return prefix
+	}
+	return ""
+}
+
+// RenameSuggestion returns the name a colon-carrying key should be renamed to.
+//
+// Every colon goes, not just the first. `app:sub:cmd` → `app-sub:cmd` still carries a
+// colon, so run.go still splits it and it still fails — and because `app-sub` is not a
+// reserved command, UnroutableNamespacePrefix no longer covers it, so validate reports
+// the config clean and ls shows the entry unmarked. Following the advice literally turned
+// a loud error into the silent one TASK-167 describes; measured before the fix, `dva
+// app-sub:cmd` exited 1 with subproject `app-sub` not found while validate said valid.
+//
+// One function because the advice string and the ls mark both need it and had drifted
+// into two copies of the same expression.
+func RenameSuggestion(name string) string {
+	return strings.ReplaceAll(name, ":", "-")
+}
+
 // ReservedCommandConflict represents a conflict between an interaction
 // command name and a reserved built-in command.
 type ReservedCommandConflict struct {
@@ -105,15 +145,14 @@ func ValidateReservedCommands(interaction map[string]*InteractionCommand) []Rese
 			}
 			continue
 		}
-		// Check namespace prefix: "app:build" conflicts if "app" is reserved
-		if idx := strings.Index(name, ":"); idx > 0 {
-			prefix := name[:idx]
-			if IsReservedCommand(prefix) {
-				conflicts = append(conflicts, ReservedCommandConflict{
-					Name:   name,
-					Source: "interaction",
-				})
-			}
+		// Check namespace prefix: "app:build" conflicts if "app" is reserved. Shared with
+		// the manifest/ls mark, so a key the surfaces call unroutable is exactly a key the
+		// validator rejects.
+		if UnroutableNamespacePrefix(name) != "" {
+			conflicts = append(conflicts, ReservedCommandConflict{
+				Name:   name,
+				Source: "interaction",
+			})
 		}
 	}
 	return conflicts
@@ -140,7 +179,7 @@ func ConflictAdvice(name string) string {
 				"the bare form is not a built-in, and the run form reads '%s:' as a subproject "+
 				"reference, so it fails with subproject '%s' not found. Use a different "+
 				"separator (e.g., '%s')",
-			name[:idx], name[:idx], name[:idx], strings.Replace(name, ":", "-", 1),
+			name[:idx], name[:idx], name[:idx], RenameSuggestion(name),
 		)
 	}
 	if IsHookableCommand(name) {

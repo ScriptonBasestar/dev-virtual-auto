@@ -713,6 +713,20 @@ up  down  stop  restart  build  clean  logs
 `subproject 'app' not found`로 실패합니다. 구분자를 바꾸는 것(`app-build`)이 유일한
 해결책입니다.
 
+이 경우 `manifest`는 위의 `shadowed_by_builtin`과 다른 필드를 씁니다 — 도달 가능한 호출이
+아예 없으므로 `usage_example`은 **생략되고**, 대신 `unroutable: "app"`(문제의 접두사)과
+`unroutable_reason`(전체 설명)이 실립니다. `dva ls --json`도 같은 값을 노출하고,
+사람이 읽는 `dva ls`는 `(unreachable: ...)` 표시를 붙입니다. `usage_example`이 없다는 것
+자체가 신호입니다: 실행하면 반드시 실패하는 문자열을 제안하지 않기 위한 것입니다.
+
+`subcommands:`를 가진 키도 마찬가지입니다 — `app:build fast`처럼 파생된 항목 역시
+접두사가 죽어 있으므로 동일하게 표시됩니다.
+
+구분자를 바꿀 때는 **콜론을 모두** 없애야 합니다. `app:sub:cmd`를 `app-sub:cmd`로만
+고치면 여전히 `run`이 `app-sub:`을 서브프로젝트로 읽어 실패하는데, `app-sub`은 예약어가
+아니라서 `validate`는 통과하고 `ls`에도 표시가 사라집니다 — 잡히는 에러가 조용한 실패로
+바뀝니다. `app-sub-cmd`가 정답입니다.
+
 ```yaml
 interaction:
   build:                    # 예약어 + 훅 가능

@@ -60,9 +60,24 @@ func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, k
 		// A shadowed row is still listed — the user declared it and needs to see dva received
 		// it — but it must carry the form that reaches it, or the listing reads as an offer of
 		// `dva <k>`, which runs the built-in instead.
-		usage, shadowedBy := interactionUsage(c, cmd)
+		usage, shadowedBy, unroutable := interactionUsage(c, cmd)
 		mark := ""
-		if shadowedBy != "" {
+		switch {
+		case unroutable != "":
+			// No "run:" clause here, unlike the shadowed mark below: there is no invocation to
+			// offer. The rename is the whole answer, which is what ConflictAdvice already says
+			// on every config load.
+			// The rename lands on the declared key, which is path[0]. `app:build fast` is a
+			// display name assembled from the tree walk — there is no such key in the file to
+			// edit, and renaming the parent fixes every subcommand under it at once. Suggesting
+			// the flattened form told the author to write a key containing a space.
+			declared := cmd.Name
+			if len(cmd.Path) > 0 {
+				declared = cmd.Path[0]
+			}
+			mark = fmt.Sprintf("  (unreachable: '%s' is a reserved DVA command; rename to '%s')",
+				unroutable, config.RenameSuggestion(declared))
+		case shadowedBy != "":
 			mark = fmt.Sprintf("  (built-in '%s' takes this name; run: %s)", shadowedBy, usage)
 		}
 		if lsDetailed {
@@ -142,7 +157,15 @@ func shellJoin(path []string) string {
 // subcommand is reachable only through `dva run` even though the parent itself is reachable
 // bare. That is why the exemption lives in ShadowedByBuiltin, consulted here for top-level
 // paths only.
-func interactionUsage(c *config.Config, cmd *runner.ResolvedCommand) (usage, shadowedBy string) {
+// interactionUsage reports how an interaction is actually invoked, and which of the two
+// conflict states it is in. It is the single source for `dva manifest` and `dva ls --json`
+// so the two machine-readable surfaces cannot describe the same key differently.
+//
+// unroutable is returned for a key no invocation reaches (TASK-137). usage is empty in
+// that case: every candidate string exits non-zero, and usage_example carries an implicit
+// promise that running it works. Naming the rename suggestion instead would be a second
+// lie — `dva app-build` does not exist until the author performs the rename.
+func interactionUsage(c *config.Config, cmd *runner.ResolvedCommand) (usage, shadowedBy, unroutable string) {
 	path := cmd.Path
 	if len(path) == 0 {
 		// A ResolvedCommand that did not come from the tree walk. Treating the whole name as one
@@ -154,14 +177,24 @@ func interactionUsage(c *config.Config, cmd *runner.ResolvedCommand) (usage, sha
 	form := shellJoin(path)
 
 	switch {
+	// Unroutable first: a namespaced key reaches neither branch below, and both of those
+	// describe keys that still run.
+	//
+	// No length guard. A declared `app:build` with a subcommands: block flattens into two
+	// entries — `app:build` and `app:build fast` — and the dead prefix kills both: the
+	// longer form fails identically, because run.go splits args[0] and never looks at the
+	// rest. Guarding on len(path)==1 marked the parent and advertised the child as
+	// `dva app:build fast`, which is the exact promise this mark exists to retract.
+	case config.UnroutableNamespacePrefix(root) != "":
+		return "", "", config.UnroutableNamespacePrefix(root)
 	case len(path) > 1 && config.IsReservedCommand(root):
-		return fmt.Sprintf("dva run %s", form), root
+		return fmt.Sprintf("dva run %s", form), root, ""
 	case len(path) == 1 && config.ShadowedByBuiltin(root, c.Interaction[root]):
 		// c.Interaction, not the tree: hooks live on the declared command, and a single-segment
 		// path is always a declared key, so this lookup is exact.
-		return fmt.Sprintf("dva run %s", form), root
+		return fmt.Sprintf("dva run %s", form), root, ""
 	}
-	return fmt.Sprintf("dva %s", form), ""
+	return fmt.Sprintf("dva %s", form), "", ""
 }
 
 func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
@@ -183,10 +216,15 @@ func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedC
 		if cmd.Pod != "" {
 			entry["pod"] = cmd.Pod
 		}
-		// Only on the shadowed entries, so the field's presence is the signal and a consumer
+		// Only on the conflicted entries, so the field's presence is the signal and a consumer
 		// never has to parse the description to learn the short form will not reach this.
-		if _, shadowedBy := interactionUsage(c, cmd); shadowedBy != "" {
+		_, shadowedBy, unroutable := interactionUsage(c, cmd)
+		if shadowedBy != "" {
 			entry["shadowed_by_builtin"] = shadowedBy
+		}
+		if unroutable != "" {
+			entry["unroutable"] = unroutable
+			entry["unroutable_reason"] = config.ConflictAdvice(cmd.Name)
 		}
 		entries[k] = entry
 	}

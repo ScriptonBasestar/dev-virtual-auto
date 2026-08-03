@@ -81,11 +81,23 @@ type ManifestDynCmd struct {
 	Service       string `json:"service,omitempty" yaml:"service,omitempty"`
 	Pod           string `json:"pod,omitempty" yaml:"pod,omitempty"`
 	ComposeMethod string `json:"compose_method,omitempty" yaml:"compose_method,omitempty"`
-	UsageExample  string `json:"usage_example" yaml:"usage_example"`
+	// UsageExample is omitempty because an unroutable key has no working invocation to
+	// name. An empty string here would be read as "run `dva `" by a consumer that does not
+	// special-case it; an absent field cannot be.
+	UsageExample string `json:"usage_example,omitempty" yaml:"usage_example,omitempty"`
 	// ShadowedByBuiltin names the static_commands entry that runs when the bare `dva <key>`
 	// form is typed. Set only when the key is shadowed, so its presence is the signal; a
 	// consumer must be able to detect this without reading the description or the usage string.
 	ShadowedByBuiltin string `json:"shadowed_by_builtin,omitempty" yaml:"shadowed_by_builtin,omitempty"`
+	// Unroutable names the reserved built-in used as this key's namespace prefix. It is a
+	// separate state from ShadowedByBuiltin, not a variant of it: a shadowed key still runs
+	// under `dva run <key>`, while an unroutable one is reached by no invocation at all, so
+	// a consumer that treats the two alike would keep advertising a dead form. Set only when
+	// the condition holds — presence is the signal.
+	Unroutable string `json:"unroutable,omitempty" yaml:"unroutable,omitempty"`
+	// UnroutableReason carries the same sentence `dva validate` and the load-time warning
+	// print, so the machine-readable surface and the human one state one reason, not two.
+	UnroutableReason string `json:"unroutable_reason,omitempty" yaml:"unroutable_reason,omitempty"`
 }
 
 type ManifestRunner struct {
@@ -340,13 +352,17 @@ func buildManifest(c *config.Config) *Manifest {
 		// inside. It used to be `dva <k>` unconditionally, which for a shadowed key was the one
 		// form that provably ran something else — a different command with a different
 		// description, in the same document, silently.
-		usage, shadowedBy := interactionUsage(c, cmd)
+		usage, shadowedBy, unroutable := interactionUsage(c, cmd)
 		dynCmd := ManifestDynCmd{
 			Description:       cmd.Description,
 			Command:           cmd.Command,
 			Runner:            runner.DetectRunnerType(cmd),
 			UsageExample:      usage,
 			ShadowedByBuiltin: shadowedBy,
+			Unroutable:        unroutable,
+		}
+		if unroutable != "" {
+			dynCmd.UnroutableReason = config.ConflictAdvice(k)
 		}
 		if cmd.Service != "" {
 			dynCmd.Service = cmd.Service
