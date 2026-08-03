@@ -68,7 +68,7 @@ check that passes for a reason other than the one assumed.
 
 The `maps.Copy` cluster is the one with a concrete tie to recent work: two of the 16 are the
 defensive-copy loops in `internal/config/reserved.go:40` and `:52`, the function whose map iteration
-caused [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md).
+caused [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md).
 
 ## Options
 
@@ -257,5 +257,5 @@ other so `other` wins. No filter or key/value transform was absorbed into a `map
 - [TASK-078](../_archive/078-nine-files-do-not-satisfy-gofmt-and-nothing-checks.md) — the other half of the same gap, and the sequencing constraint.
 - [TASK-112](../done/112-check-generate-is-labelled-ci-and-ci-does-not-run-it.md) — the third instance of a
   gate that does not cover what its greenness implies.
-- [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md) — touched two
+- [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) — touched two
   of the 16 `maps.Copy` sites while fixing the map-iteration defect in that same function.

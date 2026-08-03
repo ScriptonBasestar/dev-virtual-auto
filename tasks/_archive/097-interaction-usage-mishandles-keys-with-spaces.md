@@ -190,7 +190,7 @@ for the input class that was broken.
 
 - A declared key that spells another key's composite path silently deletes one of the two
   commands, nondeterministically — filed as
-  [TASK-104](../done/104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md) with the
+  [TASK-104](104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md) with the
   20-run measurement. Found while probing this fix; `Path` is the structure its option B would
   key on.
 - `gofmt` runs the doc comment formatter, which reads a pair of straight single quotes as legacy

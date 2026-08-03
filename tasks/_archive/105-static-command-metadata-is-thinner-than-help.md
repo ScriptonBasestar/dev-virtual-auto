@@ -9,6 +9,19 @@ created-at: 2026-07-31T14:20:00+09:00
 resolved-at: 2026-07-31T00:00:00+09:00
 resolution: "B then A — Description derived from cobra Short for all 27; Options derived for the 8 commands with registered flags and hand-written for the 5 with hand-parsed ones"
 scope: "internal/cli/manifest.go — StaticCommands: the Description field of the original 13 entries, and the Options field on all but `run`"
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  All six criteria hold against current HEAD. fillStaticCommandDescriptions (internal/cli/manifest.go:183)
+  and fillStaticCommandOptions (:142) both exist, run after the literal table (:314-315), and use
+  c.Flags() filtered against rootCmd.PersistentFlags() rather than LocalFlags().
+  Re-measured, not trusted: 27 static_commands, 13 carrying options, 45 option entries (task said 44).
+  The +1 is `doctor --strict`, added by commit 4b14020 after this task closed and picked up by the
+  derivation with zero manifest edits — the invariant working, not drift.
+  Tests: 600 RUN / 600 PASS / 0 FAIL in internal/cli with -v; the four TASK-105 tests log
+  checked=27 of 27, 8 commands / 18 registered flags, 27 hand-parsed flags across 5 commands.
+  All four mutation-table rows reproduced verbatim on an isolated copy, including row 4's
+  counter-intuitive PASS (a stray literal is overwritten, i.e. dead code).
 ---
 
 # Task 105: the count is right now; the contents are still second-hand

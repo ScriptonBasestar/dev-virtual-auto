@@ -48,6 +48,26 @@ one-off, not a fix.
 The defect is that the archiving move and the link update are two separate acts, and only
 one of them is anybody's job.
 
+## The half the gate cannot see
+
+`doccheck` checks markdown *link targets*. A task path written inside inline code — which
+is where `verify:` bindings live — is invisible to it. So `make doc-check` exits 0 while
+bindings point at files that moved.
+
+Measured 2026-08-03 by scanning `tasks/` for every literal
+`tasks/<state>/NNN-….md` string and testing each for existence: **5 stale of 8 distinct**.
+Two of the five are inside `verify:` bindings, which is the damaging kind — a binding whose
+path no longer resolves fails for a reason that has nothing to do with the criterion:
+
+```
+tasks/_archive/106-…md:67   verify: grep -c 'USAGE.md' tasks/done/090-…   → exit 2
+                                             (actual: tasks/_archive/090-…)
+tasks/_archive/063-…md:158  → tasks/blocked/063-…  (actual: tasks/_archive/063-…)
+```
+
+The remaining three are prose. Both halves are the same defect: a task's *state directory*
+is being used as part of its *address*.
+
 ## Acceptance criteria
 
 - [ ] Pick a direction and record why:
@@ -61,6 +81,11 @@ one of them is anybody's job.
 - [ ] Under B: the script is tracked (not in `tmp/`), has the standard bash/python header,
       and refuses to guess when a basename resolves to more than one file.
 - [ ] `make doc-check` exits 0 on a clean tree, printing a non-zero `links_checked`.
+- [ ] Task paths inside inline code — `verify:` bindings above all — are covered too. Print
+      the stale-of-total count the way the scan above does; a bare "none found" is not a
+      result when the denominator is unstated.
+- [ ] The 5 stale paths found on 2026-08-03 resolve, and a genuinely missing `NNN` inside a
+      binding is still reported.
 - [ ] The archiving procedure in `AGENTS.md` names whichever mechanism was chosen, so the
       next round does not rediscover this.
 - [ ] `make test` exits 0.

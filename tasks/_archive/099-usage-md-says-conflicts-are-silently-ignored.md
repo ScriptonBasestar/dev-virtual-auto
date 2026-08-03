@@ -124,7 +124,7 @@ SOUL 68 lines).
 
 Not treated as an accepted exception and not fixed here — splitting the user manual is a structural
 change with its own blast radius, not something to fold into a one-sentence correction. Filed as
-[TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md).
+[TASK-106](106-usage-md-is-46-percent-over-the-doc-size-standard.md).
 
 ## Related
 

@@ -53,7 +53,7 @@ The seven:
 
 ### Update 2026-07-31 — the root documents, and USAGE.md is still growing
 
-Carried over from [TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md), filed
+Carried over from [TASK-106](106-usage-md-is-46-percent-over-the-doc-size-standard.md), filed
 and withdrawn as a duplicate of this task. Of the six root documents, `USAGE.md` is the only one over
 the limit — the rest have room:
 

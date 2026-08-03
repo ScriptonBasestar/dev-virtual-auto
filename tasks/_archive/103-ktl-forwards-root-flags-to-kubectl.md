@@ -8,6 +8,22 @@ status: done
 created-at: 2026-07-31T00:00:00+09:00
 closed-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/kubectl.go:34,66 — ktlCmd appends raw args to kubectl's argv on both exec paths"
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  Fix is one line, internal/cli/kubectl.go:32, placed after loadEnv and before the args[0]
+  entry lookup, reusing consumeRootPersistentFlags (internal/cli/root.go:276, also used at
+  compose.go:43, compose.go:604, stack.go:320).
+  Regression test internal/cli/ktl_flag_passthrough_test.go: 5 child-process cases, all PASS,
+  each logging the argv a kubectl shim actually received.
+  Non-vacuity proven by `go test -overlay` with the fix line stripped: 4 FAIL naming the
+  leaked flags, plus `multiple kubectl entries: alpha, beta` for the placement case; the
+  --dry-run=client control still passes (it is a control against over-stripping).
+  End-to-end on bin/dva v0.1.44 + kubectl shim confirms both `dva --debug ktl …` and
+  `dva ktl --debug …` strip the flag while still enabling debug logging.
+  internal/cli: 600 RUN / 600 PASS / 0 FAIL under -v (hazard-checked, not a bare `ok`).
+  DisableFlagParsing audit re-measured: 17 registered commands + 1 hooks_test.go fixture,
+  matching the task's table exactly; ktl is the only former leak site.
 ---
 
 # Task 103: `ktl` leaks root flags into kubectl

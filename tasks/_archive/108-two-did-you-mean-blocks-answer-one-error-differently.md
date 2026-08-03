@@ -8,6 +8,20 @@ status: done
 created-at: 2026-07-31T11:45:00+09:00
 completed-at: 2026-07-31T13:20:00+09:00
 scope: "internal/cli/root.go:229-240 — dva prints its own suggestion block below the one cobra already printed"
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  suggestCommands and its call site are gone; no production caller remains (grep over *.go finds
+  the name only in explanatory comments). levenshtein is retained and still live at
+  internal/cli/stack.go:494 and internal/cli/provision.go:405 (task text cites the pre-drift
+  lines 452/386), with root.go:389-391 documenting why it survived.
+  Measured on ./bin/dva v0.1.44 in an empty dir: sta/stak/stat/versoin/compeltion each print
+  exactly one `Did you mean this?` block, rc=1; hlep and nosuchthing print none. 30 runs of
+  sta, versoin and stat each produced 1 distinct stderr.
+  The one documented cost is real and pinned: reimplementing the deleted <=2-levenshtein scan
+  over config.ReservedCommands shows `hlep -> [help]` before, nothing now, and
+  TestCobraNeverSuggestsHelp (with its versoin->version control) fails loudly if cobra ever
+  starts offering help. internal/cli: 600 RUN / 600 PASS / 0 FAIL under -v.
 ---
 
 # Task 108: two answers, one question, neither labelled

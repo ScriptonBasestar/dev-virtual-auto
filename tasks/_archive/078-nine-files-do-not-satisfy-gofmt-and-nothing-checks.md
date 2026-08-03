@@ -122,7 +122,7 @@ correct when taken:
 - **445** counts only `+`/`-` lines, as `git show --numstat` reports them.
 - The corpus also changed underneath: **16 commits** touched these nine files between the task
   being filed on 2026-07-30 and the fix landing, including
-  [TASK-108](../done/108-two-did-you-mean-blocks-answer-one-error-differently.md), which deleted three test
+  [TASK-108](108-two-did-you-mean-blocks-answer-one-error-differently.md), which deleted three test
   functions from `root_test.go` — the file that dominated the estimate at 202 lines and landed
   at 179.
 

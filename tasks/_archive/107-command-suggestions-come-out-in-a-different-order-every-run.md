@@ -8,6 +8,22 @@ status: done
 created-at: 2026-07-31T11:45:00+09:00
 completed-at: 2026-07-31T11:52:00+09:00
 scope: "internal/cli/root.go:397-405 — suggestCommands ranges config.ReservedCommands(), which is a map[string]bool"
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  The defect TASK-107 filed (map-seeded ordering in the `Did you mean?` list) is closed and stays
+  closed, though its literal deliverable was superseded: ab937ce added `sort.Strings(suggestions)`
+  to suggestCommands, and b6c273f (TASK-108) then deleted suggestCommands entirely so only cobra's
+  block prints. Cobra ranges an ordered slice, so the invariant survives the deletion.
+  Re-measured today, not taken from the task: ./bin/dva sta 30x in an empty directory produced
+  exactly 1 distinct block (`stop ktl ssh stack status`), against the 16-18 orderings recorded in
+  the task. internal/cli/suggest_commands_test.go:45 TestSuggestionsAreStable pins the property in
+  process over 200 runs and is provably non-vacuous: a `go test -overlay` probe reinjecting map
+  iteration flips it to `--- FAIL`, and the test Fatalfs if the fixture ever drops below 2
+  suggestions. internal/cli/ verbose: 600 PASS / 0 FAIL, exit 0.
+  The two surviving levenshtein callers (stack.go:494 via similarTo, provision.go:405) both filter a
+  slice that was `sort.Strings`ed first (stack.go:466, provision.go:400), so the defect class has no
+  remaining instance in this package.
 ---
 
 # Task 107: the suggestion list is shuffled by the map seed

@@ -239,7 +239,7 @@ while shelling out to compose for an entry that has no container.
 
 ## Related
 
-- [TASK-103](../done/103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
+- [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
   command; 103 is about DVA's flags reaching kubectl, this is about the entry's config not
   reaching it. Fixing either does not fix the other.
 - [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md) — found while tracing

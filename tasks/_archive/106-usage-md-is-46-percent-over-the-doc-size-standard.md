@@ -9,6 +9,19 @@ superseded-by: TASK-090
 created-at: 2026-07-31T11:35:00+09:00
 closed-at: 2026-07-31T12:55:00+09:00
 scope: "USAGE.md — 730 lines / 27KB vs the 500-line / 10KB per-document standard in skill:docs:doc-standards"
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  Re-measured 2026-08-03, not trusted from the task file. TASK-106 is a self-withdrawn duplicate;
+  its one criterion is a pointer at TASK-090, and the pointer is correct: 090 covers USAGE.md
+  (12 hits, frontmatter scope line 12, measurement row line 47, and the carried-across root-document
+  section at lines 54-69). 090 itself is closed and delivered — decision B recorded, USAGE.md a
+  written exemption in AGENTS.md:166-183 and tools/doccheck/policy.go:33, gated by `make doc-check`.
+  Today's sizes: USAGE.md 786/30961, schema-reference.md 804/35703 — the "single outlier" headline
+  106 retracts is still false, confirming the retraction rather than the original claim.
+  Defect found: the `verify:` binding at 106:67 names `tasks/done/090-…md`, which no longer exists
+  (090 was archived); run verbatim it exits 2. The same file's markdown links already say `../_archive/`,
+  so only the backticked shell path is stale.
 ---
 
 # Task 106: the manual is the only document over the limit, and the limit is unenforced

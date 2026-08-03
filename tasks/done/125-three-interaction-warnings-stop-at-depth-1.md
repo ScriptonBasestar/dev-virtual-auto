@@ -72,7 +72,7 @@ $ for i in $(seq 20); do dva config validate | grep '\[warn\] semantic' | tr '\n
 3          # three different orderings of the same three warnings, same input
 ```
 
-That is the defect [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md) closed
+That is the defect [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) closed
 for command suggestions, still live here. It is fixed in the same change rather than filed separately
 because the recursion is what makes it bite — shipping the recursion alone would have made output
 *less* stable than before.
@@ -177,7 +177,7 @@ already known rather than rediscovering it.
 
 ## Related
 
-- [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md) — same
+- [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) — same
   nondeterminism, different surface.
 - [TASK-124](124-resolution-trace-is-built-never-printed-and-partly-false.md) — immediate
   predecessor and the same defect class: output that claims a coverage it does not have. There a

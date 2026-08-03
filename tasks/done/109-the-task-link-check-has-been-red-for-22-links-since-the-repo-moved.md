@@ -17,9 +17,9 @@ scope: "tasks/_archive/ — 13 files, 22 links. Every target is determinable; no
 The link check over `tasks/` reports **22 broken links, all in `tasks/_archive/`**. Outside the
 archive it reports **0 of 171**. The archive breaks have been there long enough that every recent
 task has had to say "22 pre-existing" when reporting its own link result — including
-[TASK-104](../done/104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md),
+[TASK-104](../_archive/104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md),
 [TASK-099](../_archive/099-usage-md-says-conflicts-are-silently-ignored.md) and
-[TASK-107](../done/107-command-suggestions-come-out-in-a-different-order-every-run.md).
+[TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md).
 
 That is the actual cost. A number everyone has learned to subtract is a number nobody reads, and the
 23rd break — a real one, in an active task — would arrive looking exactly like the noise.
@@ -140,5 +140,5 @@ So the headline number from this task deserves its caveat: the check is green ag
 
 - [TASK-110](110-23-archive-links-point-into-gitignored-tmp-and-the-checker-cannot-tell.md) — found by
   this task's non-vacuity probe rather than by its main check.
-- [TASK-106](../done/106-usage-md-is-46-percent-over-the-doc-size-standard.md) — the other unenforced
+- [TASK-106](../_archive/106-usage-md-is-46-percent-over-the-doc-size-standard.md) — the other unenforced
   standard found this week; same shape, in that nothing measures it until someone counts by hand.

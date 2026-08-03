@@ -8,6 +8,18 @@ status: done
 created-at: 2026-07-31T11:05:00+09:00
 completed-at: 2026-07-31T11:20:00+09:00
 scope: "internal/runner/interaction_tree.go — expandInto writes result[name] unconditionally; reached by both List (listing) and expand (execution, via Find). internal/cli/validate.go — the warning channel that reports it."
+verified-at: 2026-08-03T13:55:00+09:00
+archived-at: 2026-08-03T13:55:00+09:00
+verification-summary: |
+  Re-measured against bin/dva v0.1.44 with fresh fixtures in scratchpad, not against the numbers in the task.
+  Determinism: intra-entry `run a b c --explain` 20× → 1 distinct Command: line; `manifest` 30× → 1 distinct
+  .dynamic_commands on both intra- and cross-entry fixtures. Report: `dva validate` prints the collision naming
+  both declarations by their dva.yml paths plus the shared key, rc=0 plain / rc=1 under --strict.
+  Counts: intra 4 declared → 3 commands + 1 collision; cross 3 → 2 + 1. Corpus: 19 example files, 18 manifests,
+  89 dynamic commands, 0 interaction warnings, 0 space-containing interaction keys (so the corpus cannot regress).
+  Non-vacuity re-run mechanically via `go test -overlay` on two modified copies of interaction_tree.go: reverting
+  the sort fails only the determinism tests, gutting the report fails only the reporting tests — independent, as claimed.
+  Test tallies taken with -v (TASK-144 hazard): runner 47 PASS/0 FAIL, cli 392 PASS/0 FAIL.
 ---
 
 # Task 104: one map, two key shapes, last writer wins
