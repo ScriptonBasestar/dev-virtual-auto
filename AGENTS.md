@@ -182,6 +182,8 @@ Size exemptions (lookup / contract documents — splitting harms the use case; l
 
 The checker inventories **tracked files that still exist in the worktree + non-ignored untracked** files (tracked deletions are excluded so mid-move index blobs cannot mask broken links; ignored `tmp/` cannot make a miss look valid), skips git symlink aliases (mode `120000`) and checks the canonical target once, and fails on zero candidates/links, any broken relative link/anchor in repository Markdown, or oversized docs under the size-enforced paths.
 
+**Task links survive state transitions (TASK-143).** A task's identity is its number (`NNN-slug.md`); its directory is its state (`todo`/`done`/`_archive`/…), which changes when it is worked or archived. The checker resolves a `tasks/<state>/NNN-…` markdown link — and the same path written inside inline code (where `verify:` bindings live, invisible to the link scan) — to whichever state directory actually holds `NNN-…`. One match resolves the reference; zero is a genuine broken link; more than one is an ambiguity the gate refuses to guess. So archiving a task no longer breaks inbound links: `make doc-check` stays green across a move without a repoint pass.
+
 <!-- skills:auto:start -->
 ## AI Skills
 

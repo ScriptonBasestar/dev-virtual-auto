@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -125,6 +126,18 @@ func Check(in CheckInput) Result {
 		}
 	}
 
+	// Task paths written inside inline code — verify: bindings above all — are invisible to the
+	// link scan (code is blanked before link extraction). Resolve each against the inventory so a
+	// binding pointing at a moved task fails loudly instead of rotting silently (TASK-143).
+	for _, e := range scanFiles {
+		if body, ok := bodies[e.Path]; ok {
+			for _, msg := range checkCodeTaskPaths(e.Path, body, pathSet) {
+				res.BrokenLinks++
+				res.BrokenDetail = append(res.BrokenDetail, msg)
+			}
+		}
+	}
+
 	if res.LinksChecked == 0 {
 		res.Errors = append(res.Errors, "vacuous: zero links checked")
 	}
@@ -165,6 +178,19 @@ func checkOneLink(
 		}
 	}
 
+	// A link into the tasks tree whose literal target moved to another state directory resolves to
+	// the file's actual location before it is declared broken. A task's identity is its number
+	// (NNN-slug.md); its directory is its state (todo/done/_archive/…), which is expected to change
+	// when it is worked or archived. One basename match resolves the link; zero is a genuine broken
+	// link; more than one is an ambiguity the checker refuses to guess (TASK-143).
+	if _, ok := pathSet[targetPath]; !ok {
+		if resolved, found, ambiguous := resolveTaskLink(targetPath, pathSet); ambiguous {
+			return fmt.Sprintf("%s:%d: ambiguous task link %q: basename matches several files under tasks/", from, link.Line, link.Target)
+		} else if found {
+			targetPath = resolved
+		}
+	}
+
 	if _, ok := pathSet[targetPath]; !ok {
 		if !inventoryHasPrefix(pathSet, targetPath+"/") {
 			return fmt.Sprintf("%s:%d: missing target %q (from %q)", from, link.Line, targetPath, link.Target)
@@ -198,6 +224,88 @@ func inventoryHasPrefix(pathSet map[string]struct{}, prefix string) bool {
 		}
 	}
 	return false
+}
+
+// resolveTaskLink resolves a link into the tasks tree whose literal target has moved to another
+// state directory. Returns the resolved path when exactly one tasks/ file shares the basename,
+// found=true; found=false, ambiguous=false for zero matches (a genuine broken link, or a non-tasks
+// link the caller leaves alone); ambiguous=true when the basename matches more than one file, so
+// the checker can refuse rather than silently pick (TASK-143).
+func resolveTaskLink(target string, pathSet map[string]struct{}) (resolved string, found bool, ambiguous bool) {
+	if !strings.HasPrefix(target, "tasks/") {
+		return target, false, false
+	}
+	base := path.Base(target)
+	if !isTaskFileBasename(base) {
+		return target, false, false
+	}
+	var hits []string
+	for p := range pathSet {
+		if strings.HasPrefix(p, "tasks/") && path.Base(p) == base {
+			hits = append(hits, p)
+		}
+	}
+	switch len(hits) {
+	case 0:
+		return target, false, false
+	case 1:
+		return hits[0], true, false
+	default:
+		return target, false, true
+	}
+}
+
+// isTaskFileBasename reports whether a basename looks like a task file: one or more digits, a
+// dash, then a slug — the NNN-slug.md shape every task file carries. Non-task files under tasks/
+// (a README, an INDEX) are left to the literal-path check.
+func isTaskFileBasename(base string) bool {
+	i := 0
+	for i < len(base) && base[i] >= '0' && base[i] <= '9' {
+		i++
+	}
+	return i > 0 && i < len(base) && base[i] == '-'
+}
+
+var (
+	inlineCodeSpanRe = regexp.MustCompile("`[^`]+`")
+	// taskPathRe matches an absolute task path (tasks/<state>/NNN-slug.md) wherever it is written.
+	taskPathRe = regexp.MustCompile(`tasks/[\w.-]+/\d+-[\w.-]+\.md`)
+)
+
+// checkCodeTaskPaths scans inline-code spans — where verify: bindings live, invisible to the link
+// scan — for absolute task paths and resolves each like a moved-task link. Returns one message per
+// broken or ambiguous reference. A path written in code must survive the task moving directories
+// the same way a markdown link now does (TASK-143).
+func checkCodeTaskPaths(from, body string, pathSet map[string]struct{}) []string {
+	// Strip fenced code blocks first, the way extractLinks does: a ``` example is not an inline
+	// span, but the backtick regex would otherwise match from the opening fence's third backtick
+	// to the closing fence's first, leaking fenced content (e.g. a stale task path in an example)
+	// into the inline scan and turning the gate red. Inline code — where verify: bindings live —
+	// is preserved (TASK-143 review M1).
+	body = stripFencedRegions(body)
+	seen := map[string]struct{}{}
+	var msgs []string
+	for _, span := range inlineCodeSpanRe.FindAllString(body, -1) {
+		for _, p := range taskPathRe.FindAllString(span, -1) {
+			if _, dup := seen[p]; dup {
+				continue
+			}
+			seen[p] = struct{}{}
+			if _, ok := pathSet[p]; ok {
+				continue // literal path still valid
+			}
+			_, found, ambiguous := resolveTaskLink(p, pathSet)
+			switch {
+			case ambiguous:
+				msgs = append(msgs, fmt.Sprintf("%s: inline task path %q is ambiguous: basename matches several files under tasks/", from, p))
+			case found:
+				// resolves to its current state dir — valid
+			default:
+				msgs = append(msgs, fmt.Sprintf("%s: inline task path %q does not resolve to any tasks/ file", from, p))
+			}
+		}
+	}
+	return msgs
 }
 
 func countLines(s string) int {
