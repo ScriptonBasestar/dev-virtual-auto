@@ -20,6 +20,32 @@ func stdinEOF(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open %s: %v", os.DevNull, err)
 	}
+	useStdin(t, f)
+}
+
+// stdinFrom points os.Stdin at a file holding exactly content, for the arms of the prompt
+// where somebody does answer.
+//
+// A regular file rather than an os.Pipe: a pipe whose write end stays open never reaches EOF,
+// so a fix that stopped consuming stdin would hang the suite instead of failing it. A file
+// ends on its own.
+func stdinFrom(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "stdin")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write stdin fixture: %v", err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open stdin fixture: %v", err)
+	}
+	useStdin(t, f)
+}
+
+// useStdin swaps os.Stdin for the duration of the test. fmt.Scanln resolves os.Stdin at call
+// time, which is what makes the swap reach the prompt at all.
+func useStdin(t *testing.T, f *os.File) {
+	t.Helper()
 	old := os.Stdin
 	os.Stdin = f
 	t.Cleanup(func() { os.Stdin = old; _ = f.Close() })
@@ -129,10 +155,15 @@ func TestCleanDryRunSkipsTheDestructionPrompt(t *testing.T) {
 // TestCleanWithoutDryRunStillPrompts is the safety control, and the half of TASK-170 that must
 // not move: exempting the preview is only defensible if the real path is untouched.
 //
-// EOF stdin stands in for the pipe or the CI runner. The marker assertion is what proves the
-// abort stopped the work rather than merely printing about it — clearProvisionMarkers runs a
-// few lines below the prompt, so a gate that fell through would delete this file for real
-// before anything reached docker.
+// The stdin changed from EOF to a typed "n" under TASK-171, deliberately rather than by
+// deletion. This test asserts the decline path — prompt shown, work not done, "Aborted."
+// printed — and under TASK-171 EOF stopped being a decline: it now fails, prints no
+// "Aborted.", and is covered by TestCleanEOFIsNotADecline below. Feeding it EOF would have
+// left this test asserting the behaviour of a branch it no longer reaches.
+//
+// The marker assertion is what proves the abort stopped the work rather than merely printing
+// about it — clearProvisionMarkers runs a few lines below the prompt, so a gate that fell
+// through would delete this file for real before anything reached docker.
 //
 // The stdout assertion pins the stream move. The prompt went to stderr and "Aborted." to
 // stdout, so `2>/dev/null` showed a verdict with nothing saying what had been aborted, and a
@@ -141,7 +172,7 @@ func TestCleanWithoutDryRunStillPrompts(t *testing.T) {
 	marker := cleanMarkerFixture(t)
 	setCleanFlags(t, "volumes")
 	setDryRun(t, false)
-	stdinEOF(t)
+	stdinFrom(t, "n\n")
 
 	stdout, stderr := captureCleanOutput(t, func() { _ = cleanCmd.RunE(cleanCmd, nil) })
 
@@ -156,5 +187,81 @@ func TestCleanWithoutDryRunStillPrompts(t *testing.T) {
 	}
 	if strings.Contains(stdout, "Aborted.") {
 		t.Errorf("Aborted. is on stdout, split from the prompt it answers on stderr:\n%s", stdout)
+	}
+}
+
+// TestCleanEOFIsNotADecline covers TASK-171: `dva clean --volumes </dev/null` used to print
+// "Aborted." and exit 0, which is the command reporting success for a removal that never
+// happened — and the only signal a script can read said it had.
+//
+// The assertion is on the error RunE returns, not on the output, because the output was never
+// the problem: "Aborted." was printed correctly and truthfully described nothing having been
+// removed. It was the exit code that lied, and a test reading only stderr passes both before
+// and after the fix.
+func TestCleanEOFIsNotADecline(t *testing.T) {
+	marker := cleanMarkerFixture(t)
+	setCleanFlags(t, "volumes")
+	setDryRun(t, false)
+	stdinEOF(t)
+
+	var err error
+	_, stderr := captureCleanOutput(t, func() { err = cleanCmd.RunE(cleanCmd, nil) })
+
+	if err == nil {
+		t.Fatalf("clean --volumes with no terminal returned nil, so a script is told the volumes "+
+			"were removed when nothing was. stderr:\n%s", stderr)
+	}
+	// --force is the whole remedy: without naming it the error reports a dead end.
+	if !strings.Contains(err.Error(), "--force") {
+		t.Errorf("the error must name the way to proceed non-interactively, got: %v", err)
+	}
+	// The prompt is still written before stdin is read, so the human running this by hand and
+	// the script piping into it see the same warning.
+	if !strings.Contains(stderr, "Continue?") {
+		t.Errorf("the prompt vanished; EOF should fail at the answer, not skip the warning:\n%s", stderr)
+	}
+	if strings.Contains(stderr, "Aborted.") {
+		t.Errorf("EOF is not a decline — nobody was there to abort anything, so this line names "+
+			"an actor that does not exist:\n%s", stderr)
+	}
+	if _, e := os.Stat(marker); e != nil {
+		t.Errorf("the unanswerable prompt still deleted the provision marker: %v", e)
+	}
+}
+
+// TestCleanAnsweredDeclineExitsZero pins the other half of the TASK-171 decision: an answer,
+// including the prompt's own documented default, is honoured and is not an error.
+//
+// The bare-Enter and whitespace rows are the ones that matter. fmt.Scanln returns an error for
+// those too — "unexpected newline", not io.EOF — so a fix keyed on `err != nil` instead of on
+// io.EOF would turn the documented default N into a hard failure and pass every test that only
+// checked the EOF case.
+func TestCleanAnsweredDeclineExitsZero(t *testing.T) {
+	for _, tc := range []struct{ name, stdin string }{
+		{"typed n", "n\n"},
+		{"typed no", "no\n"},
+		{"bare Enter, the documented default", "\n"},
+		{"whitespace then Enter", "   \n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			marker := cleanMarkerFixture(t)
+			setCleanFlags(t, "volumes")
+			setDryRun(t, false)
+			stdinFrom(t, tc.stdin)
+
+			var err error
+			_, stderr := captureCleanOutput(t, func() { err = cleanCmd.RunE(cleanCmd, nil) })
+
+			if err != nil {
+				t.Fatalf("an answered prompt is not a failure — the command was asked not to "+
+					"proceed and did not proceed: %v", err)
+			}
+			if !strings.Contains(stderr, "Aborted.") {
+				t.Errorf("a decline must say so; stderr:\n%s", stderr)
+			}
+			if _, e := os.Stat(marker); e != nil {
+				t.Errorf("the declined run deleted the provision marker anyway: %v", e)
+			}
+		})
 	}
 }

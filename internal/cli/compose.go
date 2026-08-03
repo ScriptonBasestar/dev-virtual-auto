@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -617,13 +618,29 @@ var cleanCmd = &cobra.Command{
 			}
 			fmt.Fprintf(os.Stderr, "%s.\nContinue? [y/N] ", msg)
 			var answer string
-			_, _ = fmt.Scanln(&answer)
+			// Scanln's error is what separates "nobody was there to answer" from "someone
+			// answered no", and discarding it (`_, _ =`) collapsed them into one silent
+			// rc 0. Measured: stdin exhausted before any token — a pipe, a CI runner,
+			// </dev/null — returns io.EOF, while a person pressing Enter at the prompt
+			// returns "unexpected newline" instead. So the documented default (N) still
+			// reaches the decline branch below, and only the case with no operator in it
+			// becomes an error. Keying this on `err != nil` would have made the prompt's
+			// own default a hard failure. TASK-171.
+			if _, err := fmt.Scanln(&answer); errors.Is(err, io.EOF) {
+				return fmt.Errorf("cannot ask for confirmation: stdin reached EOF, so nothing answered the prompt and nothing was removed\n"+
+					"       → pass --force to run '%s' non-interactively", cmd.CommandPath())
+			}
 			answer = strings.ToLower(strings.TrimSpace(answer))
 			if answer != "y" && answer != "yes" {
 				// stderr, with the prompt it answers. On stdout it was half of an
 				// interaction whose other half was on another stream, so `2>/dev/null`
 				// showed "Aborted." with nothing saying what had been aborted.
 				fmt.Fprintln(os.Stderr, "Aborted.")
+				// rc 0 on an explicit decline, deliberately. The command was asked not to
+				// proceed and did not proceed; that is the interaction succeeding, and the
+				// person who typed it is at a terminal reading this line, not inspecting
+				// $?. The EOF branch above is different in kind — there nobody declined,
+				// so reporting a decline would be inventing an answer. TASK-171.
 				return nil
 			}
 		}

@@ -154,6 +154,11 @@ dva clean -f              # skip confirmation prompt
 | `-i` | Remove local images |
 | `-f` | Skip confirmation |
 
+`-v`/`-i` prompt for confirmation. Where nothing can answer the prompt — a pipe, a CI
+runner, `</dev/null` — the command removes nothing and **fails**, naming `-f` as the way to
+proceed non-interactively. Declining at a terminal (`n`, or Enter for the default) still
+exits 0: an answer was given and honoured.
+
 ### `dva app` (legacy)
 
 Manage legacy `applications:` entries. New configurations use stack runners and plans.
