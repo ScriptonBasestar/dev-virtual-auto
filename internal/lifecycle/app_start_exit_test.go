@@ -14,6 +14,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -155,5 +156,66 @@ func TestStartAppsReturnsNilWhenProcessOwnsItsPort(t *testing.T) {
 
 	if err := am.StartApps(context.Background(), AppStartOptions{Wait: true}); err != nil {
 		t.Fatalf("StartApps failed for an app that owns its port; the fix turned a false success into a false failure:\n%v", err)
+	}
+}
+
+// TestStartAppsDryRunDoesNotSpawn covers TASK-153. `dva app up --dry-run` advertised the flag and
+// started the app anyway: app up's AppStartOptions omitted DryRun, so startWave spawned a real
+// process and wrote a pidfile and a log. Asserting the printed line is not enough — assert no
+// pidfile and no log file, which is what "started anyway" left behind.
+func TestStartAppsDryRunDoesNotSpawn(t *testing.T) {
+	am := newStartAppsTest(t, map[string]*config.ApplicationConfig{
+		"web": {Run: config.AppExecPaths{Native: "sleep 300"}}, // would run for real if DryRun were dropped
+	})
+
+	out, err := captureStderr(t, func() error {
+		return am.StartApps(context.Background(), AppStartOptions{Names: []string{"web"}, DryRun: true})
+	})
+	if err != nil {
+		t.Fatalf("StartApps(dry-run) = %v, want nil", err)
+	}
+	if !strings.Contains(out, "(dry-run) would start web") {
+		t.Errorf("dry-run did not print the would-start line; got:\n%s", out)
+	}
+	// The load-bearing assertion: no process was spawned, so neither a pidfile nor a log exists.
+	if _, statErr := os.Stat(am.pidPath("web")); !os.IsNotExist(statErr) {
+		t.Errorf("dry-run left a pidfile at %s — a process was spawned", am.pidPath("web"))
+	}
+	if _, statErr := os.Stat(am.logPath("web")); !os.IsNotExist(statErr) {
+		t.Errorf("dry-run left a log file at %s — a process was spawned", am.logPath("web"))
+	}
+}
+
+// TestHaltAppsDryRunDoesNotSignal covers the restart halt half (TASK-153). HaltApps sends SIGTERM;
+// under --dry-run a restart must not take the app down. A real stand-in process is spawned and its
+// pid recorded where HaltApps would look; HaltAppsDryRun must leave it running.
+func TestHaltAppsDryRunDoesNotSignal(t *testing.T) {
+	am := newStartAppsTest(t, map[string]*config.ApplicationConfig{
+		"web": {Run: config.AppExecPaths{Native: "sleep 300"}},
+	})
+	helper := exec.Command("sleep", "300")
+	if err := helper.Start(); err != nil {
+		t.Fatalf("start helper: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = helper.Process.Kill()
+		_, _ = helper.Process.Wait()
+	})
+
+	pidFile := am.pidPath("web")
+	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil {
+		t.Fatalf("mkdir pid dir: %v", err)
+	}
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(helper.Process.Pid)), 0o644); err != nil {
+		t.Fatalf("write pidfile: %v", err)
+	}
+
+	out, _ := captureStderr(t, func() error { am.HaltAppsDryRun("web"); return nil })
+	if !strings.Contains(out, "(dry-run) would stop web") {
+		t.Errorf("dry-run did not print the would-stop line; got:\n%s", out)
+	}
+	// The load-bearing assertion: the process is still alive — no SIGTERM was sent.
+	if !IsProcessRunning(helper.Process.Pid) {
+		t.Fatal("HaltAppsDryRun killed the helper process — the halt half was not simulated")
 	}
 }

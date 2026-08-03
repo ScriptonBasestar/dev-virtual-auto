@@ -170,6 +170,7 @@ var appUpCmd = &cobra.Command{
 			DevMode: devMode,
 			Wait:    true,
 			Mode:    mode,
+			DryRun:  dryRun,
 		})
 
 		fmt.Fprintln(os.Stderr)
@@ -233,12 +234,21 @@ var appRestartCmd = &cobra.Command{
 		}
 
 		am := lifecycle.NewAppManager(c, e)
-		am.HaltApps(appNames...)
+		// Under --dry-run, simulate the halt half too. HaltApps sends SIGTERM, so calling it for
+		// real would take the app down while the start half only previews — the opposite of what a
+		// user reaching for --dry-run expects. HaltAppsDryRun names what would stop without
+		// signalling (TASK-153).
+		if dryRun {
+			am.HaltAppsDryRun(appNames...)
+		} else {
+			am.HaltApps(appNames...)
+		}
 		return am.StartApps(cmd.Context(), lifecycle.AppStartOptions{
 			Names:   appNames,
 			DevMode: devMode,
 			Wait:    true,
 			Mode:    mode,
+			DryRun:  dryRun,
 		})
 	},
 }

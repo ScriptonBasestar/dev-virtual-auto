@@ -346,6 +346,28 @@ func (am *AppManager) HaltApps(names ...string) {
 	}
 }
 
+// HaltAppsDryRun is the dry-run half of `app restart --dry-run`: it names each running app that
+// HaltApps would stop, without sending SIGTERM. A restart preview must not actually take the app
+// down while the start half only says what it would do — that asymmetry is the trap a user reaches
+// for --dry-run to avoid. Selection and liveness mirror HaltApps; only the signal is withheld.
+// (HaltApps gates its "stopped" line on the group signal succeeding; this probes the leader with
+// IsProcessRunning — a negligible divergence, since dva-spawned apps are process-group leaders via
+// Setpgid.) (TASK-153)
+func (am *AppManager) HaltAppsDryRun(names ...string) {
+	apps := am.selectApps(names)
+	for name := range apps {
+		pidFile := am.pidPath(name)
+		data, err := os.ReadFile(pidFile)
+		if err != nil {
+			continue
+		}
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+		if pid > 0 && IsProcessRunning(pid) {
+			fmt.Fprintf(os.Stderr, "[app] (dry-run) would stop %s (pid %d)\n", name, pid)
+		}
+	}
+}
+
 // DownApps sends SIGTERM and removes PID/log files (Vagrant destroy semantics).
 // Beyond signalling the tracked process group, it reclaims each app's declared
 // port from any survivor or stale orphan the group signal did not reach — this
