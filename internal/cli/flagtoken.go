@@ -65,10 +65,17 @@ func dvaFlagEnd(args []string) int {
 
 // flagBoolValue reads a boolean flag's value. A bare `--debug` is true; `--debug=X` takes X.
 //
-// ok is false when X is not a boolean. Callers must not guess in that case: what they do
-// with it differs by position, and the difference is deliberate. consumeRootPersistentFlags
-// is the boundary with the external program, so it rejects; parseDvaFlags leaves the token
-// in place for its caller's own unknown-flag rejection to name.
+// ok is false when X is not a boolean, and both callers reject it rather than guess.
+//
+// parseDvaFlags used to instead leave the token in filtered "for its caller's own
+// unknown-flag rejection to name". That held for 7 of its 12 call sites. The other 5 have no
+// rejection behind them, and on `dva build` the leftover *is* the external argv, so
+// `--debug=notabool` was appended to docker's command line — the same leak TASK-145 closed,
+// in the one spelling it did not claim. The promise could not be kept there even in
+// principle: `dva build` must forward the flags it does not recognise, because `--no-cache`
+// is docker's, so its caller cannot tell a malformed DVA flag from a valid docker one.
+// parseDvaFlags is the last code that knows `--debug` is DVA's, so it is where the
+// rejection belongs. TASK-172.
 //
 // The accepted spellings are strconv.ParseBool's, which are pflag's, so a DisableFlagParsing
 // command answers `--debug=1` the same way its normally-parsed siblings do.

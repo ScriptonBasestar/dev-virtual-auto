@@ -181,6 +181,7 @@ func TestParseDvaFlagValueShapes(t *testing.T) {
 		wantDebug    bool
 		wantDryRun   bool
 		wantFiltered string
+		wantErr      bool
 	}{
 		{name: "separate value", in: []string{"--mode", "native", "pg"}, mode: "native", wantFiltered: "pg"},
 		{name: "inline value", in: []string{"--mode=native", "pg"}, mode: "native", wantFiltered: "pg"},
@@ -200,18 +201,47 @@ func TestParseDvaFlagValueShapes(t *testing.T) {
 			wantFiltered: "-- --mode=other --debug",
 		},
 		{
-			// Not a boolean, so not claimed. It lands in filtered for the caller's own
-			// rejectUnknownFlags to name.
-			name:         "malformed bool is left for the caller to reject",
-			in:           []string{"--debug=notabool", "pg"},
-			wantFiltered: "--debug=notabool pg",
+			// Not a boolean, so rejected here. It used to land in filtered "for the caller's
+			// own rejectUnknownFlags to name" — which 5 of the 12 call sites do not have, and
+			// on `dva build` filtered is docker's argv. TASK-172.
+			name:    "malformed bool is rejected, not passed down",
+			in:      []string{"--debug=notabool", "pg"},
+			wantErr: true,
+		},
+		{
+			// The rejection is the flag's, not the position's: a malformed value anywhere in
+			// DVA's run of flags is still DVA's to name.
+			name:    "malformed bool after a positional is still rejected",
+			in:      []string{"pg", "--json=maybe"},
+			wantErr: true,
+		},
+		{
+			// Past the terminator it is not DVA's flag at all, so it stays a passthrough token
+			// and no error is raised.
+			name:         "malformed bool past the terminator is not ours",
+			in:           []string{"--", "--debug=notabool"},
+			wantFiltered: "-- --debug=notabool",
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			debug, jsonOutput, dryRun = false, false, false
-			mode, env, includeTags, _, filtered := parseDvaFlags(tc.in)
+			mode, env, includeTags, _, filtered, err := parseDvaFlags(tc.in)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("parseDvaFlags(%v) = %q, nil — a malformed value must not reach a caller",
+						tc.in, strings.Join(filtered, " "))
+				}
+				if !strings.Contains(err.Error(), "invalid boolean value") {
+					t.Errorf("error = %q, want it to name the problem", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseDvaFlags(%v) returned an unexpected error: %v", tc.in, err)
+			}
 
 			if mode != tc.mode {
 				t.Errorf("mode = %q, want %q", mode, tc.mode)

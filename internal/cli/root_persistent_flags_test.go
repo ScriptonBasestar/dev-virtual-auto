@@ -74,7 +74,7 @@ func TestParseDvaFlagsConsumesDebugAndJSON(t *testing.T) {
 	debug = false
 	jsonOutput = false
 	dryRun = false
-	_, _, _, _, filtered := parseDvaFlags([]string{"--debug", "--json", "postgres"})
+	_, _, _, _, filtered, _ := parseDvaFlags([]string{"--debug", "--json", "postgres"})
 
 	for _, a := range filtered {
 		if a == "--debug" || a == "--json" {

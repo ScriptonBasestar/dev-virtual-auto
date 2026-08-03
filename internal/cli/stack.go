@@ -75,7 +75,10 @@ start an explicit service subset.
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, names, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		force := false
@@ -161,7 +164,10 @@ DVA-specific flags:
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, names, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, _ = applyDefaultMode(c, mode)
 
 		// stop takes no flags of its own, so anything left with a leading dash is a typo.
@@ -215,7 +221,10 @@ DVA-specific flags:
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, names, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, _ = applyDefaultMode(c, mode)
 
 		volumes := false
@@ -371,9 +380,9 @@ var stackSelectorFlags = []string{
 //
 // app up/restart/build call parseDvaFlags like everything else, so it consumes --env and the
 // tag filters without complaint — but they take only its first return value
-// (`mode, _, _, _, args := parseDvaFlags(args)` at app.go:101, :183 and :223) and drop env and
-// both tag lists on the floor. --dry-run/--debug/--json are kept because parseDvaFlags sets the
-// package globals directly rather than returning them.
+// (`mode, _, _, _, args, err := parseDvaFlags(args)` at app.go:126, :228 and :287) and drop
+// env and both tag lists on the floor. --dry-run/--debug/--json are kept because
+// parseDvaFlags sets the package globals directly rather than returning them.
 //
 // Advertising the discarded ones as "accepted here" would be a false statement in an error
 // message whose whole purpose is to tell the user what works. That they are silently ignored

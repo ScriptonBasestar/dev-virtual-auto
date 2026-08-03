@@ -117,7 +117,10 @@ Without plans, use the legacy stack and applications lifecycle.
 			return err
 		}
 
-		mode, envName, includeTags, excludeTags, args := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, args, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		force := false
@@ -266,10 +269,21 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 	c := mustLoadConfig()
 	e := loadEnv(c)
 
-	mode, envName, includeTags, excludeTags, remaining := parseDvaFlags(args)
+	mode, envName, includeTags, excludeTags, remaining, err := parseDvaFlags(args)
+	if err != nil {
+		return nil, nil, "", nil, nil, err
+	}
 	mode, isDefault := applyDefaultMode(c, mode)
 
 	if len(remaining) > 0 {
+		// A leftover that starts with "-" is a flag, not a service name, and quoting it into
+		// the suggestion produced advice that cannot work: `dva down --bogus` answered "Use
+		// 'dva stack down --bogus'", which fails the same way for the same reason. Only the
+		// name-shaped case gets the selective-teardown hint. TASK-172.
+		if strings.HasPrefix(remaining[0], "-") {
+			return nil, nil, "", nil, nil, fmt.Errorf("unknown flag %q for \"dva %s\"\n       → 'dva %s' takes no service names or flags of its own; it %ss everything declared",
+				remaining[0], verb, verb, verb)
+		}
 		return nil, nil, "", nil, nil, fmt.Errorf("'dva %s' %ss all services. Use 'dva stack %s %s' or 'dva app %s %s' for selective %s",
 			verb, verb, verb, remaining[0], verb, remaining[0], verb)
 	}
@@ -337,7 +351,10 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 		if err != nil {
 			return err
 		}
-		_, envName, _, _, _ := parseDvaFlags(args)
+		_, envName, _, _, _, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
@@ -401,7 +418,10 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 		if err != nil {
 			return err
 		}
-		_, envName, _, _, _ := parseDvaFlags(args)
+		_, envName, _, _, _, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 
 		if len(c.Applications) > 0 {
 			am := lifecycle.NewAppManager(c, e)
@@ -467,7 +487,10 @@ Legacy flags:
 			return err
 		}
 
-		mode, envName, includeTags, excludeTags, names := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, names, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
@@ -514,7 +537,13 @@ var buildCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, _, _, _, remaining := parseDvaFlags(args)
+		// remaining is docker's argv from here on — `dva build --no-cache` has to reach
+		// docker, so nothing downstream can tell a malformed DVA flag from a valid docker
+		// one. parseDvaFlags is the last code that can, and now does. TASK-172.
+		mode, _, _, _, remaining, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, _ = applyDefaultMode(c, mode)
 
 		// Check mode build strategy
@@ -666,22 +695,29 @@ var logsCmd = &cobra.Command{
 // DisableFlagParsing and cobra therefore never parses them for them. --debug/--json
 // are also pre-parsed in PersistentPreRun for logger.Init; stripping them here
 // prevents them from being treated as entry/service names.
-func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
+func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string, err error) {
 	// --dry-run is handled in the switch below, not by a consumeDryRunFlag pre-pass. The
 	// pre-pass was a second walk that did the same thing, and after TASK-145 it would have
 	// been a walk with its own idea of where the `--` terminator is.
 	end := dvaFlagEnd(args)
 
-	// A malformed boolean value (`--debug=notabool`) falls through to filtered on purpose.
-	// Unlike consumeRootPersistentFlags this output stays inside DVA — entry and application
-	// names — so the caller's own rejectUnknownFlags names it, in DVA's words, alongside the
-	// list of names it could have meant.
-	takeBool := func(a, value string, hasValue bool, target *bool) {
+	// A malformed boolean value (`--debug=notabool`) is rejected here rather than passed down
+	// in filtered. It used to fall through "for the caller's own rejectUnknownFlags to name",
+	// which only 7 of the 12 call sites have; `dva build` instead appended it to docker's
+	// argv. No caller can take over this job, because a passthrough command must forward the
+	// flags it does not recognise — this is the last code that knows `--debug` is DVA's.
+	// TASK-172.
+	//
+	// The first bad flag wins: reporting one is what the user has to fix first, and the scan
+	// continues only so `mode`/`env` are still populated for callers that log before checking.
+	takeBool := func(name, value string, hasValue bool, target *bool) {
 		if v, ok := flagBoolValue(value, hasValue); ok {
 			*target = v
 			return
 		}
-		filtered = append(filtered, a)
+		if err == nil {
+			err = fmt.Errorf("invalid boolean value %q for %s", value, name)
+		}
 	}
 
 	for i := 0; i < end; i++ {
@@ -713,11 +749,11 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		// is read as an entry/service name, leaving dryRun false: `dva up
 		// --dry-run` then executes for real.
 		case "--dry-run":
-			takeBool(a, value, hasValue, &dryRun)
+			takeBool(name, value, hasValue, &dryRun)
 		case "--debug":
-			takeBool(a, value, hasValue, &debug)
+			takeBool(name, value, hasValue, &debug)
 		case "--json":
-			takeBool(a, value, hasValue, &jsonOutput)
+			takeBool(name, value, hasValue, &jsonOutput)
 		default:
 			filtered = append(filtered, a)
 		}

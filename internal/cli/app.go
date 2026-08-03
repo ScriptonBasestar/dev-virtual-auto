@@ -123,7 +123,10 @@ var appUpCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, _, _, _, args := parseDvaFlags(args)
+		mode, _, _, _, args, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		devMode := false
@@ -222,7 +225,10 @@ var appRestartCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, _, _, _, args := parseDvaFlags(args)
+		mode, _, _, _, args, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, _ = applyDefaultMode(c, mode)
 
 		devMode := false
@@ -278,7 +284,10 @@ var appBuildCmd = &cobra.Command{
 		c := mustLoadConfig()
 		e := loadEnv(c)
 
-		mode, _, _, _, args := parseDvaFlags(args)
+		mode, _, _, _, args, err := parseDvaFlags(args)
+		if err != nil {
+			return err
+		}
 		mode, _ = applyDefaultMode(c, mode)
 
 		docker := false

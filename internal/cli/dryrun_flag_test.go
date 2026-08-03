@@ -12,7 +12,7 @@ func TestParseDvaFlagsConsumesDryRun(t *testing.T) {
 	t.Cleanup(func() { dryRun = orig })
 
 	dryRun = false
-	_, _, _, _, filtered := parseDvaFlags([]string{"--dry-run"})
+	_, _, _, _, filtered, _ := parseDvaFlags([]string{"--dry-run"})
 
 	if !dryRun {
 		t.Error("parseDvaFlags did not set dryRun; --dry-run is silently dropped and `dva up --dry-run` executes for real")
@@ -31,7 +31,7 @@ func TestParseDvaFlagsDryRunKeepsPositionalArgs(t *testing.T) {
 	t.Cleanup(func() { dryRun = orig })
 
 	dryRun = false
-	mode, _, _, _, filtered := parseDvaFlags([]string{"-M", "native", "--dry-run", "postgres"})
+	mode, _, _, _, filtered, _ := parseDvaFlags([]string{"-M", "native", "--dry-run", "postgres"})
 
 	if !dryRun {
 		t.Error("dryRun not set when mixed with other flags")
@@ -51,7 +51,7 @@ func TestParseDvaFlagsLeavesDryRunUnsetWhenAbsent(t *testing.T) {
 	t.Cleanup(func() { dryRun = orig })
 
 	dryRun = false
-	if _, _, _, _, _ = parseDvaFlags([]string{"postgres"}); dryRun {
+	if _, _, _, _, _, _ = parseDvaFlags([]string{"postgres"}); dryRun {
 		t.Error("dryRun set to true without --dry-run present")
 	}
 }
