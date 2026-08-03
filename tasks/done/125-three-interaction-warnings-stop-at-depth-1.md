@@ -183,5 +183,5 @@ already known rather than rediscovering it.
   predecessor and the same defect class: output that claims a coverage it does not have. There a
   trace line described a merge that never happened; here a clean `✅ dva.yml is valid` described a
   tree that was never fully walked.
-- [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape these
+- [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape these
   all belong to: a check whose silence is read as a pass.

@@ -7,6 +7,27 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/output/output.go:67 PrintYAML — yaml.Marshal panics rather than returning; four call sites in internal/cli"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  Deliverable is committed and clean: 90eb28c `fix(output): recover the panic PrintYAML used to let through`
+  touches internal/output/output.go, output_test.go, and the task file; `git status --porcelain` on
+  internal/output is empty.
+  The panic-vs-error claim was exercised, not read: a standalone reconstruction of the pre-fix
+  PrintYAML in the scratchpad (yaml.v3 v3.0.1, module cache) let `cannot marshal type: chan int`
+  escape as a panic, confirming both the original defect and the mutation-kill recorded in the task.
+  Current code returns an error for the same input and both subtests pass.
+  Coverage re-measured from scratch: package 100.0%, PrintYAML 100.0% — the 75%/dead-`return err`
+  gap is gone, and the coverage binding is non-vacuous (it would regress if the recover were removed).
+  All four named call sites still `return` the printer's error and so propagate it:
+  internal/cli/manifest.go:27, internal/cli/list.go:229, internal/cli/list.go:250,
+  internal/cli/config_dump.go:27.
+  No follow-up work is outstanding: `grep -rln "TASK-120\|PrintYAML" tasks/` matches only 120 and its
+  parent 114 — nothing in tasks/todo (incl. 134..152), blocked, decision, or plan.
+  One observation, not a defect: the recover is function-wide, so it also spans printDocument and any
+  user MarshalYAML, and would relabel an unrelated runtime panic as `yaml marshal: ...`. That is
+  inside the fail-fast trade-off the Resolution explicitly chose and documents; printDocument is three
+  lines over os.Stdout and cannot realistically panic.
 ---
 
 # Task 120: the error return that cannot report the error

@@ -154,10 +154,10 @@ task exists to correct.
 - [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — enabled
   `modernize` and closed by asserting no analyzer was excluded. Same gate, same shape, and the
   claim this task falsifies.
-- [TASK-116](116-stack-override-warning-goes-to-stdout.md) — set the standard that a criterion
+- [TASK-116](../_archive/116-stack-override-warning-goes-to-stdout.md) — set the standard that a criterion
   counts only when the test fails on reverted code, which is why the two gate mutations above exist.
 - [TASK-125](125-three-interaction-warnings-stop-at-depth-1.md) — immediate predecessor; there a
   clean `✅ dva.yml is valid` described a tree that was never fully walked, here `0 issues.`
   described a codebase that was never fully analyzed.
-- [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape all of
+- [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape all of
   these belong to: a check whose silence is read as a pass.

@@ -176,9 +176,9 @@ come from `loadEnv` rather than `ResolvePlan`, which is what made the original T
 
 ## Related
 
-- [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md) — nearest sibling: a gate that
+- [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — nearest sibling: a gate that
   reported success it had not verified. Here, a trace that reported a skip that never happened.
-- [TASK-116](116-stack-override-warning-goes-to-stdout.md) — source of the stderr rule this feature
+- [TASK-116](../_archive/116-stack-override-warning-goes-to-stdout.md) — source of the stderr rule this feature
   had to obey from its first line rather than be corrected into later.
 - [TASK-082](../decision/082-the-dogfood-loop-cannot-score-an-absent-section.md) and
   [TASK-123](../decision/123-dogfood-loop-cannot-score-a-reserved-name-collision.md) — where "an

@@ -7,6 +7,26 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/lifecycle/app_manager.go:79-232 StartApps — three [FAIL] branches at :204, :220, :222 write to stderr but never append to errs; only :144 and :165 do"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  Code: internal/lifecycle/app_manager.go:112-116 defines `recordErr` as the single
+  `errs = append` site (grep -c 'errs = append' = 1); it is called at :155, :174, :217,
+  :223, :240, :243 — all three post-start [FAIL] branches named in the task now reach
+  `errors.Join(errs...)` at :252. internal/cli/compose.go:209-256 holds the app result and
+  returns `errors.Join(upErr, appErr)` after the tables print; internal/cli/app.go:168-195
+  holds `startErr` and joins it with the PortConflicts check.
+  Behaviour re-measured with fresh fixtures in scratchpad (not the repo's tmp/): failing
+  fixture exit=1 in <1s (fail-fast, not the 30s timeout), one [FAIL] + one ERROR, status
+  table still printed; healthy control exit=0 with a real listener, cleaned up by app down.
+  Tests are non-vacuous: two assert non-nil error AND that the message names the branch
+  (app_start_exit_test.go:100-105, :125-130); the third is a nil-return control (:156-158),
+  so a StartApps that failed everything would not satisfy the set. No `--- FAIL` hidden by
+  the TASK-144 ExecReplace hazard (RUN/PASS counts equal, FAIL=0).
+  Cross-links all resolve: tasks/done/113-*, tasks/done/118-*, tasks/_archive/079-*,
+  tasks/_archive/091-*. No open task in tasks/todo|blocked|decision|plan references
+  TASK-117, StartApps, or app_manager; the deliberately-open `[warn] not ready` case was
+  handed to TASK-118, which is closed and visible in the code at :219-226.
 ---
 
 # Task 117: DVA detects the failure, names it, prints it, and exits 0
@@ -79,7 +99,7 @@ the three `[FAIL]` sites are the ones this task claims are wrong.
 > into an error would change behaviour for anyone relying on `wait: false` semantics." That reason
 > is wrong: the goroutine returns at `if !opts.Wait { return }` well above this branch, so
 > `wait: false` never reaches it. The reason that does hold is that DVA cannot tell "slow" from
-> "broken" from this signal alone. [TASK-118](../done/118-a-health-check-that-never-passes-is-still-exit-0.md)
+> "broken" from this signal alone. [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md)
 > carries the decision, and the hole it leaves.
 
 Decide `:207` explicitly rather than sweeping it in.
@@ -171,7 +191,7 @@ Each was mutation-tested by reverting the change it covers; all three mutants di
 ### Left open, deliberately
 
 `:228` — `[warn] app %s not ready after %s` — is still a warning and still exits 0. The code comment
-there now says so and points at [TASK-118](../done/118-a-health-check-that-never-passes-is-still-exit-0.md),
+there now says so and points at [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md),
 which also records the hole that leaves: **an app that binds its port but never answers its probe is
 caught by neither branch.** Promoting it changes the exit code of every project with a slow or flaky
 probe, which is a product decision, not a defect to fix unilaterally.

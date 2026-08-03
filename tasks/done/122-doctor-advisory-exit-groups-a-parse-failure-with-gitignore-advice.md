@@ -100,6 +100,6 @@ Historical progress preserved above; implementation already green under focused 
 
 ## Related
 
-- [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md) — where this was
+- [TASK-119](../_archive/119-doctor-compose-check-ignores-the-configured-command.md) — where this was
   measured. That task made `Compose config resolves` report on the right binary; it did not make
   anyone notice when it fails.

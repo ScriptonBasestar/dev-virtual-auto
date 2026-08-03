@@ -126,8 +126,8 @@ test, and that is stated rather than papered over.
   this audits and corrects. Its 8-findings measurement holds; its two completeness claims did not.
 - [TASK-111](../_archive/111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the first
   link. Same shape, two records earlier.
-- [TASK-116](116-stack-override-warning-goes-to-stdout.md) — the standard that a criterion counts
+- [TASK-116](../_archive/116-stack-override-warning-goes-to-stdout.md) — the standard that a criterion counts
   only when the gate fails on reverted code, which is why the three mutations above exist and why
   the Close fix is explicitly *not* claimed as unit-tested.
-- [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md) — the family: a check whose
+- [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — the family: a check whose
   silence is read as a pass.

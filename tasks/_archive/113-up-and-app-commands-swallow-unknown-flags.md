@@ -271,7 +271,7 @@ run failed at `unknown command`. The numbers above are from argv arrays.
 ### Left open, deliberately
 
 - `dva app up --dev` exits **0** while printing `[FAIL] app web: process did not listen on
-  port 13113 within 30s`. That is [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md),
+  port 13113 within 30s`. That is [TASK-117](117-startapps-prints-fail-and-returns-nil.md),
   filed while reproducing this one, and it is why the control row above shows exit=0 next to a
   FAIL line.
 - `--dev=true` gets no "Did you mean? --dev" suggestion — `levenshtein("--dev=true","--dev")`
@@ -292,6 +292,6 @@ run failed at `unknown command`. The numbers above are from argv arrays.
   problem: flags DVA should have consumed reaching docker. Here they reach nothing at all.
 - [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — also `exit 0` while doing
   less than asked; the recurring failure shape in this codebase is silence, not crashes.
-- [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
+- [TASK-117](117-startapps-prints-fail-and-returns-nil.md) — found while reproducing this one, on the
   same code path but a distinct defect: `StartApps` prints `[FAIL]` for a readiness failure and still
   returns nil. Fixing 113 alone still leaves `dva up` exiting 0 on an app that never started.

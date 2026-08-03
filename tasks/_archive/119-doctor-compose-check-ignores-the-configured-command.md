@@ -7,6 +7,24 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/doctor.go:531 checkComposeConfigResolves"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  The fix is real and end-to-end verifiable with the shipped binary, not just with unit tests.
+  Driving ./bin/dva doctor inside a copy of tmp/task-119 with PATH replaced by shims for both
+  `docker` and `podman-compose`: the compose check executed `podman-compose -f …/compose.dev.yml
+  --project-name task119 config --quiet` and printed `4 passed, 1 failed` (the remaining FAIL is
+  the unrelated .gitignore advice) — matching the after column of the task's table line for line.
+  With podman-compose removed from PATH the check reports `[pass] Compose config resolves
+  (skipped: podman-compose is not on PATH)` and runs nothing, instead of vanishing.
+  The tests are not vacuous: doctor_compose_test.go replaces PATH entirely, installs both
+  binaries so docker *could* answer, and asserts on the argv the shim recorded (doctor_compose_test.go:150,163)
+  rather than on the DoctorResult — which is what kills the "LookPath the right binary, spawn the
+  wrong one" mutant. resetDoctorGlobals (:25) clears the loadEnv cache so subtests cannot pass on
+  a previous subtest's environment.
+  The task's own count of "7 PASS lines" is now 8 (a subtest was added or the count went stale);
+  the binding still passes. The deliberately-left-open exit-code item was filed and closed as
+  TASK-122, so no follow-up is missing there.
 ---
 
 # Task 119: the fifth copy of the compose argv builder
@@ -182,5 +200,10 @@ and after; it exists to stop the fix from trading a false failure for a blanket 
 
 ## Related
 
-- [TASK-115](../done/115-four-compose-argv-builders-share-two-bugs.md) — the four copies this one
+- [TASK-115](115-four-compose-argv-builders-share-two-bugs.md) — the four copies this one
   escaped, and the builder it should now call.
+- [TASK-156](../todo/156-doctors-compose-hint-tells-a-podman-user-to-run-docker.md) — ⚠️ the same
+  wrong-binary defect, one line below the fix. `doctor.go:614` still hardcodes `docker compose
+  config` in the hint printed when the check fails, so a podman-compose user is told to reproduce
+  it with a binary they do not have. Found while verifying this task for archival; the test
+  asserts only the hint's leading line, which is why it went unseen.

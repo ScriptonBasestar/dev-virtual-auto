@@ -23,13 +23,36 @@ verification-evidence:
   - "lifecycle red→green: TestStartAppsHealthRequiredContract 5/5 PASS EXIT=0"
   - "full gates: make build + make check-generate + make test -race + make lint EXIT=0"
   - "cli-qa omitted EXIT=0 [warn]; required:false EXIT=0 [warn]; required:true fail EXIT=1 [FAIL]; required:true pass EXIT=0"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  Focused tests re-run, counted under -v: config `TestValidateApplicationHealthRequiredContract`
+  5 `=== RUN` subtests / 5 `--- PASS` / 0 FAIL, ok; lifecycle `TestStartAppsHealthRequiredContract`
+  5 RUN / 5 PASS / 0 FAIL, ok (6.59s). Neither is vacuous: the lifecycle test asserts a non-nil
+  error plus `[FAIL]` and the *absence* of the advisory line for required:true, and asserts the
+  byte-exact warn line exactly once for omitted/false.
+  Independent CLI QA with ./bin/dva (v0.1.44), fresh fixtures under the scratchpad, exit code read
+  from $? directly (no pipe), health `command: "exit 1"` with timeout/ready_timeout 1 so it fails
+  in ~1s: omitted UP_EXIT=0 + one `[warn] app sleeper not ready after 1s`; required:false UP_EXIT=0
+  + one `[warn]`; required:true UP_EXIT=1 + `[FAIL] app sleeper not ready after 1s` + `ERROR: app
+  sleeper not ready after 1s`; required:true with a passing probe UP_EXIT=0 and no not-ready line.
+  `dva app down sleeper` returned 0 in all four; pgrep found no leftover `sleep 30`; `git status
+  --porcelain` is empty.
+  Scope guard verified independently, not just via the test: `dva validate` on top-level
+  `health_checks.redis.required: true` exits 1 with "health_checks.redis: Additional property
+  required is not allowed"; `applications.sleeper.health.required: "yes"` exits 1 with "Invalid
+  type. Expected: boolean, given: string"; `required: true` on an application validates EXIT 0.
+  The `dva up` path (not only `dva app up`) also carries it: same reqtrue fixture, `dva up`
+  EXIT=1; omitted fixture `dva up` EXIT=0 — errors.Join at internal/cli/compose.go:256.
+  No open task in tasks/todo, tasks/blocked, tasks/decision, tasks/plan (incl. TASK-134..152)
+  references TASK-118, health.required, or app readiness exit codes.
 ---
 
 # Task 118: the one readiness branch TASK-117 deliberately left alone
 
 ## What was decided in TASK-117, and what was not
 
-[TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md) made the three `[FAIL]`
+[TASK-117](117-startapps-prints-fail-and-returns-nil.md) made the three `[FAIL]`
 branches of `startWave` reach `errors.Join`, so a readiness failure now sets the exit code.
 It left one sibling branch untouched:
 
@@ -185,7 +208,7 @@ c5ea2d6  USAGE.md (+2), library_reference.txt (+3/-1), schema-reference.md (+3/-
 
 ## Related
 
-- [TASK-117](../done/117-startapps-prints-fail-and-returns-nil.md) — fixed the three sibling
+- [TASK-117](117-startapps-prints-fail-and-returns-nil.md) — fixed the three sibling
   branches; this is the one it left, and the comment in the code points here.
 - [TASK-113](../_archive/113-up-and-app-commands-swallow-unknown-flags.md) — the same recurring
   shape: DVA reaches the right conclusion and then does not let it reach the exit code.

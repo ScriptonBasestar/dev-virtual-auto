@@ -7,6 +7,27 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/compose.go:787 buildComposeArgsForEntry, internal/cli/compose.go:821 buildComposeArgs, internal/runner/compose.go:16 composeArgv, internal/lifecycle/compose.go:149 (*ComposePlugin).buildArgs"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  All seven criteria re-measured against the current tree; nothing taken from metadata.
+  Counts: SplitCommand in the three former builder files = 0; `cfgDir + "/"` in internal/ = 0.
+  Scoped test binding is not vacuous — 57 RUN / 57 PASS / 0 FAIL, and the named regression
+  subtests are present by name.
+  Binary evidence (bin/dva v0.1.44, scratchpad fixtures, repo untouched):
+    podman-compose fixture -> command=podman-compose args="[-f … up -d --wait]" (seed gone);
+    `command: "   "` -> `dva up --dry-run` exit 1 with "compose runner: command: \"   \" contains
+    no command word" (no panic), `dva compose up --dry-run` exit 1 same message, `dva validate`
+    exit 1 naming stack.db.runners.compose.command; control fixture validate exit 0.
+  The three tests that previously encoded bug A are re-anchored on a leading newline
+  (internal/runner/step_keys_test.go:77,167 and internal/runner/inert_step_test.go:113), so a
+  resurrected seed cannot pass as a substring.
+  Both Related links resolve: tasks/done/119-*.md, tasks/_archive/091-*.md. The deliberately
+  left-open fifth copy is closed — internal/cli/doctor.go:571 calls ComposeArgv. No task in
+  tasks/todo, tasks/blocked, tasks/decision or tasks/plan references TASK-115.
+  Swept remaining unguarded index-zero uses of split results: internal/runner/kubectl.go:108
+  is strings.SplitN (always length >= 1), not a defect; no other SplitCommand caller indexes.
+  `git status --porcelain` empty after verification.
 ---
 
 # Task 115: one bug written down four times
@@ -168,11 +189,11 @@ requirement. The expectations now anchor with a leading `\n`, so the assertion i
 `internal/cli/doctor.go:540` (`checkComposeConfigResolves`) is a fifth copy that hardcodes `docker`
 and ignores `cc.Command` entirely, so `dva doctor` checks a tool the user is not running. Folding it
 in also means changing its `exec.LookPath("docker")` skip logic, which is a different decision from
-this one. Filed as [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md).
+this one. Filed as [TASK-119](119-doctor-compose-check-ignores-the-configured-command.md).
 
 ## Related
 
 - [TASK-091](../_archive/091-compose-steps-stop-after-the-first-command.md) — the compose execution path
   audit that made these builders worth reading in the first place.
-- [TASK-119](../done/119-doctor-compose-check-ignores-the-configured-command.md) — the fifth copy,
+- [TASK-119](119-doctor-compose-check-ignores-the-configured-command.md) — the fifth copy,
   in `dva doctor`.

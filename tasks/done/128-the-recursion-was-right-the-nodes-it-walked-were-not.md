@@ -191,6 +191,6 @@ a task about validation warnings.
   is looking at.
 - [TASK-107](../_archive/107-command-suggestions-come-out-in-a-different-order-every-run.md) — the map-ordering
   defect, now closed on the last two surfaces in this file.
-- [TASK-118](118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape. TASK-125
+- [TASK-118](../_archive/118-a-health-check-that-never-passes-is-still-exit-0.md) — the recurring shape. TASK-125
   was a check whose silence was read as a pass; this one is a check whose noise was read as a
   finding. Same root: output trusted beyond what it measured.

@@ -9,6 +9,18 @@ resolved-at: 2026-07-31T00:00:00+09:00
 resolution: "Moved the one production [warn] on stdout to stderr; regression test captures both streams and mutation-fails on either half"
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/config/merge.go:605 — fmt.Printf where every other production [warn] uses fmt.Fprintf(os.Stderr, ...)"
+verified-at: 2026-08-03T14:45:00+09:00
+archived-at: 2026-08-03T14:45:00+09:00
+verification-summary: |
+  Deliverable is real: internal/config/merge.go:613 is `fmt.Fprintf(os.Stderr, "[warn] stack_override %q: %v\n", k, err)`, the
+  only `os.` use in the file, landed in commit b6691dc "fix(config): move the stack_override conflict warning off stdout".
+  The regression test exists at internal/config/merge_test.go:606 with a real pipe-based captureStd helper (merge_test.go:557).
+  Mutation-tested without touching the repo, via `go test -overlay` pointing merge.go at a scratch copy with `fmt.Printf`
+  restored: the test FAILs, and both halves fire independently — "config merge wrote 120 bytes to stdout" and "the warning
+  did not reach stderr; got \"\"". Green run logs `stdout=0 bytes, stderr=120 bytes`, so the assertions are reached, not vacuous.
+  End-to-end reproduced with ./bin/dva against my own fixture (dva.yml + .sb/dva/module.yml both declaring
+  environments.dev.stack_overrides.api with conflicting plugin types): warning on stderr, an 81-byte JSON document alone on
+  stdout, jq exit 0. Measured by redirecting each stream separately, not read off the task file. No repo file was modified by me.
 ---
 
 # Task 116: one `fmt.Printf` in a file of `fmt.Fprintf(os.Stderr, …)`
@@ -138,6 +150,16 @@ under `stack_overrides` carry no `Name`. The outer message still names the key (
 user can identify the offending override — the message is imprecise, not useless. Recorded here
 rather than filed, since fixing it means deciding whether `stack_overrides` entries should have
 `Name` backfilled at parse time, which is a config-semantics question and not a stdout question.
+
+⚠️ Now tracked as [TASK-157](../todo/157-stack-override-errors-name-an-empty-entry.md), so the
+finding survives this file's archival. The reasoning above is unchanged; it is the decision the
+task carries.
+
+⚠️ The census in `merge.go:610-612` — "of the 24 production `[warn]` sites, 23 already write to
+stderr" — was true at `b6691dc` and is not now: 24 stderr sites plus the `console.go:66` Sprintf,
+for 25. `[warn] app start` was removed and two `--var` warnings were added at `compose.go:150,152`
+after this landed. The stream rationale is unaffected; only the number rotted. Tracked as
+[TASK-155](../todo/155-a-comment-counts-the-warn-sites-and-the-count-is-already-wrong.md).
 
 ## Related
 
