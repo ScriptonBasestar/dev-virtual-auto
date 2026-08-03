@@ -222,9 +222,9 @@ func TestStackLogRootFlagsStillTakeEffect(t *testing.T) {
 	})
 }
 
-// TestConsumeRootPersistentFlags pins the helper's contract directly, including the two
-// non-obvious parts: --dry-run is left alone, and `--debug=true` is neither applied nor
-// stripped (matching applyRootPersistentFlagsFromArgs, which ignores it too).
+// TestConsumeRootPersistentFlags pins the helper's contract directly, including the parts
+// that are not obvious: --dry-run is left alone, the `=value` form is applied and stripped
+// (TASK-145), and the `--` terminator is consumed here and nowhere else.
 func TestConsumeRootPersistentFlags(t *testing.T) {
 	oldDebug, oldJSON := debug, jsonOutput
 	t.Cleanup(func() { debug, jsonOutput = oldDebug, oldJSON })
@@ -241,13 +241,25 @@ func TestConsumeRootPersistentFlags(t *testing.T) {
 		{"json consumed", []string{"logs", "--json"}, []string{"logs"}, false, true},
 		{"both consumed", []string{"--debug", "--json", "logs"}, []string{"logs"}, true, true},
 		{"dry-run survives", []string{"logs", "--dry-run"}, []string{"logs", "--dry-run"}, false, false},
-		{"=true form is left alone", []string{"--debug=true", "logs"}, []string{"--debug=true", "logs"}, false, false},
+		// Was "=true form is left alone" until TASK-145, which is the defect this row now
+		// forbids: the token reached docker and debug stayed off.
+		{"=true form applied and stripped", []string{"--debug=true", "logs"}, []string{"logs"}, true, false},
+		{"=false form applied and stripped", []string{"--debug=false", "logs"}, []string{"logs"}, false, false},
+		{"=1 form, pflag's own spelling", []string{"--json=1", "logs"}, []string{"logs"}, false, true},
+		// The terminator ends DVA's flags and is eaten with them, so the tail arrives as the
+		// external program's own argv rather than behind a `--` it would read as positional.
+		{"terminator ends the scan", []string{"--debug", "logs", "--", "--json", "--tail=5"},
+			[]string{"logs", "--json", "--tail=5"}, true, false},
+		{"a literal -- needs -- --", []string{"logs", "--", "--"}, []string{"logs", "--"}, false, false},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			debug, jsonOutput = false, false
-			got := consumeRootPersistentFlags(tc.in)
+			got, err := consumeRootPersistentFlags(tc.in)
+			if err != nil {
+				t.Fatalf("consumeRootPersistentFlags(%v) = %v", tc.in, err)
+			}
 			if strings.Join(got, " ") != strings.Join(tc.want, " ") {
 				t.Errorf("args = %v, want %v", got, tc.want)
 			}

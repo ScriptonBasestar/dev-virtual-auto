@@ -29,7 +29,10 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 		// This must run before the args[0] entry lookup, or `dva --debug ktl <entry> …`
 		// would try to resolve "--debug" as the entry name. --dry-run is deliberately left
 		// in place, as on the compose passthroughs: kubectl has its own. TASK-103.
-		args = consumeRootPersistentFlags(args)
+		var err error
+		if args, err = consumeRootPersistentFlags(args); err != nil {
+			return err
+		}
 
 		kubectlEntries := c.KubectlEntries()
 		if len(kubectlEntries) == 0 {

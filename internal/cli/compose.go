@@ -40,7 +40,10 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 		// appended before the compose subcommand, so `dva --debug --json compose logs`
 		// produced `docker compose -f … --debug --json logs`, offering both to `docker
 		// compose` itself rather than to `logs`.
-		args = consumeRootPersistentFlags(args)
+		var err error
+		if args, err = consumeRootPersistentFlags(args); err != nil {
+			return err
+		}
 
 		composeEntries := c.ComposeEntries()
 		if len(composeEntries) == 0 {
@@ -650,7 +653,10 @@ var logsCmd = &cobra.Command{
 		e := loadEnv(c)
 		// TASK-092, third site: `dva --debug logs` sent --debug on to docker as a flag of
 		// `compose logs`.
-		args = consumeRootPersistentFlags(args)
+		args, err := consumeRootPersistentFlags(args)
+		if err != nil {
+			return err
+		}
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
 }
@@ -661,85 +667,92 @@ var logsCmd = &cobra.Command{
 // are also pre-parsed in PersistentPreRun for logger.Init; stripping them here
 // prevents them from being treated as entry/service names.
 func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []string, filtered []string) {
-	var foundDryRun bool
-	args, foundDryRun = consumeDryRunFlag(args)
-	if foundDryRun {
-		dryRun = true
+	// --dry-run is handled in the switch below, not by a consumeDryRunFlag pre-pass. The
+	// pre-pass was a second walk that did the same thing, and after TASK-145 it would have
+	// been a walk with its own idea of where the `--` terminator is.
+	end := dvaFlagEnd(args)
+
+	// A malformed boolean value (`--debug=notabool`) falls through to filtered on purpose.
+	// Unlike consumeRootPersistentFlags this output stays inside DVA — entry and application
+	// names — so the caller's own rejectUnknownFlags names it, in DVA's words, alongside the
+	// list of names it could have meant.
+	takeBool := func(a, value string, hasValue bool, target *bool) {
+		if v, ok := flagBoolValue(value, hasValue); ok {
+			*target = v
+			return
+		}
+		filtered = append(filtered, a)
 	}
 
-	for i := 0; i < len(args); i++ {
+	for i := 0; i < end; i++ {
 		a := args[i]
-		switch {
-		case a == "--mode" || a == "-M":
-			if i+1 < len(args) {
-				i++
-				mode = args[i]
+		name, value, hasValue := splitFlagToken(a)
+		switch name {
+		case "--mode", "-M":
+			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+				mode = v
+				i += n
 			}
-		case strings.HasPrefix(a, "--mode="):
-			mode = strings.TrimPrefix(a, "--mode=")
-		case strings.HasPrefix(a, "-M="):
-			mode = strings.TrimPrefix(a, "-M=")
-		case a == "--env" || a == "-E":
-			if i+1 < len(args) {
-				i++
-				env = args[i]
+		case "--env", "-E":
+			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+				env = v
+				i += n
 			}
-		case strings.HasPrefix(a, "--env="):
-			env = strings.TrimPrefix(a, "--env=")
-		case strings.HasPrefix(a, "-E="):
-			env = strings.TrimPrefix(a, "-E=")
-		case a == "--tag" || a == "--tags" || a == "-T":
-			if i+1 < len(args) {
-				i++
-				includeTags = append(includeTags, strings.Split(args[i], ",")...)
+		case "--tag", "--tags", "-T":
+			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+				includeTags = append(includeTags, strings.Split(v, ",")...)
+				i += n
 			}
-		case strings.HasPrefix(a, "--tag="):
-			val := strings.TrimPrefix(a, "--tag=")
-			includeTags = append(includeTags, strings.Split(val, ",")...)
-		case strings.HasPrefix(a, "--tags="):
-			val := strings.TrimPrefix(a, "--tags=")
-			includeTags = append(includeTags, strings.Split(val, ",")...)
-		case strings.HasPrefix(a, "-T="):
-			val := strings.TrimPrefix(a, "-T=")
-			includeTags = append(includeTags, strings.Split(val, ",")...)
-		case a == "--exclude-tag" || a == "--exclude-tags":
-			if i+1 < len(args) {
-				i++
-				excludeTags = append(excludeTags, strings.Split(args[i], ",")...)
+		case "--exclude-tag", "--exclude-tags":
+			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+				excludeTags = append(excludeTags, strings.Split(v, ",")...)
+				i += n
 			}
-		case strings.HasPrefix(a, "--exclude-tag="):
-			val := strings.TrimPrefix(a, "--exclude-tag=")
-			excludeTags = append(excludeTags, strings.Split(val, ",")...)
-		case strings.HasPrefix(a, "--exclude-tags="):
-			val := strings.TrimPrefix(a, "--exclude-tags=")
-			excludeTags = append(excludeTags, strings.Split(val, ",")...)
 		// Callers set DisableFlagParsing, so cobra never parses the root
 		// persistent --dry-run. Without this it falls through to filtered and
 		// is read as an entry/service name, leaving dryRun false: `dva up
 		// --dry-run` then executes for real.
-		case a == "--dry-run":
-			dryRun = true
-		case a == "--debug":
-			debug = true
-		case a == "--json":
-			jsonOutput = true
+		case "--dry-run":
+			takeBool(a, value, hasValue, &dryRun)
+		case "--debug":
+			takeBool(a, value, hasValue, &debug)
+		case "--json":
+			takeBool(a, value, hasValue, &jsonOutput)
 		default:
 			filtered = append(filtered, a)
 		}
 	}
+	// The terminator itself is kept, unlike in consumeRootPersistentFlags. This output is
+	// still inside DVA, and the callers that reject unknown flags have always rejected a
+	// stray `--` — dropping it here would newly accept it.
+	filtered = append(filtered, args[end:]...)
 	return
 }
 
+// consumeDryRunFlag strips --dry-run and reports whether it was set. Callers that also need
+// --mode/--env/--tags use parseDvaFlags instead; this one exists for the paths that must
+// leave every other flag where it is.
+//
+// It reports "not found" for an explicit `--dry-run=false` while still consuming the token.
+// Every caller uses the result as `if found { dryRun = true }`, so absent and explicitly
+// false already mean the same thing to them.
 func consumeDryRunFlag(args []string) ([]string, bool) {
+	end := dvaFlagEnd(args)
 	filtered := make([]string, 0, len(args))
 	found := false
-	for _, arg := range args {
-		if arg == "--dry-run" {
-			found = true
-			continue
+	for i := 0; i < end; i++ {
+		a := args[i]
+		if name, value, hasValue := splitFlagToken(a); name == "--dry-run" {
+			if v, ok := flagBoolValue(value, hasValue); ok {
+				found = v
+				continue
+			}
 		}
-		filtered = append(filtered, arg)
+		filtered = append(filtered, a)
 	}
+	// Terminator kept: this feeds back into DVA (wrapWithHooks hands its result to the
+	// built-in's own RunE, which parses flags again), so a later consumer still needs it.
+	filtered = append(filtered, args[end:]...)
 	return filtered, found
 }
 

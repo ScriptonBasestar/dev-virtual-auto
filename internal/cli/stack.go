@@ -317,7 +317,10 @@ var stackLogCmd = &cobra.Command{
 		// args verbatim, so `dva --debug stack log infra` reached docker as
 		// `compose ... logs --debug infra`. Not parseDvaFlags here: it would also eat
 		// --dry-run, which compose owns on this path. TASK-092.
-		args = consumeRootPersistentFlags(args)
+		var err error
+		if args, err = consumeRootPersistentFlags(args); err != nil {
+			return err
+		}
 
 		// If a name is given that matches a non-compose entry, show its log file
 		if len(args) > 0 {

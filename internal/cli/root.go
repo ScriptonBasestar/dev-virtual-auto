@@ -250,13 +250,23 @@ func isFlag(s string) bool {
 // a raw arg slice. Used when DisableFlagParsing prevents cobra from parsing them
 // before PersistentPreRun runs logger.Init. Does not mutate args or touch --dry-run
 // (compose passthrough must keep docker's own --dry-run).
+//
+// Best-effort by design: it runs before any command has been chosen, so it cannot fail the
+// invocation. A malformed value is skipped here and rejected by consumeRootPersistentFlags,
+// which runs inside RunE and can return an error.
 func applyRootPersistentFlagsFromArgs(args []string) {
-	for _, a := range args {
-		switch a {
+	end := dvaFlagEnd(args)
+	for _, a := range args[:end] {
+		name, value, hasValue := splitFlagToken(a)
+		v, ok := flagBoolValue(value, hasValue)
+		if !ok {
+			continue
+		}
+		switch name {
 		case "--debug":
-			debug = true
+			debug = v
 		case "--json":
-			jsonOutput = true
+			jsonOutput = v
 		}
 	}
 }
@@ -271,21 +281,39 @@ func applyRootPersistentFlagsFromArgs(args []string) {
 // passthrough this is meant to protect. --dry-run in particular is deliberately left in place,
 // for the reason applyRootPersistentFlagsFromArgs already documents: compose has its own.
 //
-// Matching is exact, like the function above — `--debug=true` is neither applied nor stripped
-// by either. Handling it here alone would leave the two disagreeing about what a root flag is.
-func consumeRootPersistentFlags(args []string) []string {
+// This is the only one of the four consumers that drops the `--` terminator, because it is
+// the only one whose output is the external argv. `--` ends DVA's flags, so DVA eats it and
+// forwards the rest; a caller who wants a literal `--` to reach docker writes `-- --`. The
+// other three hand their output back into DVA, where a later consumer still needs to see the
+// terminator to know where to stop.
+//
+// It rejects `--debug=notabool` rather than forwarding it, for the same reason: past this
+// point the token would be docker's problem, and docker would report it as its own unknown
+// flag. This is the last place that knows the token is DVA's.
+func consumeRootPersistentFlags(args []string) ([]string, error) {
+	end := dvaFlagEnd(args)
 	filtered := make([]string, 0, len(args))
-	for _, a := range args {
-		switch a {
-		case "--debug":
-			debug = true
-		case "--json":
-			jsonOutput = true
-		default:
+	for i := 0; i < end; i++ {
+		a := args[i]
+		name, value, hasValue := splitFlagToken(a)
+		if name != "--debug" && name != "--json" {
 			filtered = append(filtered, a)
+			continue
+		}
+		v, ok := flagBoolValue(value, hasValue)
+		if !ok {
+			return nil, fmt.Errorf("invalid boolean value %q for %s", value, name)
+		}
+		if name == "--debug" {
+			debug = v
+		} else {
+			jsonOutput = v
 		}
 	}
-	return filtered
+	if end < len(args) {
+		filtered = append(filtered, args[end+1:]...)
+	}
+	return filtered, nil
 }
 
 func helpRequested(args []string) bool {
