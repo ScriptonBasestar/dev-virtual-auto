@@ -558,8 +558,24 @@ var cleanCmd = &cobra.Command{
 		images, _ := cmd.Flags().GetBool("images")
 		force, _ := cmd.Flags().GetBool("force")
 
-		// Confirmation prompt for destructive operations
-		if !force && (volumes || images) {
+		// Confirmation prompt for destructive operations.
+		//
+		// --dry-run is exempt because consent is consent to the deletion, and a dry run
+		// deletes nothing. Without the exemption the one command whose purpose is to say
+		// what would be destroyed refused to say it until you agreed to the destruction,
+		// and the documented default answer (N) returned before the preview ran. Worse
+		// non-interactively: Scanln gets EOF from a pipe, `answer` stays empty, and
+		// `dva clean --volumes --dry-run` in any script printed "Aborted." and nothing
+		// else — rc 0, so nothing downstream noticed either. The only way to reach the
+		// preview from a script was --force, which on a real run means destroy without
+		// asking; the flag that made the preview reachable was the flag that made the
+		// real thing unstoppable. TASK-170, following TASK-166's work on the eight halt
+		// sites under this command.
+		//
+		// Exempted here rather than through a shared helper: this is the only prompt in
+		// the codebase today (`dva down --volumes` has none), so a helper would abstract
+		// over one caller.
+		if !force && !dryRun && (volumes || images) {
 			msg := "This will remove all containers, networks"
 			if volumes {
 				msg += ", and VOLUMES (data loss!)"
@@ -572,7 +588,10 @@ var cleanCmd = &cobra.Command{
 			_, _ = fmt.Scanln(&answer)
 			answer = strings.ToLower(strings.TrimSpace(answer))
 			if answer != "y" && answer != "yes" {
-				fmt.Println("Aborted.")
+				// stderr, with the prompt it answers. On stdout it was half of an
+				// interaction whose other half was on another stream, so `2>/dev/null`
+				// showed "Aborted." with nothing saying what had been aborted.
+				fmt.Fprintln(os.Stderr, "Aborted.")
 				return nil
 			}
 		}

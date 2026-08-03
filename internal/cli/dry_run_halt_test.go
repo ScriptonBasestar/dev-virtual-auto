@@ -185,13 +185,16 @@ func TestCleanDryRunKeepsProvisionMarkers(t *testing.T) {
 		t.Fatalf("write marker: %v", err)
 	}
 
-	for _, f := range []string{"volumes", "force"} {
-		if err := cleanCmd.Flags().Set(f, "true"); err != nil {
-			t.Fatalf("set --%s: %v", f, err)
-		}
-		// Cobra flags live on the package-level command, so they outlast this test.
-		t.Cleanup(func() { _ = cleanCmd.Flags().Set(f, "false") })
+	// --volumes only. This test set --force until TASK-170, not because the case needed it
+	// but because the confirmation prompt stood between --dry-run and its own preview and
+	// --force was the only way past. Adding it back to make this test pass again would mean
+	// the prompt had returned.
+	if err := cleanCmd.Flags().Set("volumes", "true"); err != nil {
+		t.Fatalf("set --volumes: %v", err)
 	}
+	// Cobra flags live on the package-level command, so they outlast this test.
+	t.Cleanup(func() { _ = cleanCmd.Flags().Set("volumes", "false") })
+
 	old := dryRun
 	dryRun = true
 	t.Cleanup(func() { dryRun = old })
