@@ -7,6 +7,23 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/runner/interaction_tree.go:176,226-228 — mergeInteraction copies parent.DefaultArgs unconditionally; internal/runner/runner.go:124-132 — commandArgs falls back to it when Argv is empty"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  Both hunks are present and live in the working tree. interaction_tree.go:306-311 replaces the
+  unconditional DefaultArgs override with a switch that zeroes the inherited value when the child
+  declares command:/command-as-list; a description-only container still inherits. runner.go:101
+  and :125-131 make both plan branches read commandArgs(cmd) — the same function local.go:48,
+  docker_compose.go:174 and kubectl.go:49 call — annotated "(from default_args)" when argv is empty.
+  Measured with ./bin/dva on the task's own fixture: demo -> PARENT-DEFAULT-LEAKED,
+  demo sub -> newline only, demo sub EXTRA -> EXTRA, demo container -> PARENT-DEFAULT-LEAKED.
+  On examples/full-stack.yml: rails console / db migrate / db seed print no Arguments line, while
+  rails and rails db still do. Non-vacuity confirmed read-only via `go test -overlay` with each
+  hunk reverted in a scratch copy — the merge revert reproduces the exact failure text quoted in
+  the task, the explain revert fails the default_args row. schema.json:408 now states the
+  inheritance rule and the container exception. Re-measured blast radius: default_args appears in
+  exactly 1 of 101 YAML files (examples/full-stack.yml:161); the --json "arguments" key has one
+  producer and no consumer anywhere in the repo.
 ---
 
 # Task 101: the child replaces the command but keeps the parent's arguments

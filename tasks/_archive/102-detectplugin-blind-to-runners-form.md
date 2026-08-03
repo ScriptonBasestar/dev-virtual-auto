@@ -7,6 +7,22 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/config/lifecycle_helpers.go:109,211,225 — resolveRunnerPlugin runs only inside SortedStack, and only on a copy"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  All six criteria re-measured against the live tree, not the task text. Half 1 is
+  internal/config/lifecycle.go:749-755 — a read-only DetectPlugin fallback to
+  e.runnerPluginName(), with resolvePluginFromName's guard order swapped (lifecycle.go:688-694)
+  so runners entries stop retaining rawNode. Half 2 is KubectlConfig()
+  (lifecycle_helpers.go:30) wired into PrimaryKubectlConfig:208,216, KubectlEntries:239,
+  cli/kubectl.go:55,72. End-to-end with shell shims on PATH: `stack log modernproc` reaches
+  showStackEntryLog (no docker call), `ktl get pods` on runners.kubectl emits
+  `--namespace my-namespace`, both legacy controls unchanged. Non-vacuity independently
+  reproduced: each half reverted in a scratchpad copy produced exactly the failures the task
+  claims, including the "succeeded; expected the missing-log-file error" shape and the
+  `--namespace did not survive` message. All four FindStackEntry consumers now go through a
+  runners-aware path (compose.go:57 ComposeConfig, stack.go:324 DetectPlugin, stack.go:454
+  existence-only, kubectl.go:55 KubectlConfig).
 ---
 
 # Task 102: name-lookup paths see unresolved stack entries
@@ -223,7 +239,7 @@ while shelling out to compose for an entry that has no container.
 
 ## Related
 
-- [TASK-103](103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
+- [TASK-103](../done/103-ktl-forwards-root-flags-to-kubectl.md) — a *separate* defect in the same
   command; 103 is about DVA's flags reaching kubectl, this is about the entry's config not
   reaching it. Fixing either does not fix the other.
 - [TASK-092](../_archive/092-stack-log-forwards-root-flags-to-docker.md) — found while tracing

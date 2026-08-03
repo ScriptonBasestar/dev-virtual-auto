@@ -146,7 +146,7 @@ The child rebuilds `PATH` as `shim:/bin:/usr/bin` and `t.Fatal`s unless
 - `--debug=true` is still neither applied nor stripped, family-wide — see TASK-092.
 - ~~The fixtures use the deprecated top-level `kubectl:` form because the modern one is
   invisible to `KubectlEntries()`~~ — closed by
-  [TASK-102](102-detectplugin-blind-to-runners-form.md), which added a `runners.kubectl` case
+  [TASK-102](../_archive/102-detectplugin-blind-to-runners-form.md), which added a `runners.kubectl` case
   here rather than re-pointing the existing ones: keeping both shapes means a regression in
   either is caught.
 
@@ -156,6 +156,6 @@ The child rebuilds `PATH` as `shim:/bin:/usr/bin` and `t.Fatal`s unless
   contributes the `consumeRootPersistentFlags` helper this task reuses
 - [TASK-094](../_archive/094-kubectl-runner-discards-steps.md) — source of the child-process test
   pattern, and of the `syscall.Exec`-in-a-test false-pass this task must avoid
-- [TASK-102](102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
+- [TASK-102](../_archive/102-detectplugin-blind-to-runners-form.md) — `ktl`'s entry resolution
   (`kubectl.go:46`, `KubectlEntries`) is also blind to the `runners:` form; independent defect
   in the same command

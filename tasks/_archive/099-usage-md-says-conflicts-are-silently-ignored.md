@@ -8,6 +8,21 @@ status: done
 created-at: 2026-07-31T00:00:00+09:00
 completed-at: 2026-07-31T11:35:00+09:00
 scope: "USAGE.md:614-615 — the sentence contradicted by USAGE.md:645-649 and by internal/config/reserved.go"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  Doc and behaviour checked against each other, not against their own descriptions.
+  `grep -c '조용히 무시' USAGE.md` = 0 and `grep -n '무시' USAGE.md` = no hits, so the claim was
+  corrected rather than relocated. Every fact the corrected lead sentence (USAGE.md:670-672) asserts
+  was run against ./bin/dva with a conflict fixture: validate exits 1 with the reserved-conflict
+  error, a WARN is emitted on every config load (validate/ls/run), `dva run build` still executes the
+  declaration (EXIT=0, prints its output), and manifest carries usage_example/shadowed_by_builtin.
+  The guard TestUsageDocDoesNotSayReservedConflictsAreIgnored (internal/config/reserved_test.go:194)
+  is real and reached by the criterion's own `-run Conflict` selector; it logged "section scanned: 65
+  lines", so it did not pass on an empty string, and usageDocSection t.Fatalf's on a renamed heading.
+  git 4ccedb9 "docs(usage): correct the reserved-conflict claim and guard it with a test" carries both
+  the doc edit and the guard. USAGE.md is 786 lines / 30961 bytes, now formally exempt from the size
+  gate (tools/doccheck/policy.go:35); the follow-up chain TASK-106 → TASK-090 is closed, not dangling.
 ---
 
 # Task 099: one page, two answers, and the wrong one comes first

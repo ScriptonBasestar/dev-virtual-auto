@@ -67,7 +67,7 @@ the limit — the rest have room:
 | SOUL.md | 68 | ~3K | yes |
 
 `USAGE.md` was 729/27633 in the sweep above and is **730/27792** today — it gained a line while
-[TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) corrected a sentence inside
+[TASK-099](099-usage-md-says-conflicts-are-silently-ignored.md) corrected a sentence inside
 it. Whichever option is chosen, the number is not static, which is the argument for the gate rather
 than for a one-time split.
 

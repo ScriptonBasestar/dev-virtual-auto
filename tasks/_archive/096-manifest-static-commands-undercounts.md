@@ -174,7 +174,7 @@ The package was run with `-shuffle=on` three times, because `rootCommandNames` m
 
 - [TASK-088](../_archive/088-validate-json-covers-only-the-failure-it-does-not-produce.md) — the same
   audience getting a worse answer than the human one.
-- [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
+- [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other manifest-correctness
   defect; both surface through `dva manifest`, which is documented as the agent-facing entry point.
 - [TASK-105](../done/105-static-command-metadata-is-thinner-than-help.md) — the contents half of this
   defect, split out because criterion 4 pinned the 13 descriptions.

@@ -157,6 +157,6 @@ a sorted list.
 
 - [TASK-107](107-command-suggestions-come-out-in-a-different-order-every-run.md) — the ordering half,
   found in the same measurement.
-- [TASK-098](098-stack-status-and-unknown-subcommand-exit-zero.md) — the previous defect in
+- [TASK-098](../_archive/098-stack-status-and-unknown-subcommand-exit-zero.md) — the previous defect in
   this same error path, which is why root.go:229 carries a comment about what `suggestCommands` can
   and cannot see.

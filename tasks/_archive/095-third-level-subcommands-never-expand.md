@@ -141,7 +141,7 @@ expands and runs; no validate-time depth message was added because there is no d
 `default_args` inherits into a subcommand that replaces `command:` outright, so
 `dva run rails console` executes `console server -p 3000 -b 0.0.0.0`. Measured at depth 2 against
 the pre-fix binary, so it is pre-existing — this fix only lets depth 3 reach the same code. Filed
-as [TASK-101](../done/101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
+as [TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
 pinned by `TestInteractionDefaultArgsInheritIntoSubcommands` so fixing it cannot silently change
 what depth-3 commands run.
 
@@ -152,8 +152,8 @@ owned by TASK-078, so it was left alone rather than reformatted inside a behavio
 ## Related
 
 - [TASK-096](096-manifest-static-commands-undercounts.md) and
-  [TASK-097](../done/097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
+  [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — the other two defects in the
   same flat `parent + " " + child` key space. 097 in particular is the reason this key encoding is
   worth revisiting rather than patching three times.
-- [TASK-101](../done/101-default-args-inherit-into-subcommands-that-replace-the-command.md) — the
+- [TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) — the
   merge-semantics defect this fix surfaced but did not cause.

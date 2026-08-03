@@ -9,6 +9,23 @@ created-at: 2026-07-31T00:00:00+09:00
 resolved-at: 2026-07-31T00:00:00+09:00
 resolution: "A, corrected — EnvSlice filters the guard out of the os.Environ() passthrough; hook steps opt back in via WithHookDepth"
 scope: "internal/cli/hooks.go:52-53 — Setenv plus a defer that cannot fire on the ExecReplace path; internal/config/environment.go:88-106 — EnvSlice passes os.Environ() through"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  Fix is present and behaves as documented. internal/config/environment.go:121 drops
+  EnvHookDepthKey from the os.Environ() passthrough; WithHookDepth (environment.go:94-100)
+  returns a *copy* whose Vars re-add the guard, and EnvSlice appends Vars after the filter,
+  so ExecReplace'd targets (internal/exec/exec.go:28-29) lose it while hook children
+  (provision.go:514, :538) keep it. hooks.go:65 hands the copy to all three phases.
+  Three regression tests pass and were independently mutation-tested via `go test -overlay`
+  (no repo file touched): disabling the filter, disabling WithHookDepth, and making it mutate
+  in place each kill exactly one test with the recorded message. `go test ./internal/cli/
+  -run Hook` selects 18 real tests, ok. `make lint` → `0 issues.`
+  The recorded residual is confirmed real and correctly scoped: exec.go:81-85
+  ExecSubprocessOutput sets no Cmd.Env, so os.Setenv at hooks.go:59 still reaches its docker
+  child. Follow-on commit 91ce03b hardened the same boundary — internal/runner
+  TestEnvVarsExcludesDVAPrefix asserts DVA_HOOK_DEPTH never crosses into a compose container
+  (PASS).
 ---
 
 # Task 100: a recursion guard that outlives the process it was guarding

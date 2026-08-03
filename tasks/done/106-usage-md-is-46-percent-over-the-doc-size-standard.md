@@ -28,7 +28,7 @@ scope: "USAGE.md — 730 lines / 27KB vs the 500-line / 10KB per-document standa
 
 Every other root document is comfortably inside. USAGE.md is the single outlier, and it grows by a
 line or two with each task that corrects something in it — it grew from 729 to 730 during
-[TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) alone.
+[TASK-099](../_archive/099-usage-md-says-conflicts-are-silently-ignored.md) alone.
 
 Nothing measures this. There is no test, no make target, and no lint step that reads a document's
 size, so the standard is advisory in practice and the drift is invisible until someone counts by
@@ -92,7 +92,7 @@ Two open tasks asking one question is the defect this repo keeps closing elsewhe
 
 **Carried across to 090** (the one thing here that was not already there): the root-document
 comparison, and that `USAGE.md` is still growing — 729/27633 when 090 measured it, **730/27792**
-today, having gained a line while [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md)
+today, having gained a line while [TASK-099](../_archive/099-usage-md-says-conflicts-are-silently-ignored.md)
 corrected a sentence in it.
 
 Nothing else from this file was worth moving.
@@ -101,7 +101,7 @@ Nothing else from this file was worth moving.
 
 - [TASK-090](../_archive/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md) — the
   owner of this question. Decide there.
-- [TASK-099](../done/099-usage-md-says-conflicts-are-silently-ignored.md) — measured this while closing it;
+- [TASK-099](../_archive/099-usage-md-says-conflicts-are-silently-ignored.md) — measured this while closing it;
   the contradiction 099 fixed is the kind of thing document length produces.
 - [TASK-096](../_archive/096-manifest-static-commands-undercounts.md) — the same audience argument, applied
   to the command manifest instead of the manual.

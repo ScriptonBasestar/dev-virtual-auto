@@ -7,6 +7,20 @@ effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/stack.go — stackStatusCmd's inline nameSet filter; the stack parent command's unknown-subcommand handling"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  All five behavioural rows re-measured against ./bin/dva (v0.1.44) with a one-entry
+  `realstack` script fixture, not read off the task file:
+    stack status nosuchentry → exit 1, `ERROR: no such stack entry: nosuchentry`
+    stack status realstack   → exit 0, 34B ; stack status → exit 0, 34B
+    stack nosuchsub          → exit 1, `unknown command "nosuchsub" for "dva stack"`
+    stack --help / stack     → exit 0, 1243B, Usage shows `dva stack [flags]`
+  Byte-identity of bare `stack status` confirmed by building a hunk-1-reverted binary
+  out of repo and running `cmp` (identical; that binary exits 0 on the typo, so the
+  control holds). Non-vacuity re-proved per hunk: each revert fails exactly its own
+  test and neither fails the other. Code present at stack.go:22/43/44/274.
+  gofmt -l on stack.go, root.go, stack_exit_code_test.go → clean (078's note is stale).
 ---
 
 # Task 098: the two exit-0 paths TASK-087 deliberately left behind

@@ -7,6 +7,20 @@ effort: M
 status: done
 created-at: 2026-07-31T00:00:00+09:00
 scope: "internal/cli/list.go:123-136 — strings.Cut(k, \" \"); the flat key space built by internal/runner/interaction_tree.go:97"
+verified-at: 2026-08-03T13:40:00+09:00
+archived-at: 2026-08-03T13:40:00+09:00
+verification-summary: |
+  Deliverables exist and behave as claimed. internal/runner/interaction_tree.go:17 carries
+  `Path []string`, set at :155 by expandInto; internal/cli/list.go:145 interactionUsage takes
+  *ResolvedCommand and reads cmd.Path — no strings.Cut on the key remains anywhere in list.go
+  or manifest.go. Live fixture through ./bin/dva (v0.1.44): all 7 emitted usage_examples run
+  at exit=0 and each prints its own marker, including `dva 'my task'` and `dva 'my task' sub`,
+  the two rows that exited 1 before. `go test ./internal/cli/ -run 'Usage|Manifest'` selects
+  14 real tests (verified by name), ok. Non-vacuity re-derived from scratch on a scratchpad
+  copy of HEAD with interactionUsage reverted: the two reachability rows and three quoting rows
+  fail, both control tests pass. Corpus re-measured today: 17 example configs, 15 declaring
+  dynamic commands, 77 dynamic commands, 0 usage_examples acquiring a quote — the change is
+  inert on shipped examples. Repo left untouched (`git status --porcelain` empty).
 ---
 
 # Task 097: two different key shapes share one string space, told apart by a guess
@@ -176,7 +190,7 @@ for the input class that was broken.
 
 - A declared key that spells another key's composite path silently deletes one of the two
   commands, nondeterministically — filed as
-  [TASK-104](104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md) with the
+  [TASK-104](../done/104-a-literal-key-that-spells-a-composite-key-deletes-one-command.md) with the
   20-run measurement. Found while probing this fix; `Path` is the structure its option B would
   key on.
 - `gofmt` runs the doc comment formatter, which reads a pair of straight single quotes as legacy

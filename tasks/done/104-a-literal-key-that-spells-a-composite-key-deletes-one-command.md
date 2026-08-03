@@ -171,8 +171,8 @@ subtree. `TestSubcommandsOfALoserStillExpand` pins that.
 **Part 2 — report.** `List()` now delegates to a new `ListWithCollisions()`, which is **one walk**,
 not a detector running beside the expansion. A second traversal that re-derives what the expansion
 already knows is a second source of truth, and the two drift — the lesson from
-[TASK-101](101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
-[TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md). `internal/cli/validate.go` renders
+[TASK-101](../_archive/101-default-args-inherit-into-subcommands-that-replace-the-command.md) and
+[TASK-097](../_archive/097-interaction-usage-mishandles-keys-with-spaces.md). `internal/cli/validate.go` renders
 each `Collision` through `describeInteractionPath`, which addresses a declaration the way the author
 wrote it in `dva.yml` (`interaction.a.subcommands."b c"`) rather than by the flattened name they
 never wrote. Emitted under category `interaction_collision`; counts toward `--strict`.
@@ -245,7 +245,7 @@ The two halves fail independently. `TestCollisionsAreReported` fails under both 
 
 ## Related
 
-- [TASK-097](097-interaction-usage-mishandles-keys-with-spaces.md) — found while measuring it. 097
+- [TASK-097](../_archive/097-interaction-usage-mishandles-keys-with-spaces.md) — found while measuring it. 097
   fixed the *rendering* for space-containing keys and added `ResolvedCommand.Path`, which is the
   structure option B would key on. After 097 whichever entry survives gets a correct
   `usage_example` — `dva 'rails console'` reaches the literal, `dva rails console` reaches the
