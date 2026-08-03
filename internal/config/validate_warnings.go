@@ -409,10 +409,18 @@ func firstNonEmptyStr(vals ...string) string {
 
 // hasExecutionTarget reports whether this node itself supplies something to execute, ignoring
 // anything it would inherit.
+//
+// `default_args` counts because it executes on its own, which is not obvious from the name.
+// exec.buildCommandLine appends the args to the command and, in shell mode — the default —
+// hands the joined string to `sh -c`, so an empty command with args leaves the args as the
+// whole shell line. Measured: a node with only `default_args: "echo reached"` and nothing else
+// prints `reached` and exits 0. Omitting it here made the predicate disagree with the runtime
+// in the one direction that produces a false warning — telling an author a node cannot run
+// while it runs. TASK-165.
 func (c *InteractionCommand) hasExecutionTarget() bool {
 	return c.Command != "" || len(c.CommandLines) > 0 || c.HasScript() ||
 		c.ScriptFile != "" || c.HasSteps() || c.HasHooks() || c.Compose != nil ||
-		c.Runner != "" || c.Service != "" || c.Pod != ""
+		c.Runner != "" || c.Service != "" || c.Pod != "" || c.DefaultArgs != ""
 }
 
 // warnDuplicateParentSubcommand warns when an interaction command has the same command value
@@ -899,27 +907,43 @@ func calculateSubcommandDepth(cmd *InteractionCommand, current int) int {
 	return maxDepth
 }
 
-// warnUnreachableCommands warns when a parent interaction has subcommands but lacks execution context
-// (e.g. no command, no service, no compose) itself, making it unreachable directly.
+// warnUnreachableCommands warns when an interaction node supplies no execution context
+// (e.g. no command, no service, no compose) and inherits none, in either of the two shapes
+// that produces: a parent that cannot be called directly, and a leaf that cannot be called
+// at all.
+//
+// The leaf is the worse of the two and used to be the one nobody reported. Until TASK-165
+// this check returned early on `len(cmd.Subcommands) == 0`, so it fired only where there was
+// still something to route to. On the fixture below, `grp` — which at least reaches its
+// children — got the warning, and `grp.leaf`, the node that can never do anything, got
+// nothing from the validator and exit 0 from the runtime:
+//
+//	interaction:
+//	  grp:
+//	    subcommands:
+//	      leaf: {description: does nothing at all}
 //
 // Severity: Semantic Warning
 func (c *Config) warnUnreachableCommands() []string {
 	var warnings []string
 
 	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, inherited inheritedExec) {
-		if len(cmd.Subcommands) == 0 {
-			return
-		}
-		// A parent is a "group" node only if neither it nor any ancestor supplies an
-		// execution target. Inheritance is the whole point: examples/full-stack.yml's
+		// Inheritance is the whole point of asking both: examples/full-stack.yml's
 		// `rails db` sets nothing itself, yet `dva run rails db` executes
 		// `bundle exec rails` inherited from `rails`. Testing the raw node alone reported
 		// that shipped, working config as unreachable. TASK-128.
-		if !cmd.hasExecutionTarget() && !inherited.callable {
+		if cmd.hasExecutionTarget() || inherited.callable {
+			return
+		}
+		if len(cmd.Subcommands) > 0 {
 			warnings = append(warnings,
 				fmt.Sprintf("%s: has subcommands but is not directly callable; add an execution target or remove subcommands",
 					path))
+			return
 		}
+		warnings = append(warnings,
+			fmt.Sprintf("%s: has no execution target and no subcommands, so running it does nothing; add a command, script, steps or service — or remove the entry",
+				path))
 	})
 
 	sort.Strings(warnings)

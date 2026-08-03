@@ -790,17 +790,52 @@ func TestWarnUnreachableCommands(t *testing.T) {
 					"sub": {Command: "echo ok"},
 				},
 			},
-			"reachable_without_subs": { // no subcommands -> no warning
+			// Was "reachable_without_subs", asserted here as producing no warning because the
+			// check returned early on leaves. The name was the tell: nothing about this node is
+			// reachable. `dva run dead_leaf` resolves, runs `sh -c ""` and exits 0. TASK-165
+			// made it the second shape this check reports, so the row is renamed to what it is
+			// and now asserts the warning rather than its absence.
+			"dead_leaf": {},
+			// The false positive that shape could produce, and the reason the check consults
+			// inherited state rather than the raw node: this leaf sets nothing either, but
+			// `dva run reachable_with_cmd inherits_target` runs `echo hi`. Warning about it
+			// would make every correctly-factored config noisy — the mistake TASK-128 fixed for
+			// the group shape, which this one must not reintroduce.
+			"leaf_parent": {
+				Command: "echo hi",
+				Subcommands: map[string]*InteractionCommand{
+					"inherits_target": {},
+				},
 			},
+			// default_args alone executes: exec.buildCommandLine joins command and args and,
+			// in shell mode, `sh -c` gets the args as the whole line. Measured — a node with
+			// only `default_args: "echo reached"` prints `reached`. So this is a target, and a
+			// warning here would be false.
+			"args_only": {DefaultArgs: "echo reached"},
 		},
 	}
 
 	warnings := c.warnUnreachableCommands()
-	if len(warnings) != 1 {
-		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	want := []string{
+		"interaction.dead_leaf: has no execution target and no subcommands",
+		"interaction.unreachable: has subcommands but is not directly callable",
 	}
-	if !strings.Contains(warnings[0], "interaction.unreachable:") {
-		t.Errorf("unexpected warning text: %s", warnings[0])
+	if len(warnings) != len(want) {
+		t.Fatalf("expected %d warnings, got %d: %v", len(want), len(warnings), warnings)
+	}
+	for _, w := range want {
+		if !slices.ContainsFunc(warnings, func(got string) bool { return strings.Contains(got, w) }) {
+			t.Errorf("missing warning %q, got: %v", w, warnings)
+		}
+	}
+	// Named separately from the count: a count alone would not say which node went missing if
+	// one of these ever started warning.
+	for _, w := range warnings {
+		for _, mustNotWarn := range []string{"inherits_target", "args_only"} {
+			if strings.Contains(w, mustNotWarn) {
+				t.Errorf("%s has an execution target (own or inherited) and must not warn: %s", mustNotWarn, w)
+			}
+		}
 	}
 }
 
