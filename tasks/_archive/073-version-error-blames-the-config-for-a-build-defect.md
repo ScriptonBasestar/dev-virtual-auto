@@ -7,6 +7,21 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/config — config.go (isVersionCompatible, malformedVersionError) + config_test.go"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Read internal/config/config.go:1201-1273: isVersionCompatible has exactly two parseVersion
+  call sites (confirmed via repo-wide grep, no third site exists). The `required` path
+  (line 1206) appends "Omit `version:` entirely for no compatibility gate"; the `Version`
+  path (line 1213) appends "Reinstall dva or rebuild it with `make build`" instead.
+  malformedVersionError (1271-1273) carries only the shape description, as claimed.
+  go test ./internal/config/ -run TestUnreadableBinaryVersionBlamesTheBuild -v: PASS.
+  go test ./internal/config/ -run 'TestCheckConfigVersion|TestParseVersionRejectsMalformed|
+  TestVersionPatternMatchesSchema' -v: all PASS. Ran the real ./bin/dva (v0.1.44) validate
+  against version: "O.2.0" — output identical to the task's recorded transcript. Checked
+  sibling tasks 067 (schema/doc rule consistency), 070 (malformed-version-as-zero, the direct
+  predecessor whose review surfaced this finding), 072 (--short flag) — no overlap or
+  duplicated fix found; each addresses a distinct defect in the version-handling area.
 ---
 
 # Task 073: Blame the right side for an unreadable version

@@ -7,6 +7,22 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox — PORT_MAPPINGS.yaml only"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Commit aec4a7d ("docs(ports): register the four nameserver ports...") is HEAD in
+  ~/mydevbox/scripton-dns-bridge-devbox, adding exactly the claimed 24-line
+  `nameserver:` group between `monitoring:` and `dev:` — no compose, .env.example,
+  or dva.yml touched, matching the stated non-goals.
+  All four values match live: POWERDNS_DNS_PORT=11253, COREDNS_DNS_PORT=11254,
+  POWERDNS_API_PORT=11260, ETCD_PORT=11261 across compose/infra-nameserver.yaml,
+  PORT_MAPPINGS.yaml, and .env.example. tcp+udp double-bind comment for
+  11253/11254 is present in the group header (lines 117-118), per the non-goal
+  against adding a protocol field.
+  `dva validate` in that repo: rc=0, "dva.yml is valid" (only pre-existing
+  migration/Makefile-suggestion warnings unrelated to ports).
+  Full three-way reconciliation re-derived independently: UNREGISTERED=[],
+  VALUE MISMATCH compose-vs-registry=[], VALUE MISMATCH .env.example-vs-registry=[].
 ---
 
 # Task 071: Register the nameserver ports

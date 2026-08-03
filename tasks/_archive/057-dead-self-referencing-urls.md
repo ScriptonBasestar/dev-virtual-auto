@@ -7,6 +7,22 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — agent-mesh-flows/shared/library/, internal/cli/library_reference.txt, internal/config/validate_warnings.go, dva.yml"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  All 8 criteria hold against live repo state. Real user-facing content (dva.yml header,
+  reference-examples.md, generated library_reference.txt, validate_warnings.go) carries
+  the canonical dva/master URLs; go.mod module (github.com/ScriptonBasestar/dva) and
+  `git branch -r` (origin/master only) confirm correctness. TestGeneratorCorpusURLs and
+  TestGeneratorCorpusURLsDetectsPlantedDefects both pass (137 files / 5 URLs audited, 4/4
+  planted defects caught). ~/mydevbox sweep: 0 live-config remnants, 11 total remnants
+  match the claimed fixture-exclusion count exactly, backup tars present.
+  Two of the task's own literal verify shell commands (criteria 3 and 4) now report a
+  false miss/hit purely because of later, unrelated maintenance: criterion 3's grep isn't
+  test-file-aware and hits the guard's own planted-defect fixture; criterion 4's grep
+  still names the pre-renumbering doc filename (docs/40), superseded by commit c50c5a1
+  which retargeted validate_warnings.go to docs/42 and is itself covered by the live
+  TestGeneratorCorpusURLs guard. Neither reflects a defect in this task's delivered fix.
 ---
 
 # Task 057: Make DVA's own URLs resolve

@@ -7,6 +7,22 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/integration — legacy_compose_test.go + testdata/fixtures/legacy-compose/dva.yml"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Ran the actual gating commands rather than trusting metadata. `make test-integration`
+  and the raw `go test -tags=integration -race ./internal/integration/... -v` both exit 0;
+  the verbose run shows exactly 17 '--- PASS' lines (0 FAIL), matching the task's
+  anti-vacuity check precisely. TestLegacyComposeFixtureIsRejected (legacy_compose_test.go:22)
+  now asserts config.Load() errors on the legacy-compose fixture and pins both the fault
+  name ("compose must be declared under runners.compose") and the actionable replacement
+  ("default_runner: compose") in the error text — commit a5e0b37 shows this replaced the
+  prior TestLoadLegacyComposeFixture which asserted acceptance. .github/workflows/ci.yml:29-32
+  runs `make test-integration` as an ungated ("Integration Test") step in the same `test`
+  job as `make test`, with no continue-on-error — so this step is the one that was red and
+  is now green. `make test` (unit suite) also passes, exit 0. Grep for the two stale
+  "still supports it for back-compat" comment variants returns 0 matches anywhere under
+  internal/integration/.
 ---
 
 # Task 075: Reconcile the legacy-compose test with the loader that rejects it

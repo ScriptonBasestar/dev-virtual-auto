@@ -7,6 +7,20 @@ status: done
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/config/corpus_urls_test.go, validate_warnings.go, reference-examples.md, dva.yml, skills|workflows|examples READMEs; plus the GitHub repo rename (human)"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  go.mod declares github.com/ScriptonBasestar/dva; proxy.golang.org and GitHub's
+  go-import meta both resolve it live. corpus_urls_test.go's canonicalRepo() derives
+  the name from go.mod at runtime (no transcribed constant); TestGeneratorCorpusURLs,
+  TestRepoFromModuleDirective and TestGeneratorCorpusURLsDetectsPlantedDefects all pass
+  (audited 5 URLs / 137 files). A repo-wide grep for the old name (excluding .git/tmp/
+  .omo/tasks) hits only the guard's own test fixture. README.md and examples/MAKEFILE.md
+  install lines, and .goreleaser.yml, all name ScriptonBasestar/dva. Of ~mydevbox's live
+  dva.yml configs, 50 carry the canonical schema URL; the 11 still naming the old repo
+  are precisely the tmp/.omo evidence fixtures TASK-057 documented as intentionally
+  excluded — confirmed by listing the 11 file paths. Git history (65895f4, b8a5fa7)
+  corroborates the derive-from-go.mod fix and the decision record commit.
 ---
 
 # Task 060: Decide what the canonical module path is

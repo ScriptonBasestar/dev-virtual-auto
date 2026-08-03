@@ -7,6 +7,24 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/config/config.go parseVersion/checkConfigVersion; optionally internal/config/schema.json version pattern"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Read internal/config/config.go:1185-1273: parseVersion now uses versionPattern
+  regexp `^v?(\d+)\.(\d+)(?:\.(\d+))?$` and returns error instead of silently
+  yielding [0,0,0]; isVersionCompatible propagates the error with side-specific
+  remedies; malformedVersionError quotes the offending value and cites
+  MinScaffoldVersion (version.go:12, "0.1.44"). schema.json:506 carries the
+  matching pattern, guarded by TestVersionPatternMatchesSchema.
+  Ran go test ./internal/config/ -run
+  'TestParseVersion|TestParseVersionRejectsMalformed|TestCheckConfigVersion|TestUnreadableBinaryVersionBlamesTheBuild|TestVersionPatternMatchesSchema'
+  -> all PASS. Exercised real ./bin/dva (v0.1.44, matches baseline) against
+  scratch dva.yml files: malformed "O.2.0" -> rc=1 with quoted-value error;
+  absent version -> rc=0; "9.9.9" -> rc=1 incompatibility message (no parse
+  error); two-segment "0.1" and unquoted `0.1` (YAML number) -> rc=0. `dva
+  validate` on "O.2.0" also rc=1 via schema pattern. Confirmed commits
+  3bc2a2a (TASK-070 fix) and ed963e0 (TASK-073 follow-up) both present in
+  git log and match the Resolution section's description exactly.
 ---
 
 # Task 070: Reject a `version:` that is not a version, instead of reading it as 0.0.0

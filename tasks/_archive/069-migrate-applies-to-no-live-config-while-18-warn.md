@@ -7,6 +7,21 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/config_migrate.go (the XS fix); a modes→plans converter would be internal/config/migrate.go and is deliberately out of scope"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+follow-up: TASK-136
+verification-summary: |
+  Code matches the task's Resolution verbatim: internal/cli/config_migrate.go:60-77 prints
+  the three-line hand-off message only on the true no-op path, with a comment explaining why
+  the section names are hand-written rather than sourced from validate_warnings.go.
+  Re-ran the full corpus sweep on the live ~/mydevbox (31 configs, bin/dva v0.1.44):
+  migrate → would-migrate=0 nothing-to-do=31 other=0 (matches claim exactly).
+  validate → modes=16 stack.*.order=17 no-plans=18 applications=8 env-fields=1,
+  any-of-these-five=18/31 (matches the task's table exactly, matched on the literal warning
+  strings at validate_warnings.go:142,153,175,197,208, not grep).
+  TASK-066 cross-check: section-order warnings are independently 0/31 today (that fix holds),
+  confirming TASK-066's own note that its 10-count and TASK-069's 18-count never overlapped —
+  distinct literal strings, distinct checks.
 ---
 
 # Task 069: Stop `config migrate` from implying a warning-heavy config has nothing to migrate

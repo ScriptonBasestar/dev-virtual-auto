@@ -7,6 +7,19 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/validate.go detectConfigDriftWarnings/configuredComposeServices; motivating instance in ~/mydevbox/sigdock-pass-devbox"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Doc-comment-only change verified byte-for-byte against commit 794a05e: comments added at
+  validate.go:256-259 (early return) and :410-420 (configuredComposeServices), no logic diff.
+  Corpus re-swept live with ./bin/dva v0.1.44: 31 configs (-maxdepth 2) and 69 configs
+  (-maxdepth 4, corpus grew from the task's 64) both yield exactly 1 drift warning,
+  sigdock-pass-devbox's redis-cli → redis-master, matching the task's claimed single true
+  positive with zero false positives. ComposeOptions struct (config.go:475-479) confirmed
+  to have only Method/Profiles/RunOptions, no files: field, backing the "profiles gate
+  existence, not create it" claim. sigdock-pass-devbox/dva.yml still contains the
+  unresolved redis-cli interaction untouched, matching the non-goal "do not edit the
+  user's config."
 ---
 
 # Task 068: Decide whether the interaction-service check should resolve compose `include:`

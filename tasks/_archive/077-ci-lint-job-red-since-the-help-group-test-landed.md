@@ -7,6 +7,18 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/cli — root_help_groups_test.go (one negated conjunction)"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Fix commit 06d1598 ("fix(cli): clear the lint gate...") sits directly after 6fca01e as the
+  task describes. golangci-lint 2.12.2 locally matches ci.yml:48's pinned version, so
+  `golangci-lint run ./...` reproduces the CI lint job rather than approximating it, and it
+  reports `0 issues.`. The named test passes and its rewritten conditional
+  (`recommended >= direct || direct >= other`) is the exact negation-of-conjunction law the
+  task prescribed, with block ordering semantics unchanged. `make test` (-race) is green
+  across every package. Checked .github/workflows/ci.yml directly to confirm the lint job
+  invocation (golangci-lint-action v8 pinned to v2.12.2, plus a Format/fmt-check step and a
+  gopls-check step added by later tasks).
 ---
 
 # Task 077: Clear the lint gate

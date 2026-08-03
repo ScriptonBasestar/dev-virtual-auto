@@ -7,6 +7,19 @@ effort: M
 status: done
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/cli — manifest.go, list.go; internal/config — reserved.go, validate.go; tests; USAGE.md"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+follow-up: TASK-137
+verification-summary: |
+  Built a fresh dva.yml fixture (build+status reserved-name interactions, plus app:build
+  namespaced and a build.subcommands.fast) and drove ./bin/dva directly, not just go test.
+  Confirmed the manifest's usage_example ('dva run build'/'dva run status'/'dva run build fast')
+  is exactly the invocation that prints the declared interaction's own output (exit 0), while the
+  bare forms ('dva build', 'dva status', 'dva build fast') dispatch to the built-in instead —
+  the defect this task fixed. dva ls text/--json carry the same shadowed_by_builtin mark. All 3
+  named clauses appear in one sorted warning (app:build, build, status), and severity is exactly
+  as documented: validate/config validate exit 1, ls/manifest/run exit 0. All 8 named cli tests
+  and both config tests pass; all 3 required grep counts are 0.
 ---
 
 # Task 076: Do not advertise an interaction that the advertised command will not run

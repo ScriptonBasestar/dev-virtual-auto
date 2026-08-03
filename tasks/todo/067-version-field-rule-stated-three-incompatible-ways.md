@@ -3,9 +3,11 @@ id: TASK-067
 title: "The `version:` rule is stated across nine files and encodes three incompatible rules — the AI generator is taught the harmful one"
 type: fix
 priority: P2
-status: done
+status: todo
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
+reopened-at: 2026-08-03T12:10:00+09:00
+reopened-because: "shared-checklist.md:9 — a file this task's own scope names — still states the rule this task exists to remove"
 scope: "dva repo — internal/config/schema.json, agent-mesh-flows/shared/library/{shared-guardrails,dva-schema,shared-checklist,reference-examples}.md"
 ---
 
@@ -129,7 +131,7 @@ Also stale, fix while here: `reference-examples.md` carries `version: "0.1.29"` 
 - [x] A `dva.yml` with no `version:` key passes `dva validate` | verify: `go test ./internal/config/ -run TestValidateWithoutVersion`
 - [x] `version` is absent from schema.json's top-level `required` | verify: `python3 -c "import json;assert 'version' not in json.load(open('internal/config/schema.json')).get('required',[])"`
 - [x] `dva init` output still validates | verify: `human — dva init in a temp dir with a compose file, then dva validate, expect rc=0`
-- [x] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rn 'Must match the current DVA CLI version' agent-mesh-flows/`
+- [ ] No library file claims version must equal the CLI version | verify: `! /usr/bin/grep -rniE 'version.{0,20}(matches|must match|equal).{0,20}current DVA|현재 DVA (CLI )?버전' agent-mesh-flows/shared/library/ internal/cli/library_reference.txt`
 - [x] No library file claims subprojects must match root | verify: `! /usr/bin/grep -rniE 'version.*match(es)? root|Subprojects? (should|must) match' agent-mesh-flows/`
 - [x] Regenerated artifact agrees | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt || true`
 - [x] Full suite green | verify: `make test`
@@ -176,3 +178,35 @@ config. Nothing pins either behavior — no test in the repo contains the string
 "No root comparison exists" was established by listing *every* `Version` mention in
 `internal/config/subproject.go` and `internal/config/merge.go`, not by a targeted grep for a
 guessed pattern.
+
+## Reopened 2026-08-03 — one in-scope file was never corrected
+
+Rule A is fixed and independently confirmed: `version` is gone from `schema.json`'s
+`required`, a hand-built version-less `dva.yml` passes `ls`/`validate`/`doctor`/
+`manifest`/`show`, and `dva init` scaffolds `MinScaffoldVersion`, which validates.
+
+Rule B is fixed in three of the four library files. It is **not** fixed in the fourth:
+
+```
+agent-mesh-flows/shared/library/shared-checklist.md:9
+- [ ] `version` field matches current DVA CLI version
+```
+
+That is Rule B claim #1 verbatim — the claim this task exists to delete. The fix commit
+`db07203` edited the adjacent line in the same section (the "subproject `version` matches
+root" line, Rule C) and left this one. The old criterion-4 binding missed it because it
+matched the exact English string `Must match the current DVA CLI version`, and this line
+is phrased differently.
+
+It is not inert prose. It is read raw into the live `dva-improve` prompt, and it is baked
+into the committed artifact at `internal/cli/library_reference.txt:111`, so the generated
+embed carries it too.
+
+**To close:** correct or delete `shared-checklist.md:9` the way `shared-guardrails.md` and
+`reference-examples.md` were corrected, then `make generate` so
+`library_reference.txt:111` follows. Criterion 4's binding has been widened to match on
+meaning rather than one exact sentence, and to sweep the generated artifact as well.
+
+Out of scope and tracked separately: `agent-mesh-flows/dva-improve.yaml` — the flow that
+actually writes configs — still instructs the LLM and its own `fix_version` shell step to
+write the running DVA version. See [TASK-135](../todo/135-dva-improve-writes-the-running-version-into-every-config-it-touches.md).

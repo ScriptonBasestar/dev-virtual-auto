@@ -7,6 +7,19 @@ effort: S
 status: done
 created-at: 2026-07-30T00:00:00+09:00
 scope: "internal/cli — app.go (the empty-applications path in ls/up/stop/down/restart/build/log) + app tests"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+verification-summary: |
+  Ran all seven `dva app` subcommands (ls/up/stop/down/restart/build/log, bare and named)
+  against a scratch fixture (stack:1, interaction:1, no applications:) outside any git repo.
+  All bare forms: exit 0, identical advice line on stderr. All named forms: exit 1, name the
+  target, no "not found" language, no config filename. `dva up --dry-run` (the suggested
+  route) exits 0. Code inspection confirms noApplications() is the single call site for all
+  seven RunE bodies, sortedPlanNames() was extracted into plan_lifecycle.go and is shared by
+  three call sites, and no stray "no applications defined" literal remains anywhere in the
+  repo (grep -c = 0). Targeted go test run of all 7 acceptance-linked tests (13+13+5+1
+  subtests across TestAbsentApplications*) all PASS. Follow-ups TASK-079 and TASK-081 are
+  both already done; TASK-082 remains correctly tracked as an open decision task.
 ---
 
 # Task 074: One answer for the empty `applications:` section, and make it a route

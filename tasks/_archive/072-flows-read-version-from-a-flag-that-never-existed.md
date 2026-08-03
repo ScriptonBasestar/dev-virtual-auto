@@ -7,6 +7,18 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "agent-mesh-flows/ — dva-improve.yaml, dva-diagnose.yaml, dva-improve-guided/{00-analyze,30-configure}.yaml"
+verified-at: 2026-08-03T12:15:00+09:00
+archived-at: 2026-08-03T12:15:00+09:00
+follow-up: TASK-135
+verification-summary: |
+  All 5 acceptance-criterion commands re-run verbatim against the live repo, exit 0 each.
+  Confirmed the four call sites (dva-improve.yaml:61, dva-diagnose.yaml:42,
+  00-analyze.yaml:36, 30-configure.yaml:61) are byte-identical:
+  `dva version --json 2>/dev/null | jq -r '.version // "unknown"' 2>/dev/null || echo 'unknown'`.
+  fix_version (dva-improve.yaml:711-733) refuses on '' or 'unknown' before either sed write,
+  citing the two real failure causes (dva version --json, jq). 30-configure.yaml:82-85 carries
+  the equivalent prose reject rule for its LLM step, which has no shell to guard in.
+  git show confirms commits e6dd809 and fe781a2 match the diff on disk exactly.
 ---
 
 # Task 072: Stop reading the version from a nonexistent flag
