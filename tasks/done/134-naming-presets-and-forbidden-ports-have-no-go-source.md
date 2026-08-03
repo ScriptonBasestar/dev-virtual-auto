@@ -83,16 +83,18 @@ Rules 9 and 14 earned generation because Go *is* the authority for them:
 orders the file. A hand-copied list can therefore be **wrong about what DVA does**, and
 `make check-generate` catches that.
 
-Rules 7 and 23 have no behaviour to be wrong about. Probe config
-(`scratchpad/134-probe/`) binding 5432, 6379, 8080 and 9092 as host ports, one service
-tagged `nonsense-tag`, `default_plan: wildly-nonstandard-plan-name`, `environment: banana`:
+Rules 7 and 23 have no behaviour to be wrong about. Probe: a throwaway config whose
+compose binds 5432, 6379, 8080, 9092 and 9200 as **host** ports, with one service tagged
+`nonsense-tag`, `default_plan: wildly-nonstandard-plan-name`, `environment: banana`, and
+elasticsearch (`tags: [data]` — Tier 4) selected into that default plan:
 
 ```
 $ dva validate
 [warn] semantic: ⚠ 'stack.*.order' detected — execution order should move to 'plans.*.entries[].order'
   ...
 ✅ dva.yml is valid            exit 0, 4 lines of output
-matches for: port 0 · 5432 0 · 6379 0 · 8080 0 · 9092 0 · tier 0 · tag 0 · banana 0 · wildly 0
+matches in that output: port 0 · 5432 0 · 6379 0 · 8080 0 · 9092 0 · 9200 0 ·
+                        tier 0 · elasticsearch 0 · data 0 · banana 0 · wildly 0 · nonsense 0
 
 $ dva doctor
   4 passed, 1 failed            10 lines, "port" mentions: 0
@@ -154,6 +156,26 @@ The first version of the test compared every copy against `found[0]` and reporte
 same single divergence three times, implicitly treating whichever file was walked first
 as correct. Reading F1's *output* rather than its pass/fail is what surfaced that; the
 grouped form replaced it before the second falsification run.
+
+### Session review of 0d46a66
+
+Reviewing the commit found three claims in it that the measurement did not yet back —
+the same overclaiming shape TASK-172 was about, in my own prose this time:
+
+| Claim as committed | Reality | Resolved by |
+| ------------------ | ------- | ----------- |
+| README: "binding 5432, **6379**, 8080 and 9092 as host ports" | 6379 appeared only as an `endpoints:` URL in the probe; it was never a host port binding | added redis to the probe, re-measured — the claim is now true, and 9200 named too |
+| `naming-presets.md`: "default plan에 **Tier 4** 서비스를 넣어도 통과한다" | the probe's default plan carried kafka, which is Tier **2** | added elasticsearch (`tags: [data]`) and put `data` in the default plan's tag filter |
+| Result: "Probe config (`scratchpad/134-probe/`)" | a session-local path that will not exist when anyone reads this | described inline instead |
+
+Also corrected `wantAtLeast`'s comment, which enumerated five sites next to a constant of
+four without saying why they differ. The floor is deliberately one below the real count so
+that dropping the `dva-schema.md` symlink is not a failure while losing an authored copy —
+worth at least two sites — is.
+
+Re-measurement output is the block above; the probe now binds all five ports and carries a
+Tier 4 service in its default plan, and `dva validate` is still silent about every one of
+them.
 
 ### Gates
 

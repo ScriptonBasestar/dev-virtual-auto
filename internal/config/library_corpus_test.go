@@ -62,9 +62,11 @@ func TestPortConventionRuleStatedOnce(t *testing.T) {
 		}
 	}
 
-	// Both authored copies, the dva-schema.md symlink, and their concatenation into
-	// library_reference.txt. A corpus that matched nothing — a reworded heading, a moved
-	// file — would otherwise pass forever while guarding nothing.
+	// Five today: shared-guardrails.md, schema-reference.md, the dva-schema.md symlink to
+	// the latter, and both again in library_reference.txt. The floor is one lower so that
+	// dropping the symlink or moving a corpus path is not a failure, while losing a whole
+	// authored copy — which costs at least two sites — is. Without any floor, a reworded
+	// heading would leave this test walking the corpus and matching nothing, forever green.
 	const wantAtLeast = 4
 	if len(found) < wantAtLeast {
 		t.Fatalf("found %d port-convention statements, want at least %d — the rule moved or was reworded, and this test stopped guarding it",

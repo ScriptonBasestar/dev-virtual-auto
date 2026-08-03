@@ -32,12 +32,12 @@ Naming presets (rule 23) and forbidden ports (rule 7) are hand-authored, and sta
 way. Generation exists to stop markdown contradicting **behaviour**: `IsReservedCommand`
 really does reject an interaction key and `CanonicalSectionOrder` really does order the
 file, so a hand-copied list can be wrong about what DVA does. These two rules have no
-behaviour to be wrong about. Measured 2026-08-03: a config binding 5432, 6379, 8080 and
-9092 as host ports, tagged `nonsense-tag`, on plan `wildly-nonstandard-plan-name` in
-environment `banana`, passes `dva validate` — exit 0, the only warning is about
-`stack.*.order` — and `dva doctor` never says "port". A Go const for either would put the
-source of truth downstream of its only reader, and `make check-generate` would be diffing
-markdown against a Go copy of that same markdown.
+behaviour to be wrong about. Measured 2026-08-03: a config binding 5432, 6379, 8080, 9092
+and 9200 as host ports, one service tagged `nonsense-tag`, on plan
+`wildly-nonstandard-plan-name` in environment `banana`, passes `dva validate` — exit 0,
+the only warning is about `stack.*.order` — and `dva doctor` never says "port". A Go const
+for either would put the source of truth downstream of its only reader, and
+`make check-generate` would be diffing markdown against a Go copy of that same markdown.
 
 They become generation candidates the day the validator enforces them, which is a product
 decision rather than cleanup: projects bind 5432 on the host deliberately, and rule 23
