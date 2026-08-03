@@ -89,11 +89,40 @@ func TestParallelBatchPrintsNote(t *testing.T) {
 				}
 			})
 
-			// The exact block, not just the substring: the note has to arrive rendered the
+			// The whole block, not just the substring: the note has to arrive rendered the
 			// way the sequential path renders it, or the two paths have merely stopped
 			// disagreeing about whether to print and started disagreeing about how.
-			if want := "\n    PAR-NOTE-VISIBLE\n\n"; !strings.Contains(out, want) {
-				t.Errorf("note block %q missing from parallel output:\n%s", want, out)
+			//
+			// "The way the sequential path renders it" gained a qualifier in TASK-168. The
+			// executing parallel path now tags every line with the step that produced it, so
+			// the note's content line carries that prefix like everything else in the batch.
+			// What has to survive is the rest of the rendering — the four-space indent, and a
+			// blank line either side separating the note from the commands. Asserting the
+			// bare block on this path would forbid the prefix, which is to say it would
+			// forbid the note being attributable to its step on a path where several steps
+			// are printing at once. --dry-run keeps the buffered shape and the exact bytes.
+			if tc.dryRun {
+				if want := "\n    PAR-NOTE-VISIBLE\n\n"; !strings.Contains(out, want) {
+					t.Errorf("note block %q missing from parallel output:\n%s", want, out)
+				}
+			} else {
+				lines := strings.Split(out, "\n")
+				at := -1
+				for i, l := range lines {
+					if strings.HasSuffix(l, "│     PAR-NOTE-VISIBLE") {
+						at = i
+						break
+					}
+				}
+				if at < 0 {
+					t.Fatalf("no prefixed note line ending in %q:\n%s", "│     PAR-NOTE-VISIBLE", out)
+				}
+				if at == 0 || lines[at-1] != "" {
+					t.Errorf("note is not preceded by a blank line (got %q):\n%s", lines[at-1], out)
+				}
+				if at+1 >= len(lines) || lines[at+1] != "" {
+					t.Errorf("note is not followed by a blank line:\n%s", out)
+				}
 			}
 			if !strings.Contains(out, tc.wantRan) {
 				t.Errorf("%q missing: the batch stopped executing, so the note result is not readable\n%s", tc.wantRan, out)
