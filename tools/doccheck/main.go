@@ -5,9 +5,13 @@
 //     untracked); git symlink aliases (mode 120000) are skipped once
 //   - size: every .md under docs/ and workflows/ is ≤500 lines and ≤10240 bytes,
 //     except workflows/dva-dogfood/METHODOLOGY.md (size-only exemption)
+//   - verify bindings: every `go test … -run …` written in inline code selects at
+//     least one test declared in the tree, so a binding cannot name a test that
+//     does not exist and still exit 0 (TASK-136)
 //
-// Exit 1 on vacuous runs (zero candidates or zero links), broken links, or
-// oversized size-enforced docs. Stdlib only — no third-party packages.
+// Exit 1 on vacuous runs (zero candidates, zero links, or _test.go files that
+// yield no test names), broken links, oversized size-enforced docs, or -run
+// patterns selecting nothing. Stdlib only — no third-party packages.
 package main
 
 import (
@@ -43,11 +47,17 @@ func printReport(res Result) {
 	fmt.Printf("symlinks_skipped:    %d\n", res.SymlinksSkipped)
 	fmt.Printf("broken_links:        %d\n", res.BrokenLinks)
 	fmt.Printf("oversized_docs:      %d\n", res.OversizedDocs)
+	fmt.Printf("test_funcs_found:    %d (from %d _test.go files)\n", res.TestFuncsFound, res.TestFilesSwept)
+	fmt.Printf("run_patterns:        %d\n", res.RunPatternsChecked)
+	fmt.Printf("unmatched_run:       %d\n", res.UnmatchedRunFlags)
 	for _, d := range res.OversizedDetail {
 		fmt.Printf("  OVERSIZE %s\n", d)
 	}
 	for _, d := range res.BrokenDetail {
 		fmt.Printf("  BROKEN   %s\n", d)
+	}
+	for _, d := range res.UnmatchedRunDetail {
+		fmt.Printf("  NO-TESTS %s\n", d)
 	}
 	for _, e := range res.Errors {
 		fmt.Printf("  ERROR    %s\n", e)

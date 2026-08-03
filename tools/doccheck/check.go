@@ -24,9 +24,14 @@ type Result struct {
 	SymlinksSkipped    int
 	BrokenLinks        int
 	OversizedDocs      int
+	TestFilesSwept     int
+	TestFuncsFound     int
+	RunPatternsChecked int
+	UnmatchedRunFlags  int
 	Errors             []string
 	BrokenDetail       []string
 	OversizedDetail    []string
+	UnmatchedRunDetail []string
 }
 
 // Check validates repository-wide relative markdown links against the git
@@ -138,8 +143,33 @@ func Check(in CheckInput) Result {
 		}
 	}
 
+	// A `go test … -run …` binding whose pattern selects nothing exits 0, so a verify: line can
+	// name a test that never existed and still read as green. Resolve each pattern against the
+	// tests actually declared in the tree (TASK-136).
+	testNames, testFiles, nameErrs := collectTestNames(in.Root, in.Inventory)
+	res.Errors = append(res.Errors, nameErrs...)
+	res.TestFilesSwept = testFiles
+	res.TestFuncsFound = len(testNames)
+	for _, e := range scanFiles {
+		if body, ok := bodies[e.Path]; ok {
+			n, msgs := checkRunPatterns(e.Path, body, testNames)
+			res.RunPatternsChecked += n
+			res.UnmatchedRunFlags += len(msgs)
+			res.UnmatchedRunDetail = append(res.UnmatchedRunDetail, msgs...)
+		}
+	}
+
 	if res.LinksChecked == 0 {
 		res.Errors = append(res.Errors, "vacuous: zero links checked")
+	}
+	// Only a tree that has _test.go files owes test names. Finding files but no names means the
+	// declaration regex stopped matching, which would pass every -run pattern silently — the one
+	// way this check can be green for the wrong reason.
+	if res.TestFilesSwept > 0 && res.TestFuncsFound == 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("vacuous: %d _test.go file(s) swept, zero test functions found", res.TestFilesSwept))
+	}
+	if res.UnmatchedRunFlags > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d -run pattern(s) selecting no test", res.UnmatchedRunFlags))
 	}
 	if res.BrokenLinks > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d broken link(s)", res.BrokenLinks))

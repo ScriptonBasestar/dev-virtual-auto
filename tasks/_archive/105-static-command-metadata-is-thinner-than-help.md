@@ -151,8 +151,8 @@ while passing in isolation: after `buildManifest` ran, root `validate`.Flags() h
 the fix reads that and filters against `rootCmd.PersistentFlags()` — side-effect free and
 order-independent.
 
-Worth recording: `go test ./internal/cli/ -run <the new tests>` was green on the broken version.
-Only the whole suite, in its own order, disagreed.
+Worth recording: `go test ./internal/cli/` narrowed by `-run` to the new tests alone was green on
+the broken version. Only the whole suite, in its own order, disagreed.
 
 ### Residual, deliberately not closed
 

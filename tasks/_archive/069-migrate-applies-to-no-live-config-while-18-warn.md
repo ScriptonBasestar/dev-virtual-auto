@@ -141,7 +141,7 @@ built, it belongs behind its own decision, not as an extension of a load-error r
 
 - [x] The no-op message names what it checked and points at `dva validate` | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
 - [x] The message does not appear when entries were migrated | verify: `go test ./internal/cli/ -run TestConfigMigrateNoOpMessage`
-- [x] A config with legacy compose still migrates unchanged | verify: `go test ./internal/config/ -run TestMigrateLegacyCompose`
+- [x] A config with legacy compose still migrates unchanged | verify: `go test ./internal/config/ -run TestMigrate` <!-- was -run TestMigrateLegacyCompose, a name no test ever had: the command exited 0 having run nothing. Corrected under TASK-136, which added the doccheck guard that now catches this class. -->
 - [x] Full suite green | verify: `make test`
 - [x] Still a no-op across the corpus | verify: `human — re-run the Evidence sweep, expect would-migrate=0, nothing-to-do=31`
 
