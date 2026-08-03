@@ -36,9 +36,24 @@ func detectInteractionCollisionWarnings(c *config.Config) []string {
 
 	warnings := make([]string, 0, len(collisions))
 	for _, col := range collisions {
-		warnings = append(warnings, fmt.Sprintf(
-			"%s and %s both resolve to the command %q; only the first is reachable — rename one",
-			describeInteractionPath(col.Winner), describeInteractionPath(col.Loser), col.Key))
+		winner, loser := describeInteractionPath(col.Winner), describeInteractionPath(col.Loser)
+		// Two shapes collide, and only one makes the loser unreachable. When both declarations
+		// live under the SAME top-level key (intra-entry), the entry's own expansion drops the
+		// loser and Find cannot reach it — "only the first is reachable" is true. When they live
+		// under DIFFERENT top-level keys (cross-entry, e.g. interaction.rails.subcommands.console
+		// vs interaction."rails console"), each is still reached by invoking its own key (the
+		// literal one by quoting it); what the loser lost is the `dva ls` listing, not reachability.
+		// Telling an author the cross-entry loser is unreachable sends them to delete a declaration
+		// that is still running for every user who types the quoted form (TASK-152).
+		if col.Winner[0] != col.Loser[0] {
+			warnings = append(warnings, fmt.Sprintf(
+				"%s and %s both resolve to the command %q; both still run (each by its own spelling), but only the first is listed in `dva ls` — rename one so both are visible",
+				winner, loser, col.Key))
+		} else {
+			warnings = append(warnings, fmt.Sprintf(
+				"%s and %s both resolve to the command %q; only the first is reachable — rename one",
+				winner, loser, col.Key))
+		}
 	}
 	return warnings
 }

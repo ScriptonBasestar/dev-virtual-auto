@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
 func collidingConfig() *config.Config {
@@ -95,4 +96,57 @@ func TestNoCollisionWarningWithoutACollision(t *testing.T) {
 		t.Errorf("got %d warnings on a collision-free config: %v", len(warnings), warnings)
 	}
 	t.Logf("commands declared=5 warnings=0")
+}
+
+// crossEntryCollidingConfig is the shape TASK-152 measured: a nested declaration
+// (interaction.rails.subcommands.console) and a literal top-level key containing a space
+// (interaction."rails console") both resolve to "rails console". Unlike collidingConfig()
+// above, the two live under DIFFERENT top-level keys.
+func crossEntryCollidingConfig() *config.Config {
+	return &config.Config{
+		Interaction: map[string]*config.InteractionCommand{
+			"rails": {
+				Subcommands: map[string]*config.InteractionCommand{
+					"console": {Command: "echo RAN-EXPANDED-SUB"},
+				},
+			},
+			"rails console": {Command: "echo RAN-LITERAL-TOPLEVEL"},
+		},
+	}
+}
+
+// TestCollisionWarningCrossEntrySaysBothRun pins the wording change: for a cross-entry
+// collision the loser is still reachable, so the warning must NOT say "only the first is
+// reachable". It says what is actually lost — the dva ls listing (TASK-152).
+func TestCollisionWarningCrossEntrySaysBothRun(t *testing.T) {
+	warnings := detectInteractionCollisionWarnings(crossEntryCollidingConfig())
+	if len(warnings) != 1 {
+		t.Fatalf("got %d warnings, want 1: %v", len(warnings), warnings)
+	}
+	got := warnings[0]
+	if strings.Contains(got, "only the first is reachable") {
+		t.Errorf("cross-entry warning wrongly claims the loser is unreachable: %s", got)
+	}
+	for _, want := range []string{"both still run", "dva ls", `"rails console"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("cross-entry warning missing %q: %s", want, got)
+		}
+	}
+}
+
+// TestCrossEntryCollisionLoserIsStillReachable pins the behaviour that forces the wording
+// change: in a cross-entry collision BOTH declarations run, each reached by its own spelling.
+// The sorted walk makes the nested declaration the winner of the listing; the literal key is
+// reached by quoting it. If this ever stops being true the warning should revert (TASK-152).
+func TestCrossEntryCollisionLoserIsStillReachable(t *testing.T) {
+	tree := runner.NewInteractionTree(crossEntryCollidingConfig().Interaction)
+
+	expanded := tree.Find("rails", "console")
+	if expanded == nil || !strings.Contains(expanded.Command, "RAN-EXPANDED-SUB") {
+		t.Errorf("split invocation `dva run rails console` did not reach the nested declaration: %+v", expanded)
+	}
+	literal := tree.Find("rails console")
+	if literal == nil || !strings.Contains(literal.Command, "RAN-LITERAL-TOPLEVEL") {
+		t.Errorf("quoted invocation `dva run 'rails console'` did not reach the literal declaration: %+v", literal)
+	}
 }
