@@ -192,6 +192,40 @@ func TestDoctorComposeConfigReportsWhatTheCommandSaid(t *testing.T) {
 	if strings.Contains(results[0].FixHint, "second line") {
 		t.Errorf("hint should carry one line, not the whole transcript: %q", results[0].FixHint)
 	}
+	// The tail must name the configured command, not a hardcoded docker — a podman user copying
+	// the hint has to get a command they actually run (TASK-156).
+	if !strings.Contains(results[0].FixHint, "run: podman-compose config") {
+		t.Errorf("hint tail does not name the configured command: %q", results[0].FixHint)
+	}
+	if strings.Contains(results[0].FixHint, "docker compose config") {
+		t.Errorf("hint tail still hardcodes docker: %q", results[0].FixHint)
+	}
+}
+
+// TestDoctorComposeConfigDefaultCommandHintDockerCompose covers the default (no command:) case
+// for TASK-156: ComposeArgv returns only the binary name ("docker"), with the `compose`
+// subcommand in args, so the hint must reconstruct "docker compose config" — not the bare
+// "docker config" the naive interpolation produced (review C1).
+func TestDoctorComposeConfigDefaultCommandHintDockerCompose(t *testing.T) {
+	resetDoctorGlobals(t)
+
+	dir := t.TempDir()
+	writeComposeFile(t, dir)
+	c := writeDoctorComposeFixture(t, dir, "", "compose.${"+stageVar+"}.yml")
+
+	composeShims(t, "docker")
+	t.Setenv(shimFailVar, "include: ./missing.yml not found\n")
+
+	results := checkComposeConfigResolves(c)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d: %+v", len(results), results)
+	}
+	if !strings.Contains(results[0].FixHint, "run: docker compose config") {
+		t.Errorf("default-command hint must say 'docker compose config', got: %q", results[0].FixHint)
+	}
+	if strings.Contains(results[0].FixHint, "run: docker config") {
+		t.Errorf("default-command hint dropped the 'compose' subcommand: %q", results[0].FixHint)
+	}
 }
 
 // TestDoctorComposeMissingBinaryIsReportedNotSkipped covers TASK-119's second defect. The old

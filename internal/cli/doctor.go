@@ -107,7 +107,8 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 
 	// Built-in: Compose config resolves (catches include:/-f targets that the
 	// per-file existence check above misses — e.g. compose.yaml includes a file
-	// that was renamed/removed). Runs `docker compose config`, which needs no daemon.
+	// that was renamed/removed). Runs the configured compose command's `config`,
+	// which needs no daemon (TASK-119 made the check binary match the config).
 	results = append(results, checkComposeConfigResolves(c)...)
 
 	for _, check := range c.DoctorChecks {
@@ -611,7 +612,14 @@ func checkComposeConfigResolves(c *config.Config) []DoctorResult {
 	}
 
 	detail := firstNonEmptyLine(string(out))
-	hint := "check compose.files in dva.yml and any include: paths, then run: docker compose config"
+	// composeCmd is the binary name only ("docker"), not the full invocation prefix — the
+	// `compose` subcommand lives in args. The hint must be a command the user can run, so show what
+	// they configured (cc.Command) or the "docker compose" default, not the bare binary (TASK-156).
+	composePrefix := cc.Command
+	if composePrefix == "" {
+		composePrefix = "docker compose"
+	}
+	hint := fmt.Sprintf("check compose.files in dva.yml and any include: paths, then run: %s config", composePrefix)
 	if detail != "" {
 		hint = detail + " — " + hint
 	}
