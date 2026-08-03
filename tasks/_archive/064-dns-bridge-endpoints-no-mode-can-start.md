@@ -7,6 +7,25 @@ status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00
 scope: "Cross-repo: ~/mydevbox/scripton-dns-bridge-devbox/dva.yml — endpoints:/modes:; needs the user's go-ahead to edit"
+verified-at: 2026-08-03T11:55:33+09:00
+archived-at: 2026-08-03T11:55:33+09:00
+verification-summary: |
+  All 4 criteria MET. The deliverable lives in
+  ~/mydevbox/scripton-dns-bridge-devbox at commit d310013 ("feat(modes): add kafka and
+  nameserver modes, wire mode dev to its profile"): dva.yml:201-207 adds the kafka and
+  nameserver modes with compose_profiles, and :188-190 changes mode dev to select
+  profile dev instead of naming services. No endpoint was deleted — all 13 remain.
+  Verified by running the real command, not by reading: `dva up --mode dev --dry-run`
+  now emits `--profile dev` with zero positional service names; kafka and nameserver
+  modes emit their own profiles.
+  All 13 endpoints were re-mapped to compose `profiles:` keys by scanning the five
+  compose files: postgres/redis unprofiled (always on), zookeeper+kafka via kafka,
+  dns-bridge-api-rs via rust, the four observability services via monitoring,
+  powerdns/etcd/coredns via nameserver, mock-auth via dev. Zero unreachable.
+  `dva validate` rc=0.
+  Citation drift, harmless: the Resolution cites internal/lifecycle/compose.go:197-202,
+  now 182-187 after commit 3171945 collapsed the four argv builders. The mechanism it
+  describes — ComposeServices appended as positional args only for "up" — still holds.
 ---
 
 # Task 064: Reconcile `endpoints:` with what a mode can actually start

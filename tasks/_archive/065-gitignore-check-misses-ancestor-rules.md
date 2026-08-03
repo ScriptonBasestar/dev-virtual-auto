@@ -7,6 +7,25 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/cli/gitignore.go (isDvaIgnored), plus the test file it never had"
+verified-at: 2026-08-03T11:55:33+09:00
+archived-at: 2026-08-03T11:55:33+09:00
+verification-summary: |
+  All 4 criteria MET. isDvaIgnored (internal/cli/gitignore.go:92-153) resolves the
+  ancestors of config.DotDirName outermost-first, matching git's subtree-exclusion plus
+  negation-carve-out semantics. All 22 TestIsDvaIgnored subtests pass, including the
+  three ancestor forms (.sb/, .sb, /.sb/) and — importantly — the negative cases
+  ("empty" and "unrelated rules only" both false), so the fix does not trade a false
+  positive for a false negative.
+  The false positive is gone where git already ignores the path: in
+  ~/mydevbox/gorisa-devbox (real ancestor rule ".sb/" at .gitignore:178), `dva validate`
+  emits 0 lines matching "not in your .gitignore".
+  Two commits match the task's narrative: f2c21e3 (honor ancestor rules) then d43eb42
+  (read negations instead of stopping at the first match).
+  The third criterion's literal shell repro no longer reproduces, for a reason that is
+  not a defect: scripton-dns-bridge-devbox no longer has a .sb/dva directory on disk, and
+  the later TASK-080 added an existence gate (gitignore.go:191-193) that suppresses the
+  warning when there is nothing committable. That interaction is itself covered by
+  TestGitignoreWarningNeedsSomethingCommittable, so it is tracked, not hidden.
 ---
 
 # Task 065: Recognize ancestor rules in the `.gitignore` check

@@ -7,6 +7,26 @@ status: done
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — tools/libgen (new), Makefile, internal/config/validate_warnings.go, agent-mesh-flows/shared/library/, internal/cli/init.go"
+verified-at: 2026-08-03T11:55:33+09:00
+archived-at: 2026-08-03T11:55:33+09:00
+verification-summary: |
+  All 7 criteria MET. The two AUTOGEN blocks in
+  agent-mesh-flows/shared/library/shared-guardrails.md are byte-identical to their Go
+  sources: :36-39 reserved_commands matches internal/config/reserved.go (27 reserved +
+  7 hookable), :53-55 section_order matches the 23 keys of
+  validate_warnings.go:20-27 exposed via CanonicalSectionOrder().
+  tools/libgen short-circuits to "already up-to-date" when output equals input, and
+  replaceBlock returns an error when a marker is missing, so a stale checkout fails
+  loudly. Supervisor confirmed idempotency directly: `make check-generate` exits 0 and
+  leaves `git status --porcelain` empty after a real generate run — libgen reported
+  "already up-to-date".
+  The dead //go:embed of library_reference.txt is gone from internal/cli; only the
+  unrelated ai_docs.go embed remains, and the build is green.
+  One citation has drifted: the task's verify: string cites tools/libgen/main.go:76 for
+  the missing-marker error, now at :93 after TASK-067 inserted the version_rule block
+  above it. Behaviour is intact; only the line number is stale.
+  The deferred Phase 2 (naming presets rule 23, forbidden ports rule 7) was found to
+  exist only as README prose with no task tracking it. Filed as TASK-134.
 ---
 
 # Task 061: Generate the Go-sourced facts in shared-guardrails.md

@@ -7,6 +7,27 @@ status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00
 scope: "dva repo — internal/config/validate_warnings.go"
+verified-at: 2026-08-03T11:55:33+09:00
+archived-at: 2026-08-03T11:55:33+09:00
+verification-summary: |
+  All 6 criteria MET against real behaviour.
+  modesIsolateEntries (internal/config/validate_warnings.go:550) is the generalized,
+  entry-set-agnostic isolation check; both warnDuplicateStackOrder (:440) and
+  warnMultiStackComposeSplit (:514) call it, and no reference to the old
+  modesIsolateComposeEntries name survives.
+  Live check in ~/mydevbox/primeno1-devbox: `dva validate` rc=0 with the "have order 0"
+  warning gone (0 occurrences). TestWarnDuplicateStackOrderModeIsolation passes,
+  including the negative cases — a mode holding two entries, a mode with no stack:
+  filter, and mixed isolated+racing groups where only the racing pair warns — so the
+  suppression is not a blanket mute. The earlier compose-split suppression (b20fee8)
+  still passes its 4 subtests.
+  Corpus re-measured rather than trusted: the corpus has GROWN from the 83 recorded in
+  the task to 92 dva.yml files. Sweeping validate over all of them gives 79 pass /
+  13 fail, and all 13 failures are explicitly-named negative fixtures (dva-invalid,
+  malformed*, dogfood validation-fixture-legacy) — the same pattern the task describes,
+  scaled with the corpus, not a regression.
+  An independent Python reimplementation of the isolation rule over raw YAML agrees
+  with the Go logic on every group: 23 groups with stack>=2, 4 suppressed, 0 must-warn.
 ---
 
 # Task 056: Teach the stack-order warning about mode isolation
