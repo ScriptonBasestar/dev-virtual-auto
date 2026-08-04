@@ -177,20 +177,26 @@ func TestInteractionCommandUnmarshal_HasHelpers(t *testing.T) {
 	}
 }
 
-func TestInteractionCommandUnmarshal_EffectiveCommand(t *testing.T) {
-	t.Run("single command", func(t *testing.T) {
-		var cmd InteractionCommand
-		_ = yaml.Unmarshal([]byte("command: echo hello"), &cmd)
-		if cmd.EffectiveCommand() != "echo hello" {
-			t.Errorf("EffectiveCommand() = %q, want %q", cmd.EffectiveCommand(), "echo hello")
-		}
-	})
-	t.Run("multi command joined", func(t *testing.T) {
-		var cmd InteractionCommand
-		_ = yaml.Unmarshal([]byte("command:\n  - git pull\n  - make build"), &cmd)
-		want := "git pull && make build"
-		if cmd.EffectiveCommand() != want {
-			t.Errorf("EffectiveCommand() = %q, want %q", cmd.EffectiveCommand(), want)
-		}
-	})
+// TestInteractionCommandUnmarshal_EffectiveCommand was here. It asserted that a two-line
+// command: rendered as "git pull && make build" — a green test for a function no caller ever
+// reached, describing semantics no runner implements. TASK-178 deleted both.
+//
+// What it was really covering — that a list reaches CommandLines and a scalar reaches Command —
+// is asserted by TestInteractionCommandUnmarshal above (HasMultiCommand true/false) and, for a
+// whole config, by schema_test.go and anchor_cycle_test.go. Nothing is uncovered by its removal.
+func TestInteractionCommandUnmarshal_CommandLinesKeepEveryLine(t *testing.T) {
+	var cmd InteractionCommand
+	if err := yaml.Unmarshal([]byte("command:\n  - git pull\n  - make build"), &cmd); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(cmd.CommandLines) != 2 || cmd.CommandLines[0] != "git pull" || cmd.CommandLines[1] != "make build" {
+		t.Fatalf("CommandLines = %q, want both lines in order", cmd.CommandLines)
+	}
+	// The scalar still holds line one, and that is deliberate: validate_warnings.go reads
+	// Command to decide an interaction declares work at all. What changed in TASK-178 is that
+	// nothing *executes* or *displays* it for a list any more — see runner.Explain and the
+	// runners' formCommandList cases.
+	if cmd.Command != "git pull" {
+		t.Errorf("Command = %q, want the first line retained for reachability checks", cmd.Command)
+	}
 }

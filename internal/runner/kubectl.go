@@ -18,22 +18,77 @@ type KubectlRunner struct {
 
 // Execute builds and runs the kubectl exec command.
 func (r *KubectlRunner) Execute(env *config.Environment) error {
-	// steps: first, as in LocalRunner and DockerComposeRunner. Without this branch a config with
-	// `pod:` and `steps:` but no `command:` fell straight through to the ExecReplace below, which
-	// appended nothing after `--` and replaced the process with `kubectl exec <pod> --`. Every
-	// declared step was discarded, dva printed nothing about them, and `dva validate` had already
-	// exited 0 — warnUnreachableCommands counts HasSteps() as reachable without asking which
-	// runner would run it. TASK-094.
-	if len(r.Cmd.Steps) > 0 {
+	return r.runForm(env, classifyForm(r.Cmd))
+}
+
+// runForm runs one execution form.
+//
+// This switch is the one that kept coming up short. Before TASK-094 it was a single ExecReplace
+// with no branch at all, so `steps:` fell through it and `kubectl exec <pod> --` ran with
+// nothing after the separator; before TASK-175 `script:` and `script_file:` did the same, or
+// worse, ran the parent's inherited command; before TASK-178 a list `command:` ran only its
+// first line. Three tasks, three forms, one if-chain that ended in an unguarded fall-through.
+// The forms now come from classifyForm and the fall-through is an error — see execform.go.
+func (r *KubectlRunner) runForm(env *config.Environment, form execForm) error {
+	switch form {
+	case formSteps:
 		return r.executeSteps(env, r.Cmd.Steps)
-	}
 
-	args, err := r.execArgs()
-	if err != nil {
-		return err
-	}
+	case formCommandList:
+		return r.execEach(env, r.Cmd.CommandLines)
 
-	return dvaexec.ExecReplace(env, "kubectl", args, false)
+	case formScriptFile, formScript, formCommand:
+		// The one-shot forms: exactly one kubectl process, so this path may replace dva with
+		// it. The two above must not — see execEach.
+		args, err := r.execArgs()
+		if err != nil {
+			return err
+		}
+		return dvaexec.ExecReplace(env, "kubectl", args, false)
+
+	default:
+		return unhandledFormError("kubectl", form)
+	}
+}
+
+// execEach runs one `kubectl exec` per command, in order, stopping at the first failure.
+//
+// This is what a list `command:` gets, and it is deliberately the same machinery a step's run:
+// lines already use: a list is a sequence of commands, which is what `steps:` is minus the
+// labels. Reusing buildStepArgs rather than execArgs carries two properties that a list needs
+// and the one-shot path cannot give it — ExecSubprocess instead of ExecReplace, because
+// syscall.Exec does not return and would make every line after the first unreachable at exit 0
+// (TASK-091), and no --tty --stdin, because a command that is one of several cannot be handed
+// the terminal and kubectl fails outright when asked for a TTY it cannot get.
+//
+// No arguments are appended, matching LocalRunner: its list branch passes CommandLines to
+// ExecSequential and never consults commandArgs, so default_args and argv reach a list on no
+// runner. Appending them here would make the same dva.yml behave differently under kubectl.
+func (r *KubectlRunner) execEach(env *config.Environment, cmds []string) error {
+	for _, args := range r.eachArgs(cmds) {
+		if err := dvaexec.ExecSubprocess(env, "kubectl", args, false); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// eachArgs builds the argv for every command execEach will run, in order.
+//
+// Separated from the loop for the same reason execArgs was separated from Execute: what went
+// wrong here was the *count* of invocations, not the shape of one, and a test that can only see
+// the shape of one cannot tell a two-line list from a one-line list. Blank lines are dropped
+// here, so a test sees the same skipping the exec does.
+func (r *KubectlRunner) eachArgs(cmds []string) [][]string {
+	var argvs [][]string
+	for _, c := range cmds {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		argvs = append(argvs, r.buildStepArgs(c))
+	}
+	return argvs
 }
 
 // execArgs builds the argv for the one-shot paths — every execution form except steps, which
@@ -134,22 +189,12 @@ func (r *KubectlRunner) execPrefix(tty bool) []string {
 }
 
 // executeSteps runs each step as a separate kubectl exec.
-// The loop is runStepLoop, shared with the local and compose runners; only the exec differs.
+// The loop is runStepLoop, shared with the local and compose runners; only the exec differs —
+// and that difference is execEach, which a list `command:` runs through too. Steps and a list
+// are the same sequence with and without labels, so they had better not drift apart.
 func (r *KubectlRunner) executeSteps(env *config.Environment, steps []config.ProvisionItem) error {
 	return runStepLoop(env, r.Opts.Config, steps, func(cmds []string) error {
-		for _, c := range cmds {
-			c = strings.TrimSpace(c)
-			if c == "" {
-				continue
-			}
-			// ExecSubprocess, not the ExecReplace used by the single-command path above:
-			// syscall.Exec does not return, so calling it here would leave every step after
-			// the first unreachable — silently, with exit 0. Same reason as TASK-091.
-			if err := dvaexec.ExecSubprocess(env, "kubectl", r.buildStepArgs(c), false); err != nil {
-				return err
-			}
-		}
-		return nil
+		return r.execEach(env, cmds)
 	})
 }
 

@@ -19,24 +19,37 @@ type DockerComposeRunner struct {
 
 // Execute builds and runs the docker compose command.
 func (r *DockerComposeRunner) Execute(env *config.Environment) error {
-	cmd := r.Cmd
+	return r.runForm(env, classifyForm(r.Cmd))
+}
 
-	// steps: run each step as a separate docker compose exec
-	if len(cmd.Steps) > 0 {
-		return r.executeSteps(env, cmd.Steps)
-	}
+// runForm runs one execution form. The forms and their precedence come from classifyForm
+// (execform.go); before TASK-178 this was an if-chain that named three of the five and let a
+// list `command:` fall through to the single-command path, where only its first line survived.
+func (r *DockerComposeRunner) runForm(env *config.Environment, form execForm) error {
+	switch form {
+	case formSteps:
+		return r.executeSteps(env, r.Cmd.Steps)
 
-	// script/script_file in docker context: not supported natively;
-	// fall back to local execution as a convenience.
-	if cmd.Script != "" || cmd.ScriptFile != "" {
+	case formScriptFile, formScript:
+		// script/script_file in docker context: not supported natively;
+		// fall back to local execution as a convenience.
 		local := &LocalRunner{Cmd: r.Cmd, Opts: r.Opts}
 		return local.Execute(env)
+
+	case formCommandList:
+		// Detected once, before the loop, exactly as executeSteps does — the state being
+		// detected is the container's, and it does not change between lines of one interaction.
+		r.autoDetectComposeMethod(env)
+		return r.execEach(env, r.Cmd.CommandLines)
+
+	case formCommand:
+		// Auto-detect if container is running → switch run to exec
+		r.autoDetectComposeMethod(env)
+		return execCompose(env, r.Opts.Config, r.detectedProject, r.executeArgs(env))
+
+	default:
+		return unhandledFormError("compose", form)
 	}
-
-	// Auto-detect if container is running → switch run to exec
-	r.autoDetectComposeMethod(env)
-
-	return execCompose(env, r.Opts.Config, r.detectedProject, r.executeArgs(env))
 }
 
 // executeArgs builds the tail Execute hands to execCompose: profiles, the subcommand, and its
@@ -63,20 +76,49 @@ func (r *DockerComposeRunner) executeSteps(env *config.Environment, steps []conf
 	r.autoDetectComposeMethod(env)
 
 	return runStepLoop(env, r.Opts.Config, steps, func(cmds []string) error {
-		for _, c := range cmds {
-			c = strings.TrimSpace(c)
-			if c == "" {
-				continue
-			}
-			args := r.buildStepArgs(env, c)
-			// execComposeStep, not execCompose: the latter replaces the process, which
-			// would make this loop's second iteration unreachable (TASK-091).
-			if err := execComposeStep(env, r.Opts.Config, r.detectedProject, args); err != nil {
-				return err
-			}
-		}
-		return nil
+		return r.execEach(env, cmds)
 	})
+}
+
+// execEach runs one `docker compose exec` per command, in order, stopping at the first failure.
+// Shared by the steps path and by a list `command:`, which is the same sequence without labels.
+//
+// exec, not the interaction's own Compose.Method, because buildStepArgs always builds exec —
+// and for a sequence that is the choice with no silent-wrong mode. `docker compose run` creates
+// a fresh one-off container per invocation, so a two-line list under run would execute its
+// second line in a container that never saw the first: `command: [bundle install, rails db:migrate]`
+// would report success having migrated a database in a container that is already gone. exec
+// keeps every line in the one running container, the way every line of a local list stays on
+// the one host. When nothing is running, exec fails with docker's own "service is not running"
+// rather than quietly doing something else.
+//
+// No arguments are appended, matching LocalRunner's list branch, which passes CommandLines to
+// ExecSequential and never consults commandArgs. Adding default_args here would make a list
+// behave differently under compose than under local for the same dva.yml.
+func (r *DockerComposeRunner) execEach(env *config.Environment, cmds []string) error {
+	for _, args := range r.eachArgs(env, cmds) {
+		// execComposeStep, not execCompose: the latter replaces the process, which
+		// would make this loop's second iteration unreachable (TASK-091).
+		if err := execComposeStep(env, r.Opts.Config, r.detectedProject, args); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// eachArgs builds the argv for every command execEach will run, in order — the compose half of
+// the seam described on KubectlRunner.eachArgs. What broke was the number of invocations, so
+// that is what a test has to be able to count.
+func (r *DockerComposeRunner) eachArgs(env *config.Environment, cmds []string) [][]string {
+	var argvs [][]string
+	for _, c := range cmds {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		argvs = append(argvs, r.buildStepArgs(env, c))
+	}
+	return argvs
 }
 
 // buildStepArgs builds docker compose exec args for a single command string.

@@ -15,38 +15,48 @@ type LocalRunner struct {
 }
 
 // Execute runs the command locally via exec.
-// Priority: steps > script_file > script > command list > single command
 func (r *LocalRunner) Execute(env *config.Environment) error {
+	return r.runForm(env, classifyForm(r.Cmd))
+}
+
+// runForm runs one execution form. Split from Execute so a test can hand it a form no case
+// covers and see what happens; the answer used to be "the last if runs" and is now an error.
+//
+// The precedence this switch used to spell out — steps > script_file > script > list > command
+// — moved to classifyForm, which is the only copy of it now. This runner is the one that had
+// it right, so nothing here changes what runs; what changes is that the other two runners read
+// their form from the same place rather than from a paraphrase.
+func (r *LocalRunner) runForm(env *config.Environment, form execForm) error {
 	cmd := r.Cmd
 
-	// 1. steps: named steps executed sequentially
-	if len(cmd.Steps) > 0 {
+	switch form {
+	case formSteps:
 		return r.executeSteps(env, cmd.Steps)
-	}
 
-	// 2. script_file: external shell script
-	if cmd.ScriptFile != "" {
+	case formScriptFile:
 		path := cmd.ScriptFile
 		if !filepath.IsAbs(path) && r.Opts.Config != nil {
 			path = filepath.Join(r.Opts.Config.FileDir(), path)
 		}
 		return dvaexec.ExecScriptFile(env, path)
-	}
 
-	// 3. script: inline shell script block
-	if cmd.Script != "" {
+	case formScript:
 		return dvaexec.ExecScriptInline(env, cmd.Script)
-	}
 
-	// 4. command list (command: [a, b, c])
-	if len(cmd.CommandLines) > 0 {
+	case formCommandList:
+		// One subprocess per line, stopping at the first failure, and no arguments appended —
+		// this is the behaviour the other two runners are being brought to, so it is worth
+		// naming rather than leaving as whatever ExecSequential happens to do.
 		return dvaexec.ExecSequential(env, cmd.CommandLines, cmd.Shell)
-	}
 
-	// 5. single command (original behavior)
-	single := strings.TrimSpace(cmd.Command)
-	args := commandArgs(cmd)
-	return dvaexec.ExecReplace(env, single, args, cmd.Shell)
+	case formCommand:
+		single := strings.TrimSpace(cmd.Command)
+		args := commandArgs(cmd)
+		return dvaexec.ExecReplace(env, single, args, cmd.Shell)
+
+	default:
+		return unhandledFormError("local", form)
+	}
 }
 
 // executeSteps runs ProvisionItems sequentially (reuses provision runner logic).

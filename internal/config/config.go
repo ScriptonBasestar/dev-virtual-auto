@@ -368,15 +368,14 @@ func (c *InteractionCommand) HasMultiCommand() bool {
 	return len(c.CommandLines) > 0
 }
 
-// EffectiveCommand returns the single command string.
-// For multi-command lists, returns a joined representation for display.
-func (c *InteractionCommand) EffectiveCommand() string {
-	if len(c.CommandLines) > 0 {
-		return strings.Join(c.CommandLines, " && ")
-	}
-	return c.Command
-}
-
+// EffectiveCommand was here, joining CommandLines with " && " "for display". It is deleted
+// rather than wired up, and TASK-178 is where the reasoning lives: no runner gives a list those
+// semantics. Local runs one subprocess per line, and compose and kubectl now run one exec per
+// line, so `cd build` and `make` as two lines do not compose the way `cd build && make` does —
+// a helper rendering them as if they did describes an execution dva does not perform. It had
+// zero non-test callers for its whole life, which is much of how the gap it was written for
+// stayed invisible: the handling existed on paper and nothing reached it.
+//
 // polymorphicCommand holds the polymorphic `command:` field — a scalar string or a sequence of
 // strings — and is decoded by yaml.Decode rather than a hand-written node scan. Riding on Decode
 // is what makes `command` honour merge keys (`<<:`) like every other InteractionCommand field
@@ -402,7 +401,13 @@ func (p *polymorphicCommand) UnmarshalYAML(value *yaml.Node) error {
 		}
 		p.lines = lines
 		if len(lines) > 0 {
-			p.scalar = lines[0] // first line for display/backward-compat
+			// The first line also lands in the scalar, and the comment here used to call that
+			// "display/backward-compat". Display is where it ended up: for every runner but
+			// local the scalar *was* the execution, so a two-line list ran one line and the
+			// plan printed one line (TASK-178). Both of those now read CommandLines. What is
+			// left for the scalar is the reachability check in validate_warnings.go, which
+			// asks whether an interaction declares any work at all.
+			p.scalar = lines[0]
 		}
 	default:
 		return fmt.Errorf("command: unsupported YAML type (expected string or sequence)")

@@ -118,8 +118,18 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	runner := DetectRunnerType(cmd)
 
 	if jsonOutput {
+		// command carries the single command string, and a list has none — reporting
+		// cmd.Command for a list reported its first line, which is the same first-line-only
+		// story the exec told before TASK-178. Empty here rather than absent: the key keeps
+		// its type for anything already reading it, and an empty string beside a populated
+		// command_lines cannot be read as "nothing will run" the way a blank line can in the
+		// text branch, because the sibling key is right there carrying the work.
+		single := cmd.Command
+		if len(cmd.CommandLines) > 0 {
+			single = ""
+		}
 		plan := map[string]any{
-			"command":     cmd.Command,
+			"command":     single,
 			"description": cmd.Description,
 			"runner":      runner,
 			"service":     cmd.Service,
@@ -131,6 +141,11 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 			// plan the exec would not follow. That gap is why TASK-101 stayed invisible to
 			// anyone checking `dva run rails console --explain` by hand.
 			"arguments": commandArgs(cmd),
+		}
+		// Added only when there is a list, so the plan for every other interaction is
+		// byte-identical to what it was — this key appearing is itself the signal.
+		if len(cmd.CommandLines) > 0 {
+			plan["command_lines"] = cmd.CommandLines
 		}
 		if cmd.Service != "" {
 			plan["compose_method"] = cmd.Compose.Method
@@ -146,13 +161,29 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	// A steps-only interaction has no single Command:, and a blank `Command:` line invites the
 	// reading that nothing will run. State that the interaction is step-driven instead; the steps
 	// themselves are listed below (TASK-146).
-	switch {
-	case cmd.Command != "":
-		p.printf("Command: %s\n", cmd.Command)
-	case len(cmd.Steps) > 0:
+	//
+	// The form comes from classifyForm rather than from the fields, so the plan cannot disagree
+	// with the exec about which form wins. It did: a list `command:` leaves cmd.Command holding
+	// its own first line, so `cmd.Command != ""` matched here and the plan named one line of
+	// several — describing the very execution TASK-178 was filed to stop.
+	switch classifyForm(cmd) {
+	case formCommand:
+		if cmd.Command != "" {
+			p.printf("Command: %s\n", cmd.Command)
+		} else {
+			p.println("Command:")
+		}
+	case formSteps:
 		p.println("Command: (step-driven — see Steps below)")
-	default:
+	case formCommandList:
+		p.printf("Command: (%d commands — see Commands below)\n", len(cmd.CommandLines))
+	case formScriptFile, formScript:
+		// Still blank, and still wrong for the same reason TASK-146 gave. TASK-176 owns it;
+		// this arm exists so the gap is a named case in the switch rather than a default
+		// nobody reads, which is how it survived TASK-146 in the first place.
 		p.println("Command:")
+	default:
+		p.printf("Command: (unhandled %s)\n", classifyForm(cmd))
 	}
 	if cmd.Description != "" {
 		p.printf("Description: %s\n", cmd.Description)
@@ -185,7 +216,25 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	if len(cmd.Steps) > 0 {
 		explainSteps(p, cmd)
 	}
+	if len(cmd.CommandLines) > 0 {
+		explainCommandLines(p, cmd)
+	}
 	return p.err
+}
+
+// explainCommandLines lists every line of a list `command:`, in the arrow form explainSteps
+// uses for steps — the two are the same sequence with and without labels, and giving them two
+// vocabularies would suggest they run differently. They do not: every runner takes both one
+// command at a time, in order, stopping at the first failure.
+//
+// Every line, not a truncated head: the whole reason this exists is that the plan used to show
+// one line of several, and a plan that shows three of five is the same defect with a larger
+// constant.
+func explainCommandLines(p *planWriter, cmd *ResolvedCommand) {
+	p.println("Commands:")
+	for _, c := range cmd.CommandLines {
+		p.printf("  → %s\n", c)
+	}
 }
 
 // explainSteps renders a step-driven interaction's plan without running anything, mirroring the
