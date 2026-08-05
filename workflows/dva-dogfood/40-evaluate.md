@@ -24,8 +24,12 @@ accepted.</input>
 2. Create a unique `ATTEMPT_ID`; prior evaluations are comparison inputs, not
    blockers.
 3. Re-run validation for the changed layers with the exact `DVA_COMMAND` stage 30
-   selected; otherwise use the installed executable the baseline recorded. Do not
-   reuse historical success or substitute another binary.
+   selected; otherwise use the installed executable the baseline recorded. Verify it
+   by SHA-256 before use and fall back to `candidate_dva_archive`. Do not reuse
+   historical success or substitute another binary. When no recorded artifact
+   survives, record the substitution as step-3 non-compliance, state what is no
+   longer provable, and re-derive the before side from committed source — tests
+   against source outlive an artifact, transcripts of its output do not.
 4. Compare baseline and result for the exact hypothesis metrics.
 5. Score every applicable dimension in `<scoring>` and explain each non-maximum
    score.

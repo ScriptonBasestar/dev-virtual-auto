@@ -81,10 +81,13 @@ Only when `owner: dva_tool`.
    up/down/stop/restart symmetry, direct-help safety, and non-mutating preview
    behavior independently, including process-backed PID and log state.
 4. Run scoped tests, then the repository build/test gate with bounded output.
-5. Build and execute the fixed local artifact. Record its absolute path in
-   `candidate_dva_executable` and its commit in `candidate_dva_build_commit`. Keep
-   installed, source, and candidate provenance distinct — never overwrite installed
-   provenance.
+5. Build and execute the fixed local artifact, then **copy it into this attempt's
+   `artifacts/` directory** — the build path is not durable and a concurrent build
+   destroys it silently. Record the build path in `candidate_dva_executable`, the
+   copy in `candidate_dva_archive`, the commit in `candidate_dva_build_commit`, and
+   the **full** SHA-256 of both the archived copy and the installed executable in
+   `candidate_dva_sha256` and `dva_sha256`. Never truncate a digest. Keep installed,
+   source, and candidate provenance distinct — never overwrite installed provenance.
 6. Install or replace a global DVA binary only with recorded user authority.
 7. Do not change target config to compensate for a DVA source defect, and do not
    run lifecycle commands against the target as a preview test.

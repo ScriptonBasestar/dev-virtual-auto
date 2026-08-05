@@ -33,8 +33,11 @@ accepted.</input>
    incompatible external changes; otherwise update revision evidence.
 5. Select `DVA_COMMAND`: the stage-20 candidate when DVA changed, otherwise the
    installed command recorded at baseline. BLOCK if a changed DVA has no executable
-   candidate. Prove the selected path is executable and its version and commit match
-   state. Record the selection without installing globally.
+   candidate. Prove the selected path is executable and that its **SHA-256** matches
+   state; a matching version and build commit do not identify a binary, because two
+   different builds can stamp the same commit. On a mismatch, use
+   `candidate_dva_archive` and record why the build path was not used. Record the
+   selection without installing globally.
 6. Recompute the SHA-256 of `<RUN_DIR>/forward-requests.md` and compare it with
    `evaluation.forward_requests_hash`. On any difference, BLOCK: the requests were
    frozen precisely so they could not be reworded after the baseline was seen. Do

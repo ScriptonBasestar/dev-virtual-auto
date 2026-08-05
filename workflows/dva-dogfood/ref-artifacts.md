@@ -17,6 +17,7 @@ evidence across directories and leave empty ghosts behind.
     ├── 00-start/<ATTEMPT_ID>/report.md
     ├── 10-baseline/<ATTEMPT_ID>/report.md
     ├── 20-improve/<ATTEMPT_ID>/report.md
+    ├── 20-improve/<ATTEMPT_ID>/artifacts/   # binaries the later stages depend on
     ├── 30-forward-test/<ATTEMPT_ID>/report.md
     └── 40-evaluate/<ATTEMPT_ID>/report.md
 ```
@@ -24,6 +25,11 @@ evidence across directories and leave empty ghosts behind.
 Attempt reports are append-only. `ATTEMPT_ID` is `YYYYMMDD-HHMMSS-<4hex>` and a
 stage invocation never overwrites an earlier report. `state.yaml` and `handoff.md`
 are mutable indexes, never evidence substitutes.
+
+**An artifact a later stage must re-run belongs under `artifacts/`, not at the path
+that produced it.** A build output is not durable: a concurrent build overwrites it
+with no trace and no reflog, and the append-only invariant protects only what lives
+inside `<RUN_DIR>`.
 
 ## State schema
 
@@ -55,15 +61,21 @@ revisions:
   target_dirty_hash: null # sha1 of `git status --porcelain` run from the repo root
   dva_head: null
   dva_dirty_hash: null # same derivation, or the values cannot be compared
+  # Both dirty hashes cover filenames and status letters, never file contents, and an
+  # ignored build output never appears at all. An unchanged dirty hash therefore never
+  # proves an artifact is unchanged. Verify artifacts by the digests under `sources`.
   skill_source_hash: null
   installed_skill_hash: null
   prompt_bundle_hash: null
 
 sources:
   dva_executable: null
+  dva_sha256: null # full 64-hex digest; a truncated digest verifies nothing, not even a recovered copy
   dva_version: null
-  dva_build_commit: null
+  dva_build_commit: null # stamps the source, never identifies the file — two builds can stamp one commit
   candidate_dva_executable: null # stage 20 build; never overwrites installed provenance
+  candidate_dva_archive: null # durable copy under the stage-20 attempt's `artifacts/`
+  candidate_dva_sha256: null # full 64-hex digest of the archived copy
   candidate_dva_build_commit: null
   skill_source: null
   skill_installed: null
