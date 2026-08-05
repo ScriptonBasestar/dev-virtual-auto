@@ -165,6 +165,7 @@ DVA의 AI 지원은 **목적과 실행 모델이 다른 두 층**으로 나뉜�
 - [Configuration Merge Semantics](docs/30-config-merge-semantics.md)
 - [Execution Plan Resolution](docs/31-execution-plan-resolution.md)
 - [Declarative Stack and Plans](docs/40-declarative-stack-and-plans.md)
+- [Command Surface Restructure](docs/43-command-surface-restructure.md) — CLI 동사 단일 세대 수렴 및 hard break 마이그레이션 결정
 - [skills/](skills/README.md) — 포터블 DVA 스킬 (단일 소스, 플랫폼별 투영)
 - [workflows/](workflows/README.md) — DVA 자체 개선 dogfood 워크플로우
 - [USAGE.md](USAGE.md) — CLI와 설정 레퍼런스
