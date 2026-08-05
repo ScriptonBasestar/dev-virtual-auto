@@ -18,6 +18,24 @@ type planRunFlags struct {
 	force   bool
 	wait    bool
 	volumes bool
+	purge   bool
+}
+
+// rejectDownOnlyFlags fails on flags that only `down` acts on.
+//
+// --purge removes data, so accepting and ignoring it is the one outcome that must not
+// happen: `dva up p --purge` would report success having neither started what was named nor
+// removed what was asked about, and the operator has no way to tell which. --volumes has
+// the same shape; restart already rejected it and up/stop silently dropped it, so this
+// closes that gap too rather than adding a second flag to the same silence.
+func (f planRunFlags) rejectDownOnlyFlags() error {
+	switch {
+	case f.purge:
+		return fmt.Errorf("--purge is only supported by down")
+	case f.volumes:
+		return fmt.Errorf("--volumes is only supported by down")
+	}
+	return nil
 }
 
 type planEndpointOutput struct {
@@ -167,6 +185,8 @@ func parsePlanFlags(args []string) (planRunFlags, error) {
 			flags.wait = false
 		case a == "-v" || a == "--volumes":
 			flags.volumes = true
+		case a == "--purge":
+			flags.purge = true
 		case a == "--var":
 			if i+1 >= len(args) {
 				return flags, fmt.Errorf("--var requires KEY=VAL")
@@ -218,6 +238,9 @@ func setPlanVar(dst map[string]string, kv string) error {
 func runPlanUp(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
+		return err
+	}
+	if err := flags.rejectDownOnlyFlags(); err != nil {
 		return err
 	}
 
@@ -295,21 +318,54 @@ func runPlanDown(c *config.Config, e *config.Environment, planName string, extra
 		printPlanResolution(plan)
 	}
 
+	// --purge is `clean` folded into the plan path: named volumes, locally built images and
+	// the provision markers all go. The safeguard comes with it — it belongs to the
+	// destruction, not to the command name the destruction used to live under.
+	//
+	// --force is what waives the prompt here, matching clean. Nothing else on `down` reads
+	// that flag, so it has no second meaning to collide with on this path.
+	if flags.purge && !flags.force && !effectiveDryRun {
+		proceed, err := confirmDestruction(fmt.Sprintf("dva down %s --purge", planName), true, true)
+		if err != nil {
+			return err
+		}
+		if !proceed {
+			return nil
+		}
+	}
+	if flags.purge {
+		// Markers are keyed by provision profile, not by plan, so this clears every one in
+		// the config directory — the same reach `clean` had. Narrowing it to the plan is not
+		// possible without a per-plan marker, and leaving them behind would make `--purge`
+		// claim a clean slate it did not deliver: the next `up` would skip provisioning.
+		if effectiveDryRun {
+			for _, m := range provisionMarkers(c.FileDir()) {
+				fmt.Fprintf(os.Stderr, "[dry-run] would delete provision marker %s\n", m)
+			}
+		} else {
+			clearProvisionMarkers(c.FileDir())
+		}
+	}
+
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)
 	if err != nil {
 		return err
 	}
 	return orch.Down(context.Background(), lifecycle.DownOptions{
-		DryRun:  effectiveDryRun,
-		Volumes: flags.volumes,
-		Names:   planEntryNames(plan),
-		Env:     plan.EnvironmentName,
+		DryRun:       effectiveDryRun,
+		Volumes:      flags.volumes || flags.purge,
+		RemoveImages: flags.purge,
+		Names:        planEntryNames(plan),
+		Env:          plan.EnvironmentName,
 	})
 }
 
 func runPlanStop(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
+		return err
+	}
+	if err := flags.rejectDownOnlyFlags(); err != nil {
 		return err
 	}
 
@@ -342,8 +398,8 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 	if err != nil {
 		return err
 	}
-	if flags.volumes {
-		return fmt.Errorf("--volumes is only supported by down")
+	if err := flags.rejectDownOnlyFlags(); err != nil {
+		return err
 	}
 
 	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)

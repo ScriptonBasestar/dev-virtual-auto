@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -321,6 +320,8 @@ Plan usage:
   dva down <plan>         Tear down the selected plan
   --var KEY=VAL           Override a plan variable
   --volumes, -v           Also remove volumes
+  --purge                 Also remove volumes, locally built images and provision markers.
+                          Asks for confirmation first; --force answers it.
   --dry-run               Print the variable resolution and the actions, without executing
 
 Legacy flags:
@@ -591,56 +592,19 @@ var cleanCmd = &cobra.Command{
 		images, _ := cmd.Flags().GetBool("images")
 		force, _ := cmd.Flags().GetBool("force")
 
-		// Confirmation prompt for destructive operations.
+		// Confirmation prompt for destructive operations. --dry-run is exempt: consent is
+		// consent to the deletion, and a dry run deletes nothing. See confirmDestruction
+		// for why that exemption and the EOF handling are shaped the way they are
+		// (TASK-166/170/171).
 		//
-		// --dry-run is exempt because consent is consent to the deletion, and a dry run
-		// deletes nothing. Without the exemption the one command whose purpose is to say
-		// what would be destroyed refused to say it until you agreed to the destruction,
-		// and the documented default answer (N) returned before the preview ran. Worse
-		// non-interactively: Scanln gets EOF from a pipe, `answer` stays empty, and
-		// `dva clean --volumes --dry-run` in any script printed "Aborted." and nothing
-		// else — rc 0, so nothing downstream noticed either. The only way to reach the
-		// preview from a script was --force, which on a real run means destroy without
-		// asking; the flag that made the preview reachable was the flag that made the
-		// real thing unstoppable. TASK-170, following TASK-166's work on the eight halt
-		// sites under this command.
-		//
-		// Exempted here rather than through a shared helper: this is the only prompt in
-		// the codebase today (`dva down --volumes` has none), so a helper would abstract
-		// over one caller.
+		// rc 0 on an explicit decline, deliberately. The command was asked not to proceed
+		// and did not proceed; that is the interaction succeeding.
 		if !force && !dryRun && (volumes || images) {
-			msg := "This will remove all containers, networks"
-			if volumes {
-				msg += ", and VOLUMES (data loss!)"
+			proceed, err := confirmDestruction(cmd.CommandPath(), volumes, images)
+			if err != nil {
+				return err
 			}
-			if images {
-				msg += ", and locally built images"
-			}
-			fmt.Fprintf(os.Stderr, "%s.\nContinue? [y/N] ", msg)
-			var answer string
-			// Scanln's error is what separates "nobody was there to answer" from "someone
-			// answered no", and discarding it (`_, _ =`) collapsed them into one silent
-			// rc 0. Measured: stdin exhausted before any token — a pipe, a CI runner,
-			// </dev/null — returns io.EOF, while a person pressing Enter at the prompt
-			// returns "unexpected newline" instead. So the documented default (N) still
-			// reaches the decline branch below, and only the case with no operator in it
-			// becomes an error. Keying this on `err != nil` would have made the prompt's
-			// own default a hard failure. TASK-171.
-			if _, err := fmt.Scanln(&answer); errors.Is(err, io.EOF) {
-				return fmt.Errorf("cannot ask for confirmation: stdin reached EOF, so nothing answered the prompt and nothing was removed\n"+
-					"       → pass --force to run '%s' non-interactively", cmd.CommandPath())
-			}
-			answer = strings.ToLower(strings.TrimSpace(answer))
-			if answer != "y" && answer != "yes" {
-				// stderr, with the prompt it answers. On stdout it was half of an
-				// interaction whose other half was on another stream, so `2>/dev/null`
-				// showed "Aborted." with nothing saying what had been aborted.
-				fmt.Fprintln(os.Stderr, "Aborted.")
-				// rc 0 on an explicit decline, deliberately. The command was asked not to
-				// proceed and did not proceed; that is the interaction succeeding, and the
-				// person who typed it is at a terminal reading this line, not inspecting
-				// $?. The EOF branch above is different in kind — there nobody declined,
-				// so reporting a decline would be inventing an answer. TASK-171.
+			if !proceed {
 				return nil
 			}
 		}
