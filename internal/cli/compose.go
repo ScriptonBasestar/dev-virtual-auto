@@ -652,8 +652,21 @@ var cleanCmd = &cobra.Command{
 }
 
 var logsCmd = &cobra.Command{
-	Use:                "logs [OPTIONS] [SERVICE...]",
-	Short:              "View output from containers",
+	Use:   "logs [PLAN] [ENTRY] [OPTIONS] [SERVICE...]",
+	Short: "View output from a plan's entries (or from compose services)",
+	Long: `Show logs for a named plan, one of its entries, or compose services.
+
+Plan usage:
+  dva logs <plan>           Logs for the plan's only log-producing entry
+  dva logs <plan> <entry>   Logs for one entry of the plan
+
+Everything after the plan and entry names is passed to whatever owns the logs —
+'-f', '--tail 50' and service names reach docker compose unchanged. Entries that
+run as a process or a script are read from their log file instead, which cannot
+follow, so those take no extra arguments.
+
+Without plans, or when the first argument is not a plan name, this stays a
+compose passthrough: 'dva logs api' still means the 'api' service.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -667,6 +680,19 @@ var logsCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			return runPlanLogs(c, e, planName, extraArgs)
+		}
+		if err := requirePlanSelection(c, "logs", args); err != nil {
+			return err
+		}
+		if err := rejectSuppressedDefaultPlan(c, "logs", args); err != nil {
+			return err
+		}
+		// No rejectUnknownPlanArg here, unlike up/down/stop/restart. Their positional slot
+		// means a plan and nothing else, so an unmatched name is a typo. This one has a
+		// second legitimate occupant — `dva logs api` naming a compose service predates
+		// plans and still works — and rejecting it would break that to catch a misspelling.
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -337,7 +336,7 @@ var stackLogCmd = &cobra.Command{
 				plugin := entry.DetectPlugin()
 				switch plugin {
 				case "process", "script":
-					return showStackEntryLog(c, args[0])
+					return showEntryLogFile(c, args[0])
 				case "compose", "podman-compose":
 					return execComposePassthroughForEntry(e, c, entry, append([]string{config.LogsDirName}, args[1:]...))
 				}
@@ -347,25 +346,6 @@ var stackLogCmd = &cobra.Command{
 		// Default: delegate to compose logs passthrough
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
-}
-
-// showStackEntryLog reads and prints the log file for a non-compose stack entry.
-func showStackEntryLog(c *config.Config, name string) error {
-	logFile := filepath.Join(c.FileDir(), config.DotDirName, config.LogsDirName, name+".log")
-	data, err := os.ReadFile(logFile)
-	if err != nil {
-		return fmt.Errorf("no log file for stack entry %q: %w", name, err)
-	}
-
-	lines := strings.Split(string(data), "\n")
-	start := 0
-	if len(lines) > 100 {
-		start = len(lines) - 100
-	}
-	for _, line := range lines[start:] {
-		fmt.Println(line)
-	}
-	return nil
 }
 
 // stackSelectorFlags are the flags parseDvaFlags consumes for every stack subcommand.

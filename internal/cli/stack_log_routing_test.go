@@ -47,13 +47,17 @@ func TestStackLogRoutesByResolvedPlugin(t *testing.T) {
 
 				err := stackLogCmd.RunE(stackLogCmd, []string{entry})
 
-				// The expected outcome is showStackEntryLog failing to find the log file:
+				// The expected outcome is showEntryLogFile failing to find the log file:
 				// the fixture never ran anything, so .sb/dva/logs/<entry>.log does not exist.
 				// Reaching that error is the proof the process branch was taken.
+				//
+				// "entry", not "stack entry": the reader moved to logs.go when `dva logs
+				// <plan> <entry>` gained a use for it, and it no longer answers only about
+				// the stack. This assertion is a routing probe, so it tracks the message.
 				if err == nil {
 					t.Fatalf("stack log %s succeeded; expected the missing-log-file error", entry)
 				}
-				want := `no log file for stack entry "` + entry + `"`
+				want := `no log file for entry "` + entry + `"`
 				if !strings.Contains(err.Error(), want) {
 					t.Errorf("error was %q, want it to contain %q — a different error means the "+
 						"process branch was not the one taken", err, want)
