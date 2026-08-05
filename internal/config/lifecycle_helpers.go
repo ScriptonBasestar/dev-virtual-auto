@@ -1,6 +1,9 @@
 package config
 
-import "sort"
+import (
+	"maps"
+	"sort"
+)
 
 func (e *LifecycleEntry) ComposeConfig() *ComposePluginConfig {
 	if e == nil {
@@ -55,6 +58,21 @@ func (e *LifecycleEntry) applyRunnerConfig(cfg any) bool {
 	case *NativeRunnerConfig:
 		// Alias runners.native → process plugin (TASK-050 Option A).
 		e.Process = &ProcessPluginConfig{Command: c.Run, Dir: c.Dir}
+		// env has no home on ProcessPluginConfig, so it rides Vars, which the orchestrator
+		// merges into the entry Environment and startLocalProcess hands to the command. The
+		// plan path does the same merge in resolver.go; this covers the entries reached
+		// through SortedStack. Without both, native.env decoded and was read by nothing.
+		//
+		// A fresh map rather than a write into e.Vars: SortedStack hands out a shallow copy
+		// (`entry := *e`), so the Vars map is still the one held in c.Stack — merging in place
+		// would leak this runner's env into every other reader of that entry. Replacing the
+		// field only touches the copy, which is the same reason assigning e.Process is safe.
+		if len(c.Env) > 0 {
+			merged := make(map[string]string, len(e.Vars)+len(c.Env))
+			maps.Copy(merged, e.Vars)
+			maps.Copy(merged, c.Env)
+			e.Vars = merged
+		}
 	case *ScriptPluginConfig:
 		e.Script = c
 	case *DockerPluginConfig:

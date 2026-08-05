@@ -221,6 +221,19 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 
 		mergeStringMap(resolvedEntry.Vars, resolved.EnvVars)
 		mergeStringMap(resolvedEntry.Vars, stackEntry.Vars)
+		// runners.<name>.env sits just inside the entry's own vars: it is still a declaration,
+		// so the override and plan layers below overrule it, but it is scoped to one runner
+		// choice and so beats vars that apply to the entry whichever runner is picked.
+		//
+		// Merged into Vars rather than carried on the runner config because native is desugared
+		// to the process plugin (applyRunnerConfig) and ProcessPluginConfig has no Env field.
+		// Vars already reach the command — the orchestrator merges them into the entry
+		// Environment and startLocalProcess passes Env.EnvSlice() to it — so this reuses a
+		// delivered path instead of opening a second one. Until this, schema.json advertised
+		// native_runner_config.env and decodeRunnerNode decoded it, and nothing ever read it.
+		if native, ok := runnerConfig.(*config.NativeRunnerConfig); ok {
+			mergeStringMap(resolvedEntry.Vars, native.Env)
+		}
 		if entryOverride != nil {
 			mergeStringMap(resolvedEntry.Vars, entryOverride.Vars)
 		}
