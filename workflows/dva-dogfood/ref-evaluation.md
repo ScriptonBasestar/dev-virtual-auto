@@ -1,25 +1,15 @@
 # DVA Dogfood Evaluation Reference
 
-Domain deltas only; invariants live in
-[METHODOLOGY.md](./METHODOLOGY.md).
-
-Scoring, the cycle gate, and cross-run promotion are stage-60 concerns and live
-in [60-evaluate.md](60-evaluate.md). Stage 20 needs only the surfaces and
-ownership below.
+How a run derives its test cases, freezes them, and assigns every finding one
+owner. Scoring and the cycle gate live in [40-evaluate.md](40-evaluate.md).
 
 ## Evaluation surfaces
 
-A surface is a routing behavior to test, not a project. The exact YAML bytes in
-this block are the canonical ordered surface manifest. Stage 20 computes its
-SHA-256 from the bytes between the fenced-YAML lines, including the final
-newline, and records that value in `state.yaml` as `case_manifest_hash`. No hash
-is stored here: a hand-maintained constant beside the bytes it describes is
-updated in the same edit that changes them, so it detects nothing. The
-run-to-run comparison is what carries meaning.
+A surface is a routing behavior to test, not a project. Stage 10 walks this
+manifest in order and instantiates each surface against the declared target.
 
-<!-- evaluation-manifest:start -->
 ```yaml
-version: dva-routing-v2
+manifest_version: dva-routing-v2
 surfaces:
   - id: config_schema
     discover: sections declared by the target's own dva.yml against the installed schema version
@@ -46,103 +36,108 @@ surfaces:
     discover: always instantiable
     instances: single
 ```
-<!-- evaluation-manifest:end -->
 
 The manifest names surfaces, never targets. It carries no expected owner and no
 expected outcome.
 
 ## Deriving the run's cases
 
-Stage 20 walks the surfaces in manifest order and instantiates each one against
-the declared target:
+**Verify the instance exists before writing the case.** A case is a question about
+project state; a question about state the target does not have cannot be answered
+honestly, and freezing one poisons the whole run.
 
-- `instances: single` yields at most one case, with `id` equal to the surface id.
+- `instances: single` yields at most one case, `id` = the surface id.
 - `instances: per_subproject` / `per_overlap` yields one case per discovered
-  instance, `id` = `<surface>:<instance>`, instances sorted lexically so the
-  order is reproducible.
-- `instances: per_absent_section` inverts the rule: the absent section is the
-  instance, not a non-instance. It yields one case per section a command family
-  reads that the target's `dva.yml` lacks, `id` = `absent_section_route:<section>`,
-  absent sections sorted lexically. File this surface not-applicable only when no
-  command family reads a section the target lacks — absence here is the thing
-  tested, not the reason to skip. Each case asks whether the command's answer (a)
-  states a next action, (b) states what the config does declare, and (c) is
-  parseable under `--json`.
-- A surface with no instance in this target is **not** a case. Record it in
-  `evaluation.not_applicable_surfaces` with the evidence that showed its absence
-  — the absent file, the empty section, the command output. Never invent a case
-  to fill a surface; a request about project state that does not exist is an
-  answer key, not evidence.
+  instance, `id` = `<surface>:<instance>`, instances sorted lexically.
+- `instances: per_absent_section` inverts the rule: the absent section *is* the
+  instance. It yields one case per section a command family reads that this
+  target's `dva.yml` lacks, `id` = `absent_section_route:<section>`, sorted
+  lexically. File this surface not-applicable only when no command family reads a
+  section the target lacks. Each case asks whether the command's answer (a) states
+  a next action, (b) states what the config does declare, and (c) is parseable
+  under `--json`.
+- A surface with no instance is **not** a case. Record it in
+  `evaluation.not_applicable_surfaces` with the evidence that showed its absence —
+  the absent file, the empty section, the command output.
 
-The derived ordered list is `evaluation.case_ids`. Because it is target-derived,
-two runs against different targets legitimately hold different case sets while
-sharing one `case_manifest_hash`; compatibility is the tuple (`version`,
-`case_manifest_hash`, ordered `case_ids`), so a cross-target comparison is a
-cross-run promotion question, not a contract mismatch.
+A small case set is a valid outcome. Three honest cases beat ten invented ones, and
+a target that instantiates few surfaces is a finding about that target, not a
+blocked run. The only out-of-scope condition is a target where `config_schema` and
+`no_change` both fail to instantiate — that means no `dva.yml` exists, so the
+workflow does not apply: block with `target_out_of_scope`.
 
-`config_schema` and `no_change` are instantiable for any target that has a
-`dva.yml`. If either fails to instantiate, the target is out of scope for this
-workflow: block with `target_out_of_scope` rather than proceeding on one case.
+Because case sets are target-derived, two runs against different targets
+legitimately hold different case sets. Comparing them is a cross-run promotion
+question, not an error.
 
-## Freezing the contract
+## Freezing the requests
 
-Stage 20 records `version`, the manifest SHA-256, the derived ordered `case_ids`,
-and the not-applicable surfaces in `state.yaml`, then creates
-`<RUN_DIR>/forward-requests.md`. That frozen file is a strict YAML document with
-only `version`, `case_manifest_hash`, and ordered `requests`; every request has
-only `id` and non-empty `raw_request`, one per derived case in the same order.
-Its SHA-256 is stored as `evaluation.forward_requests_hash`.
+Stage 10 records `manifest_version`, the derived ordered `case_ids`, and the
+not-applicable surfaces in `state.yaml`, then creates `<RUN_DIR>/forward-requests.md`:
+a strict YAML document with `manifest_version` and ordered `requests`, where every
+request has only `id` and a non-empty `raw_request`, one per derived case in the
+same order. Store its full-file SHA-256 as `evaluation.forward_requests_hash`.
 
-Once frozen, a changed manifest, changed derived order, or changed frozen byte is
-an `evaluation_contract_mismatch`: do not reuse the run's evidence; block it and
-require a successor under the methodology.
+The freeze exists for one reason: **the controller must not be able to reword a
+request after seeing baseline results.** Stage 30 recomputes the hash before
+launching any case session and blocks if it differs.
+
+Requests carry no expected-owner and no expected-outcome field. Never disclose a
+case's label, surface, or anticipated result to a forward-test session.
 
 ## Forward test
 
-Stage 50 first verifies this contract, then launches one independent,
-history-free child session per request. A child receives only its raw request,
-the disposable fixture or read-only target scope, and the safety constraints. It
-receives neither surface metadata nor any expected owner/outcome. The controller
-records one result for each ordered ID only after the child returns; each result
-contains `id`, `child_session_id`, `request_hash`, and `outcome`.
+Stage 30 launches one independent, history-free child session per request. A child
+receives only its raw request, the disposable fixture or read-only target scope,
+and the safety constraints — never surface metadata or an expected outcome.
 
-For a completed forward test, every `child_session_id` is non-empty, unique, and
-different from `controller_session_id`; identity reuse is not an independent
-history-free session. The completed state also records `controller_session_id`.
-Case sessions never start a real target lifecycle.
+The controller records one result per ordered ID only after the child returns:
+`{id, child_session_id, request_hash, outcome}`. Every `child_session_id` must be
+non-empty, unique, and different from `controller_session_id`; reusing an identity
+is not an independent history-free session.
 
-`stages.50.status` is structurally one of `pending`, `complete`, `blocked`, or
-`not_applicable`. Only `complete` may claim a finished forward test, and it
-requires the controller plus exactly one valid ordered result per case. An
-unknown success-like value (for example `PASS`) is an
-`evaluation_contract_mismatch`, never an incomplete-run escape hatch.
+`stages.30.status` is one of `pending`, `complete`, `blocked`, `not_applicable`.
+Only `complete` may claim a finished forward test, and it requires the controller
+plus exactly one valid ordered result per case. A case session never starts a real
+target lifecycle.
+
+## Results
+
+Every run classifies as exactly one of:
+
+| Result         | Meaning                                                  |
+| -------------- | -------------------------------------------------------- |
+| `CONFIRMED`    | improved, no critical regression                         |
+| `PARTIAL`      | improved but an acceptance criterion is unmet            |
+| `REJECTED`     | no improvement, or a regression outweighs it             |
+| `INCONCLUSIVE` | missing authority or environment blocked the comparison  |
 
 ## Finding ownership
 
-Assign every finding to exactly one primary owner.
+Assign every finding to exactly one owner.
 
 <!-- markdownlint-disable MD013 -->
 
-| Owner          | Signals                                                          | Example                                                         |
-| -------------- | ---------------------------------------------------------------- | --------------------------------------------------------------- |
-| Skill          | Agent lacked reusable procedure or made inconsistent decisions   | No preserve/rewrite decision rule                               |
-| Prompt         | Stage routing, references, or SSoT boundary is wrong             | Baseline stage routes DVA before Compose normalization          |
-| DVA tool       | CLI output, schema validation, discovery, or doctor is incorrect | Contradictory daemon checks                                     |
-| Target project | Project configuration or docs do not match reality               | stale Compose filename in `dva.yml`                             |
-| Environment    | Required local executable/service is unavailable                 | `am` missing from PATH                                          |
+| Owner            | Signals                                                          | Example                                                |
+| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
+| `skill`          | Agent lacked a reusable procedure or made inconsistent decisions | No preserve/rewrite decision rule                      |
+| `prompt`         | Stage routing, references, or SSoT boundary is wrong             | Baseline stage routes DVA before Compose normalization |
+| `dva_tool`       | CLI output, schema validation, discovery, or doctor is incorrect | Contradictory daemon checks                            |
+| `target_project` | Project configuration or docs do not match reality               | Stale Compose filename in `dva.yml`                    |
+| `environment`    | A required local executable or service is unavailable            | `am` missing from PATH                                 |
 
 <!-- markdownlint-enable MD013 -->
 
 Do not patch the target project to silence a DVA tool defect. Do not add a
-machine-specific workaround to a generic skill.
+machine-specific workaround to a generic skill. Do not teach the skill to work
+around a defect the tool should report itself.
 
-A green status/health verdict while the tracked PID is dead, or while the port
-is answered by a process outside the group DVA started, is always a DVA-tool
-finding — even when a target-config defect (e.g. a wrong run path) also
-contributed. Route both owners; the config fix alone does not close it, because
-a config defect can mask a tool defect (a stale orphan keeps answering the
-port). Reported state must reflect the process DVA controls, not merely a port
-that responds.
+A green status or health verdict while the tracked PID is dead, or while the port
+is answered by a process outside the group DVA started, is always a `dva_tool`
+finding — even when a target-config defect also contributed. Route both owners; the
+config fix alone does not close it, because a config defect can mask a tool defect
+when a stale orphan keeps answering the port. Reported state must reflect the
+process DVA controls, not merely a port that responds.
 
 ## Regression severity
 
@@ -151,8 +146,8 @@ that responds.
 | Severity | Meaning                                                  | Response                                  |
 | -------- | -------------------------------------------------------- | ----------------------------------------- |
 | Critical | Secret exposure, destructive action, production mutation | Stop and report immediately               |
-| High     | Invalid DVA config, broken standard workflow             | Roll back cycle-owned change and diagnose |
-| Medium   | Warning, docs drift, redundant command                   | Record and route before next cycle        |
+| High     | Invalid DVA config, broken standard workflow             | Roll back the cycle-owned change, diagnose |
+| Medium   | Warning, docs drift, redundant command                   | Record and route before the next cycle    |
 | Low      | Clarity, token, naming, minor UX issue                   | Backlog unless it is the cycle hypothesis |
 
 <!-- markdownlint-enable MD013 -->

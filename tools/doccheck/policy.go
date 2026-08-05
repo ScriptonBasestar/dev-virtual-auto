@@ -7,12 +7,6 @@ const (
 	maxDocBytes = 10240 // 10 KiB
 )
 
-// sizeExemptPath is oversized by design: the dogfood workflow loads METHODOLOGY
-// whole via METHODOLOGY = ./METHODOLOGY.md; splitting drops the resume protocol
-// unless every stage and the reuse registry are updated together.
-// This is a size exemption only — links inside the file are still checked.
-const sizeExemptPath = "workflows/dva-dogfood/METHODOLOGY.md"
-
 // Git ls-files modes (high bits of the 6-digit octal mode).
 const (
 	modeRegular = 0o100644
@@ -29,13 +23,11 @@ func isMarkdownPath(path string) bool {
 }
 
 // sizeEnforced reports whether path is under the option-B size gate
-// (docs/, workflows/), excluding the METHODOLOGY size exemption.
+// (docs/, workflows/). There is no per-file escape hatch: a document that
+// cannot meet the limits is split, not exempted.
 // Lookup manuals (USAGE.md, skills/*/references/, library/) are outside
 // these prefixes and are not size-checked — they are still link-checked.
 func sizeEnforced(path string) bool {
-	if path == sizeExemptPath {
-		return false
-	}
 	return hasPathPrefix(path, "docs/") || hasPathPrefix(path, "workflows/")
 }
 

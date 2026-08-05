@@ -1,126 +1,101 @@
-# DVA Dogfood — Prompt/Skill/Project Improvement Loop
+# DVA Dogfood — Skill/Prompt/Tool Improvement Loop
 
-The active entrypoint is the numbered stage prompts in this directory. Start at
-[`00-start-cycle.md`](00-start-cycle.md) and follow each stage's `next_prompt`
-through to [`70-feedback.md`](70-feedback.md). The loop is self-contained: every
-stage prompt names the references it needs and the next stage to run.
+An evidence-first loop that improves the canonical DVA skills, this workflow's own
+stage prompts, the DVA tool itself, and a target project's configuration — while
+applying DVA to a real devbox project. One run tests one measurable hypothesis,
+changes exactly one owner, and records append-only evidence that can stop and
+resume from `RUN_DIR` without hidden conversation context.
 
-> **Methodology:** this loop is an **extended variant** of the shared
-> self-improve methodology in [`METHODOLOGY.md`](./METHODOLOGY.md)
-> (adds skill-audit and DVA-tool stages; splits evaluate/feedback into
-> 60/70). That spec defines the stage spine, state model, evaluation
-> contract, session rules, and safety invariants. This README and the local
-> `ref-*.md` define only the domain contract.
-
-## Overview
-
-An iterative execution package for improving the canonical DVA skills, this
-workflow's own stage prompts, the DVA tool itself, and target project
-configuration together while applying DVA to a real devbox project. Each cycle
-validates one hypothesis and feeds discovered issues back to the correct source
-of truth.
-
-Sources of truth:
-
-- Dogfood orchestration: `workflows/dva-dogfood` (this repo)
-- Skills: this repo's canonical `skills/config` and `skills/dva`; platform copies
-  are projections generated or linked from those sources.
-- DVA tool: this repo
-
-Every source of truth is in this repo, so a run needs no external checkout.
-
-## Core Principles
-
-- Do not modify skill, prompt, DVA source, or target project before
-  measuring.
-- Keep reusable DVA knowledge in the canonical skills; keep run orchestration in
-  this workflow's stage prompts.
-- Distinguish project configuration issues from DVA CLI issues.
-- Judge DVA necessity independently for root and each active subproject;
-  do not generate it when unnecessary.
+Start at [`00-start.md`](00-start.md) and follow each stage's `next_prompt`
+through to [`40-evaluate.md`](40-evaluate.md). The loop is self-contained: it runs
+with this repository alone, with no external checkout and no framework gateway.
 
 ## Usage
 
-1. Start an AI agent in the devbox project to improve.
-1. Pass the first stage [00-start-cycle.md](00-start-cycle.md) and specify the
-   target project.
-1. Run the prompt named by `state.next_prompt` only when each stage is
+1. Start an AI agent with read access to both this repository (`DVA_ROOT`) and the
+   devbox project to improve (`TARGET_PROJECT`).
+1. Pass [`00-start.md`](00-start.md) with the inputs below.
+1. Run the prompt named by `state.next_prompt`, and only when the current stage is
    PASS.
-1. When resuming after a stop, pass only the `RUN_DIR` absolute path to the
-   next session.
-1. Always verify changed skill metadata and natural triggering in a fresh session.
-
-Treat the numbered stage files as continuation prompts selected by
-`state.next_prompt`. Both new runs and resumes start from the self-contained
-first stage `00-start-cycle.md`.
-
-Example request:
+1. When resuming after a stop, pass only the `RUN_DIR` absolute path.
 
 ```text
-Use workflows/dva-dogfood/00-start-cycle.md.
-TARGET_PROJECT=<TARGET_PROJECT>
-HYPOTHESIS=DVA skill should distinguish CLI defects from project config defects.
-MODE=continuous
+Use workflows/dva-dogfood/00-start.md.
+TARGET_PROJECT=/absolute/path/to/devbox
+HYPOTHESIS=DVA should surface its own daemon diagnosis when a compose lifecycle
+           command fails because the Docker daemon is unavailable.
+MODE=step
 ```
 
-## Stage Order
+`MODE=step` stops after every accepted stage and emits `RUN_DIR=` / `NEXT_PROMPT=`,
+which keeps each stage inside one context window. `MODE=continuous` follows
+`next_prompt` until a stop condition. Neither mode overrides a fresh-session,
+approval, failure, or safety boundary.
+
+## Stage order
 
 ```text
-00 initialize → 10 skill audit → 20 baseline + owner routing
-                                  ├─ skill → 30 → 40* → 50
-                                  ├─ prompt → 40 → 50
-                                  ├─ DVA tool → 45 → 50
-                                  ├─ target project → 50
-                                  └─ environment → 60
-50 apply/forward test → 60 evaluate → 70 read-only feedback
+00 start      → bind target, hypothesis, unique run, revisions, projection status
+10 baseline   → before-state, derive cases, freeze requests, select ONE owner
+20 improve    → mutate the selected owner only  (skill | prompt | dva_tool)
+30 forward    → fresh-session gate, history-free case sessions, target-owned edits
+40 evaluate   → score, gate, route every finding to its SSoT, close the run
 ```
 
-`40*` is also used as the new-session trigger gate when stage 30 modifies
-an installed skill. Change stages that are not selected are marked
-`not_applicable` in state and do not produce an attempt report. If stage 60
-finds further changes are needed, it returns to the relevant owner stage
-instead of proceeding to stage 70.
+Stage 20 is skipped when the selected owner is `target_project`, `environment`, or
+`no_change`; it is marked `not_applicable` with no attempt report. Stage 40 may
+route a correction back to stage 20 within the same owner instead of closing.
+
+## Owner model
+
+Every run selects exactly one owner at stage 10 and may mutate only that owner.
+A finding belonging to a different owner is backlog for the next run.
+
+| Owner            | Meaning                                            | Mutating stage |
+| ---------------- | -------------------------------------------------- | -------------- |
+| `skill`          | reusable DVA knowledge in `skills/`                | 20             |
+| `prompt`         | this workflow's own stage prompts and references   | 20             |
+| `dva_tool`       | DVA CLI, schema, discovery, doctor, runtime        | 20             |
+| `target_project` | the analyzed project's own configuration and docs  | 30             |
+| `environment`    | tooling/runtime gap outside the three above        | none           |
+| `no_change`      | no current gap; proceed to the forward test        | none           |
+
+Never mutate two owners under one run. A different owner requires a new run with a
+new hypothesis and a new baseline.
+
+## Core principles
+
+- Do not modify skill, prompt, DVA source, or target project before measuring.
+- Keep reusable DVA knowledge in the canonical skills; keep run orchestration here.
+- Distinguish project configuration issues from DVA CLI issues.
+- Judge DVA necessity independently for the root and each active subproject; do not
+  generate a config where none is warranted.
+- A case must name project state that was verified to exist. A request about state
+  the target does not have is an answer key, not evidence.
+
+## Sources of truth
+
+- Dogfood orchestration: `workflows/dva-dogfood` (this directory)
+- Skills: this repo's canonical `skills/config` and `skills/dva`; platform copies
+  are projections generated or linked from those sources, never independent sources
+- DVA tool: this repository
 
 ## References
 
-| File                                   | Purpose                                             |
-| -------------------------------------- | --------------------------------------------------- |
-| [ref-context.md](ref-context.md)       | Paths, terms, source-of-truth boundary, run context |
-| [ref-artifacts.md](ref-artifacts.md)   | Cycle state and evidence file conventions           |
-| [ref-evaluation.md](ref-evaluation.md) | Evaluation surfaces, case derivation, defect owners |
-| [ref-safety.md](ref-safety.md)         | Safety rules and DVA verification ladder            |
-| [ref-session.md](ref-session.md)       | Unique run path, re-run, session handoff            |
+| File                                   | Purpose                                                |
+| -------------------------------------- | ------------------------------------------------------ |
+| [ref-context.md](ref-context.md)       | Paths, terms, source-of-truth boundary, run context    |
+| [ref-artifacts.md](ref-artifacts.md)   | Run layout, state schema, reports, session and resume  |
+| [ref-evaluation.md](ref-evaluation.md) | Evaluation surfaces, case derivation, finding ownership |
+| [ref-safety.md](ref-safety.md)         | Safety invariants, protected operations, validation ladder |
 
-## Directory Structure
+Every numbered stage loads all four references whole, once per session, and reuses
+them while their path and Git revision are unchanged.
 
-```text
-workflows/dva-dogfood/
-├── README.md
-├── METHODOLOGY.md
-├── 00-start-cycle.md
-├── 10-audit-skill.md
-├── 20-capture-baseline.md
-├── 30-improve-skill.md
-├── 40-improve-prompts.md
-├── 45-improve-dva-tool.md
-├── 50-apply-to-project.md
-├── 60-evaluate.md
-├── 70-feedback.md
-├── ref-context.md
-├── ref-artifacts.md
-├── ref-evaluation.md
-├── ref-safety.md
-└── ref-session.md
-```
+## Completion
 
-## Cycle State and Completion
-
-Cycle state (RUN_DIR path, ATTEMPT_ID, handoff update timing) and completion
-conditions are defined by METHODOLOGY and [ref-session.md](ref-session.md).
-[ref-evaluation.md](ref-evaluation.md) defines the surfaces a case may derive
-from; the run's own case set is derived from the target at stage 20, so two
-targets legitimately produce different case sets. Per-stage completion
-conditions for the forward-test and evaluation gates — including the scoring
-dimensions and cycle gate — are defined by
-[50-apply-to-project.md](50-apply-to-project.md) and
-[60-evaluate.md](60-evaluate.md).
+A run is `complete` only when the before/after evidence is comparable, every
+derived case has an outcome, every finding has exactly one owner, and one
+measurable next hypothesis is recorded. Runtime startup is a distinct post-cycle QA
+surface: no numbered stage may invoke `provision`, `up`, `down`, `stop`, or
+`restart` against a real target.

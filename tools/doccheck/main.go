@@ -4,7 +4,7 @@
 //     heading anchors resolve against the git inventory (tracked + non-ignored
 //     untracked); git symlink aliases (mode 120000) are skipped once
 //   - size: every .md under docs/ and workflows/ is ≤500 lines and ≤10240 bytes,
-//     except workflows/dva-dogfood/METHODOLOGY.md (size-only exemption)
+//     with no per-file exemption
 //   - verify bindings: every `go test … -run …` written in inline code selects at
 //     least one test declared in the tree, so a binding cannot name a test that
 //     does not exist and still exit 0 (TASK-136)

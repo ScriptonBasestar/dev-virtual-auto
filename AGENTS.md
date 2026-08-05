@@ -178,7 +178,6 @@ Size exemptions (lookup / contract documents — splitting harms the use case; l
 | `USAGE.md` | User-facing manual kept as one document by design |
 | `skills/*/references/` | Lookup tables; skillgen rewrites reference links |
 | `agent-mesh-flows/shared/library/` | Lookup tables / schema corpus |
-| `workflows/dva-dogfood/METHODOLOGY.md` | Dogfood stages load the file whole; split drops resume protocol unless every stage + reuse registry update together |
 
 The checker inventories **tracked files that still exist in the worktree + non-ignored untracked** files (tracked deletions are excluded so mid-move index blobs cannot mask broken links; ignored `tmp/` cannot make a miss look valid), skips git symlink aliases (mode `120000`) and checks the canonical target once, and fails on zero candidates/links, any broken relative link/anchor in repository Markdown, or oversized docs under the size-enforced paths.
 

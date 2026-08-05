@@ -18,9 +18,9 @@ from the skills, which have their own homes:
 ## Workflows
 
 - **[`dva-dogfood/`](dva-dogfood/)** — Prompt/Skill/Project improvement loop.
-  Numbered stages `00-start-cycle` → `70-feedback`; start at
-  [`dva-dogfood/00-start-cycle.md`](dva-dogfood/00-start-cycle.md). `METHODOLOGY.md`
-  is the shared self-improve spine; `ref-*.md` define the DVA domain contract.
+  Numbered stages `00-start` → `40-evaluate`; start at
+  [`dva-dogfood/00-start.md`](dva-dogfood/00-start.md). Four `ref-*.md` files carry
+  the contract: context, artifacts/session, evaluation, and safety.
 
 ## Why the canonical lives here (not in devenv/prmpt)
 
@@ -33,7 +33,7 @@ content, not its owner.
 
 `dva-dogfood/` was **imported from** `prmpt` (`packages/dva/dogfood`) and
 **decoupled** from that framework's gateway / catalog / CE controller, so it runs
-**standalone with only this repo** — hand `00-start-cycle.md` to any agent; no
+**standalone with only this repo** — hand `00-start.md` to any agent; no
 `prmpt-gateway` or devenv access is needed. `prmpt` keeps a reference pointer only
 (see `tasks/blocked/054-thin-prmpt-dva-dogfood-after-workflow-import.md`).
 

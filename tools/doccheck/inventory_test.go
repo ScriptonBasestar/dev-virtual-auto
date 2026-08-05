@@ -60,10 +60,11 @@ func TestSize_failsWhenOverByteLimit(t *testing.T) {
 	}
 }
 
-// Given METHODOLOGY.md over limits, When size is checked, Then it is exempt.
-func TestSize_exemptsMethodology(t *testing.T) {
+// Given a workflow prompt over limits, When size is checked, Then it is oversized:
+// the gate has no per-file exemption, so no path can opt out by name.
+func TestSize_hasNoPerFileExemption(t *testing.T) {
 	root := t.TempDir()
-	path := sizeExemptPath
+	path := "workflows/dva-dogfood/00-start.md"
 	body := strings.Repeat("line\n", maxDocLines+50)
 	if len(body) <= maxDocBytes {
 		body += strings.Repeat("y", maxDocBytes-len(body)+1)
@@ -74,11 +75,11 @@ func TestSize_exemptsMethodology(t *testing.T) {
 	inv := mustInventory(t, root, path, other)
 
 	res := Check(CheckInput{Root: root, Inventory: inv})
-	if !res.OK {
-		t.Fatalf("expected OK with exempt oversized methodology, errors=%v broken=%v", res.Errors, res.BrokenLinks)
+	if res.OK {
+		t.Fatal("expected oversized failure: no path is size-exempt")
 	}
-	if res.OversizedDocs != 0 {
-		t.Fatalf("oversized_docs=%d want 0 (exempt)", res.OversizedDocs)
+	if res.OversizedDocs != 1 {
+		t.Fatalf("oversized_docs=%d want 1", res.OversizedDocs)
 	}
 }
 
