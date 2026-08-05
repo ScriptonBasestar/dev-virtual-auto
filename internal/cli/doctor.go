@@ -318,12 +318,11 @@ func runSingleCheck(check config.DoctorCheck, configDir string) DoctorResult {
 func checkDocker() DoctorResult {
 	r := DoctorResult{Name: "Docker daemon accessible"}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "docker", "info")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	r.Passed = cmd.Run() == nil
+	// Shared with the compose lifecycle path, which consults the same probe after a
+	// failed command so the daemon diagnosis a failing `dva up` prints and the one
+	// doctor reports here cannot drift apart. nil env: doctor probes the ambient
+	// environment, as it always has.
+	r.Passed = lifecycle.DockerDaemonReachable(nil)
 
 	if !r.Passed {
 		r.Finding = "Docker daemon is NOT accessible ('docker info' failed)"

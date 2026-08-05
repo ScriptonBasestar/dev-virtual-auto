@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -205,13 +206,39 @@ func composeWorkdir(pctx *PluginContext) string {
 }
 
 // runSubprocess executes a docker compose command as a subprocess.
+//
+// A failure is inspected before it is returned: when the daemon is the reason, the bare
+// exit status is replaced by the diagnosis DVA already implements. Sitting here rather
+// than in Up means up, down and stop all report the condition the same way — the failure
+// is identical for all three, so the explanation should be too.
+//
+// The probe runs only after a failure, never before. A pre-flight daemon check would make
+// every successful command pay a subprocess round-trip for a condition that is rare, and
+// the preflight that does exist (preflightConfig) is justified precisely because it needs
+// no daemon.
 func (p *ComposePlugin) runSubprocess(pctx *PluginContext, args []string) error {
 	cmd, cmdArgs, err := p.buildArgs(pctx, args)
 	if err != nil {
 		return err
 	}
 	pctx.Logger.Debug("compose subprocess", "command", cmd, "args", cmdArgs)
-	return dvaexec.ExecSubprocessInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
+	runErr := dvaexec.ExecSubprocessInDir(pctx.Env, composeWorkdir(pctx), cmd, cmdArgs, false)
+	if runErr == nil {
+		return nil
+	}
+
+	// Only docker's daemon can answer for docker's failure. A runner the config replaced
+	// via compose.command (podman-compose, nerdctl) has its own daemon story, and naming
+	// Docker's there would be a guess dressed as a diagnosis. filepath.Base so an absolute
+	// /usr/local/bin/docker is still recognised.
+	if filepath.Base(cmd) != "docker" || DockerDaemonReachable(pctx.Env) {
+		return runErr
+	}
+	op := ""
+	if len(args) > 0 {
+		op = args[0]
+	}
+	return &DockerDaemonError{Op: op, cause: runErr}
 }
 
 // preflightConfig runs `docker compose ... config --quiet` to validate the
