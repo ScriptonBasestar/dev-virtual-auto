@@ -377,14 +377,20 @@ func TestPrintStatus_BrokenEntry(t *testing.T) {
 	}
 }
 
-func TestCloneEnv(t *testing.T) {
+// TestEnvClonePerEntryIsolation guards the property every Up/Down/Stop loop above depends
+// on: each entry gets its own Environment before MergeVars writes the entry's vars into it.
+// Sharing one would leave the first entry's runners.<name>.env set while the second runs.
+//
+// The clone itself now lives on config.Environment — `dva build` walks entries the same way
+// and needed the same copy — but the requirement is this package's, so the test stays here.
+func TestEnvClonePerEntryIsolation(t *testing.T) {
 	original := config.NewEnvironment(map[string]string{"A": "1"}, "/tmp", "/tmp")
-	clone := cloneEnv(original)
+	clone := original.Clone()
 
 	clone.Vars["B"] = "2"
 
 	if _, ok := original.Vars["B"]; ok {
-		t.Error("cloneEnv should not mutate the original environment")
+		t.Error("Clone should not mutate the original environment")
 	}
 	if clone.Vars["A"] != "1" {
 		t.Error("clone should carry original vars")

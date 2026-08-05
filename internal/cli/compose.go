@@ -529,8 +529,26 @@ Legacy flags:
 }
 
 var buildCmd = &cobra.Command{
-	Use:                "build [OPTIONS] [SERVICE...]",
-	Short:              "Build or rebuild services (mode-aware: docker or native)",
+	Use:   "build [PLAN] [ENTRY] [OPTIONS] [SERVICE...]",
+	Short: "Build a plan's entries (or compose services)",
+	Long: `Build what a named plan runs, one of its entries, or compose services.
+
+Plan usage:
+  dva build <plan>           Build every entry of the plan that has something to build
+  dva build <plan> <entry>   Build one entry of the plan
+
+Compose entries run 'docker compose build'; native entries run their
+'runners.native.build' command in the entry's directory, with the entry's
+variables. Entries with neither are skipped, not reported as failures.
+
+Everything after the plan and entry names is passed to whatever does the
+building — '--no-cache', '--pull' and service names reach docker compose
+unchanged. A native build command is run as written and takes no extra
+arguments. With more than one entry to build there is nothing to pass them to,
+so name the entry first.
+
+Without plans, or when the first argument is not a plan name, this stays a
+mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -546,6 +564,23 @@ var buildCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		// Plan routing reads what parseDvaFlags left, so --dry-run and --mode are already
+		// claimed and the plan-name slot holds a name or a tool's flag. logsCmd calls
+		// consumeRootPersistentFlags at this point instead; here parseDvaFlags has done that
+		// job and more, and calling both would walk the same argv twice.
+		if planName, extraArgs, ok := detectPlanRoute(c, remaining); ok {
+			return runPlanBuild(c, e, planName, extraArgs)
+		}
+		if err := requirePlanSelection(c, "build", remaining); err != nil {
+			return err
+		}
+		if err := rejectSuppressedDefaultPlan(c, "build", remaining); err != nil {
+			return err
+		}
+		// No rejectUnknownPlanArg, as in logs: `dva build api` naming a compose service
+		// predates plans and is still what most of that argument's uses mean.
+
 		mode, _ = applyDefaultMode(c, mode)
 
 		// Check mode build strategy

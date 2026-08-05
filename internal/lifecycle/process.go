@@ -13,6 +13,27 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
+// EntryDir resolves an entry's declared directory against the config directory.
+//
+// Empty means the config directory itself, and a relative path is relative to it — not to the
+// shell's cwd, which is what a bare exec.Cmd would use and what the caller's terminal happens
+// to be sitting in.
+//
+// Exported because `dva build` resolves runners.native.build's directory and this plugin
+// resolves runners.native.run's, and they describe the same entry. Two copies of the rule
+// would let `build` compile in one tree while `up` runs from another, which produces no error
+// at all — just a stale binary and a build whose output nothing reads.
+func EntryDir(configDir, dir string) string {
+	switch {
+	case dir == "":
+		return configDir
+	case filepath.IsAbs(dir):
+		return dir
+	default:
+		return filepath.Join(configDir, dir)
+	}
+}
+
 // ProcessPlugin manages local processes as services.
 type ProcessPlugin struct{}
 
@@ -30,12 +51,7 @@ func (p *ProcessPlugin) Up(ctx context.Context, pctx *PluginContext) (*Result, e
 	}
 
 	name := pctx.Entry.Name
-	dir := cfg.Dir
-	if dir == "" {
-		dir = pctx.ConfigDir
-	} else if !filepath.IsAbs(dir) {
-		dir = filepath.Join(pctx.ConfigDir, dir)
-	}
+	dir := EntryDir(pctx.ConfigDir, cfg.Dir)
 
 	// Check if already running
 	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")

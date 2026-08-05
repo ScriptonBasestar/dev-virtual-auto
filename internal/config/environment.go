@@ -54,6 +54,18 @@ func NewEnvironment(defaultVars map[string]string, workDir, cfgDir string) *Envi
 	return env
 }
 
+// Clone returns a copy of e with its own Vars map.
+//
+// MergeVars mutates in place, so anything that merges entry-scoped declarations needs one of
+// these per entry: without it the first entry's runners.<name>.env would still be set while
+// the second entry runs. Both the orchestrator and `dva build` walk entries that way, which
+// is why the copy lives on the type rather than beside one of them.
+func (e *Environment) Clone() *Environment {
+	clone := NewEnvironment(nil, e.workDir, e.cfgDir)
+	maps.Copy(clone.Vars, e.Vars)
+	return clone
+}
+
 // MergeVars merges new variables. For each key, ENV takes priority,
 // then the provided value (with interpolation).
 func (e *Environment) MergeVars(vars map[string]string) {

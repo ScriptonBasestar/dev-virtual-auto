@@ -643,7 +643,7 @@ func (am *AppManager) startNativeApp(name string, app *config.ApplicationConfig,
 	cmd.Stderr = logFile
 
 	// Build environment: base env + app-specific vars
-	appEnv := cloneEnv(am.env)
+	appEnv := am.env.Clone()
 	maps.Copy(appEnv.Vars, app.Environment)
 	cmd.Env = appEnv.EnvSlice()
 

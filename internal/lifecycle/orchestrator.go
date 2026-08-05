@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,7 +83,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 	}
 
 	// Clone env so exports accumulate without mutating the original
-	envClone := cloneEnv(o.env)
+	envClone := o.env.Clone()
 
 	// Resolve mode-derived compose hints
 	var modeProfiles []string
@@ -109,7 +108,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 			entryComposeServices = &selected
 		}
 
-		entryEnv := cloneEnv(envClone)
+		entryEnv := envClone.Clone()
 		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
@@ -195,7 +194,7 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 			entryComposeServices = &selected
 		}
 
-		entryEnv := cloneEnv(o.env)
+		entryEnv := o.env.Clone()
 		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
@@ -250,7 +249,7 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 			entryComposeServices = &selected
 		}
 
-		entryEnv := cloneEnv(o.env)
+		entryEnv := o.env.Clone()
 		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:           &entry,
@@ -310,7 +309,7 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 			continue
 		}
 
-		entryEnv := cloneEnv(o.env)
+		entryEnv := o.env.Clone()
 		entryEnv.MergeVars(entry.Vars)
 		pctx := &PluginContext{
 			Entry:     &entry,
@@ -600,11 +599,4 @@ func hasAnyTag(tags []string, tagSet map[string]bool) bool {
 		}
 	}
 	return false
-}
-
-// cloneEnv creates a shallow copy of an Environment with a new Vars map.
-func cloneEnv(e *config.Environment) *config.Environment {
-	clone := config.NewEnvironment(nil, e.WorkDir(), e.CfgDir())
-	maps.Copy(clone.Vars, e.Vars)
-	return clone
 }
