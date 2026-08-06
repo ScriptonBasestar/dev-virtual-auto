@@ -256,7 +256,9 @@ func TestDetectConfigSuggestionWarnings_FromMakefileAndPackageJSON(t *testing.T)
 }
 
 func TestShouldIgnoreMakefileTarget(t *testing.T) {
-	// Exact matches: DVA reserved commands and meta targets
+	// Exact matches: DVA reserved commands and meta targets — plus `ps` and `clean`, which
+	// are ignored on their own merit and not because a built-in shares the name. `clean`
+	// stayed on this list when the built-in was removed; see the grouping in validate.go.
 	exactIgnored := []string{
 		"help", "all", "default",
 		"stop", "up", "down", "restart",

@@ -7,6 +7,11 @@
 2. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
 3. **기존 `stack.<entry>.runners.compose` -> `services` 메타데이터(`tags`)를 삭제하지 마세요.** 수정/추가만 허용됩니다.
 4. **`services`는 `tags` 전용입니다.** 예전 스키마에 있던 `ports`/`related`/`hint`는 제거됐고 지금은 `dva validate`가 거부합니다. 기존 파일에 남아 있으면 그대로 두지 말고 옮기세요 — `ports` -> 최상위 `endpoints:`, `hint` -> `health_checks.<name>.start_hint`, `related` -> `tags` 또는 `modes.<name>.compose_services`. 새로 추가하지 마세요.
-5. **기존 `applications:` 섹션의 앱 정의를 삭제하지 마세요.** 수정/추가만 허용됩니다.
+5. **기존 `applications:` 섹션은 `stack` 엔트리로 변환하세요.** 이 키는 제거됐고
+   (docs/43) `dva validate`가 거부합니다 — 보존 모드라도 그대로 두면 파일이 로드되지
+   않습니다. `dva config migrate`가 `stack.<name>.default_runner: native` +
+   `runners.native`로 변환합니다. 앱 정의 자체는 **삭제하지 말고** 옮기세요.
+   변환되지 않는 필드(`dev`, `variants`, `depends_on`, `port`)는 migrate 리포트가
+   이름을 대며 알려주므로, 그 항목만 손으로 처리하세요.
 
 > 공통 규칙은 DVA Library Reference의 "DVA Configuration Guardrails (Shared)" 섹션을 따르세요.

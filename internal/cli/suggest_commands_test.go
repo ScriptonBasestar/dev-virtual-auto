@@ -32,7 +32,11 @@ func TestCobraSuggestsWhatDvaUsedToMiss(t *testing.T) {
 	if !slices.Contains(got, "status") {
 		t.Errorf("suggestions for %q = %q; want it to contain %q — the name dva's own block could not reach", "sta", got, "status")
 	}
-	for _, want := range []string{"stack", "stop"} {
+	// `stack` was the other name in this list and is no longer a command, so cobra cannot
+	// offer it and neither could dva's block. `stop` is what remains of the pair — the
+	// claim is that adopting cobra did not *lose* suggestions, and one surviving witness
+	// still carries it.
+	for _, want := range []string{"stop"} {
 		if !slices.Contains(got, want) {
 			t.Errorf("suggestions for %q = %q; want it to still contain %q, which dva's block did offer", "sta", got, want)
 		}

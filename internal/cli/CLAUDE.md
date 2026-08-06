@@ -18,10 +18,15 @@ var jsonOutput bool
 
 | Group ID | 설명 | 주요 파일 |
 |---|---|---|
-| `core` | ls, run, show, validate | list.go, run.go, show.go |
-| `project` | init, version, doctor | init.go, doctor.go |
-| `lifecycle` | compose, stack, app | compose.go, stack.go |
-| `integration` | kubectl, infra, ssh | kubectl.go, infra.go, ssh.go |
+| `core` | ls, run, version | list.go, run.go, version.go |
+| `project` | show, status, config, doctor | show.go, status.go, config_dump.go, doctor.go |
+| `lifecycle` | up, down, stop, restart, build, logs | plan_lifecycle.go, compose.go, build.go, logs.go |
+| `integration` | compose, ktl, ssh | compose.go, kubectl.go, ssh.go |
+| `advanced` | manifest, console, provision, validate | manifest.go, console.go, provision.go, validate.go |
+
+lifecycle 동사는 전부 plan(`<name>`) 기준 단일 세대입니다. `stack`/`app`/`infra`/`clean`은
+제거됐고 (docs/43) `stack.go`·`app.go`·`infra.go`도 함께 사라졌습니다. 엔트리 부분 실행은
+plan 선언으로 표현합니다.
 
 ## Dynamic Commands
 
@@ -39,7 +44,8 @@ Go 팩트(reserved commands, section order)는 `tools/libgen`이 `shared-guardra
 
 ## Naming Convention
 
-파일명 = 커맨드명 (예: `compose.go` → `dva compose`, `stack.go` → `dva stack app`).
+파일명 = 커맨드명 (예: `compose.go` → `dva compose`, `logs.go` → `dva logs`).
+plan 경로를 공유하는 lifecycle 동사는 `plan_lifecycle.go`에 모입니다.
 테스트는 `*_test.go`, 복잡한 플래그 테스트는 `*_extra_test.go`.
 
 ## Output Formatting

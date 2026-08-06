@@ -2,7 +2,7 @@
 
 개발 환경 오케스트레이터 — `dva.yml` 하나로 Docker Compose, Kubernetes, Helm, 로컬 프로세스 등을 통합 관리.
 
-**제품 특성**: DVA는 동작을 코드가 아니라 설정으로 정하는 개발환경 *구성* 도구입니다. 실행 방식은 `dva.yml`에서 자유롭게 선언하며, 기본 실행과 개발용(hot-reload) 실행을 옵트인으로 구분합니다 — 무엇이 개발용이고 무엇이 배포용인지는 도구가 아니라 설정이 결정합니다.
+**제품 특성**: DVA는 동작을 코드가 아니라 설정으로 정하는 개발환경 *구성* 도구입니다. 실행 방식은 `dva.yml`에서 자유롭게 선언하고, 어떤 조합을 띄울지는 **named plan**으로 고릅니다 — 기본 실행과 hot-reload 실행처럼 서로 다른 실행 방식은 각각 엔트리로 선언한 뒤 plan이 선택합니다. 무엇이 개발용이고 무엇이 배포용인지는 도구가 아니라 설정이 결정합니다.
 
 ## Install
 
@@ -27,7 +27,6 @@ version: "0.1.44"
 stack:
   compose:
     default_runner: compose
-    order: 10
     runners:
       compose:
         files:
@@ -57,23 +56,23 @@ dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ## Commands
 
 ```bash
-# Lifecycle (named plans are the primary interface)
+# Lifecycle — 동사는 전부 plan 기준입니다
 dva up local-dev           # named plan 시작
 dva down local-dev         # named plan teardown
+dva stop local-dev         # 컨테이너 유지한 채 정지
+dva restart local-dev      # 재시작
+dva build local-dev        # plan 엔트리 빌드
+dva logs local-dev         # plan 엔트리 로그
 dva status local-dev       # named plan 상태
 
-# Low-level escape hatches
-dva stack up compose       # 특정 stack 엔트리 직접 시작
+dva up                     # plan 인자를 생략하면 stack 전체
+
+# 파괴적 teardown (확인 프롬프트, --force로 생략)
+dva down local-dev -v      # 볼륨까지 제거
+dva down local-dev --purge # 볼륨 + 이미지 + provision 마커까지 제거
+
+# Escape hatch
 dva compose ps             # raw Docker Compose passthrough
-
-# Applications
-dva app ls                 # 앱 목록 (상태, 포트, PID)
-dva app up                 # 전체 앱 시작 (의존성 순서)
-dva app up api --dev       # dev 모드 (hot-reload)
-dva app down               # 전체 앱 중지
-
-# Legacy compatibility (deprecated surfaces may still exist)
-dva up                     # plan이 하나면 기본 plan, 없으면 legacy 전체 stack
 
 # Interaction
 dva ls                     # 사용 가능한 커맨드 목록
@@ -96,56 +95,85 @@ dva doctor                 # 환경 사전조건 진단
 
 ### Stack (인프라 오케스트레이션)
 
-`stack:` 섹션에서 여러 플러그인을 `order` 순서대로 실행합니다:
+`stack:` 섹션은 실행 가능한 엔트리를 **선언**합니다. 무엇을 어떤 순서로 실행할지는
+`plans:`가 정합니다:
 
 ```yaml
 stack:
   compose:
     default_runner: compose
-    order: 10
     runners:
       compose:
         files: [docker-compose.yml]
         project_name: myapp
   kubectl:
-    order: 20
     namespace: myapp-dev
   my-staging:
     default_runner: compose
-    order: 30
     runners:
       compose:
         files: [docker-compose.staging.yml]
 ```
 
+> 엔트리에 `order:`를 직접 다는 legacy 형식은 plan 경로에서 읽히지 않습니다. 실행되는 것은
+> `plans.*.entries[].order`이며, `dva config migrate`가 변환합니다.
+
 지원 플러그인: `compose`, `kubectl`, `helm`, `kustomize`, `tilt`, `skaffold`, `podman-compose`, `process`, `script`, `docker`, `vagrant`, `sam`, `serverless`, `multipass`
 
-### Applications (앱 프로세스 관리)
+### 앱 프로세스 (`native` 러너)
 
-`applications:` 섹션에서 네이티브/Docker 앱 프로세스를 정의하고 `dva app`으로 관리합니다:
+앱 프로세스도 stack 엔트리입니다 — `native` 러너를 쓰는 엔트리 하나가 앱 하나입니다.
+전용 섹션이나 전용 명령은 없습니다:
 
 ```yaml
-applications:
+stack:
   api:
     description: "REST API server"
-    port: 11200
-    depends_on: []
-    run:
-      native: "cargo run --release -p api-server"
-      docker: { service: api-rs, profile: rust }
-    dev: "cargo watch -x 'run -p api-server'"
-    health:
-      type: http
-      url: "http://localhost:11200/health"
+    default_runner: native
+    runners:
+      native:
+        dir: services/api
+        build: "cargo build --release -p api-server"
+        run: "cargo run --release -p api-server"
+        env:
+          RUST_LOG: debug
+    health_checks:
+      api:
+        type: http
+        url: "http://localhost:11200/health"
 ```
 
-> `run`은 기본 실행 명령, `dev`는 hot-reload 명령입니다. `dva app up`은 `run`을 실행하고, `dva app up <app> --dev`가 `dev`를 실행합니다 — 개발 모드는 **옵트인**이며 `dva app up`이 자동으로 dev로 뜨지 않습니다. 무엇을 dev/prod로 볼지는 이 설정이 정합니다. (별도의 `dva dev` 명령은 없습니다.)
+> 엔트리는 `run` 명령 **하나**를 선언합니다. hot-reload처럼 실행 방식이 다르면 별도
+> 엔트리(`api-watch` 등)로 선언하고 plan이 고릅니다 — 어느 쪽이 개발용인지는 도구가
+> 아니라 plan이 정합니다. `--dev` 플래그는 없습니다.
+
+### Plans (실행 가능한 이름)
+
+`plans:` 섹션이 stack 엔트리·환경·site를 묶어 이름을 붙입니다. 모든 lifecycle 동사는
+이 이름을 받습니다:
+
+```yaml
+plans:
+  local-dev:
+    environment: dev
+    entries:
+      - name: compose
+        order: 10
+      - name: api
+        order: 20
+```
+
+```bash
+dva up local-dev
+dva logs local-dev api      # 엔트리 하나만
+dva down local-dev --purge
+```
 
 ### 기타 설정
 
-- **Modes** (`--mode/-M`): 운영 모드별 compose profiles + 서비스 필터 + 환경변수 + stack 엔트리 필터 + 앱 전략
+- **Modes** (`--mode/-M`): 런타임 전략 선택 — compose profiles + 서비스 필터 + 환경변수 + stack 엔트리 필터 (dev 전용 도구이며 stg/prd 환경 개념은 없습니다)
 - **Environments** (`--env/-E`): 환경변수 프리셋 + stack 엔트리 필터
-- **Tags** (`--tags/-T`): 태그 기반 특정 서비스/앱 그룹 필터링 (`--tag` 별칭 지원)
+- **Tags** (`--tags/-T`): 태그 기반 서비스/엔트리 그룹 필터링 (`--tag` 별칭 지원)
 - **Health Checks**: 비-compose 서비스 상태 확인 및 자동 시작
 - **Subprojects**: 모노레포 서브프로젝트 참조 (`dva api:test`)
 - **Modules**: `.sb/dva/*.yml` 파일로 설정 분리

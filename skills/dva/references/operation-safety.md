@@ -61,8 +61,9 @@ output.
   is not runtime truth.
 - Distinguish `stop` from `down`: stop preserves resumable resources; down tears
   down in reverse dependency order.
-- Do not confuse `dva app up` with development mode. Legacy app execution uses
-  its configured `run` command unless the supported dev-mode surface is selected.
+- An entry declares one `run` command. A hot-reload variant is a separate entry
+  selected by a different plan, not a mode toggle on the same declaration — the
+  `dva app up --dev` shape that used to provide this was removed with `dva app`.
 
 ## Select Raw Tools Conservatively
 

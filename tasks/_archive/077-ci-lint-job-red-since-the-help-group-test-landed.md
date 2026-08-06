@@ -60,7 +60,7 @@ its failure message, and the block ordering it pins are all unchanged.
 ## Acceptance criteria
 
 - [x] The linter is clean repo-wide at the pinned version | verify: `golangci-lint run ./... 2>&1 | tail -1` — prints `0 issues.`
-- [x] The test still pins the block order | verify: `go test ./internal/cli/ -run TestLifecycleHelpSeparatesRecommendedFromDirectAccess`
+- [x] The test still pins the block order | verify: `go test ./internal/cli/ -run TestLifecycleHelpSeparatesRecommendedFromOther` — renamed from `…FromDirectAccess` when the restructure (`docs/43`) deleted the "Direct Access" block; same test, same assertion about block order
 - [x] Full suite passes under -race | verify: `make test`
 
 ## Evidence

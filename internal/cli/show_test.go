@@ -78,13 +78,17 @@ func stackShapedConfig() *config.Config {
 
 // TestShowNamesStackEntries is the point of the section: before it, `dva show` printed a
 // `Compose:` heading — a runner's name — and no way to learn that the entry is called `infra`,
-// which is the word `dva stack up <name>` and the tag filters actually take.
+// which is the word a plan's entries[].name and the tag filters actually take.
+//
+// The heading used to say what command consumed the name — `dva stack up <name>` — and that
+// command is gone. Nothing single replaced it: an entry name is now referenced from a plan,
+// not typed at a prompt. So the heading names the two things that consume it instead.
 func TestShowNamesStackEntries(t *testing.T) {
 	out := captureStdout(t, func() {
 		showText(stackShapedConfig())
 	})
 
-	if !strings.Contains(out, "Stack (dva stack up <name>):") {
+	if !strings.Contains(out, "Stack (entry names, referenced by plans and tag filters):") {
 		t.Fatalf("no stack section; the entry names are unreachable from show output.\ngot:\n%s", out)
 	}
 	for _, name := range []string{"infra", "api", "bare", "void", "vms"} {
@@ -94,7 +98,7 @@ func TestShowNamesStackEntries(t *testing.T) {
 	}
 
 	// Naming an entry without its runner leaves the reader knowing a name they cannot act on:
-	// the runner decides which of `dva stack up`'s backends handles it.
+	// the runner decides which lifecycle backend handles it when a plan pulls it in.
 	for _, want := range []string{"runner:compose", "runners:helm,kubectl", "default:helm", "runner:script", "runner:podman-compose"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("show output is missing %q.\ngot:\n%s", want, out)
@@ -135,7 +139,7 @@ func TestShowNamesStackEntries(t *testing.T) {
 // time — a flaky test, which is worse than none.
 //
 // This asserts through showText rather than SortedStack even though the tiebreak now lives in
-// config: what a reader compares against `dva stack up` is the rendered listing, so the property
+// config: what a reader compares against a plan's entry list is the rendered listing, so the property
 // belongs to this surface regardless of which layer supplies it.
 func TestShowStackOrderIsStableAcrossRenders(t *testing.T) {
 	c := stackShapedConfig()

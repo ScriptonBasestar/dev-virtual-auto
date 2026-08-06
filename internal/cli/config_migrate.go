@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,24 +17,29 @@ var configMigrateWrite bool
 
 var configMigrateCmd = &cobra.Command{
 	Use:   "migrate [path]",
-	Short: "Rewrite legacy compose declarations into the runners shape",
-	Long: `Rewrite the compose declarations DVA no longer accepts:
+	Short: "Convert legacy declarations into the stack/plan shape",
+	Long: `Convert the declarations DVA has moved on from:
 
-  stack:                         stack:
-    compose:                       compose:
-      files: [compose.yml]   ->      default_runner: compose
-      project_name: app              runners:
-                                       compose:
-                                         files: [compose.yml]
-                                         project_name: app
+  compose entries   ->  stack.<name>.runners.compose
+  applications:     ->  stack.<name>.runners.native
+  stack.*.order     ->  plans.<plan>.entries[].order
 
-Covers all three legacy forms: a stack entry named 'compose' carrying compose
-keys directly, an explicit 'plugin: compose', and a nested 'compose:' sub-key.
+The compose rewrite repairs a shape DVA refuses to load at all. The other two
+convert shapes that still load but that nothing reads on the plan path: an
+order left on a stack declaration is overwritten by the plan entry's own value,
+so a config that declares it and runs through a plan is not ordered by it.
+
+Conversion is per declaration. Anything that cannot be converted mechanically
+is left exactly where it is and listed under "left for you" with what it did
+and where that behaviour now lives — 'modes' is always in that list, because
+one mode spreads across plans, environments and the entries' own runners and
+which plan it becomes is a naming decision rather than a derivation.
 
 Prints the result by default and changes nothing; pass --write to apply. Only
-the migrated entries are rewritten — every other line keeps its original bytes,
-comments and blank lines included. The migrated config is loaded and validated
-in memory first, so a file is never written in a state DVA cannot read.
+the migrated declarations are rewritten — every other line keeps its original
+bytes, comments and blank lines included. The migrated config is loaded and
+validated in memory first, so a file is never written in a state DVA cannot
+read.
 
   dva config migrate                # preview the current project
   dva config migrate --write        # apply
@@ -53,26 +60,22 @@ in memory first, so a file is never written in a state DVA cannot read.
 			return err
 		}
 
-		out, migrated, err := config.MigrateLegacyCompose(src)
+		out, report, err := config.Migrate(src)
 		if err != nil {
 			return err
 		}
-		if len(migrated) == 0 {
-			// This command only repairs the one compose shape DVA refuses to load
-			// (see the Long help above); it says nothing about the deprecated-but-
-			// loadable shapes 'dva validate' warns about, so a bare "nothing to
-			// migrate" reads as "nothing to do" when validate may disagree. Name
-			// what was checked and where the rest of the migration guidance lives.
-			//
-			// 'modes', 'stack.*.order' and 'applications' below are a hint, not a
-			// rule sourced from one place: internal/config/validate_warnings.go's
-			// warnLegacyModes/warnLegacyStackOrder/warnLegacyApplications have no
-			// exported list of the section names they cover, and adding one is out
-			// of scope for this fix (TASK-069). If validate's set of deprecated
-			// sections changes, update this string by hand.
-			fmt.Printf("%s: no legacy compose declarations found (this command only converts the\n", path)
-			fmt.Println("compose shape DVA cannot load). Run 'dva validate' for deprecation warnings —")
-			fmt.Println("'modes', 'stack.*.order' and 'applications' are migrated by hand.")
+
+		// Changes and rewrites are the same event — every conversion that reports
+		// itself also edits the file — so the byte comparison decides which of the
+		// three endings this is, and blocked-only configs take the no-rewrite path
+		// with their guidance still printed.
+		if bytes.Equal(out, src) {
+			fmt.Printf("%s: nothing to convert.\n", path)
+			printMigrationReport(os.Stdout, report)
+			// Conversion covers the shapes with a mechanical target. 'dva validate'
+			// knows about deprecations that have none, so "nothing to convert" is
+			// not "nothing to do".
+			fmt.Println("Run 'dva validate' for the deprecations this command does not convert.")
 			return nil
 		}
 
@@ -84,22 +87,58 @@ in memory first, so a file is never written in a state DVA cannot read.
 		}
 
 		if !configMigrateWrite {
+			// The config goes to stdout so the preview can be redirected or diffed;
+			// everything about the run goes to stderr so that redirect stays clean.
 			fmt.Print(string(out))
-			fmt.Fprintf(os.Stderr, "\n%s: would migrate %s (--write to apply)\n",
-				path, strings.Join(migrated, ", "))
+			fmt.Fprintln(os.Stderr)
+			printMigrationReport(os.Stderr, report)
+			fmt.Fprintf(os.Stderr, "%s: not written (--write to apply)\n", path)
 			return nil
 		}
 
 		if err := os.WriteFile(path, out, 0o644); err != nil {
 			return err
 		}
-		fmt.Printf("%s: migrated %s\n", path, strings.Join(migrated, ", "))
+		fmt.Printf("%s: migrated\n", path)
+		printMigrationReport(os.Stdout, report)
 		// A config that could not load was never schema-checked past the first
 		// error, so migration routinely uncovers unrelated problems that were
 		// masked rather than absent. Say so instead of implying it is now clean.
 		fmt.Println("Run 'dva validate' — issues the load failure was hiding may surface now.")
 		return nil
 	},
+}
+
+// printMigrationReport writes what moved and what did not.
+//
+// Blocked is printed on every path, including the one where nothing converted. A
+// config that needs hands is the whole result for that config, and swallowing the
+// list because there was no rewrite to announce would leave the operator with a
+// bare "nothing to convert" over a file full of 'modes'.
+//
+// Lines already starting with a space are continuations of the entry above and keep
+// their nesting instead of getting a bullet of their own.
+func printMigrationReport(w io.Writer, report config.MigrationReport) {
+	for _, section := range []struct {
+		title string
+		lines []string
+	}{
+		{"Converted:", report.Changes},
+		{"Left for you:", report.Blocked},
+	} {
+		if len(section.lines) == 0 {
+			continue
+		}
+		fmt.Fprintf(w, "\n%s\n", section.title)
+		for _, line := range section.lines {
+			if strings.HasPrefix(line, " ") {
+				fmt.Fprintf(w, "  %s\n", line)
+				continue
+			}
+			fmt.Fprintf(w, "  - %s\n", line)
+		}
+		fmt.Fprintln(w)
+	}
 }
 
 // resolveConfigPath accepts either a directory or the config file itself.

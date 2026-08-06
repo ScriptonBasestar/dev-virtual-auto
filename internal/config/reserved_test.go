@@ -273,30 +273,39 @@ interaction:
 	}
 }
 
+// The prefixes here were `app:` and `infra:`, and both stopped conflicting when the commands
+// were removed — the check reads the live reserved set. `compose:` and `provision:` replace
+// them. `app:build` moves down to the control group for the same reason `cargo:build` is
+// there: nothing DVA owns is named by either prefix now.
 func TestValidateReservedCommands_NamespacePrefixConflict(t *testing.T) {
 	interaction := map[string]*InteractionCommand{
-		"app:build":   {Description: "build app"},
-		"infra:setup": {Description: "setup infra"},
-		"cargo:build": {Description: "no conflict"},
+		"compose:ps":      {Description: "compose status"},
+		"provision:setup": {Description: "setup provisioning"},
+		"cargo:build":     {Description: "no conflict"},
+		"app:build":       {Description: "no conflict since `dva app` was removed"},
 	}
 
 	conflicts := ValidateReservedCommands(interaction)
 	if len(conflicts) != 2 {
-		t.Fatalf("expected 2 conflicts (app:build, infra:setup), got %d: %v", len(conflicts), conflicts)
+		t.Fatalf("expected 2 conflicts (compose:ps, provision:setup), got %d: %v", len(conflicts), conflicts)
 	}
 
 	names := map[string]bool{}
 	for _, c := range conflicts {
 		names[c.Name] = true
 	}
-	if !names["app:build"] {
-		t.Error("expected conflict for 'app:build'")
+	if !names["compose:ps"] {
+		t.Error("expected conflict for 'compose:ps'")
 	}
-	if !names["infra:setup"] {
-		t.Error("expected conflict for 'infra:setup'")
+	if !names["provision:setup"] {
+		t.Error("expected conflict for 'provision:setup'")
 	}
 	if names["cargo:build"] {
 		t.Error("'cargo:build' should not conflict")
+	}
+	if names["app:build"] {
+		t.Error("'app:build' should not conflict: `app` is no longer a reserved command, so " +
+			"the prefix names nothing DVA owns and the key is an ordinary interaction")
 	}
 }
 

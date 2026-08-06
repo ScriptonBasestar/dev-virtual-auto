@@ -20,7 +20,8 @@ One section per declared area — stack entries and the runners each declares, p
 modes (--mode), environments (--env), interaction commands, provision profiles,
 health checks, subprojects — and areas the config does not declare are omitted.
 
-Stack rows name the entry, which is the argument 'dva stack up <name>' takes.`,
+Stack rows name the entry, which is what a plan's entries[].name references and what
+the tag filters match.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 
@@ -54,7 +55,7 @@ type stackEntryView struct {
 // PrimaryComposeEntry, PrimaryKubectlConfig, ComposeEntries and KubectlEntries share via
 // lessByOrderName — and populates Name from the map key, which is the only place that key survives.
 // A local re-sort would be a sixth copy of that comparator and would drift from the sequence
-// `dva stack up` walks, which is the one a reader is comparing this listing against.
+// the orchestrator walks, which is the one a reader is comparing this listing against.
 func stackViews(c *config.Config) []stackEntryView {
 	entries := c.SortedStack()
 	views := make([]stackEntryView, 0, len(entries))
@@ -120,11 +121,11 @@ func showText(c *config.Config) error {
 	}
 
 	// Stack entries, before Compose: the Compose block reports one *runner*'s settings, so on its
-	// own it never names the entry those settings belong to — and the entry name is what
-	// `dva stack up <name>` and the tag filters take.
+	// own it never names the entry those settings belong to — and the entry name is what a plan's
+	// entries[].name references and the tag filters match.
 	if views := stackViews(c); len(views) > 0 {
 		fmt.Println()
-		fmt.Println("Stack (dva stack up <name>):")
+		fmt.Println("Stack (entry names, referenced by plans and tag filters):")
 		names := make([]string, 0, len(views))
 		for _, v := range views {
 			names = append(names, v.Name)
@@ -236,29 +237,6 @@ func showText(c *config.Config) error {
 				} else {
 					desc += fmt.Sprintf(" (%d vars)", len(site.Vars))
 				}
-			}
-			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
-		}
-	}
-
-	// Applications
-	if len(c.Applications) > 0 {
-		fmt.Println()
-		fmt.Printf("Applications: %d defined\n", len(c.Applications))
-		names := sortedKeys(c.Applications)
-		maxLen := maxKeyLen(names)
-		for _, name := range names {
-			app := c.Applications[name]
-			strategies := []string{}
-			if app.Run.HasNative() || app.Dev.HasNative() {
-				strategies = append(strategies, "native")
-			}
-			if app.Run.HasDocker() || app.Dev.HasDocker() {
-				strategies = append(strategies, "docker")
-			}
-			desc := app.Description
-			if len(strategies) > 0 {
-				desc += fmt.Sprintf(" [%s]", strings.Join(strategies, "/"))
 			}
 			fmt.Printf("  %-*s  %s\n", maxLen, name, desc)
 		}
@@ -432,24 +410,6 @@ func showJSON(c *config.Config) error {
 			}
 		}
 		data["sites"] = sites
-	}
-
-	if len(c.Applications) > 0 {
-		apps := make(map[string]any, len(c.Applications))
-		for k, v := range c.Applications {
-			entry := map[string]any{"description": v.Description}
-			if v.Run.HasNative() || v.Dev.HasNative() {
-				entry["native"] = true
-			}
-			if v.Run.HasDocker() || v.Dev.HasDocker() {
-				entry["docker"] = true
-			}
-			if len(v.Tags) > 0 {
-				entry["tags"] = v.Tags
-			}
-			apps[k] = entry
-		}
-		data["applications"] = apps
 	}
 
 	if len(c.Interaction) > 0 {

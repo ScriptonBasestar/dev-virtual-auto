@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -88,8 +87,6 @@ Without plans, use the legacy stack and applications lifecycle.
 	Legacy flags:
 	  --force                   Compose only: pass --force-recreate (other plugins ignore)
 	  --no-wait                 Start services and return immediately without waiting
-	  --dev                     Start applications in dev mode (hot-reload)
-	  --docker                  Force docker strategy for applications
 	  --mode, -M MODE           Use a named mode from dva.yml modes section
 	  --env, -E ENV             Use a named environment from dva.yml environments section
 	  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -125,8 +122,6 @@ Without plans, use the legacy stack and applications lifecycle.
 
 		force := false
 		noWait := false
-		devMode := false
-		docker := false
 		var leftover []string
 		for i := 0; i < len(args); i++ {
 			a := args[i]
@@ -135,10 +130,6 @@ Without plans, use the legacy stack and applications lifecycle.
 				force = true
 			case a == "--no-wait":
 				noWait = true
-			case a == "--dev":
-				devMode = true
-			case a == "--docker":
-				docker = true
 
 			// --var belongs to the plan path (runPlanUp consumes it before this loop is
 			// reached) and upCmd.Long documents it as "Ignored off the plan path". So it is a
@@ -167,10 +158,12 @@ Without plans, use the legacy stack and applications lifecycle.
 		//
 		// Two guards, because `dva up` accepts no positional names either. rejectUpPositionalArg
 		// already ran above, but only on args[0] — with a flag in front of it, as in
-		// `dva up --dev nosuchthing`, it returns nil at its leading-dash check and the name
+		// `dva up --force nosuchthing`, it returns nil at its leading-dash check and the name
 		// reached here to be dropped. Measured: exit 0, the whole stack started, the argument
-		// silently gone.
-		if err := rejectUnknownFlags("up", "", leftover, withSelectors([]string{"--force", "--no-wait", "--dev", "--docker", "--var"}, stackSelectorFlags)); err != nil {
+		// silently gone. (The example read `--dev` until that flag was removed with
+		// `applications:` — it is an accepted flag that has to lead, and --force is the
+		// nearest surviving one.)
+		if err := rejectUnknownFlags("up", "", leftover, withSelectors([]string{"--force", "--no-wait", "--var"}, stackSelectorFlags)); err != nil {
 			return err
 		}
 		if err := rejectUpPositionalArg(c, leftover); err != nil {
@@ -211,34 +204,12 @@ Without plans, use the legacy stack and applications lifecycle.
 			Env:         envName,
 		})
 
-		// Phase 2: App up (applications) — only if applications are defined
-		var appErr error
-		if upErr == nil && len(c.Applications) > 0 {
-			strategy := ""
-			if docker {
-				strategy = "docker"
-			}
-			am := lifecycle.NewAppManager(c, e)
-			appErr = am.StartApps(context.Background(), lifecycle.AppStartOptions{
-				Strategy: strategy,
-				DevMode:  devMode,
-				DryRun:   dryRun,
-				Wait:     !noWait,
-				Mode:     mode,
-			})
-		}
-
 		// Print status summary and endpoints regardless of up errors,
 		// so users can see connection info for services that did start.
 		fmt.Fprintln(os.Stderr)
 		status, statusErr := orch.Status(context.Background())
 		if statusErr == nil {
 			lifecycle.PrintStatus(status, c.FileDir())
-		}
-		if len(c.Applications) > 0 {
-			am := lifecycle.NewAppManager(c, e)
-			statuses := am.AppStatuses()
-			printAppStatuses(statuses)
 		}
 		if len(c.Endpoints) > 0 {
 			allHC := checkEndpointHealth(c.Endpoints)
@@ -249,17 +220,16 @@ Without plans, use the legacy stack and applications lifecycle.
 			printEndpointTable(c.Endpoints, epTags, allHC)
 		}
 
-		// Both, joined, and only after the tables have printed.
+		// Returned here rather than at the call site so the status and endpoint tables
+		// above still print first. A user whose stack half-failed wants the connection
+		// details of what did come up.
 		//
-		// appErr used to be swallowed into "[warn] app start: %v" here, which is why
-		// TASK-117's fix to StartApps was not enough on its own: the app manager could
-		// report every readiness failure it wanted and `dva up` still returned nil. A
-		// wrapper script or a `dva up && next-step` chain saw success.
-		//
-		// It is returned here rather than at the call site so the status and endpoint
-		// tables above still print — the same reason upErr waits until this line. A user
-		// whose app failed to bind wants the connection details of what did come up.
-		return errors.Join(upErr, appErr)
+		// This was errors.Join(upErr, appErr) until `applications:` was removed. The app
+		// half was the reason the join existed: appErr had been swallowed into
+		// "[warn] app start: %v", so TASK-117's readiness fix inside StartApps could not
+		// reach the exit code and `dva up && next-step` chained on a failed start. Only
+		// upErr remains, and orch.Up already returns it unswallowed.
+		return upErr
 	},
 }
 
@@ -277,15 +247,20 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 
 	if len(remaining) > 0 {
 		// A leftover that starts with "-" is a flag, not a service name, and quoting it into
-		// the suggestion produced advice that cannot work: `dva down --bogus` answered "Use
-		// 'dva stack down --bogus'", which fails the same way for the same reason. Only the
-		// name-shaped case gets the selective-teardown hint. TASK-172.
+		// the suggestion produced advice that cannot work: `dva down --bogus` used to answer
+		// "Use 'dva stack down --bogus'", which failed the same way for the same reason. Only
+		// the name-shaped case gets the selective-teardown hint. TASK-172.
+		//
+		// The hint's destination changed with `dva stack`: selective teardown is naming a plan,
+		// which detectPlanRoute would already have taken if the argument were one. Reaching
+		// here means it is not, so the message says what to name rather than quoting the word
+		// back — a plan name is not derivable from a service name.
 		if strings.HasPrefix(remaining[0], "-") {
 			return nil, nil, "", nil, nil, fmt.Errorf("unknown flag %q for \"dva %s\"\n       → 'dva %s' takes no service names or flags of its own; it %ss everything declared",
 				remaining[0], verb, verb, verb)
 		}
-		return nil, nil, "", nil, nil, fmt.Errorf("'dva %s' %ss all services. Use 'dva stack %s %s' or 'dva app %s %s' for selective %s",
-			verb, verb, verb, remaining[0], verb, remaining[0], verb)
+		return nil, nil, "", nil, nil, fmt.Errorf("'dva %s' %ss all declared entries. Name a plan instead — 'dva %s <plan>' %ss just that plan's entries, and 'dva ls' lists the plans this config declares",
+			verb, verb, verb, verb)
 	}
 
 	if err := applyEnv(e, c, envName); err != nil {
@@ -358,17 +333,6 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 			return err
 		}
 
-		if len(c.Applications) > 0 {
-			am := lifecycle.NewAppManager(c, e)
-			// The same split as `stop`, one step more destructive: orch.Down previews while
-			// DownApps deleted the pid and log files for real (TASK-166).
-			if dryRun {
-				am.DownAppsDryRun()
-			} else {
-				am.DownApps()
-			}
-		}
-
 		orch := lifecycle.NewOrchestrator(c, e)
 		return orch.Down(context.Background(), lifecycle.DownOptions{
 			DryRun:      dryRun,
@@ -423,18 +387,6 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 		_, envName, _, _, _, err := parseDvaFlags(args)
 		if err != nil {
 			return err
-		}
-
-		if len(c.Applications) > 0 {
-			am := lifecycle.NewAppManager(c, e)
-			// parseDvaFlags above already consumed --dry-run into the global, and orch.Stop
-			// below honours it — so without this branch the stack half previewed while the
-			// app half sent a real SIGTERM, in one command (TASK-166).
-			if dryRun {
-				am.HaltAppsDryRun()
-			} else {
-				am.HaltApps()
-			}
 		}
 
 		orch := lifecycle.NewOrchestrator(c, e)
@@ -613,76 +565,6 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 		}
 
 		return execComposePassthrough(e, c, append([]string{"build"}, remaining...))
-	},
-}
-
-var cleanCmd = &cobra.Command{
-	Use:   "clean",
-	Short: "Remove all containers, networks, and isolated volumes",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		c := mustLoadConfig()
-		e := loadEnv(c)
-
-		volumes, _ := cmd.Flags().GetBool("volumes")
-		images, _ := cmd.Flags().GetBool("images")
-		force, _ := cmd.Flags().GetBool("force")
-
-		// Confirmation prompt for destructive operations. --dry-run is exempt: consent is
-		// consent to the deletion, and a dry run deletes nothing. See confirmDestruction
-		// for why that exemption and the EOF handling are shaped the way they are
-		// (TASK-166/170/171).
-		//
-		// rc 0 on an explicit decline, deliberately. The command was asked not to proceed
-		// and did not proceed; that is the interaction succeeding.
-		if !force && !dryRun && (volumes || images) {
-			proceed, err := confirmDestruction(cmd.CommandPath(), volumes, images)
-			if err != nil {
-				return err
-			}
-			if !proceed {
-				return nil
-			}
-		}
-
-		// When removing volumes, also clear provision markers
-		if volumes {
-			// The sixth site in this command where --dry-run was accepted and ignored, and
-			// the only one that is not a halt. Guarding the app half alone would have left
-			// `dva clean --volumes --dry-run` still deleting these for real while every
-			// other line it printed said "would" — a half-honest preview is harder to
-			// distrust than a plainly dishonest one. TASK-166.
-			if dryRun {
-				for _, m := range provisionMarkers(c.FileDir()) {
-					fmt.Fprintf(os.Stderr, "[dry-run] would delete provision marker %s\n", m)
-				}
-			} else {
-				clearProvisionMarkers(c.FileDir())
-			}
-		}
-
-		// App down first (apps depend on infra)
-		if len(c.Applications) > 0 {
-			am := lifecycle.NewAppManager(c, e)
-			// `clean` passes dryRun to orch.Down below, so it made the same half-preview
-			// promise the other three paths did (TASK-166).
-			if dryRun {
-				am.DownAppsDryRun()
-			} else {
-				am.DownApps()
-			}
-		}
-
-		// Orchestrator down for all lifecycle entries (with volume/image cleanup if requested)
-		orch := lifecycle.NewOrchestrator(c, e)
-		if err := orch.Down(context.Background(), lifecycle.DownOptions{
-			DryRun:       dryRun,
-			Volumes:      volumes,
-			RemoveImages: images,
-		}); err != nil {
-			fmt.Fprintf(os.Stderr, "[warn] lifecycle down: %v\n", err)
-		}
-
-		return nil
 	},
 }
 
@@ -919,12 +801,6 @@ func suggestProvision(c *config.Config, provisionProfile string) {
 
 	fmt.Fprintf(os.Stderr, "\n[hint] Provision profile '%s' has not been run yet.\n", provisionProfile)
 	fmt.Fprintf(os.Stderr, "       Run: dva provision %s\n\n", provisionProfile)
-}
-
-func init() {
-	cleanCmd.Flags().BoolP("volumes", "v", false, "Also remove volumes (WARNING: data loss)")
-	cleanCmd.Flags().BoolP("images", "i", false, "Also remove images built by docker compose")
-	cleanCmd.Flags().BoolP("force", "f", false, "Skip confirmation prompt")
 }
 
 // execComposeSubprocess runs a docker compose command as a subprocess,

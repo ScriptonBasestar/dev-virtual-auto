@@ -569,7 +569,14 @@ func shouldIgnoreMakefileTarget(name string) bool {
 		"help": true, "all": true, "default": true,
 		// DVA reserved commands — overlap with built-in DVA commands
 		"stop": true, "up": true, "down": true, "restart": true,
-		"ps": true, "run": true, config.LogsDirName: true, "build": true, "clean": true,
+		"run": true, config.LogsDirName: true, "build": true,
+		// Not DVA commands, kept on their own merit rather than by overlap. `ps` never was
+		// one — it is reached as `dva compose ps`. `clean` was, until the command surface
+		// was restructured (docs/43); teardown is `dva down <plan> --purge` now, so there
+		// is no built-in left for a `make clean` suggestion to collide with. Both stay
+		// ignored because this list feeds a suggestion of project commands for
+		// `interaction:`, and these two are the build system's own housekeeping.
+		"ps": true, "clean": true,
 		// Generic infra targets that overlap with DVA modes/stack
 		"infra-up": true, "infra-down": true, "infra-start": true, "infra-stop": true,
 		// Generic setup/dependency targets handled by provision

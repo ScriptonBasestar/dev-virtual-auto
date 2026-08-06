@@ -21,16 +21,18 @@ checks:
     fix_hint: "Install gopls (https://pkg.go.dev/golang.org/x/tools/gopls) or run 'mise install'"
 
 interaction:
-  # 'build' and 'clean' are reserved DVA commands — use replace hooks
+  # 'build' is a reserved DVA command — override it with a replace hook.
+  # 'clean' stopped being one (docs/43): teardown is now 'dva down <plan> --purge',
+  # and a flag has no interaction key to hook. It is an ordinary command here.
   build:
     replace:
       - step: "Build dva binary"
         run: "make build"
 
   clean:
-    replace:
-      - step: "Remove build artifacts"
-        run: "make clean"
+    description: "Remove build artifacts"
+    command: "make clean"
+    runner: local
 
   install:
     description: "Install dva to ~/.local/bin (auto version bump)"

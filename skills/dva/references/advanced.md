@@ -93,7 +93,7 @@ OS environment, nothing in `dva.yml` can override it.
 
 Which layers apply depends on the command path:
 
-**`dva up` / `dva stack up`** — the `-M` / `-E` flag path:
+**`dva up` with no plan name** — the whole-stack `-M` / `-E` flag path:
 
 ```text
 environment: < env_file: < environment preset (-E) < mode (-M) < OS environment
@@ -358,34 +358,44 @@ Health checks with `start:` field auto-start the service during `dva up`.
 - Having both with identical values is redundant — use `start` only in that case
 - Neither field is mandatory
 
-## Applications
+## App Processes
 
-Long-running application processes managed separately from stack services:
+Long-running application processes are stack entries with a `native` runner — the same
+declaration store as everything else, not a separate section:
 
 ```yaml
-applications:
+stack:
   api:
     description: "API server"
     tags: [backend]
-    run:
-      native: "go run ./cmd/api"
-      docker: "docker compose exec app go run ./cmd/api"
-    build:
-      native: "go build -o ./build/api ./cmd/api"
-    dev:
-      native: "air -c .air.toml"
-    health:
-      type: http
-      url: http://localhost:8080/health
-    depends_on: [postgres]
-    environment:
-      PORT: "8080"
-    dir: "."
+    default_runner: native
+    runners:
+      native:
+        dir: "."
+        build: "go build -o ./build/api ./cmd/api"
+        run: "go run ./cmd/api"
+        env:
+          PORT: "8080"
+    health_checks:
+      api:
+        type: http
+        url: http://localhost:8080/health
+
+plans:
+  dev:
+    entries:
+      - name: postgres
+      - name: api
+        order: 10        # Starts after postgres
 ```
 
-Manage applications with `dva app`; start the workspace with `dva up`, then start applications with `dva app up`.
+`dva up <plan>` starts them with everything else; `dva build <plan>` runs the `build:`
+commands. There is no separate `dva app` step.
 
-Applications support native and docker execution paths, selected by the current mode.
+The `applications:` section this replaced was removed in docs/43 — run `dva config migrate`
+to convert an existing file. Two of its features do not carry over: the `dev:` hot-reload
+command (declare the watcher as its own entry and select it with a plan) and `port:`, which
+drove a port-reclaim check that no longer exists.
 
 ## Special Variables
 

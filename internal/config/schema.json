@@ -5,33 +5,6 @@
   "type": "object",
   "additionalProperties": false,
   "definitions": {
-    "app_exec_paths": {
-      "description": "Native and/or docker execution paths for an application command.",
-      "oneOf": [
-        { "type": "string", "description": "Shorthand: native command only" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "native": { "type": "string", "description": "Shell command to run on host" },
-            "docker": {
-              "oneOf": [
-                { "type": "string", "description": "Raw docker command string" },
-                {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "service": { "type": "string", "description": "Compose service name" },
-                    "profile": { "type": "string", "description": "Compose profile to activate" },
-                    "command": { "type": "string", "description": "Override command for docker exec" }
-                  }
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
     "environment_vars": {
       "type": "object",
       "description": "Defines environment variables",
@@ -1284,18 +1257,6 @@
               "type": "string",
               "description": "Run strategy for this mode: \"docker\" (compose up), \"native\" (process via health_checks.start), or a custom shell command.",
               "examples": ["native", "docker"]
-            },
-            "applications": {
-              "description": "App execution strategy for this mode. String applies to all apps; object maps per-app.",
-              "oneOf": [
-                { "type": "string", "enum": ["native", "docker"] },
-                {
-                  "type": "object",
-                  "additionalProperties": { "type": "string", "enum": ["native", "docker"] },
-                  "description": "Per-app strategy map: { app_name: 'native' | 'docker' }"
-                }
-              ],
-              "examples": ["native", { "api": "native", "worker": "docker" }]
             }
           }
         }
@@ -1535,111 +1496,6 @@
           { "name": "DB migrations applied", "type": "command", "command": "make migrate-status 2>&1 | grep -qv pending", "fix_hint": "dva provision setup" }
         ]
       ]
-    },
-    "applications": {
-      "type": "object",
-      "description": "Declares long-running application processes with native and docker execution paths. Use this section for servers, workers, and dev frontends — NOT for one-shot commands (use interaction: instead).",
-      "patternProperties": {
-        "^[\\w\\-.]+$": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "description": {
-              "type": "string",
-              "description": "Human-readable description of this application"
-            },
-            "tags": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Tags for filtering (e.g., app, backend, frontend)"
-            },
-            "run": { "$ref": "#/definitions/app_exec_paths" },
-            "build": { "$ref": "#/definitions/app_exec_paths" },
-            "dev": { "$ref": "#/definitions/app_exec_paths" },
-            "health": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "type": { "type": "string", "enum": ["http", "tcp", "command"] },
-                "url": { "type": "string" },
-                "address": { "type": "string" },
-                "command": { "type": "string" },
-                "timeout": { "type": "integer", "default": 2 },
-                "ready_timeout": { "type": "integer", "default": 30 },
-                "required": {
-                  "type": "boolean",
-                  "default": false,
-                  "description": "When true, app readiness fails if this health check does not pass (opt-in strict readiness)."
-                }
-              },
-              "required": ["type"]
-            },
-            "port": {
-              "type": "integer",
-              "description": "Listening port number (shown in dva app ls)"
-            },
-            "depends_on": {
-              "type": "array",
-              "items": { "type": "string" },
-              "description": "Compose services or other app names that must be running before this app starts"
-            },
-            "environment": { "$ref": "#/definitions/environment_vars" },
-            "dir": {
-              "type": "string",
-              "description": "Working directory for the application (default: config dir)"
-            },
-            "variants": {
-              "type": "object",
-              "description": "Sub-components with their own build/run/dev paths. Access via dot notation: dva app build proxynd.json",
-              "patternProperties": {
-                "^[\\w\\-.]+$": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "description": { "type": "string" },
-                    "port": { "type": "integer", "description": "Variant-specific port" },
-                    "run": { "$ref": "#/definitions/app_exec_paths" },
-                    "build": { "$ref": "#/definitions/app_exec_paths" },
-                    "dev": { "$ref": "#/definitions/app_exec_paths" },
-                    "health": {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "properties": {
-                        "type": { "type": "string", "enum": ["http", "tcp", "command"] },
-                        "url": { "type": "string" },
-                        "address": { "type": "string" },
-                        "command": { "type": "string" },
-                        "timeout": { "type": "integer", "default": 2 },
-                        "ready_timeout": { "type": "integer", "default": 30 },
-                        "required": {
-                          "type": "boolean",
-                          "default": false,
-                          "description": "When true, app readiness fails if this health check does not pass (opt-in strict readiness)."
-                        }
-                      },
-                      "required": ["type"]
-                    },
-                    "environment": { "$ref": "#/definitions/environment_vars" }
-                  }
-                }
-              }
-            }
-          },
-          "required": ["run"]
-        }
-      },
-      "additionalProperties": false,
-      "examples": [{
-        "api": {
-          "description": "API Server",
-          "tags": ["app", "backend"],
-          "port": 11200,
-          "run": { "native": "cargo run --bin api", "docker": { "service": "api", "profile": "rust" } },
-          "build": { "native": "cargo build --release --bin api" },
-          "health": { "type": "http", "url": "http://localhost:11200/healthz", "ready_timeout": 120 },
-          "depends_on": ["postgres", "redis"]
-        }
-      }]
     }
   }
 }

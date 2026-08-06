@@ -28,7 +28,7 @@ func TestIsFlag(t *testing.T) {
 
 func TestIsTopLevelCommand(t *testing.T) {
 	// Known built-in commands should return true
-	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", config.LogsDirName, "build", "restart", "clean", "validate", "manifest", "provision", "ssh", "console", "ls"}
+	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", config.LogsDirName, "build", "restart", "validate", "manifest", "provision", "ssh", "console", "ls"}
 	for _, cmd := range builtins {
 		if !isTopLevelCommand(cmd) {
 			t.Errorf("isTopLevelCommand(%q) = false, want true", cmd)
@@ -40,6 +40,18 @@ func TestIsTopLevelCommand(t *testing.T) {
 	for _, cmd := range unknowns {
 		if isTopLevelCommand(cmd) {
 			t.Errorf("isTopLevelCommand(%q) = true, want false", cmd)
+		}
+	}
+
+	// The four the restructure removed. Kept apart from the unknowns above because they are
+	// not typos — each was a working command, and this predicate is what decides whether an
+	// interaction key of the same name is shadowed. `clean` was in the builtins list until
+	// now; the other three were never checked here at all, so nothing would have caught a
+	// half-finished removal that left one of them registered.
+	for _, cmd := range []string{"clean", "stack", "app", "infra"} {
+		if isTopLevelCommand(cmd) {
+			t.Errorf("isTopLevelCommand(%q) = true, but the command was removed; an "+
+				"interaction key named %q would be shadowed by a built-in that no longer exists", cmd, cmd)
 		}
 	}
 }

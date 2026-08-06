@@ -23,20 +23,23 @@
 
 모든 dva.yml은 이 순서를 따름 (미사용 섹션은 생략 가능):
 
+정본은 `internal/config/validate_warnings.go`의 `canonicalSectionOrder` — `dva validate`가
+이 순서를 벗어난 섹션에 경고를 냅니다.
+
 1. `version:`
 2. `vars:` (선택)
 3. `environment:` (선택)
 4. `env_file:`
-5. `stack:` (services tags-only, NO ports)
-6. `checks:` (dva doctor)
-7. `applications:` (앱 서버/워커 — port, run native/docker, dev, build, health)
-8. `default_mode:` (dva up 기본 모드)
-9. `suggestion_ignore:` (선택)
-10. `modes:` (applications 필드로 앱 전략 지정 가능)
-11. `environments:` (선택)
-12. `plans:` (선택)
-13. `sites:` (선택)
-14. `health_checks:` (non-app 서비스 전용)
+5. `stack:` (services tags-only, NO ports — 앱 서버/워커도 여기에 native runner로)
+6. `plans:` (선택)
+7. `default_plan:` (선택)
+8. `environments:` (선택)
+9. `sites:` (선택)
+10. `checks:` (dva doctor)
+11. `default_mode:` (dva up 기본 모드 — legacy)
+12. `suggestion_ignore:` (선택)
+13. `modes:` (legacy — 마이그레이션 중에만 유지)
+14. `health_checks:` (DVA가 실행하지 않는 외부 서비스 전용)
 15. `interaction:` (organized by category)
 16. `provision:` (default, full, reset)
 17. `modules:` (선택)
@@ -45,6 +48,9 @@
 20. `infra:` (선택)
 21. `ssh:` (선택)
 22. `devcontainer:` (선택)
+
+`applications:`는 제거됐습니다 (docs/43). 앱은 `stack.<name>.default_runner: native` +
+`runners.native`로 선언하고, 기존 파일은 `dva config migrate`로 변환하세요.
 
 ---
 
@@ -101,17 +107,15 @@ modes:
   # Pure native: no Docker at all (e.g., SQLite for local-only dev)
   native:
     description: "All natively, no Docker (SQLite/in-memory)"
-    stack: []                     # Skip ALL Docker infrastructure
-    applications: native          # All apps run natively
+    stack: [api, worker]          # App entries only — no compose entry
     environment:
       DB_TYPE: sqlite
       DATABASE_URL: "sqlite:./dev.db"
 
-  # Hybrid: infrastructure in Docker, applications native (DEFAULT for most devbox)
+  # Hybrid: infrastructure in Docker, app entries native (DEFAULT for most devbox)
   hybrid:
     description: "Infra in Docker, apps run natively"
-    stack: [compose]              # Start Docker infra
-    applications: native          # All apps run natively
+    stack: [compose, api, worker] # Docker infra + native app entries
     compose_services: [postgres, redis]
     environment:
       DB_TYPE: postgres
@@ -119,22 +123,18 @@ modes:
       REDIS_URL: "redis://localhost:{port}"
     provision: default
 
-  # Per-app mixed strategy: some native, some Docker
+  # Mixed: some entries native, some as compose services
   hybrid-mixed:
-    description: "IDP in Docker, frontend natively"
-    stack: [compose]
-    applications:                 # Per-app strategy map
-      api: docker                 # API runs as Docker service
-      frontend: native            # Frontend runs natively (hot-reload)
-      _default: native            # Fallback for unlisted apps
+    description: "API in Docker, frontend natively"
+    stack: [compose, frontend]    # `api` is a compose service here, not an entry
+    compose_services: [postgres, redis, api]
     environment:
       API_URL: "http://localhost:{port}"
 
   # All Docker: production-like environment
   docker:
     description: "All services in Docker"
-    stack: [compose]
-    applications: docker          # All apps run as Docker services
+    stack: [compose]              # No native app entries selected
     compose_profiles: [app]
     provision: default
 
@@ -144,63 +144,76 @@ modes:
     compose_services: [postgres, redis]
 ```
 
-> **Key pattern:** `applications:` in mode can be:
-> - String: `native` or `docker` (applies to all apps)
-> - Map: `{ api: docker, frontend: native, _default: native }` (per-app)
-> 
-> **Environment switching:** Native apps connect via `localhost:{host_port}`.
-> Docker apps use internal service names (e.g., `postgres:5432`).
+> **Key pattern:** a mode's `stack:` is the whole selection. Modes used to carry a separate
+> `applications:` strategy field, which meant an app could be started by the mode's app
+> strategy *and* by a compose entry in the same run. App entries are stack entries now, so
+> one list decides everything and the double-owner shape cannot be written.
+>
+> **Environment switching:** Native entries connect via `localhost:{host_port}`.
+> Compose services use internal service names (e.g., `postgres:5432`).
 
-### Applications (Rust hybrid — native dev servers)
+### App entries (Rust hybrid — native dev servers)
+
+App servers are stack entries with a `native` runner, declared alongside the compose entry
+above. Ordering lives in the plan that runs them, not in the declaration.
 
 ```yaml
-applications:
+stack:
   api:
     description: "REST API server"
     tags: [app, api]
-    port: {PORT}
-    dir: "{workspace}"
-    run:
-      native: "cargo run --release -p {exact-package-name}"
-      docker:
-        service: {api-service}
-        profile: rust
-    dev:
-      native: "cargo watch -x 'run -p {exact-package-name}'"
-    build:
-      native: "cargo build --release -p {exact-package-name}"
-      docker:
-        service: {api-service}
-    health:
-      type: http
-      url: "http://localhost:{PORT}/healthz"
-      timeout: 5
-      ready_timeout: 120    # Rust compilation needs longer
-    depends_on: []           # No app dependencies (infra is in stack)
-    environment:
-      RUST_LOG: "info"
+    default_runner: native
+    runners:
+      native:
+        dir: "{workspace}"
+        build: "cargo build --release -p {exact-package-name}"
+        run: "cargo run --release -p {exact-package-name}"
+        env:
+          RUST_LOG: "info"
+    health_checks:
+      api:
+        type: http
+        url: "http://localhost:{PORT}/healthz"
+        timeout: 5
+        ready_timeout: 120    # Rust compilation needs longer
   worker:
     description: "Background job processor"
     tags: [app, worker]
-    dir: "{workspace}"
-    run: "cargo run -p {worker-package-name}"
-    dev: "cargo watch -x 'run -p {worker-package-name}'"
-    build: "cargo build -p {worker-package-name}"
-    health:
-      type: command
-      command: "pgrep -f {binary-name}"
-      timeout: 5
-      ready_timeout: 120
-    depends_on: [api]        # Worker starts after API
+    default_runner: native
+    runners:
+      native:
+        dir: "{workspace}"
+        build: "cargo build -p {worker-package-name}"
+        run: "cargo run -p {worker-package-name}"
+    health_checks:
+      worker:
+        type: command
+        command: "pgrep -f {binary-name}"
+        timeout: 5
+        ready_timeout: 120
+
+plans:
+  dev:
+    entries:
+      - name: compose
+      - name: api
+        order: 10
+      - name: worker
+        order: 20            # Worker starts after API
 ```
 
-> **Migration note:** If health_checks already has `start:` commands for app servers, migrate them to `applications:` section. The `applications:` section provides richer lifecycle control (stop/down/restart/build/dev mode).
+> **Hot-reload variants:** an entry declares one `run:` command, so `cargo watch` is its own
+> entry (e.g. `api-watch`) selected by a different plan — not a second command inside `api`.
+>
+> **Migration note:** `health_checks.<name>.start` still auto-starts a background process
+> and is the right home for a service DVA only supervises. Declare a stack entry when you
+> want the full lifecycle (stop/down/restart/build) instead.
 
-### Health Checks (non-app services only)
+### Health Checks (services DVA does not own)
 
 ```yaml
-# health_checks is now primarily for external/non-app services.
-# App servers should use applications.{name}.health instead.
+# health_checks at top level is for external services DVA probes but does not run.
+# An app server DVA starts should be a stack entry with entry-scoped health_checks.
 health_checks:
   external-api:
     type: http
@@ -348,27 +361,33 @@ provision:
 
 Same structure as Rust section above — use `stack.<entry>.runners.compose` -> `services` for tags only, `endpoints:` for port/URL metadata.
 
-### Applications (Go hybrid)
+### App entries (Go hybrid)
 
 ```yaml
-applications:
+stack:
   api:
     description: "HTTP API server"
     tags: [app, api]
-    port: {PORT}
-    run:
-      native: "go run ./cmd/{binary}"
-      docker:
-        service: {api-service}
-    dev:
-      native: "air"                  # or: go run ./cmd/{binary} with fsnotify watcher
-    build:
-      native: "make build"          # or: go build -o bin/{name} ./cmd/{name}
-    health:
-      type: http
-      url: "http://localhost:{PORT}/health"
-      timeout: 5
-      ready_timeout: 60             # Go compiles faster than Rust
+    default_runner: native
+    runners:
+      native:
+        build: "make build"          # or: go build -o bin/{name} ./cmd/{name}
+        run: "go run ./cmd/{binary}"
+    health_checks:
+      api:
+        type: http
+        url: "http://localhost:{PORT}/health"
+        timeout: 5
+        ready_timeout: 60            # Go compiles faster than Rust
+
+  # Hot-reload as its own entry, selected by a dev plan
+  api-watch:
+    description: "HTTP API server (air hot-reload)"
+    tags: [app, api, dev]
+    default_runner: native
+    runners:
+      native:
+        run: "air"                   # or: go run ./cmd/{binary} with an fsnotify watcher
 ```
 
 ### Key Differences from Rust

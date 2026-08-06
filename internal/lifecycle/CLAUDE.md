@@ -30,10 +30,15 @@ type Plugin interface {
 - `Down`: 높은 order부터 역순 실행
 - 병렬 실행은 동일 `order` 값 항목들에만 적용
 
-## App Manager (app_manager.go)
+## Plan Orchestrator (plan_orchestrator.go)
 
-`applications:` 섹션 처리. `native`(process)/`docker`(compose service) 전략으로 앱 프로세스 관리.
-ModeConfig의 `Applications` 필드로 전략 결정.
+`plans.<name>`을 실행합니다. `ResolvePlan`(resolver.go)이 environment/site/vars를 병합해
+`ExecutionPlan`을 만들고, `materializeResolvedEntry`가 러너 설정을 플러그인 설정으로
+변환합니다 — `runners.native`는 여기서 `ProcessPluginConfig`로 강등되어 기존
+`ProcessPlugin`이 실행합니다.
+
+앱 프로세스 전용 런타임(`app_manager.go`)은 `applications:` 섹션과 함께 제거됐습니다
+(docs/43). 앱은 `native` 러너를 쓰는 stack 엔트리이고, 다른 엔트리와 같은 경로로 돕니다.
 
 ## Health Checks (health.go)
 

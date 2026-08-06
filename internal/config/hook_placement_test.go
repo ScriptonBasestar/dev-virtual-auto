@@ -32,8 +32,13 @@ interaction:
           - {step: backup, run: "echo BACKUP-RAN"}
         command: echo MIGRATING
 `,
+			// The parenthesised list is rendered by HookableCommandList, which sorts the live
+			// set — it used to be a literal reading "up, down, stop, restart, build, clean,
+			// logs" in both this message and the top-level one below. Spelling it out here
+			// rather than calling the helper keeps the assertion independent of the code it
+			// checks: a helper that returned "" would satisfy a test built from itself.
 			wantErr: "interaction.db.subcommands.migrate: before/replace/after hooks run only " +
-				"on a top-level hookable command (up, down, stop, restart, build, clean, logs); " +
+				"on a top-level hookable command (build, down, logs, restart, stop, up); " +
 				"a hook nested under a subcommand never runs, whatever the subcommand is named",
 		},
 		{
@@ -84,7 +89,28 @@ interaction:
     command: echo MIGRATING
 `,
 			wantErr: "interaction.migrate: before/replace/after hooks are only supported on " +
-				"hookable commands (up, down, stop, restart, build, clean, logs)",
+				"hookable commands (build, down, logs, restart, stop, up)",
+		},
+		{
+			// `clean` is the one name whose hooks were live config until the built-in was
+			// removed, so it gets a message of its own rather than the generic one above —
+			// that one reads as "you named it wrong", and here nothing is named wrong. The
+			// shape is the real legacy one: hooks and no command, which only makes sense as
+			// an extension of a built-in that no longer exists.
+			//
+			// This is the risk the restructure had to answer out loud. `stack`/`app`/`infra`
+			// were never hookable, so their removal could take no working hook with it; this
+			// one could, and silence here would mean a teardown step stopped running with the
+			// config still validating.
+			name: "clean names the removal rather than a typo",
+			content: `version: "0.1.44"
+interaction:
+  clean:
+    before:
+      - {step: prune, run: "echo PRUNE-RAN"}
+`,
+			wantErr: "interaction.clean: the 'clean' built-in was removed — teardown is " +
+				"'dva down <plan> --purge'",
 		},
 		{
 			// Control. The whole point of hooks — a hookable built-in extended at the top

@@ -16,6 +16,9 @@ import (
 //	dva --debug=true stack log infra --tail=5   → compose … logs --debug=true infra --tail=5
 //	dva compose logs --json=true                → compose … logs --json=true
 //
+// The first two were measured on `dva stack log`, which has since been removed;
+// `dva logs <plan> <entry>` reaches docker by the same path.
+//
 // Debug was not enabled either, so the user got neither the flag's effect nor a diagnosis,
 // only an unexplained error from docker.
 //
@@ -53,7 +56,8 @@ func splitFlagToken(a string) (name, value string, hasValue bool) {
 // or len(args) when there is none. Tokens at and after it are the other program's, whatever
 // they spell — before TASK-145 nothing looked for the terminator at all, so
 // `dva stack log infra -- --debug --tail=5` reached docker as `logs -- --tail=5`, with the
-// literal the `--` was there to protect eaten anyway.
+// literal the `--` was there to protect eaten anyway. (Measured on the since-removed stack
+// family; `dva logs` inherits the path.)
 func dvaFlagEnd(args []string) int {
 	for i, a := range args {
 		if a == "--" {
@@ -73,9 +77,11 @@ func dvaFlagEnd(args []string) int {
 //	applyRootPersistentFlagsFromArgs  skips, deliberately: it runs before RunE, so it has
 //	                                  no way to return an error and leaves it to the above
 //	consumeDryRunFlag                 leaves the token in its output, and that is safe only
-//	                                  because each of its three callers names a flag-shaped
-//	                                  leftover itself — hooks.go re-enters the built-in's
-//	                                  RunE, infra.go's resolveInfraTargets rejects it
+//	                                  because its caller names a flag-shaped leftover itself —
+//	                                  hooks.go re-enters the built-in's RunE, which parses the
+//	                                  args again. (It had a second caller, infra.go's
+//	                                  resolveInfraTargets, which rejected the token directly;
+//	                                  that went with `dva infra`.)
 //
 // parseDvaFlags used to instead leave the token in filtered "for its caller's own
 // unknown-flag rejection to name". That held for 7 of its 12 call sites. The other 5 have no

@@ -211,11 +211,17 @@ func TestUpRejectsFlagsThatSuppressDefaultPlan(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	for _, args := range [][]string{
-		{"--dev"},
 		{"--force"},
 		{"--no-wait"},
-		{"--docker"},
+		{"--mode", "dev"},
 		{"--var", "FOO=bare"},
+		// Deliberately not a real flag. The rows above read `--dev` and `--docker`
+		// until docs/43 removed them, and the fact that those rows kept passing after
+		// the flags were gone is itself the property worth pinning: `up` sets
+		// DisableFlagParsing, so this guard inspects raw argv and fires on any leading
+		// '-' token before cobra ever validates it. A user who mistypes a flag under a
+		// default plan gets told to name the plan, not that the flag is unknown.
+		{"--no-such-flag"},
 	} {
 		err := upCmd.RunE(upCmd, args)
 		if err == nil {
@@ -244,11 +250,11 @@ func TestUpPlanGuardOnlyInspectsPlanNameSlot(t *testing.T) {
 func TestRejectSuppressedDefaultPlan_LeadingFlag(t *testing.T) {
 	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
 
-	err := rejectSuppressedDefaultPlan(c, "up", []string{"--dev"})
+	err := rejectSuppressedDefaultPlan(c, "up", []string{"--force"})
 	if err == nil {
 		t.Fatal("expected error when flags suppress the default plan")
 	}
-	if got := err.Error(); !strings.Contains(got, "dva up p1 --dev") {
+	if got := err.Error(); !strings.Contains(got, "dva up p1 --force") {
 		t.Fatalf("error = %q, want explicit plan hint", got)
 	}
 }
@@ -266,7 +272,7 @@ func TestRejectSuppressedDefaultPlan_MultiplePlansNoDefault(t *testing.T) {
 		"p2": {},
 	}}
 	// No DefaultPlan; multi-plan bare up is requirePlanSelection's job.
-	if err := rejectSuppressedDefaultPlan(c, "up", []string{"--dev"}); err != nil {
+	if err := rejectSuppressedDefaultPlan(c, "up", []string{"--force"}); err != nil {
 		t.Fatalf("without a default plan, flag fallthrough is not this guard: %v", err)
 	}
 }
@@ -281,9 +287,9 @@ func TestDetectPlanRoute_BareArgsUsesDefaultPlan(t *testing.T) {
 
 func TestDetectPlanRoute_LeadingFlagDoesNotSelectDefault(t *testing.T) {
 	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
-	name, extra, ok := detectPlanRoute(c, []string{"--dev"})
+	name, extra, ok := detectPlanRoute(c, []string{"--force"})
 	if ok || name != "" || extra != nil {
-		t.Fatalf("detectPlanRoute(--dev) = (%q, %v, %v), want (\"\", nil, false)", name, extra, ok)
+		t.Fatalf("detectPlanRoute(--force) = (%q, %v, %v), want (\"\", nil, false)", name, extra, ok)
 	}
 }
 
@@ -297,8 +303,13 @@ func TestUpWithoutPlansGuardOnlyInspectsPlanNameSlot(t *testing.T) {
 	dryRun = true
 	defer func() { dryRun = oldDryRun }()
 
+	// Shapes, not a flag inventory: a bare flag, a flag whose value is a separate
+	// token, and the same value inlined. `--dev` led this list until docs/43 removed
+	// it; unlike the sibling test above, this config has no plans, so the guard does
+	// not fire and args reach parseDvaFlags — an unknown flag fails here for the
+	// ordinary reason, which is not what this test is about. `--force` already covers
+	// the bare-flag shape.
 	for _, args := range [][]string{
-		{"--dev"},
 		{"--force"},
 		{"--var", "FOO=bare"},
 		{"--var=FOO=bare"},

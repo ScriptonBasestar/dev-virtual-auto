@@ -59,9 +59,9 @@ help safely in a disposable fixture.
 6. A printed or rendered execution plan is inspected without running target
    lifecycle. Treat lifecycle `--dry-run` as unsafe until each selected runner's
    up/down/stop/restart path is proven non-mutating in a disposable fixture,
-   including process-backed PID and log state. Note that `dva app up` and
-   `dva app up --dev` select different service commands (`run` vs `dev`); verify
-   the intended mode rather than assuming `up` implies dev.
+   including process-backed PID and log state. An entry declares one command, so
+   verify which entry a plan selects rather than assuming a mode toggle picks a
+   variant — `dva app up --dev` was removed with `dva app`.
 7. `docker compose ... config --quiet` succeeds for every configured combination.
    This check needs no daemon — passing it does not prove a daemon is reachable.
 8. Target-specific lint and tests pass.

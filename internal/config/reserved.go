@@ -12,19 +12,23 @@ import (
 // Use IsReservedCommand or ReservedCommandNames for read-only access.
 var reservedCommands = map[string]bool{
 	"help": true, "version": true, "ls": true, "compose": true,
-	"up": true, "stop": true, "down": true, "build": true, "clean": true,
+	"up": true, "stop": true, "down": true, "build": true,
 	"run": true, "provision": true, "validate": true, "manifest": true,
-	"ktl": true, "ssh": true, "infra": true, "console": true,
+	"ktl": true, "ssh": true, "console": true,
 	"completion": true, "init": true, "status": true, "config": true,
 	"logs": true, "restart": true, "show": true, "doctor": true,
-	"app": true, "stack": true,
 }
 
 // hookableCommands is the subset of reserved commands that support
 // before/replace/after hooks via the interaction section.
+//
+// `clean` left this set with the command: teardown is `dva down <plan> --purge`, and a flag
+// has no interaction key to hang a hook on. It is the one removal that could go quiet —
+// `stack`/`app`/`infra` were never hookable, so nobody had a working hook under those names
+// to lose — so validateHookPlacement carries a message naming the removal by name.
 var hookableCommands = map[string]bool{
 	"up": true, "down": true, "stop": true,
-	"restart": true, "build": true, "clean": true,
+	"restart": true, "build": true,
 	"logs": true,
 }
 
@@ -32,6 +36,22 @@ var hookableCommands = map[string]bool{
 // supports before/replace/after hooks.
 func IsHookableCommand(name string) bool {
 	return hookableCommands[name]
+}
+
+// HookableCommandList renders the hookable set as the sentence fragment the two hook
+// placement errors both end in.
+//
+// Derived rather than written out. The literal list said "up, down, stop, restart, build,
+// clean, logs" in both messages, so removing `clean` from the set above would have left two
+// messages advertising a command the same file no longer accepts — the reader is told to
+// use a name that fails the check that printed the advice.
+func HookableCommandList() string {
+	names := make([]string, 0, len(hookableCommands))
+	for name := range hookableCommands {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }
 
 // HookableCommands returns a copy of the hookable command set.
@@ -64,7 +84,7 @@ func IsReservedCommand(name string) bool {
 // which is why the condition is shadowing and not the "ignored" this once claimed to be.
 //
 // A hookable built-in that declares before/replace/after is not shadowed: the built-in runs the
-// hook, so the bare form does reach what the author declared. A namespaced name like `app:build`
+// hook, so the bare form does reach what the author declared. A namespaced name like `compose:ps`
 // is not shadowed either — the colon keeps it out of the built-in set, so dynamic routing sends
 // it to `run` — even though ValidateReservedCommands still rejects the prefix.
 func ShadowedByBuiltin(name string, cmd *InteractionCommand) bool {
@@ -82,8 +102,8 @@ func ShadowedByBuiltin(name string, cmd *InteractionCommand) bool {
 //
 // This is a third state, distinct from ShadowedByBuiltin. A shadowed key still runs —
 // `dva run <name>` reaches it — so the surfaces can name a working invocation. A key
-// like `app:build` is reached by nothing: the colon keeps it out of the built-in set,
-// and the run form reads `app:` as a subproject reference. ConflictAdvice carries the
+// like `compose:ps` is reached by nothing: the colon keeps it out of the built-in set,
+// and the run form reads `compose:` as a subproject reference. ConflictAdvice carries the
 // full reason and the way out; this reports only whether the condition holds, so the
 // machine-readable surfaces and the validator cannot disagree about which keys it
 // covers.
@@ -121,11 +141,16 @@ func UnroutableNamespacePrefix(name string) string {
 // declaring `subprojects: {engine: ...}` has no literal `engine:test` key of its own — that
 // command lives in the child's dva.yml.
 //
-// The reserved prefix is excepted so `app:build` keeps failing. Validate rejects such a
+// The reserved prefix is excepted so `compose:ps` keeps failing. Validate rejects such a
 // config outright (rc 1, reserved conflict), and routing it here would ship a file that one
 // surface calls a hard error while another runs it happily — the disagreement TASK-137 was
 // about. It also keeps `unroutable_reason` ("prefix is a reserved DVA command") a true and
 // complete account of what is left unroutable. TASK-167.
+//
+// The exception is keyed off the live reserved set, so removing a built-in moves keys out of
+// it: `app:build` was unroutable while `app` was a command and is an ordinary interaction
+// now. That is the intended consequence — the prefix names nothing DVA owns any more — and
+// it is pinned by a test rather than left to be discovered.
 func LiteralKeyWins(c *Config, name string) bool {
 	if !strings.Contains(name, ":") {
 		return false
@@ -139,12 +164,13 @@ func LiteralKeyWins(c *Config, name string) bool {
 
 // RenameSuggestion returns the name a colon-carrying key should be renamed to.
 //
-// Every colon goes, not just the first. `app:sub:cmd` → `app-sub:cmd` still carries a
-// colon, so run.go still splits it and it still fails — and because `app-sub` is not a
+// Every colon goes, not just the first. `compose:sub:cmd` → `compose-sub:cmd` still carries
+// a colon, so run.go still splits it and it still fails — and because `compose-sub` is not a
 // reserved command, UnroutableNamespacePrefix no longer covers it, so validate reports
 // the config clean and ls shows the entry unmarked. Following the advice literally turned
-// a loud error into the silent one TASK-167 describes; measured before the fix, `dva
-// app-sub:cmd` exited 1 with subproject `app-sub` not found while validate said valid.
+// a loud error into the silent one TASK-167 describes; measured before the fix on `dva
+// app-sub:cmd` (back when `app` was a built-in), which exited 1 with subproject `app-sub`
+// not found while validate said valid.
 //
 // One function because the advice string and the ls mark both need it and had drifted
 // into two copies of the same expression.
@@ -163,8 +189,8 @@ type ReservedCommandConflict struct {
 // conflict with reserved built-in command names.
 // Commands that define hook fields (before/replace/after) on hookable
 // built-in commands are NOT treated as conflicts.
-// Namespaced names like "app:build" are also rejected when the prefix
-// before ':' is a reserved command (e.g., "app", "infra").
+// Namespaced names like "compose:ps" are also rejected when the prefix
+// before ':' is a reserved command (e.g., "compose", "run").
 func ValidateReservedCommands(interaction map[string]*InteractionCommand) []ReservedCommandConflict {
 	var conflicts []ReservedCommandConflict
 	for name, cmd := range interaction {
@@ -180,7 +206,7 @@ func ValidateReservedCommands(interaction map[string]*InteractionCommand) []Rese
 			}
 			continue
 		}
-		// Check namespace prefix: "app:build" conflicts if "app" is reserved. Shared with
+		// Check namespace prefix: "compose:ps" conflicts if "compose" is reserved. Shared with
 		// the manifest/ls mark, so a key the surfaces call unroutable is exactly a key the
 		// validator rejects.
 		if UnroutableNamespacePrefix(name) != "" {

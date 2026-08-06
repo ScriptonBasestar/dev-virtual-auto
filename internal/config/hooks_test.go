@@ -52,14 +52,19 @@ func TestHasHooks_AllPhases(t *testing.T) {
 }
 
 func TestIsHookableCommand(t *testing.T) {
-	hookable := []string{"up", "down", "stop", "restart", "build", "clean", "logs"}
+	hookable := []string{"up", "down", "stop", "restart", "build", "logs"}
 	for _, cmd := range hookable {
 		if !IsHookableCommand(cmd) {
 			t.Errorf("expected '%s' to be hookable", cmd)
 		}
 	}
 
-	notHookable := []string{"run", "init", "validate", "show", "status", "config", "shell"}
+	// `clean` sits at the front of notHookable rather than being deleted from the list
+	// above. It is the one removal that takes working config with it — a declared
+	// interaction.clean.before ran until now — so validateHookPlacement answers it with a
+	// message of its own naming the two migration shapes, and that message is only reachable
+	// while this predicate says false.
+	notHookable := []string{"clean", "run", "init", "validate", "show", "status", "config", "shell"}
 	for _, cmd := range notHookable {
 		if IsHookableCommand(cmd) {
 			t.Errorf("expected '%s' to NOT be hookable", cmd)

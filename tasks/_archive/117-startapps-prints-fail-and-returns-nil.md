@@ -114,11 +114,17 @@ Decide `:207` explicitly rather than sweeping it in.
 
 ## Acceptance criteria
 
-- [x] A readiness failure exits non-zero | verify: `human — with tmp/task-113/dva.yml, run 'dva app up web'; print exit code; must be non-zero`
+> **Retired by the command-surface restructure (`docs/43`).** `dva app` was removed and
+> `app_manager.go` went with it, so the `StartApps` binding below now selects nothing. Left
+> executable it would print "no tests to run" and exit 0 — a reader checking this task's
+> history would be told it still verifies. The pattern is kept in the note so `git log -S`
+> can still find what ran. The `dva app up` human bindings are retired for the same reason.
+
+- [x] A readiness failure exits non-zero | verify: `human — was 'dva app up web' on tmp/task-113/dva.yml; command removed, see note`
 - [x] `dva up` agrees | verify: `human — same fixture, 'dva up'; print exit code; must be non-zero`
 - [x] The message is not duplicated | verify: `human — same run; count the [FAIL] lines; must be 1`
 - [x] A healthy app still exits 0 | verify: `human — fixture whose run command actually binds its port; print exit code; must be 0`
-- [x] Unit coverage for the join | verify: `go test ./internal/lifecycle/ -run 'StartApps' -v` — print the number of tests selected; a readiness failure must produce a non-nil error
+- [x] Unit coverage for the join | verify: `human — was the StartApps tests in ./internal/lifecycle; app_manager.go and its tests removed, see note`
 - [x] Full suite passes | verify: `make test`
 
 ## Resolution

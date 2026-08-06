@@ -37,6 +37,12 @@ var removedSchemaKeys = map[string]string{
 	// TASK-035: both validated green and were never read.
 	"interpolate": "removed: env_file values are always interpolated, with no way to opt out",
 	"priority":    "removed: precedence is fixed — environment: < env_file < OS environment",
+	// docs/43: the command-surface restructure took `dva app` and the AppManager
+	// runtime with it. Keyed by name alone rather than as a root-only removal
+	// because the nested `modes.<name>.applications` went in the same change —
+	// the name is now valid at no depth, so the guidance reads correctly wherever
+	// a stale config puts it.
+	"applications": "removed: declare each app as a stack entry — stack.<name>.default_runner: native + runners.native; run `dva config migrate` to convert",
 }
 
 // rootField is the path gojsonschema reports for an error on the document root.
@@ -181,7 +187,7 @@ func (c *Config) Validate() error {
 // validateHookPlacement rejects before/replace/after wherever they cannot execute.
 //
 // Hooks run through exactly one path: wrapWithHooks (cli/hooks.go:20), wired at
-// cli/root.go:129 for the seven hookable built-ins, which reads `c.Interaction[cmdName]` —
+// cli/root.go for the hookable built-ins, which reads `c.Interaction[cmdName]` —
 // a top-level lookup. Nothing walks Subcommands looking for hooks, so a nested one has no
 // path on which it could fire, whatever it or its parent is named.
 //
@@ -220,17 +226,33 @@ func (c *Config) validateHookPlacement() error {
 		if strings.Contains(path, ".subcommands.") {
 			problems = append(problems, fmt.Sprintf(
 				"%s: before/replace/after hooks run only on a top-level hookable command "+
-					"(up, down, stop, restart, build, clean, logs); a hook nested under a "+
-					"subcommand never runs, whatever the subcommand is named", path))
+					"(%s); a hook nested under a subcommand never runs, whatever the "+
+					"subcommand is named", path, HookableCommandList()))
 			return
 		}
 		// Top-level. The message is unchanged from when this check lived inline, and the
 		// path is `interaction.<name>` there, so it renders identically.
-		if name := strings.TrimPrefix(path, "interaction."); !IsHookableCommand(name) {
-			problems = append(problems, fmt.Sprintf(
-				"%s: before/replace/after hooks are only supported on hookable commands "+
-					"(up, down, stop, restart, build, clean, logs)", path))
+		name := strings.TrimPrefix(path, "interaction.")
+		if IsHookableCommand(name) {
+			return
 		}
+		// `clean` reaches here only because the built-in was removed, and the generic
+		// message would send its author looking for a typo. wrapWithHooks (cli/hooks.go:68)
+		// is still the sole executor and is still wired to hookable built-ins alone, so
+		// these hooks are exactly as dead as any other non-hookable name's — the config
+		// has to change either way. What differs is that this one worked yesterday, so the
+		// message names the removal and the two shapes that carry the work forward.
+		if name == "clean" {
+			problems = append(problems, fmt.Sprintf(
+				"%s: the 'clean' built-in was removed — teardown is 'dva down <plan> --purge', "+
+					"and a flag has no interaction key to hook. These hooks now run on nothing. "+
+					"Move them to interaction.down.before/after to keep extending teardown, or "+
+					"to interaction.clean.exec/steps to keep 'dva clean' as a command of its own", path))
+			return
+		}
+		problems = append(problems, fmt.Sprintf(
+			"%s: before/replace/after hooks are only supported on hookable commands "+
+				"(%s)", path, HookableCommandList()))
 	})
 
 	if len(problems) == 0 {

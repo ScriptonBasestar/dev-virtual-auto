@@ -156,17 +156,18 @@ dva up local-dev
 dva up backend/local-dev
 ```
 
-`stack`은 선언 저장소이므로 `dva stack up`은 더 이상 권장 모델이 아닙니다.
+`stack`은 선언 저장소일 뿐이며, 실행 표면은 아래 동사 하나뿐입니다. `dva stack`,
+`dva app`, `dva infra`, `dva clean`은 제거됐습니다 (docs/43).
 
 | Command | Description |
 |---------|-------------|
 | `dva up <NAME>` | named execution entry 실행 |
 | `dva down <NAME>` | named execution entry teardown |
+| `dva down <NAME> --purge` | 볼륨·로컬 이미지·provision 마커까지 제거 (구 `dva clean`) |
 | `dva stop <NAME>` | 중지 (제거하지 않음) |
 | `dva restart <NAME>` | 재시작 |
 | `dva logs [NAME]` | 로그 보기 |
 | `dva build [NAME]` | 빌드 수행 |
-| `dva clean` | 전체 정리 |
 
 ```bash
 dva up local-dev
@@ -178,9 +179,9 @@ dva stop local-dev
 
 플래그 집합은 **이름 없이 실행할 때**와 **named plan을 지정해 실행할 때**가 서로 다릅니다.
 
-**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`, `dva stack up/down/stop`)
+**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
 
-`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --dev`처럼 plan 이름을 명시해야 한다.
+`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --force`처럼 plan 이름을 명시해야 한다. 이 검사는 플래그 유효성보다 먼저 돌기 때문에, 오타 난 플래그도 "plan 이름을 쓰라"는 메시지를 받는다.
 
 | Flag | Description |
 |---|---|
@@ -189,14 +190,15 @@ dva stop local-dev
 | `--tag`, `--tags`, `-T TAG[,TAG]` | 해당 태그를 가진 lifecycle 엔트리만 포함 |
 | `--exclude-tag`, `--exclude-tags TAG[,TAG]` | 해당 태그를 가진 lifecycle 엔트리 제외 |
 
-`dva up`과 `dva stack up`은 위에 더해 다음을 인식합니다.
+`dva up`은 위에 더해 다음을 인식합니다.
 
 | Flag | Description |
 |---|---|
 | `--force` | 이미 실행 중이어도 강제로 재시작 |
 | `--no-wait` | 서비스 시작 후 준비 상태를 기다리지 않고 즉시 반환 |
-| `--dev` | 앱을 dev 모드(hot-reload)로 시작 |
-| `--docker` | 앱을 docker 전략으로 강제 실행 |
+
+> `--dev`/`--docker`는 `applications:`와 함께 제거됐습니다. 엔트리는 `run` 명령 하나를
+> 선언하므로 hot-reload 변형은 별도 엔트리로 선언하고 plan으로 선택합니다.
 
 **named plan 지정 시** (`dva up <NAME>`, `dva down <NAME>`, `dva stop <NAME>`)
 
@@ -205,8 +207,13 @@ dva stop local-dev
 | `--force` | 이미 실행 중이어도 강제로 재시작 |
 | `--no-wait` | 준비 상태를 기다리지 않고 즉시 반환 |
 | `--var KEY=VAL` | 실행 시점 변수 override |
-| `-v`, `--volumes` | teardown 시 볼륨까지 제거 |
+| `-v`, `--volumes` | **`down` 전용** — teardown 시 named 볼륨까지 제거 |
+| `--purge` | **`down` 전용** — 볼륨 + 로컬 빌드 이미지 + provision 마커까지 제거 |
 | `--dry-run` | 실행 계획만 표시 |
+
+`--volumes`/`--purge`는 파싱은 모든 plan 동사에서 되지만 `down`이 아니면 에러입니다
+(`--purge is only supported by down`). 데이터를 지우는 플래그가 조용히 무시되는 경우를
+없애기 위한 것으로, `dva up p --purge`는 성공하지 않습니다.
 
 환경/모드/태그는 plan 정의(`plans.<name>`)가 결정하므로, named plan 실행에는 `--mode`/`--env`/`--tag`를 쓸 수 없습니다.
 
@@ -220,67 +227,81 @@ dva up local-dev --force       # named plan을 강제 재시작
 
 `--tag`/`--exclude-tag`은 `--exclude-tag=heavy,slow` 형태의 `=` 문법도 지원합니다.
 
-#### stack 서브커맨드
+#### 엔트리 부분 실행
 
-`stack` 엔트리를 개별적으로 제어해야 할 때 사용합니다.
+개별 엔트리만 돌리려면 그 조합을 plan으로 선언하고 이름으로 실행합니다 —
+`dva stack up <entry>` 같은 엔트리 직접 지정 표면은 없습니다.
 
-| Command | Description |
-|---------|-------------|
-| `dva stack up [NAME...]` | stack 엔트리 시작 (이름 생략 시 전체) |
-| `dva stack stop [NAME...] [OPTIONS]` | 리소스를 제거하지 않고 stack 엔트리 중지 |
-| `dva stack down [NAME...]` | stack 리소스 중지 및 제거 |
-| `dva stack status` | stack 엔트리 상태 표시 |
-| `dva stack log [NAME] [OPTIONS]` | stack 엔트리 로그 보기 |
-
-```bash
-dva stack stop                  # 전체 중지 (상태 보존)
-dva stack log compose           # 특정 stack 엔트리 로그 보기
+```yaml
+plans:
+  db-only:
+    entries:
+      - name: infra
+        runner: compose
+        services: [postgres, redis]
 ```
 
-> **`dva stack up`은 plans/`default_plan`을 참조하지 않습니다.** Compose 러너에서는
-> `--profile` 없는 `docker compose up`이므로 profile 없는 서비스만 뜹니다. 기본을 최소로
-> 유지하려면 **Docker Compose 네이티브 `profiles:`**로 계층을 나누세요 — 코어 데이터
+```bash
+dva up db-only
+dva logs db-only
+dva down db-only
+```
+
+> **이름 없는 `dva up`은 plan을 고르지 않고 선언된 전체를 시작합니다** (`plans`가 정확히
+> 하나이거나 `default_plan`이 있으면 그 plan). Compose 러너에서는 `--profile` 없는
+> `docker compose up`이므로 profile 없는 서비스만 뜹니다. 기본을 최소로 유지하려면
+> **Docker Compose 네이티브 `profiles:`**로 계층을 나누세요 — 코어 데이터
 > (postgres/redis)는 profile 없이 항상 시작하고, 무거운 계층은
 > `profiles: [workflow|monitoring|dev-tools|apps]`로 opt-in 합니다. 명시적 서비스 서브셋
 > 실행은 `dva up <plan>`(`plans.entries[].services`)을 쓰며, plan이 profile 걸린 서비스를
 > 이름으로 지정하면 profile과 무관하게 시작됩니다.
 
-#### app 서브커맨드
+#### 앱 프로세스
 
-`applications` 섹션에 정의된 앱 프로세스를 제어합니다.
+`applications:` 섹션과 `dva app` 명령은 제거됐습니다 (docs/43). 앱은 `native` 러너를 쓰는
+stack 엔트리로 선언하고 plan으로 조합합니다. 기존 파일은 `dva config migrate`가
+`stack.<name>.default_runner: native` + `runners.native`로 변환합니다 —
+`dev`/`variants`/`depends_on`/`port`는 변환되지 않으므로 리포트가 이름을 대는 항목만
+손으로 옮기면 됩니다.
 
-| Command | Description |
-|---------|-------------|
-| `dva app ls` | 앱 목록을 status, health, PID와 함께 표시 |
-| `dva app up [APP...] [--dev]` | 앱 시작 (이름 생략 시 전체), `--dev`는 hot-reload 모드 |
-| `dva app build [APP...]` | 앱 빌드 (`--docker` 지정 시 컨테이너 빌드) |
-| `dva app restart [APP...] [--dev]` | 앱 재시작 (중지 후 시작) |
-| `dva app stop [APP...]` | 상태를 제거하지 않고 앱 중지 (PID 보존, 빠른 재시작용) |
-| `dva app down [APP...]` | 앱 중지 및 리소스(PID 파일, 로그) 제거 |
-| `dva app log <APP>` | 앱의 최근 로그 표시 (마지막 100줄) |
-
-```bash
-dva app build myapp       # 특정 앱 빌드
-dva app restart myapp     # 특정 앱 재시작
-dva app stop myapp        # 중지 (빠른 재시작을 위해 상태 보존)
-dva app log myapp         # 최근 로그 확인
+```yaml
+stack:
+  api:
+    default_runner: native
+    runners:
+      native:
+        dir: ./api
+        build: go build -o bin/api ./cmd/api
+        run: ./bin/api
+        env:
+          PORT: "8080"
 ```
 
-`dva app up` waits for application health by default. An alive process that misses `ready_timeout` remains advisory (exit 0) unless `applications.<name>.health.required: true`, which makes the command fail with non-zero exit and `[FAIL]` output. `dva app up --no-wait` skips readiness. This contract is application-only; top-level `health_checks` does not support `required` (omitted/false = advisory/zero, required:true = strict failure/non-zero).
+> **기능 손실**: `applications.<name>.health.required: true`(엄격 준비 상태 — 미달 시
+> non-zero exit + `[FAIL]`)에 해당하는 스위치가 plan 경로에는 없습니다. 최상위
+> `health_checks`는 `required`를 지원하지 않으며 항상 advisory(exit 0)입니다. 준비 상태
+> 실패를 CI에서 실패로 만들려면 지금은 `checks:` 또는 interaction 명령으로 직접 게이트를
+> 세워야 합니다.
 
-#### clean
+#### 볼륨·이미지·마커까지 제거 (`--purge`)
 
 ```bash
-dva clean                 # containers + networks 제거
-dva clean -v              # + 볼륨 제거 (데이터 손실 주의)
-dva clean -i              # + 로컬 빌드 이미지 제거
-dva clean -f              # 확인 프롬프트 스킵
+dva down <PLAN> -v            # + named 볼륨 제거 (데이터 손실 주의)
+dva down <PLAN> --purge       # + 로컬 빌드 이미지 + provision 마커 제거
+dva down <PLAN> --purge --force   # 확인 프롬프트 스킵
 ```
 
-`-v`/`-i`는 확인 프롬프트를 띄웁니다. 프롬프트에 답할 수 없는 환경(파이프, CI 러너,
-`</dev/null`)에서는 아무것도 지우지 않고 **실패**합니다 — 이전에는 조용히 exit 0이라
-스크립트가 삭제된 것으로 오해할 수 있었습니다. 비대화식 실행에는 `-f`를 명시하세요.
-터미널에서 `n` 또는 Enter로 거절한 경우는 그대로 exit 0입니다.
+`--purge`는 확인 프롬프트를 띄웁니다. 프롬프트에 답할 수 없는 환경(파이프, CI 러너,
+`</dev/null`)에서는 아무것도 지우지 않고 **실패**합니다 — 조용히 exit 0으로 끝나
+스크립트가 삭제된 것으로 오해하는 일을 막기 위해서입니다. 비대화식 실행에는 `--force`를
+명시하세요. 터미널에서 `n` 또는 Enter로 거절한 경우는 그대로 exit 0입니다.
+
+provision 마커는 plan이 아니라 provision 프로파일 단위라서, `--purge`는 설정 디렉토리의
+마커를 **전부** 지웁니다 (구 `dva clean`과 같은 사정거리). `--dry-run`을 붙이면 지우지 않고
+`would delete provision marker ...`만 출력합니다.
+
+`--purge`에는 hook이 없습니다 — hook을 걸 수 있는 명령은 `down` 자체이므로
+`interaction.down.before`/`after`가 `--purge` 실행에도 그대로 돕니다.
 
 #### 환경 분기 (`environment` / `site` / `vars`)
 
@@ -302,8 +323,11 @@ dva clean -f              # 확인 프롬프트 스킵
 |---------|-------------|
 | `dva compose ARGS` | raw Docker Compose 패스스루 (escape hatch — 내가 소유한 compose를 직접 실행) |
 | `dva ktl ARGS` | kubectl 패스스루 |
-| `dva infra up/down [SVC]` | ⚠️ deprecated → stack `source:`로 흡수 ([stack.source](#stacksource-외부-스택-소싱) 참조). SVC 생략 시 `infra` 태그 전체 |
 | `dva ssh up/down/status` | SSH agent 컨테이너 관리 |
+
+> `dva infra`는 제거됐습니다 (docs/43). 외부 스택은 stack `source:`가 흡수했으므로
+> ([stack.source](#stacksource-외부-스택-소싱) 참조), 해당 엔트리를 plan에 넣고
+> `dva up <plan>`으로 실행합니다.
 
 #### ssh up
 
@@ -497,15 +521,16 @@ stack:
 
 - `git`과 `path`는 상호 배타 — 정확히 하나만 지정.
 - git 소스는 `dva up` 시 **없을 때만 clone**하며 자동 pull하지 않습니다(재현성).
-  명시적 갱신: `dva infra update <name>`.
+  갱신하려면 캐시 디렉토리(`.sb/dva/sources/<name>/`)를 지우고 다시 실행합니다 —
+  전용 갱신 명령(`dva infra update`)은 제거됐습니다.
 - 소싱된 엔트리의 `runners.compose.files`와 실행 작업 디렉토리(`.env`,
   build context, 볼륨)는 **source 디렉토리 기준**으로 해석됩니다.
 - git 캐시 위치: `.sb/dva/sources/<name>/`.
 
 **`infra:` 마이그레이션** — 구 top-level `infra:` 맵은 deprecated입니다. 로드 시
-`source:` 기반 stack 엔트리(태그 `infra`)로 자동 변환되며 경고를 출력하고,
-`dva infra up/down`은 이 stack 엔트리로 위임됩니다. 새 설정은
-`stack.<name>.source`를 직접 사용하세요.
+`source:` 기반 stack 엔트리(태그 `infra`)로 자동 변환되며 경고를 출력합니다. 변환된
+엔트리는 다른 stack 엔트리와 동일하게 plan에서 선택합니다 (`--tag infra`로도 필터 가능).
+새 설정은 `stack.<name>.source`를 직접 사용하세요.
 
 ### plans
 
@@ -676,20 +701,30 @@ health_checks:
 커맨드와 겹치면 `dva validate`가 exit 1로 실패하고, 설정을 읽을 때마다 경고가 출력됩니다.
 선언이 버려지는 것은 아니며 짧은 형식만 내장 커맨드에게 넘어갑니다 — 아래 규칙을 따릅니다.
 
-**예약어 27개** — 내장 커맨드 이름입니다:
+**예약어 23개** — 내장 커맨드 이름입니다:
 
 ```text
-help  version  ls       compose  up      stop   down     build  clean
-run   provision validate manifest ktl     ssh    infra    console
-completion init  status  config   logs    restart show    doctor
-app   stack
+help  version   ls       compose  up      stop    down   build
+run   provision validate manifest ktl     ssh     console
+completion init  status   config   logs    restart show   doctor
 ```
 
-**훅 가능 7개** — 예약어 중 `before`/`replace`/`after` 훅을 받는 것:
+**훅 가능 6개** — 예약어 중 `before`/`replace`/`after` 훅을 받는 것:
 
 ```text
-up  down  stop  restart  build  clean  logs
+build  down  logs  restart  stop  up
 ```
+
+> `stack`/`app`/`infra`/`clean`은 예약어에서 빠졌습니다 (docs/43). 이제 그 이름의
+> interaction은 정상 등록되어 `dva app`으로 바로 실행됩니다.
+>
+> 단 `interaction.clean.before`/`replace`/`after`를 쓰던 설정은 **`validate`가 exit 1로
+> 거부**합니다. 훅을 실행하는 경로(`wrapWithHooks`)는 훅 가능 내장 커맨드에만 연결돼
+> 있어서, 내장 `clean`이 사라진 지금 그 훅은 아무 데서도 돌지 않기 때문입니다. 조용히
+> 넘기지 않는 이유는 훅이 죽어도 출력이 그대로라 사용자가 알아챌 신호가 없어서입니다
+> (`before: [backup]`이 안 돌아도 결과는 정상으로 보입니다). teardown을 계속 확장하려면
+> `interaction.down.before`/`after`로, `dva clean`을 독립 명령으로 남기려면
+> `interaction.clean.exec`/`steps`로 옮기라는 안내가 에러 메시지에 실립니다.
 
 판정 규칙:
 
@@ -699,7 +734,8 @@ up  down  stop  restart  build  clean  logs
 | 훅 가능 예약어 | `before`/`replace`/`after` 중 하나 이상 | 내장 커맨드를 감싸는 훅으로 동작 | `dva <name>` (내장이 훅을 실행) |
 | 훅 가능 예약어 | 없음 (`command:`만) | **충돌** — `validate` 실패 | `dva run <name>` |
 | 훅 불가 예약어 | 무관 | **충돌** — `validate` 실패 | `dva run <name>` |
-| `app:build`처럼 `:` 앞이 예약어 | 무관 | **충돌** — `validate` 실패 | **없음** (아래 참조) |
+| `compose:ps`처럼 `:` 앞이 예약어 | 무관 | **충돌** — `validate` 실패 | **없음** (아래 참조) |
+| `mytool:fast`처럼 `:` 앞이 예약어가 아님 | — | 정상 등록 | `dva mytool:fast` |
 
 즉 `build`처럼 **예약어이면서 훅 가능한** 이름은 `command:`로 재정의할 수 없고
 `replace:`로만 대체할 수 있습니다.
@@ -713,24 +749,33 @@ up  down  stop  restart  build  clean  logs
 계속 보여주되 도달 가능한 호출을 함께 표시합니다 — `manifest`의 경우
 `usage_example: "dva run build"`와 `shadowed_by_builtin: "build"` 필드입니다.
 
-`app:build`처럼 `:` 앞이 예약어인 경우만 예외로 **어떤 호출로도 도달할 수 없습니다**:
-짧은 형식은 내장 커맨드가 아니고, `run` 형식은 `app:`을 서브프로젝트 참조로 읽어
-`subproject 'app' not found`로 실패합니다. 구분자를 바꾸는 것(`app-build`)이 유일한
-해결책입니다.
+`compose:ps`처럼 `:` 앞이 **예약어인** 경우만 예외로 **어떤 호출로도 도달할 수
+없습니다**: 짧은 형식은 내장 커맨드가 아니고, `run` 형식은 `compose:`를 서브프로젝트
+참조로 읽어 `subproject 'compose' not found`로 실패합니다. 구분자를 바꾸는 것
+(`compose-ps`)이 유일한 해결책입니다.
 
 이 경우 `manifest`는 위의 `shadowed_by_builtin`과 다른 필드를 씁니다 — 도달 가능한 호출이
-아예 없으므로 `usage_example`은 **생략되고**, 대신 `unroutable: "app"`(문제의 접두사)과
+아예 없으므로 `usage_example`은 **생략되고**, 대신 `unroutable: "compose"`(문제의 접두사)와
 `unroutable_reason`(전체 설명)이 실립니다. `dva ls --json`도 같은 값을 노출하고,
 사람이 읽는 `dva ls`는 `(unreachable: ...)` 표시를 붙입니다. `usage_example`이 없다는 것
 자체가 신호입니다: 실행하면 반드시 실패하는 문자열을 제안하지 않기 위한 것입니다.
 
-`subcommands:`를 가진 키도 마찬가지입니다 — `app:build fast`처럼 파생된 항목 역시
+`subcommands:`를 가진 키도 마찬가지입니다 — `compose:ps fast`처럼 파생된 항목 역시
 접두사가 죽어 있으므로 동일하게 표시됩니다.
 
-구분자를 바꿀 때는 **콜론을 모두** 없애야 합니다. `app:sub:cmd`를 `app-sub:cmd`로만
-고치면 여전히 `run`이 `app-sub:`을 서브프로젝트로 읽어 실패하는데, `app-sub`은 예약어가
-아니라서 `validate`는 통과하고 `ls`에도 표시가 사라집니다 — 잡히는 에러가 조용한 실패로
-바뀝니다. `app-sub-cmd`가 정답입니다.
+**예약어가 아닌 접두사는 도달합니다.** `mytool:fast`는 선언된 키 그대로 조회되어
+`dva mytool:fast`로 실행됩니다(선언이 추론을 이깁니다). 접두사와 같은 이름의 서브프로젝트가
+실제로 있는 경우는 영향이 없습니다 — 부모가 `subprojects: {engine: ...}`를 선언했다면
+`engine:test` 리터럴 키는 부모에 없고 자식 `dva.yml`에 있기 때문입니다.
+
+이 규칙은 **살아 있는 예약어 집합**을 기준으로 판정합니다. 그래서 `app`이 내장 커맨드에서
+빠진 지금 `app:build`는 unroutable이 아니라 평범한 interaction입니다 — 접두사가 더 이상
+DVA가 소유한 이름이 아니기 때문입니다.
+
+이름을 바꿀 때 `dva`가 제안하는 형태는 **콜론을 모두** 없앤 것입니다
+(`compose:sub:cmd` → `compose-sub-cmd`). 콜론이 남아도 라우팅 자체는 되지만, 예약어 접두사가
+사라지면서 `validate`가 붙여 주던 표시도 함께 사라지므로 제안대로 전부 없애는 편이
+읽기에 명확합니다.
 
 ```yaml
 interaction:

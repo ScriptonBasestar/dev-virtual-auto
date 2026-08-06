@@ -42,10 +42,19 @@ func TestSplitFlagToken(t *testing.T) {
 //
 // "Pre-command" and "post-command" are not a distinction cobra preserves for these commands.
 // When the target sets DisableFlagParsing, cobra locates it and hands back every token that
-// is not part of the command path — so `dva --debug=true stack log infra` arrives at RunE as
-// ["--debug=true", "infra"], with the flag ahead of the entry name. That is the shape
-// measured leaking, and it is what these rows drive. Nothing about the fix is
-// position-sensitive, which is exactly what the rows are here to keep true.
+// is not part of the command path — so `dva --debug=true logs infra` arrives at RunE as
+// ["--debug=true", "infra"], with the flag ahead of the name. That is the shape measured
+// leaking, and it is what these rows drive. Nothing about the fix is position-sensitive,
+// which is exactly what the rows are here to keep true.
+//
+// The rows were measured on `dva stack log infra` and now drive `dva logs`, which is the
+// same consumer: stack log stripped root flags with consumeRootPersistentFlags, deliberately
+// not parseDvaFlags, "because compose owns --dry-run on this path" (TASK-092), and logsCmd
+// does the same at compose.go:645. One assertion moved with the target. `infra` named a
+// stack entry there and was resolved into `-p`/`-f`, so it never appeared in docker's argv;
+// here the fixture declares no plans, so it stays a compose service name and reaches docker.
+// It is asserted present rather than dropped — a strip that overshot into the positional
+// slot is the neighbouring bug to the one this test exists for.
 func TestRootFlagShapesNeverReachDocker(t *testing.T) {
 	cases := []struct {
 		name string
@@ -60,34 +69,34 @@ func TestRootFlagShapesNeverReachDocker(t *testing.T) {
 	}{
 		{
 			name:      "bare, pre-command",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"--debug", "infra", "--tail=5"},
 			absent:    []string{"--debug"},
-			present:   []string{"logs", "--tail=5"},
+			present:   []string{"logs", "infra", "--tail=5"},
 			wantDebug: true,
 		},
 		{
 			name:      "bare, post-command",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"infra", "--debug", "--tail=5"},
 			absent:    []string{"--debug"},
-			present:   []string{"logs", "--tail=5"},
+			present:   []string{"logs", "infra", "--tail=5"},
 			wantDebug: true,
 		},
 		{
 			name:      "=value, pre-command",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"--debug=true", "infra", "--tail=5"},
 			absent:    []string{"--debug=true", "--debug"},
-			present:   []string{"logs", "--tail=5"},
+			present:   []string{"logs", "infra", "--tail=5"},
 			wantDebug: true,
 		},
 		{
 			name:      "=value, post-command",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"infra", "--debug=true", "--tail=5"},
 			absent:    []string{"--debug=true", "--debug"},
-			present:   []string{"logs", "--tail=5"},
+			present:   []string{"logs", "infra", "--tail=5"},
 			wantDebug: true,
 		},
 		{
@@ -95,10 +104,10 @@ func TestRootFlagShapesNeverReachDocker(t *testing.T) {
 			// merely matched: a fix that stripped the token and set debug unconditionally
 			// would pass every other row here.
 			name:      "=false is obeyed, not just stripped",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"infra", "--debug=false"},
 			absent:    []string{"--debug=false", "--debug"},
-			present:   []string{"logs"},
+			present:   []string{"logs", "infra"},
 			wantDebug: false,
 		},
 		{
@@ -113,10 +122,10 @@ func TestRootFlagShapesNeverReachDocker(t *testing.T) {
 			// Criterion 3. Before the fix this reached docker as `logs -- --tail=5`: the
 			// terminator survived and the literal it was protecting did not.
 			name:      "terminator forwards a DVA-spelled token",
-			run:       func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			run:       func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:      []string{"infra", "--", "--debug", "--tail=5"},
 			absent:    []string{"--"},
-			present:   []string{"logs", "--debug", "--tail=5"},
+			present:   []string{"logs", "infra", "--debug", "--tail=5"},
 			wantDebug: false,
 		},
 		{

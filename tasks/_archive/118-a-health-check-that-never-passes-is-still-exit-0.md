@@ -162,10 +162,21 @@ Four-commit path audit: `.omo/evidence/task-118-health-required/commit-audit.txt
 
 **Focused tests**
 
-| Suite | Command | Result | Evidence |
+> **Retired by the command-surface restructure (`docs/43`).** `applications:` was removed, and
+> with it `health.required`, `app_manager.go`, and both contract tests. The two rows below are
+> the historical record of what passed on 2026-08-03; they are written apart from executable
+> form because, run today, each would select no test, print "no tests to run", and exit 0 —
+> a reader checking this task's history would be told it still verifies. The test names are
+> kept verbatim so `git log -S` can still find what ran.
+>
+> **The feature itself is gone, not merely its tests.** The plan surface has no equivalent of
+> `health.required: true`; top-level `health_checks` is advisory only. Recorded as a known
+> loss in [docs/43](../../docs/43-command-surface-restructure.md) §16 Tier 1.
+
+| Suite | Command (retired) | Result | Evidence |
 | --- | --- | --- | --- |
-| config contract | `go test ./internal/config -run '^TestValidateApplicationHealthRequiredContract$' -count=1 -v` | EXIT 0, 5/5 PASS | `task-2-config-green.txt` |
-| lifecycle contract | `go test ./internal/lifecycle -run '^TestStartAppsHealthRequiredContract$' -count=1 -v` | EXIT 0, 5/5 PASS | `task-3-lifecycle-green.txt` |
+| config contract | `go test ./internal/config` with `-run` = `^TestValidateApplicationHealthRequiredContract$`, `-count=1 -v` | EXIT 0, 5/5 PASS | `task-2-config-green.txt` |
+| lifecycle contract | `go test ./internal/lifecycle` with `-run` = `^TestStartAppsHealthRequiredContract$`, `-count=1 -v` | EXIT 0, 5/5 PASS | `task-3-lifecycle-green.txt` |
 
 Config subtests: `parent_required_true_loads_and_parses`, `variant_required_true_survives_resolve_app`, `omitted_defaults_false`, `non_boolean_application_value_rejected`, `top_level_health_checks_required_rejected`.
 

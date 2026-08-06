@@ -119,58 +119,58 @@ dva stop local-dev
 
 Use the same plan name used for `up`.
 
-### `dva build [SERVICE...]`
+### `dva build [PLAN] [ENTRY] [SERVICE...]`
 
-Build service images. Supports lifecycle hooks.
+Build a plan's entries: compose images for compose runners, `runners.native.build` commands
+for native ones. Supports lifecycle hooks.
 
 ```bash
-dva build                 # build all
-dva build api             # build specific service
+dva build                 # build the default plan's entries
+dva build local-dev       # build the named plan's entries
+dva build local-dev api   # build one entry within the plan
+dva build compose web     # compose entry, single service
 ```
 
-### `dva logs [SERVICE]`
+### `dva logs [PLAN] [ENTRY] [SERVICE...]`
 
-View container logs.
+View a plan's output. Compose entries pass through to `docker compose logs`; process and
+script entries read `.dva/logs/<name>.log`.
 
 ```bash
-dva logs                  # all service logs
-dva logs api              # specific service logs
+dva logs                  # the default plan's entries
+dva logs local-dev        # the named plan's entries
+dva logs local-dev api    # one entry within the plan
 ```
 
-### `dva clean`
+### `dva down [PLAN] --purge`
 
-Remove containers, networks, and optionally volumes/images.
+`dva clean` was removed; its destruction is a flag on the teardown it always belonged to.
 
 ```bash
-dva clean                 # containers + networks
-dva clean -v              # + volumes (data loss warning)
-dva clean -i              # + locally built images
-dva clean -f              # skip confirmation prompt
+dva down local-dev              # containers + networks
+dva down local-dev --volumes    # + volumes (data loss warning)
+dva down local-dev --purge      # + local images + provision markers (data loss warning)
+dva down local-dev --purge --force   # skip confirmation prompt
 ```
 
 | Flag | Description |
 |------|-------------|
-| `-v` | Remove volumes (data loss) |
-| `-i` | Remove local images |
-| `-f` | Skip confirmation |
+| `--volumes` | Remove volumes (data loss) |
+| `--purge` | Volumes, locally built images, and provision markers |
+| `--force` | Skip the `--purge` confirmation |
 
-`-v`/`-i` prompt for confirmation. Where nothing can answer the prompt — a pipe, a CI
-runner, `</dev/null` — the command removes nothing and **fails**, naming `-f` as the way to
-proceed non-interactively. Declining at a terminal (`n`, or Enter for the default) still
+`--purge` prompts for confirmation. Where nothing can answer the prompt — a pipe, a CI
+runner, `</dev/null` — the command removes nothing and **fails**, naming `--force` as the way
+to proceed non-interactively. Declining at a terminal (`n`, or Enter for the default) still
 exits 0: an answer was given and honoured.
 
-### `dva app` (legacy)
+Provision markers are keyed by profile rather than by plan, so `--purge` clears every marker
+in the config directory — the same reach `clean` had. `--dry-run` names each one it would
+delete instead of deleting it.
 
-Manage legacy `applications:` entries. New configurations use stack runners and plans.
-
-```bash
-dva app ls                # list defined applications
-dva app build             # build applications
-dva app up [NAME]         # start application(s)
-dva app down [NAME]       # stop application(s)
-dva app log [NAME]        # view application logs
-dva app restart [NAME]    # restart application(s)
-```
+Because `--purge` is a flag, it has no `interaction:` key. A config that hooked
+`interaction.clean.before` must move that step; `dva config validate` names the removal
+rather than silently treating `clean` as a plain command.
 
 ## Project Management
 
@@ -181,7 +181,7 @@ their runners, plans, modes, environments, interactions, and so on — and secti
 not declare are omitted rather than printed empty. Read the output rather than this list; the
 sections follow the config, so an enumeration here would drift.
 
-Stack rows name the entry, which is the argument `dva stack up <name>` and the tag filters take.
+Stack rows name the entry, which is what a plan's `entries[].name` and the tag filters take.
 
 ```bash
 dva show                  # human-readable summary
@@ -247,17 +247,6 @@ Kubectl pass-through. Forward raw kubectl commands.
 dva ktl get pods          # list pods
 dva ktl logs pod-name     # view pod logs
 dva ktl exec -it pod sh   # exec into pod
-```
-
-### `dva infra <action> [SERVICE]`
-
-Manage shared background infrastructure services (git-based).
-
-```bash
-dva infra up              # start shared infra
-dva infra down            # stop shared infra
-dva infra update          # update infra definitions
-dva infra up postgres     # start specific infra service
 ```
 
 ### `dva ssh <action>`

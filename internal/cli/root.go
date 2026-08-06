@@ -86,13 +86,9 @@ func init() {
 	restartCmd.GroupID = "lifecycle"
 	logsCmd.GroupID = "lifecycle"
 	buildCmd.GroupID = "lifecycle"
-	cleanCmd.GroupID = "lifecycle"
-	appCmd.GroupID = "lifecycle"
-	stackCmd.GroupID = "lifecycle"
 
 	composeCmd.GroupID = "integration"
 	ktlCmd.GroupID = "integration"
-	infraCmd.GroupID = "integration"
 	sshCmd.GroupID = "integration"
 
 	manifestCmd.GroupID = "advanced"
@@ -110,22 +106,18 @@ func init() {
 	rootCmd.AddCommand(restartCmd)
 	rootCmd.AddCommand(logsCmd)
 	rootCmd.AddCommand(buildCmd)
-	rootCmd.AddCommand(cleanCmd)
 	rootCmd.AddCommand(provisionCmd)
 	rootCmd.AddCommand(manifestCmd)
 	rootCmd.AddCommand(ktlCmd)
 	rootCmd.AddCommand(sshCmd)
-	rootCmd.AddCommand(infraCmd)
 	rootCmd.AddCommand(consoleCmd)
-	rootCmd.AddCommand(appCmd)
-	rootCmd.AddCommand(stackCmd)
 
 	// Wrap hookable lifecycle commands with before/replace/after hook execution.
 	// hookableCommands (config.HookableCommands) is the single source of truth;
 	// this map only provides the Go variable binding.
 	hookableCmds := map[string]*cobra.Command{
 		"up": upCmd, "down": downCmd, "stop": stopCmd,
-		"restart": restartCmd, "build": buildCmd, "clean": cleanCmd,
+		"restart": restartCmd, "build": buildCmd,
 		config.LogsDirName: logsCmd,
 	}
 	for name, cmd := range hookableCmds {
@@ -147,9 +139,6 @@ func init() {
 	manualFlagCommands := []*cobra.Command{
 		composeCmd,
 		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
-		stackUpCmd, stackStopCmd, stackDownCmd, stackLogCmd,
-		appUpCmd, appRestartCmd, appBuildCmd,
-		infraUpCmd, infraDownCmd,
 		ktlCmd,
 	}
 	for _, cmd := range manualFlagCommands {
@@ -282,10 +271,17 @@ func applyRootPersistentFlagsFromArgs(args []string) {
 // two removed, so DVA's own flags do not become the plugin's.
 //
 // It exists separately from parseDvaFlags because the raw passthroughs cannot use that one.
-// parseDvaFlags also consumes --dry-run, --mode, --env and the tag flags; for `dva compose`,
-// `dva logs` and `dva stack log` those belong to docker, and eating them would break the
-// passthrough this is meant to protect. --dry-run in particular is deliberately left in place,
-// for the reason applyRootPersistentFlagsFromArgs already documents: compose has its own.
+// parseDvaFlags also consumes --mode, --env and the tag flags; for `dva compose` and
+// `dva logs` those belong to docker, and eating them would break the passthrough this is
+// meant to protect. --dry-run is left in place for the same reason, which
+// applyRootPersistentFlagsFromArgs already documents: compose has its own.
+//
+// That last one reaches docker from `dva compose` and nowhere else. This comment used to
+// name `dva logs` and `dva stack log` alongside it; only stack log ever behaved that way,
+// and it is gone. `dva logs` is a hookable built-in, so wrapWithHooks replaces its RunE and
+// consumeDryRunFlag (hooks.go:28) claims the token before the body runs — as it does for
+// every other hookable command. Leaving this function's treatment of --dry-run alone is
+// still right: it is not this function's job to know which of its callers is wrapped.
 //
 // This is the only one of the four consumers that drops the `--` terminator, because it is
 // the only one whose output is the external argv. `--` ends DVA's flags, so DVA eats it and
@@ -454,15 +450,19 @@ func isTerminal(file *os.File) bool {
 }
 
 // isFeaturedLifecycleCommand reports whether the lifecycle help block lists cmd
-// explicitly, under either "Recommended Flow" (up, down) or "Direct Access"
-// (stack, app). The template uses it to keep those four out of "Other Commands",
-// which lists whatever the explicit blocks did not.
+// explicitly, under "Recommended Flow". The template uses it to keep those out of
+// "Other Commands", which lists whatever the explicit block did not.
+//
+// It used to feature four: up/down plus a "Direct Access" pair, stack and app. Those two
+// commands are gone, and with them the reason for a second block — every lifecycle verb
+// left takes the same plan name, so there is no longer a backend-shaped way in to steer
+// people away from.
 func isFeaturedLifecycleCommand(cmd *cobra.Command) bool {
 	if cmd == nil || cmd.GroupID != "lifecycle" {
 		return false
 	}
 	switch cmd.Name() {
-	case "up", "stack", "app", "down":
+	case "up", "down":
 		return true
 	default:
 		return false
@@ -478,12 +478,6 @@ func featuredLifecycleHint(cmd *cobra.Command) string {
 		return "[start] " + cmd.Short
 	case "down":
 		return "[down] " + cmd.Short
-	case "stack":
-		return "[infra] " + cmd.Short
-	case "app":
-		// applications/--mode are migration-only; the current model is stack
-		// runners selected from plans. Mark it where the user chooses.
-		return "[legacy] " + cmd.Short
 	default:
 		return cmd.Short
 	}
@@ -511,11 +505,6 @@ Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help")
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "up"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "down"))}}
-  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
-  Direct Access (prefer the flow above)
-{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "stack"))}}
-  {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
-{{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (commandNameIs . "app"))}}
   {{rpad .Name .NamePadding }} {{featuredLifecycleHint .}}{{end}}{{end}}
   Other Commands
 {{- range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")) (not (isFeaturedLifecycle .)))}}

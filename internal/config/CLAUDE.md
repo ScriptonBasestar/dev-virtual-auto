@@ -6,8 +6,12 @@
 
 - **`Config`** — `dva.yml` 전체 구조 (config.go)
 - **`LifecycleEntry`** — `stack:` 항목, `default_runner`+`runners` 기반 실행 선언 (lifecycle.go)
-- **`ModeConfig`** — `--mode` 런타임 전략 (`build`/`run`/`applications`) (config.go)
+- **`ModeConfig`** — `--mode` 런타임 전략 (`build`/`run`/`stack`/`compose_*`) (config.go)
+- **`PlanConfig`** — `plans.<name>`, 실행 가능한 이름 (환경·site·엔트리 조합) (config.go)
 - **`Environment`** — 활성 환경 프로필 및 env_file 병합 결과 (environment.go)
+
+`applications:`와 그 타입(`ApplicationConfig`, `AppVariant`, `AppExecPaths`)은 제거됐습니다
+(docs/43). 변환은 `dva config migrate`가 담당합니다 (migrate.go).
 
 ## Plugin Resolution (lifecycle.go)
 

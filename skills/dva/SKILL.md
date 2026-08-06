@@ -127,11 +127,14 @@ dva up local-dev        # compose infra + native app runners
 dva down local-dev      # reverse-order teardown for the same plan
 dva stop local-dev      # stop without removing for the same plan
 dva restart local-dev  # stop + start the named plan
-dva logs <service>     # view service logs
-dva build              # build service images
-dva clean              # remove containers, networks
-dva clean -v           # also remove volumes (data loss warning)
+dva logs local-dev     # view the plan's entry logs
+dva build local-dev    # build the plan's entries
+dva down local-dev --volumes  # teardown, also removing volumes
+dva down local-dev --purge    # + images and provision markers (data loss warning)
 ```
+
+Every lifecycle verb takes a plan name in the same slot. `dva stack`, `dva app`, and
+`dva clean` were removed — `--purge` on `down` replaces `clean`.
 
 Plans select an `environment` and `site`. Do not create a separate `docker`
 runner for a service already owned by a Compose entry: `docker` means a
@@ -156,11 +159,11 @@ When DVA lacks a direct command for an operation, use pass-through:
 ```bash
 dva compose <args>     # pass-through to docker compose
 dva ktl <args>         # pass-through to kubectl
-dva infra up           # shared infrastructure management
-dva infra down         # tear down shared infra
-dva infra update       # update infra definitions
 dva ssh up             # SSH agent container
 ```
+
+`dva infra` was removed. Shared infrastructure is a stack entry like any other; select it
+with a plan and use the lifecycle verbs above.
 
 ## Key Concepts
 

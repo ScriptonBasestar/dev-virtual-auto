@@ -438,9 +438,6 @@ func mergeModeConfig(base, other ModeConfig) ModeConfig {
 	if other.Provision != "" {
 		base.Provision = other.Provision
 	}
-	if other.Applications != nil {
-		base.Applications = other.Applications
-	}
 
 	// List replace
 	if other.ComposeProfiles != nil {
@@ -460,118 +457,6 @@ func mergeModeConfig(base, other ModeConfig) ModeConfig {
 	}
 
 	// Map merge
-	base.Environment = mergeStringMap(base.Environment, other.Environment)
-
-	return base
-}
-
-// mergeApplicationConfig deep-merges other into base.
-func mergeApplicationConfig(base, other *ApplicationConfig) *ApplicationConfig {
-	if base == nil {
-		return other
-	}
-	if other == nil {
-		return base
-	}
-
-	if other.Description != "" {
-		base.Description = other.Description
-	}
-	if other.Dir != "" {
-		base.Dir = other.Dir
-	}
-
-	// AppExecPaths: merge each variant
-	if other.Run.Native != "" {
-		base.Run.Native = other.Run.Native
-	}
-	if other.Run.Docker.Service != "" || other.Run.Docker.Command != "" {
-		base.Run.Docker = other.Run.Docker
-	}
-	if other.Build.Native != "" {
-		base.Build.Native = other.Build.Native
-	}
-	if other.Build.Docker.Service != "" || other.Build.Docker.Command != "" {
-		base.Build.Docker = other.Build.Docker
-	}
-	if other.Dev.Native != "" {
-		base.Dev.Native = other.Dev.Native
-	}
-	if other.Dev.Docker.Service != "" || other.Dev.Docker.Command != "" {
-		base.Dev.Docker = other.Dev.Docker
-	}
-
-	if other.Health != nil {
-		base.Health = other.Health
-	}
-	if other.Port != 0 {
-		base.Port = other.Port
-	}
-
-	// List replace
-	if other.Tags != nil {
-		base.Tags = other.Tags
-	}
-	if other.DependsOn != nil {
-		base.DependsOn = other.DependsOn
-	}
-
-	// Map merge
-	base.Environment = mergeStringMap(base.Environment, other.Environment)
-
-	// Variants: merge per entry
-	if other.Variants != nil {
-		if base.Variants == nil {
-			base.Variants = make(map[string]*AppVariant)
-		}
-		for k, v := range other.Variants {
-			if existing, ok := base.Variants[k]; ok {
-				base.Variants[k] = mergeAppVariant(existing, v)
-			} else {
-				base.Variants[k] = v
-			}
-		}
-	}
-
-	return base
-}
-
-// mergeAppVariant deep-merges other into base.
-func mergeAppVariant(base, other *AppVariant) *AppVariant {
-	if base == nil {
-		return other
-	}
-	if other == nil {
-		return base
-	}
-
-	if other.Description != "" {
-		base.Description = other.Description
-	}
-	if other.Port != 0 {
-		base.Port = other.Port
-	}
-	if other.Run.Native != "" {
-		base.Run.Native = other.Run.Native
-	}
-	if other.Run.Docker.Service != "" || other.Run.Docker.Command != "" {
-		base.Run.Docker = other.Run.Docker
-	}
-	if other.Build.Native != "" {
-		base.Build.Native = other.Build.Native
-	}
-	if other.Build.Docker.Service != "" || other.Build.Docker.Command != "" {
-		base.Build.Docker = other.Build.Docker
-	}
-	if other.Dev.Native != "" {
-		base.Dev.Native = other.Dev.Native
-	}
-	if other.Dev.Docker.Service != "" || other.Dev.Docker.Command != "" {
-		base.Dev.Docker = other.Dev.Docker
-	}
-	if other.Health != nil {
-		base.Health = other.Health
-	}
 	base.Environment = mergeStringMap(base.Environment, other.Environment)
 
 	return base

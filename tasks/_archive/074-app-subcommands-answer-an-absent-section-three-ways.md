@@ -131,14 +131,20 @@ before that. It still precedes `resolveMode`, the mode header, and `suggestProvi
 
 ## Acceptance criteria
 
-- [x] Bare `dva app up` on a config with no `applications:` exits 0 and names a runnable command | verify: `go test ./internal/cli/ -run TestAppUpBareOnAbsentApplications`
-- [x] `dva app up NAME` on the same config exits 1 and names NAME | verify: `go test ./internal/cli/ -run TestAppUpNamedOnAbsentApplications`
-- [x] `dva app log NAME` no longer reports the app as "not found" | verify: `go test ./internal/cli/ -run TestAppLogOnAbsentApplications`
-- [x] No message on this path names a config filename | verify: `go test ./internal/cli/ -run TestAbsentApplicationsMessageNamesNoFile`
+> **Retired by the command-surface restructure (`docs/43`).** `dva app` was removed, and
+> `app.go` and `app_absent_test.go` went with it, so the five `go test -run` bindings below
+> now select nothing. Left as executable commands they would print "no tests to run" and
+> exit 0 — a reader checking this task's history would be told it still verifies. The test
+> names are kept in the notes so `git log -S` can still find what ran.
+
+- [x] Bare `dva app up` on a config with no `applications:` exits 0 and names a runnable command | verify: `human — was TestAppUpBareOnAbsentApplications; command removed, see note`
+- [x] `dva app up NAME` on the same config exits 1 and names NAME | verify: `human — was TestAppUpNamedOnAbsentApplications; command removed, see note`
+- [x] `dva app log NAME` no longer reports the app as "not found" | verify: `human — was TestAppLogOnAbsentApplications; command removed, see note`
+- [x] No message on this path names a config filename | verify: `human — was TestAbsentApplicationsMessageNamesNoFile; command removed, see note`
 - [x] The not-contains assertion is not vacuous | verify: `human — reinstate "in dva.yml" in the helper; the test must FAIL`
 - [x] The five duplicated literals are gone | verify: `/usr/bin/grep -c 'no applications defined' internal/cli/app.go` — printed `0`
 - [x] All seven subcommands answer through the one helper | verify: `human — read the seven RunE bodies; each empty-section exit goes through the helper`
-- [x] The route is the current model, not another legacy command | verify: `go test ./internal/cli/ -run TestAbsentApplicationsRoutesToCurrentModel`
+- [x] The route is the current model, not another legacy command | verify: `human — was TestAbsentApplicationsRoutesToCurrentModel; command removed, see note`
 - [x] The suggested command actually works on a plan-less config | verify: `human — dva up --dry-run on the repro fixture, exit 0`
 - [x] Full suite passes under -race | verify: `make test`
 - [x] Binary builds through the project's own path | verify: `make build`

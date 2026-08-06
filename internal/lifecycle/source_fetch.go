@@ -111,6 +111,13 @@ func requireSource(entry *config.LifecycleEntry, cfgDir string) error {
 	return nil
 }
 
+// validateGitCheckout rejects a source cache that no longer matches what the config asks for.
+//
+// The two ref messages used to offer "run the explicit update" as the first remedy. That was
+// `dva infra update <name>`, removed with the rest of the `infra` surface (docs/43), so the
+// sentence named a command no shell could run and left the reader hunting for it. Removing the
+// directory is what is left and what actually works — a git source is cloned only when absent
+// (never auto-pulled, for reproducibility), so deleting the cache is the re-clone.
 func validateGitCheckout(dir string, src *config.SourceConfig) error {
 	fi, err := os.Stat(filepath.Join(dir, ".git"))
 	if err != nil || (!fi.IsDir() && !fi.Mode().IsRegular()) {
@@ -132,10 +139,10 @@ func validateGitCheckout(dir string, src *config.SourceConfig) error {
 	}
 	want, err := sourceGitOutput(dir, "rev-parse", src.Ref+"^{commit}")
 	if err != nil {
-		return fmt.Errorf("configured ref %q is not present in %s; run the explicit update or remove the stale cache", src.Ref, dir)
+		return fmt.Errorf("configured ref %q is not present in %s; remove that directory and rerun to re-clone at the configured ref", src.Ref, dir)
 	}
 	if head != want {
-		return fmt.Errorf("git ref mismatch in %s: HEAD is %s, configured %q resolves to %s; run the explicit update or remove the stale cache", dir, head, src.Ref, want)
+		return fmt.Errorf("git ref mismatch in %s: HEAD is %s, configured %q resolves to %s; remove that directory and rerun to re-clone at the configured ref", dir, head, src.Ref, want)
 	}
 	return nil
 }

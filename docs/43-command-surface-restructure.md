@@ -9,9 +9,14 @@ CLI는 [41-execution-plans-and-cli.md](41-execution-plans-and-cli.md), 마이그
 철학 판단은 [SOUL.md](../SOUL.md), 제품 범위는 [PRODUCT.md](../PRODUCT.md), 구현 경계는
 [ARCHITECTURE.md](../ARCHITECTURE.md)가 각각 소유하며 여기서는 반복하지 않는다.
 
-## 14. 현재 CLI 부채
+**구현 상태: 적용 완료.** 예약어는 23개, `dva --help`에 `stack`/`app`/`infra`/`clean`이
+없다. §14는 재구성 **이전** 상태의 기록으로 남긴다 — 왜 이렇게 바꿨는지의 근거이므로
+현재형으로 읽지 않는다. 기능 하나가 대체 없이 사라졌다: `applications.<name>.health.required`
+(엄격 준비 상태 게이트). §16 Tier 1 참조.
 
-현재 예약어 27개([`internal/config/reserved.go`](../internal/config/reserved.go)) 안에 세 가지 세대가 섞여 있다.
+## 14. 현재 CLI 부채 (재구성 이전 기록)
+
+재구성 이전 예약어 27개([`internal/config/reserved.go`](../internal/config/reserved.go)) 안에 세 가지 세대가 섞여 있었다.
 
 ### 14-1. lifecycle 동사 3중 복제
 
@@ -73,6 +78,12 @@ dva logs  <name>              # plan 엔트리 로그
 dva build <name>              # plan 엔트리 빌드 (mode-aware는 runner 책임)
 ```
 
+**기능 손실 1건**: `applications.<name>.health.required: true`(준비 상태 미달 시 non-zero
+exit)에 해당하는 스위치가 이 표면에 없다. 최상위 `health_checks`는 `required`를 지원하지
+않고 항상 advisory다. 준비 상태 실패를 CI 실패로 만들려면 `checks:`나 interaction 명령으로
+게이트를 직접 세워야 한다. 대체 스위치는 별도 결정이 필요하므로 이 재구성의 범위에 넣지
+않았다 — 조용히 사라진 것이 아니라 기록된 부채다.
+
 ### Tier 2 — Discovery (사람 + 에이전트 공용)
 
 ```
@@ -114,16 +125,19 @@ dva init / version / completion / config(show|migrate) / ssh / console / docs
 
 ## 18. 구현 의존성
 
-### 18-1. `config migrate` 범위 확장 (선행 조건)
+### 18-1. `config migrate` 범위 확장 (선행 조건) — **완료**
 
-[`config_migrate.go`](../internal/cli/config_migrate.go)는 현재 compose 선언 변환만 수행한다.
-소스에 `'modes', 'stack.*.order' and 'applications' are migrated by hand.`라고 명시되어 있으므로,
-§17이 제거 대상으로 삼는 `applications:`·`modes`·`stack.*.order`의 자동 변환 경로는 현재 전무하다.
-아래 변환을 추가하기 전에는 CLI 제거가 함정이 되므로, 이 확장이 구현의 첫 단계다.
+[`config_migrate.go`](../internal/cli/config_migrate.go)는 compose 선언 변환만 수행했고,
+소스에 `'modes', 'stack.*.order' and 'applications' are migrated by hand.`라고 명시돼 있었다.
+§17이 제거 대상으로 삼는 변환 경로가 없는 상태에서 CLI를 먼저 지우면 함정이 되므로,
+이 확장을 구현의 첫 단계로 두었다.
 
-- `applications:` 섹션 → `stack` runner 선언
-- `stack` 실행 중심 필드(`order`/`tags`/서비스 선택) → `plans.entries[]`
-- `modes` → `plans`/`environments`/`sites` 분해
+- `applications:` 섹션 → `stack` runner 선언 — **자동 변환**.
+  `dev`/`variants`/`depends_on`/`port`는 변환되지 않고 리포트가 이름을 댄다.
+- `stack` 실행 중심 필드(`order`/`tags`/서비스 선택) → `plans.entries[]` — **자동 변환**.
+  참조하는 plan이 없으면 추측하지 않고 거부한다.
+- `modes` → `plans`/`environments`/`sites` 분해 — **범위 밖**. 3축 분해가 기계적으로
+  유도되지 않아 스캐폴드만 출력하고 거부한다. by-hand로 남는 유일한 항목이다.
 
 ### 18-2. 단일 소스 동기화
 

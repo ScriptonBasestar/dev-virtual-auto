@@ -149,52 +149,6 @@ func printEndpointTable(endpoints map[string]config.EndpointConfig, endpointTags
 	fmt.Println()
 }
 
-// filterEndpointsByApps returns endpoints related to the given applications.
-// It matches by key name first, then falls back to tag intersection.
-// If appNames is empty, all configured application names are used.
-func filterEndpointsByApps(endpoints map[string]config.EndpointConfig, appNames []string, allApps map[string]*config.ApplicationConfig) map[string]config.EndpointConfig {
-	if len(endpoints) == 0 {
-		return nil
-	}
-
-	// Determine which apps to match against
-	targetApps := make(map[string]*config.ApplicationConfig)
-	if len(appNames) > 0 {
-		for _, name := range appNames {
-			if app, ok := allApps[name]; ok {
-				targetApps[name] = app
-			}
-		}
-	} else {
-		targetApps = allApps
-	}
-
-	// Collect tags from target apps
-	appTagSet := make(map[string]bool)
-	for _, app := range targetApps {
-		for _, t := range app.Tags {
-			appTagSet[t] = true
-		}
-	}
-
-	result := make(map[string]config.EndpointConfig)
-	for k, ep := range endpoints {
-		// Key match: endpoint key == app name
-		if _, ok := targetApps[k]; ok {
-			result[k] = ep
-			continue
-		}
-		// Tag fallback: endpoint shares a tag with target apps
-		for _, t := range ep.Tags {
-			if appTagSet[t] {
-				result[k] = ep
-				break
-			}
-		}
-	}
-	return result
-}
-
 // filterEndpoints returns endpoints matching any of the given tags.
 // If tags is empty, all endpoints are returned.
 func filterEndpoints(endpoints map[string]config.EndpointConfig, tags []string) map[string]config.EndpointConfig {

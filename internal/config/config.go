@@ -37,7 +37,6 @@ type Config struct {
 	Ssh              SshConfig                      `yaml:"ssh"`
 	DoctorChecks     []DoctorCheck                  `yaml:"checks"`
 	Stack            map[string]*LifecycleEntry     `yaml:"stack"`
-	Applications     map[string]*ApplicationConfig  `yaml:"applications"`
 
 	// Internal fields
 	filePath string
@@ -145,40 +144,8 @@ type ModeConfig struct {
 	Environment     map[string]string `yaml:"environment"`
 	Provision       string            `yaml:"provision"`    // provision profile to suggest on first run
 	Stack           []string          `yaml:"stack"`        // stack entry names to include (empty=all)
-	Build           string            `yaml:"build"`        // build strategy: "docker" (compose build), "native" (run command), or custom shell command
-	Run             string            `yaml:"run"`          // run strategy: "docker" (compose up), "native" (process via health_checks.start), or custom shell command
-	Applications    any               `yaml:"applications"` // app strategy: "native"/"docker" (string) or per-app map[string]string
-}
-
-// HasApplications returns true if this mode explicitly defines application strategies.
-// When false, applications should not be started in this mode.
-func (m *ModeConfig) HasApplications() bool {
-	return m.Applications != nil
-}
-
-// AppStrategy returns the execution strategy for a named application in this mode.
-// Returns "native", "docker", or "" (not specified / use default).
-func (m *ModeConfig) AppStrategy(appName string) string {
-	if m.Applications == nil {
-		return ""
-	}
-	switch v := m.Applications.(type) {
-	case string:
-		return v
-	case map[string]any:
-		if s, ok := v[appName]; ok {
-			if str, ok := s.(string); ok {
-				return str
-			}
-		}
-		// Check for global "_default" key
-		if s, ok := v["_default"]; ok {
-			if str, ok := s.(string); ok {
-				return str
-			}
-		}
-	}
-	return ""
+	Build           string            `yaml:"build"` // build strategy: "docker" (compose build), "native" (run command), or custom shell command
+	Run             string            `yaml:"run"`   // run strategy: "docker" (compose up), "native" (process via health_checks.start), or custom shell command
 }
 
 // StackEntries returns the stack entry names for mode filtering.
@@ -223,87 +190,17 @@ type HealthCheckConfig struct {
 	StartHint    string `yaml:"start_hint"`    // human-readable start instructions
 	Timeout      int    `yaml:"timeout"`       // health check timeout in seconds (default: 2)
 	ReadyTimeout int    `yaml:"ready_timeout"` // max wait after start in seconds (default: 30)
-	Required     bool   `yaml:"required"`      // opt-in strict readiness (default: false)
+	// `required` (TASK-118 opt-in strict readiness) is gone with the field. Its only
+	// schema home was applications.<app>.health, and its only reader was
+	// AppManager.startApp; docs/43 removed both. Top-level health_checks has always
+	// rejected the key (schema.json health_checks, additionalProperties:false), so
+	// keeping the struct field would leave a strictness knob nothing can turn.
+	// The capability itself did not move to the plan path — see docs/43.
 }
 
 // ServiceTagConfig defines per-service tag configuration.
 type ServiceTagConfig struct {
 	Tags []string `yaml:"tags"`
-}
-
-// ApplicationConfig declares a long-running application process with
-// native and docker execution paths.
-type ApplicationConfig struct {
-	Description string                 `yaml:"description"`
-	Tags        []string               `yaml:"tags"`
-	Port        int                    `yaml:"port"` // listening port (shown in dva app ls)
-	Run         AppExecPaths           `yaml:"run"`
-	Build       AppExecPaths           `yaml:"build"`
-	Dev         AppExecPaths           `yaml:"dev"`
-	Health      *HealthCheckConfig     `yaml:"health"`
-	DependsOn   []string               `yaml:"depends_on"` // compose services or other app names
-	Environment map[string]string      `yaml:"environment"`
-	Dir         string                 `yaml:"dir"`      // working directory (default: config dir)
-	Variants    map[string]*AppVariant `yaml:"variants"` // sub-components with own build/run/dev
-}
-
-// AppVariant defines a sub-component of an application that overrides
-// specific fields while inheriting the rest (dir, tags, depends_on) from the parent.
-type AppVariant struct {
-	Description string             `yaml:"description"`
-	Port        int                `yaml:"port"`
-	Run         AppExecPaths       `yaml:"run"`
-	Build       AppExecPaths       `yaml:"build"`
-	Dev         AppExecPaths       `yaml:"dev"`
-	Health      *HealthCheckConfig `yaml:"health"`
-	Environment map[string]string  `yaml:"environment"`
-}
-
-// AppExecPaths holds native and docker execution variants for an application.
-type AppExecPaths struct {
-	Native string       `yaml:"native"`
-	Docker AppDockerRef `yaml:"docker"`
-}
-
-// UnmarshalYAML handles both string shorthand and object form for AppExecPaths.
-// String form sets Native only: "cargo run --bin api"
-// Object form sets Native and/or Docker explicitly.
-func (p *AppExecPaths) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		p.Native = node.Value
-		return nil
-	}
-	type plain AppExecPaths
-	return node.Decode((*plain)(p))
-}
-
-// AppDockerRef holds docker-specific execution config for an application.
-type AppDockerRef struct {
-	Service string `yaml:"service"` // compose service name
-	Profile string `yaml:"profile"` // compose profile to activate
-	Command string `yaml:"command"` // override command (for docker exec)
-}
-
-// UnmarshalYAML handles both string shorthand and object form for AppDockerRef.
-// String form: "docker compose build api-rs" → treated as raw command.
-// Object form: { service: api-rs, profile: rust }
-func (d *AppDockerRef) UnmarshalYAML(node *yaml.Node) error {
-	if node.Kind == yaml.ScalarNode {
-		d.Command = node.Value
-		return nil
-	}
-	type plain AppDockerRef
-	return node.Decode((*plain)(d))
-}
-
-// HasNative reports whether a native execution path is configured.
-func (p *AppExecPaths) HasNative() bool {
-	return p.Native != ""
-}
-
-// HasDocker reports whether a docker execution path is configured.
-func (p *AppExecPaths) HasDocker() bool {
-	return p.Docker.Service != "" || p.Docker.Command != ""
 }
 
 // InteractionCommand defines a command in the interaction section.
@@ -695,95 +592,6 @@ func (c *Config) DefaultPlan() string {
 	return ""
 }
 
-// ResolveApp resolves an application name (possibly with variant via dot notation)
-// to a fully merged ApplicationConfig. Supports "appname" and "appname.variant".
-func (c *Config) ResolveApp(name string) (string, *ApplicationConfig, error) {
-	// Direct lookup (no variant)
-	if app, ok := c.Applications[name]; ok {
-		return name, app, nil
-	}
-
-	// Try dot split for variant
-	parts := strings.SplitN(name, ".", 2)
-	if len(parts) != 2 {
-		return "", nil, fmt.Errorf("application %q not found", name)
-	}
-
-	parent, ok := c.Applications[parts[0]]
-	if !ok {
-		return "", nil, fmt.Errorf("application %q not found", parts[0])
-	}
-	if parent.Variants == nil {
-		return "", nil, fmt.Errorf("application %q has no variants", parts[0])
-	}
-
-	variant, ok := parent.Variants[parts[1]]
-	if !ok {
-		return "", nil, fmt.Errorf("variant %q not found in application %q", parts[1], parts[0])
-	}
-
-	resolved := ResolveVariant(parent, variant)
-	return name, resolved, nil
-}
-
-// ListAppNames returns all application names including variants (as "app.variant").
-func (c *Config) ListAppNames() []string {
-	var names []string
-	for name, app := range c.Applications {
-		names = append(names, name)
-		for vName := range app.Variants {
-			names = append(names, name+"."+vName)
-		}
-	}
-	return names
-}
-
-// resolveVariant creates a new ApplicationConfig by inheriting from parent
-// and overriding with variant-specific fields.
-func ResolveVariant(parent *ApplicationConfig, variant *AppVariant) *ApplicationConfig {
-	resolved := &ApplicationConfig{
-		Description: parent.Description,
-		Tags:        parent.Tags,
-		Dir:         parent.Dir,
-		DependsOn:   parent.DependsOn,
-		Port:        parent.Port,
-		Run:         parent.Run,
-		Build:       parent.Build,
-		Dev:         parent.Dev,
-		Health:      parent.Health,
-		Environment: copyStringMap(parent.Environment),
-	}
-
-	// Override with variant values
-	if variant.Description != "" {
-		resolved.Description = variant.Description
-	}
-	if variant.Port != 0 {
-		resolved.Port = variant.Port
-	}
-	if variant.Run.Native != "" || variant.Run.Docker.Service != "" || variant.Run.Docker.Command != "" {
-		resolved.Run = variant.Run
-	}
-	if variant.Build.Native != "" || variant.Build.Docker.Service != "" || variant.Build.Docker.Command != "" {
-		resolved.Build = variant.Build
-	}
-	if variant.Dev.Native != "" || variant.Dev.Docker.Service != "" || variant.Dev.Docker.Command != "" {
-		resolved.Dev = variant.Dev
-	}
-	if variant.Health != nil {
-		resolved.Health = variant.Health
-	}
-	// Merge environment: parent + variant (variant overrides)
-	for k, v := range variant.Environment {
-		if resolved.Environment == nil {
-			resolved.Environment = make(map[string]string)
-		}
-		resolved.Environment[k] = v
-	}
-
-	return resolved
-}
-
 func copyStringMap(m map[string]string) map[string]string {
 	if m == nil {
 		return nil
@@ -883,9 +691,6 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 	if cfg.Stack == nil {
 		cfg.Stack = make(map[string]*LifecycleEntry)
-	}
-	if cfg.Applications == nil {
-		cfg.Applications = make(map[string]*ApplicationConfig)
 	}
 	if cfg.Plans == nil {
 		cfg.Plans = make(map[string]*PlanConfig)
@@ -1197,20 +1002,6 @@ func (c *Config) mergeFrom(other *Config) error {
 				c.Stack[k] = merged
 			} else {
 				c.Stack[k] = v
-			}
-		}
-	}
-
-	// applications: deep merge per entry
-	if other.Applications != nil {
-		if c.Applications == nil {
-			c.Applications = make(map[string]*ApplicationConfig)
-		}
-		for k, v := range other.Applications {
-			if existing, ok := c.Applications[k]; ok {
-				c.Applications[k] = mergeApplicationConfig(existing, v)
-			} else {
-				c.Applications[k] = v
 			}
 		}
 	}

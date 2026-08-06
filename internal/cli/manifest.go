@@ -274,18 +274,14 @@ func buildManifest(c *config.Config) *Manifest {
 			// results are discarded, so listing them here would advertise a filter that does
 			// nothing.
 			"build":     {Type: "compose_shortcut", Options: map[string]string{"mode": optMode}},
-			"clean":     {Type: "compose_shortcut"},
 			"provision": {Type: "lifecycle"},
 			"validate":  {Type: "config"},
 			"manifest":  {Type: "meta"},
 			"ktl":       {Type: "passthrough"},
 			"version":   {Type: "info"},
 
-			"stack": {Type: "lifecycle"},
-			"app":   {Type: "lifecycle"},
-			"ssh":   {Type: "lifecycle"},
-			"infra": {Type: "lifecycle"},
-			"logs":  {Type: "compose_shortcut"},
+			"ssh":  {Type: "lifecycle"},
+			"logs": {Type: "compose_shortcut"},
 			"restart": {
 				Type: "compose_shortcut",
 				Options: map[string]string{
@@ -305,7 +301,7 @@ func buildManifest(c *config.Config) *Manifest {
 			"init":    {Type: "config"},
 			"help":    {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
-			// call, so a reader grepping for AddCommand finds 25 and this table lists 27.
+			// call, so a reader grepping for AddCommand finds 21 and this table lists 23.
 			"completion": {Type: "meta"},
 		},
 		Runners: map[string]ManifestRunner{

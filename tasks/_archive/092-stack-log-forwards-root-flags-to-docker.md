@@ -73,7 +73,16 @@ Route `stackLogCmd`'s args through `parseDvaFlags` (or a narrower helper that co
 - [x] `--debug` no longer reaches docker | verify: `dva --debug stack log infra --tail=5` — the `[debug] compose:` argv must not contain `--debug` after `logs`
 - [x] User flags still pass through | verify: same command — `--tail=5` must still appear, or the fix has broken the passthrough it was protecting
 - [x] `--dry-run` still forwarded | verify: `dva stack log infra --dry-run` — must still reach docker, per the carve-out at `root.go:253`
-- [x] Covered by a test | verify: `go test ./internal/cli/ -run TestStackLog`
+- [x] Covered by a test | verify: `go test ./internal/cli/ -run TestPassthrough` — renamed from `TestStackLog…` by the command-surface restructure (`docs/43`); same two tests, same prefix-matching shape
+
+> **Note added by the restructure.** `dva stack log` was removed. The first two criteria
+> moved to `dva logs`, which strips root flags through the same `consumeRootPersistentFlags`
+> call. The third could not: `logs` is a hookable built-in, so `wrapWithHooks` runs
+> `consumeDryRunFlag` before the body and the token is DVA's before any passthrough sees it.
+> `dva stack log` was not hookable, which made it the only command that ever demonstrated
+> the `--dry-run` carve-out — `root.go`'s comment named `dva logs` alongside it, and that
+> half was already untrue when written. The row now runs on `dva compose`, the one raw
+> passthrough that is still not hookable, and `root.go`'s comment says so.
 - [x] Full suite passes | verify: `make test`
 
 ## Resolution

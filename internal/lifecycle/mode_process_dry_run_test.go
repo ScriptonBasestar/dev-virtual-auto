@@ -1,6 +1,8 @@
 package lifecycle
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +14,28 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
+
+// captureStderr runs fn with os.Stderr redirected to a pipe.
+// Do not use t.Parallel in callers: stderr is process-global.
+//
+// Moved here from app_health_required_test.go, which was deleted with the AppManager
+// (docs/43). This file is now its only caller.
+func captureStderr(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("stderr pipe: %v", err)
+	}
+	old := os.Stderr
+	os.Stderr = w
+	runErr := fn()
+	_ = w.Close()
+	os.Stderr = old
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	_ = r.Close()
+	return buf.String(), runErr
+}
 
 // modeStandIn starts a live process and writes its pid where signalModeProcesses looks.
 //

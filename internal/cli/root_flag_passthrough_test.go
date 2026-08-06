@@ -108,9 +108,16 @@ func composePassthroughFixtureWith(t *testing.T, body string) func() []string {
 	}
 }
 
-// TestStackLogDoesNotForwardRootFlags is the criterion test. Each row drives a real RunE and
-// asserts on the argv docker actually received.
-func TestStackLogDoesNotForwardRootFlags(t *testing.T) {
+// TestPassthroughDoesNotForwardRootFlags is TASK-092's criterion test. Each row drives a real
+// RunE and asserts on the argv docker actually received.
+//
+// TASK-092 measured the leak on `dva stack log`, which is where the name it carried until now
+// came from. That command is gone and `dva logs` is the surviving path — the same one, not
+// merely a similar one: stack log stripped root flags with consumeRootPersistentFlags rather
+// than parseDvaFlags, "because compose owns --dry-run on this path", and logsCmd does the same
+// at compose.go:645. The row below that pins --dry-run surviving is the assertion that keeps
+// that choice honest, so it had to move with the rest rather than be dropped as stack-specific.
+func TestPassthroughDoesNotForwardRootFlags(t *testing.T) {
 	cases := []struct {
 		name string
 		run  func(args []string) error
@@ -121,11 +128,16 @@ func TestStackLogDoesNotForwardRootFlags(t *testing.T) {
 		present []string
 	}{
 		{
-			name:    "stack log strips --debug and keeps docker's flags",
-			run:     func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
+			// A name between DVA's flag and docker's, which the "logs strips --debug" row
+			// below does not have. `infra` is a compose service here — the fixture declares
+			// no plans — where under stack log it was an entry name resolved into -p/-f and
+			// so never appeared in the argv. Asserted present rather than dropped: a strip
+			// that overshot into the positional slot is the neighbouring bug to this one.
+			name:    "logs strips --debug from between a name and docker's flags",
+			run:     func(a []string) error { return logsCmd.RunE(logsCmd, a) },
 			args:    []string{"--debug", "infra", "--tail=5", "--since=1h"},
 			absent:  []string{"--debug"},
-			present: []string{"logs", "--tail=5", "--since=1h"},
+			present: []string{"logs", "infra", "--tail=5", "--since=1h"},
 		},
 		{
 			name:    "compose strips --debug and --json",
@@ -145,9 +157,20 @@ func TestStackLogDoesNotForwardRootFlags(t *testing.T) {
 			// The carve-out root.go documents: compose has its own --dry-run, so unlike
 			// --debug/--json it must survive into the passthrough. This is why the fix uses
 			// consumeRootPersistentFlags and not parseDvaFlags, which eats all three.
+			//
+			// Driven on `dva compose`, which is where the carve-out is observable, and
+			// measured to be the only such place. Retargeting this row to `dva logs` — the
+			// obvious heir, and the command consumeRootPersistentFlags' own comment named —
+			// failed: logs is a hookable built-in, so wrapWithHooks replaces its RunE and
+			// calls consumeDryRunFlag (hooks.go:28) ahead of the body, and the token is
+			// DVA's before the passthrough sees it. That was already true of `dva logs` at
+			// the time the comment was written; `dva stack log` was not hookable, so it was
+			// the only command that ever demonstrated the claim, and deleting it would have
+			// taken the claim's only evidence with it. root.go's comment is corrected to
+			// name `dva compose` alone.
 			name:    "--dry-run is still forwarded",
-			run:     func(a []string) error { return stackLogCmd.RunE(stackLogCmd, a) },
-			args:    []string{"infra", "--dry-run"},
+			run:     func(a []string) error { return composeCmd.RunE(composeCmd, a) },
+			args:    []string{"logs", "--dry-run"},
 			absent:  nil,
 			present: []string{"logs", "--dry-run"},
 		},
@@ -184,9 +207,9 @@ func TestStackLogDoesNotForwardRootFlags(t *testing.T) {
 	}
 }
 
-// TestStackLogRootFlagsStillTakeEffect is the other half: a fix that merely deleted --debug
+// TestPassthroughRootFlagsStillTakeEffect is the other half: a fix that merely deleted --debug
 // from the argv would pass every assertion above, so this asserts it is applied as it is
-// consumed.
+// consumed. (TASK-092 named it after `dva stack log`; see the note on the test above.)
 //
 // Note what this does and does not claim. In production `--debug` also survives a naive strip,
 // because PersistentPreRun calls applyRootPersistentFlagsFromArgs on os.Args before any RunE
@@ -194,14 +217,14 @@ func TestStackLogDoesNotForwardRootFlags(t *testing.T) {
 // leaking the flag. These tests call RunE directly, so PersistentPreRun never runs and the
 // passthrough is judged on its own. That is deliberately stricter than production: the
 // passthrough should not depend on something upstream having already read the flag.
-func TestStackLogRootFlagsStillTakeEffect(t *testing.T) {
+func TestPassthroughRootFlagsStillTakeEffect(t *testing.T) {
 	t.Run("--debug", func(t *testing.T) {
 		composePassthroughFixture(t)
 		if debug {
 			t.Fatal("control failed: debug was already on before the command ran")
 		}
-		if err := stackLogCmd.RunE(stackLogCmd, []string{"--debug", "infra"}); err != nil {
-			t.Fatalf("stack log: %v", err)
+		if err := logsCmd.RunE(logsCmd, []string{"--debug", "infra"}); err != nil {
+			t.Fatalf("logs: %v", err)
 		}
 		if !debug {
 			t.Error("--debug was consumed without being applied by the passthrough itself")

@@ -125,6 +125,11 @@ func TestBuildStillForwardsWhatIsDockersAndConsumesWhatIsDvas(t *testing.T) {
 // leftover as a service name and quoted it into its suggestion, so `dva down --debug=notabool`
 // answered "Use 'dva stack down --debug=notabool'" — advice that cannot work, because the
 // token was never a service name.
+//
+// The two "must not contain" assertions below named `dva stack down`, which no longer exists,
+// so they had stopped being able to fail. They now name `dva down`, the verb the message is
+// actually built from — the defect was never about the word "stack", it was about quoting a
+// flag back as if it were a name, and that mistake is just as available under the new spelling.
 func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 	t.Run("malformed bool is named, not suggested", func(t *testing.T) {
 		composePassthroughFixtureWith(t, buildFixtureYAML)
@@ -136,7 +141,7 @@ func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 		if !strings.Contains(err.Error(), "invalid boolean value") {
 			t.Errorf("error = %q, want it to name the malformed value", err)
 		}
-		if strings.Contains(err.Error(), "dva stack down") {
+		if strings.Contains(err.Error(), "dva down --debug=notabool") {
 			t.Errorf("error still suggests a selective teardown built from DVA's own flag: %q", err)
 		}
 	})
@@ -150,7 +155,7 @@ func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 		}
 		// The old message quoted it as a name: "Use 'dva stack down --bogus'". Running that
 		// fails for exactly the same reason, so the advice was worse than none.
-		if strings.Contains(err.Error(), "dva stack down --bogus") {
+		if strings.Contains(err.Error(), "dva down --bogus") {
 			t.Errorf("error suggests a command that cannot work: %q", err)
 		}
 		if !strings.Contains(err.Error(), "unknown flag") {
@@ -179,14 +184,29 @@ func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 	t.Run("a real name still gets the selective hint", func(t *testing.T) {
 		// The control. The selective-teardown suggestion is useful when the leftover really is
 		// a name, and a fix that removed it for everything would be a regression.
+		//
+		// The suggestion changed shape with the selective unit. It used to interpolate the
+		// leftover — "dva stack down infra" — because `infra` was a stack entry and stack
+		// entries were what you could tear down one of. Plans are that unit now, and `infra`
+		// is an entry name, not a plan name: interpolating it would produce `dva down infra`,
+		// which fails, which is the defect the rows above exist to prevent. So the message
+		// names the *form* and points at `dva ls` for the names, and that is what is asserted.
 		composePassthroughFixtureWith(t, buildFixtureYAML)
 
 		_, _, _, _, _, err := teardownCommon([]string{"infra"}, "down")
 		if err == nil {
 			t.Fatal("teardownCommon accepted a service name for a whole-stack teardown")
 		}
-		if !strings.Contains(err.Error(), "dva stack down infra") {
+		if !strings.Contains(err.Error(), "dva down <plan>") {
 			t.Errorf("error = %q, want it to keep suggesting the selective form", err)
+		}
+		if !strings.Contains(err.Error(), "dva ls") {
+			t.Errorf("error = %q, want it to say where the plan names come from", err)
+		}
+		// The leftover must not come back as a plan name. `infra` is a stack entry here, so
+		// `dva down infra` is the advice-that-cannot-work case in its subtlest spelling.
+		if strings.Contains(err.Error(), "dva down infra") {
+			t.Errorf("error suggests the leftover as a plan name: %q", err)
 		}
 	})
 }

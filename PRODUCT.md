@@ -55,7 +55,7 @@ DVA coordinates existing developer tools; it does not replace them.
 
 | Item | Status |
 |------|--------|
-| **Maturity** | Active development — named plans are the preferred model; legacy lifecycle surfaces are being migrated |
+| **Maturity** | Active development — named plans are the only lifecycle model; the legacy `stack`/`app`/`infra`/`clean` surfaces were removed ([docs/43](docs/43-command-surface-restructure.md)) |
 | **Primary interface** | `dva` CLI with project-owned `dva.yml` |
 | **Execution model** | Reusable declarations resolved into immutable named plans |
 | **Agent integration** | Machine-readable manifest plus optional Claude and agent-mesh workflows |

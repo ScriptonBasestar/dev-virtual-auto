@@ -163,7 +163,7 @@ func rejectUpPositionalArg(c *config.Config, args []string) error {
 		return nil
 	}
 	if c == nil || !c.HasPlans() {
-		return fmt.Errorf("unexpected argument '%s': 'dva up' takes no positional arguments and no plans are configured. Run 'dva up' to start the whole stack, or 'dva stack up %s' to start a single entry", name, name)
+		return fmt.Errorf("unexpected argument '%s': 'dva up' takes no positional arguments and no plans are configured. Run 'dva up' to start everything declared, or declare a plan whose entries name '%s' and run 'dva up <plan>'", name, name)
 	}
 	return rejectUnknownPlanArg(c, args)
 }

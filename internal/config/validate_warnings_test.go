@@ -610,40 +610,12 @@ func TestWarnMultiStackComposeSplitModeIsolation(t *testing.T) {
 	}
 }
 
-func TestWarnDuplicateComposeApplicationOwnership(t *testing.T) {
-	c := &Config{
-		Stack: map[string]*LifecycleEntry{
-			"devbox": {
-				Runners: map[string]any{
-					"compose": &ComposePluginConfig{
-						Services: map[string]ServiceTagConfig{
-							"django-engine": {Tags: []string{"app"}},
-						},
-					},
-				},
-			},
-		},
-		Applications: map[string]*ApplicationConfig{
-			"django": {
-				Run: AppExecPaths{Docker: AppDockerRef{Service: "django-engine"}},
-			},
-		},
-	}
-
-	warnings := c.warnDuplicateComposeApplicationOwnership()
-	if len(warnings) != 1 {
-		t.Fatalf("expected 1 warning, got %d: %v", len(warnings), warnings)
-	}
-	if !strings.Contains(warnings[0], "applications.django.run.docker.service") ||
-		!strings.Contains(warnings[0], "devbox") {
-		t.Fatalf("unexpected warning: %s", warnings[0])
-	}
-
-	c.Applications["django"].Run.Docker.Service = "external-engine"
-	if warnings := c.warnDuplicateComposeApplicationOwnership(); len(warnings) != 0 {
-		t.Fatalf("expected no warning for distinct service ownership, got %v", warnings)
-	}
-}
+// TestWarnDuplicateComposeApplicationOwnership was here. It covered the shape where
+// applications.<app>.run.docker.service named a service a compose stack entry already
+// owned, so `dva up` started it once through the orchestrator and again through the
+// application manager. Both halves of that condition are gone (docs/43): there is no
+// second lifecycle owner left to collide with, so the warning had nothing to warn about
+// and went with the section it read.
 
 func TestValidateWarnings_Integration(t *testing.T) {
 	c := &Config{
@@ -1258,9 +1230,29 @@ func TestWarnLiteralKeyShadowsSubproject(t *testing.T) {
 			// here would describe a precedence that does not happen.
 			name: "reserved prefix: unroutable, so it shadows nothing",
 			cfg: &Config{
+				Subprojects: map[string]SubprojectConfig{"compose": {Path: "./compose"}},
+				Interaction: map[string]*InteractionCommand{"compose:ps": {Command: "echo x"}},
+			},
+		},
+		{
+			// The row above read `app:build` against a subproject named `app` while
+			// `dva app` existed, and it belonged in the silent group for the reason
+			// stated there. Removing the built-in moved it: `app` is no longer reserved,
+			// so LiteralKeyWins stops excepting the key, it routes, and it does now take
+			// precedence over the subproject — which is exactly the condition this
+			// warning exists to name.
+			//
+			// Kept as its own row rather than folded into the first, because the pair is
+			// the evidence: the same key and the same subproject answer differently on
+			// either side of the removal, and neither row alone shows that.
+			name: "removed built-in's prefix names a subproject: now it does shadow",
+			cfg: &Config{
 				Subprojects: map[string]SubprojectConfig{"app": {Path: "./app"}},
 				Interaction: map[string]*InteractionCommand{"app:build": {Command: "echo x"}},
 			},
+			want: "interaction.app:build: `dva app:build` runs this key, not subproject " +
+				"`app`'s `build` — the literal key takes precedence; use " +
+				"`dva run --project app build` to reach the subproject",
 		},
 		{
 			name: "no colon: not a candidate for splitting in the first place",

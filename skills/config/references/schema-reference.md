@@ -5,15 +5,16 @@
 ## Critical Rules (MUST follow)
 
 1. **`plans:` are the current execution model** — Use named plans for new or
-   rewritten configs. `modes:` and `applications:` are migration-only legacy
-   sections.
+   rewritten configs. `modes:` is a migration-only legacy section. `applications:`
+   is not legacy but removed: it fails validation, and `dva config migrate`
+   converts it to stack entries with `native` runners.
 2. **`compose.yml` MUST have `name:`** — Top-level `name: {project}` in compose.yml is required. Without it, `docker compose up` uses the directory name as project, causing port conflicts with DVA's `project_name`.
 3. **`version:` field** — Optional, and it declares the **minimum** DVA version the config requires of its reader — not the version of the binary that generated it. Omit it for no compatibility gate. Pinning it to the running CLI version makes every generated config refuse to load on an older DVA. Subproject `version:` is checked against the running DVA independently; it is never compared to root. Canonical source: `internal/config/version.go`.
 4. **`health_checks`: `start` and `start_hint` are both optional** — `start` enables DVA auto-start (background process with PID tracking). `start_hint` is human-readable text shown by `dva status` when the service is not ready. If `start` is set, `start_hint` is optional (only needed when the hint text should differ from the start command, e.g., friendlier instructions). If only `start_hint` is set, no auto-start occurs — DVA just displays the hint. Setting both to identical values is redundant and triggers a validation warning.
 5. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017. Pick a project-specific range instead (e.g. 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
-8. **Complete reserved command list** — These DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `infra`, `app`, `stack`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: up/down/stop/restart/build/clean/logs) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). Canonical source: `internal/config/reserved.go`.
+8. **Complete reserved command list** — These 23 DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: build/down/logs/restart/stop/up) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). `stack`, `app`, `infra`, and `clean` left this list with the commands themselves (docs/43) and are now ordinary interaction keys. Canonical source: `internal/config/reserved.go`.
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.<entry>.runners.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary compose runner. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
@@ -22,17 +23,22 @@
 14. **`endpoints:` for access metadata** — Use the top-level `endpoints:` section to declare user-facing URLs, labels, tags, and sub-paths. For compose services, use `source: "{service}:{host_port}"` to reference compose ports. For non-compose services, specify `url:` directly.
 15. **One stack entry + plans, not multi-stack split** — Do NOT create separate stack entries (e.g., `compose` + `compose-full`) to model different operational configurations. Use ONE stack entry with ALL compose files and control service selection via `plans.*.entries[].services`. Exception: genuinely different infrastructure backends (e.g., compose for local + kubectl for staging).
 16. **Single lifecycle owner** — A Compose service is started only by its
-    compose stack entry through a plan. Do not also generate an
-    `applications.*.run.docker.service`, standalone docker runner, raw
-    `docker compose up` interaction, or provision start step for that service.
-    A `docker` runner means standalone `docker run`, not Docker Compose.
+    compose stack entry through a plan. Do not also generate a standalone docker
+    runner, a raw `docker compose up` interaction, or a provision start step for
+    that service. A `docker` runner means standalone `docker run`, not Docker
+    Compose. (Removing `applications:` removed the second lifecycle owner this
+    rule was mostly written against; the remaining three shapes still collide.)
 
 ## dva.yml Structure
 
 **Canonical section order** (omit unused sections, but keep this order):
-`version → vars → environment → env_file → stack → plans → environments → sites → checks → applications → default_mode → suggestion_ignore → modes → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer`
+`version → vars → environment → env_file → stack → plans → default_plan → environments → sites → checks → default_mode → suggestion_ignore → modes → health_checks → interaction → provision → modules → subprojects → endpoints → infra → ssh → devcontainer`
 
-`checks`, `applications`, `default_mode`, `suggestion_ignore`, and `modes` are legacy-compatible sections. Preserve them only when needed during migration; new configurations should use plans and stack runners.
+`checks`, `default_mode`, `suggestion_ignore`, and `modes` are legacy-compatible sections. Preserve them only when needed during migration; new configurations should use plans and stack runners.
+
+`applications:` was removed. Declare each app as a stack entry with a `native` runner (see
+`stack.api` below) and run `dva config migrate` to convert an existing file. A config that
+still carries the key is rejected by `dva config validate`, not merely warned about.
 
 ```yaml
 version: "{CURRENT_DVA_VERSION}"   # Use the version from the prompt's CRITICAL section
@@ -69,6 +75,29 @@ stack:
           {service-name}:
             tags: [infra, data]   # Used for tag-based filtering
 
+  # --- Long-running app processes (API servers, workers, etc.) ---
+  # An app is a stack entry like any other; `native` is the runner that starts a host
+  # process. This is the shape `dva config migrate` writes when converting `applications:`.
+  api:                            # Short name: api, worker, web, scheduler
+    description: "{human-readable description}"
+    tags: [app]                   # For filtering
+    default_runner: native
+    runners:
+      native:
+        dir: "relative/path"      # Working directory (default: config dir)
+        build: "cargo build -p api"   # Run by `dva build <plan>`
+        run: "cargo run --release -p api"
+        env:                      # Entry-scoped env vars; plan vars override these
+          PORT: "11200"
+    health_checks:                # Readiness, keyed by the entry it belongs to
+      api:
+        type: http
+        url: "http://localhost:11200/health"
+        timeout: 5
+        ready_timeout: 120
+    # Operational variants (hot-reload, debug) are their own entries selected by a plan —
+    # entries declare one command, so there is no second `dev:` command inside one entry.
+
   # --- Multi-stack: only for different backends ---
   # Use ONE stack entry + plans for operational variants (NOT separate entries).
   # Only separate stack entries for genuinely different infrastructure:
@@ -80,39 +109,6 @@ stack:
   # k8s:                          # Staging Kubernetes
   #   plugin: kubectl
   #   namespace: myapp-dev
-
-applications:                   # Long-running app processes (API servers, workers, etc.)
-  {app-name}:                   # Short name: api, worker, web, scheduler
-    description: "{human-readable description}"
-    tags: [app]                 # For filtering
-    port: 11200                 # Listening port (shown in dva app ls) — REQUIRED
-    dir: "relative/path"        # Working directory (default: config dir)
-    depends_on: [other-app]     # Startup dependency ordering
-    environment:                # App-specific env vars
-      PORT: "11200"
-    run:                        # How to run in production-like mode
-      native: "cargo run --release -p api"
-      docker:
-        service: api-rs         # Compose service name
-        profile: rust           # Compose profile to activate
-    dev:                        # How to run in dev mode (hot-reload, debug, etc.)
-      native: "cargo watch -x 'run -p api'"
-      docker: "docker compose up api-dev"  # String shorthand for docker command
-    build:                      # How to build the app
-      native: "cargo build -p api"
-      docker:
-        service: api-rs
-        command: "cargo build"
-    health:                     # Readiness check (probe fields shared with top-level health_checks; applications additionally support `required`)
-      type: http
-      url: "http://localhost:11200/health"
-      timeout: 5
-      ready_timeout: 120
-      required: false           # default false (advisory on timeout); true promotes to strict failure (non-zero exit)
-
-  # --- String shorthand for exec paths ---
-  # run/dev/build accept a string shorthand that sets the native path only:
-  # run: "cargo run -p api"  ← equivalent to  run: { native: "cargo run -p api" }
 
 interaction:
   # --- Container commands (service-based) ---
@@ -149,10 +145,12 @@ interaction:
 
   # --- Reserved command hooks ---
   # ALL reserved DVA commands (MUST NOT use as plain interaction keys):
-  #   up, down, stop, restart, build, clean, logs, status, show, ls, run,
-  #   config, doctor, provision, version, console, infra,
-  #   app, stack, help, compose, validate, manifest, ktl, ssh, completion, init
-  # Hookable subset (supports before/replace/after): up, down, stop, restart, build, clean, logs
+  #   up, down, stop, restart, build, logs, status, show, ls, run,
+  #   config, doctor, provision, version, console,
+  #   help, compose, validate, manifest, ktl, ssh, completion, init
+  # (23 names. `stack`, `app`, `infra`, and `clean` were removed in docs/43 and are now
+  #  ordinary interaction keys — `dva down <plan> --purge` replaces `clean`.)
+  # Hookable subset (supports before/replace/after): build, down, logs, restart, stop, up
   # Non-hookable (rename if needed): status→service-status, show→app-show, ls→app-ls
   # `replace:` and `subcommands:` can coexist — subcommands remain accessible.
   # NEVER use `run: "dva <command>"` in replace: hooks — use direct commands instead.
@@ -192,13 +190,9 @@ modes:                          # Operational modes (--mode/-M flag)
       VAR: value
     stack: [entry1, entry2]       # Stack entries to include for this mode
     provision: default            # Suggest provision profile on first run
-    applications: native          # App strategy: "native"/"docker" (string) or per-app map
-    # applications:               # Per-app strategy override:
-    #   api: native
-    #   worker: docker
-    #   _default: native          # Fallback for unlisted apps
-    # NOTE: Without `applications:` field, apps will NOT auto-start in this mode.
-    # Modes that should start apps (hybrid, full-stack, etc.) MUST set this field.
+    # `applications:` was valid here too and went with the top-level section. A mode
+    # selects entries with `stack:` above; app entries are entries, so they are listed
+    # there like any other.
 
 environments:                   # Environment configs (--env/-E flag)
   {env-name}:
@@ -719,84 +713,51 @@ DVA_FILE=path/to/dva.yml dva validate
 
 ## Lifecycle CLI Commands
 
-DVA has three levels of lifecycle management:
-
-### `dva up` / `dva down` — Top-level lifecycle (with hooks)
-
-```bash
-dva up                    # Start infra (default_mode) — runs before/replace/after hooks
-dva up -M full-stack      # Start all infra in Docker
-dva down                  # Stop and remove infra
-dva down -v               # Also remove volumes
-dva stop                  # Stop infra (preserve state for quick restart)
-dva restart               # Stop then start
-```
-
-`dva up` executes hook steps (before/replace/after from interaction section) then delegates to the stack orchestrator. This is the recommended entry point.
-
-### `dva stack` — Infrastructure orchestrator (no hooks)
+There is one lifecycle surface, and a plan name is how you aim it. `dva stack`, `dva app`,
+`dva infra`, and `dva clean` were removed in docs/43 — the same verb no longer means three
+different things depending on which noun preceded it.
 
 ```bash
-dva stack up                    # Start all stack entries (bypasses hooks)
-dva stack up compose            # Start a specific stack entry by name
-dva stack up -T infra           # Filter by tag (--tags/-T)
-dva stack up -M hybrid          # Apply mode filtering
-dva stack stop                  # Stop all (preserve state — fast restart)
-dva stack down                  # Remove all stack resources
-dva stack down -v               # Also remove volumes
-dva stack status                # Show stack entry statuses
-dva stack status compose        # Status for specific entry
-dva stack log compose           # View logs for a stack entry
+dva up                    # Start the default plan (or every declared entry if none)
+dva up web                # Start the plan named `web`
+dva up web --no-wait      # Skip readiness waiting
+dva up web --force        # Proceed past a failing precondition
+dva up web --var KEY=val  # Override a plan variable
+dva stop web              # Stop, preserving state for a fast restart
+dva down web              # Tear down
+dva down web --volumes    # Also remove volumes
+dva down web --purge      # Remove volumes, images, and provision markers (replaces `dva clean`)
+dva restart web           # Stop then start
+dva build web             # Build the plan's entries (native `build:` and compose builds)
+dva logs web              # Tail the plan's entries
+dva status                # Show entry statuses
 ```
 
-Stack entries are started in `order:` sequence. The orchestrator supports tag-based and mode-based filtering. Exports from earlier entries are available to later entries via environment accumulation.
+Every one of these runs the `interaction:` hooks (before/replace/after) for its command name
+where the command is hookable, then delegates to the orchestrator. Entries run in `order:`
+sequence, with tag filtering (`--tags`/`-T`, `--exclude-tag`) and mode filtering (`-M`)
+applying throughout. Exports from earlier entries reach later ones via environment
+accumulation.
 
-### `dva app` — Application process manager
+**Stop vs down:** `stop` sends SIGTERM and leaves PID and log files in place, so the next
+`up` is a fast restart. `down` tears the resources down; `--purge` additionally removes
+volumes, images, and provision markers, and prompts before doing so unless `--force` is
+given.
 
-```bash
-dva app ls                      # List all applications with status/health/port/PID
-dva app up                      # Start all applications (dependency order)
-dva app up myapp                # Start specific application
-dva app up myapp --dev          # Start in dev mode (hot-reload)
-dva app stop myapp              # Stop (SIGTERM, preserves PID for quick restart)
-dva app down myapp              # Stop and remove PID/log files
-dva app restart myapp           # Stop then start
-dva app restart myapp --dev     # Restart in dev mode
-dva app build myapp             # Build application (native)
-dva app build myapp --docker    # Build application (docker)
-dva app log myapp               # Show last 100 lines of app log
-```
-
-**Startup order:** Applications with `depends_on` are started in topological waves — independent apps within the same wave launch concurrently. Health checks are evaluated after each app starts if `health:` is configured and `--wait` is not disabled.
-
-**Stop vs Down semantics:**
-
-| Command | Signal | PID file | Log file | Use case |
-|---------|--------|----------|----------|----------|
-| `dva app stop` | SIGTERM | preserved | preserved | Development iteration (quick restart) |
-| `dva app down` | SIGTERM | **deleted** | **deleted** | Full cleanup |
-
-Same semantics apply to `dva stack stop` vs `dva stack down`.
+`--purge` is a flag rather than a `clean` command, which means it has no `interaction:` key
+to hang a hook on. A config that had `interaction.clean.before` must move that step
+elsewhere — `dva config validate` names the removal rather than silently reinterpreting the
+key as a standalone command.
 
 ### Typical Development Flow
 
 ```bash
-dva up                   # 1. Start infrastructure (DB, Redis, etc.)
-dva app up --dev         # 2. Start app servers in dev mode
+dva up                   # 1. Start the default plan (infra + apps together)
 # ... develop ...
-dva app restart api      # 3. Restart specific app after changes
-dva app stop             # 4. Stop apps (quick restart later)
-dva down                 # 5. Full infrastructure teardown
+dva restart web          # 2. Restart after changes
+dva logs web             # 3. Watch output
+dva down web --purge     # 4. Full teardown including volumes and markers
 ```
-
-### `dva up` vs `dva stack up` — When to Use
-
-| Scenario | Command | Why |
-|----------|---------|-----|
-| Normal development startup | `dva up` | Runs hooks, applies default_mode |
-| Debugging orchestrator behavior | `dva stack up` | Bypasses hooks, direct control |
-| Starting specific entries | `dva stack up <name>` | Targeted infrastructure |
-| Tag-based filtering | `dva stack up -T infra` | Subset by tag |
 
 ## See Also
 

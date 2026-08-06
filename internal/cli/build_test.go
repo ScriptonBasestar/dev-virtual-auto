@@ -158,7 +158,7 @@ func TestRunPlanBuildExecutesTheNativeBuildCommand(t *testing.T) {
 	}
 
 	var err error
-	captureCleanOutput(t, func() { err = runPlanBuild(c, buildTestEnv(c), "native_only", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "native_only", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)
@@ -185,7 +185,7 @@ func TestRunPlanBuildBuildsEveryEntryAndKeepsGoing(t *testing.T) {
 	prepareBuildTree(t, c.FileDir())
 
 	var err error
-	captureCleanOutput(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)
@@ -212,7 +212,7 @@ func TestRunPlanBuildStopsAtTheFirstFailure(t *testing.T) {
 	c := buildTestConfig(t)
 
 	var err error
-	captureCleanOutput(t, func() { err = runPlanBuild(c, buildTestEnv(c), "chain", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "chain", nil) })
 
 	if err == nil {
 		t.Fatal("a failing build command reported success")
@@ -233,7 +233,7 @@ func TestRunPlanBuildDryRunPreviewsWithoutBuilding(t *testing.T) {
 	c := buildTestConfig(t)
 
 	var err error
-	_, stderr := captureCleanOutput(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
+	_, stderr := captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)

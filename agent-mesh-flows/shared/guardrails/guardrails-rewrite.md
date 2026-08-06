@@ -5,15 +5,16 @@
 
 1. **기존 dva.yml의 구조, 명령 이름, 메타데이터에 얽매이지 마세요.** 프로젝트 분석 결과를 기반으로 최적의 구조를 새로 설계하세요.
 2. 기존 설정에서 재사용할 가치가 있는 부분(커스텀 provision 스크립트, 복잡한 health check 등)은 참고하되, 구조는 새로 잡으세요.
-3. **앱 서버/워커는 `stack` 선언과 named `plans`로 구성하세요.** 신규
-   설정에 deprecated `applications:`/`modes:`를 만들지 마세요.
+3. **앱 서버/워커는 `stack` 선언과 named `plans`로 구성하세요.** `applications:`는
+   제거된 키라 쓰면 파일이 로드되지 않고, `modes:`는 legacy이므로 신규 설정에
+   만들지 마세요.
 
 ## CRITICAL: lifecycle 소유권
 
 Compose 서비스는 compose stack entry가 소유하고 plan이 선택합니다. 동일
-서비스를 standalone `docker` runner나 `applications.*.run.docker`로 다시
-선언하지 마세요. native 개발 프로세스가 필요하면 별도 native/process stack
-entry로 선언하고 hybrid plan에서 선택하세요.
+서비스를 standalone `docker` runner로 다시 선언하지 마세요. native 개발
+프로세스가 필요하면 별도 native/process stack entry로 선언하고 hybrid plan에서
+선택하세요.
 
 ## CRITICAL: named plans
 

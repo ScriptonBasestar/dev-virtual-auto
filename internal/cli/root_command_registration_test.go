@@ -48,13 +48,19 @@ func TestRootValidateMatchesConfigValidate(t *testing.T) {
 	}
 }
 
+// This list mirrors root.go's manualFlagCommands, which is a local in init() and so cannot be
+// read from here. It is written out rather than exported because a test that iterates the
+// production list asserts nothing about that list's contents — dropping a command from
+// root.go would silently drop its coverage too.
+//
+// The copy costs an edit per change and the compiler only charges for it on a deletion or a
+// rename, which is what happened when `dva stack`/`app`/`infra` went: nine entries here, none
+// in root.go. An *addition* is the shape that goes quiet — a new DisableFlagParsing command
+// added to root.go and not here is untested, not failing.
 func TestDirectHelpDoesNotExecuteManualFlagCommands(t *testing.T) {
 	commands := []*cobra.Command{
 		composeCmd,
 		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
-		stackUpCmd, stackStopCmd, stackDownCmd, stackLogCmd,
-		appUpCmd, appRestartCmd, appBuildCmd,
-		infraUpCmd, infraDownCmd,
 		ktlCmd,
 	}
 

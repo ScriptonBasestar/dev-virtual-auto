@@ -21,7 +21,11 @@ var canonicalSectionOrder = []string{
 	"version", "vars", "environment", "env_file", "stack", "plans",
 	"default_plan", "environments", "sites",
 	// Legacy sections retain a deterministic position during migration.
-	"checks", "applications", "default_mode", "suggestion_ignore", "modes",
+	// `applications` is absent by removal, not by oversight (docs/43): the key no
+	// longer validates, so a file carrying it is rejected before this order check
+	// ever runs — listing it here would only describe where a key that cannot
+	// appear would have gone.
+	"checks", "default_mode", "suggestion_ignore", "modes",
 	"health_checks", "interaction", "provision", "modules", "subprojects",
 	"endpoints", "infra", "ssh", "devcontainer",
 }
@@ -48,8 +52,6 @@ func CanonicalSectionOrder() []string {
 func (c *Config) ValidateWarnings() []string {
 	var warnings []string
 	warnings = append(warnings, c.warnLegacyModes()...)
-	warnings = append(warnings, c.warnLegacyApplications()...)
-	warnings = append(warnings, c.warnDuplicateComposeApplicationOwnership()...)
 	warnings = append(warnings, c.warnLegacyStackOrder()...)
 	warnings = append(warnings, c.warnLegacyEnvironmentFields()...)
 	warnings = append(warnings, c.warnNoPlansHint()...)
@@ -79,62 +81,6 @@ func (c *Config) ValidateWarnings() []string {
 	return warnings
 }
 
-// warnDuplicateComposeApplicationOwnership warns when a legacy application
-// docker path points at a service already owned by a compose stack entry. In
-// that shape, top-level lifecycle can start the same service once through the
-// stack orchestrator and again through the legacy application manager.
-func (c *Config) warnDuplicateComposeApplicationOwnership() []string {
-	composeServices := make(map[string][]string)
-	for entryName, entry := range c.Stack {
-		if entry == nil {
-			continue
-		}
-
-		var composeConfigs []*ComposePluginConfig
-		if entry.Compose != nil {
-			composeConfigs = append(composeConfigs, entry.Compose)
-		}
-		if runner, ok := entry.Runners["compose"].(*ComposePluginConfig); ok && runner != nil {
-			composeConfigs = append(composeConfigs, runner)
-		}
-
-		for _, composeConfig := range composeConfigs {
-			for service := range composeConfig.Services {
-				composeServices[service] = append(composeServices[service], entryName)
-			}
-		}
-	}
-
-	var warnings []string
-	for appName, app := range c.Applications {
-		if app == nil {
-			continue
-		}
-
-		refs := []struct {
-			path    string
-			service string
-		}{
-			{path: "run", service: app.Run.Docker.Service},
-			{path: "dev", service: app.Dev.Docker.Service},
-			{path: "build", service: app.Build.Docker.Service},
-		}
-		for _, ref := range refs {
-			entries := composeServices[ref.service]
-			if ref.service == "" || len(entries) == 0 {
-				continue
-			}
-			sort.Strings(entries)
-			warnings = append(warnings, fmt.Sprintf(
-				"applications.%s.%s.docker.service %q is also owned by compose stack entry/entries [%s] — choose one lifecycle owner; prefer stack + plans for Compose services",
-				appName, ref.path, ref.service, strings.Join(entries, ", ")))
-		}
-	}
-
-	sort.Strings(warnings)
-	return warnings
-}
-
 // warnLegacyModes warns when legacy `modes` are present and suggests migration.
 func (c *Config) warnLegacyModes() []string {
 	if len(c.Modes) == 0 {
@@ -143,17 +89,6 @@ func (c *Config) warnLegacyModes() []string {
 
 	return []string{
 		fmt.Sprintf("⚠ 'modes' section detected — consider migrating to 'plans' + 'environments' + 'sites'\n  Migration guide: %s\n  Hint: modes will continue to work but are deprecated in favor of the new plans model", migrationGuideURL),
-	}
-}
-
-// warnLegacyApplications warns when legacy `applications` are present and suggests migration.
-func (c *Config) warnLegacyApplications() []string {
-	if len(c.Applications) == 0 {
-		return nil
-	}
-
-	return []string{
-		fmt.Sprintf("⚠ 'applications' section detected — consider migrating to multi-runner 'stack' entries\n  Migration guide: %s\n  Hint: each application can become a stack entry with native/docker/helm runners", migrationGuideURL),
 	}
 }
 
@@ -175,7 +110,7 @@ func (c *Config) warnLegacyStackOrder() []string {
 
 	sort.Strings(affected)
 	return []string{
-		fmt.Sprintf("⚠ 'stack.*.order' detected — execution order should move to 'plans.*.entries[].order'\n  Migration guide: %s\n  Affected entries: %s\n  Hint: stack is now a declaration store; execution order belongs in plans", migrationGuideURL, strings.Join(affected, ", ")),
+		fmt.Sprintf("⚠ 'stack.*.order' detected — execution order must move to 'plans.*.entries[].order'\n  Run: dva config migrate (preview) / dva config migrate --write (apply)\n  Migration guide: %s\n  Affected entries: %s\n  Hint: a plan entry's order is the one that runs, with no fallback to the declaration — an order left here is not read on the plan path", migrationGuideURL, strings.Join(affected, ", ")),
 	}
 }
 
@@ -464,7 +399,7 @@ func (c *Config) warnDuplicateParentSubcommand() []string {
 // being told they had not chosen a sequence when their plan declares infra→api→worker→web.
 //
 // What is checkable is whether a plan names the entry, not whether some plan exists. An entry a
-// plan names has a declared position; the gap is only that `dva stack up` does not read plans
+// plan names has a declared position; the gap is only that plan-less `dva up` does not read plans
 // (its help says so), and that is a property of the command rather than of the config.
 func (c *Config) warnDuplicateStackOrder() []string {
 	if len(c.Stack) < 2 {
@@ -516,10 +451,10 @@ func (c *Config) warnDuplicateStackOrder() []string {
 		// a position never declared — for these entries, in the plan layer or anywhere else.
 		var msg string
 		if order == 0 {
-			msg = fmt.Sprintf("stack: entries %s are at the default order and no plan names them, so `dva stack up` starts them in name order rather than one you chose",
+			msg = fmt.Sprintf("stack: entries %s are at the default order and no plan names them, so `dva up` starts them in name order rather than one you chose",
 				strings.Join(unplanned, ", "))
 		} else {
-			msg = fmt.Sprintf("stack: entries %s share order value %d and no plan names them, so `dva stack up` starts them in name order rather than one you chose",
+			msg = fmt.Sprintf("stack: entries %s share order value %d and no plan names them, so `dva up` starts them in name order rather than one you chose",
 				strings.Join(unplanned, ", "), order)
 		}
 		// Named only when plans exist, because that is the reader who would otherwise assume the

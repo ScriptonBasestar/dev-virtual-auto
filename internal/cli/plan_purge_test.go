@@ -69,7 +69,7 @@ func TestPlanDownPurgeAsksBeforeDestroying(t *testing.T) {
 	stdinFrom(t, "n\n")
 
 	var err error
-	_, stderr := captureCleanOutput(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	_, stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
 
 	if err != nil {
 		t.Fatalf("an answered decline is not a failure: %v", err)
@@ -93,7 +93,7 @@ func TestPlanDownPurgeEOFIsNotADecline(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureCleanOutput(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	_, stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
 
 	if err == nil {
 		t.Fatalf("--purge with no terminal returned nil, so a script is told the volumes were "+
@@ -122,7 +122,7 @@ func TestPlanDownPurgeDryRunSkipsThePromptAndPreviewsMarkers(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureCleanOutput(t, func() {
+	_, stderr := captureBothStreams(t, func() {
 		err = runPlanDown(c, e, "demo", []string{"--purge", "--dry-run"})
 	})
 
@@ -153,7 +153,7 @@ func TestPlanDownPurgeForceRemovesMarkers(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureCleanOutput(t, func() {
+	_, stderr := captureBothStreams(t, func() {
 		err = runPlanDown(c, e, "demo", []string{"--purge", "--force"})
 	})
 
@@ -197,7 +197,7 @@ plans:
 	// NewPlanOrchestrator captures slog.Default() at construction, so redirecting it here
 	// reaches the dry-run line. os.Stderr cannot be swapped for this: the default handler
 	// holds the writer the log package captured at init, not the current value of the
-	// variable, so captureCleanOutput sees nothing of it.
+	// variable, so captureBothStreams sees nothing of it.
 	logs := useBufferedSlog(t)
 
 	if err := runPlanDown(c, e, "demo", []string{"--purge", "--force", "--dry-run"}); err != nil {
@@ -227,14 +227,16 @@ func TestPlanUpRejectsDownOnlyFlags(t *testing.T) {
 	}{
 		{"up", func(c *config.Config, e *config.Environment, a []string) error { return runPlanUp(c, e, "demo", a) }},
 		{"stop", func(c *config.Config, e *config.Environment, a []string) error { return runPlanStop(c, e, "demo", a) }},
-		{"restart", func(c *config.Config, e *config.Environment, a []string) error { return runPlanRestart(c, e, "demo", a) }},
+		{"restart", func(c *config.Config, e *config.Environment, a []string) error {
+			return runPlanRestart(c, e, "demo", a)
+		}},
 	} {
 		for _, flag := range []string{"--purge", "--volumes"} {
 			t.Run(tc.name+" "+flag, func(t *testing.T) {
 				c, e, _ := purgeFixture(t)
 
 				var err error
-				captureCleanOutput(t, func() { err = tc.run(c, e, []string{flag}) })
+				captureBothStreams(t, func() { err = tc.run(c, e, []string{flag}) })
 
 				if err == nil {
 					t.Fatalf("%s accepted %s and did something else instead", tc.name, flag)
