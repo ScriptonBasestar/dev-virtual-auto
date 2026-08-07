@@ -4,6 +4,6 @@
 # gopls is pinned so `make lint` can catch the modernize-analyzer divergence
 # golangci-lint's vendored copy misses (TASK-130).
 [tools]
-go = "1.26.4"
+go = "1.26.5"
 golangci-lint = "2.12.2"
 "go:golang.org/x/tools/gopls" = "0.22.0"
