@@ -5,7 +5,7 @@ type: decision
 priority: P3
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
-scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 60 cross-run comparison"
+scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 40 cross-run comparison"
 status: todo
 quality-review: fail
 quality-reviewed-at: 2026-08-07T18:05:08+09:00
@@ -17,12 +17,19 @@ quality-review-evidence: |
     unit: 082-surface-present
     command-or-step: rg -n 'absent_section_route|per_absent_section|next action' workflows/dva-dogfood/ref-evaluation.md
     result: ok — surface id + instances + next-action rubric all present (lines 37–39, 57–63)
+  - kind: unit
+    unit: 082-ac-honest
+    command-or-step: rg -n '60-evaluate|case_manifest_hash|\[ \].*absent section|\[ \].*regression|\[ \].*not_applicable' tasks/todo/082-the-dogfood-loop-cannot-score-an-absent-section.md
+    result: ok — scope/cost/ACs retargeted to stage 40; promotion clause AC verifies 40-evaluate; runtime ACs left [ ] open
 rework-remarks: |
   Promotion clause re-homed (unit 082-rehome-promotion): stage 40 gate + ref-evaluation
   hash derivation/compatibility wording + evaluation.case_manifest_hash in ref-artifacts.
   Unit 082-surface-present: confirmed absent_section_route + per_absent_section
   (a next action / b what-config-declares / c --json) still shipped in ref-evaluation.md.
-  Residual: deferred ACs 2–4 (next dogfood cycle against stack-only fixture) still open.
+  Unit 082-ac-honest: no AC claims live 60-evaluate.md; promotion note verify binds
+  to 40-evaluate; scope/cost narrative say stage 40. Residual: deferred runtime ACs
+  (absent scored case, post-hash regression check, not_applicable retention) still open
+  until a dogfood cycle runs against a stack-only fixture.
 ---
 
 # Task 082: Decide whether an absent section is a case
@@ -72,11 +79,12 @@ regression.
 
 ## The cost that needs deciding with it
 
-Changing the manifest bytes changes `case_manifest_hash`. Stage 60 compares against the previous
+Changing the manifest bytes changes `case_manifest_hash`. Stage 40 compares against the previous
 run by that hash, so the first run after the change is not comparable to the one before it and
 must be treated as a **cross-run promotion**, not a regression. Whoever takes this has to say in
-the task how stage 60 learns that — a recorded baseline reset, or a hash-change branch in the
-comparison itself.
+the task how stage 40 learns that — a recorded baseline reset, or a hash-change branch in the
+comparison itself. (The former stage-60 evaluate file is gone; the live clause is in
+`40-evaluate.md`, re-homed from deleted `60-evaluate.md`.)
 
 ## Resolution
 
@@ -108,6 +116,8 @@ actionable scope.
 ## Acceptance criteria
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
+- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
 - [ ] If A or C: an absent section produces a scored case | verify: `human — run one cycle against a stack-only fixture and read evaluation.cases for the absent applications section` — **deferred to the next dogfood cycle; the surface is in the manifest**
-- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 40 output on the run after the hash change` — **the promotion clause is in 40-evaluate.md; deferred to the next cycle**
+- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 40 output on the run after the hash change` — **promotion clause file binding is the [x] AC above; this AC is runtime-only and stays open until a cycle runs**
 - [ ] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: `human — a compose-less target still files the compose surface as not applicable` — **deferred to the next cycle; the `per_absent_section` bullet scopes not-applicable explicitly**
+
