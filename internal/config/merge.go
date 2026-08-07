@@ -31,6 +31,12 @@ func MergeLifecycleEntry(base, other *LifecycleEntry) (*LifecycleEntry, error) {
 
 	// Restricted field: plugin must not change
 	if other.Plugin != "" && base.Plugin != "" && other.Plugin != base.Plugin {
+		// stack_overrides entries often have empty Name (map key is the identity). Naming
+		// "" as the entry is noise beside the outer `[warn] stack_override "api": …` that
+		// already carries the key (TASK-157 option B — fix the message, do not backfill Name).
+		if base.Name == "" {
+			return nil, fmt.Errorf("cannot override plugin type: %q → %q (restricted field)", base.Plugin, other.Plugin)
+		}
 		return nil, fmt.Errorf("cannot override plugin type for stack entry %q: %q → %q (restricted field)", base.Name, base.Plugin, other.Plugin)
 	}
 

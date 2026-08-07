@@ -118,15 +118,14 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	runner := DetectRunnerType(cmd)
 
 	if jsonOutput {
-		// command carries the single command string, and a list has none — reporting
-		// cmd.Command for a list reported its first line, which is the same first-line-only
-		// story the exec told before TASK-178. Empty here rather than absent: the key keeps
-		// its type for anything already reading it, and an empty string beside a populated
-		// command_lines cannot be read as "nothing will run" the way a blank line can in the
-		// text branch, because the sibling key is right there carrying the work.
-		single := cmd.Command
-		if len(cmd.CommandLines) > 0 {
-			single = ""
+		// command is what formCommand would run. For every other form it is empty rather
+		// than the inherited/scalar leftover — a list used to report its first line
+		// (TASK-178), a scripted child used to report the parent's command (TASK-174), and
+		// both described work the exec would not do. Sibling keys carry the real work.
+		form := classifyForm(cmd)
+		single := ""
+		if form == formCommand {
+			single = cmd.Command
 		}
 		plan := map[string]any{
 			"command":     single,
@@ -142,10 +141,26 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 			// anyone checking `dva run rails console --explain` by hand.
 			"arguments": commandArgs(cmd),
 		}
-		// Added only when there is a list, so the plan for every other interaction is
-		// byte-identical to what it was — this key appearing is itself the signal.
-		if len(cmd.CommandLines) > 0 {
+		// Form-specific keys appear only when that form wins, so other interactions stay
+		// byte-identical on the keys they already had.
+		if form == formCommandList {
 			plan["command_lines"] = cmd.CommandLines
+		}
+		if form == formScript {
+			plan["script"] = cmd.Script
+		}
+		if form == formScriptFile {
+			// Declared path, not FileDir-resolved: --explain is about the config the author
+			// wrote, and an absolute rewrite would make two hosts disagree on the same file.
+			plan["script_file"] = cmd.ScriptFile
+		}
+		if form == formSteps {
+			// Labels only — the full step payload is for execution; JSON stays scannable.
+			labels := make([]string, 0, len(cmd.Steps))
+			for i := range cmd.Steps {
+				labels = append(labels, cmd.Steps[i].Step)
+			}
+			plan["steps"] = labels
 		}
 		if cmd.Service != "" {
 			plan["compose_method"] = cmd.Compose.Method
@@ -182,11 +197,13 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 			p.println("Command: (step-driven — see Steps below)")
 		case formCommandList:
 			p.printf("Command: (%d commands — see Commands below)\n", len(cmd.CommandLines))
-		case formScriptFile, formScript:
-			// Still blank, and still wrong for the same reason TASK-146 gave. TASK-176 owns it;
-			// this arm exists so the gap is a named case in the switch rather than a default
-			// nobody reads, which is how it survived TASK-146 in the first place.
-			p.println("Command:")
+		case formScriptFile:
+			// Same vocabulary as the steps arm (TASK-146 / TASK-176): name the form, then
+			// point at the section that carries the work — never leave Command: blank and
+			// never print an inherited parent command the exec will not run (TASK-174).
+			p.println("Command: (script_file-driven — see Script File below)")
+		case formScript:
+			p.println("Command: (script-driven — see Script below)")
 		default:
 			p.printf("Command: (unhandled %s)\n", classifyForm(cmd))
 		}
@@ -219,13 +236,33 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 			p.printf("  %s=%s\n", k, v)
 		}
 	}
-	if len(cmd.Steps) > 0 {
+	// Only the winning form's body is listed — classifyForm is the same pick the exec uses.
+	switch classifyForm(cmd) {
+	case formSteps:
 		explainSteps(p, cmd)
-	}
-	if len(cmd.CommandLines) > 0 {
+	case formCommandList:
 		explainCommandLines(p, cmd)
+	case formScriptFile:
+		explainScriptFile(p, cmd)
+	case formScript:
+		explainScript(p, cmd)
 	}
 	return p.err
+}
+
+// explainScriptFile names the declared script_file path (TASK-176). Declared, not absolute:
+// the plan is about the config text, and path resolution is environment-dependent.
+func explainScriptFile(p *planWriter, cmd *ResolvedCommand) {
+	p.printf("Script File: %s\n", cmd.ScriptFile)
+}
+
+// explainScript prints an inline script. Full body, not a head: steps list every step, and
+// truncating here would hide the work the plan exists to show. Indent matches explainSteps.
+func explainScript(p *planWriter, cmd *ResolvedCommand) {
+	p.println("Script:")
+	for line := range strings.SplitSeq(cmd.Script, "\n") {
+		p.printf("  → %s\n", line)
+	}
 }
 
 // explainCommandLines lists every line of a list `command:`, in the arrow form explainSteps

@@ -497,5 +497,12 @@ func TestStackOverrideConflictWarnsOnStderrNotStdout(t *testing.T) {
 	if !strings.Contains(stderr, "api") {
 		t.Errorf("stderr %q does not name the offending key", stderr)
 	}
-	t.Logf("stdout=%d bytes, stderr=%d bytes", len(stdout), len(stderr))
+	// TASK-157: the outer key is the identity; do not also print `for stack entry ""`.
+	if strings.Contains(stderr, `stack entry ""`) || strings.Contains(stderr, `entry ""`) {
+		t.Errorf("override warning still names an empty entry: %q", stderr)
+	}
+	if !strings.Contains(stderr, "cannot override plugin type") {
+		t.Errorf("stderr %q missing the plugin conflict", stderr)
+	}
+	t.Logf("stdout=%d bytes, stderr=%d bytes; message=%q", len(stdout), len(stderr), stderr)
 }
