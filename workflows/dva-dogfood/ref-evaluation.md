@@ -7,6 +7,11 @@ owner. Scoring and the cycle gate live in [40-evaluate.md](40-evaluate.md).
 
 A surface is a routing behavior to test, not a project. Stage 10 walks this
 manifest in order and instantiates each surface against the declared target.
+The exact YAML bytes in the block below are the canonical ordered surface
+manifest. Stage 10 computes SHA-256 from the bytes between the fenced-YAML
+lines, including the final newline, and records that value in `state.yaml` as
+`case_manifest_hash`. No hash is stored beside the bytes here: a hand-maintained
+constant detects nothing. The run-to-run comparison is what carries meaning.
 
 ```yaml
 manifest_version: dva-routing-v2
@@ -67,16 +72,21 @@ blocked run. The only out-of-scope condition is a target where `config_schema` a
 workflow does not apply: block with `target_out_of_scope`.
 
 Because case sets are target-derived, two runs against different targets
-legitimately hold different case sets. Comparing them is a cross-run promotion
-question, not an error.
+legitimately hold different case sets while sharing one `case_manifest_hash`.
+Compatibility is the tuple (`manifest_version`, `case_manifest_hash`, ordered
+`case_ids`); a cross-target comparison is a cross-run promotion question, not a
+contract mismatch. A predecessor whose `case_manifest_hash` differs is also a
+cross-run promotion at stage 40 — see [40-evaluate.md](40-evaluate.md) — not a
+regression on the manifest-induced case-set delta.
 
 ## Freezing the requests
 
-Stage 10 records `manifest_version`, the derived ordered `case_ids`, and the
-not-applicable surfaces in `state.yaml`, then creates `<RUN_DIR>/forward-requests.md`:
-a strict YAML document with `manifest_version` and ordered `requests`, where every
-request has only `id` and a non-empty `raw_request`, one per derived case in the
-same order. Store its full-file SHA-256 as `evaluation.forward_requests_hash`.
+Stage 10 records `manifest_version`, `case_manifest_hash`, the derived ordered
+`case_ids`, and the not-applicable surfaces in `state.yaml`, then creates
+`<RUN_DIR>/forward-requests.md`: a strict YAML document with `manifest_version`
+and ordered `requests`, where every request has only `id` and a non-empty
+`raw_request`, one per derived case in the same order. Store its full-file
+SHA-256 as `evaluation.forward_requests_hash`.
 
 The freeze exists for one reason: **the controller must not be able to reword a
 request after seeing baseline results.** Stage 30 recomputes the hash before

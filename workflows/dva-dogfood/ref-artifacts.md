@@ -50,6 +50,7 @@ run:
 evaluation:
   manifest_version: "dva-routing-v2"
   case_ids: [] # ordered, derived from the surfaces for THIS target
+  case_manifest_hash: null # surface-manifest sha256
   not_applicable_surfaces: [] # {surface, evidence} per surface with no instance
   forward_requests_hash: null # sha256 of the frozen forward-requests.md
   forward_test:

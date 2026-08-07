@@ -14,7 +14,9 @@ quality-review-evidence: |
     command-or-step: quality-review
     result: Promotion clause claimed in 60-evaluate.md (deleted in stage collapse); deferred ACs still [ ]; case_manifest_hash promotion not re-homed into 40-evaluate.
 rework-remarks: |
-  Promotion clause claimed in 60-evaluate.md (deleted in stage collapse); deferred ACs still [ ]; case_manifest_hash promotion not re-homed into 40-evaluate.
+  Promotion clause re-homed (unit 082-rehome-promotion): stage 40 gate + ref-evaluation
+  hash derivation/compatibility wording + evaluation.case_manifest_hash in ref-artifacts.
+  Deferred ACs (next dogfood cycle against stack-only fixture) still open.
 ---
 
 # Task 082: Decide whether an absent section is a case
@@ -82,9 +84,11 @@ one manifest edit so the two surface changes share a single `case_manifest_hash`
   (`instances: per_absent_section`) before `no_change`; added the `per_absent_section` dispatch
   bullet, which states the inversion (the absent section is the instance, not a non-instance) and
   carries the (a) next-action / (b) what-config-declares / (c) `--json`-parseable rubric in-place.
-- `workflows/dva-dogfood/60-evaluate.md` — one cross-run-promotion clause: a run whose
-  `case_manifest_hash` differs from its predecessor's is itself a promotion, so the
-  manifest-induced case-set delta is not reported as a regression.
+- `workflows/dva-dogfood/40-evaluate.md` — one cross-run-promotion clause (re-homed from
+  deleted `60-evaluate.md`): a run whose `case_manifest_hash` differs from its
+  predecessor's is itself a promotion, so the manifest-induced case-set delta is not
+  reported as a regression. `ref-evaluation.md` records hash derivation and tuple
+  compatibility; `ref-artifacts.md` carries `evaluation.case_manifest_hash`.
 
 The (c) caveat at line 52-55 is now partly moot: [TASK-079](../_archive/079-json-flag-does-not-cover-failures.md)
 shipped the `--json` failure envelope, so the route commands are `--json`-parseable on the
@@ -92,11 +96,12 @@ absent-section path (measured: `app up myapp --json` emits `{"error":{…}}`). C
 longer universally failing on day one.
 
 Criteria 2-4 are runtime verifications: they fire when the dogfood loop next runs against a
-stack-only target, not at this edit. The manifest + stage-60 change is the actionable scope.
+stack-only target, not at this edit. The manifest + stage-40 promotion clause is the
+actionable scope.
 
 ## Acceptance criteria
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
 - [ ] If A or C: an absent section produces a scored case | verify: `human — run one cycle against a stack-only fixture and read evaluation.cases for the absent applications section` — **deferred to the next dogfood cycle; the surface is in the manifest**
-- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 60 output on the run after the hash change` — **the promotion clause is in 60-evaluate.md; deferred to the next cycle**
+- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 40 output on the run after the hash change` — **the promotion clause is in 40-evaluate.md; deferred to the next cycle**
 - [ ] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: `human — a compose-less target still files the compose surface as not applicable` — **deferred to the next cycle; the `per_absent_section` bullet scopes not-applicable explicitly**

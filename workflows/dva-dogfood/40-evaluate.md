@@ -70,6 +70,14 @@ Contradictory diagnostics prevent a full Validation score. Surfaces recorded
 `not_applicable` at stage 10 do not count against coverage; an invented case counts
 as a Traceability zero. Final closure additionally requires one singular, measurable
 next hypothesis.
+
+**Cross-run promotion.** A run whose `case_manifest_hash` differs from its
+predecessor's is itself a cross-run promotion: the surface manifest was edited (a
+surface added or widened), so the case set is not comparable to the predecessor's.
+Compare this run only against its own fresh baseline; do not report the
+manifest-induced case-set delta as a regression. Record the hash change as the
+promotion reason. Cross-run evidence may support promotion of a generic skill or
+prompt change but never replaces current-run gates.
 </gate>
 
 <constraints>
