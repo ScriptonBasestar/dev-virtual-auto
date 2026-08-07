@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,20 @@ import (
 	"github.com/ScriptonBasestar/dva/internal/output"
 	"github.com/ScriptonBasestar/dva/internal/runner"
 )
+
+// validateNoticeWriter is where validate writes [warn]/[fixed]/[error] lines that
+// accompany a successful (or soft-fail) pass.
+//
+// Rule (TASK-142): on the human path, notices that qualify the ✅ verdict share stdout
+// with it so a reader of one stream sees both. On --json, stdout is reserved for the
+// single document and notices stay on stderr so the document is not corrupted by prose.
+// Errors that abort validation still use stderr directly where they are emitted.
+func validateNoticeWriter() io.Writer {
+	if jsonOutput {
+		return os.Stderr
+	}
+	return os.Stdout
+}
 
 var validateStrict bool
 
@@ -133,6 +148,8 @@ var validateCmd = &cobra.Command{
 			return report.fail(fmt.Errorf("%d compose runner command(s) contain no command word", len(problems)))
 		}
 
+		notice := validateNoticeWriter()
+
 		// Check compose file project name alignment
 		warnings := c.ValidateComposeProjectNames()
 		fix, _ := cmd.Flags().GetBool("fix")
@@ -140,7 +157,7 @@ var validateCmd = &cobra.Command{
 		if fix {
 			fixComposeNameWarnings(c, warnings)
 		} else {
-			printComposeNameWarnings(warnings)
+			printComposeNameWarnings(notice, warnings)
 			// Only when they were reported: --fix rewrote the files, so the mismatch no
 			// longer exists and putting it in the report would describe a fixed state as
 			// an outstanding warning.
@@ -152,22 +169,22 @@ var validateCmd = &cobra.Command{
 		// Semantic warnings (version, health checks, duplicate commands, etc.)
 		semanticWarnings := c.ValidateWarnings()
 		for _, w := range semanticWarnings {
-			fmt.Fprintf(os.Stderr, "[warn] semantic: %s\n", w)
+			fmt.Fprintf(notice, "[warn] semantic: %s\n", w)
 		}
 		report.add("semantic", semanticWarnings...)
 
 		collisionWarnings := detectInteractionCollisionWarnings(c)
 		for _, w := range collisionWarnings {
-			fmt.Fprintf(os.Stderr, "[warn] interaction: %s\n", w)
+			fmt.Fprintf(notice, "[warn] interaction: %s\n", w)
 		}
 		report.add("interaction_collision", collisionWarnings...)
 
 		driftWarnings := detectConfigDriftWarnings(c)
-		printConfigDriftWarnings(driftWarnings)
+		printConfigDriftWarnings(notice, driftWarnings)
 		report.add("config_drift", driftWarnings...)
 
 		suggestionWarnings := detectConfigSuggestionWarnings(c)
-		printConfigSuggestionWarnings(suggestionWarnings)
+		printConfigSuggestionWarnings(notice, suggestionWarnings)
 		report.add("config_suggestion", suggestionWarnings...)
 
 		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0 || len(collisionWarnings) > 0) {
@@ -182,11 +199,11 @@ var validateCmd = &cobra.Command{
 					if err := writeDevcontainerFiles(c.Devcontainer, c.AllComposeFiles(), c.FileDir()); err != nil {
 						fmt.Fprintf(os.Stderr, "[error] devcontainer: %v\n", err)
 					} else {
-						fmt.Fprintf(os.Stderr, "[fixed] created .devcontainer/devcontainer.json\n")
+						fmt.Fprintf(notice, "[fixed] created .devcontainer/devcontainer.json\n")
 					}
 				} else {
-					fmt.Fprintf(os.Stderr, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
-					fmt.Fprintf(os.Stderr, "       → run: dva config validate --fix\n")
+					fmt.Fprintf(notice, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
+					fmt.Fprintf(notice, "       → run: dva config validate --fix\n")
 					report.add("devcontainer", "devcontainer section found but .devcontainer/devcontainer.json missing\n  → run: dva config validate --fix")
 				}
 			}
@@ -226,31 +243,32 @@ func composeNameWarningLines(w config.ComposeNameWarning) []string {
 	}
 }
 
-// printComposeNameWarnings prints warnings about compose file name mismatches to stderr.
-func printComposeNameWarnings(warnings []config.ComposeNameWarning) {
-	for _, w := range warnings {
-		lines := composeNameWarningLines(w)
-		fmt.Fprintf(os.Stderr, "[warn] semantic: %s\n", lines[0])
+// printComposeNameWarnings prints compose file name mismatch warnings to w.
+func printComposeNameWarnings(w io.Writer, warnings []config.ComposeNameWarning) {
+	for _, warning := range warnings {
+		lines := composeNameWarningLines(warning)
+		fmt.Fprintf(w, "[warn] semantic: %s\n", lines[0])
 		for _, detail := range lines[1:] {
-			fmt.Fprintf(os.Stderr, "       %s\n", detail)
+			fmt.Fprintf(w, "       %s\n", detail)
 		}
 	}
 }
 
 // fixComposeNameWarnings auto-fixes compose file name mismatches.
 func fixComposeNameWarnings(c *config.Config, warnings []config.ComposeNameWarning) {
+	notice := validateNoticeWriter()
 	for _, w := range warnings {
 		if err := c.FixComposeProjectName(w); err != nil {
 			fmt.Fprintf(os.Stderr, "[error] failed to fix %s: %v\n", w.File, err)
 		} else {
-			fmt.Fprintf(os.Stderr, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
+			fmt.Fprintf(notice, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
 		}
 	}
 }
 
-func printConfigDriftWarnings(warnings []string) {
+func printConfigDriftWarnings(w io.Writer, warnings []string) {
 	for _, warning := range warnings {
-		fmt.Fprintf(os.Stderr, "[warn] config drift: %s\n", warning)
+		fmt.Fprintf(w, "[warn] config drift: %s\n", warning)
 	}
 }
 
@@ -290,9 +308,9 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 	return warnings
 }
 
-func printConfigSuggestionWarnings(warnings []string) {
+func printConfigSuggestionWarnings(w io.Writer, warnings []string) {
 	for _, warning := range warnings {
-		fmt.Fprintf(os.Stderr, "[warn] config suggestion: %s\n", warning)
+		fmt.Fprintf(w, "[warn] config suggestion: %s\n", warning)
 	}
 }
 

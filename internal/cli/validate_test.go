@@ -16,18 +16,8 @@ func TestPrintComposeNameWarnings_Missing(t *testing.T) {
 		{File: "compose.yml", DvaName: "myproject", ComposeName: ""},
 	}
 
-	// Capture stderr
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	printComposeNameWarnings(warnings)
-
-	w.Close()
-	os.Stderr = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	printComposeNameWarnings(&buf, warnings)
 	output := buf.String()
 
 	if !strings.Contains(output, "missing top-level") {
@@ -43,17 +33,8 @@ func TestPrintComposeNameWarnings_Mismatch(t *testing.T) {
 		{File: "compose.yml", DvaName: "myproject", ComposeName: "old-name"},
 	}
 
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	printComposeNameWarnings(warnings)
-
-	w.Close()
-	os.Stderr = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	printComposeNameWarnings(&buf, warnings)
 	output := buf.String()
 
 	if !strings.Contains(output, "differs from") {
@@ -65,18 +46,8 @@ func TestPrintComposeNameWarnings_Mismatch(t *testing.T) {
 }
 
 func TestPrintComposeNameWarnings_Empty(t *testing.T) {
-	// No warnings should produce no output
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	printComposeNameWarnings(nil)
-
-	w.Close()
-	os.Stderr = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	printComposeNameWarnings(&buf, nil)
 	if buf.Len() > 0 {
 		t.Errorf("expected no output for empty warnings, got: %s", buf.String())
 	}
@@ -197,17 +168,8 @@ func TestPrintConfigDriftWarnings(t *testing.T) {
 		t.Fatalf("load config: %v", err)
 	}
 
-	old := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
-	printConfigDriftWarnings(detectConfigDriftWarnings(c))
-
-	w.Close()
-	os.Stderr = old
-
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	printConfigDriftWarnings(&buf, detectConfigDriftWarnings(c))
 	output := buf.String()
 	if !strings.Contains(output, "[warn] config drift:") {
 		t.Fatalf("expected config drift warning prefix, got: %s", output)

@@ -175,6 +175,12 @@ func wrapDirectHelp(cmd *cobra.Command) {
 
 // Execute is the main entry point for the CLI.
 func Execute() {
+	// Group parents must be wired after every package init has registered their children
+	// (init file order is alphabetical, so a call from config_dump.go would miss later
+	// subcommands). SuggestionsFor needs the full set (TASK-148).
+	setGroupParentBehavior(configCmd)
+	setGroupParentBehavior(sshCmd)
+
 	args := os.Args[1:]
 
 	// Dynamic routing: if first arg is not a top-level command,

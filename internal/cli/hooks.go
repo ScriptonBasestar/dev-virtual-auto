@@ -185,14 +185,11 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 			}
 		}
 
-		// Note display
-		if step.Note != "" {
-			fmt.Fprintln(os.Stderr)
-			for line := range strings.SplitSeq(step.Note, "\n") {
-				fmt.Fprintf(os.Stderr, "  %s\n", line)
-			}
-			fmt.Fprintln(os.Stderr)
-		}
+		// Note display — writeNote for indent/blank-line parity with provision (TASK-141).
+		// stderr deliberately: hooks are a progress channel on the same stream as the
+		// `$ cmd` lines above; provision notes go to stdout as result-adjacent output.
+		// One indent (writeNote's four spaces) rather than a second two-space dialect.
+		writeNote(os.Stderr, step.Note)
 	}
 	return nil
 }

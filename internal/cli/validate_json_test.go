@@ -16,6 +16,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -242,32 +243,40 @@ func TestValidateJSONNamesTheOffendingKey(t *testing.T) {
 	}
 }
 
-// TestValidateWithoutJSONIsUnchanged is the other half of the change: the human path is
-// supposed to be untouched. Comparing against the literal bytes rather than "contains"
-// makes an accidental extra line fail here rather than in a user's terminal.
+// TestValidateWithoutJSONIsUnchanged pins the human path after TASK-142: warnings that
+// qualify the ✅ verdict share stdout with it. Comparing against literal bytes rather than
+// "contains" makes an accidental stream split fail here rather than in a user's terminal.
 func TestValidateWithoutJSONIsUnchanged(t *testing.T) {
-	for _, tc := range []struct {
-		name       string
-		fixture    string
-		wantStdout string
-		wantErrOut bool
-	}{
-		{"clean", cleanValidateFixture, "✅ dva.yml is valid\n", false},
-		{"warnings", warnValidateFixture, "✅ dva.yml is valid\n", true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			out, errOut, err := runValidate(t, tc.fixture, false)
-			if err != nil {
-				t.Fatalf("returned an error: %v", err)
-			}
-			if out != tc.wantStdout {
-				t.Errorf("stdout = %q, want %q", out, tc.wantStdout)
-			}
-			if (errOut != "") != tc.wantErrOut {
-				t.Errorf("stderr non-empty = %v, want %v; got %q", errOut != "", tc.wantErrOut, errOut)
-			}
-		})
-	}
+	t.Run("clean", func(t *testing.T) {
+		out, errOut, err := runValidate(t, cleanValidateFixture, false)
+		if err != nil {
+			t.Fatalf("returned an error: %v", err)
+		}
+		if out != "✅ dva.yml is valid\n" {
+			t.Errorf("stdout = %q, want the bare verdict", out)
+		}
+		if errOut != "" {
+			t.Errorf("stderr non-empty on a clean config: %q", errOut)
+		}
+	})
+	t.Run("warnings", func(t *testing.T) {
+		out, errOut, err := runValidate(t, warnValidateFixture, false)
+		if err != nil {
+			t.Fatalf("returned an error: %v", err)
+		}
+		if errOut != "" {
+			t.Errorf("stderr should be empty when notices travel with the verdict; got %q", errOut)
+		}
+		if !bytes.Contains([]byte(out), []byte("[warn]")) {
+			t.Errorf("stdout missing warnings that qualify the verdict:\n%s", out)
+		}
+		if !strings.HasSuffix(out, "✅ dva.yml is valid\n") {
+			t.Errorf("stdout does not end with the verdict:\n%q", out)
+		}
+		// Byte counts for the Result section: measured in-test so a future change
+		// that re-splits the streams fails with numbers, not a vague "differs".
+		t.Logf("TASK-142 human warnings path: stdout=%d bytes stderr=%d bytes", len(out), len(errOut))
+	})
 }
 
 // TestComposeNameWarningPathsShareOneSource pins the reason composeNameWarningLines exists.

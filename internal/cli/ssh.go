@@ -88,6 +88,7 @@ func init() {
 	sshUpCmd.Flags().StringP("user", "u", "", "User for ssh-agent container")
 
 	sshCmd.AddCommand(sshUpCmd, sshDownCmd, sshStatusCmd)
+	setGroupParentBehavior(sshCmd)
 }
 
 // runDockerSilent runs a docker subcommand suppressing all output. Every call site

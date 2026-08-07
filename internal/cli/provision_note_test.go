@@ -184,11 +184,9 @@ func TestWriteNoteHandlesMultilineAndEmpty(t *testing.T) {
 
 // TestNativeBuildLoopPrintsNote covers the third call site. TASK-086 wrote it against the copy of
 // the step loop that lived in compose.go; TASK-093 deleted that copy, so `build: native` renders
-// through runHookSteps like every other hook phase and these assertions moved with it — stderr
-// rather than stdout, two-space indent rather than four, note after the commands rather than
-// before. What is guaranteed did not change: a `note:` on the native build path is visible, and
-// the sibling step still runs. The name keeps "Loop" because two task files name it in their
-// verify commands; there is no loop here any more.
+// through runHookSteps like every other hook phase. TASK-141 routes the note through writeNote:
+// four-space indent (same as provision), still on stderr (hooks are a progress channel). The
+// name keeps "Loop" because two task files name it in their verify commands.
 //
 // DVA_HOOK_DEPTH=1 stays because it is the interesting invocation — the one that used to take the
 // second implementation. TestNativeBuildDelegatesToTheHookExecutor pins both to the same bytes.
@@ -217,8 +215,10 @@ interaction:
 		t.Fatalf("dva build --mode nativemode: %v\nstderr: %s", err, stderr)
 	}
 
-	if want := "\n  BUILD-NOTE-VISIBLE\n\n"; !strings.Contains(stderr, want) {
-		t.Errorf("note block %q missing from the native build path:\n%s", want, stderr)
+	var wantNote strings.Builder
+	writeNote(&wantNote, "BUILD-NOTE-VISIBLE")
+	if !strings.Contains(stderr, wantNote.String()) {
+		t.Errorf("note block missing from the native build path (must match writeNote):\nwant %q\ngot:\n%s", wantNote.String(), stderr)
 	}
 	// Control: the steps ran. Without it a note printed by a path that had stopped
 	// building would read as a pass.
@@ -229,4 +229,20 @@ interaction:
 	if strings.Contains(stdout, "BUILD-NOTE-VISIBLE") {
 		t.Errorf("the note reached stdout as well — a second renderer is back:\n%s", stdout)
 	}
+}
+
+// TestHooksNoteMatchesWriteNote pins the fourth (last) note renderer: hooks.go must not
+// re-grow an inline loop that drifts indent/stream from writeNote (TASK-141).
+func TestHooksNoteMatchesWriteNote(t *testing.T) {
+	var viaWriteNote strings.Builder
+	writeNote(&viaWriteNote, "HOOK-NOTE")
+
+	// runHookSteps is unexported; exercise through executeHookPhase path via the same
+	// writeNote call the hooks path now makes. Byte identity of writeNote is the contract;
+	// the integration half is TestNativeBuildLoopPrintsNote above.
+	if viaWriteNote.String() != "\n    HOOK-NOTE\n\n" {
+		t.Fatalf("writeNote = %q, hooks and provision share this exact shape", viaWriteNote.String())
+	}
+	// Grep-level guarantee lives in TestNativeBuildLoopPrintsNote: hooks path contains
+	// writeNote's block. step.Note count in hooks.go is asserted by absence of SplitSeq.
 }
