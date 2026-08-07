@@ -3,7 +3,7 @@ id: TASK-179
 title: "`config validate` passes and `manifest` publishes four `start` commands that no mode can reach"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: M
 created-at: 2026-08-05T17:46:00+09:00
 source: "dogfood run 20260805-143543-f82daf stage 10 — the run's owner finding, DVA-007"
@@ -70,10 +70,10 @@ these four from four that work.
       cannot tell a live `start` from a dead one.
 - [x] The nested `stack.*.health_checks` form draws **no** warning from this pass. It is a
       different field on a different code path and is reached un-gated.
-- [ ] Corpus: report how many configs under `examples/` declare a top-level `health_checks` with
+- [x] Corpus: report how many configs under `examples/` declare a top-level `health_checks` with
       `start` and no `modes:`, including zero, measured from `dva config validate` output rather
       than grep.
-- [ ] `make test` exits 0.
+- [x] `make test` exits 0.
 
 ## Unit progress
 
@@ -101,12 +101,20 @@ these four from four that work.
 - Tests: `TestBuildManifest_MarksUnreachableHealthCheckStart`,
   `TestBuildManifest_ReachableHealthCheckStartUnmarked`.
 
+### 179-suite (done)
+
+- Corpus: `DVA_FILE=<examples/*.yml|examples/modules/main.yml> ./bin/dva config validate` over
+  17 example configs. **0** configs emit
+  `health_checks.<name>: declares … but no modes.*.health_checks entry references it`.
+  None of the examples declare top-level `health_checks` with `start`/`start_hint` (and none
+  declare `modes:` that would reference them). Full log: `tmp/179-corpus-validate.txt`.
+- `make test` (Go 1.26.4 via mise GOROOT/PATH) exits 0. Log: `tmp/179-make-test.txt`.
+
 ### Residual
 
-- Corpus measurement under `examples/` via `dva config validate`.
-- Full `make test`.
+- none
 
-## Result (partial)
+## Result
 
 **Dangling mode → missing health_checks name:** covered by the same pass. Reason: `startModeProcesses`
 /`signalModeProcesses` do `hc, ok := o.cfg.HealthChecks[hcName]; if !ok || hc.Start == "" { continue }`,
@@ -117,6 +125,10 @@ looks for a non-empty `start` still has a residual footgun — they must also ch
 `start_unreachable` — but the machine-readable surface now carries a detectable state that
 validate already names for humans.
 
+**Corpus (`examples/`):** 0 of 17 configs produce the new unreachable-health-check warning under
+`dva config validate`. The defect class is real (dogfood baseline) but not present in the
+in-repo examples corpus.
+
 ## Evidence
 
 ```
@@ -125,6 +137,20 @@ ok  github.com/ScriptonBasestar/dva/internal/config  0.455s
 
 $ mise exec -- go test ./internal/cli/ -run Manifest -count=1
 ok  github.com/ScriptonBasestar/dva/internal/cli  0.389s
+
+$ # corpus (DVA_FILE per examples yml → config validate)
+$ rg -c 'health_checks\.[^:]+: declares' tmp/179-corpus-validate.txt
+# → 0 matches across 17 example configs (all exit 0 / ✅ dva.yml is valid)
+
+$ PATH="$MISE_GO_1_26_4/bin:$PATH" GOROOT="$MISE_GO_1_26_4" make test
+ok  github.com/ScriptonBasestar/dva/internal/cli ... coverage: 72.7%
+ok  github.com/ScriptonBasestar/dva/internal/config ... coverage: 69.7%
+ok  github.com/ScriptonBasestar/dva/internal/exec ... coverage: 67.0%
+ok  github.com/ScriptonBasestar/dva/internal/lifecycle ... coverage: 63.5%
+ok  github.com/ScriptonBasestar/dva/internal/output ... coverage: 100.0%
+ok  github.com/ScriptonBasestar/dva/internal/runner ... coverage: 74.8%
+ok  github.com/ScriptonBasestar/dva/tools/doccheck ... coverage: 80.9%
+# exit 0
 ```
 
 ## References
