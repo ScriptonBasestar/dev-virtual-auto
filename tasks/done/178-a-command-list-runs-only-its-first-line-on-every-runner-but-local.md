@@ -3,11 +3,12 @@ id: TASK-178
 title: "`command:` as a list runs only its first line under the compose and kubectl runners"
 type: bug
 priority: P2
-status: todo
+status: done
 effort: M
 created-at: 2026-08-03T23:20:00+09:00
+completed-at: 2026-08-07
 source: "TASK-175 self-review — the claim that every runner is total over every execution form was wrong"
-scope: "dva repo — internal/runner/kubectl.go, internal/runner/docker_compose.go"
+scope: "dva repo — internal/runner/kubectl.go, internal/runner/docker_compose.go, internal/runner/execform.go, internal/runner/runner.go, internal/config/config.go"
 ---
 
 # Task 178: Four of the five commands in a list are discarded, silently
@@ -52,23 +53,23 @@ wired up.
 
 ## Acceptance criteria
 
-- [ ] `command:` as a list runs every line under the compose runner, or fails loudly. Decide
+- [x] `command:` as a list runs every line under the compose runner, or fails loudly. Decide
       which and say why. `EffectiveCommand`'s ` && ` join is one candidate; a loop like
       `executeSteps` is another, and they differ on what happens after a failing line — `&&`
       stops, and so does `ExecSequential`, so match `local` rather than picking freely.
       Verify: `human — the decision and its reasoning are in the Result section`
-- [ ] The same under the kubectl runner, through the same decision rather than a second one.
-- [ ] `--explain` stops reporting `Command: <first line>` for a list. It currently describes an
+- [x] The same under the kubectl runner, through the same decision rather than a second one.
+- [x] `--explain` stops reporting `Command: <first line>` for a list. It currently describes an
       execution that is wrong on three runners and incomplete on the fourth.
-- [ ] The argv (or the sequence of argvs) is assertable without docker or a cluster — extend
+- [x] The argv (or the sequence of argvs) is assertable without docker or a cluster — extend
       `DockerComposeRunner.executeArgs` and `KubectlRunner.execArgs` rather than adding a path
       neither can see.
       Verify: `go test ./internal/runner/ -count=1`
-- [ ] `EffectiveCommand` is either used or deleted. A helper for this case with no callers is how
+- [x] `EffectiveCommand` is either used or deleted. A helper for this case with no callers is how
       the gap stayed invisible.
-- [ ] Corpus: report how many configs under `examples/` declare a list `command:` on a
+- [x] Corpus: report how many configs under `examples/` declare a list `command:` on a
       non-local runner, including zero.
-- [ ] `make test` exits 0.
+- [x] `make test` exits 0.
 
 ## Notes
 
@@ -82,3 +83,50 @@ on both non-local runners. Worth considering, as part of this fix, whether `Exec
 made exhaustive over the execution forms by construction — a switch that will not compile when a
 form is added, rather than a chain of `if`s that silently falls through to the last one. That
 would end the series instead of shortening it by one more.
+
+## Result
+
+### Decision: one exec per line, stop on first failure (match local)
+
+`EffectiveCommand`'s ` && ` join was **deleted**, not wired. Reasons:
+
+1. **Local already sequences subprocesses** via `ExecSequential`, not a single shell `&&` string.
+   Wiring ` && ` on compose/kubectl would make one dva.yml mean two things by runner.
+2. **A joined string cannot share state the way people hope**: `cd build` then `make` as two list
+   lines are two processes (and under compose/kubectl, two `exec`s). Pretending they are
+   `cd build && make` describes an execution dva does not perform.
+3. **Stop-on-failure** matches both `ExecSequential` and the existing `steps:` loop —
+   first non-zero exit ends the interaction.
+
+Compose and kubectl therefore reuse the same machinery as `steps:` (`execEach` → one
+subprocess per line). Compose always uses `exec` for list lines (not the interaction's
+`Compose.Method`): `run` would spin a fresh one-off container per line, so line two would not
+see line one's side effects. Kubectl list invocations omit `--tty`/`--stdin` for the same
+reason steps do.
+
+### Implementation
+
+| Piece | Role |
+|-------|------|
+| `internal/runner/execform.go` | Single `classifyForm` + `unhandledFormError` — fall-through becomes loud |
+| `LocalRunner` / `DockerComposeRunner` / `KubectlRunner` `runForm` | Exhaustive switch on `execForm` |
+| `eachArgs` on compose + kubectl | Observable multi-argv without docker/cluster |
+| `Explain` | List → `Command: (N commands — see Commands below)` + every line; JSON `command_lines` |
+| `EffectiveCommand` | Removed (was zero non-test callers) |
+
+Go cannot make missing switch cases a compile error; `TestEveryRunnerRefusesAnUnhandledForm`
+covers the class of silent fall-through that produced TASK-094 / 175 / 178.
+
+### Corpus
+
+`examples/` list `command:` sites: **0** (including zero on non-local runners).
+
+### Verification
+
+```
+go test ./internal/runner/ -count=1   # ok
+make test                            # exit 0
+```
+
+Code landed in `f3c7f47` (product fix); this card finalization is the disposition pass that
+moves the task `doing → done` after re-verify on 2026-08-07.
