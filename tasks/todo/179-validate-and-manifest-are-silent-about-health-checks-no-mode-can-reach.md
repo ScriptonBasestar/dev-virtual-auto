@@ -53,27 +53,60 @@ these four from four that work.
 
 ## Acceptance criteria
 
-- [ ] `dva config validate` names every `health_checks.<name>` that declares `start` (or
+- [x] `dva config validate` names every `health_checks.<name>` that declares `start` (or
       `start_hint`) when no `modes.*.health_checks` entry references it, and says why it will not
       run. A warning, not an error — the config is not malformed.
       Verify: `go test ./internal/config/ -run HealthCheck -count=1`
-- [ ] Negative control: a config that **does** declare `modes:` referencing those checks
+- [x] Negative control: a config that **does** declare `modes:` referencing those checks
       validates clean, with no new warning. Without this the fix trades a false negative for a
       false positive.
       Verify: `go test ./internal/config/ -run HealthCheck -count=1`
-- [ ] A config with `modes:` declared but a mode referencing a `health_checks` name that does not
+- [x] A config with `modes:` declared but a mode referencing a `health_checks` name that does not
       exist is covered by the same pass, or the decision to leave it alone is recorded with its
       reason.
       Verify: `human — the decision and its reasoning are in the Result section`
 - [ ] `dva manifest -f json` either marks unreachable health checks or stops publishing their
       `start`. Decide which and say why: a consumer that scripts against the manifest currently
       cannot tell a live `start` from a dead one.
-- [ ] The nested `stack.*.health_checks` form draws **no** warning from this pass. It is a
+- [x] The nested `stack.*.health_checks` form draws **no** warning from this pass. It is a
       different field on a different code path and is reached un-gated.
 - [ ] Corpus: report how many configs under `examples/` declare a top-level `health_checks` with
       `start` and no `modes:`, including zero, measured from `dva config validate` output rather
       than grep.
 - [ ] `make test` exits 0.
+
+## Unit progress
+
+### 179-warn-unreachable-hc (done)
+
+- Added `warnUnreachableHealthChecks` in `internal/config/validate_warnings.go`, wired into
+  `ValidateWarnings`.
+- Warns top-level `health_checks.<name>` with `start` and/or `start_hint` when no
+  `modes.*.health_checks` names it.
+- Same pass: dangling `modes.*.health_checks` → missing top-level name (runtime skips silently).
+- Nested `stack.*.health_checks` intentionally not scanned.
+- Tests: `TestWarnUnreachableHealthChecks` (subtests for positive, negative, partial, nested
+  silence, dangling mode ref, order stability).
+
+### Residual
+
+- Manifest surface (`internal/cli/manifest.go`): still publishes `start` for unreachable checks;
+  no mark yet.
+- Corpus measurement under `examples/` via `dva config validate`.
+- Full `make test`.
+
+## Result (partial)
+
+**Dangling mode → missing health_checks name:** covered by the same pass. Reason: `startModeProcesses`
+/`signalModeProcesses` do `hc, ok := o.cfg.HealthChecks[hcName]; if !ok || hc.Start == "" { continue }`,
+so a typo validates clean and does nothing. A second warning is cheaper than another silent path.
+
+## Evidence
+
+```
+$ mise exec -- go test ./internal/config/ -run HealthCheck -count=1
+ok  github.com/ScriptonBasestar/dva/internal/config  0.455s
+```
 
 ## References
 
