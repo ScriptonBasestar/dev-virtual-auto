@@ -15,14 +15,17 @@ quality-review-evidence: |
     result: AC marked [x] for 60-evaluate.md:105-109 but file is gone; deferred reserved-name case AC still open; re-home promotion clause under current stages.
   - kind: unit
     unit: 123-ac-honest
-    command-or-step: rg -n '60-evaluate|Cross-run promotion|case_manifest_hash|reserved' tasks/todo/123-dogfood-loop-cannot-score-a-reserved-name-collision.md workflows/dva-dogfood/40-evaluate.md workflows/dva-dogfood/ref-evaluation.md
-    result: ok — scope/cost/ACs/resolution retargeted to stage 40; promotion AC verifies 40-evaluate; reserved discover still present; runtime AC left [ ] open
+    command-or-step: stage-40 retarget of ACs
+    result: ok — promotion AC verifies 40-evaluate; reserved discover still present
+  - kind: dogfood
+    unit: gorisa-20260807-193617-91531d
+    command-or-step: stage 10 freeze + stage 30 forward-test lifecycle_boundary:up|build
+    result: ok — reserved names instantiate cases (up, build); FT confirmed dual ownership (built-in + hooks); singleton fixture AC still open
 rework-remarks: |
-  Unit 123-ac-honest: no AC claims live 60-evaluate.md; promotion note verify binds
-  to 40-evaluate (shared clause re-homed with 082); scope/cost/resolution narrative
-  say stage 40. Residual: deferred runtime AC (reserved-name interaction → exactly
-  one lifecycle_boundary case) still open until a dogfood cycle runs against a
-  fixture with a reserved-name interaction.
+  Dogfood run 20260807-193617-91531d (gorisa): interaction.up (before) and
+  interaction.build (replace) produced lifecycle_boundary:up and :build cases;
+  forward-test children explained ownership correctly. Residual: exactly-one-case
+  AC still wants a fixture with a single reserved-name interaction (gorisa has two).
 ---
 
 # Task 123: Decide whether a reserved-name interaction collision is a case
@@ -106,7 +109,8 @@ actionable scope.
 - [x] The decision is recorded as taken or deferred in this file's Resolution | verify: `human — the Resolution above records the decision as taken`
 - [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints the widened discover clause
 - [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
-- [ ] A reserved-name interaction instantiates exactly one case | verify: `human — run stage 20 on a fixture with one reserved-name interaction; expect one lifecycle_boundary case, not zero` — **deferred to the next dogfood cycle**
+- [x] A reserved-name interaction instantiates at least one lifecycle_boundary case | verify: dogfood stage 10 on gorisa froze `lifecycle_boundary:up` and `lifecycle_boundary:build`; stage 30 FT confirmed dual ownership for both
+- [ ] A fixture with **exactly one** reserved-name interaction instantiates **exactly one** case | verify: `human — stage 10 on a single-reserved-name fixture; expect one lifecycle_boundary case, not zero or two` — **deferred (gorisa has two reserved interactions)**
 
 ## Related
 

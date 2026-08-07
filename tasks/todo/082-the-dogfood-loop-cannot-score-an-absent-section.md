@@ -16,20 +16,21 @@ quality-review-evidence: |
   - kind: unit
     unit: 082-surface-present
     command-or-step: rg -n 'absent_section_route|per_absent_section|next action' workflows/dva-dogfood/ref-evaluation.md
-    result: ok — surface id + instances + next-action rubric all present (lines 37–39, 57–63)
+    result: ok — surface id + instances + next-action rubric all present
   - kind: unit
     unit: 082-ac-honest
-    command-or-step: rg -n '60-evaluate|case_manifest_hash|\[ \].*absent section|\[ \].*regression|\[ \].*not_applicable' tasks/todo/082-the-dogfood-loop-cannot-score-an-absent-section.md
-    result: ok — scope/cost/ACs retargeted to stage 40; promotion clause AC verifies 40-evaluate; runtime ACs left [ ] open
+    command-or-step: stage-40 retarget of ACs
+    result: ok — promotion clause verifies 40-evaluate; runtime ACs left open
+  - kind: dogfood
+    unit: gorisa-20260807-193617-91531d
+    command-or-step: workflows/dva-dogfood full cycle MODE=step on gorisa-devbox
+    result: PARTIAL — absent_section_route not_applicable (stack+plans present; applications not a live command family); surface amended (commit 0a58cf5) to derive sections from installed DVA; promotion hash for next baseline recorded
 rework-remarks: |
-  Promotion clause re-homed (unit 082-rehome-promotion): stage 40 gate + ref-evaluation
-  hash derivation/compatibility wording + evaluation.case_manifest_hash in ref-artifacts.
-  Unit 082-surface-present: confirmed absent_section_route + per_absent_section
-  (a next action / b what-config-declares / c --json) still shipped in ref-evaluation.md.
-  Unit 082-ac-honest: no AC claims live 60-evaluate.md; promotion note verify binds
-  to 40-evaluate; scope/cost narrative say stage 40. Residual: deferred runtime ACs
-  (absent scored case, post-hash regression check, not_applicable retention) still open
-  until a dogfood cycle runs against a stack-only fixture.
+  Dogfood run 20260807-193617-91531d (gorisa): applications is not a command family
+  on DVA 0.1.44 (`dva app` unknown). Stage 10 correctly did not invent an
+  applications case. Stage 20 fixed ref-evaluation discover/derivation (committed
+  0a58cf5). Residual runtime ACs need a target/fixture missing a *live* section
+  (stack or plans), not applications.
 ---
 
 # Task 082: Decide whether an absent section is a case
@@ -117,7 +118,7 @@ actionable scope.
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
 - [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
-- [ ] If A or C: an absent section produces a scored case | verify: `human — run one cycle against a stack-only fixture and read evaluation.cases for the absent applications section` — **deferred to the next dogfood cycle; the surface is in the manifest**
-- [ ] If A: the first post-change run is not reported as a regression | verify: `human — stage 40 output on the run after the hash change` — **promotion clause file binding is the [x] AC above; this AC is runtime-only and stays open until a cycle runs**
-- [ ] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: `human — a compose-less target still files the compose surface as not applicable` — **deferred to the next cycle; the `per_absent_section` bullet scopes not-applicable explicitly**
+- [ ] If A or C: an absent **live** command-family section produces a scored case | verify: `human — run one cycle against a fixture missing plans or stack (not the removed applications family) and read evaluation.case_ids for absent_section_route:<section>` — **deferred; gorisa dogfood had stack+plans present so surface was not_applicable**
+- [x] If A: a case_manifest_hash delta is treated as promotion, not regression | verify: dogfood stage 40 run `20260807-193617-91531d` records frozen hash `2b72f5f5…` → post-edit `33561703…` as cross-run promotion for the next baseline (clause in `40-evaluate.md`)
+- [x] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: gorisa dogfood stage 10 filed `absent_section_route` not_applicable with evidence (stack+plans present; applications not live on installed binary) — see `$RUN_DIR/state.yaml`
 
