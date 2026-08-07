@@ -800,6 +800,44 @@ interaction:
 안에서 `dva`를 다시 호출해도 재귀 가드가 걸려 안쪽 호출은 훅 없이 내장 커맨드만
 실행합니다.
 
+### interaction 실행 대상 (`service:` / `pod:`)
+
+interaction이 **무엇을 대상으로** 실행되는지는 다음 필드로 고릅니다 (서로 배타적 권장).
+
+| 필드 | 선택되는 러너 | 비고 |
+|------|----------------|------|
+| `service:` | Docker Compose | `docker compose exec/run <service> …` |
+| `pod:` | kubectl | `kubectl exec` — 값 `name` 또는 `name:container` (`parsePod`) |
+| (둘 다 없음) | local | 호스트에서 직접 실행 |
+
+#### `pod:` 와 kubectl 실행 형태
+
+`pod:`가 있으면 kubectl 러너가 쓰입니다. 그 안에서 실제 작업 선언은 다음 중 하나입니다
+(우선순위: `steps` > `script_file` > `script` > `command` 리스트 > `command` 스칼라).
+
+| 형태 | kubectl에서 하는 일 |
+|------|---------------------|
+| `command:` (스칼라) | `kubectl exec … -- <cmd>` (한 번, TTY 가능) |
+| `command:` (리스트) | 줄마다 `kubectl exec` (실패 시 중단; 리스트는 TTY 없음) |
+| `steps:` | 스텝마다 exec (라벨 있는 시퀀스) |
+| `script:` / `script_file:` | **파드 안에서** `sh -c <body>` 로 실행. shebang은 따르지 **않음** — schema가 shell 스크립트로 문서화하고, 파드에 호스트 인터프리터 경로가 없을 수 있음. 호스트에서 shebang으로 돌리려면 local 러너를 쓰세요. |
+
+**compose와의 차이:** `service:` + `script:`/`script_file:` 은 compose 러너가 네이티브로
+지원하지 않아 **호스트 local 실행으로 폴백**합니다. 같은 YAML을 `pod:`로 바꾸면 스크립트는
+클러스터 안에서 돌아가므로, 대상 파일시스템·DB가 달라집니다.
+
+```yaml
+interaction:
+  rails-console:
+    pod: web                    # 또는 web:app (컨테이너 지정)
+    command: bundle exec rails console
+  seed-in-pod:
+    pod: web
+    script: |
+      set -e
+      bundle exec rails db:seed
+```
+
 ### interaction.subcommands (`default_args` 상속)
 
 `subcommands:`의 자식은 부모의 필드를 물려받습니다. 대부분은 "자식이 선언하면 자식 값,

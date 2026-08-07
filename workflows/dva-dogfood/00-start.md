@@ -38,15 +38,22 @@ config, or target behavior. Existing runs are optional evidence, never blockers.
    validation as a current gate.
 6. Create `RUN_DIR`, `state.yaml`, and `handoff.md` per ARTIFACTS.
 7. Record provenance, without assuming any two values agree:
-   - target and `DVA_ROOT` HEAD plus dirty hashes;
+   - target and `DVA_ROOT` HEAD plus dirty hashes (derivation: ARTIFACTS `revisions`);
+   - `prompt_bundle_hash` using the single command pinned on ARTIFACTS `prompt_bundle_hash`
+     (tracked files under `workflows/dva-dogfood/` only — never a recursive hash of the
+     directory, which picks up untracked `.ce` telemetry);
    - the installed `dva` executable path, version, and build commit;
    - the canonical skill hash for `skills/config` and `skills/dva`, and each
      projection declared by `skills/_targets.yaml`, proven by the relation its
-     shape supports per ARTIFACTS Evidence rules;
+     shape supports per ARTIFACTS Evidence rules (path-independent content digest —
+     not the dirty-hash form);
    - `sources.config_projection` as `active` or `missing`.
    A stale installed binary makes every observation of its output unusable. If the
    installed commit differs from `DVA_ROOT` HEAD, record it as a finding now — do
    not silently proceed to measure output the current source no longer produces.
+   If a later stage's recomputed `prompt_bundle_hash` differs, list the tracked files
+   that changed (`git status` / `git diff` under that tree) and treat it as mid-run
+   prompt drift to record — not as an automatic gate fail from the hash digits alone.
 8. Record catalog visibility of the skills and defer natural triggering to the
    stage-30 fresh-session gate. Do not read skill bodies deeply here; stage 20 does
    that when, and only when, the owner is `skill`.

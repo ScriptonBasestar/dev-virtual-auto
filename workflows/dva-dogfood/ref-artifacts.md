@@ -64,8 +64,19 @@ revisions:
   # Both dirty hashes cover filenames and status letters, never file contents, and an
   # ignored build output never appears at all. An unchanged dirty hash therefore never
   # proves an artifact is unchanged. Verify artifacts by the digests under `sources`.
+  # skill_* hashes are path-independent content digests of skill bodies (not dirty-hash
+  # porcelain). They already exclude untracked noise by hashing file contents of the
+  # skill tree the stage names; stages must not redefine them as `find | sha256`.
   skill_source_hash: null
   installed_skill_hash: null
+  # prompt_bundle_hash (TASK-181) — tracked files only under workflows/dva-dogfood/,
+  # reproducible from a clean checkout. Untracked/generated telemetry (.ce/, sessions,
+  # metrics) must not enter the hash or two stages of one run disagree while git is clean.
+  # Derivation (run from the DVA repo root; one definition for every stage):
+  #   git ls-files -z workflows/dva-dogfood/ | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1
+  # Property: git-tracked paths only (ls-files), sorted, content digests then outer digest.
+  # A mismatch means tracked prompt/workflow files changed mid-run — record which files
+  # (`git diff` / `git status` on that tree), not a gate failure by hash alone.
   prompt_bundle_hash: null
 
 sources:

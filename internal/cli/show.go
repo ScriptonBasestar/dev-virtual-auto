@@ -13,15 +13,15 @@ import (
 
 var showCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show registered configuration summary (stack entries, plans, commands)",
+	Short: "Show registered configuration summary",
+	// Short/Long deliberately do not enumerate sections (TASK-081): the set is driven by
+	// what the loaded config declares, and a help list went stale within days of the stack
+	// section landing. Areas with nothing to show are omitted at render time.
 	Long: `Display a human-readable summary of the current dva.yml configuration.
 
-One section per declared area — stack entries and the runners each declares, plans,
-modes (--mode), environments (--env), interaction commands, provision profiles,
-health checks, subprojects — and areas the config does not declare are omitted.
-
-Stack rows name the entry, which is what a plan's entries[].name references and what
-the tag filters match.`,
+One section per area the config actually declares; undeclared areas are omitted.
+Stack rows name each entry — what a plan's entries[].name references and what the tag
+filters match.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 

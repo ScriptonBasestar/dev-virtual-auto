@@ -39,7 +39,10 @@ environment, and CLI behavior, and freeze this run's evaluation cases.</objectiv
    log state; schema acceptance alone is not runtime proof.
 8. Compare root and active-subproject responsibilities, and decide DVA need for
    each independently. Exclude archived and legacy modules; never force-create DVA.
-9. Capture dirty paths without reading protected secret contents.
+9. Capture dirty paths without reading protected secret contents. Recompute
+   `prompt_bundle_hash` only with the ARTIFACTS derivation; if it differs from stage 00,
+   list which tracked files under `workflows/dva-dogfood/` changed and record mid-run
+   prompt drift — do not invent a second hash command.
 10. Classify every warning and contradiction. Define measurable before/after metrics
     for this run's hypothesis.
 11. Derive and freeze the evaluation cases per EVALUATION:
