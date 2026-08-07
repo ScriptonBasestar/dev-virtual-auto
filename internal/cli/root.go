@@ -400,22 +400,6 @@ func loadEnv(c *config.Config) *config.Environment {
 	return env
 }
 
-// unknownCommandToken returns the offending name from cobra's `unknown command %q for %q`
-// message — the first double-quoted run in the string. Empty when the message is not in that
-// shape, which callers must read as "cannot tell", not as a match. TASK-098.
-func unknownCommandToken(errMsg string) string {
-	_, after, ok := strings.Cut(errMsg, `"`)
-	if !ok {
-		return ""
-	}
-	rest := after
-	before0, _, ok0 := strings.Cut(rest, `"`)
-	if !ok0 {
-		return ""
-	}
-	return before0
-}
-
 // levenshtein calculates the edit distance between two strings.
 // Retained after TASK-108 removed suggestCommands: stack.go and provision.go still use it to
 // suggest near-miss stack entries and plan names, which cobra knows nothing about.

@@ -565,9 +565,11 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 			continue
 		}
 
+		// KubectlConfig(), not the typed field: runners.kubectl is the supported form and
+		// reading .Kubectl alone skipped every modern entry (TASK-150).
 		var files []string
-		if entry.Kubectl != nil {
-			files = []string{entry.Kubectl.Kubeconfig}
+		if kc := entry.KubectlConfig(); kc != nil {
+			files = []string{kc.Kubeconfig}
 		}
 
 		for _, f := range files {

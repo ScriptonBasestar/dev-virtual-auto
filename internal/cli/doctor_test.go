@@ -371,6 +371,53 @@ stack:
 	}
 }
 
+// TASK-150: runners.kubectl form must produce a missing-kubeconfig row the same way the
+// typed field does. The accessor was already correct; checkStackFiles was the last reader
+// of .Kubectl and skipped every modern entry.
+func TestCheckStackFilesReportsBothKubectlForms(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.44"
+stack:
+  legacyk8s:
+    default_runner: kubectl
+    runners:
+      kubectl:
+        kubeconfig: missing-legacy.yaml
+        namespace: demo
+  modernk8s:
+    default_runner: kubectl
+    runners:
+      kubectl:
+        kubeconfig: missing-modern.yaml
+        namespace: demo
+`)
+	// Force the legacy typed field on one entry so both shapes are present after load.
+	// Load() may only populate runners; set Kubectl on legacy for the dual-form fixture.
+	if leg := c.FindStackEntry("legacyk8s"); leg != nil {
+		if leg.Kubectl == nil {
+			leg.Kubectl = leg.KubectlConfig()
+		}
+	}
+
+	results := checkStackFiles(c)
+	var names []string
+	for _, r := range results {
+		names = append(names, r.Name)
+		if r.Passed {
+			t.Errorf("%s: Passed=true, want fail for missing kubeconfig", r.Name)
+		}
+	}
+	joined := strings.Join(names, "\n")
+	if !strings.Contains(joined, "legacyk8s") {
+		t.Errorf("missing legacy row; results=%v", names)
+	}
+	if !strings.Contains(joined, "modernk8s") {
+		t.Errorf("missing modern/runners row; results=%v — checkStackFiles still reads .Kubectl only", names)
+	}
+	if !strings.Contains(joined, "missing-legacy.yaml") || !strings.Contains(joined, "missing-modern.yaml") {
+		t.Errorf("results should name both kubeconfig paths; got %v", names)
+	}
+}
+
 func TestCheckComposeFilesDeduplicatesAndDetectsMissingFile(t *testing.T) {
 	c := loadTestConfig(t, `version: "0.1.22"
 stack:

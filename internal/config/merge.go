@@ -492,9 +492,9 @@ func mergeEnvironmentProfile(base, other EnvironmentProfile) EnvironmentProfile 
 					// stderr, not stdout: this fires during config load, before any
 					// command has produced output, so a stdout write would prepend a
 					// non-JSON line to a --json document and break `dva … | jq`.
-					// Of the 24 production [warn] sites, 23 already write to stderr
-					// and the 24th is a Sprintf collected for a generated shell
-					// script (cli/console.go:66). This was the only one on stdout.
+					// The stream invariant is enforced by TestStackOverrideWarnGoesToStderr
+					// (and any new production [warn] on stdout fails that class of test),
+					// not by a census in this comment — the count rots (TASK-155).
 					fmt.Fprintf(os.Stderr, "[warn] stack_override %q: %v\n", k, err)
 					continue
 				}
