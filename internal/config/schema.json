@@ -724,16 +724,21 @@
             "patternProperties": {
               "^[\\w\\-.]+$": {
                 "type": "object",
+                "additionalProperties": false,
                 "properties": {
                   "type": { "type": "string", "enum": ["http", "tcp", "command"] },
                   "url": { "type": "string" },
                   "address": { "type": "string" },
                   "command": { "type": "string" },
-                  "timeout": { "type": "integer" }
+                  "start": { "type": "string" },
+                  "start_hint": { "type": "string" },
+                  "timeout": { "type": "integer" },
+                  "ready_timeout": { "type": "integer" }
                 },
                 "required": ["type"]
               }
-            }
+            },
+            "additionalProperties": false
           },
           "process": {
             "type": "object",

@@ -38,6 +38,38 @@ health_checks:
 		}
 	})
 
+	// TASK-182: entry-scoped health_checks lacked additionalProperties:false, so a
+	// migrated `required: true` validated clean while HealthCheckConfig had no field.
+	t.Run("entry_scoped_health_checks_rejects_required", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		content := `version: "0.1.44"
+stack:
+  web:
+    default_runner: native
+    runners:
+      native:
+        command: "./bin/web"
+    health_checks:
+      web:
+        type: http
+        url: "http://localhost:8080/health"
+        required: true
+`
+		cfg := loadConfigForSchemaTest(t, tmpDir, content)
+		err := cfg.Validate()
+		if err == nil {
+			t.Fatal("Validate() expected error for stack.web.health_checks.web.required")
+		}
+		msg := err.Error()
+		if !strings.Contains(msg, "Additional property required is not allowed") {
+			t.Fatalf("Validate() error = %v, want additional property rejection", err)
+		}
+		// Path should name the entry check, not only the root.
+		if !strings.Contains(msg, "health_checks") && !strings.Contains(msg, "web") {
+			t.Fatalf("Validate() error = %v, want path context for the entry health check", err)
+		}
+	})
+
 	t.Run("applications_section_is_rejected_with_guidance", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		content := `version: "0.1.44"

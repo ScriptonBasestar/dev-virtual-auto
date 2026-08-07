@@ -63,26 +63,18 @@ var removedRootKeys = map[string]string{
 	"lifecycle": "removed: renamed — use 'stack:'",
 }
 
-// Validate validates the dva.yml against the JSON schema.
-func (c *Config) Validate() error {
-	if c.filePath == "" {
-		return fmt.Errorf("config file path is not set")
-	}
-
-	// Load schema - try embedded first, then file fallback
+// validateYAMLSchema checks raw config bytes against the embedded JSON schema.
+//
+// Shared by Config.Validate (on-disk path) and VerifyMigrated (in-memory rewrite):
+// migration used to only decode into structs, which silently drops unknown fields,
+// so a dead key could pass the gate and land in the user's dva.yml (TASK-182).
+func validateYAMLSchema(yamlBytes []byte) error {
 	schemaBytes, err := embeddedSchema.ReadFile("schema.json")
 	if err != nil {
-		// Fallback: look for schema.json next to binary or in project root
 		schemaBytes, err = os.ReadFile("schema.json")
 		if err != nil {
 			return fmt.Errorf("schema file not found: %w", err)
 		}
-	}
-
-	// Load and convert YAML config to JSON for validation
-	yamlBytes, err := os.ReadFile(c.filePath)
-	if err != nil {
-		return fmt.Errorf("reading config: %w", err)
 	}
 
 	var yamlData any
@@ -122,6 +114,22 @@ func (c *Config) Validate() error {
 			errs = append(errs, line)
 		}
 		return fmt.Errorf("schema validation failed in dva.yml:\n%s", strings.Join(errs, "\n"))
+	}
+	return nil
+}
+
+// Validate validates the dva.yml against the JSON schema.
+func (c *Config) Validate() error {
+	if c.filePath == "" {
+		return fmt.Errorf("config file path is not set")
+	}
+
+	yamlBytes, err := os.ReadFile(c.filePath)
+	if err != nil {
+		return fmt.Errorf("reading config: %w", err)
+	}
+	if err := validateYAMLSchema(yamlBytes); err != nil {
+		return err
 	}
 
 	// Check for reserved command conflicts in interaction section

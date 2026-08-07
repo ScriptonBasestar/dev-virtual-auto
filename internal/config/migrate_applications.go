@@ -235,11 +235,10 @@ func migrateApplicationNode(name string, app, stack *yaml.Node) (*yaml.Node, []s
 	//
 	// `required` is the exception and is dropped rather than copied. HealthCheckConfig no
 	// longer has the field (config.go: its only reader was AppManager.startApp, deleted with
-	// the section), and the entry-scoped health_checks schema has no additionalProperties
-	// bound — so a copied `required: true` validates clean, decodes into nothing, and leaves
-	// the operator believing strict readiness survived the migration. That is the same
-	// failure the port note exists to prevent, one step worse: port is visibly absent from
-	// the output, this would be visibly present and inert.
+	// the section). Before TASK-182 the entry-scoped schema also lacked additionalProperties
+	// bound, so a copied `required: true` validated clean and left the operator believing
+	// strict readiness survived. The schema is closed now; migration still drops the key so
+	// the rewrite does not depend on the user hitting validate after --write.
 	if health := mapValue(app, "health"); health != nil {
 		check := cloneNode(health)
 		if req := mapValue(check, "required"); req != nil {

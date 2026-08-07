@@ -88,6 +88,19 @@ func MigrateLegacyCompose(src []byte) ([]byte, []string, error) {
 // It deliberately skips module and subproject resolution: migration rewrites a
 // single file, so it must not fail merely because a sibling that file references
 // is unavailable from where the command runs.
+//
+// Full JSON-schema validation is deliberately *not* run here (TASK-182). Migration
+// is allowed to leave residual sections it cannot convert — e.g. an applications:
+// entry with only a docker service and no native command — and those residuals are
+// rejected by schema (applications is a removed root key). Running schema here would
+// make a legitimate partial conversion fail the gate, which is worse than the dead-key
+// hole this task closes. The dead-key class is closed at the schema objects themselves
+// (`stack.*.health_checks.*` now has additionalProperties:false, matching top-level
+// health_checks); `dva validate` / Config.Validate is the place that enforces it on a
+// file the user will keep. KnownFields(true) on decode is also not enabled: measured
+// 0/20 failures on examples/ + root dva.yml, but the same partial-migration residual
+// would still trip a strict decoder on applications:, and a gate that rejects a
+// legitimate conversion is the failure mode the AC forbids.
 func VerifyMigrated(content []byte) error {
 	// Through decodeConfig, not yaml.Unmarshal: this is the second place raw config
 	// bytes reach config types, and a cyclic anchor that survives the rewrite would

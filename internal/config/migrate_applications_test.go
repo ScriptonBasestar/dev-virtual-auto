@@ -357,8 +357,9 @@ applications:
 // key with no target, and it is a worse quiet deletion than port. port is visibly absent
 // from the migrated file, so an operator reading the output can see it went. Copying
 // `required: true` through would leave it visibly *present* — and inert, because
-// HealthCheckConfig has no such field and the entry-scoped health_checks schema declares
-// no additionalProperties bound, so the dead key validates clean.
+// HealthCheckConfig has no such field. Before TASK-182 the entry-scoped health_checks
+// schema also lacked additionalProperties:false, so a carried `required` validated clean;
+// the schema is closed now, and migration still drops the key so the rewrite stays green.
 func TestMigrateApplicationsReportsTheDroppedHealthRequired(t *testing.T) {
 	got, cfg := migrateAppsAndDecode(t, `version: "0.1.44"
 applications:
