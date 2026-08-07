@@ -1,0 +1,6 @@
+# Fixture-only compose — never started by dogfood numbered stages.
+name: dva-dogfood-fixture-absent-plans
+services:
+  fixture-echo:
+    image: alpine:3.20
+    command: ["true"]

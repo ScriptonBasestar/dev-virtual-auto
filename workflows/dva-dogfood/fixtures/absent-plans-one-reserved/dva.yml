@@ -1,0 +1,29 @@
+# Dogfood fixture for TASK-082 / TASK-123 residual ACs.
+# - stack present, plans ABSENT → absent_section_route:plans
+# - exactly one reserved-name interaction (up + before hook) → one lifecycle_boundary case
+# Numbered dogfood stages must not up/down this compose.
+
+version: "0.1.44"
+
+stack:
+  fixture-compose:
+    description: Minimal compose stack for case derivation only
+    default_runner: compose
+    runners:
+      compose:
+        files:
+          - compose.yaml
+        project_name: dva-dogfood-fixture-absent-plans
+
+# Intentionally no plans: section (live command-family section absent).
+
+interaction:
+  up:
+    before:
+      - step: "Fixture network noop"
+        run: "true"
+  # Non-reserved helper only — must not add a second reserved key.
+  fixture-ping:
+    description: Harmless local echo for ls surface
+    command: "echo fixture-ok"
+    runner: local

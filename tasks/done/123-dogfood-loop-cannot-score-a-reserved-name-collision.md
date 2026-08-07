@@ -6,7 +6,7 @@ priority: P3
 effort: M
 created-at: 2026-07-31T00:00:00+09:00
 scope: "workflows/dva-dogfood — ref-evaluation.md lifecycle_boundary surface + stage 40 cross-run comparison"
-status: todo
+status: done
 quality-review: fail
 quality-reviewed-at: 2026-08-07T18:05:08+09:00
 quality-review-evidence: |
@@ -21,7 +21,12 @@ quality-review-evidence: |
     unit: gorisa-20260807-193617-91531d
     command-or-step: stage 10 freeze + stage 30 forward-test lifecycle_boundary:up|build
     result: ok — reserved names instantiate cases (up, build); FT confirmed dual ownership (built-in + hooks); singleton fixture AC still open
+  - kind: fixture
+    unit: 123-fixture-one-reserved
+    command-or-step: workflows/dva-dogfood/fixtures/absent-plans-one-reserved case derivation
+    result: ok — exactly one lifecycle_boundary:up; EVIDENCE.md
 rework-remarks: |
+  Singleton reserved-name AC closed via fixture absent-plans-one-reserved (2026-08-08). All ACs [x].
   Dogfood run 20260807-193617-91531d (gorisa): interaction.up (before) and
   interaction.build (replace) produced lifecycle_boundary:up and :build cases;
   forward-test children explained ownership correctly. Residual: exactly-one-case
@@ -110,7 +115,7 @@ actionable scope.
 - [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints the widened discover clause
 - [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
 - [x] A reserved-name interaction instantiates at least one lifecycle_boundary case | verify: dogfood stage 10 on gorisa froze `lifecycle_boundary:up` and `lifecycle_boundary:build`; stage 30 FT confirmed dual ownership for both
-- [ ] A fixture with **exactly one** reserved-name interaction instantiates **exactly one** case | verify: `human — stage 10 on a single-reserved-name fixture; expect one lifecycle_boundary case, not zero or two` — **deferred (gorisa has two reserved interactions)**
+- [x] A fixture with **exactly one** reserved-name interaction instantiates **exactly one** case | verify: fixture `workflows/dva-dogfood/fixtures/absent-plans-one-reserved` has only `interaction.up` reserved → case_ids contain exactly `lifecycle_boundary:up` — see `EVIDENCE.md` / `case_ids.txt`
 
 ## Related
 

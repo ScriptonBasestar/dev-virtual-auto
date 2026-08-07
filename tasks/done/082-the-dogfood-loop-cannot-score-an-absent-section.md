@@ -6,7 +6,7 @@ priority: P3
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 40 cross-run comparison"
-status: todo
+status: done
 quality-review: fail
 quality-reviewed-at: 2026-08-07T18:05:08+09:00
 quality-review-evidence: |
@@ -25,7 +25,12 @@ quality-review-evidence: |
     unit: gorisa-20260807-193617-91531d
     command-or-step: workflows/dva-dogfood full cycle MODE=step on gorisa-devbox
     result: PARTIAL — absent_section_route not_applicable (stack+plans present; applications not a live command family); surface amended (commit 0a58cf5) to derive sections from installed DVA; promotion hash for next baseline recorded
+  - kind: fixture
+    unit: 082-fixture-absent-plans
+    command-or-step: workflows/dva-dogfood/fixtures/absent-plans-one-reserved case derivation
+    result: ok — case_ids include absent_section_route:plans; validate rc 0; EVIDENCE.md
 rework-remarks: |
+  Residual AC closed via fixture absent-plans-one-reserved (2026-08-08). All ACs [x].
   Dogfood run 20260807-193617-91531d (gorisa): applications is not a command family
   on DVA 0.1.44 (`dva app` unknown). Stage 10 correctly did not invent an
   applications case. Stage 20 fixed ref-evaluation discover/derivation (committed
@@ -118,7 +123,7 @@ actionable scope.
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
 - [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
-- [ ] If A or C: an absent **live** command-family section produces a scored case | verify: `human — run one cycle against a fixture missing plans or stack (not the removed applications family) and read evaluation.case_ids for absent_section_route:<section>` — **deferred; gorisa dogfood had stack+plans present so surface was not_applicable**
+- [x] If A or C: an absent **live** command-family section produces a scored case | verify: fixture `workflows/dva-dogfood/fixtures/absent-plans-one-reserved` (plans absent, stack present) derives `absent_section_route:plans` — see `EVIDENCE.md` / `case_ids.txt`; applications not invented
 - [x] If A: a case_manifest_hash delta is treated as promotion, not regression | verify: dogfood stage 40 run `20260807-193617-91531d` records frozen hash `2b72f5f5…` → post-edit `33561703…` as cross-run promotion for the next baseline (clause in `40-evaluate.md`)
 - [x] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: gorisa dogfood stage 10 filed `absent_section_route` not_applicable with evidence (stack+plans present; applications not live on installed binary) — see `$RUN_DIR/state.yaml`
 
