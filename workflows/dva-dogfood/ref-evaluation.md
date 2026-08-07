@@ -23,7 +23,7 @@ surfaces:
     discover: provision entries or profiles declared by the target
     instances: single
   - id: lifecycle_boundary
-    discover: a service or process owned by more than one of stack, plans, applications, interaction, or the reserved built-in command namespace
+    discover: a service or process owned by more than one of stack, plans, interaction, or the reserved built-in command namespace
     instances: per_overlap
   - id: subproject
     discover: subprojects declared in the root dva.yml, and directories holding their own dva.yml
@@ -35,7 +35,7 @@ surfaces:
     discover: long-running services the target declares with a tracked PID or bound port
     instances: single
   - id: absent_section_route
-    discover: a section a command family reads (stack, applications, plans) that is absent in this target's dva.yml
+    discover: a section the installed DVA still routes through a command family (derive the set from that binary — currently stack, plans) that is absent in this target's dva.yml
     instances: per_absent_section
   - id: no_change
     discover: always instantiable
@@ -44,6 +44,12 @@ surfaces:
 
 The manifest names surfaces, never targets. It carries no expected owner and no
 expected outcome.
+
+The parenthetical section lists inside `discover` strings are **hints of the product
+shape at edit time**, not a permanent product history. When the installed binary no
+longer routes a section (for example the removed `applications` / `dva app` family),
+drop that section from the live set before instantiating cases. Do not freeze a case
+for a command family the binary cannot invoke.
 
 ## Deriving the run's cases
 
@@ -55,10 +61,12 @@ honestly, and freezing one poisons the whole run.
 - `instances: per_subproject` / `per_overlap` yields one case per discovered
   instance, `id` = `<surface>:<instance>`, instances sorted lexically.
 - `instances: per_absent_section` inverts the rule: the absent section *is* the
-  instance. It yields one case per section a command family reads that this
-  target's `dva.yml` lacks, `id` = `absent_section_route:<section>`, sorted
-  lexically. File this surface not-applicable only when no command family reads a
-  section the target lacks. Each case asks whether the command's answer (a) states
+  instance. First derive which config sections the **installed** DVA still routes
+  through a command family (help, manifest, and schema — not this file's memory of
+  removed product). Then yield one case per such section that this target's
+  `dva.yml` lacks, `id` = `absent_section_route:<section>`, sorted lexically. File
+  this surface not-applicable only when every live command-family section is present
+  (or the live set is empty). Each case asks whether the command's answer (a) states
   a next action, (b) states what the config does declare, and (c) is parseable
   under `--json`.
 - A surface with no instance is **not** a case. Record it in
