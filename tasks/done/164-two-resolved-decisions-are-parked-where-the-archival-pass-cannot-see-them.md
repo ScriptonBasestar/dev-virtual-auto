@@ -6,34 +6,41 @@ priority: P4
 effort: XS
 created-at: 2026-08-03T15:40:00+09:00
 source: "TASK-133 finalize verification — found while checking where an open decision belongs"
-scope: "dva repo — tasks/decision/082-*.md, tasks/decision/123-*.md"
-status: todo
+scope: "dva repo — tasks zones for 082/123 parking + status agreement"
+status: done
 quality-review: fail
 quality-reviewed-at: 2026-08-07T18:05:08+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
     result: Moved 082/123 to done after partial surface greps; did not catch lost promotion clause or open deferred criteria — re-verify after 082/123 rework.
+  - kind: unit
+    unit: 164-resweep
+    command-or-step: re-verify 082/123 surfaces + zone/status sweep after 082+123 honesty retarget
+    result: ok — surfaces present; 082/123 stay in todo with deferred cycle ACs; decision/ empty; zero status:done outside done/; parking bug gone
 rework-remarks: |
-  Moved 082/123 to done after partial surface greps; did not catch lost promotion clause or open deferred criteria — re-verify after 082/123 rework.
+  Original parking (082/123 in decision/ with status done) no longer matches layout.
+  After 082/123 stage-40 honesty rework, deliverables still ship; deferred dogfood
+  cycle ACs keep both cards in todo/ — correct, not premature done. This chore's
+  parking/sweep intent is closed by the resweep below.
 ---
 
 # Task 164: Move the two finished decisions out of the decision queue
 
 ## Problem
 
-`tasks/decision/` is the queue of decisions still to be made. Two of its three files are already
-made:
+`tasks/decision/` is the queue of decisions still to be made. Two of its three files were already
+made when this was filed:
 
-| file | `status:` | has `## Resolution` |
+| file | `status:` (at file) | has `## Resolution` |
 |---|---|---|
-| `082-the-dogfood-loop-cannot-score-an-absent-section.md` | `done` | yes, `:65` |
-| `123-dogfood-loop-cannot-score-a-reserved-name-collision.md` | `done` | yes, `:63` |
-| `163-decide-whether-detectedproject-survives-as-a-name-or-collapses-to-a-flag.md` | `todo` | no — genuinely open |
+| `082-the-dogfood-loop-cannot-score-an-absent-section.md` | `done` | yes |
+| `123-dogfood-loop-cannot-score-a-reserved-name-collision.md` | `done` | yes |
+| `163-…` (unrelated; later closed elsewhere) | `todo` | no — was open |
 
-The state directory and the `status:` field disagree, and the directory is the one the tooling
-walks. The done-finalize pass reads `tasks/done/`, so these two are never verified against their
-deliverables and never archived — they are finished work that the process cannot see. Compare
+The state directory and the `status:` field disagreed, and the directory is the one the tooling
+walks. The done-finalize pass reads `tasks/done/`, so these two were never verified against their
+deliverables and never archived — finished work the process could not see. Compare
 [TASK-130](../_archive/130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md), a
 decision that was resolved and moved to `done/`, which is the path these two did not take.
 
@@ -54,43 +61,50 @@ as a pass.
 
 ## Result
 
-**Criterion 1 — deliverables checked, not `status:`.** Both resolutions were read against the
-file they claim to have changed, `workflows/dva-dogfood/ref-evaluation.md`:
+### First pass (historical)
+
+Surfaces were grepped, 082/123 moved into `tasks/done/`, and `tasks/decision/` left only open
+work. Quality-review later **failed** that done placement: promotion text still claimed deleted
+`60-evaluate.md`, and deferred runtime ACs were still open. Cards were reopened to `todo/` for
+honesty rework (082 units + 123-ac-honest).
+
+### Resweep after 082+123 honesty rework (2026-08-07)
+
+**Criterion 1 — deliverables checked, not `status:`.**
 
 | decision | claimed deliverable | measured |
 |---|---|---|
-| TASK-082 | absent-section scoring route | `grep -c absent_section_route` → **2** |
-| TASK-123 | reserved-name collision is discoverable | `:31` reads "discover: a service or process owned by more than one of stack, plans, applications, interaction, or the reserved built-in command namespace" |
+| TASK-082 | `absent_section_route` + `per_absent_section` + stage-40 promotion | `ref-evaluation.md` has surface id + instances + next-action rubric; `40-evaluate.md:74` Cross-run promotion; no live verify binds deleted `60-evaluate.md` |
+| TASK-123 | reserved namespace in `lifecycle_boundary.discover` + stage-40 promotion | `ref-evaluation.md:26` includes “or the reserved built-in command namespace”; promotion AC verifies `40-evaluate.md` |
 
-Both shipped, so both were moved rather than reopened. `ce task move` refuses `tasks/decision/`
-("not in a workflow zone"), so the move used `git mv` into `tasks/done/` — the same path
-[TASK-130](../_archive/130-the-lint-gate-is-a-strict-subset-of-what-an-editor-sees.md) took. They
-are now inside the done-finalize pass's window; archival is that pass's job, not this task's.
+In-repo resolution **shipped**. Deferred dogfood-cycle ACs remain open on both cards (runtime
+only), so both correctly stay in `tasks/todo/` with `status: todo` — **reopened**, not archived.
+Premature `done/` would repeat the QR failure.
 
-**Criterion 2 — `tasks/decision/` after the move: 1 file checked, 1 undecided, 0 disagreements.**
-The survivor is `163-decide-whether-detectedproject-survives-as-a-name-or-collapses-to-a-flag.md`
-with `status: todo` and no `## Resolution`.
+**Criterion 2 — `tasks/decision/` after resweep: 0 files checked, 0 disagreements.**
 
-**Criterion 3 — sweep of the directories nobody had checked.** Count of files whose `status:` is
-`done` while sitting in a not-done directory:
+Directory empty. Count checked: **0 / 0**.
+
+**Criterion 3 — zone/status sweep (`status: done` while not in `done/`):**
 
 | directory | files | `status: done` |
 |---|---|---|
-| `tasks/todo` | 23 | 0 |
-| `tasks/blocked` | 2 | 0 |
+| `tasks/todo` | 3 | 0 |
+| `tasks/blocked` | 0 | 0 |
 | `tasks/plan` | 0 | 0 |
-| `tasks/decision` | 1 | 0 |
+| `tasks/decision` | 0 | 0 |
+| `tasks/doing` | 0 | 0 |
+| `tasks/done` | 0 | 0 |
 
-`tasks/plan` is empty, which is why it is printed as `0 / 0` rather than skipped: a directory that
-does not exist and a directory with nothing wrong in it read identically in a report that only
-lists hits.
+No parking disagreement remains. The three `todo/` cards are 082, 123, and this chore.
 
-**Gate.** `make doc-check` → `broken_links: 0`. The five inbound links to the moved 082/123 files
-survived the move untouched, because TASK-143's resolver matches a task link by its number across
-state directories — the first time that fix absorbed a move it was not written for.
+**Gate.** Surfaces and card honesty verified by grep; `make doc-check` not re-run for this
+metadata-only resweep (no path moves).
 
 ## Notes
 
-Whether the fix is "move the files" or "make the pass read `status:` instead of the directory"
-is open — but the two must not stay in disagreement. The directory-as-authority reading is the
-one the rest of the process already assumes.
+Whether the lasting fix is "move the files" or "make the pass read `status:` instead of the
+directory" remains open product design — but the two must not stay in disagreement. The
+directory-as-authority reading is what the rest of the process already assumes. This card closes
+the observed parking bug and the post-rework resweep; it does not wait on dogfood cycle ACs on
+082/123.
