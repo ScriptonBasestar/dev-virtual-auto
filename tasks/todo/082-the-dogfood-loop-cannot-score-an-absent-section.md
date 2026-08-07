@@ -13,10 +13,16 @@ quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
     result: Promotion clause claimed in 60-evaluate.md (deleted in stage collapse); deferred ACs still [ ]; case_manifest_hash promotion not re-homed into 40-evaluate.
+  - kind: unit
+    unit: 082-surface-present
+    command-or-step: rg -n 'absent_section_route|per_absent_section|next action' workflows/dva-dogfood/ref-evaluation.md
+    result: ok — surface id + instances + next-action rubric all present (lines 37–39, 57–63)
 rework-remarks: |
   Promotion clause re-homed (unit 082-rehome-promotion): stage 40 gate + ref-evaluation
   hash derivation/compatibility wording + evaluation.case_manifest_hash in ref-artifacts.
-  Deferred ACs (next dogfood cycle against stack-only fixture) still open.
+  Unit 082-surface-present: confirmed absent_section_route + per_absent_section
+  (a next action / b what-config-declares / c --json) still shipped in ref-evaluation.md.
+  Residual: deferred ACs 2–4 (next dogfood cycle against stack-only fixture) still open.
 ---
 
 # Task 082: Decide whether an absent section is a case
