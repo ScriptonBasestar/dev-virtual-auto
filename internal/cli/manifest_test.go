@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -107,6 +108,103 @@ func TestBuildManifest_WithHealthChecks(t *testing.T) {
 	db := m.HealthChecks["db"]
 	if db.Type != "tcp" || db.Address != "localhost:5432" {
 		t.Errorf("db health check = %+v", db)
+	}
+}
+
+// TestBuildManifest_MarksUnreachableHealthCheckStart covers TASK-179: top-level
+// health_checks.start only runs through modes, so a config with start and no
+// modes.*.health_checks reference must carry start_unreachable on the manifest
+// entry. Start itself stays published so the mark can be contrasted with the
+// declared command — presence of the mark is the signal, not absence of start.
+func TestBuildManifest_MarksUnreachableHealthCheckStart(t *testing.T) {
+	c := &config.Config{
+		HealthChecks: map[string]config.HealthCheckConfig{
+			"api": {
+				Type:  "http",
+				URL:   "http://localhost:8080/health",
+				Start: "make run-api",
+			},
+			"web": {
+				Type:      "http",
+				URL:       "http://localhost:3000",
+				StartHint: "start the web UI",
+			},
+			// readiness-only: no start/start_hint → no mark (nothing claims to auto-start)
+			"probe": {
+				Type: "tcp",
+				Address: "localhost:5432",
+			},
+		},
+	}
+
+	m := buildManifest(c)
+
+	api := m.HealthChecks["api"]
+	if !api.StartUnreachable {
+		t.Errorf("api: start_unreachable = false, want true")
+	}
+	if api.Start != "make run-api" {
+		t.Errorf("api: start = %q, want published so the mark can be contrasted", api.Start)
+	}
+	if !strings.Contains(api.StartUnreachableReason, "no modes.*.health_checks") {
+		t.Errorf("api: start_unreachable_reason = %q, want validate-shaped reason", api.StartUnreachableReason)
+	}
+	if !strings.Contains(api.StartUnreachableReason, "health_checks.api") {
+		t.Errorf("api: reason should name the check: %q", api.StartUnreachableReason)
+	}
+
+	web := m.HealthChecks["web"]
+	if !web.StartUnreachable {
+		t.Errorf("web: start_unreachable = false, want true (start_hint alone is dead too)")
+	}
+	if web.StartHint != "start the web UI" {
+		t.Errorf("web: start_hint should stay published, got %q", web.StartHint)
+	}
+	if !strings.Contains(web.StartUnreachableReason, "start_hint") {
+		t.Errorf("web: reason should name start_hint: %q", web.StartUnreachableReason)
+	}
+
+	probe := m.HealthChecks["probe"]
+	if probe.StartUnreachable {
+		t.Errorf("probe: readiness-only must not be marked, got reason %q", probe.StartUnreachableReason)
+	}
+	if probe.StartUnreachableReason != "" {
+		t.Errorf("probe: start_unreachable_reason = %q, want empty", probe.StartUnreachableReason)
+	}
+}
+
+// TestBuildManifest_ReachableHealthCheckStartUnmarked is the negative control:
+// when a mode lists the check, start is live and the mark must stay absent.
+func TestBuildManifest_ReachableHealthCheckStartUnmarked(t *testing.T) {
+	c := &config.Config{
+		HealthChecks: map[string]config.HealthCheckConfig{
+			"api":    {Type: "http", Start: "make run-api"},
+			"worker": {Type: "http", Start: "make run-worker"},
+		},
+		Modes: map[string]config.ModeConfig{
+			"dev": {HealthChecks: []string{"api"}},
+		},
+	}
+
+	m := buildManifest(c)
+
+	api := m.HealthChecks["api"]
+	if api.StartUnreachable {
+		t.Errorf("api is referenced by modes.dev — must not mark: %+v", api)
+	}
+	if api.StartUnreachableReason != "" {
+		t.Errorf("api reason = %q, want empty", api.StartUnreachableReason)
+	}
+	if api.Start != "make run-api" {
+		t.Errorf("api start = %q, want make run-api", api.Start)
+	}
+
+	worker := m.HealthChecks["worker"]
+	if !worker.StartUnreachable {
+		t.Errorf("worker is not referenced — must be marked")
+	}
+	if !strings.Contains(worker.StartUnreachableReason, "health_checks.worker") {
+		t.Errorf("worker reason = %q", worker.StartUnreachableReason)
 	}
 }
 

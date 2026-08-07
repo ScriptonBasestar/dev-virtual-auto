@@ -65,7 +65,7 @@ these four from four that work.
       exist is covered by the same pass, or the decision to leave it alone is recorded with its
       reason.
       Verify: `human — the decision and its reasoning are in the Result section`
-- [ ] `dva manifest -f json` either marks unreachable health checks or stops publishing their
+- [x] `dva manifest -f json` either marks unreachable health checks or stops publishing their
       `start`. Decide which and say why: a consumer that scripts against the manifest currently
       cannot tell a live `start` from a dead one.
 - [x] The nested `stack.*.health_checks` form draws **no** warning from this pass. It is a
@@ -88,10 +88,21 @@ these four from four that work.
 - Tests: `TestWarnUnreachableHealthChecks` (subtests for positive, negative, partial, nested
   silence, dangling mode ref, order stability).
 
+### 179-manifest-mark (done)
+
+- Decision: **mark**, do not strip `start`. Same shape as TASK-137's `unroutable` mark —
+  presence of the field is the signal. Omitting `start` would hide what was configured and
+  leave `start_hint` alone as a half-fix; the mark lets a consumer contrast declared vs
+  runnable while keeping diagnosis intact.
+- `ManifestHealthCheck` gains `start_unreachable` (bool, omitempty) and
+  `start_unreachable_reason` (same sentence shape as `warnUnreachableHealthChecks`).
+- Readiness-only entries (no `start`/`start_hint`) stay unmarked. Mode-referenced entries
+  stay unmarked. Partial mode coverage marks only the unreferenced ones.
+- Tests: `TestBuildManifest_MarksUnreachableHealthCheckStart`,
+  `TestBuildManifest_ReachableHealthCheckStartUnmarked`.
+
 ### Residual
 
-- Manifest surface (`internal/cli/manifest.go`): still publishes `start` for unreachable checks;
-  no mark yet.
 - Corpus measurement under `examples/` via `dva config validate`.
 - Full `make test`.
 
@@ -101,11 +112,19 @@ these four from four that work.
 /`signalModeProcesses` do `hc, ok := o.cfg.HealthChecks[hcName]; if !ok || hc.Start == "" { continue }`,
 so a typo validates clean and does nothing. A second warning is cheaper than another silent path.
 
+**Manifest surface:** marks unreachable start rather than stripping it. A consumer that only
+looks for a non-empty `start` still has a residual footgun — they must also check
+`start_unreachable` — but the machine-readable surface now carries a detectable state that
+validate already names for humans.
+
 ## Evidence
 
 ```
 $ mise exec -- go test ./internal/config/ -run HealthCheck -count=1
 ok  github.com/ScriptonBasestar/dva/internal/config  0.455s
+
+$ mise exec -- go test ./internal/cli/ -run Manifest -count=1
+ok  github.com/ScriptonBasestar/dva/internal/cli  0.389s
 ```
 
 ## References

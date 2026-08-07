@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -60,6 +61,20 @@ type ManifestHealthCheck struct {
 	Start        string `json:"start,omitempty" yaml:"start,omitempty"`
 	StartHint    string `json:"start_hint,omitempty" yaml:"start_hint,omitempty"`
 	ReadyTimeout int    `json:"ready_timeout,omitempty" yaml:"ready_timeout,omitempty"`
+	// StartUnreachable is set when Start and/or StartHint is declared but no
+	// modes.*.health_checks entry names this check. Top-level start runs only
+	// through Orchestrator.startModeProcesses / signalModeProcesses, both gated
+	// on a mode list, so without a mode reference those fields never execute.
+	// Presence of the field (true) is the signal — omitempty drops false so a
+	// consumer can detect dead start without reading description text. Start
+	// and StartHint stay published so the mark can be contrasted with what was
+	// configured; a consumer that treats Start as runnable without checking
+	// this field still has the same defect this mark fixes. TASK-179.
+	StartUnreachable bool `json:"start_unreachable,omitempty" yaml:"start_unreachable,omitempty"`
+	// StartUnreachableReason carries the same sentence shape as
+	// warnUnreachableHealthChecks so the machine-readable surface and validate
+	// state one reason, not two. Set only when StartUnreachable is true.
+	StartUnreachableReason string `json:"start_unreachable_reason,omitempty" yaml:"start_unreachable_reason,omitempty"`
 }
 
 type ManifestSubproject struct {
@@ -390,9 +405,18 @@ func buildManifest(c *config.Config) *Manifest {
 
 	// Build health checks section
 	if len(c.HealthChecks) > 0 {
+		// Which top-level health_checks names are listed by any mode — the only
+		// gate that lets start / start_hint run (see warnUnreachableHealthChecks).
+		referenced := make(map[string]bool)
+		for _, mode := range c.Modes {
+			for _, hcName := range mode.HealthChecks {
+				referenced[hcName] = true
+			}
+		}
+
 		m.HealthChecks = make(map[string]ManifestHealthCheck, len(c.HealthChecks))
 		for name, hc := range c.HealthChecks {
-			m.HealthChecks[name] = ManifestHealthCheck{
+			entry := ManifestHealthCheck{
 				Type:         hc.Type,
 				URL:          hc.URL,
 				Address:      hc.Address,
@@ -401,10 +425,37 @@ func buildManifest(c *config.Config) *Manifest {
 				StartHint:    hc.StartHint,
 				ReadyTimeout: hc.ReadyTimeout,
 			}
+			// Mark, do not strip start: a consumer scripting against the
+			// manifest currently cannot tell a live start from a dead one. Omitting
+			// start would hide what was configured; the mark makes the dead form
+			// detectable while keeping the declared command for diagnosis. Same
+			// shape as TASK-137's unroutable mark (presence is the signal).
+			if (hc.Start != "" || hc.StartHint != "") && !referenced[name] {
+				entry.StartUnreachable = true
+				entry.StartUnreachableReason = unreachableHealthCheckStartReason(name, hc)
+			}
+			m.HealthChecks[name] = entry
 		}
 	}
 
 	return m
+}
+
+// unreachableHealthCheckStartReason matches warnUnreachableHealthChecks' wording
+// so validate and manifest state one reason for the same config. Kept local to
+// the CLI package because the warning pass already owns the human path; the
+// shared fact is the referenced-by-modes gate, not a second exported API.
+func unreachableHealthCheckStartReason(name string, hc config.HealthCheckConfig) string {
+	var fields []string
+	if hc.Start != "" {
+		fields = append(fields, "start")
+	}
+	if hc.StartHint != "" {
+		fields = append(fields, "start_hint")
+	}
+	return fmt.Sprintf(
+		"health_checks.%s: declares %s but no modes.*.health_checks entry references it, so auto-start/hint will never run; add it to a mode's health_checks list, move the check under stack.<entry>.health_checks, or remove the field",
+		name, strings.Join(fields, " and "))
 }
 
 func buildManifestSubprojectCommands(name string, subCfg *config.Config) map[string]ManifestDynCmd {
