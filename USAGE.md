@@ -362,7 +362,12 @@ dva provision --list      # 사용 가능한 프로필 목록
 dva doctor                # 환경 사전조건 체크 (Docker, compose 파일, .env 등)
 dva doctor --fix          # 수정 가능한 문제 자동 해결
 dva doctor --json         # JSON 출력
+dva doctor --strict       # 빌트인 체크 실패도 exit≠0 (기본은 advisory — 사용자 checks:만 게이트)
 ```
+
+빌트인 체크는 기본이 **advisory**입니다: 실패해도 전체 exit 0일 수 있고, 사용자 정의
+`checks:` 실패만 비-0을 만듭니다. CI에서 “doctor가 통과 = 전부 통과”가 필요하면
+`--strict`를 사용하세요 (`dva config validate --strict`와 같은 관례).
 
 빌트인 체크 항목:
 - Docker 소켓 권한 및 데몬 접근 가능 여부

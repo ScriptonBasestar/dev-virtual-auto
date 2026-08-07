@@ -182,3 +182,10 @@ called `.cursor/rules` an uncovered gap was wrong — `.gitignore:30` excludes i
   adding the format gate; same class, and its `Format` step is the pattern to copy.
 - [TASK-111](111-make-lint-reports-zero-issues-while-an-available-analyzer-has-50.md) — the third
   instance: a green gate whose coverage nobody had stated.
+
+## Correction (TASK-154)
+
+The closing claim that "a labelled target is in CI, an unlabelled one is not" was **one-way only**
+at archive time: only `fmt-check` had `(CI)` while CI also ran `doc-check`, `build`, `test`, and
+`test-integration`. [TASK-154](../done/154-the-ci-suffix-marks-one-of-the-five-targets-ci-actually-runs.md)
+labels all five and gates the sets with `go run ./tools/cilabels` from `make doc-check`.

@@ -14,7 +14,7 @@ GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
 .PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check
 
-## build: Build the dva binary
+## build: Build the dva binary (CI)
 build: generate
 	$(eval VERSION := $(shell grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2))
 	$(eval COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none"))
@@ -32,11 +32,11 @@ install: build
 		rm -f "$$GO_BIN_DIR/$(BINARY)"; \
 		cp $(BUILD_DIR)/$(BINARY) "$$GO_BIN_DIR/$(BINARY)"
 
-## test: Run all tests
+## test: Run all tests (CI)
 test:
 	go test -race -cover ./...
 
-## test-integration: Run integration tests (requires build tag)
+## test-integration: Run integration tests (requires build tag) (CI)
 test-integration:
 	go test -tags=integration -race ./internal/integration/...
 
@@ -132,9 +132,10 @@ check-generate:
 		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
 		[ "$$before" = "$$after" ] || { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
-## doc-check: Enforce docs/workflows size limits and relative markdown links (TASK-090)
+## doc-check: Enforce docs/workflows size limits and relative markdown links (TASK-090) (CI)
 doc-check:
 	go run ./tools/doccheck
+	go run ./tools/cilabels
 
 ## help: Show this help
 help:

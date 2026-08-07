@@ -38,7 +38,9 @@ All notable changes to DVA are documented here.
 - CLI 구조 변경: lifecycle 동사가 backend 기준(`stack`/`app`/`compose`)에서 **intent 기준
   (named plan)** 으로 수렴 — `dva <verb> <plan>` 단일 세대 (docs/43)
 - **`dva doctor` exits non-zero when a user-defined `checks:` entry fails** (built-in checks stay advisory):
-  text and `--json` still print full results first; user prerequisites gate `dva doctor && dva up`
+  text and `--json` still print full results first; user prerequisites gate `dva doctor && dva up`.
+  **`dva doctor --strict`** makes built-in failures count toward the exit code as well (CI adoption;
+  default remains advisory so interactive use is not blocked by Docker-not-running etc.)
 - **`dva status` exits non-zero when any entry is unrunnable** (TASK-041):
   post-up status summaries still swallow errors so a successful `up` stays exit 0
 - **`dva up --force`**: compose only — passes `--force-recreate` (TASK-040);

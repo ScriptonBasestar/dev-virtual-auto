@@ -188,6 +188,8 @@ func ExecScriptInline(env *config.Environment, script string) error {
 	if err != nil {
 		return fmt.Errorf("creating temp script: %w", err)
 	}
+	// Best-effort cleanup: a failed Remove leaves an orphan under TMPDIR, which the OS
+	// reclaims; the caller's error (if any) is the one that matters. TASK-127 / TASK-161.
 	defer func() { _ = os.Remove(f.Name()) }()
 
 	// Auto-prepend shebang when absent so the script is always executable
@@ -197,6 +199,8 @@ func ExecScriptInline(env *config.Environment, script string) error {
 	}
 
 	if _, err := f.WriteString(script); err != nil {
+		// Already returning WriteString's error; Close failure here would only mask it.
+		// The successful path below checks Close because a short write can surface there.
 		_ = f.Close()
 		return fmt.Errorf("writing temp script: %w", err)
 	}

@@ -37,19 +37,32 @@ func init() {
 }
 
 type Manifest struct {
-	DvaVersion      string                         `json:"dva_version" yaml:"dva_version"`
-	SchemaVersion   string                         `json:"schema_version" yaml:"schema_version"`
-	GeneratedAt     string                         `json:"generated_at" yaml:"generated_at"`
-	ConfigFile      string                         `json:"config_file" yaml:"config_file"`
-	ProjectDir      string                         `json:"project_dir" yaml:"project_dir"`
-	ComposeFiles    []string                       `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
-	EnvKeys         []string                       `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
+	DvaVersion    string   `json:"dva_version" yaml:"dva_version"`
+	SchemaVersion string   `json:"schema_version" yaml:"schema_version"`
+	GeneratedAt   string   `json:"generated_at" yaml:"generated_at"`
+	ConfigFile    string   `json:"config_file" yaml:"config_file"`
+	ProjectDir    string   `json:"project_dir" yaml:"project_dir"`
+	ComposeFiles  []string `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
+	EnvKeys       []string `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
+	// GlobalFlags are the root persistent flags (--debug, --dry-run, --json, …), listed
+	// once rather than on every command (TASK-151). Derived from cobra; a new persistent
+	// flag appears here without editing this table.
+	GlobalFlags     []ManifestFlag                 `json:"global_flags" yaml:"global_flags"`
 	StaticCommands  map[string]ManifestCmd         `json:"static_commands" yaml:"static_commands"`
 	DynamicCommands map[string]ManifestDynCmd      `json:"dynamic_commands" yaml:"dynamic_commands"`
 	Runners         map[string]ManifestRunner      `json:"runners" yaml:"runners"`
 	Plans           map[string]ManifestPlan        `json:"plans,omitempty" yaml:"plans,omitempty"`
 	Subprojects     map[string]ManifestSubproject  `json:"subprojects,omitempty" yaml:"subprojects,omitempty"`
 	HealthChecks    map[string]ManifestHealthCheck `json:"health_checks,omitempty" yaml:"health_checks,omitempty"`
+}
+
+// ManifestFlag is one flag: name + type + description. Per-command options stay a
+// name→usage map for historical consumers; global flags use an explicit type because
+// bool vs string matters to agents choosing argv shapes (TASK-151).
+type ManifestFlag struct {
+	Name        string `json:"name" yaml:"name"`
+	Type        string `json:"type" yaml:"type"`
+	Description string `json:"description" yaml:"description"`
 }
 
 // ManifestHealthCheck describes a health check in the manifest.
@@ -152,10 +165,9 @@ const (
 // The rest are hand-parsed out of the raw args (see the const block above) and are written
 // literally in the table, because there is no flag object to read them from.
 //
-// Persistent root flags (--debug, --dry-run, --json) and cobra's own --help are skipped: they
-// apply to all 27 commands, so repeating them 27 times would say nothing. That leaves them
-// undocumented in the manifest, which is recorded as a residual on TASK-105 rather than fixed
-// here — it wants a top-level field, not a per-command one.
+// Persistent root flags (--debug, --dry-run, --json) and cobra's own --help are skipped
+// per command — they apply to every command, so repeating them 27 times would say nothing.
+// They are published once on Manifest.GlobalFlags instead (TASK-151).
 //
 // The obvious way to express "local flags only" is cobra's LocalFlags(), and it is wrong here:
 // LocalFlags calls mergePersistentFlags, which copies the root's persistent set into the
@@ -166,6 +178,25 @@ const (
 //
 // Flags() performs no merge, so reading it and filtering against the root's persistent set is
 // both side-effect free and order-independent.
+// globalFlagsFromRoot lists every root persistent flag except --help, in name order.
+// VisitAll is the source of truth — not a hand-written table — so a fourth persistent flag
+// lands in the manifest without a manifest edit (TASK-151).
+func globalFlagsFromRoot() []ManifestFlag {
+	var flags []ManifestFlag
+	rootCmd.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "help" {
+			return
+		}
+		flags = append(flags, ManifestFlag{
+			Name:        f.Name,
+			Type:        f.Value.Type(),
+			Description: f.Usage,
+		})
+	})
+	sort.Slice(flags, func(i, j int) bool { return flags[i].Name < flags[j].Name })
+	return flags
+}
+
 func fillStaticCommandOptions(static map[string]ManifestCmd) {
 	persistent := rootCmd.PersistentFlags()
 
@@ -336,6 +367,7 @@ func buildManifest(c *config.Config) *Manifest {
 	}
 	fillStaticCommandDescriptions(m.StaticCommands)
 	fillStaticCommandOptions(m.StaticCommands)
+	m.GlobalFlags = globalFlagsFromRoot()
 	m.Plans = buildManifestPlans(c)
 
 	// Collect environment keys
