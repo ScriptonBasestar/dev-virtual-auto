@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"fmt"
 	"maps"
 	"sort"
 	"strings"
@@ -40,6 +41,46 @@ type ComposeOpts struct {
 	Method     string
 	Profiles   []string
 	RunOptions []string
+}
+
+// HasExecutionTarget reports whether the resolved node has anything Execute would run.
+//
+// This is the post-merge twin of config.InteractionCommand.hasExecutionTarget (TASK-165 /
+// TASK-173). It lives on ResolvedCommand because inheritance is already applied by
+// InteractionTree.Find — the CLI resolve step should not re-walk parents. Fields that only
+// exist on InteractionCommand (hooks) are intentionally absent: interaction hooks are not
+// executed by the runner path, so they must not keep an otherwise empty node green at run
+// time while validate already treats them as a target for warning suppression.
+//
+// Drift guard: every field here maps to a field hasExecutionTarget reads (or Argv, which is
+// the post-resolve form of invocation args / default_args). A new execution form must update
+// both predicates; classifyForm is the third place that names forms for the runners.
+func (cmd *ResolvedCommand) HasExecutionTarget() bool {
+	if cmd == nil {
+		return false
+	}
+	return strings.TrimSpace(cmd.Command) != "" ||
+		len(cmd.CommandLines) > 0 ||
+		cmd.Script != "" ||
+		cmd.ScriptFile != "" ||
+		len(cmd.Steps) > 0 ||
+		cmd.Service != "" ||
+		cmd.Pod != "" ||
+		cmd.RunnerName != "" ||
+		strings.TrimSpace(cmd.DefaultArgs) != "" ||
+		len(cmd.Argv) > 0
+}
+
+// ErrNothingToRun is returned when dva run resolves a node with no execution target.
+func ErrNothingToRun(cmd *ResolvedCommand) error {
+	name := "this interaction"
+	if cmd != nil && cmd.Name != "" {
+		name = cmd.Name
+	}
+	return fmt.Errorf(
+		"%s has nothing to run — add command:, script:, script_file:, steps:, service:, pod:, or default_args:",
+		name,
+	)
 }
 
 // InteractionTree resolves dva.yml interaction commands with subcommand support.

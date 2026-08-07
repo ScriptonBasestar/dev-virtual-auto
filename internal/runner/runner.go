@@ -166,24 +166,30 @@ func Explain(cmd *ResolvedCommand, jsonOutput bool) error {
 	// with the exec about which form wins. It did: a list `command:` leaves cmd.Command holding
 	// its own first line, so `cmd.Command != ""` matched here and the plan named one line of
 	// several — describing the very execution TASK-178 was filed to stop.
-	switch classifyForm(cmd) {
-	case formCommand:
-		if cmd.Command != "" {
-			p.printf("Command: %s\n", cmd.Command)
-		} else {
+	// Nothing-to-run is said here so --explain stays a diagnosis tool (TASK-173): it must
+	// not fail the way Execute now does. The message is the same shape as ErrNothingToRun.
+	if !cmd.HasExecutionTarget() {
+		p.println("Command: (nothing to run — add command:, script:, script_file:, steps:, service:, pod:, or default_args:)")
+	} else {
+		switch classifyForm(cmd) {
+		case formCommand:
+			if cmd.Command != "" {
+				p.printf("Command: %s\n", cmd.Command)
+			} else {
+				p.println("Command:")
+			}
+		case formSteps:
+			p.println("Command: (step-driven — see Steps below)")
+		case formCommandList:
+			p.printf("Command: (%d commands — see Commands below)\n", len(cmd.CommandLines))
+		case formScriptFile, formScript:
+			// Still blank, and still wrong for the same reason TASK-146 gave. TASK-176 owns it;
+			// this arm exists so the gap is a named case in the switch rather than a default
+			// nobody reads, which is how it survived TASK-146 in the first place.
 			p.println("Command:")
+		default:
+			p.printf("Command: (unhandled %s)\n", classifyForm(cmd))
 		}
-	case formSteps:
-		p.println("Command: (step-driven — see Steps below)")
-	case formCommandList:
-		p.printf("Command: (%d commands — see Commands below)\n", len(cmd.CommandLines))
-	case formScriptFile, formScript:
-		// Still blank, and still wrong for the same reason TASK-146 gave. TASK-176 owns it;
-		// this arm exists so the gap is a named case in the switch rather than a default
-		// nobody reads, which is how it survived TASK-146 in the first place.
-		p.println("Command:")
-	default:
-		p.printf("Command: (unhandled %s)\n", classifyForm(cmd))
 	}
 	if cmd.Description != "" {
 		p.printf("Description: %s\n", cmd.Description)

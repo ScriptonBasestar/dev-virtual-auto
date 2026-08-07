@@ -54,6 +54,12 @@ var runCmd = &cobra.Command{
 			return runner.Explain(resolved, jsonOutput)
 		}
 
+		// Fail before building a runner: an empty resolved node used to become
+		// `sh -c ""` and exit 0 (TASK-173). --explain still runs above so diagnosis works.
+		if !resolved.HasExecutionTarget() {
+			return runner.ErrNothingToRun(resolved)
+		}
+
 		r := runner.NewRunner(resolved, runner.RunOptions{
 			Publish: publishPorts,
 			Explain: dryRun,
@@ -94,6 +100,10 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	if dryRun {
 		fmt.Printf("[subproject: %s]\n", project)
 		return runner.Explain(resolved, jsonOutput)
+	}
+
+	if !resolved.HasExecutionTarget() {
+		return runner.ErrNothingToRun(resolved)
 	}
 
 	r := runner.NewRunner(resolved, runner.RunOptions{
