@@ -14,6 +14,17 @@ type DockerComposeRunner struct {
 	Cmd  *ResolvedCommand
 	Opts RunOptions
 
+	// detectedProject is the compose project name of a running container for Cmd.Service,
+	// filled by autoDetectComposeMethod when method flips run→exec.
+	//
+	// It must remain a *name*, not a boolean "running" flag (TASK-163 option C). When
+	// dva.yml omits project_name:, ComposeArgv does not emit --project-name and docker
+	// infers a project from the directory; detection then returns that inferred name,
+	// which appears nowhere in config and reaches exec solely through this field
+	// (composeArgv's projectOverride). Collapsing to a boolean would drop the only
+	// source of the correct --project-name on that path. When project_name: is declared,
+	// the string is often the same as config and looks redundant — keep it anyway so one
+	// field covers both cases. See TestProjectNameUsesDetectionWhenConfigDeclaresNone.
 	detectedProject string
 }
 

@@ -20,6 +20,9 @@ import (
 // --project-name to args, which left the flag in the argv twice and made the right value win
 // only because docker takes the last occurrence — correct by argv ordering, which nothing
 // enforced (TASK-132).
+//
+// When non-empty and config has no project_name:, this string is the sole --project-name
+// source (TASK-163). Do not reduce callers' detectedProject field to a boolean.
 func composeArgv(env *config.Environment, cfg *config.Config, projectOverride string, args []string) (string, []string, error) {
 	// A nil cfg means the interaction runs outside a loaded project; dvaexec.ComposeArgv
 	// then yields the plain `docker compose` default, which is what the old code did too.
