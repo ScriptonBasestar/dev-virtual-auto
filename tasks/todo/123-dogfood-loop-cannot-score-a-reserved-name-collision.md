@@ -5,7 +5,7 @@ type: decision
 priority: P3
 effort: M
 created-at: 2026-07-31T00:00:00+09:00
-scope: "workflows/dva-dogfood — ref-evaluation.md lifecycle_boundary surface + stage 60 cross-run comparison"
+scope: "workflows/dva-dogfood — ref-evaluation.md lifecycle_boundary surface + stage 40 cross-run comparison"
 status: todo
 quality-review: fail
 quality-reviewed-at: 2026-08-07T18:05:08+09:00
@@ -13,8 +13,16 @@ quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
     result: AC marked [x] for 60-evaluate.md:105-109 but file is gone; deferred reserved-name case AC still open; re-home promotion clause under current stages.
+  - kind: unit
+    unit: 123-ac-honest
+    command-or-step: rg -n '60-evaluate|Cross-run promotion|case_manifest_hash|reserved' tasks/todo/123-dogfood-loop-cannot-score-a-reserved-name-collision.md workflows/dva-dogfood/40-evaluate.md workflows/dva-dogfood/ref-evaluation.md
+    result: ok — scope/cost/ACs/resolution retargeted to stage 40; promotion AC verifies 40-evaluate; reserved discover still present; runtime AC left [ ] open
 rework-remarks: |
-  AC marked [x] for 60-evaluate.md:105-109 but file is gone; deferred reserved-name case AC still open; re-home promotion clause under current stages.
+  Unit 123-ac-honest: no AC claims live 60-evaluate.md; promotion note verify binds
+  to 40-evaluate (shared clause re-homed with 082); scope/cost/resolution narrative
+  say stage 40. Residual: deferred runtime AC (reserved-name interaction → exactly
+  one lifecycle_boundary case) still open until a dogfood cycle runs against a
+  fixture with a reserved-name interaction.
 ---
 
 # Task 123: Decide whether a reserved-name interaction collision is a case
@@ -52,9 +60,11 @@ rejected a standalone route surface.
 ## The cost that needs deciding with it
 
 Identical to 082's, and shared with it: changing the manifest bytes changes `case_manifest_hash`,
-so stage 60 must treat the first run after this lands as a **cross-run promotion, not a
+so stage 40 must treat the first run after this lands as a **cross-run promotion, not a
 regression**. If 082 and 123 are both going to land, they should land together — two manifest
 edits mean two hash bumps, and staging them as one avoids a spurious regression between them.
+(The former stage-60 evaluate file is gone; the live clause is in `40-evaluate.md`, re-homed
+from deleted `60-evaluate.md`.)
 
 This task does not block on 082 and 082 does not block on it; the coupling is only that the
 hash-bump handling is the same mechanic, so whoever runs the first cycle after either lands
@@ -80,19 +90,22 @@ builtin of the same name) instantiates exactly one case with no new instance typ
 Shipped as one half of a coupled edit with 082, so the two surface changes share a single
 `case_manifest_hash` bump rather than two:
 
-- `workflows/dva-dogfood/ref-evaluation.md:31` — `lifecycle_boundary.discover` widened to
+- `workflows/dva-dogfood/ref-evaluation.md` — `lifecycle_boundary.discover` widened to
   `…, or the reserved built-in command namespace`.
-- `workflows/dva-dogfood/60-evaluate.md:105-109` — the shared cross-run-promotion clause (a
-  `case_manifest_hash` delta is itself a promotion, not a regression).
+- `workflows/dva-dogfood/40-evaluate.md` — the shared cross-run-promotion clause (re-homed from
+  deleted `60-evaluate.md`): a `case_manifest_hash` delta is itself a promotion, not a
+  regression. `ref-evaluation.md` records hash derivation and tuple compatibility;
+  `ref-artifacts.md` carries `evaluation.case_manifest_hash`.
 
 Criterion 4 is a runtime verification: it fires when stage 20 next runs against a fixture with a
-reserved-name interaction, not at this edit.
+reserved-name interaction, not at this edit. The manifest + stage-40 promotion clause is the
+actionable scope.
 
 ## Acceptance criteria
 
 - [x] The decision is recorded as taken or deferred in this file's Resolution | verify: `human — the Resolution above records the decision as taken`
-- [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints line 31, the widened clause
-- [x] The cross-run-promotion note reaches stage 60 | verify: `workflows/dva-dogfood/60-evaluate.md:105-109` — the hash-delta-is-a-promotion clause
+- [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints the widened discover clause
+- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
 - [ ] A reserved-name interaction instantiates exactly one case | verify: `human — run stage 20 on a fixture with one reserved-name interaction; expect one lifecycle_boundary case, not zero` — **deferred to the next dogfood cycle**
 
 ## Related
