@@ -291,6 +291,11 @@ func (o *Orchestrator) Restart(ctx context.Context, opts UpOptions) error {
 }
 
 // Status queries the status of all lifecycle entries.
+//
+// When the orchestrator was built for a plan (or otherwise carries per-entry
+// compose service selection), each entry's Services list is restricted to that
+// selection and OutOfPlan lists other project services that are still running.
+// Whole-workspace status (no selection) keeps the full compose project list.
 func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 	status := &AggregatedStatus{}
 
@@ -311,6 +316,9 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 
 		entryEnv := o.env.Clone()
 		entryEnv.MergeVars(entry.Vars)
+		// Always query the full project surface; partition below when a plan
+		// selected a service subset. Filtering at the compose CLI would hide
+		// out-of-plan running services that still occupy ports.
 		pctx := &PluginContext{
 			Entry:     &entry,
 			Env:       entryEnv,
@@ -328,15 +336,60 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 			healthResults = o.hc.Check(entry.HealthChecks)
 		}
 
-		status.Entries = append(status.Entries, EntryStatus{
+		es := EntryStatus{
 			Name:     entry.Name,
 			Plugin:   pluginType,
 			Services: services,
 			Health:   healthResults,
-		})
+		}
+		if selected, ok := o.composeServices[entry.Name]; ok && len(selected) > 0 {
+			es.Services, es.OutOfPlan = partitionPlanServices(services, selected)
+		}
+
+		status.Entries = append(status.Entries, es)
 	}
 
 	return status, nil
+}
+
+// partitionPlanServices splits a full project service list into the plan-selected
+// subset and other services that are still running (or starting/restarting).
+// Selected services missing from the project list are reported as "not found".
+func partitionPlanServices(all []ServiceStatus, selected []string) (inPlan []ServiceStatus, outOfPlanRunning []ServiceStatus) {
+	sel := make(map[string]struct{}, len(selected))
+	for _, name := range selected {
+		sel[name] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(selected))
+	for _, s := range all {
+		if _, ok := sel[s.Name]; ok {
+			inPlan = append(inPlan, s)
+			seen[s.Name] = struct{}{}
+			continue
+		}
+		if serviceLooksRunning(s.State) {
+			outOfPlanRunning = append(outOfPlanRunning, s)
+		}
+	}
+	for _, name := range selected {
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		inPlan = append(inPlan, ServiceStatus{Name: name, State: "not found"})
+	}
+	return inPlan, outOfPlanRunning
+}
+
+func serviceLooksRunning(state string) bool {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "running", "up", "healthy", "restarting", "starting":
+		return true
+	default:
+		// docker compose often reports "running" only; accept prefix "up "
+		// (e.g. "Up 2 days") from non-JSON fallbacks.
+		low := strings.ToLower(state)
+		return strings.HasPrefix(low, "up ") || strings.HasPrefix(low, "running")
+	}
 }
 
 // filterEntries returns lifecycle entries matching the given name, tag, mode, and env filters.

@@ -17,12 +17,17 @@ type AggregatedStatus struct {
 // EntryStatus holds the status for a single lifecycle entry.
 // Error is set when the entry could not be queried at all (e.g. its plugin
 // could not be constructed); such an entry is still reported, marked broken.
+//
+// When a plan (or mode) selects a service subset, Services is that subset and
+// OutOfPlan lists other project services that are still running — they are not
+// owned by the plan but can steal ports and confuse "is this plan up?" reads.
 type EntryStatus struct {
-	Name     string              `json:"name"`
-	Plugin   string              `json:"plugin"`
-	Services []ServiceStatus     `json:"services,omitempty"`
-	Health   []HealthCheckResult `json:"health,omitempty"`
-	Error    string              `json:"error,omitempty"`
+	Name      string              `json:"name"`
+	Plugin    string              `json:"plugin"`
+	Services  []ServiceStatus     `json:"services,omitempty"`
+	OutOfPlan []ServiceStatus     `json:"out_of_plan,omitempty"`
+	Health    []HealthCheckResult `json:"health,omitempty"`
+	Error     string              `json:"error,omitempty"`
 }
 
 // StatusExitError returns a non-nil error when any entry is unrunnable
@@ -65,18 +70,12 @@ func PrintStatus(status *AggregatedStatus, configDir string) {
 		}
 
 		if len(entry.Services) > 0 {
-			var buf strings.Builder
-			tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
-			_, _ = fmt.Fprintf(tw, "  SERVICE\tSTATE\tHEALTH\n")
-			for _, s := range entry.Services {
-				health := s.Health
-				if health == "" {
-					health = "-"
-				}
-				_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Name, s.State, health)
-			}
-			_ = tw.Flush()
-			fmt.Print(buf.String())
+			printServiceTable(entry.Services)
+		}
+
+		if len(entry.OutOfPlan) > 0 {
+			fmt.Println("  (out of plan, still running — may conflict with ports)")
+			printServiceTable(entry.OutOfPlan)
 		}
 
 		if len(entry.Health) > 0 {
@@ -85,6 +84,21 @@ func PrintStatus(status *AggregatedStatus, configDir string) {
 	}
 
 	fmt.Println()
+}
+
+func printServiceTable(services []ServiceStatus) {
+	var buf strings.Builder
+	tw := tabwriter.NewWriter(&buf, 2, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintf(tw, "  SERVICE\tSTATE\tHEALTH\n")
+	for _, s := range services {
+		health := s.Health
+		if health == "" {
+			health = "-"
+		}
+		_, _ = fmt.Fprintf(tw, "  %s\t%s\t%s\n", s.Name, s.State, health)
+	}
+	_ = tw.Flush()
+	fmt.Print(buf.String())
 }
 
 // printHealthCheckResults prints health check results as a table.
