@@ -120,7 +120,8 @@ plan은 `environment:`/`site:`로 environment·site를 선택한다(dva-schema 2
 
 **Rules:**
 - `dev`가 기본 — 별도 지정 없으면 dev
-- DVA는 로컬 개발 도구이므로 stg/prd는 "로컬에서 해당 설정으로 실행"의 의미
+- DVA는 로컬 개발·유지보수 도구다(규칙 41) — stg/prd는 "로컬에서 해당 설정으로 실행"을
+  뜻하며, 그 환경을 조작할 권한이 아니다
 - 프로젝트에 stg/prd 구분이 불필요하면 `dev`, `test`만으로 충분
 - env 이름은 프로젝트 기존 `.env` 네이밍에 맞춤(`.env.staging` → `stg`)
 

@@ -103,4 +103,5 @@
     maintenance. Default every execution target to a local virtual environment, and
     declare a remote target only for a resource that cannot run locally (a shared
     database, a managed service). Never generate release, rollout, or incident-response
-    workflows: DVA is not a production operations tool. Product boundary: `PRODUCT.md`.
+    workflows: DVA is not a production operations tool. Environment names follow
+    `naming-presets.md` § Environment Presets.
