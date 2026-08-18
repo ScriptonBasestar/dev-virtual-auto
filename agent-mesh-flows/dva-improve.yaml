@@ -145,8 +145,8 @@ steps:
       src: |
         cd '{{param.target}}'
         # Every filename is quoted. am's shell policy analyzer reads an unquoted bare word
-        # as a command name wherever it appears -- `[ -f dva.yml ]` blocks the step on
-        # "dva.yml not in allowlist", and `printf yes` blocks it on "yes". Quoting the word
+        # as a command name wherever it appears -- [ -f dva.yml ] blocks the step on
+        # "dva.yml not in allowlist", and printf yes blocks it on "yes". Quoting the word
         # is what makes the analyzer see it as data. Measured both ways.
         CONFIG=''
         if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
@@ -209,7 +209,7 @@ steps:
         echo "$files"
         # Emit each top-level block's keys separately. A flat indent grep conflates
         # services with networks/volumes, so a network reads as an undeclared service
-        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        # (measured: cwrapper-devbox's backend network reported as a missing service).
         yaml_block_keys() {
           awk -v blk="$2" '
             BEGIN { inb = 0; base = 0 }
@@ -240,7 +240,7 @@ steps:
         if [ -z "$files" ]; then echo "None"; exit 0; fi
         # Emit each top-level block's keys separately. A flat indent grep conflates
         # services with networks/volumes, so a network reads as an undeclared service
-        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        # (measured: cwrapper-devbox's backend network reported as a missing service).
         yaml_block_keys() {
           awk -v blk="$2" '
             BEGIN { inb = 0; base = 0 }

@@ -19,6 +19,15 @@
 // string, and if that reader is a prompt the model answers around it. Both were measured
 // on a probe flow; both exit 0.
 //
+// Comments inside those fields are checked too, because am does not ignore them the way
+// /bin/sh does: it drops a comment's plain words but still extracts backtick and `$(...)`
+// spans out of it and blocks the step on the first command it does not allow. Three
+// shipped steps were blocked that way by the prose explaining the code beneath it. Worse,
+// whether a span is extracted at all depends on the apostrophe parity of the whole field
+// -- am's quote tracking crosses lines and `#` does not end a quote -- so "don't" in one
+// comment hides a span three lines below, and deleting that word arms it. That is why the
+// rule reports every span rather than the ones measured to block today.
+//
 // Rules are checked against fields the runtime hands to /bin/sh, plus `when:` operands.
 // Prompt bodies are prose about dva and scanning them produces noise, not findings.
 package main

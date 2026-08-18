@@ -124,7 +124,7 @@ steps:
         cd '{{param.target}}'
         # Emit each top-level block's keys separately. A flat indent grep conflates
         # services with networks/volumes, so a network reads as an undeclared service
-        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        # (measured: cwrapper-devbox's backend network reported as a missing service).
         yaml_block_keys() {
           awk -v blk="$2" '
             BEGIN { inb = 0; base = 0 }
@@ -248,7 +248,7 @@ steps:
         [ -f 'package.json' ] && echo "node: $(grep '"name"' package.json 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
         # Python
         [ -f 'pyproject.toml' ] && grep -A2 '^\[project\]' pyproject.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/python: \1/'
-        # Same reason as `subprojects`: the last guard decides the exit status, so a
+        # Same reason as subprojects: the last guard decides the exit status, so a
         # project without pyproject.toml would read as a failed scan.
         exit 0
       dir_tree: "find {{param.target}} -maxdepth 3 -not -path '*/\\.*' -not -path '*/vendor/*' -not -path '*/node_modules/*' -not -path '*/target/*' 2>/dev/null | head -80"
@@ -447,11 +447,11 @@ steps:
       {{analyze.output}}
       REPORT_EOF
 
-      # `json_mode: true` is best-effort. The `smart` backend is a fallback chain, so the
+      # json_mode: true is best-effort. The smart backend is a fallback chain, so the
       # provider that answers is not fixed, and some decorate the response outside the JSON
       # contract (measured: grok-4.5 prepends citation markers like [1][2][3]). Slice the
       # outermost object out of whatever came back, then prove it parses — stages 10 and 30
-      # and `dva-improve` all jq this file, and a report that is not JSON would reach them
+      # and dva-improve all jq this file, and a report that is not JSON would reach them
       # as silent defaults rather than as an error.
       awk '
         { buf = buf $0 "\n" }
@@ -469,8 +469,8 @@ steps:
         echo "ERROR: the analysis response contains no JSON object. Raw response kept at $RAW" >&2
         exit 1
       }
-      # `jq -e .` accepts a *stream* of concatenated values, not one document: given
-      # `[1][2]{...}` it exits 0, and a later `jq -r` prints a plausible value from the
+      # jq -e . accepts a *stream* of concatenated values, not one document: given
+      # [1][2]{...} it exits 0, and a later jq -r prints a plausible value from the
       # trailing object while the array errors go to stderr. Require exactly one object.
       if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$REPORT" >/dev/null 2>&1; then
         echo "ERROR: the analysis response is not a single JSON object. Raw response kept at $RAW" >&2

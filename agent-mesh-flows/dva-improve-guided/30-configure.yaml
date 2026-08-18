@@ -133,8 +133,8 @@ steps:
       # real track was `fresh`, and nothing downstream re-derives it.
       track: |
         PROPOSAL="tmp/improve-guided/10-proposal-approved.json"
-        # `jq -e .` accepts a *stream* of concatenated values, not one document: given
-        # `[1][2]{...}` it exits 0, and a later `jq -r` prints a plausible value from the
+        # jq -e . accepts a *stream* of concatenated values, not one document: given
+        # [1][2]{...} it exits 0, and a later jq -r prints a plausible value from the
         # trailing object while the array errors go to stderr. Require exactly one object.
         if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$PROPOSAL" >/dev/null 2>&1; then
           echo "ERROR: $PROPOSAL is not a single JSON object — re-run stage 10." >&2

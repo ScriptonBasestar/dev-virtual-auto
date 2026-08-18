@@ -65,15 +65,15 @@ steps:
       REPORT="tmp/improve-guided/00-analysis-report.json"
       # Read the file, never an interpolated shell literal: the report is LLM-written and a
       # single apostrophe in it would break the command it was spliced into.
-      # `jq -e .` accepts a *stream* of concatenated values, not one document: given
-      # `[1][2]{...}` it exits 0, and a later `jq -r` prints a plausible value from the
+      # jq -e . accepts a *stream* of concatenated values, not one document: given
+      # [1][2]{...} it exits 0, and a later jq -r prints a plausible value from the
       # trailing object while the array errors go to stderr. Require exactly one object.
       if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$REPORT" >/dev/null 2>&1; then
         echo "ERROR: $REPORT is not a single JSON object — re-run stage 00." >&2
         exit 1
       fi
-      # `.dva_needed // true` cannot express this gate: jq's `//` substitutes for false as
-      # well as null, so an explicit `false` read back as `true` and this stop path was
+      # .dva_needed // true cannot express this gate: jq's // substitutes for false as
+      # well as null, so an explicit false read back as true and this stop path was
       # unreachable for every possible input. Separate absent from present-and-false, and
       # treat absent as a stop — an undecidable gate must fail closed.
       if [ "$(jq -r 'has("dva_needed")' "$REPORT")" != "true" ]; then
@@ -81,7 +81,7 @@ steps:
         exit 1
       fi
       # A non-zero exit for a legitimate "no action needed" verdict is deliberate, not a
-      # bug to tidy up later. `depends_on` is ordering, not a condition, so exiting 0 here
+      # bug to tidy up later. depends_on is ordering, not a condition, so exiting 0 here
       # would let present_proposal draft a plan for a project that was just found not to
       # need one. Stopping the stage is the only primitive that actually stops it — and
       # the reason is printed above, so the run is not silent about why.

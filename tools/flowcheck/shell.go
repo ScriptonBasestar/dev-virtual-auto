@@ -24,6 +24,22 @@ var (
 // checkShell runs the rules that read shell text. reserved is the live built-in command
 // set, imported from internal/config so the list is never kept in two places.
 func checkShell(f shellField, reserved map[string]bool, s *scan) {
+	// Read before blanking: comments are invisible to every rule below, and am extracts
+	// substitutions from them anyway.
+	for _, m := range commentSubstitutions(f.node.Value) {
+		s.add("comment-substitution", lineOf(f, f.node.Value, m.offset),
+			"%s: %s sits inside a shell comment. am drops the comment's plain words but still "+
+				"extracts the substitution and blocks the step on the first command it does not "+
+				"allow — /bin/sh would never run any of it. Whether a given span is extracted "+
+				"depends on the apostrophe parity of the whole field, because am's quote "+
+				"tracking crosses lines and `#` does not end a quote: writing \"don't\" in an "+
+				"earlier comment hides this span, and deleting that word arms it. A blocked "+
+				"step fails a batch run and, interactively, prompts and defaults to continue — "+
+				"after which every reader of this step's keys gets the literal `{{step.key}}` "+
+				"text and the run still ends Done. Say it without the backticks.",
+			f.name, m.text)
+	}
+
 	text := blankComments(f.node.Value)
 
 	if m := reBoolDefault.FindStringSubmatchIndex(text); m != nil {
@@ -299,4 +315,48 @@ func skipBalancedParen(text string, i int) int {
 		i++
 	}
 	return len(text)
+}
+
+// reCommentSubstitution finds what am reads as code inside a comment: a backtick pair, or
+// `$(`. Measured against am cb8b4ce -- a comment carrying `backend` blocked the step on
+// "backend not in allowlist", and one carrying $(nosuchcmd) blocked it on "nosuchcmd",
+// while the same words without the wrapper ran fine. POSIX sh executes neither.
+var reCommentSubstitution = regexp.MustCompile("`[^`]*`|\\$\\([^)]*\\)?")
+
+// commentSubstitutions returns, for every comment in text, the offset and source text of
+// each substitution span. Whole-line comments and trailing ones are both reported: am
+// does not care where the `#` sits, and neither does the block.
+//
+// A `#` inside single or double quotes is not a comment, so the scan reuses the same
+// quote-skipping the bare-word tokenizer does rather than matching `#` in raw text.
+func commentSubstitutions(text string) []commentSpan {
+	var out []commentSpan
+	for i := 0; i < len(text); {
+		switch text[i] {
+		case '\'', '"':
+			i = skipQuoted(text, i+1, text[i])
+		case '\\':
+			i += 2
+		case '#':
+			end := strings.IndexByte(text[i:], '\n')
+			if end < 0 {
+				end = len(text)
+			} else {
+				end += i
+			}
+			for _, m := range reCommentSubstitution.FindAllStringIndex(text[i:end], -1) {
+				out = append(out, commentSpan{offset: i + m[0], text: text[i+m[0] : i+m[1]]})
+			}
+			i = end
+		default:
+			i++
+		}
+	}
+	return out
+}
+
+// commentSpan is one substitution found inside a comment.
+type commentSpan struct {
+	offset int
+	text   string
 }
