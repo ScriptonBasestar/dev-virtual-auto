@@ -236,9 +236,30 @@ steps:
       ## Self-Review Checklist
       {{load_checklist.output}}
 
+  # Same marker as the other stages, for the same reason: without it the report below shows
+  # up as an untracked file in the project's `git status` after every run.
+  #
+  # Relative, like the markers in stages 00/10/20/40 -- not anchored to `{{param.target}}`,
+  # which was tried and refused: `type: file` is path-sandboxed and rejects a write outside
+  # the run root with "escaped all approved roots". Shell steps are not sandboxed, which is
+  # why the report below can be written into the target at all.
+  #
+  # That asymmetry leaves a residual gap. `validate` runs after `cd '{{param.target}}'`, so
+  # its report follows the target while every other stage's follows the run directory. When
+  # the two are the same -- the supported way to run this pipeline, and what every relative
+  # `read_file` src here already assumes -- this marker covers the report. When they differ,
+  # nothing declarative can reach the target. TASK-190 covers closing that.
+  - id: report_marker
+    type: file
+    depends_on: [configure]
+    file:
+      op: write
+      path: "tmp/improve-guided/.gitignore"
+      content: "*\n"
+
   - id: validate
     type: shell
-    depends_on: [configure]
+    depends_on: [configure, report_marker]
     action: |
       cd '{{param.target}}'
       echo "=== dva config validate ==="
