@@ -24,31 +24,77 @@ parameters:
   - name: target
     description: "Target directory"
     default: "."
+  - name: shared_dir
+    description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
+    default: ""
 
 steps:
+  # ══════════════════════════════════════════════
+  # Locate agent-mesh-flows/shared
+  # ══════════════════════════════════════════════
+  # `read_file` resolves `src` against the run directory and refuses to leave am's
+  # approved roots, so a repo-relative path only reaches the library when the flow
+  # happens to run from inside the dva repo — and these flows exist to be pointed at
+  # other projects. The path is machine-specific, so it arrives by parameter or env
+  # var and the search below takes the first candidate that actually holds the library.
+  #
+  # Two conditions must hold on the workstation, and only the first is testable here:
+  #   1. the directory resolves — proven below by looking for shared-guardrails.md;
+  #   2. it is listed under `allowed_roots_add:` in
+  #      ~/.config/agent-mesh/sandbox_override.yaml — enforced by am inside read_file.
+  # `when:` does not gate that second check (measured: the path check runs before the
+  # condition), so a missing root surfaces as "escaped all approved roots" on the next
+  # step. The message below names both requirements for that reason.
+  #
+  # Failing loudly is deliberate. `exit_if_empty` exits the pipeline *successfully*,
+  # which would hand back a report produced with no guardrails at all — the exact
+  # defect this resolver exists to close.
+  - id: resolve_shared
+    type: context
+    context:
+      dir: |
+        for cand in "{{param.shared_dir}}" "$DVA_SHARED_DIR" "$PWD/agent-mesh-flows/shared"; do
+          [ -n "$cand" ] || continue
+          [ -f "$cand/library/shared-guardrails.md" ] || continue
+          printf '%s' "$cand"
+          exit 0
+        done
+        echo "ERROR: agent-mesh-flows/shared not found." >&2
+        echo "  Pass it explicitly:  -p shared_dir=<dva-repo>/agent-mesh-flows/shared" >&2
+        echo "  or export DVA_SHARED_DIR to the same path." >&2
+        echo "  The same path must also be listed under allowed_roots_add: in" >&2
+        echo "  ~/.config/agent-mesh/sandbox_override.yaml — am's read_file cannot" >&2
+        echo "  read outside an approved root." >&2
+        exit 1
+
   - id: load_proposal
     type: read_file
     src: "tmp/improve-guided/10-proposal-approved.json"
 
   - id: load_guardrails
     type: read_file
-    src: "agent-mesh-flows/shared/library/shared-guardrails.md"
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/shared-guardrails.md"
 
   - id: load_schema
     type: read_file
-    src: "agent-mesh-flows/shared/library/dva-schema.md"
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/dva-schema.md"
 
   - id: load_naming
     type: read_file
-    src: "agent-mesh-flows/shared/library/naming-presets.md"
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/naming-presets.md"
 
   - id: load_examples
     type: read_file
-    src: "agent-mesh-flows/shared/library/reference-examples.md"
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/reference-examples.md"
 
   - id: load_checklist
     type: read_file
-    src: "agent-mesh-flows/shared/library/shared-checklist.md"
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/shared-checklist.md"
 
   - id: detect_track
     type: context

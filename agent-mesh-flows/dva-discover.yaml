@@ -17,6 +17,9 @@ parameters:
   - name: target
     description: "Target directory to analyze"
     default: "."
+  - name: shared_dir
+    description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
+    default: ""
 
 steps:
   - id: analyze
@@ -24,3 +27,4 @@ steps:
     run_pipeline: dva-improve-guided/00-analyze
     pipeline_params:
       target: "{{param.target}}"
+      shared_dir: "{{param.shared_dir}}"

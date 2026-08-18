@@ -27,6 +27,9 @@ parameters:
   - name: mode
     description: "DVA mode to use for execution (e.g., infra)"
     default: ""
+  - name: shared_dir
+    description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
+    default: ""
 
 steps:
   - id: check_existing_analysis
@@ -43,6 +46,7 @@ steps:
     run_pipeline: dva-improve-guided/00-analyze
     pipeline_params:
       target: "{{param.target}}"
+      shared_dir: "{{param.shared_dir}}"
 
   # ── Stage 10: Select (USER GATE) ──
   - id: verify
@@ -68,6 +72,7 @@ steps:
     run_pipeline: dva-improve-guided/30-configure
     pipeline_params:
       target: "{{param.target}}"
+      shared_dir: "{{param.shared_dir}}"
 
   # ── Stage 40: Execute ──
   - id: execute

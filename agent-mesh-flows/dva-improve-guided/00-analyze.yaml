@@ -23,6 +23,9 @@ parameters:
   - name: target
     description: "Target directory to scan"
     default: "."
+  - name: shared_dir
+    description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
+    default: ""
 
 steps:
   - id: check_dva
@@ -188,12 +191,83 @@ steps:
         exit 0
       dir_tree: "find {{param.target}} -maxdepth 3 -not -path '*/\\.*' -not -path '*/vendor/*' -not -path '*/node_modules/*' -not -path '*/target/*' 2>/dev/null | head -80"
 
+  # ══════════════════════════════════════════════
+  # ══════════════════════════════════════════════
+  # Locate agent-mesh-flows/shared
+  # ══════════════════════════════════════════════
+  # `read_file` resolves `src` against the run directory and refuses to leave am's
+  # approved roots, so a repo-relative path only reaches the library when the flow
+  # happens to run from inside the dva repo — and these flows exist to be pointed at
+  # other projects. The path is machine-specific, so it arrives by parameter or env
+  # var and the search below takes the first candidate that actually holds the library.
+  #
+  # Two conditions must hold on the workstation, and only the first is testable here:
+  #   1. the directory resolves — proven below by looking for shared-guardrails.md;
+  #   2. it is listed under `allowed_roots_add:` in
+  #      ~/.config/agent-mesh/sandbox_override.yaml — enforced by am inside read_file.
+  # `when:` does not gate that second check (measured: the path check runs before the
+  # condition), so a missing root surfaces as "escaped all approved roots" on the next
+  # step. The message below names both requirements for that reason.
+  #
+  # Failing loudly is deliberate. `exit_if_empty` exits the pipeline *successfully*,
+  # which would hand back a report produced with no guardrails at all — the exact
+  # defect this resolver exists to close.
+  - id: resolve_shared
+    type: context
+    context:
+      dir: |
+        for cand in "{{param.shared_dir}}" "$DVA_SHARED_DIR" "$PWD/agent-mesh-flows/shared"; do
+          [ -n "$cand" ] || continue
+          [ -f "$cand/library/shared-guardrails.md" ] || continue
+          printf '%s' "$cand"
+          exit 0
+        done
+        echo "ERROR: agent-mesh-flows/shared not found." >&2
+        echo "  Pass it explicitly:  -p shared_dir=<dva-repo>/agent-mesh-flows/shared" >&2
+        echo "  or export DVA_SHARED_DIR to the same path." >&2
+        echo "  The same path must also be listed under allowed_roots_add: in" >&2
+        echo "  ~/.config/agent-mesh/sandbox_override.yaml — am's read_file cannot" >&2
+        echo "  read outside an approved root." >&2
+        exit 1
+
+  # ══════════════════════════════════════════════
+  # Library rules this stage's own output is judged against
+  # ══════════════════════════════════════════════
+  # Stage 00 writes no dva.yml, so it looked like a stage that needed no guardrails.
+  # But `candidate_environments`, `recommended_modes` and `changes[]` are carried
+  # verbatim into stage 30 and into `dva-improve` through `param.discovery_report`,
+  # and neither re-derives them — a candidate that breaks a rule here is already
+  # past the gate before any stage that loads the library sees it. Measured on a
+  # foreign project: the report proposed `development/staging/production` against the
+  # dev/stg/prd preset, and 4 of 7 changes built a stg/prd deployment axis that
+  # rule 41 forbids. Schema and examples stay out — they govern generation, and
+  # generation happens in stage 30, which already loads them.
+  - id: load_guardrails
+    type: read_file
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/shared-guardrails.md"
+
+  - id: load_naming
+    type: read_file
+    depends_on: [resolve_shared]
+    src: "{{resolve_shared.dir}}/library/naming-presets.md"
+
   - id: analyze
     type: llm
-    depends_on: [detect_basics, dva_cli_data, scan_project]
+    depends_on: [detect_basics, dva_cli_data, scan_project, load_guardrails, load_naming]
     json_mode: true
     instruction: |
       프로젝트를 분석하여 DVA 설정 계획과 선택 가능한 옵션을 JSON으로 생성하라.
+
+      후보는 아래 라이브러리 규칙 안에서만 제안한다. 규칙과 충돌하는 후보는 리포트에
+      넣지 않는다 — 이 리포트는 stage 30 과 `dva-improve` 의 `discovery_report` 입력이고,
+      두 단계 모두 후보를 다시 도출하지 않으므로 여기서 통과한 것은 그대로 반영된다.
+
+      ## 라이브러리 규칙 — 가드레일
+      {{load_guardrails.output}}
+
+      ## 라이브러리 규칙 — 네이밍 프리셋
+      {{load_naming.output}}
 
       ## DVA CLI 정보
       - DVA 버전: {{check_dva.dva_version}}
@@ -238,7 +312,13 @@ steps:
       - K8s manifests detected (k8s_manifests != None) → suggest `stack.kubectl` with `dir:` pointing to manifest directory.
       - Helm charts detected (helm_charts != None) → suggest `stack.helm` with appropriate `chart:` and `release:` fields.
       - Both present → suggest `stack.kubectl` for raw manifests AND `stack.helm` for charts.
-      - If K8s/Helm + compose both detected → recommend `modes:` with local=compose, staging/prod=kubectl or helm.
+      - 실행 대상은 로컬 클러스터(kind/minikube/k3d/docker-desktop)를 기본값으로 둔다.
+        로컬에서 실행할 수 없는 리소스에 한해서만 원격 대상을 선언한다 (규칙 41).
+      - K8s/Helm 과 compose 가 함께 있으면 둘 다 **로컬 실행 전략**으로 제안한다.
+        `environments:` 를 배포 대상 축(staging/production)으로 만들지 않는다 —
+        environment 이름은 변수 집합의 라벨이다 (규칙 23·41,
+        naming-presets § Environment Presets). release/rollout/incident 워크플로우도
+        제안하지 않는다.
       - Do NOT force a compose-only stack entry when the primary infra is Kubernetes-native.
 
       ## Output Format
@@ -252,8 +332,8 @@ steps:
         "stack": ["detected technologies"],
         "package_names": {"lang": "name"},
         "service_groups": [{"name": "svc", "tags": ["infra"]}],
-        "recommended_modes": ["infra", "full-stack"],
-        "candidate_environments": ["dev", "local-test"],
+        "recommended_modes": ["local-infra", "full-stack"],
+        "candidate_environments": ["dev", "test"],
         "detected_applications": [{"name": "api", "port": 8080, "framework": "..."}],
         "candidate_options": {
           "applications": [{"name": "api", "native_run": ["..."], "docker_services": ["api"]}],
@@ -269,6 +349,10 @@ steps:
         "summary": {"total": 0, "create": 0, "modify": 0}
       }
       ```
+
+      `recommended_modes` 는 plan 프리셋 이름(local-infra / local-dev / full-stack /
+      observability 또는 프로젝트 어휘), `candidate_environments` 는 environment 프리셋
+      이름(dev / test / stg / prd)만 사용한다 — 규칙 23.
 
   - id: save_report
     type: shell
