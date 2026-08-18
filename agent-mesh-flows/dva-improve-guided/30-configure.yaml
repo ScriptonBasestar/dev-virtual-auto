@@ -122,9 +122,55 @@ steps:
       # running binary's version is not a legal value for `version:` — that field is the
       # minimum DVA the config requires of its reader, not a stamp of what produced it.
 
+  # Snapshot the config before the agent edits it. This stage is the guided path's write
+  # path, so it needs the same net as dva-improve.yaml, where the rationale is recorded:
+  # git is the history, the snapshot covers only the uncommitted window, and the backup
+  # directory ignores its own contents so the target's .gitignore is never touched.
+  - id: backup_paths
+    type: context
+    context:
+      has_config: |
+        cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
+      marker: |
+        printf '%s/tmp/dva-improve-backups/.gitignore' '{{param.target}}'
+      src: |
+        cd '{{param.target}}'
+        # Every filename is quoted -- am's shell policy analyzer reads an unquoted bare word
+        # as a command name and blocks the step on "dva.yml not in allowlist".
+        CONFIG=''
+        if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
+        if [ -n "$CONFIG" ]; then printf '%s/%s' '{{param.target}}' "$CONFIG"; fi
+      dest: |
+        cd '{{param.target}}'
+        CONFIG=''
+        if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
+        if [ -n "$CONFIG" ]; then
+          printf '%s/tmp/dva-improve-backups/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
+        fi
+
+  # On the `fresh` track there is no prior config, so both steps skip together.
+  - id: backup_marker
+    type: file
+    depends_on: [backup_paths]
+    when: "{{backup_paths.has_config}} == 'true'"
+    file:
+      op: write
+      path: "{{backup_paths.marker}}"
+      content: "*\n"
+
+  - id: backup_config
+    type: file
+    depends_on: [backup_marker]
+    when: "{{backup_paths.has_config}} == 'true'"
+    file:
+      op: copy
+      from: "{{backup_paths.src}}"
+      to: "{{backup_paths.dest}}"
+
   - id: configure
     type: llm
     depends_on:
+      - backup_config
       - load_proposal
       - load_guardrails
       - load_schema

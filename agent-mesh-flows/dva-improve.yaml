@@ -77,6 +77,65 @@ steps:
       config_path: |
         cd '{{param.target}}' && { [ -f 'dva.yml' ] && echo 'dva.yml' || { [ -f 'dva.yaml' ] && echo 'dva.yaml' || echo ''; }; }
 
+  # Snapshot the config before any agent edits it. This is not a second history alongside
+  # git -- git is the history. It covers the one window git cannot: uncommitted local edits
+  # at the moment the flow runs, which `git checkout --` would discard rather than restore.
+  #
+  # The backup directory carries a `.gitignore` of `*`, so it ignores its own contents and
+  # the snapshots never reach the target's index. That marker is why the target's own
+  # .gitignore is never opened: this flow edits somebody else's repository, and adding a
+  # line to their ignore rules is a change they did not ask for. Measured: with the marker
+  # in place `git status --porcelain` is empty and no root .gitignore is created.
+  #
+  # The path is recomputed here instead of read from `check_config.config_path`, which is
+  # emitted with `echo`. am does not trim, so interpolating that value would assign a
+  # trailing newline into the variable and every `[ -f ]` against it would fail -- the same
+  # defect as an `echo` gate producer, reached outside a gate.
+  - id: backup_paths
+    type: context
+    depends_on: [check_config]
+    context:
+      marker: |
+        printf '%s/tmp/dva-improve-backups/.gitignore' '{{param.target}}'
+      src: |
+        cd '{{param.target}}'
+        # Every filename is quoted. am's shell policy analyzer reads an unquoted bare word
+        # as a command name wherever it appears -- `[ -f dva.yml ]` blocks the step on
+        # "dva.yml not in allowlist", and `printf yes` blocks it on "yes". Quoting the word
+        # is what makes the analyzer see it as data. Measured both ways.
+        CONFIG=''
+        if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
+        if [ -n "$CONFIG" ]; then printf '%s/%s' '{{param.target}}' "$CONFIG"; fi
+      dest: |
+        cd '{{param.target}}'
+        CONFIG=''
+        if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
+        if [ -n "$CONFIG" ]; then
+          printf '%s/tmp/dva-improve-backups/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
+        fi
+
+  # Both steps read the flag `check_config` already publishes rather than computing a
+  # second copy of it, so they skip together when there is nothing to snapshot -- a fresh
+  # project scaffolds its config below and has no prior state to lose. `improve` is
+  # deliberately ungated and runs either way.
+  - id: backup_marker
+    type: file
+    depends_on: [backup_paths]
+    when: "{{check_config.has_dva_yml}} == 'true'"
+    file:
+      op: write
+      path: "{{backup_paths.marker}}"
+      content: "*\n"
+
+  - id: backup_config
+    type: file
+    depends_on: [backup_marker]
+    when: "{{check_config.has_dva_yml}} == 'true'"
+    file:
+      op: copy
+      from: "{{backup_paths.src}}"
+      to: "{{backup_paths.dest}}"
+
   # Scaffold dva.yml if missing. Unquoted, this gate never held: `dva init` ran on every
   # improve of an already-configured project. See the `when:` contract in
   # dva-improve-guided.yaml; the same defect was in all five gates below.
@@ -412,6 +471,7 @@ steps:
   - id: improve
     type: llm
     depends_on:
+      - backup_config
       - scan_compose
       - scan_build
       - scan_env
