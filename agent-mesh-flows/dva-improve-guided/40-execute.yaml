@@ -118,7 +118,12 @@ steps:
     action: |
       REPORT_DIR="tmp/improve-guided"
       mkdir -p "$REPORT_DIR"
-      cat > "$REPORT_DIR/40-execution-report.txt" <<EOF
+      # The delimiter is quoted because am reads an unquoted heredoc body as shell and
+      # blocks the step on its first word -- measured: this report blocked on DVA, the
+      # first word of its own title line. Quoting also stops shell expansion inside the
+      # body, which costs nothing here: the two values below are am template references,
+      # substituted before the shell sees this text.
+      cat > "$REPORT_DIR/40-execution-report.txt" <<'EOF'
       === DVA Status ===
       {{verify_status.stack_status}}
 

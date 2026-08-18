@@ -19,6 +19,12 @@ var (
 	reJq        = regexp.MustCompile(`\bjq\b`)
 	reTmpPath   = regexp.MustCompile(`\btmp/`)
 	reJSONGuard = regexp.MustCompile(`jq\s+-e\s+-s\b`)
+
+	// A heredoc whose delimiter is a bare word. am reads the body of one as shell; with
+	// the delimiter quoted it reads the body as data, which is the whole fix. `<<<` is
+	// matched only to be discarded: a here-string carries no body, and RE2 has no
+	// lookahead to exclude it in the pattern.
+	reHeredocBareDelim = regexp.MustCompile(`(<<<|<<-?)[ \t]*([A-Za-z_][A-Za-z0-9_]*)`)
 )
 
 // checkShell runs the rules that read shell text. reserved is the live built-in command
@@ -40,16 +46,17 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 			f.name, m.text)
 	}
 
-	for _, off := range commentApostrophes(f.node.Value) {
-		s.add("comment-apostrophe", lineOf(f, f.node.Value, off),
-			"%s: an apostrophe in comment prose flips the quote parity of everything after "+
-				"it. am carries quote state across a `#` and across lines, so an odd count "+
-				"makes the next `'...'` argument open where the analyzer thinks one closes, "+
-				"exposing its contents as shell: a multi-line `awk '...'` program three lines "+
-				"below was blocked on `command \"BEGIN\" not in allowlist` by the word "+
-				"\"block's\" alone. Parity is not a property anyone can maintain -- one word "+
-				"arms a block in code nobody touched -- so no comment may carry one at all. "+
-				"Rewrite the phrase without it.", f.name)
+	for _, off := range commentQuotes(f.node.Value) {
+		s.add("comment-quote", lineOf(f, f.node.Value, off),
+			"%s: a quote character in comment prose flips the quote parity of everything "+
+				"after it. am carries quote state across a `#` and across lines, so an odd "+
+				"count makes the next quoted argument open where the analyzer thinks one "+
+				"closes, exposing its contents as shell: a multi-line `awk '...'` program "+
+				"three lines below was blocked on `command \"BEGIN\" not in allowlist` by one "+
+				"apostrophe in the prose above it, and a stray double quote does the same to "+
+				"an `awk \"...\"`. Parity is not a property anyone can maintain -- one word "+
+				"arms a block in code nobody touched -- so no comment may carry a quote at "+
+				"all. Rewrite the phrase without it.", f.name)
 	}
 
 	text := blankComments(f.node.Value)
@@ -91,6 +98,20 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 				"not stop the run: it prompts, defaults to continue, and produces nothing while "+
 				"every reader of its keys gets the literal `{{step.key}}` text. Inline the body "+
 				"at each call site.", f.name, c.word, c.word)
+	}
+
+	for _, m := range reHeredocBareDelim.FindAllStringSubmatchIndex(text, -1) {
+		if text[m[2]:m[3]] == "<<<" {
+			continue
+		}
+		s.add("heredoc-delimiter", lineOf(f, text, m[0]),
+			"%s: heredoc `<<%s` has an unquoted delimiter, so am reads the body as shell and "+
+				"blocks the step on the first word of the text -- measured: a report whose "+
+				"first line was `=== DVA Status ===` blocked on `command \"DVA\" not in "+
+				"allowlist`, and one saying `hello world` blocked on `hello`. Write `<<'%s'`. "+
+				"That also stops the shell expanding `$VAR` inside the body, which is free "+
+				"when the body interpolates `{{step.key}}` references am substitutes first.",
+			f.name, text[m[4]:m[5]], text[m[4]:m[5]])
 	}
 
 	if reJq.MatchString(text) && reTmpPath.MatchString(text) {
@@ -373,79 +394,6 @@ func skipBalancedParen(text string, i int) int {
 	return len(text)
 }
 
-// reCommentSubstitution finds what am reads as code inside a comment: a backtick pair, or
-// `$(`. Measured against am cb8b4ce -- a comment carrying `backend` blocked the step on
-// "backend not in allowlist", and one carrying $(nosuchcmd) blocked it on "nosuchcmd",
-// while the same words without the wrapper ran fine. POSIX sh executes neither.
-var reCommentSubstitution = regexp.MustCompile("`[^`]*`|\\$\\([^)]*\\)?")
-
-// commentSubstitutions returns, for every comment in text, the offset and source text of
-// each substitution span. Whole-line comments and trailing ones are both reported: am
-// does not care where the `#` sits, and neither does the block.
-//
-// A `#` inside single or double quotes is not a comment, so the scan reuses the same
-// quote-skipping the bare-word tokenizer does rather than matching `#` in raw text.
-func commentSubstitutions(text string) []commentSpan {
-	var out []commentSpan
-	for _, r := range shellCommentRanges(text) {
-		for _, m := range reCommentSubstitution.FindAllStringIndex(text[r[0]:r[1]], -1) {
-			out = append(out, commentSpan{offset: r[0] + m[0], text: text[r[0]+m[0] : r[0]+m[1]]})
-		}
-	}
-	return out
-}
-
-// shellCommentRanges returns the half-open byte range of every comment in text.
-//
-// A `#` inside single or double quotes is not a comment, so the scan reuses the same
-// quote-skipping the bare-word tokenizer does rather than matching `#` in raw text. Note
-// that this is /bin/sh semantics, not am semantics: am is the one that lets a comment
-// change quote state, which is what `comment-apostrophe` below is about.
-func shellCommentRanges(text string) [][2]int {
-	var out [][2]int
-	for i := 0; i < len(text); {
-		switch text[i] {
-		case '\'', '"':
-			i = skipQuoted(text, i+1, text[i])
-		case '\\':
-			i += 2
-		case '#':
-			end := strings.IndexByte(text[i:], '\n')
-			if end < 0 {
-				end = len(text)
-			} else {
-				end += i
-			}
-			out = append(out, [2]int{i, end})
-			i = end
-		default:
-			i++
-		}
-	}
-	return out
-}
-
-// commentApostrophes returns the offset of every apostrophe sitting inside a comment.
-//
-// am carries quote state across a comment: `#` does not end a string, and a string is not
-// confined to a line. An odd number of apostrophes in prose therefore inverts the quote
-// parity of everything after it, and the next legitimate `\'...\'` argument opens where the
-// analyzer believes one closes -- exposing its contents as shell. Measured against am
-// cb8b4ce: a step whose comment said "block\'s" blocked its own multi-line `awk \'...\'`
-// program on `command "BEGIN" not in allowlist`, and adding a second apostrophe to the
-// same comment made the step run.
-func commentApostrophes(text string) []int {
-	var out []int
-	for _, r := range shellCommentRanges(text) {
-		for i := r[0]; i < r[1]; i++ {
-			if text[i] == '\'' {
-				out = append(out, i)
-			}
-		}
-	}
-	return out
-}
-
 // reShellFuncDef matches a POSIX function definition at the start of a line, which is the
 // only shape the corpus uses and the only one worth guessing at.
 var reShellFuncDef = regexp.MustCompile(`(?m)^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(\)[ \t]*\{`)
@@ -469,10 +417,4 @@ func localFunctionCalls(text string) []bareWord {
 		}
 	}
 	return out
-}
-
-// commentSpan is one substitution found inside a comment.
-type commentSpan struct {
-	offset int
-	text   string
 }

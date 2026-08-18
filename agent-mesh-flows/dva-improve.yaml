@@ -146,7 +146,7 @@ steps:
         cd '{{param.target}}'
         # Every filename is quoted. The am shell policy analyzer reads an unquoted bare word
         # as a command name wherever it appears -- [ -f dva.yml ] blocks the step on
-        # "dva.yml not in allowlist", and printf yes blocks it on "yes". Quoting the word
+        # dva.yml not in allowlist, and printf yes blocks it on yes. Quoting the word
         # is what makes the analyzer see it as data. Measured both ways.
         CONFIG=''
         if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi

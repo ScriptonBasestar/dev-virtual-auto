@@ -165,7 +165,7 @@ steps:
       src: |
         cd '{{param.target}}'
         # Every filename is quoted -- the am shell policy analyzer reads an unquoted bare word
-        # as a command name and blocks the step on "dva.yml not in allowlist".
+        # as a command name and blocks the step on dva.yml not in allowlist.
         CONFIG=''
         if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
         if [ -n "$CONFIG" ]; then printf '%s/%s' '{{param.target}}' "$CONFIG"; fi

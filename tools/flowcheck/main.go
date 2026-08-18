@@ -28,11 +28,16 @@
 // comment hides a span three lines below, and deleting that word arms it. That is why the
 // rule reports every span rather than the ones measured to block today.
 //
-// The apostrophe is not only what hides a span, it is a defect on its own. am carries
-// quote state across a comment, so an odd count in prose inverts the parity of the rest
-// of the field and the next `'...'` argument opens where the analyzer believes one
-// closes: the word "block's" in a comment exposed the `awk` program three lines below it
-// and blocked the step on `command "BEGIN" not in allowlist`. No comment may carry one.
+// The quote character is not only what hides a span, it is a defect on its own. am carries
+// quote state across a comment, so an odd count in prose inverts the parity of the rest of
+// the field and the next quoted argument opens where the analyzer believes one closes: one
+// apostrophe in a comment exposed the `awk` program three lines below it and blocked the
+// step on `command "BEGIN" not in allowlist`, and a double quote does the same to an `awk
+// "..."`. No comment may carry either.
+//
+// The same misreading arrives from the other direction in a heredoc. am scans an unquoted
+// heredoc body for commands, so a report blocked on the first word of its own title line
+// and was never written. Quoting the delimiter makes the body data.
 //
 // And what a step defines is not what am will run. A shell function the field declares is
 // blocked at its call site like any other unknown command -- three shipped fields called
