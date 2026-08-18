@@ -81,9 +81,30 @@ steps:
            infra/compose*.y*ml docker/compose*.y*ml compose/compose*.y*ml 2>/dev/null || echo 'none'
       compose_services: |
         cd '{{param.target}}'
+        # Emit each top-level block's keys separately. A flat indent grep conflates
+        # services with networks/volumes, so a network reads as an undeclared service
+        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        yaml_block_keys() {
+          awk -v blk="$2" '
+            BEGIN { inb = 0; base = 0 }
+            $0 ~ "^" blk ":[[:space:]]*(#.*)?$" { inb = 1; base = 0; next }
+            /^[^[:space:]#]/ { inb = 0 }
+            inb && match($0, /^[[:space:]]+/) {
+              ind = RLENGTH; rest = substr($0, ind + 1)
+              if (rest ~ /^#/) next
+              if (rest ~ /^[A-Za-z0-9_.-]+:/) {
+                if (base == 0) base = ind
+                if (ind == base) { sub(/:.*/, "", rest); printf "%s ", rest }
+              }
+            }
+            END { printf "\n" }
+          ' "$1"
+        }
         for f in $(ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null); do
           echo "=== $f ==="
-          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -30
+          echo "  services: $(yaml_block_keys "$f" services)"
+          echo "  networks: $(yaml_block_keys "$f" networks)"
+          echo "  volumes:  $(yaml_block_keys "$f" volumes)"
         done
       existing_dva: "cat {{param.target}}/dva.yml 2>/dev/null || cat {{param.target}}/dva.yaml 2>/dev/null || echo ''"
       makefile_targets: |

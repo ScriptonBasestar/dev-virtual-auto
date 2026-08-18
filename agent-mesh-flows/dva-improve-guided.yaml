@@ -23,7 +23,7 @@ parameters:
   - name: skip_execute
     description: "Stop after configure stage (no dva up)"
     default: "false"
-    enum: [true, false]
+    enum: ["true", "false"]
   - name: mode
     description: "DVA mode to use for execution (e.g., infra)"
     default: ""

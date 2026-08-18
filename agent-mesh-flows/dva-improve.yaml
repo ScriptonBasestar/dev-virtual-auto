@@ -99,9 +99,30 @@ steps:
         files=$(ls compose.yaml compose.yml docker-compose.yml docker-compose.yaml 2>/dev/null)
         if [ -z "$files" ]; then echo "None"; exit 0; fi
         echo "$files"
+        # Emit each top-level block's keys separately. A flat indent grep conflates
+        # services with networks/volumes, so a network reads as an undeclared service
+        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        yaml_block_keys() {
+          awk -v blk="$2" '
+            BEGIN { inb = 0; base = 0 }
+            $0 ~ "^" blk ":[[:space:]]*(#.*)?$" { inb = 1; base = 0; next }
+            /^[^[:space:]#]/ { inb = 0 }
+            inb && match($0, /^[[:space:]]+/) {
+              ind = RLENGTH; rest = substr($0, ind + 1)
+              if (rest ~ /^#/) next
+              if (rest ~ /^[A-Za-z0-9_.-]+:/) {
+                if (base == 0) base = ind
+                if (ind == base) { sub(/:.*/, "", rest); printf "%s ", rest }
+              }
+            }
+            END { printf "\n" }
+          ' "$1"
+        }
         for f in $files; do
-          echo "=== $f services ==="
-          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -30
+          echo "=== $f ==="
+          echo "  services: $(yaml_block_keys "$f" services)"
+          echo "  networks: $(yaml_block_keys "$f" networks)"
+          echo "  volumes:  $(yaml_block_keys "$f" volumes)"
         done
       # Infra directory compose files
       infra_compose: |
@@ -109,9 +130,30 @@ steps:
         files=$(ls infra/compose*.y*ml docker/compose*.y*ml compose/compose*.y*ml infrastructure/compose*.y*ml \
                    compose.*.yaml compose.*.yml docker-compose.*.yml docker-compose.*.yaml 2>/dev/null)
         if [ -z "$files" ]; then echo "None"; exit 0; fi
+        # Emit each top-level block's keys separately. A flat indent grep conflates
+        # services with networks/volumes, so a network reads as an undeclared service
+        # (measured: cwrapper-devbox's `backend` network reported as a missing service).
+        yaml_block_keys() {
+          awk -v blk="$2" '
+            BEGIN { inb = 0; base = 0 }
+            $0 ~ "^" blk ":[[:space:]]*(#.*)?$" { inb = 1; base = 0; next }
+            /^[^[:space:]#]/ { inb = 0 }
+            inb && match($0, /^[[:space:]]+/) {
+              ind = RLENGTH; rest = substr($0, ind + 1)
+              if (rest ~ /^#/) next
+              if (rest ~ /^[A-Za-z0-9_.-]+:/) {
+                if (base == 0) base = ind
+                if (ind == base) { sub(/:.*/, "", rest); printf "%s ", rest }
+              }
+            }
+            END { printf "\n" }
+          ' "$1"
+        }
         for f in $files; do
           echo "=== $f ==="
-          grep -E '^\s{2}\w' "$f" 2>/dev/null | grep -v '^\s*#' | head -20
+          echo "  services: $(yaml_block_keys "$f" services)"
+          echo "  networks: $(yaml_block_keys "$f" networks)"
+          echo "  volumes:  $(yaml_block_keys "$f" volumes)"
         done
       # Kubernetes manifests
       k8s_manifests: |
@@ -478,7 +520,13 @@ steps:
       ### 6. Kubernetes/Helm Stack 추론 규칙
       - K8s manifests 감지 → `stack.kubectl`에 `dir:` 지정
       - Helm Chart.yaml 감지 → `stack.helm`에 `chart:`, `release:` 지정
-      - K8s/Helm + compose 공존 → `plans:` 사용 (local=compose, staging/prod=kubectl|helm)
+      - 실행 대상은 로컬 클러스터(kind/minikube/k3d/docker-desktop)를 기본값으로 둔다.
+        로컬에서 실행할 수 없는 리소스에 한해서만 원격 대상을 선언한다 (규칙 41).
+      - K8s/Helm + compose 공존 → 둘 다 **로컬 실행 전략**으로 `plans:`에 표현한다.
+        `environments:`를 배포 대상 축(staging/production)으로 만들지 않는다 —
+        environment 이름은 변수 집합의 라벨이다 (규칙 23·41,
+        naming-presets § Environment Presets). release/rollout/incident 워크플로우도
+        생성하지 않는다.
       - K8s 전용 환경에서 compose runner만 가진 stack entry를 생성하지 말 것
 
       ---
