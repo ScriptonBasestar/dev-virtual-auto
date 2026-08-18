@@ -169,13 +169,13 @@ var validateCmd = &cobra.Command{
 		// Semantic warnings (version, health checks, duplicate commands, etc.)
 		semanticWarnings := c.ValidateWarnings()
 		for _, w := range semanticWarnings {
-			fmt.Fprintf(notice, "[warn] semantic: %s\n", w)
+			_, _ = fmt.Fprintf(notice, "[warn] semantic: %s\n", w)
 		}
 		report.add("semantic", semanticWarnings...)
 
 		collisionWarnings := detectInteractionCollisionWarnings(c)
 		for _, w := range collisionWarnings {
-			fmt.Fprintf(notice, "[warn] interaction: %s\n", w)
+			_, _ = fmt.Fprintf(notice, "[warn] interaction: %s\n", w)
 		}
 		report.add("interaction_collision", collisionWarnings...)
 
@@ -199,11 +199,11 @@ var validateCmd = &cobra.Command{
 					if err := writeDevcontainerFiles(c.Devcontainer, c.AllComposeFiles(), c.FileDir()); err != nil {
 						fmt.Fprintf(os.Stderr, "[error] devcontainer: %v\n", err)
 					} else {
-						fmt.Fprintf(notice, "[fixed] created .devcontainer/devcontainer.json\n")
+						_, _ = fmt.Fprintf(notice, "[fixed] created .devcontainer/devcontainer.json\n")
 					}
 				} else {
-					fmt.Fprintf(notice, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
-					fmt.Fprintf(notice, "       → run: dva config validate --fix\n")
+					_, _ = fmt.Fprintf(notice, "[warn] devcontainer section found but .devcontainer/devcontainer.json missing\n")
+					_, _ = fmt.Fprintf(notice, "       → run: dva config validate --fix\n")
 					report.add("devcontainer", "devcontainer section found but .devcontainer/devcontainer.json missing\n  → run: dva config validate --fix")
 				}
 			}
@@ -247,9 +247,9 @@ func composeNameWarningLines(w config.ComposeNameWarning) []string {
 func printComposeNameWarnings(w io.Writer, warnings []config.ComposeNameWarning) {
 	for _, warning := range warnings {
 		lines := composeNameWarningLines(warning)
-		fmt.Fprintf(w, "[warn] semantic: %s\n", lines[0])
+		_, _ = fmt.Fprintf(w, "[warn] semantic: %s\n", lines[0])
 		for _, detail := range lines[1:] {
-			fmt.Fprintf(w, "       %s\n", detail)
+			_, _ = fmt.Fprintf(w, "       %s\n", detail)
 		}
 	}
 }
@@ -261,14 +261,14 @@ func fixComposeNameWarnings(c *config.Config, warnings []config.ComposeNameWarni
 		if err := c.FixComposeProjectName(w); err != nil {
 			fmt.Fprintf(os.Stderr, "[error] failed to fix %s: %v\n", w.File, err)
 		} else {
-			fmt.Fprintf(notice, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
+			_, _ = fmt.Fprintf(notice, "[fixed] %s: set 'name: %s'\n", w.File, w.DvaName)
 		}
 	}
 }
 
 func printConfigDriftWarnings(w io.Writer, warnings []string) {
 	for _, warning := range warnings {
-		fmt.Fprintf(w, "[warn] config drift: %s\n", warning)
+		_, _ = fmt.Fprintf(w, "[warn] config drift: %s\n", warning)
 	}
 }
 
@@ -310,7 +310,7 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {
 	for _, warning := range warnings {
-		fmt.Fprintf(w, "[warn] config suggestion: %s\n", warning)
+		_, _ = fmt.Fprintf(w, "[warn] config suggestion: %s\n", warning)
 	}
 }
 

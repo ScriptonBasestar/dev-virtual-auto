@@ -297,13 +297,13 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 			// line already carries `[i/n] name`, and printing it again would render as
 			// "  [1/3] alpha │   [1/3] alpha".
 			if dryRun && s.Step != "" {
-				fmt.Fprintf(w, "  %s %s\n", stepLabel, s.Step)
+				_, _ = fmt.Fprintf(w, "  %s %s\n", stepLabel, s.Step)
 			}
 
 			// One check covering both branches below, so the parallel path cannot drift
 			// from the sequential one the way these loops already had.
 			if s.IsInert() {
-				fmt.Fprintf(w, "    ⚠ %s\n", config.InertStepMessage)
+				_, _ = fmt.Fprintf(w, "    ⚠ %s\n", config.InertStepMessage)
 				results[idx] = result{index: idx, output: buf.String()}
 				return
 			}
@@ -323,7 +323,7 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 					if err != nil {
 						return err
 					}
-					fmt.Fprintf(w, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
+					_, _ = fmt.Fprintf(w, "    [dry-run] $ %s %s\n", composeCmd, strings.Join(args, " "))
 					return nil
 				}
 
@@ -336,14 +336,14 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 					dryErr = dryCompose(append([]string{"run"}, strings.Fields(s.ComposeRun)...))
 				} else {
 					for _, cmdStr := range s.RunCommands() {
-						fmt.Fprintf(w, "    [dry-run] $ %s\n", cmdStr)
+						_, _ = fmt.Fprintf(w, "    [dry-run] $ %s\n", cmdStr)
 					}
 					if s.Cmd != "" {
-						fmt.Fprintf(w, "    [dry-run] $ %s\n", s.Cmd)
+						_, _ = fmt.Fprintf(w, "    [dry-run] $ %s\n", s.Cmd)
 					}
 				}
 				if s.Echo != "" {
-					fmt.Fprintf(w, "    %s\n", s.Echo)
+					_, _ = fmt.Fprintf(w, "    %s\n", s.Echo)
 				}
 				results[idx] = result{index: idx, output: buf.String(), err: dryErr}
 				return
@@ -361,21 +361,21 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 				err = runProvisionComposeTo(e, c, s.Step, append([]string{"run"}, strings.Fields(s.ComposeRun)...), w, w, w)
 			} else {
 				for _, cmdStr := range s.RunCommands() {
-					fmt.Fprintf(w, "    $ %s\n", cmdStr)
+					_, _ = fmt.Fprintf(w, "    $ %s\n", cmdStr)
 					if err = runShellCommandTo(e, cmdStr, w, w); err != nil {
 						err = fmt.Errorf("provision step '%s' failed: %w", s.Step, err)
 						break
 					}
 				}
 				if err == nil && s.Cmd != "" {
-					fmt.Fprintf(w, "    $ %s\n", s.Cmd)
+					_, _ = fmt.Fprintf(w, "    $ %s\n", s.Cmd)
 					if err = runShellCommandTo(e, s.Cmd, w, w); err != nil {
 						err = fmt.Errorf("provision command failed: %w", err)
 					}
 				}
 			}
 			if s.Echo != "" {
-				fmt.Fprintf(w, "    %s\n", s.Echo)
+				_, _ = fmt.Fprintf(w, "    %s\n", s.Echo)
 			}
 			// buf is empty on this path; the step's lines have already been written. It is
 			// still read so the two branches return the same shape.
@@ -560,7 +560,7 @@ func runProvisionComposeTo(e *config.Environment, c *config.Config, stepName str
 	if err != nil {
 		return fmt.Errorf("provision step '%s': %w", stepName, err)
 	}
-	fmt.Fprintf(echo, "    $ %s %s\n", composeCmd, strings.Join(composeArgs, " "))
+	_, _ = fmt.Fprintf(echo, "    $ %s %s\n", composeCmd, strings.Join(composeArgs, " "))
 
 	cmd := exec.Command(composeCmd, composeArgs...)
 	// Stdin stays os.Stdin even under a parallel batch. Two concurrent children sharing the

@@ -301,7 +301,7 @@ func applyRootPersistentFlagsFromArgs(args []string) {
 func consumeRootPersistentFlags(args []string) ([]string, error) {
 	end := dvaFlagEnd(args)
 	filtered := make([]string, 0, len(args))
-	for i := 0; i < end; i++ {
+	for i := range end {
 		a := args[i]
 		name, value, hasValue := splitFlagToken(a)
 		if name != "--debug" && name != "--json" {

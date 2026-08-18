@@ -271,11 +271,12 @@ func TestLinks_inlineCodeTaskPathGenuinelyMissingFails(t *testing.T) {
 	if res.OK {
 		t.Fatal("expected a genuinely-missing inline-code task path to fail the gate")
 	}
-	var names string
+	var names strings.Builder
 	for _, d := range res.BrokenDetail {
-		names += d + "\n"
+		names.WriteString(d)
+		names.WriteString("\n")
 	}
-	if !strings.Contains(names, "999-gone") {
+	if !strings.Contains(names.String(), "999-gone") {
 		t.Fatalf("expected the broken detail to name the missing inline path; detail=%v", res.BrokenDetail)
 	}
 }

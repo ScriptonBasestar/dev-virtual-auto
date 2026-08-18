@@ -328,8 +328,8 @@ func resolveDockerSocketPath(dockerHost string) (path string, fromEnv bool) {
 		return "/var/run/docker.sock", false
 	}
 	const unix = "unix://"
-	if strings.HasPrefix(dockerHost, unix) {
-		return strings.TrimPrefix(dockerHost, unix), true
+	if after, ok := strings.CutPrefix(dockerHost, unix); ok {
+		return after, true
 	}
 	return "", true
 }

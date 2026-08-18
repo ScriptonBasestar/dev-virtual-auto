@@ -77,7 +77,10 @@ func ErrNothingToRun(cmd *ResolvedCommand) error {
 	if cmd != nil && cmd.Name != "" {
 		name = cmd.Name
 	}
-	return fmt.Errorf(
+	// The trailing colon belongs to the `default_args:` YAML key, not to the sentence, and
+	// the same key list is printed verbatim by runner.go's --explain path. Rewriting the
+	// list to satisfy ST1005 would leave the two copies spelling the keys differently.
+	return fmt.Errorf( //nolint:staticcheck // ST1005: last token is a YAML key, not punctuation
 		"%s has nothing to run — add command:, script:, script_file:, steps:, service:, pod:, or default_args:",
 		name,
 	)

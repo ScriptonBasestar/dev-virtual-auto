@@ -57,16 +57,17 @@ func useStdin(t *testing.T, f *os.File) {
 	t.Cleanup(func() { os.Stdin = old; _ = f.Close() })
 }
 
-// captureBothStreams collects both streams for the duration of fn.
+// captureBothStreams redirects both streams for the duration of fn and returns stderr.
 //
-// Both are needed because the defect and its fix straddle them: the prompt is written to
-// stderr, "Aborted." used to go to stdout, and the assertion that they now travel together
-// can only be made by watching the stream that should have fallen silent.
+// Both are redirected because the defect and its fix straddle them: the prompt is written to
+// stderr and "Aborted." used to go to stdout, so a run that still wrote to stdout would
+// scatter output into the test log instead of being contained. Nothing asserts on stdout
+// today, so it is drained and discarded rather than returned.
 //
 // One goroutine per stream, not one draining both in turn: a caller that writes more than a
 // pipe buffer to stderr while the reader is still blocked on stdout would deadlock, and the
 // prompt path writes to both.
-func captureBothStreams(t *testing.T, fn func()) (stdout, stderr string) {
+func captureBothStreams(t *testing.T, fn func()) (stderr string) {
 	t.Helper()
 
 	grab := func(target **os.File) (restore func(), read func() string) {
@@ -90,7 +91,8 @@ func captureBothStreams(t *testing.T, fn func()) (stdout, stderr string) {
 	fn()
 	restoreOut()
 	restoreErr()
-	return readOut(), readErr()
+	readOut()
+	return readErr()
 }
 
 // setDryRun drives the global rather than the flag because RunE is invoked here without

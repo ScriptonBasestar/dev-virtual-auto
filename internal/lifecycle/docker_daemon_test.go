@@ -107,8 +107,7 @@ func TestComposeUp_DaemonReachable_KeepsOriginalError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Up() error = nil, want the compose failure")
 	}
-	var daemonErr *DockerDaemonError
-	if errors.As(err, &daemonErr) {
+	if _, ok := errors.AsType[*DockerDaemonError](err); ok {
 		t.Fatalf("Up() blamed the daemon while it was reachable: %v", err)
 	}
 	if !strings.Contains(err.Error(), "compose up") {
@@ -133,8 +132,7 @@ func TestComposeUp_ReplacedRunner_DoesNotBlameDockerDaemon(t *testing.T) {
 	if err == nil {
 		t.Fatal("Up() error = nil, want the podman-compose failure")
 	}
-	var daemonErr *DockerDaemonError
-	if errors.As(err, &daemonErr) {
+	if _, ok := errors.AsType[*DockerDaemonError](err); ok {
 		t.Fatalf("Up() blamed the Docker daemon for a podman-compose failure: %v", err)
 	}
 }

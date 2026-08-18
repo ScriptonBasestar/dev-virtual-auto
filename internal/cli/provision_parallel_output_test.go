@@ -153,7 +153,7 @@ func TestParallelDryRunStaysInDeclarationOrder(t *testing.T) {
 		if a < 0 || b < 0 || g < 0 {
 			t.Fatalf("run %d: a step is missing from the plan:\n%s", i, out)
 		}
-		if !(a < b && b < g) {
+		if a >= b || b >= g {
 			t.Fatalf("run %d: plan out of declaration order (alpha=%d beta=%d gamma=%d):\n%s", i, a, b, g, out)
 		}
 	}
@@ -261,7 +261,7 @@ func TestStepPrefixWriter(t *testing.T) {
 		}
 		wg.Wait()
 
-		for _, l := range strings.Split(strings.TrimRight(sb.String(), "\n"), "\n") {
+		for l := range strings.SplitSeq(strings.TrimRight(sb.String(), "\n"), "\n") {
 			if !strings.HasSuffix(l, "0123456789") {
 				t.Fatalf("interleaved line: %q", l)
 			}

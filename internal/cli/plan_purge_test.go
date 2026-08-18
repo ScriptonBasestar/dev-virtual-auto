@@ -69,7 +69,7 @@ func TestPlanDownPurgeAsksBeforeDestroying(t *testing.T) {
 	stdinFrom(t, "n\n")
 
 	var err error
-	_, stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
 
 	if err != nil {
 		t.Fatalf("an answered decline is not a failure: %v", err)
@@ -93,7 +93,7 @@ func TestPlanDownPurgeEOFIsNotADecline(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
 
 	if err == nil {
 		t.Fatalf("--purge with no terminal returned nil, so a script is told the volumes were "+
@@ -122,7 +122,7 @@ func TestPlanDownPurgeDryRunSkipsThePromptAndPreviewsMarkers(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureBothStreams(t, func() {
+	stderr := captureBothStreams(t, func() {
 		err = runPlanDown(c, e, "demo", []string{"--purge", "--dry-run"})
 	})
 
@@ -153,7 +153,7 @@ func TestPlanDownPurgeForceRemovesMarkers(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	_, stderr := captureBothStreams(t, func() {
+	stderr := captureBothStreams(t, func() {
 		err = runPlanDown(c, e, "demo", []string{"--purge", "--force"})
 	})
 

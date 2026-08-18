@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -122,10 +123,8 @@ func runPatternSelects(pattern string, names []string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	for _, n := range names {
-		if re.MatchString(n) {
-			return true, nil
-		}
+	if slices.ContainsFunc(names, re.MatchString) {
+		return true, nil
 	}
 	return false, nil
 }

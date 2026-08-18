@@ -129,15 +129,15 @@ func printMigrationReport(w io.Writer, report config.MigrationReport) {
 		if len(section.lines) == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "\n%s\n", section.title)
+		_, _ = fmt.Fprintf(w, "\n%s\n", section.title)
 		for _, line := range section.lines {
 			if strings.HasPrefix(line, " ") {
-				fmt.Fprintf(w, "  %s\n", line)
+				_, _ = fmt.Fprintf(w, "  %s\n", line)
 				continue
 			}
-			fmt.Fprintf(w, "  - %s\n", line)
+			_, _ = fmt.Fprintf(w, "  - %s\n", line)
 		}
-		fmt.Fprintln(w)
+		_, _ = fmt.Fprintln(w)
 	}
 }
 

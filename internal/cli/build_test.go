@@ -233,7 +233,7 @@ func TestRunPlanBuildDryRunPreviewsWithoutBuilding(t *testing.T) {
 	c := buildTestConfig(t)
 
 	var err error
-	_, stderr := captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
+	stderr := captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)

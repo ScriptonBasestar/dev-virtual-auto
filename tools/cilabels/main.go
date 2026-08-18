@@ -72,7 +72,7 @@ func makeTargetsFromCI(path string) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	out := map[string]bool{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -88,7 +88,7 @@ func ciLabelsFromMakefile(path string) (map[string]bool, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	out := map[string]bool{}
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {

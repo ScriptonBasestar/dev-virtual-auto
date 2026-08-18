@@ -702,7 +702,7 @@ func consumeDryRunFlag(args []string) ([]string, bool) {
 	end := dvaFlagEnd(args)
 	filtered := make([]string, 0, len(args))
 	found := false
-	for i := 0; i < end; i++ {
+	for i := range end {
 		a := args[i]
 		if name, value, hasValue := splitFlagToken(a); name == "--dry-run" {
 			if v, ok := flagBoolValue(value, hasValue); ok {
