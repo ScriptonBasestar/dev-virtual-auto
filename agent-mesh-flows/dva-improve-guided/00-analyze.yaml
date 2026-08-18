@@ -241,13 +241,13 @@ steps:
       package_names: |
         cd '{{param.target}}'
         # Go
-        [ -f go.mod ] && echo "go: $(head -1 go.mod | sed 's/module //')"
+        [ -f 'go.mod' ] && echo "go: $(head -1 go.mod | sed 's/module //')"
         # Rust
-        [ -f Cargo.toml ] && grep -A2 '^\[package\]' Cargo.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/rust: \1/'
+        [ -f 'Cargo.toml' ] && grep -A2 '^\[package\]' Cargo.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/rust: \1/'
         # Node
-        [ -f package.json ] && echo "node: $(grep '"name"' package.json 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
+        [ -f 'package.json' ] && echo "node: $(grep '"name"' package.json 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
         # Python
-        [ -f pyproject.toml ] && grep -A2 '^\[project\]' pyproject.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/python: \1/'
+        [ -f 'pyproject.toml' ] && grep -A2 '^\[project\]' pyproject.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/python: \1/'
         # Same reason as `subprojects`: the last guard decides the exit status, so a
         # project without pyproject.toml would read as a failed scan.
         exit 0

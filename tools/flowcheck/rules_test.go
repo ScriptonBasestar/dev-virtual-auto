@@ -154,7 +154,7 @@ func TestRules(t *testing.T) {
     type: context
     context:
       k: |
-        test -f x && echo "true" || echo "false"
+        test -f 'x' && echo "true" || echo "false"
   - id: s
     when: "{{c.k}} != 'true'"
     action: echo hi
@@ -167,7 +167,7 @@ func TestRules(t *testing.T) {
     type: context
     context:
       k: |
-        test -f x && printf true || printf false
+        test -f 'x' && printf true || printf false
   - id: s
     when: "{{c.k}} != 'true'"
     action: echo hi
@@ -342,5 +342,110 @@ func TestReservedSetIsLive(t *testing.T) {
 	}
 	if live["app"] {
 		t.Error("`app` is back in the built-in set; docs/43 removed it")
+	}
+}
+
+// TestBareWordArg covers the rule that catches a quoting defect am reports only at run
+// time. Every "fires" case below was measured blocked against am cb8b4ce, and every
+// "silent" case was measured to run; the table is the record of that session, so a case
+// should be removed only after re-measuring it, not because it looks redundant.
+func TestBareWordArg(t *testing.T) {
+	const fires = "bare-word-arg"
+
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{{
+		name: "unquoted filename in a test",
+		body: "[ -f dva.yml ] && echo yes",
+		want: []string{fires},
+	}, {
+		name: "quoting it is the fix",
+		body: "[ -f 'dva.yml' ] && echo yes",
+		want: nil,
+	}, {
+		// The two spellings of the same test block identically, so both are checked.
+		name: "test and double bracket block the same way",
+		body: "test -f dva.yml\n[[ -f dva.yml ]]",
+		want: []string{fires, fires},
+	}, {
+		name: "printf takes its first argument as a command",
+		body: "printf hello",
+		want: []string{fires},
+	}, {
+		// A variable is opaque to the analyzer, so it cannot object to one.
+		name: "expansions are not words the analyzer can read",
+		body: "[ -f \"$CONFIG\" ] && [ -n $CONFIG ] && printf '%s' \"$PWD\"",
+		want: nil,
+	}, {
+		name: "flags operators and numbers are not command names",
+		body: "[ -n \"$A\" ] && [ \"$A\" = \"$B\" ] && [ \"$A\" != \"$B\" ] && [ 1 -eq 1 ]",
+		want: nil,
+	}, {
+		// The reason `printf true || printf false` is the required gate-producer form:
+		// `true` and `false` are allowlisted commands. `printf yes` is not, which is the
+		// trap this exemption records.
+		name: "true and false are allowlisted commands",
+		body: "printf true || printf false",
+		want: nil,
+	}, {
+		name: "printf yes is not",
+		body: "printf yes",
+		want: []string{fires},
+	}, {
+		// The analyzer reads an argument as a command only for the four trigger
+		// commands. Firing on the rest would flag most of the corpus.
+		name: "other commands take bare arguments",
+		body: "echo dva.yml\nls dva.yml\ngrep name dva.yml\ncp a b\nmkdir -p tmp/x",
+		want: nil,
+	}, {
+		// `$(...)` holds shell the analyzer does read, so the scanner recurses into it.
+		// Measured: this exact line is blocked on `dva.yml`.
+		name: "command substitution is scanned",
+		body: "DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)",
+		want: []string{fires},
+	}, {
+		// And the mirror image: an awk program is a quoted argument, not shell. Its
+		// `printf` is awk's, and descending into it reports a defect that cannot exist.
+		name: "an awk program is not shell",
+		body: "awk '{ if (r ~ /x/) { printf \"%s \", r } }' \"$RAW\" > \"$OUT\"",
+		want: nil,
+	}, {
+		// Both closers used to run past the end of the test and read the next token as
+		// an argument: `];` from an if-header and `}` from a brace group.
+		name: "a test closing an if header ends there",
+		body: "if [ -z \"$files\" ]; then echo none; fi",
+		want: nil,
+	}, {
+		name: "a test closing a brace group ends there",
+		body: "{ [ -f \"$a\" ] || [ -f \"$b\" ]; } && markers=1",
+		want: nil,
+	}, {
+		// A redirection ends the argument list rather than being read as one.
+		name: "redirections are not arguments",
+		body: "[ -f \"$f\" ] 2>/dev/null && echo ok",
+		want: nil,
+	}, {
+		// blankComments only blanks whole-line comments, so a trailing one reaches here.
+		name: "a trailing comment is not code",
+		body: "echo ok # [ -f dva.yml ]",
+		want: nil,
+	}}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var doc strings.Builder
+			doc.WriteString("steps:\n  - name: s\n    action: |\n")
+			for l := range strings.SplitSeq(tt.body, "\n") {
+				doc.WriteString("      ")
+				doc.WriteString(l)
+				doc.WriteString("\n")
+			}
+			got := rules(find(t, doc.String()))
+			if strings.Join(got, ",") != strings.Join(tt.want, ",") {
+				t.Errorf("rules = %v, want %v\nbody:\n%s", got, tt.want, tt.body)
+			}
+		})
 	}
 }

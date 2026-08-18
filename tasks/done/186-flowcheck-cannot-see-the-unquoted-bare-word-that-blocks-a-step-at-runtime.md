@@ -1,0 +1,126 @@
+---
+id: TASK-186
+title: "flowcheck cannot see an unquoted bare word, the one flow-shell defect that only appears at runtime"
+type: feature
+priority: P1
+effort: M
+created-at: 2026-08-18T15:24:47+09:00
+completed-at: 2026-08-18T18:41:00+09:00
+source: "TASK-183 implementation — the backup step was blocked twice before the rule was found"
+scope: "dva repo — tools/flowcheck/rules.go, tools/flowcheck/rules_test.go"
+status: done
+---
+
+# Task 186: Catch the quoting defect before the run does
+
+## Summary
+
+am's shell policy analyzer reads the first unquoted argument of certain commands as a
+command name and blocks the step. `am validate` reports the flow valid; the block appears
+only at run time, names the offending word but not the step's line, and gives no hint
+which `context:` key produced it — a multi-key step has to be bisected one key at a time
+in a throwaway flow to find it.
+
+**Correction to this card as originally written.** It claimed the analyzer reads a bare
+word as a command name *wherever it appears, not only in command position*. That is
+wrong, and implementing it would have flagged most of the corpus. Measured against am
+cb8b4ce before writing the rule:
+
+| shell | result |
+| --- | --- |
+| `[ -f dva.yml ]` | blocked: `command "dva.yml" not in allowlist` |
+| `test -f dva.yml` | blocked |
+| `[[ -f dva.yml ]]` | blocked |
+| `printf hello` | blocked |
+| `eval hello` / `exec hello` | blocked |
+| `[ -f 'dva.yml' ]` | runs |
+| `echo dva.yml` | runs |
+| `ls dva.yml` | runs |
+| `grep name dva.yml` | runs |
+| `cp a b` | runs |
+| `mkdir -p tmp/x` | runs |
+| `[ "$A" = "$B" ]` / `[ 1 -eq 1 ]` | runs |
+| `printf true` | runs — only because `true` is allowlisted |
+
+The trigger set is **command-specific**: `printf`, `test`, `[`, `[[`, `eval`, `exec`. The
+rule implements the first four. `eval` and `exec` are deliberately excluded — there the
+first argument really is a command name, so the allowlist is doing its intended job
+rather than misreading data, and checking the rest of an `eval` line correctly would
+require am's allowlist, which lives outside the repo.
+
+The coincidence in the last row is what makes this worth a rule. `printf true || printf
+false` is the required form for a `when:` gate producer, and it passes for an unrelated
+reason: `true` and `false` happen to be allowlisted commands. That hides the actual
+constraint, so the next flag someone writes as `printf yes` blocks, and the failure looks
+like a gate defect rather than a quoting one.
+
+## Completion Criteria
+
+- [x] A rule reports an unquoted bare word in a flow `shell`/`context` field | verify: `go test ./tools/flowcheck/...`
+- [x] The rule fires on `[ -f dva.yml ]` and stays silent on `[ -f 'dva.yml' ]` | verify: `go test ./tools/flowcheck/...`
+- [x] The rule does not fire on shell variables, expansions, or allowlisted command names | verify: `go test ./tools/flowcheck/...`
+- [x] The corpus passes, with every defect the new rule found fixed rather than exempted | verify: `go run ./tools/flowcheck`
+- [x] The flows the rule changed still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
+
+## Resolution
+
+`bare-word-arg` is the ninth rule. It required a quote-aware tokenizer rather than a
+regex, because the corpus contains both halves of a pair that look alike and behave
+oppositely:
+
+- `awk '{ printf "%s", substr(buf, i, j) }'` — the `printf` is awk's, inside a quoted
+  argument. The analyzer does not descend into it, so neither does the rule. A regex over
+  raw text reported six words here that cannot fail.
+- `DVA_FILE=$([ -f dva.yml ] && echo dva.yml)` — the `$(...)` holds shell the analyzer
+  *does* read. The rule recurses into it, which is the only reason the real defect at
+  `dva-improve.yaml:777` was caught.
+
+A first regex-based attempt produced 78 findings on the corpus, of which 72 were the
+tokenizer failing to end an argument list at `;`, `}` or a redirection, and 6 were real.
+The tokenizer brought that to 6 findings, all real.
+
+### The corpus was not clean
+
+The last criterion was originally written as "the existing corpus passes unchanged". It
+did not, and that is the finding rather than a problem with it. Six shipped lines were
+blocked at run time on every invocation:
+
+| file:line | shell | effect |
+| --- | --- | --- |
+| `00-analyze.yaml:244` | `[ -f go.mod ]` | Go project name never detected |
+| `00-analyze.yaml:246` | `[ -f Cargo.toml ]` | Rust ditto |
+| `00-analyze.yaml:248` | `[ -f package.json ]` | Node ditto |
+| `00-analyze.yaml:250` | `[ -f pyproject.toml ]` | Python ditto |
+| `dva-improve.yaml:777` | `$([ -f dva.yml ] && …)` | config filename never resolved |
+| `dva-improve.yaml:861` | `$([ -f dva.yml ] && …)` | same, second occurrence |
+
+All six were fixed by quoting the operand. Two more sat in `rules_test.go` fixtures
+written for the gate-producer rule (`test -f x && …`), quoted for the same reason.
+
+### Evidence
+
+Measured against am cb8b4ce, one-step probe flows, `am run … -y`:
+
+| probe | before | after |
+| --- | --- | --- |
+| `[ -f go.mod ] && echo "go: yes"` | `blocked: command "go.mod" not in allowlist` | — |
+| `DVA_FILE=$([ -f dva.yml ] && echo dva.yml \|\| echo dva.yaml)` | `blocked: command "dva.yml" not in allowlist` | — |
+| both, operands quoted | — | `✅ Done`, `v=[go: yes\ndva.yml]` |
+
+Repo checks: `go test ./tools/flowcheck/...` ok · `go vet` clean · `gofmt -l` empty ·
+`go run ./tools/flowcheck` → `10 flow file(s), 101 shell field(s)` / `OK — no
+decision-path defects` · `am validate` valid on both edited flows.
+
+## Technical Notes
+
+- Rule ids are now `dead-gate`, `gate-operand`, `gate-filter`, `gate-producer-newline`,
+  `exit-if-empty`, `param-type`, `phantom-command`, `unguarded-report`, `bare-word-arg`.
+- False positives were the risk, and the exemption list is the answer: quoted words,
+  anything containing an expansion or escape, flags, test operators, numbers, and
+  `true`/`false`. A word the scanner cannot evaluate is left alone by design — the
+  analyzer sees a value the scanner cannot predict, so silence is the only sound choice.
+- `true`/`false` are exempt because they *run*, not because they are safe to imitate. The
+  rule cannot warn about that coincidence without firing on every correct gate producer
+  in the corpus, so a comment above the exemption carries it instead.
+- Allowlisting a filename is not the fix; quoting it is. The allowlist lives outside the
+  repo (`~/.config/agent-mesh/sandbox_override.yaml`) and the rule never consults it.

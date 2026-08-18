@@ -774,7 +774,7 @@ steps:
     context:
       structural_errors: |
         cd '{{param.target}}'
-        DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
+        DVA_FILE=$([ -f 'dva.yml' ] && echo dva.yml || echo dva.yaml)
         ERRORS=""
 
         # Rule: run.native and run.docker must be YAML objects (not strings)
@@ -858,7 +858,7 @@ steps:
     context:
       structural_errors: |
         cd '{{param.target}}'
-        DVA_FILE=$([ -f dva.yml ] && echo dva.yml || echo dva.yaml)
+        DVA_FILE=$([ -f 'dva.yml' ] && echo dva.yml || echo dva.yaml)
         ERRORS=""
         for path in interaction; do
           if yq e ".${path} | keys | .[]" "$DVA_FILE" 2>/dev/null | while read key; do
