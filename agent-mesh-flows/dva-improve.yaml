@@ -77,11 +77,13 @@ steps:
       config_path: |
         cd '{{param.target}}' && { [ -f 'dva.yml' ] && echo 'dva.yml' || { [ -f 'dva.yaml' ] && echo 'dva.yaml' || echo ''; }; }
 
-  # Scaffold dva.yml if missing
+  # Scaffold dva.yml if missing. Unquoted, this gate never held: `dva init` ran on every
+  # improve of an already-configured project. See the `when:` contract in
+  # dva-improve-guided.yaml; the same defect was in all five gates below.
   - id: scaffold
     type: shell
     depends_on: [check_config]
-    when: "{{check_config.has_dva_yml | trim}} != true"
+    when: "{{check_config.has_dva_yml}} != 'true'"
     action: |
       cd '{{param.target}}'
       echo "--- Scaffolding initial dva.yml ---"
@@ -663,7 +665,7 @@ steps:
   - id: deterministic_check_1
     type: context
     depends_on: [validate_pass1]
-    when: "{{validate_pass1.is_valid | trim}} != true"
+    when: "{{validate_pass1.is_valid}} != 'true'"
     context:
       structural_errors: |
         cd '{{param.target}}'
@@ -702,7 +704,7 @@ steps:
   - id: fix_validation_1
     type: llm
     depends_on: [deterministic_check_1]
-    when: "{{validate_pass1.is_valid | trim}} != true"
+    when: "{{validate_pass1.is_valid}} != 'true'"
     agent: claude
     profile: dva_validator
     instruction: |
@@ -737,7 +739,7 @@ steps:
   - id: validate_pass2
     type: context
     depends_on: [fix_validation_1]
-    when: "{{validate_pass1.is_valid | trim}} != true"
+    when: "{{validate_pass1.is_valid}} != 'true'"
     context:
       result: |
         cd '{{param.target}}' && dva config validate 2>&1 || true
@@ -747,7 +749,7 @@ steps:
   - id: deterministic_check_2
     type: context
     depends_on: [validate_pass2]
-    when: "{{validate_pass2.is_valid | trim}} != true"
+    when: "{{validate_pass2.is_valid}} != 'true'"
     context:
       structural_errors: |
         cd '{{param.target}}'
@@ -769,7 +771,7 @@ steps:
   - id: fix_validation_2
     type: llm
     depends_on: [deterministic_check_2]
-    when: "{{validate_pass2.is_valid | trim}} != true"
+    when: "{{validate_pass2.is_valid}} != 'true'"
     agent: claude
     profile: dva_validator
     instruction: |

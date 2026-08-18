@@ -39,10 +39,22 @@ steps:
         [ -f 'tmp/improve-guided/00-analysis-report.json' ] && printf true || printf false
 
   # ── Stage 00: Analyze ──
+  # `when:` contract, measured against am cb8b4ce -- every rule here cost a wrong guess:
+  #   1. Quote the operand. A template renders to a string, but a bare `true`/`false`
+  #      operand parses as a boolean, and a string never equals a boolean. Unquoted,
+  #      `!= true` ran the step for every value and `== true` skipped it for every value.
+  #   2. No filters. `{{ref | trim}}` runs the step unconditionally, whatever the operator.
+  #   3. A skip propagates only into dependents that carry their own `when:`; an ungated
+  #      dependent runs regardless. That is what lets stage 00 be skipped here while
+  #      verify/transform/configure/execute still run.
+  #   4. A skipped step's key renders as the literal `{{ref}}` text, not as empty -- so a
+  #      gate must read a step that actually ran, and a prompt must never read a gated one.
+  # All four failures are silent and still exit 0, so `am validate` cannot see them;
+  # `go run ./tools/flowcheck` enforces rules 1 and 2 mechanically.
   - id: analyze
     type: pipeline
     depends_on: [check_existing_analysis]
-    when: "{{check_existing_analysis.has_analysis_report | trim}} != true"
+    when: "{{check_existing_analysis.has_analysis_report}} != 'true'"
     run_pipeline: dva-improve-guided/00-analyze
     pipeline_params:
       target: "{{param.target}}"
@@ -78,7 +90,7 @@ steps:
   - id: execute
     type: pipeline
     depends_on: [configure]
-    when: "{{param.skip_execute}} != true"
+    when: "{{param.skip_execute}} != 'true'"
     run_pipeline: dva-improve-guided/40-execute
     pipeline_params:
       target: "{{param.target}}"

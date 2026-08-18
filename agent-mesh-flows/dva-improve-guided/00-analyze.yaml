@@ -66,10 +66,16 @@ steps:
         done
         echo "${found:-None}"
 
+  # No `when:` here on purpose. The gate it used to carry (`has_dva_yml == true`, filtered
+  # and unquoted) never held, so these commands have always run unconditionally -- and they
+  # are written to survive that: each falls back to an empty document when there is no
+  # dva.yml. Repairing the gate would be worse than deleting it, because `analyze` below is
+  # ungated and interpolates these keys, and a skipped step's key renders as the literal
+  # `{{dva_cli_data.dva_show}}` text straight into the prompt. The fallbacks are the
+  # condition, expressed where it cannot fail open.
   - id: dva_cli_data
     type: context
     depends_on: [detect_basics]
-    when: "{{detect_basics.has_dva_yml | trim}} == true"
     context:
       dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
       dva_doctor: "cd '{{param.target}}' && dva doctor --json 2>/dev/null || echo '{\"checks\":[]}'"
