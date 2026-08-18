@@ -15,7 +15,7 @@ status: todo
 ## Summary
 
 `4ec336b` made both write paths copy the config to
-`tmp/dva-improve-backups/<name>.<timestamp>.bak` before an agent edits it. Nothing reads
+`backups/dva/<name>.<timestamp>.bak` before an agent edits it. Nothing reads
 that directory back. A user whose config was rewritten badly has to discover the path,
 pick the right timestamp, and `cp` by hand — none of which is written down anywhere.
 
@@ -30,7 +30,7 @@ listing and choosing by timestamp is genuinely awkward by hand.
 
 ## Completion Criteria
 
-- [ ] A restore procedure is documented and names the backup directory | verify: `grep -rq 'dva-improve-backups' docs/`
+- [ ] A restore procedure is documented and names the backup directory | verify: `grep -rq 'backups/dva' docs/`
 - [ ] The procedure states which snapshot to pick when several exist | verify: human — read the section; timestamp ordering is explicit
 - [ ] Restoring a snapshot over an edited config yields a config DVA accepts | verify: human — copy a `.bak` over `dva.yml`, run `dva validate`, expect exit 0
 

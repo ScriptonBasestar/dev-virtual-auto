@@ -124,15 +124,16 @@ steps:
 
   # Snapshot the config before the agent edits it. This stage is the guided path's write
   # path, so it needs the same net as dva-improve.yaml, where the rationale is recorded:
-  # git is the history, the snapshot covers only the uncommitted window, and the backup
-  # directory ignores its own contents so the target's .gitignore is never touched.
+  # git is the history, the snapshot covers only the uncommitted window, the backup directory
+  # ignores its own contents so the target's .gitignore is never touched, and it sits in
+  # `backups/dva/` rather than `tmp/` because a snapshot must outlive a `tmp/` cleanup.
   - id: backup_paths
     type: context
     context:
       has_config: |
         cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
       marker: |
-        printf '%s/tmp/dva-improve-backups/.gitignore' '{{param.target}}'
+        printf '%s/backups/dva/.gitignore' '{{param.target}}'
       src: |
         cd '{{param.target}}'
         # Every filename is quoted -- am's shell policy analyzer reads an unquoted bare word
@@ -145,7 +146,7 @@ steps:
         CONFIG=''
         if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
         if [ -n "$CONFIG" ]; then
-          printf '%s/tmp/dva-improve-backups/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
+          printf '%s/backups/dva/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
         fi
 
   # On the `fresh` track there is no prior config, so both steps skip together.

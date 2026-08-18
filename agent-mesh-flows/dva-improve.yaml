@@ -81,6 +81,12 @@ steps:
   # git -- git is the history. It covers the one window git cannot: uncommitted local edits
   # at the moment the flow runs, which `git checkout --` would discard rather than restore.
   #
+  # It lands in `backups/dva/`, not under `tmp/`. `tmp/` means "safe to delete at any time"
+  # -- the guided stages already put their disposable run reports there -- and a snapshot is
+  # the one thing that must survive exactly the cleanup `tmp/` invites. The `dva/` component
+  # is not decoration: a project may already own a `backups/` directory, and the marker below
+  # would hide its contents from git. Namespacing keeps the blast radius to our own subtree.
+  #
   # The backup directory carries a `.gitignore` of `*`, so it ignores its own contents and
   # the snapshots never reach the target's index. That marker is why the target's own
   # .gitignore is never opened: this flow edits somebody else's repository, and adding a
@@ -96,7 +102,7 @@ steps:
     depends_on: [check_config]
     context:
       marker: |
-        printf '%s/tmp/dva-improve-backups/.gitignore' '{{param.target}}'
+        printf '%s/backups/dva/.gitignore' '{{param.target}}'
       src: |
         cd '{{param.target}}'
         # Every filename is quoted. am's shell policy analyzer reads an unquoted bare word
@@ -111,7 +117,7 @@ steps:
         CONFIG=''
         if [ -f 'dva.yml' ]; then CONFIG='dva.yml'; elif [ -f 'dva.yaml' ]; then CONFIG='dva.yaml'; fi
         if [ -n "$CONFIG" ]; then
-          printf '%s/tmp/dva-improve-backups/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
+          printf '%s/backups/dva/%s.%s.bak' '{{param.target}}' "$CONFIG" "$(date +%Y%m%d-%H%M%S)"
         fi
 
   # Both steps read the flag `check_config` already publishes rather than computing a

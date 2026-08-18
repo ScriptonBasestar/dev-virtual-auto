@@ -1,6 +1,6 @@
 ---
 id: TASK-184
-title: "Nothing prunes tmp/dva-improve-backups, so every run adds a file that is never removed"
+title: "Nothing prunes backups/dva, so every run adds a file that is never removed"
 type: chore
 priority: P2
 effort: S
@@ -15,7 +15,7 @@ status: todo
 ## Summary
 
 `backup_config` copies and never deletes. Each `dva-improve` or guided run leaves one more
-timestamped file in `tmp/dva-improve-backups/`, and no step, command, or documented chore
+timestamped file in `backups/dva/`, and no step, command, or documented chore
 removes any of them. On a config edited repeatedly during a tuning session the directory
 grows once per run, indefinitely.
 
@@ -30,7 +30,7 @@ and the value of an old snapshot falls off sharply once the config has been edit
 
 - [ ] A retention policy is applied where the snapshot is written | verify: `grep -q 'id: prune_backups' agent-mesh-flows/dva-improve.yaml`
 - [ ] Running the flow past the retention bound removes the oldest snapshot | verify: human — run against a fixture N+1 times, observe the count stop growing and the oldest file gone
-- [ ] Pruning never touches anything outside the backup directory | verify: human — the delete is scoped to `tmp/dva-improve-backups/` and matches only `*.bak`
+- [ ] Pruning never touches anything outside the backup directory | verify: human — the delete is scoped to `backups/dva/` and matches only `*.bak`
 - [ ] Both write paths are covered, not just `dva-improve.yaml` | verify: `grep -q 'id: prune_backups' agent-mesh-flows/dva-improve-guided/30-configure.yaml`
 - [ ] Flows still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
 

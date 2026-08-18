@@ -49,9 +49,28 @@ steps:
       [PROPOSAL]
       {{load_proposal.output}}
 
+  # The reports below are run artifacts of this stage, written into whatever directory the
+  # run was started from. Without this marker they show up as untracked files in that
+  # project's `git status` after every guided run -- noise the user did not create and has
+  # no way to attribute. The marker ignores the directory's contents and itself, so nothing
+  # here reaches the index and the project's own .gitignore is never edited.
+  #
+  # `path` is relative on purpose: it resolves against the run directory, exactly like the
+  # REPORT_DIR below and like `read_file`'s `src`. Anchoring it to `{{param.target}}` instead
+  # would put the marker somewhere the reports are not.
+  #
+  # Snapshots of the config are a different lifetime and live in `backups/dva/`; `tmp/` is
+  # for things that are safe to delete.
+  - id: report_marker
+    type: file
+    file:
+      op: write
+      path: "tmp/improve-guided/.gitignore"
+      content: "*\n"
+
   - id: save_report
     type: shell
-    depends_on: [transform]
+    depends_on: [transform, report_marker]
     action: |
       REPORT_DIR="tmp/improve-guided"
       mkdir -p "$REPORT_DIR"

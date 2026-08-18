@@ -5,7 +5,7 @@ type: docs
 priority: P2
 effort: S
 created-at: 2026-08-18T15:24:47+09:00
-source: "4ec336b — grep for dva-improve-backups matches flow YAML only"
+source: "4ec336b — grep for the backup path matches flow YAML only"
 scope: "dva repo — docs/, USAGE.md"
 status: todo
 ---
@@ -14,7 +14,7 @@ status: todo
 
 ## Summary
 
-`grep -rl dva-improve-backups` matches exactly two files, both flow definitions. No entry
+`grep -rl 'backups/dva'` matches exactly two files, both flow definitions. No entry
 in `docs/` or any root document says that running `dva-improve` writes a copy of the
 config, where it lands, or that it is deliberately hidden from git.
 
@@ -28,7 +28,7 @@ editing the project's `.gitignore`, and the flow never restores on its own.
 
 ## Completion Criteria
 
-- [ ] The backup path appears in user-facing docs | verify: `grep -rq 'dva-improve-backups' docs/`
+- [ ] The backup path appears in user-facing docs | verify: `grep -rq 'backups/dva' docs/`
 - [ ] The doc says the snapshot captures uncommitted working-tree state, not HEAD | verify: human — read the section
 - [ ] The doc says the directory ignores itself and the project's own `.gitignore` is untouched | verify: human — read the section
 - [ ] The doc is reachable from where improve is described, not filed on its own | verify: human — the improve/guided documentation links to it
