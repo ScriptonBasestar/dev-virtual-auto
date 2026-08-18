@@ -117,6 +117,10 @@ steps:
           [ -f "$d/Cargo.toml" ] && markers="$markers Cargo.toml"
           [ -n "$markers" ] && echo "$base:$markers"
         done
+        # A detection snippet reports absence as data. Without this the loop's exit
+        # status is whatever the last guard returned, so a final directory carrying no
+        # marker fails the step and takes the whole discovery run down with it.
+        exit 0
       workspace_map: |
         cd '{{param.target}}'
         if [ -f 'pnpm-workspace.yaml' ]; then
@@ -138,6 +142,7 @@ steps:
         fi
         [ ! -f 'pnpm-workspace.yaml' ] && [ ! -f 'pnpm-workspace.yml' ] && \
         [ ! -f 'Cargo.toml' ] && [ ! -f 'go.work' ] && echo "None"
+        exit 0
       k8s_manifests: |
         cd '{{param.target}}'
         # Detect Kubernetes manifests in common directories
@@ -178,6 +183,9 @@ steps:
         [ -f package.json ] && echo "node: $(grep '"name"' package.json 2>/dev/null | head -1 | sed 's/.*: *"\(.*\)".*/\1/')"
         # Python
         [ -f pyproject.toml ] && grep -A2 '^\[project\]' pyproject.toml 2>/dev/null | grep 'name' | head -1 | sed 's/.*= *"\(.*\)"/python: \1/'
+        # Same reason as `subprojects`: the last guard decides the exit status, so a
+        # project without pyproject.toml would read as a failed scan.
+        exit 0
       dir_tree: "find {{param.target}} -maxdepth 3 -not -path '*/\\.*' -not -path '*/vendor/*' -not -path '*/node_modules/*' -not -path '*/target/*' 2>/dev/null | head -80"
 
   - id: analyze
