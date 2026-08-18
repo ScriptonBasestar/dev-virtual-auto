@@ -181,6 +181,36 @@ steps:
       from: "{{backup_paths.src}}"
       to: "{{backup_paths.dest}}"
 
+  # Keep the newest 10 snapshots and drop the rest. `backup_config` only ever copies, so
+  # without this the directory grows once per run forever -- and it carries a `.gitignore`
+  # of `*`, so nothing will ever appear in `git status` to prompt a cleanup.
+  #
+  # A shell loop rather than `op: delete`, which the technical note on TASK-184 preferred.
+  # Measured against am cb8b4ce: `op: delete` hands its path to a single remove call, so it
+  # does not expand a glob and cannot express keep-N over a backlog of unknown size -- one
+  # delete per run would need forty runs to bring a fifty-file directory back to the bound.
+  #
+  # Scope is the whole safety argument. The step cds into the backup directory, and every
+  # name it removes comes from `ls` of that directory, so no name can hold a slash and
+  # nothing outside the directory is reachable. `ls` without `-a` never lists the
+  # `.gitignore` marker, and the grep demands a `.bak` suffix on top of that.
+  - id: prune_backups
+    type: shell
+    depends_on: [backup_config]
+    when: "{{check_config.has_dva_yml}} == 'true'"
+    action: |
+      cd '{{param.target}}/backups/dva' 2>/dev/null || exit 0
+      # Sorted on the timestamp inside the name, not on the whole name and not on mtime.
+      # Name order is the canonical one -- a snapshot copied in from elsewhere carries an
+      # mtime that disagrees with its own name -- but ordering on the whole name sorts every
+      # dva.yaml snapshot ahead of every dva.yml one, so a project that renamed its config
+      # would prune its newest snapshots and keep the stale ones. Field 3 is the timestamp
+      # for both names, and it is fixed width, so a text sort of it is chronological.
+      OLD=$(ls -1 | grep '\.bak$' | sort -t '.' -k 3 -r | tail -n +11)
+      printf '%s\n' "$OLD" | while IFS= read -r f; do
+        if [ -n "$f" ]; then rm -f "$f"; fi
+      done
+
   # Scaffold dva.yml if missing. Unquoted, this gate never held: `dva init` ran on every
   # improve of an already-configured project. See the `when:` contract in
   # dva-improve-guided.yaml; the same defect was in all five gates below.

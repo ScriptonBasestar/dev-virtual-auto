@@ -79,17 +79,26 @@ git이며, 그래서 플로우를 돌리기 전에 커밋해두는 것이 여전
 
 ## 보존
 
-현재 스냅샷은 **무제한 누적**된다. 정리하는 주체가 없으므로 실행 횟수만큼 파일이
-쌓인다. 보존 정책은 TASK-184에서 결정한다. 그때까지 수동 정리는 안전하다 — 어떤
-플로우도 이 디렉토리를 읽지 않는다.
+**최신 10개만 남는다.** `prune_backups` 스텝이 스냅샷을 기록한 직후 초과분을 지우므로
+디렉토리는 실행 횟수와 무관하게 10개에서 멈춘다. 이 디렉토리는 `*`를 담은 `.gitignore`를
+들고 있어서 `git status`에 영원히 나타나지 않는다 — 무제한 누적이 문제인 이유가 바로
+아무도 눈치채지 못한다는 점이었다.
+
+정렬은 **파일명에 박힌 타임스탬프**를 기준으로 한다. `-t`(mtime)를 쓰지 않는 이유는
+스냅샷을 다른 곳에서 복사해 왔을 때 mtime과 파일명이 어긋나기 때문이다. 그렇다고 이름
+전체로 정렬해서도 안 된다 — `dva.yaml.*`이 `dva.yml.*`보다 앞서므로(`a` < `m`) 설정
+파일명을 바꾼 프로젝트에서는 **최신 스냅샷이 먼저 지워진다**. 그래서 basename과 무관한
+세 번째 필드만 본다.
 
 ```bash
-# 최근 5개만 남기기 — 파일명 역순 정렬이므로 위 정렬 성질을 그대로 쓴다
-ls -1r backups/dva/*.bak | tail -n +6 | xargs rm --
+# 스텝이 하는 일과 같다. 손으로 돌릴 때는 보존 개수만 바꾸면 된다
+cd backups/dva
+ls -1 | grep '\.bak$' | sort -t '.' -k 3 -r | tail -n +11
 ```
 
-`-t`(mtime) 대신 파일명 정렬을 쓰는 이유는 스냅샷을 다른 곳에서 복사해 왔을 때
-mtime과 파일명이 어긋날 수 있기 때문이다. 이름에 박힌 타임스탬프가 정본이다.
+`ls`는 `-a` 없이는 `.gitignore`를 나열하지 않고 `grep`이 `.bak` 접미사를 한 번 더
+요구하므로, 마커와 `.bak`이 아닌 파일은 정리 대상이 되지 않는다. 삭제 범위는 이
+디렉토리 안으로 한정된다.
 
 ## 실행 디렉토리 요구사항
 
@@ -101,8 +110,8 @@ mtime과 파일명이 어긋날 수 있기 때문이다. 이름에 박힌 타임
 
 | 대상 | 스텝 |
 | --- | --- |
-| `agent-mesh-flows/dva-improve.yaml` | `backup_paths` → `backup_marker` → `backup_config` |
-| `agent-mesh-flows/dva-improve-guided/30-configure.yaml` | 같은 3단계 |
+| `agent-mesh-flows/dva-improve.yaml` | `backup_paths` → `backup_marker` → `backup_config` → `prune_backups` |
+| `agent-mesh-flows/dva-improve-guided/30-configure.yaml` | 같은 4단계 |
 
 두 경로 모두 설정이 이미 존재할 때만 동작한다. 새 프로젝트는 설정을 생성하므로 잃을
 이전 상태가 없다.
