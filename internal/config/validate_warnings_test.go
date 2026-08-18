@@ -227,8 +227,8 @@ func TestWarnUnreachableHealthChecks(t *testing.T) {
 	t.Run("warnings are order-stable", func(t *testing.T) {
 		c := &Config{
 			HealthChecks: map[string]HealthCheckConfig{
-				"alpha": {Start: "a"},
-				"bravo": {Start: "b"},
+				"alpha":   {Start: "a"},
+				"bravo":   {Start: "b"},
 				"charlie": {StartHint: "c"},
 			},
 			Modes: map[string]ModeConfig{

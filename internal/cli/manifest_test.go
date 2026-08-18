@@ -131,7 +131,7 @@ func TestBuildManifest_MarksUnreachableHealthCheckStart(t *testing.T) {
 			},
 			// readiness-only: no start/start_hint → no mark (nothing claims to auto-start)
 			"probe": {
-				Type: "tcp",
+				Type:    "tcp",
 				Address: "localhost:5432",
 			},
 		},
