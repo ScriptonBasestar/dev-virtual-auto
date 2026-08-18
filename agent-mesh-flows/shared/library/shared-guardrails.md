@@ -63,6 +63,7 @@
 22. **Package names: EXACT from manifests** — Use `[package] name` from Cargo.toml, module path from go.mod, `name` from package.json. NOT directory names.
 23. **Naming presets** — Tags: infra, api, worker, ui, data, monitoring, build.
     Plans: local-infra, local-dev, full-stack, observability. Environments: dev, test, stg, prd.
+    Environment names label variable sets, not deployment targets — see rule 41.
 24. **No echo wrappers** — Never generate `echo 'Run: ...'` dummy commands.
 25. **No code changes** — Only modify `dva.yml` and related config. Do not touch app code or Dockerfiles.
 26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Allowed fields: `path`, `exclude_tags`, `import`. Only add non-empty `import` entries after the child `dva.yml` exists; placeholders may omit `import` or use `import: {}`.
@@ -86,7 +87,8 @@
 34. **No synthetic dual path** — Do not invent native and docker alternatives.
     Declare only execution paths proven by project files and developer workflow.
 35. **Environment switching** — Put dev/stg/prd variables in `environments:`
-    and host/location differences in `sites:`; plans select both.
+    and host/location differences in `sites:`; plans select both. Remote sites carry
+    development or maintenance intent (rule 41).
 36. **Provision boundary** — Provision prepares files, dependencies, directories,
     or credentials. Lifecycle startup belongs to plans.
 37. **Interaction boundary** — Interactions are one-shot developer commands,
@@ -97,3 +99,8 @@
     before migration; do not silently delete working commands.
 40. **Rewrite migration** — In rewrite mode, remove legacy applications/modes
     only after equivalent stack runners and plans exist.
+41. **Local-first scope** — Generated configuration serves local development and
+    maintenance. Default every execution target to a local virtual environment, and
+    declare a remote target only for a resource that cannot run locally (a shared
+    database, a managed service). Never generate release, rollout, or incident-response
+    workflows: DVA is not a production operations tool. Product boundary: `PRODUCT.md`.

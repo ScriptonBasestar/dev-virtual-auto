@@ -136,6 +136,10 @@ dva config show -f yaml   # YAML 형식
 - `interactions` = 단발성 편의 명령
 - `provision` = 준비/초기화 절차
 
+> DVA는 로컬 개발·유지보수 도구입니다. `environments`의 `stg`/`prd`는 변수 묶음의 이름일
+> 뿐 해당 환경을 조작할 권한이 아니며, 원격 대상은 로컬에서 실행할 수 없는 리소스에만
+> 선언합니다. 제품 경계는 [PRODUCT.md](PRODUCT.md#product-boundaries)가 소유합니다.
+
 ```bash
 dva ls
 dva show local-dev

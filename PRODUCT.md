@@ -43,6 +43,19 @@ to the tool that owns the underlying resource.
 
 ## Product Boundaries
 
+DVA targets local development and maintenance work. It is not a production operations
+or deployment tool.
+
+- Local virtual environments are the default execution target. Declare a remote target
+  only for a resource that cannot run locally, such as a shared database or a managed
+  service.
+- Remote access carries development or maintenance intent. DVA does not model release,
+  rollout, incident response, or any other production operation.
+- `environments` names such as `stg` and `prd` label which variable set a plan resolves.
+  They are not permission to operate that environment from DVA.
+- Custom configuration can reach past this boundary. Generated configuration —
+  `dva init` scaffolds, skills, and agent flows — stays inside it.
+
 DVA coordinates existing developer tools; it does not replace them.
 
 - Compose, Kubernetes, Helm, and process tools retain ownership of their native resources.

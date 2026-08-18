@@ -170,8 +170,8 @@ with a plan and use the lifecycle verbs above.
 | Concept | Description |
 |---------|-------------|
 | Plans | Named executable combinations of stack entries and runners. |
-| Environments | dev/stg/prd variable differences selected by plans. |
-| Sites | local/office/remote/cloud host differences selected by plans. |
+| Environments | dev/stg/prd variable differences selected by plans. Names label variable sets, not deployment targets. |
+| Sites | local/office/remote/cloud host differences selected by plans. Default to local; go remote only for resources that cannot run locally. |
 | Runners | DockerCompose (`service:` key), Kubectl (`pod:` key), Local (default). |
 | Subprojects | Monorepo support: `dva namespace:command` or `dva run --project name cmd`. |
 | Hooks | `before:`, `after:`, `replace:` on lifecycle commands (up, down, build, etc.). |
