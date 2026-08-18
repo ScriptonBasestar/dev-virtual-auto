@@ -113,6 +113,37 @@ func TestRules(t *testing.T) {
 		name: "prompt bodies are not scanned",
 		doc:  "steps:\n  - name: s\n    prompt: |\n      Run `dva app ls` and `dva repo status`.\n",
 		want: nil,
+	}, {
+		// Measured: `{{ref | trim}} == 'true'` and `{{ref | trim}} == 'false'` both ran.
+		name: "a filter defeats the gate",
+		doc:  "steps:\n  - name: s\n    when: \"{{c.k | trim}} == 'true'\"\n    action: echo hi\n",
+		want: []string{"gate-filter"},
+	}, {
+		// Measured: the template renders to a string, the bare operand parses as a
+		// boolean, and the two are never equal.
+		name: "an unquoted boolean operand never compares equal",
+		doc:  "steps:\n  - name: s\n    when: \"{{c.k}} != true\"\n    action: echo hi\n",
+		want: []string{"gate-operand"},
+	}, {
+		name: "both halves of the defect on one gate",
+		doc:  "steps:\n  - name: s\n    when: \"{{c.k | trim}} != true\"\n    action: echo hi\n",
+		want: []string{"gate-filter", "gate-operand"},
+	}, {
+		name: "a quoted operand with no filter is the correct form",
+		doc:  "steps:\n  - name: s\n    when: \"{{c.k}} != 'true'\"\n    action: echo hi\n",
+		want: nil,
+	}, {
+		// A literal comparison carries no template, and the evaluator handles it. Flagging
+		// it would report working code, which is how a checker stops being believed.
+		name: "a literal comparison is not a template gate",
+		doc:  "steps:\n  - name: s\n    when: \"true == true\"\n    action: echo hi\n",
+		want: nil,
+	}, {
+		// Only `true`/`false` are coerced. `{{param.a}} == same` was measured to gate
+		// correctly unquoted, so the rule stops where the evidence stops.
+		name: "an unquoted non-boolean operand is not the defect",
+		doc:  "steps:\n  - name: s\n    when: \"{{c.k}} == ready\"\n    action: echo hi\n",
+		want: nil,
 	}}
 
 	for _, tc := range tests {
@@ -186,6 +217,22 @@ func TestCountsAreReported(t *testing.T) {
 	}
 	if len(s.shells) != 1 {
 		t.Errorf("shells = %d, want 1", len(s.shells))
+	}
+}
+
+// TestGateCountIsReported guards the when-gate rules' premise the same way
+// TestReservedSetIsLive guards phantom-command: if `when:` scalars are never collected,
+// both rules match nothing and the corpus reads as clean.
+func TestGateCountIsReported(t *testing.T) {
+	s, err := checkBytes([]byte("steps:\n  - name: a\n    when: \"{{c.k}} == 'true'\"\n    action: echo hi\n  - name: b\n    action: echo hi\n"), reserved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.gates) != 1 {
+		t.Errorf("gates = %d, want 1", len(s.gates))
+	}
+	if len(s.findings) != 0 {
+		t.Errorf("findings = %v, want none", rules(s.findings))
 	}
 }
 

@@ -8,8 +8,13 @@
 // mechanically detectable, and none of them fail loudly at runtime — which is exactly
 // why they survived. This program fails the build instead.
 //
-// Rules are checked only against fields the runtime hands to /bin/sh. Prompt bodies are
-// prose about dva and scanning them produces noise, not findings.
+// `when:` expressions joined the list once every gate in the corpus turned out to be
+// inert: an unquoted `true`/`false` operand compares a rendered string against a YAML
+// boolean, and a filter inside the reference defeats the comparison outright. Both let
+// the step run unconditionally and still exit 0.
+//
+// Rules are checked against fields the runtime hands to /bin/sh, plus `when:` operands.
+// Prompt bodies are prose about dva and scanning them produces noise, not findings.
 package main
 
 import (
@@ -53,6 +58,7 @@ func main() {
 		total.dvaCalls += s.dvaCalls
 		total.reportReads += s.reportReads
 		total.shells = append(total.shells, s.shells...)
+		total.gates = append(total.gates, s.gates...)
 		for _, f := range s.findings {
 			failed = true
 			fmt.Fprintf(os.Stderr, "%s:%d: [%s] %s\n", path, f.line, f.rule, f.msg)
@@ -61,8 +67,8 @@ func main() {
 
 	// Print what was actually inspected. A rule that silently matches nothing reads
 	// exactly like a rule that passed, and that is how a scan rots into decoration.
-	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d dva invocation(s), %d report read(s), %d built-in command(s)\n",
-		len(files), len(total.shells), total.dvaCalls, total.reportReads, len(reserved))
+	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report read(s), %d built-in command(s)\n",
+		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportReads, len(reserved))
 	if failed {
 		os.Exit(1)
 	}
@@ -108,6 +114,9 @@ func checkBytes(data []byte, reserved map[string]bool) (*scan, error) {
 	walk(&doc, "", s)
 	for _, f := range s.shells {
 		checkShell(f, reserved, s)
+	}
+	for _, f := range s.gates {
+		checkGate(f, s)
 	}
 	sort.SliceStable(s.findings, func(i, j int) bool { return s.findings[i].line < s.findings[j].line })
 	return s, nil

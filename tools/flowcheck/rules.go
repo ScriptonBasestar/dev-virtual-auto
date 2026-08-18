@@ -26,6 +26,7 @@ type shellField struct {
 
 type scan struct {
 	shells      []shellField
+	gates       []shellField
 	findings    []finding
 	dvaCalls    int
 	reportReads int
@@ -58,6 +59,10 @@ func walk(n *yaml.Node, parentKey string, s *scan) {
 				}
 			case "parameters":
 				checkParameters(v, s)
+			case "when":
+				if v.Kind == yaml.ScalarNode {
+					s.gates = append(s.gates, shellField{node: v, name: "when"})
+				}
 			}
 			if parentKey == "context" && v.Kind == yaml.ScalarNode {
 				s.shells = append(s.shells, shellField{node: v, name: "context." + k.Value})
@@ -136,6 +141,18 @@ var (
 	// must sit in command position — start of line, or after && || | ; ( $( !.
 	reDvaCall = regexp.MustCompile(`(?:^|[\n&|;()!])[ \t]*dva[ \t]+([a-z][a-z0-9:_-]*)`)
 
+	// A filter inside a `when:` reference defeats the gate: measured against am cb8b4ce,
+	// `{{ref | trim}} == 'true'` and `{{ref | trim}} == 'false'` both ran the step.
+	reGateFilter = regexp.MustCompile(`\{\{[^}]*\|[^}]*\}\}`)
+
+	// An unquoted `true`/`false` operand parses as a boolean while the template renders to
+	// a string, and a string never equals a boolean. `!= true` therefore ran the step for
+	// every value and `== true` skipped it for every value. `== 'true'` is correct, so the
+	// quote is what the rule looks for.
+	reGateBareBool = regexp.MustCompile(`(==|!=)[ \t]*(true|false)\b`)
+
+	reTemplate = regexp.MustCompile(`\{\{`)
+
 	reJq        = regexp.MustCompile(`\bjq\b`)
 	reTmpPath   = regexp.MustCompile(`\btmp/`)
 	reJSONGuard = regexp.MustCompile(`jq\s+-e\s+-s\b`)
@@ -203,5 +220,33 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 					"array errors go to stderr. Guard with "+
 					"`jq -e -s 'length == 1 and (.[0] | type) == \"object\"'`.", f.name)
 		}
+	}
+}
+
+// checkGate runs the rules for `when:` expressions. Both defects below are silent: the
+// gate does not error, the step simply runs (or does not) regardless of the value, and
+// the pipeline still exits 0 — so neither `am validate` nor a passing run reveals them.
+//
+// Only expressions carrying a template are checked. `when: "true == true"` is a literal
+// comparison and the evaluator handles it correctly.
+func checkGate(f shellField, s *scan) {
+	text := f.node.Value
+	if !reTemplate.MatchString(text) {
+		return
+	}
+
+	if m := reGateFilter.FindStringIndex(text); m != nil {
+		s.add("gate-filter", lineOf(f, text, m[0]),
+			"when: a filter inside the reference defeats the gate — the step runs whatever "+
+				"the value and whatever the operator. Drop the filter; `printf` in the "+
+				"producing step emits no trailing newline to trim.")
+	}
+
+	if m := reGateBareBool.FindStringSubmatchIndex(text); m != nil {
+		op, lit := text[m[2]:m[3]], text[m[4]:m[5]]
+		s.add("gate-operand", lineOf(f, text, m[0]),
+			"when: `%s %s` compares a rendered string against a YAML boolean, which can never "+
+				"be equal — `!= %s` runs the step for every value and `== %s` skips it for "+
+				"every value. Quote the operand: `%s '%s'`.", op, lit, lit, lit, op, lit)
 	}
 }
