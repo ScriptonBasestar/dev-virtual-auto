@@ -63,7 +63,6 @@ steps:
     depends_on: [start_services]
     context:
       stack_status: "cd '{{param.target}}' && dva status --json 2>/dev/null || echo '{}'"
-      app_ls: "cd '{{param.target}}' && dva app ls 2>/dev/null || echo 'no applications configured'"
       dva_show: "cd '{{param.target}}' && dva show --json 2>/dev/null || echo '{}'"
 
   - id: save_report
@@ -75,9 +74,6 @@ steps:
       cat > "$REPORT_DIR/40-execution-report.txt" <<EOF
       === DVA Status ===
       {{verify_status.stack_status}}
-
-      === Applications ===
-      {{verify_status.app_ls}}
 
       === DVA Show ===
       {{verify_status.dva_show}}
@@ -92,5 +88,4 @@ steps:
       실행 결과를 요약하라.
 
       [STATUS] {{verify_status.stack_status}}
-      [APPS] {{verify_status.app_ls}}
       [SHOW] {{verify_status.dva_show}}

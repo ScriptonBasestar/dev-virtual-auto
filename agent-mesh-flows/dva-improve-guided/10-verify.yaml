@@ -34,9 +34,26 @@ steps:
     type: shell
     depends_on: [load_report]
     action: |
-      DVA_NEEDED=$(echo '{{load_report.output}}' | jq -r '.dva_needed // true' 2>/dev/null || echo 'true')
-      if [ "$DVA_NEEDED" = "false" ]; then
-        REASON=$(echo '{{load_report.output}}' | jq -r '.dva_not_needed_reason // "No reason given"' 2>/dev/null)
+      REPORT="tmp/improve-guided/00-analysis-report.json"
+      # Read the file, never an interpolated shell literal: the report is LLM-written and a
+      # single apostrophe in it would break the command it was spliced into.
+      # `jq -e .` accepts a *stream* of concatenated values, not one document: given
+      # `[1][2]{...}` it exits 0, and a later `jq -r` prints a plausible value from the
+      # trailing object while the array errors go to stderr. Require exactly one object.
+      if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$REPORT" >/dev/null 2>&1; then
+        echo "ERROR: $REPORT is not a single JSON object — re-run stage 00." >&2
+        exit 1
+      fi
+      # `.dva_needed // true` cannot express this gate: jq's `//` substitutes for false as
+      # well as null, so an explicit `false` read back as `true` and this stop path was
+      # unreachable for every possible input. Separate absent from present-and-false, and
+      # treat absent as a stop — an undecidable gate must fail closed.
+      if [ "$(jq -r 'has("dva_needed")' "$REPORT")" != "true" ]; then
+        echo "ERROR: $REPORT has no dva_needed field — cannot decide whether to proceed." >&2
+        exit 1
+      fi
+      if [ "$(jq -r '.dva_needed' "$REPORT")" = "false" ]; then
+        REASON=$(jq -r '.dva_not_needed_reason // "No reason given"' "$REPORT")
         echo "DVA is not needed for this project: $REASON"
         echo "Pipeline stopped."
         exit 1

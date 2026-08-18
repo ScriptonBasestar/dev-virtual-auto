@@ -35,27 +35,32 @@ steps:
   - id: check_prerequisites
     type: context
     context:
+      # A missing prerequisite is a stop, not a finish. `exit_if_empty` ends the pipeline
+      # *successfully* (flow.schema.json), so an absent CLI produced a clean run that did
+      # nothing — indistinguishable from a run that had nothing to do. Exit non-zero here
+      # instead and let the step failure carry the reason.
       dva_available: |
-        command -v dva >/dev/null 2>&1 && echo "yes" || echo ""
+        if ! command -v dva >/dev/null 2>&1; then
+          echo "ERROR: dva is not on PATH. Install it, then re-run." >&2
+          exit 1
+        fi
+        printf 'yes'
       # `dva version` has no --short flag; parse the --json contract instead. This flow only
       # reports the value, so the old 'unknown' misreported rather than corrupted anything.
       dva_version: "dva version --json 2>/dev/null | jq -r '.version // \"unknown\"' 2>/dev/null || echo 'unknown'"
       has_dva_yml: |
         cd '{{param.target}}' && { [ -f 'dva.yml' ] || [ -f 'dva.yaml' ]; } && printf true || printf false
-    exit_if_empty: dva_available
 
   - id: check_config_exists
     type: context
     depends_on: [check_prerequisites]
     context:
       can_proceed: |
-        if [ "{{check_prerequisites.has_dva_yml | trim}}" = "true" ]; then
-          echo "yes"
-        else
-          echo "dva.yml not found. Run 'dva init' or 'am run dva-improve' first." >&2
-          echo ""
+        if [ "{{check_prerequisites.has_dva_yml | trim}}" != "true" ]; then
+          echo "ERROR: dva.yml not found. Run 'dva init' or 'am run dva dva-improve' first." >&2
+          exit 1
         fi
-    exit_if_empty: can_proceed
+        printf 'yes'
 
   # ══════════════════════════════════════════════
   # Phase 1: Collect Current State
