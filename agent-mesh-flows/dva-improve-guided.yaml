@@ -49,8 +49,12 @@ steps:
   #      verify/transform/configure/execute still run.
   #   4. A skipped step's key renders as the literal `{{ref}}` text, not as empty -- so a
   #      gate must read a step that actually ran, and a prompt must never read a gated one.
-  # All four failures are silent and still exit 0, so `am validate` cannot see them;
-  # `go run ./tools/flowcheck` enforces rules 1 and 2 mechanically.
+  #   5. The producer must not emit a trailing newline. am does not trim, so a context value
+  #      built with `echo true` renders as "true\n" and never equals 'true' -- `== 'true'`
+  #      skipped for every value and `!= 'true'` ran for every value, the same silent
+  #      fail-open as rule 1. Emit flags with `printf true || printf false`.
+  # All five failures are silent and still exit 0, so `am validate` cannot see them;
+  # `go run ./tools/flowcheck` enforces rules 1, 2 and 5 mechanically.
   - id: analyze
     type: pipeline
     depends_on: [check_existing_analysis]

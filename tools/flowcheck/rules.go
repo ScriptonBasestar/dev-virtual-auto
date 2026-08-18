@@ -33,6 +33,13 @@ type scan struct {
 	// jq invocations. One field may hold several; the rule's unit is the field, because
 	// that is what carries (or lacks) the single-object guard.
 	reportFields int
+	// producers indexes every `context:` value by the `<step id>.<key>` name a `when:`
+	// reference uses, so a gate can be checked against the shell that feeds it. A gate is
+	// only as sound as its producer, and the two sit hundreds of lines apart.
+	producers map[string]*yaml.Node
+	// gateRefsSeen keeps one producer from being reported once per gate that reads it.
+	// `validate_pass1.is_valid` feeds three gates; the defect is in the producer, once.
+	gateRefsSeen map[string]bool
 }
 
 func (s *scan) add(rule string, line int, format string, args ...any) {
@@ -48,8 +55,19 @@ func walk(n *yaml.Node, parentKey string, s *scan) {
 			walk(c, parentKey, s)
 		}
 	case yaml.MappingNode:
+		stepID := scalarField(n, "id")
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			k, v := n.Content[i], n.Content[i+1]
+			if k.Value == "context" && stepID != "" && v.Kind == yaml.MappingNode {
+				for j := 0; j+1 < len(v.Content); j += 2 {
+					if v.Content[j+1].Kind == yaml.ScalarNode {
+						if s.producers == nil {
+							s.producers = map[string]*yaml.Node{}
+						}
+						s.producers[stepID+"."+v.Content[j].Value] = v.Content[j+1]
+					}
+				}
+			}
 			switch k.Value {
 			case "exit_if_empty":
 				s.add("exit-if-empty", k.Line,
@@ -92,6 +110,20 @@ func checkParameters(params *yaml.Node, s *scan) {
 			checkParameterSpec(params.Content[i].Value, params.Content[i+1], s)
 		}
 	}
+}
+
+// scalarField reads a scalar field off a mapping, or "" when it is absent or not a
+// scalar. Used to recover the step `id` that owns a `context:` block.
+func scalarField(n *yaml.Node, key string) string {
+	if n.Kind != yaml.MappingNode {
+		return ""
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		if n.Content[i].Value == key && n.Content[i+1].Kind == yaml.ScalarNode {
+			return n.Content[i+1].Value
+		}
+	}
+	return ""
 }
 
 // paramName reads the `name:` field of a sequence-style parameter, for the message only.
@@ -155,6 +187,14 @@ var (
 	reGateBareBool = regexp.MustCompile(`(==|!=)[ \t]*(true|false)\b`)
 
 	reTemplate = regexp.MustCompile(`\{\{`)
+
+	// The `<step>.<key>` a gate reads, so the producing shell can be found and checked.
+	reGateRef = regexp.MustCompile(`\{\{[ \t]*([A-Za-z_][A-Za-z0-9_-]*)\.([A-Za-z_][A-Za-z0-9_-]*)[ \t]*\}\}`)
+
+	// A flag emitted with `echo` carries a trailing newline. am does not trim before
+	// comparing, so the value renders as "true\n" and never equals 'true' -- the same
+	// silent fail-open as an unquoted operand, reached from the other end.
+	reEchoFlag = regexp.MustCompile(`\becho\b[ \t]+["']?(true|false)["']?`)
 
 	reJq        = regexp.MustCompile(`\bjq\b`)
 	reTmpPath   = regexp.MustCompile(`\btmp/`)
@@ -251,5 +291,38 @@ func checkGate(f shellField, s *scan) {
 			"when: `%s %s` compares a rendered string against a YAML boolean, which can never "+
 				"be equal — `!= %s` runs the step for every value and `== %s` skips it for "+
 				"every value. Quote the operand: `%s '%s'`.", op, lit, lit, lit, op, lit)
+	}
+
+	checkGateProducers(f, text, s)
+}
+
+// checkGateProducers follows each `{{step.key}}` a gate reads back to the shell that
+// produces it. Quoting the operand is not sufficient on its own: the comparison is exact,
+// so a producer that appends a newline defeats a correctly written gate. The finding is
+// reported at the producer, which is where the fix goes and routinely hundreds of lines
+// from the gate. References the file does not define — `param.*`, or a step in another
+// file — are skipped rather than guessed at.
+func checkGateProducers(f shellField, text string, s *scan) {
+	for _, m := range reGateRef.FindAllStringSubmatch(text, -1) {
+		ref := m[1] + "." + m[2]
+		p, ok := s.producers[ref]
+		if !ok || s.gateRefsSeen[ref] {
+			continue
+		}
+		body := blankComments(p.Value)
+		em := reEchoFlag.FindStringSubmatchIndex(body)
+		if em == nil {
+			continue
+		}
+		if s.gateRefsSeen == nil {
+			s.gateRefsSeen = map[string]bool{}
+		}
+		s.gateRefsSeen[ref] = true
+		s.add("gate-producer-newline", lineOf(shellField{node: p, name: ref}, body, em[0]),
+			"context.%s: feeds the `when:` gate at line %d but emits its flag with `echo`, "+
+				"which appends a newline. am does not trim, so the value renders as %q and "+
+				"never equals '%s' — the gate runs for every value under `!=` and skips for "+
+				"every value under `==`. Emit with `printf %s` instead.",
+			m[2], f.node.Line, body[em[2]:em[3]]+"\n", body[em[2]:em[3]], body[em[2]:em[3]])
 	}
 }

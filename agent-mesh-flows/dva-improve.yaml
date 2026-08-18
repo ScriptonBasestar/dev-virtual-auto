@@ -659,7 +659,7 @@ steps:
       result: |
         cd '{{param.target}}' && dva config validate 2>&1 || true
       is_valid: |
-        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && printf true || printf false
 
   # Deterministic pre-screen before Retry 1 (catches structural issues yq can verify)
   - id: deterministic_check_1
@@ -744,7 +744,7 @@ steps:
       result: |
         cd '{{param.target}}' && dva config validate 2>&1 || true
       is_valid: |
-        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && printf true || printf false
 
   - id: deterministic_check_2
     type: context
@@ -804,7 +804,7 @@ steps:
       result: |
         cd '{{param.target}}' && dva config validate 2>&1 || true
       is_valid: |
-        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && printf true || printf false
 
   # There is deliberately no version-rewrite phase here (TASK-135). `version:` is the
   # minimum DVA a config requires of its *reader*, not a stamp of the binary that edited
@@ -830,7 +830,7 @@ steps:
       hard_result: |
         cd '{{param.target}}' && dva config validate 2>&1 || true
       is_hard_valid: |
-        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && echo "true" || echo "false"
+        cd '{{param.target}}' && dva config validate 2>&1 | grep -q "dva.yml is valid" && printf true || printf false
 
   - id: semantic_triage
     type: llm

@@ -144,6 +144,77 @@ func TestRules(t *testing.T) {
 		name: "an unquoted non-boolean operand is not the defect",
 		doc:  "steps:\n  - name: s\n    when: \"{{c.k}} == ready\"\n    action: echo hi\n",
 		want: nil,
+	}, {
+		// Measured: am does not trim, so `echo true` renders as "true\n" and the quoted
+		// operand it is compared against can never match. A correctly written gate is
+		// still inert if its producer appends a newline.
+		name: "an echo producer defeats a correctly written gate",
+		doc: `steps:
+  - id: c
+    type: context
+    context:
+      k: |
+        test -f x && echo "true" || echo "false"
+  - id: s
+    when: "{{c.k}} != 'true'"
+    action: echo hi
+`,
+		want: []string{"gate-producer-newline"},
+	}, {
+		name: "a printf producer is the correct form",
+		doc: `steps:
+  - id: c
+    type: context
+    context:
+      k: |
+        test -f x && printf true || printf false
+  - id: s
+    when: "{{c.k}} != 'true'"
+    action: echo hi
+`,
+		want: nil,
+	}, {
+		// The newline only matters where something compares the value. A prompt that
+		// interpolates it does not care, and flagging that would report working code.
+		name: "an echo producer no gate reads is not a defect",
+		doc: `steps:
+  - id: c
+    type: context
+    context:
+      k: |
+        echo "true"
+  - id: s
+    action: echo hi
+`,
+		want: nil,
+	}, {
+		// `validate_pass1.is_valid` feeds three gates in the real corpus. The defect is
+		// in the producer, and one fix closes all of them.
+		name: "one producer feeding two gates is reported once",
+		doc: `steps:
+  - id: c
+    type: context
+    context:
+      k: |
+        echo "true"
+  - id: s1
+    when: "{{c.k}} != 'true'"
+    action: echo hi
+  - id: s2
+    when: "{{c.k}} == 'true'"
+    action: echo bye
+`,
+		want: []string{"gate-producer-newline"},
+	}, {
+		// `param.*` is supplied by the runner, not by a shell in this file. Measured:
+		// a param compares correctly in both polarities, so there is nothing to report.
+		name: "a param reference has no producer to check",
+		doc: `steps:
+  - id: s
+    when: "{{param.flag}} != 'true'"
+    action: echo hi
+`,
+		want: nil,
 	}}
 
 	for _, tc := range tests {
