@@ -40,6 +40,18 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 			f.name, m.text)
 	}
 
+	for _, off := range commentApostrophes(f.node.Value) {
+		s.add("comment-apostrophe", lineOf(f, f.node.Value, off),
+			"%s: an apostrophe in comment prose flips the quote parity of everything after "+
+				"it. am carries quote state across a `#` and across lines, so an odd count "+
+				"makes the next `'...'` argument open where the analyzer thinks one closes, "+
+				"exposing its contents as shell: a multi-line `awk '...'` program three lines "+
+				"below was blocked on `command \"BEGIN\" not in allowlist` by the word "+
+				"\"block's\" alone. Parity is not a property anyone can maintain -- one word "+
+				"arms a block in code nobody touched -- so no comment may carry one at all. "+
+				"Rewrite the phrase without it.", f.name)
+	}
+
 	text := blankComments(f.node.Value)
 
 	if m := reBoolDefault.FindStringSubmatchIndex(text); m != nil {
@@ -69,6 +81,16 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 				"allowlist` while `am validate` reports the flow valid. The run names the word "+
 				"but not the line or the `context:` key, so a multi-key step has to be bisected "+
 				"one key at a time. Quote it: `'%s'`.", f.name, b.word, b.word, b.word)
+	}
+
+	for _, c := range localFunctionCalls(text) {
+		s.add("local-function", lineOf(f, text, c.offset),
+			"%s: `%s` is a function this field defines, and am's allowlist knows commands, not "+
+				"functions. The call is blocked at run time with `command \"%s\" not in "+
+				"allowlist` while `am validate` reports the flow valid, and a blocked step does "+
+				"not stop the run: it prompts, defaults to continue, and produces nothing while "+
+				"every reader of its keys gets the literal `{{step.key}}` text. Inline the body "+
+				"at each call site.", f.name, c.word, c.word)
 	}
 
 	if reJq.MatchString(text) && reTmpPath.MatchString(text) {
@@ -127,13 +149,19 @@ var bareWordTriggers = map[string]bool{
 // firing on every correct gate in the corpus, so this comment carries it instead.
 func bareWordArgs(text string) []bareWord {
 	var out []bareWord
-	toks := shellTokens(text, 0)
+	toks := shellTokens(text, 0, 0)
 	for i := range toks {
 		if !toks[i].cmdPos || toks[i].quoted || !bareWordTriggers[toks[i].word] {
 			continue
 		}
-		for j := i + 1; j < len(toks) && !toks[j].op; j++ {
-			if toks[j].word == "]" || toks[j].word == "]]" {
+		for j := i + 1; j < len(toks); j++ {
+			// A substitution inside an argument is its own command line, and its tokens
+			// are appended after the argument that carried it. They are not arguments of
+			// this command, and the argument list continues past them.
+			if toks[j].depth != toks[i].depth {
+				continue
+			}
+			if toks[j].op || toks[j].word == "]" || toks[j].word == "]]" {
 				break
 			}
 			if !bareWordExempt(toks[j]) {
@@ -172,6 +200,10 @@ type bareWord struct {
 	op bool
 	// cmdPos means the token stands where a command name goes.
 	cmdPos bool
+	// depth is how many substitutions deep the token sits. Tokens of a `$(...)` are
+	// appended after the word that carried it, so depth is what tells an argument of
+	// this command from a token of a command line nested inside one.
+	depth int
 }
 
 // shellReserved are the words after which a command name may follow, so that `if [ -f x
@@ -190,14 +222,17 @@ var shellReserved = map[string]bool{
 //   - `'...'` is opaque. An awk or sed program is a quoted argument, and the analyzer
 //     does not descend into it. Scanning inside one reports the `printf` in an awk body
 //     as a shell command, which it is not.
+//
 //   - `$(...)` is not opaque. Its contents are shell that the analyzer does read, so
 //     this function recurses into them. That is how `X=$([ -f dva.yml ] && ...)` is
 //     caught, and it is the whole reason the two cases cannot share a code path.
 //
-// `"..."` is treated as opaque like `'...'`. A trigger command inside a double-quoted
-// string would have to arrive through a nested `$(...)`; nothing in the corpus does that,
-// and guessing at it would cost more than it catches.
-func shellTokens(text string, base int) []bareWord {
+//   - `"..."` is data, but a `$(...)` inside one is not: am reads it, so the interior of
+//     every double-quoted string is searched for substitutions and only those are
+//     scanned. Measured: `echo "  services: $(yaml_block_keys "$f" services)"` blocked
+//     the step on `yaml_block_keys`, which is why treating the whole string as opaque --
+//     as this function used to -- hid three shipped defects from the rules below.
+func shellTokens(text string, base int, depth int) []bareWord {
 	var out []bareWord
 	cmdPos := true
 	i := 0
@@ -217,7 +252,7 @@ func shellTokens(text string, base int) []bareWord {
 			for i < len(text) && (text[i] == c || (c != '\n' && text[i] == c)) {
 				i++
 			}
-			out = append(out, bareWord{word: text[start:i], offset: base + start, op: true})
+			out = append(out, bareWord{word: text[start:i], offset: base + start, op: true, depth: depth})
 			cmdPos = true
 			continue
 		case c == '<' || c == '>':
@@ -227,7 +262,7 @@ func shellTokens(text string, base int) []bareWord {
 			for i < len(text) && (text[i] == '<' || text[i] == '>' || text[i] == '&') {
 				i++
 			}
-			out = append(out, bareWord{word: text[start:i], offset: base + start, op: true})
+			out = append(out, bareWord{word: text[start:i], offset: base + start, op: true, depth: depth})
 			continue
 		}
 
@@ -248,14 +283,16 @@ func shellTokens(text string, base int) []bareWord {
 				i = skipQuoted(text, i+1, '\'')
 			case c == '"':
 				quoted = true
-				i = skipQuoted(text, i+1, '"')
+				end := skipQuoted(text, i+1, '"')
+				nested = append(nested, dquoteTokens(text[i+1:max(i+1, end-1)], base+i+1, depth+1)...)
+				i = end
 			case c == '`':
 				quoted = true
 				i = skipQuoted(text, i+1, '`')
 			case c == '$' && i+1 < len(text) && text[i+1] == '(':
 				quoted = true
 				end := skipBalancedParen(text, i+1)
-				nested = append(nested, shellTokens(text[i+2:max(i+2, end-1)], base+i+2)...)
+				nested = append(nested, shellTokens(text[i+2:max(i+2, end-1)], base+i+2, depth+1)...)
 				i = end
 			case c == '$':
 				quoted = true
@@ -269,13 +306,13 @@ func shellTokens(text string, base int) []bareWord {
 		// `markers"}` is not -- would otherwise read as part of it. Only standalone
 		// braces are control, and those arrive here as whole words.
 		if word == "{" || word == "}" {
-			out = append(out, bareWord{word: word, offset: base + start, op: true})
+			out = append(out, bareWord{word: word, offset: base + start, op: true, depth: depth})
 			cmdPos = true
 			out = append(out, nested...)
 			continue
 		}
 		if word != "" {
-			out = append(out, bareWord{word: word, offset: base + start, quoted: quoted, cmdPos: cmdPos})
+			out = append(out, bareWord{word: word, offset: base + start, quoted: quoted, cmdPos: cmdPos, depth: depth})
 			cmdPos = shellReserved[word]
 		}
 		out = append(out, nested...)
@@ -297,6 +334,25 @@ func skipQuoted(text string, i int, quote byte) int {
 		i++
 	}
 	return len(text)
+}
+
+// dquoteTokens returns the tokens of every `$(...)` inside a double-quoted string. The
+// surrounding text is data and is not scanned.
+func dquoteTokens(text string, base int, depth int) []bareWord {
+	var out []bareWord
+	for i := 0; i < len(text); {
+		switch {
+		case text[i] == '\\':
+			i += 2
+		case text[i] == '$' && i+1 < len(text) && text[i+1] == '(':
+			end := skipBalancedParen(text, i+1)
+			out = append(out, shellTokens(text[i+2:max(i+2, end-1)], base+i+2, depth)...)
+			i = end
+		default:
+			i++
+		}
+	}
+	return out
 }
 
 // skipBalancedParen returns the index just past the `)` matching the `(` at i.
@@ -331,6 +387,22 @@ var reCommentSubstitution = regexp.MustCompile("`[^`]*`|\\$\\([^)]*\\)?")
 // quote-skipping the bare-word tokenizer does rather than matching `#` in raw text.
 func commentSubstitutions(text string) []commentSpan {
 	var out []commentSpan
+	for _, r := range shellCommentRanges(text) {
+		for _, m := range reCommentSubstitution.FindAllStringIndex(text[r[0]:r[1]], -1) {
+			out = append(out, commentSpan{offset: r[0] + m[0], text: text[r[0]+m[0] : r[0]+m[1]]})
+		}
+	}
+	return out
+}
+
+// shellCommentRanges returns the half-open byte range of every comment in text.
+//
+// A `#` inside single or double quotes is not a comment, so the scan reuses the same
+// quote-skipping the bare-word tokenizer does rather than matching `#` in raw text. Note
+// that this is /bin/sh semantics, not am semantics: am is the one that lets a comment
+// change quote state, which is what `comment-apostrophe` below is about.
+func shellCommentRanges(text string) [][2]int {
+	var out [][2]int
 	for i := 0; i < len(text); {
 		switch text[i] {
 		case '\'', '"':
@@ -344,12 +416,56 @@ func commentSubstitutions(text string) []commentSpan {
 			} else {
 				end += i
 			}
-			for _, m := range reCommentSubstitution.FindAllStringIndex(text[i:end], -1) {
-				out = append(out, commentSpan{offset: i + m[0], text: text[i+m[0] : i+m[1]]})
-			}
+			out = append(out, [2]int{i, end})
 			i = end
 		default:
 			i++
+		}
+	}
+	return out
+}
+
+// commentApostrophes returns the offset of every apostrophe sitting inside a comment.
+//
+// am carries quote state across a comment: `#` does not end a string, and a string is not
+// confined to a line. An odd number of apostrophes in prose therefore inverts the quote
+// parity of everything after it, and the next legitimate `\'...\'` argument opens where the
+// analyzer believes one closes -- exposing its contents as shell. Measured against am
+// cb8b4ce: a step whose comment said "block\'s" blocked its own multi-line `awk \'...\'`
+// program on `command "BEGIN" not in allowlist`, and adding a second apostrophe to the
+// same comment made the step run.
+func commentApostrophes(text string) []int {
+	var out []int
+	for _, r := range shellCommentRanges(text) {
+		for i := r[0]; i < r[1]; i++ {
+			if text[i] == '\'' {
+				out = append(out, i)
+			}
+		}
+	}
+	return out
+}
+
+// reShellFuncDef matches a POSIX function definition at the start of a line, which is the
+// only shape the corpus uses and the only one worth guessing at.
+var reShellFuncDef = regexp.MustCompile(`(?m)^[ \t]*([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(\)[ \t]*\{`)
+
+// localFunctionCalls returns each place text calls a function text itself defines. The
+// definition is harmless -- am blocks on the call, so only the call is reported.
+func localFunctionCalls(text string) []bareWord {
+	defined := map[string]bool{}
+	atDef := map[int]bool{}
+	for _, m := range reShellFuncDef.FindAllStringSubmatchIndex(text, -1) {
+		defined[text[m[2]:m[3]]] = true
+		atDef[m[2]] = true
+	}
+	if len(defined) == 0 {
+		return nil
+	}
+	var out []bareWord
+	for _, t := range shellTokens(text, 0, 0) {
+		if t.cmdPos && !t.quoted && defined[t.word] && !atDef[t.offset] {
+			out = append(out, t)
 		}
 	}
 	return out

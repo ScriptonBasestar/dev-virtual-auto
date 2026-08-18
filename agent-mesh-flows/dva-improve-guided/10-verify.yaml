@@ -72,8 +72,8 @@ steps:
         echo "ERROR: $REPORT is not a single JSON object — re-run stage 00." >&2
         exit 1
       fi
-      # .dva_needed // true cannot express this gate: jq's // substitutes for false as
-      # well as null, so an explicit false read back as true and this stop path was
+      # .dva_needed // true cannot express this gate: the jq // operator substitutes for
+      # false as well as null, so an explicit false read back as true and this path was
       # unreachable for every possible input. Separate absent from present-and-false, and
       # treat absent as a stop — an undecidable gate must fail closed.
       if [ "$(jq -r 'has("dva_needed")' "$REPORT")" != "true" ]; then

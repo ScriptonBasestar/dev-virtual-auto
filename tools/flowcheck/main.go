@@ -28,6 +28,18 @@
 // comment hides a span three lines below, and deleting that word arms it. That is why the
 // rule reports every span rather than the ones measured to block today.
 //
+// The apostrophe is not only what hides a span, it is a defect on its own. am carries
+// quote state across a comment, so an odd count in prose inverts the parity of the rest
+// of the field and the next `'...'` argument opens where the analyzer believes one
+// closes: the word "block's" in a comment exposed the `awk` program three lines below it
+// and blocked the step on `command "BEGIN" not in allowlist`. No comment may carry one.
+//
+// And what a step defines is not what am will run. A shell function the field declares is
+// blocked at its call site like any other unknown command -- three shipped fields called
+// one, invisibly, because a comment-substitution block in front of it failed first. That
+// call arrived through a `$(...)` inside a double-quoted string, which is why the
+// tokenizer descends into those: the string is data, the substitution in it is not.
+//
 // Rules are checked against fields the runtime hands to /bin/sh, plus `when:` operands.
 // Prompt bodies are prose about dva and scanning them produces noise, not findings.
 package main
