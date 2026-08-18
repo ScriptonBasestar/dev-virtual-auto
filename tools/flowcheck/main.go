@@ -13,6 +13,12 @@
 // boolean, and a filter inside the reference defeats the comparison outright. Both let
 // the step run unconditionally and still exit 0.
 //
+// What happens once a gate closes is checked too. am skips a gated step's dependents only
+// when they carry a `when:` of their own, and a skipped step's key renders as the literal
+// text `{{step.key}}` rather than as empty -- so an ungated reader runs holding a template
+// string, and if that reader is a prompt the model answers around it. Both were measured
+// on a probe flow; both exit 0.
+//
 // Rules are checked against fields the runtime hands to /bin/sh, plus `when:` operands.
 // Prompt bodies are prose about dva and scanning them produces noise, not findings.
 package main
@@ -60,6 +66,7 @@ func main() {
 		}
 		total.dvaCalls += s.dvaCalls
 		total.reportFields += s.reportFields
+		total.skippableRefs += s.skippableRefs
 		total.shells = append(total.shells, s.shells...)
 		total.gates = append(total.gates, s.gates...)
 		for _, f := range s.findings {
@@ -70,8 +77,8 @@ func main() {
 
 	// Print what was actually inspected. A rule that silently matches nothing reads
 	// exactly like a rule that passed, and that is how a scan rots into decoration.
-	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report-reading field(s), %d built-in command(s)\n",
-		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportFields, len(reserved))
+	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report-reading field(s), %d skippable reference(s), %d built-in command(s)\n",
+		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportFields, total.skippableRefs, len(reserved))
 	if failed {
 		os.Exit(1)
 	}
@@ -130,6 +137,7 @@ func checkBytes(data []byte, reserved map[string]bool) (*scan, error) {
 	for _, f := range s.gates {
 		checkGate(f, s)
 	}
+	checkSkipPropagation(s)
 	sort.SliceStable(s.findings, func(i, j int) bool { return s.findings[i].line < s.findings[j].line })
 	return s, nil
 }

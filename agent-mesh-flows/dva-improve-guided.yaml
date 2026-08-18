@@ -45,16 +45,20 @@ steps:
   #      `!= true` ran the step for every value and `== true` skipped it for every value.
   #   2. No filters. `{{ref | trim}}` runs the step unconditionally, whatever the operator.
   #   3. A skip propagates only into dependents that carry their own `when:`; an ungated
-  #      dependent runs regardless. That is what lets stage 00 be skipped here while
-  #      verify/transform/configure/execute still run.
+  #      dependent runs regardless, and so does everything below it. That is what lets
+  #      stage 00 be skipped here while verify/transform/configure/execute still run.
+  #      A `when:` alone is not protection -- propagation travels `depends_on`, so a
+  #      reader is safe only on a chain to the gated step where every link is gated.
   #   4. A skipped step's key renders as the literal `{{ref}}` text, not as empty -- so a
   #      gate must read a step that actually ran, and a prompt must never read a gated one.
+  #      A prompt is the worst place for it: the model answers around the literal instead
+  #      of failing, and the run still exits 0.
   #   5. The producer must not emit a trailing newline. am does not trim, so a context value
   #      built with `echo true` renders as "true\n" and never equals 'true' -- `== 'true'`
   #      skipped for every value and `!= 'true'` ran for every value, the same silent
   #      fail-open as rule 1. Emit flags with `printf true || printf false`.
   # All five failures are silent and still exit 0, so `am validate` cannot see them;
-  # `go run ./tools/flowcheck` enforces rules 1, 2 and 5 mechanically.
+  # `go run ./tools/flowcheck` enforces rules 1, 2, 3, 4 and 5 mechanically.
   - id: analyze
     type: pipeline
     depends_on: [check_existing_analysis]
