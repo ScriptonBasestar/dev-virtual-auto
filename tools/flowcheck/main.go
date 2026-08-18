@@ -45,6 +45,15 @@
 // call arrived through a `$(...)` inside a double-quoted string, which is why the
 // tokenizer descends into those: the string is data, the substitution in it is not.
 //
+// One rule reads the corpus rather than a field. Four flows each compute "does this target
+// already have a config" for themselves, and they have to: they are separate flows, and the
+// guided stages each run standalone, so a flag handed down as a pipeline parameter would be
+// absent exactly when a stage is run directly. Four copies is the honest shape; four copies
+// drifting apart is not. Each is required to be spelled like the first, because the ways
+// they can disagree are the defects above arriving one copy at a time -- an `echo` for a
+// `printf` renders "true\n" and takes that flow's gate inert, and a copy edited down to
+// test `dva.yml` alone silently stops working for every project using the other spelling.
+//
 // Rules are checked against fields the runtime hands to /bin/sh, plus `when:` operands.
 // Prompt bodies are prose about dva and scanning them produces noise, not findings.
 package main
@@ -82,6 +91,7 @@ func main() {
 
 	reserved := config.ReservedCommands()
 	total := scan{}
+	var corpus []corpusField
 	failed := false
 
 	for _, path := range files {
@@ -95,16 +105,27 @@ func main() {
 		total.skippableRefs += s.skippableRefs
 		total.shells = append(total.shells, s.shells...)
 		total.gates = append(total.gates, s.gates...)
+		for _, f := range s.shells {
+			corpus = append(corpus, corpusField{path: path, field: f})
+		}
 		for _, f := range s.findings {
 			failed = true
 			fmt.Fprintf(os.Stderr, "%s:%d: [%s] %s\n", path, f.line, f.rule, f.msg)
 		}
 	}
 
+	// The corpus rules run once the whole set is in hand. files is sorted, so the copy
+	// they measure the others against is the same one on every machine.
+	probes := configProbes(corpus)
+	for _, f := range checkConfigProbe(probes) {
+		failed = true
+		fmt.Fprintf(os.Stderr, "%s:%d: [%s] %s\n", f.path, f.line, f.rule, f.msg)
+	}
+
 	// Print what was actually inspected. A rule that silently matches nothing reads
 	// exactly like a rule that passed, and that is how a scan rots into decoration.
-	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report-reading field(s), %d skippable reference(s), %d built-in command(s)\n",
-		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportFields, total.skippableRefs, len(reserved))
+	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report-reading field(s), %d skippable reference(s), %d config-presence probe(s), %d built-in command(s)\n",
+		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportFields, total.skippableRefs, len(probes), len(reserved))
 	if failed {
 		os.Exit(1)
 	}
