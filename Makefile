@@ -132,10 +132,11 @@ check-generate:
 		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
 		[ "$$before" = "$$after" ] || { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
-## doc-check: Enforce docs/workflows size limits and relative markdown links (TASK-090) (CI)
+## doc-check: Enforce doc size limits, markdown links, CI labels and flow decision gates (TASK-090) (CI)
 doc-check:
 	go run ./tools/doccheck
 	go run ./tools/cilabels
+	go run ./tools/flowcheck
 
 ## help: Show this help
 help:
