@@ -18,7 +18,10 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -56,7 +59,7 @@ func main() {
 			os.Exit(2)
 		}
 		total.dvaCalls += s.dvaCalls
-		total.reportReads += s.reportReads
+		total.reportFields += s.reportFields
 		total.shells = append(total.shells, s.shells...)
 		total.gates = append(total.gates, s.gates...)
 		for _, f := range s.findings {
@@ -67,8 +70,8 @@ func main() {
 
 	// Print what was actually inspected. A rule that silently matches nothing reads
 	// exactly like a rule that passed, and that is how a scan rots into decoration.
-	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report read(s), %d built-in command(s)\n",
-		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportReads, len(reserved))
+	fmt.Printf("flowcheck: %d flow file(s), %d shell field(s), %d when-gate(s), %d dva invocation(s), %d report-reading field(s), %d built-in command(s)\n",
+		len(files), len(total.shells), len(total.gates), total.dvaCalls, total.reportFields, len(reserved))
 	if failed {
 		os.Exit(1)
 	}
@@ -105,13 +108,22 @@ func checkFile(path string, reserved map[string]bool) (*scan, error) {
 	return checkBytes(data, reserved)
 }
 
+// checkBytes scans every YAML document in the stream. yaml.Unmarshal decodes only the
+// first, which would have made a `---`-separated flow report clean on the strength of a
+// prefix — the same shape of silent partial success the rules themselves exist to catch.
 func checkBytes(data []byte, reserved map[string]bool) (*scan, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("parse: %w", err)
-	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	s := &scan{}
-	walk(&doc, "", s)
+	for {
+		var doc yaml.Node
+		if err := dec.Decode(&doc); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("parse: %w", err)
+		}
+		walk(&doc, "", s)
+	}
 	for _, f := range s.shells {
 		checkShell(f, reserved, s)
 	}

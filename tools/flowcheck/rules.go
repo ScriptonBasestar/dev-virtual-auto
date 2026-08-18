@@ -25,11 +25,14 @@ type shellField struct {
 }
 
 type scan struct {
-	shells      []shellField
-	gates       []shellField
-	findings    []finding
-	dvaCalls    int
-	reportReads int
+	shells   []shellField
+	gates    []shellField
+	findings []finding
+	dvaCalls int
+	// reportFields counts fields that read a tmp/ JSON artifact with jq, not individual
+	// jq invocations. One field may hold several; the rule's unit is the field, because
+	// that is what carries (or lacks) the single-object guard.
+	reportFields int
 }
 
 func (s *scan) add(rule string, line int, format string, args ...any) {
@@ -211,7 +214,7 @@ func checkShell(f shellField, reserved map[string]bool, s *scan) {
 	}
 
 	if reJq.MatchString(text) && reTmpPath.MatchString(text) {
-		s.reportReads++
+		s.reportFields++
 		if !reJSONGuard.MatchString(text) {
 			s.add("unguarded-report", lineOf(f, text, reJq.FindStringIndex(text)[0]),
 				"%s: reads a tmp/ JSON artifact with jq but never checks it holds exactly one "+

@@ -212,8 +212,8 @@ func TestCountsAreReported(t *testing.T) {
 	if s.dvaCalls != 1 {
 		t.Errorf("dvaCalls = %d, want 1", s.dvaCalls)
 	}
-	if s.reportReads != 1 {
-		t.Errorf("reportReads = %d, want 1", s.reportReads)
+	if s.reportFields != 1 {
+		t.Errorf("reportFields = %d, want 1", s.reportFields)
 	}
 	if len(s.shells) != 1 {
 		t.Errorf("shells = %d, want 1", len(s.shells))
@@ -233,6 +233,26 @@ func TestGateCountIsReported(t *testing.T) {
 	}
 	if len(s.findings) != 0 {
 		t.Errorf("findings = %v, want none", rules(s.findings))
+	}
+}
+
+// TestEveryDocumentIsScanned pins the multi-document decode. yaml.Unmarshal stops after
+// the first document, so a defect behind a `---` used to be invisible while the file
+// still reported as inspected.
+func TestEveryDocumentIsScanned(t *testing.T) {
+	doc := "steps:\n" + // 1
+		"  - name: first\n" + // 2
+		"    action: echo hi\n" + // 3
+		"---\n" + // 4
+		"steps:\n" + // 5
+		"  - name: second\n" + // 6
+		"    action: dva app ls\n" // 7
+	got := find(t, doc)
+	if len(got) != 1 || got[0].rule != "phantom-command" {
+		t.Fatalf("rules fired = %v, want one phantom-command", rules(got))
+	}
+	if got[0].line != 7 {
+		t.Errorf("line = %d, want 7", got[0].line)
 	}
 }
 
