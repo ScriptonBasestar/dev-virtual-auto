@@ -20,7 +20,7 @@ make build          # bin/dva 생성 (generate 포함)
 make install        # ~/.local/bin/dva 설치
 make test           # 전체 테스트
 make test-integration  # 통합 테스트 (-tags=integration)
-make generate       # agent-mesh-flows/shared/library/ → internal/cli/library_reference.txt 임베드 생성
+make generate       # agent-mesh-flows/shared/library/ → internal/cli/library_reference.txt 생성 (am flow가 읽음, 바이너리 임베드 아님)
 ```
 
 **규칙**: `go build` 직접 실행 금지 → `make build` 사용
