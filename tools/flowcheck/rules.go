@@ -155,10 +155,17 @@ func blankComments(text string) string {
 	return strings.Join(lines, "\n")
 }
 
-// lineOf maps a byte offset inside a block scalar back to a file line. A block scalar's
-// node.Line is the `key: |` line, so its first content line is the next one.
+// lineOf maps a byte offset inside a scalar back to a file line. A block scalar's
+// node.Line is the `key: |` line, so its content starts on the next one; every other
+// style sits on the line node.Line already names. Most `context:` entries in this corpus
+// are single-line quoted scalars, so treating them as block scalars misreports every
+// finding on them by one line.
 func lineOf(f shellField, text string, offset int) int {
-	return f.node.Line + 1 + strings.Count(text[:offset], "\n")
+	start := f.node.Line
+	if f.node.Style == yaml.LiteralStyle || f.node.Style == yaml.FoldedStyle {
+		start++
+	}
+	return start + strings.Count(text[:offset], "\n")
 }
 
 // checkShell runs the rules that read shell text. reserved is the live built-in command

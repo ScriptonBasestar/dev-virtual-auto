@@ -52,6 +52,11 @@ steps:
         echo "ERROR: $REPORT has no dva_needed field — cannot decide whether to proceed." >&2
         exit 1
       fi
+      # A non-zero exit for a legitimate "no action needed" verdict is deliberate, not a
+      # bug to tidy up later. `depends_on` is ordering, not a condition, so exiting 0 here
+      # would let present_proposal draft a plan for a project that was just found not to
+      # need one. Stopping the stage is the only primitive that actually stops it — and
+      # the reason is printed above, so the run is not silent about why.
       if [ "$(jq -r '.dva_needed' "$REPORT")" = "false" ]; then
         REASON=$(jq -r '.dva_not_needed_reason // "No reason given"' "$REPORT")
         echo "DVA is not needed for this project: $REASON"

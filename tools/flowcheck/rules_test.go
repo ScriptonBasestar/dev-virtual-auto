@@ -125,22 +125,50 @@ func TestRules(t *testing.T) {
 	}
 }
 
-// TestFindingLine pins the offset arithmetic: a block scalar's node.Line is the `key: |`
-// line, so the first content line is the next one.
+// TestFindingLine pins the offset arithmetic across scalar styles. An earlier version
+// covered only the block scalar and so passed while every finding on a single-line
+// `context:` entry — the common shape in this corpus — was reported one line late.
 func TestFindingLine(t *testing.T) {
-	doc := "steps:\n" + // 1
-		"  - name: gate\n" + // 2
-		"    action: |\n" + // 3
-		"      echo one\n" + // 4
-		"      echo two\n" + // 5
-		"      cd x && dva app ls\n" // 6
-	fs := find(t, doc)
-	if len(fs) != 1 {
-		t.Fatalf("findings = %d, want 1", len(fs))
-	}
-	if fs[0].line != 6 {
-		t.Errorf("line = %d, want 6", fs[0].line)
-	}
+	t.Run("flow scalar under context", func(t *testing.T) {
+		doc := "steps:\n" + // 1
+			"  - name: s\n" + // 2
+			"    context:\n" + // 3
+			"      app_ls: \"dva app ls\"\n" // 4
+		fs := find(t, doc)
+		if len(fs) != 1 {
+			t.Fatalf("findings = %d, want 1", len(fs))
+		}
+		if fs[0].line != 4 {
+			t.Errorf("line = %d, want 4", fs[0].line)
+		}
+	})
+	t.Run("plain scalar action", func(t *testing.T) {
+		doc := "steps:\n" + // 1
+			"  - name: s\n" + // 2
+			"    action: dva app ls\n" // 3
+		fs := find(t, doc)
+		if len(fs) != 1 {
+			t.Fatalf("findings = %d, want 1", len(fs))
+		}
+		if fs[0].line != 3 {
+			t.Errorf("line = %d, want 3", fs[0].line)
+		}
+	})
+	t.Run("block scalar action", func(t *testing.T) {
+		doc := "steps:\n" + // 1
+			"  - name: gate\n" + // 2
+			"    action: |\n" + // 3
+			"      echo one\n" + // 4
+			"      echo two\n" + // 5
+			"      cd x && dva app ls\n" // 6
+		fs := find(t, doc)
+		if len(fs) != 1 {
+			t.Fatalf("findings = %d, want 1", len(fs))
+		}
+		if fs[0].line != 6 {
+			t.Errorf("line = %d, want 6", fs[0].line)
+		}
+	})
 }
 
 // TestCountsAreReported guards the summary line. A rule that silently matches nothing
