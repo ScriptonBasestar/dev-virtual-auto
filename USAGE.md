@@ -968,3 +968,18 @@ am run dva-improve            # target 기본값 "." — 정상
 수정을 막기 위해 `check_run_dir` 가드가 실행 디렉토리와 target을 함께 출력하고
 멈춥니다.
 
+### 설정 백업과 복원
+
+플로우는 설정을 수정하기 전에 `backups/dva/<이름>.<타임스탬프>.bak` 로 스냅샷을
+남깁니다. git이 덮지 못하는 창 — 실행 시점의 **미커밋 로컬 수정** — 을 위한 것입니다.
+
+```bash
+ls -1 backups/dva/*.bak                       # 목록 (마지막 줄이 최근)
+cp backups/dva/dva.yml.20260818-163000.bak dva.yml
+dva validate
+```
+
+어느 스냅샷을 고를지, 스냅샷이 덮지 않는 변경, 보존 정리는
+[docs/50-improve-flow-backup-and-restore.md](docs/50-improve-flow-backup-and-restore.md)
+를 참조하세요.
+
