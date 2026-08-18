@@ -47,8 +47,47 @@ steps:
   # ══════════════════════════════════════════════
   # Phase 0: Prerequisites
   # ══════════════════════════════════════════════
+  # This flow only behaves when the run directory *is* the target, and the `target`
+  # parameter reads as though any project could be passed. Two subsystems disagree about
+  # what a path means: `file` and `read_file` resolve against the run directory and are
+  # path-sandboxed, while `context`/`shell` follow whatever `cd` did. Point the flow
+  # somewhere else and the shell steps obey while every declarative write is refused with
+  # "escaped all approved roots" -- including the backup below, which exists so that the
+  # agent edit further down is recoverable. Measured on two fixtures against am cb8b4ce.
+  #
+  # Stopping here is the same idiom `check_prerequisites` already uses for a missing CLI:
+  # exit non-zero and let the step failure carry the reason. In batch (`-y`) that aborts
+  # the pipeline before anything is written. Interactively am asks "Continue anyway?", so
+  # the message has to be good enough for a person to answer no -- hence both directories
+  # by name and the exact command that fixes it.
+  #
+  # `=` is used rather than `!=`: only `=` was measured against am's shell policy analyzer,
+  # which reads an unquoted bare word as a command name and would block the step at runtime
+  # while `am validate` stays green. Same reason every path here is quoted.
+  - id: check_run_dir
+    type: context
+    context:
+      run_dir_ok: |
+        RUN="$PWD"
+        cd '{{param.target}}' || exit 1
+        if [ "$PWD" = "$RUN" ]; then
+          printf 'yes'
+        else
+          echo "ERROR: dva-improve must run with the target as the working directory." >&2
+          echo "  run directory: $RUN" >&2
+          echo "  target:        $PWD" >&2
+          echo "" >&2
+          echo "am resolves file/read_file paths against the run directory and refuses to" >&2
+          echo "write outside it. Continuing would skip the config backup while the agent" >&2
+          echo "still edits the config, leaving nothing to restore from." >&2
+          echo "" >&2
+          echo "Fix: cd '$PWD' && am run dva dva-improve" >&2
+          exit 1
+        fi
+
   - id: check_prerequisites
     type: context
+    depends_on: [check_run_dir]
     context:
       # A missing prerequisite is a stop, not a finish. `exit_if_empty` ends the pipeline
       # *successfully* (flow.schema.json), so an absent CLI produced a clean run that did

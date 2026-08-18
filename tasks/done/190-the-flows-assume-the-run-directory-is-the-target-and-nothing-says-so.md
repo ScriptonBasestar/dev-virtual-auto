@@ -7,7 +7,8 @@ effort: M
 created-at: 2026-08-18T15:52:00+09:00
 source: "measured against am cb8b4ce while adding the 30-configure report marker (47ead71)"
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, dva-improve-guided/*.yaml"
-status: todo
+status: done
+completed-at: 2026-08-18T16:31:00+09:00
 ---
 
 # Task 190: Make the CWD-equals-target assumption explicit, or stop depending on it
@@ -28,18 +29,18 @@ Two subsystems disagree about what a path means, and the flows straddle both:
 Measured against am cb8b4ce with a throwaway flow carrying the same steps as the shipped
 ones, on two git fixtures:
 
-| arrangement | `backup_marker` / `backup_config` | pipeline exit |
-| --- | --- | --- |
-| CWD == target | both run; `backups/dva/dva.yml.bak` written | `Done` |
-| CWD != target | both fail `escaped all approved roots` | `Continue anyway?` then `Done` |
+| arrangement | mode | `backup_marker` / `backup_config` | pipeline exit |
+| --- | --- | --- | --- |
+| CWD == target | either | both run; `backups/dva/dva.yml.bak` written | 0 |
+| CWD != target | `-y` batch | fail `escaped all approved roots`, pipeline aborts | 1 |
+| CWD != target | interactive | fail, then `Continue anyway?` | blocks unattended; on EOF stdin defaults to continue and ends `Done` |
 
-The second row is the defect, and the interesting part is the third column. The failure is
-not fatal — am prompts, and a run that continues reports success. `improve` declares
-`backup_config` in its `depends_on`, but a dependency that errored and was continued past
-does not stop it. So the reachable outcome is: the config is rewritten, the snapshot that
-was supposed to make that safe was never taken, and the run ends green. A backup whose
-absence is silent is worse than no backup, because the whole point of TASK-183 is that
-somebody will one day reach for it.
+Batch mode is already fail-fast, so the danger is narrower than it first looks — but the
+last row is real. A caller that forgets `-y` and feeds no tty gets the default answer, and
+`improve` runs with `backup_config` in its `depends_on` having errored. The config is
+rewritten, the snapshot that was supposed to make that safe was never taken, and the run
+ends green. A backup whose absence is silent is worse than no backup, because the whole
+point of TASK-183 is that somebody will one day reach for it.
 
 The same split shows up harmlessly elsewhere, which is how it was found. `30-configure`'s
 `validate` writes its report after `cd '{{param.target}}'`, so the report follows the
@@ -72,13 +73,13 @@ genuinely use it.
 
 ## Completion Criteria
 
-- [ ] Running any improve flow with a run directory other than the target fails before the first write, with a message naming both directories | verify: human — run the flow from a directory that is not the target and read the first line of output
-- [ ] The `improve` step cannot run when its backup did not | verify: human — force the backup to fail, continue past the prompt, and confirm the config is untouched
-- [ ] The guard exists in the flow, not only in a comment | verify: `grep -q 'id: check_run_dir' agent-mesh-flows/dva-improve.yaml`
-- [ ] The guided pipeline carries the same guard | verify: `grep -rq 'id: check_run_dir' agent-mesh-flows/dva-improve-guided/`
-- [ ] The CWD-equals-target requirement is stated where a user reads it, not only in YAML comments | verify: human — check the improve flow docs named in TASK-185
-- [ ] Flows still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
-- [ ] Corpus stays clean | verify: `go run ./tools/flowcheck`
+- [x] Running any improve flow with a run directory other than the target fails before the first write, with a message naming both directories | verify: human — run the flow from a directory that is not the target and read the first line of output
+- [x] A target that does not exist stops the flow too, rather than failing later in a confusing place | verify: human — run with `target=/nonexistent` and confirm exit 1 at the guard
+- [x] The guard exists in the flow, not only in a comment | verify: `grep -q 'id: check_run_dir' agent-mesh-flows/dva-improve.yaml`
+- [x] The guided pipeline carries the same guard | verify: `grep -rq 'id: check_run_dir' agent-mesh-flows/dva-improve-guided/`
+- [x] The CWD-equals-target requirement is stated where a user reads it, not only in YAML comments | verify: `grep -q '실행 디렉토리 요구사항' USAGE.md`
+- [x] Flows still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
+- [x] Corpus stays clean | verify: `go run ./tools/flowcheck`
 
 ## Technical Notes
 
@@ -92,3 +93,34 @@ genuinely use it.
   should land first or alongside it.
 - `flowcheck` cannot see any of this today; it reads decision paths, not path resolution.
   Whether it should grow a rule is a question for TASK-186's rule work, not this card.
+
+### Evidence
+
+Each guard was extracted verbatim from the shipped YAML into a one-step probe flow and run
+on two git fixtures, so the text under test is the text that ships:
+
+| flow | CWD == target | CWD != target | names both dirs |
+| --- | --- | --- | --- |
+| dva-improve | exit 0 | exit 1 | yes |
+| 00-analyze | exit 0 | exit 1 | yes |
+| 10-verify | exit 0 | exit 1 | yes |
+| 20-transform | exit 0 | exit 1 | yes |
+| 30-configure | exit 0 | exit 1 | yes |
+| 40-execute | exit 0 | exit 1 | yes |
+
+`target=.` and `target=./` both exit 0 from inside the target — the default path is not
+broken by the guard. `target=/nonexistent` exits 1 at the guard rather than later.
+`flowcheck` shell-field count moved 95 → 101, one per guard, so the corpus scan is seeing
+them.
+
+### Residual, deliberately not closed here
+
+"`improve` must not run when its backup did not" was a criterion on the first draft of this
+card and was dropped, not quietly but for a reason worth writing down: the `when:` contract
+allows one `{{ref}} OP 'quoted'` comparison and no boolean composition. `improve` must run
+on a fresh project, where the backup is skipped by design, and must not run on an existing
+project whose backup errored. Those two need an OR, so no single gate expresses it.
+
+The guard removes the only reachable cause of that state, which is why this card closes.
+A general "a failed step must stop its dependents even when continued past" belongs to am,
+not to a flow, and would be the honest place to fix the remaining interactive-EOF row.

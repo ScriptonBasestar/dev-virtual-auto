@@ -28,8 +28,36 @@ parameters:
     default: ""
 
 steps:
+  # Same guard as `dva-improve.yaml`, which carries the full reasoning. Short version:
+  # `file` and `read_file` resolve against the run directory and are path-sandboxed, while
+  # `context`/`shell` follow `cd`. Run this stage from anywhere but the target and the two
+  # disagree -- reports land in one directory while their `.gitignore` marker lands in the
+  # other, and `read_file` cannot reach the stage report it needs. The parent pipeline
+  # already assumes this: its hand-off gate tests a relative `tmp/improve-guided/` path.
+  - id: check_run_dir
+    type: context
+    context:
+      run_dir_ok: |
+        RUN="$PWD"
+        cd '{{param.target}}' || exit 1
+        if [ "$PWD" = "$RUN" ]; then
+          printf 'yes'
+        else
+          echo "ERROR: 00-analyze must run with the target as the working directory." >&2
+          echo "  run directory: $RUN" >&2
+          echo "  target:        $PWD" >&2
+          echo "" >&2
+          echo "am resolves file/read_file paths against the run directory and refuses to" >&2
+          echo "write outside it, so this stage's reports and the next stage's inputs would" >&2
+          echo "end up in different directories." >&2
+          echo "" >&2
+          echo "Fix: cd '$PWD' && am run dva dva-improve-guided 00-analyze" >&2
+          exit 1
+        fi
+
   - id: check_dva
     type: context
+    depends_on: [check_run_dir]
     context:
       # A missing prerequisite is a stop, not a finish. `exit_if_empty` ends the pipeline
       # *successfully* (flow.schema.json), so an absent CLI produced a clean run that did

@@ -951,3 +951,20 @@ DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제
 - `dva config show` — 병합된 최종 설정 출력
 - `--json` 글로벌 플래그 — 모든 출력을 JSON으로
 - `claude-plugin/` — Claude Code 플러그인
+
+### 실행 디렉토리 요구사항
+
+`dva-improve` 계열 플로우는 **대상 프로젝트 디렉토리에서 실행**해야 합니다.
+
+```bash
+cd /path/to/project
+am run dva-improve            # target 기본값 "." — 정상
+```
+
+`target`을 다른 경로로 넘기면 플로우가 첫 쓰기 이전에 중단됩니다. agent-mesh는
+`file`/`read_file` 경로를 **실행 디렉토리** 기준으로 해석하고 그 밖으로의 쓰기를
+거부하는 반면 `shell` 스텝은 `cd`를 따르기 때문에, 두 경로가 갈리면 설정 백업이
+기록되지 않은 채 에이전트가 설정을 수정하는 상태가 됩니다. 되돌릴 스냅샷이 없는
+수정을 막기 위해 `check_run_dir` 가드가 실행 디렉토리와 target을 함께 출력하고
+멈춥니다.
+
