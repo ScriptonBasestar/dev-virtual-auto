@@ -11,7 +11,7 @@ discovered-in: fresh Phase 1 sweep (schema.json examples lens, doctor probe)
 source-severity: LOW
 moved-at: 2026-07-17T12:30:00+09:00
 verified-at: 2026-07-17T12:30:00+09:00
-decision: middle-ground (user-defined checks: only)
+decision: "middle-ground (user-defined checks: only)"
 decision-rationale: |
   Pre-flight gate contract: help text positions doctor before `dva up`/`dva provision`.
   `dva doctor && dva up` must not proceed when checks fail. Text and --json still print
