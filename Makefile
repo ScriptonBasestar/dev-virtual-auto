@@ -42,7 +42,17 @@ test-integration:
 
 ## lint: Run linters (golangci-lint v2 + gopls check, both pinned in .mise.toml)
 lint: vet fmt-check
-	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
+	@# golangci-lint's cache is machine-wide by default (~/Library/Caches/golangci-lint)
+	@# and its entries carry the absolute paths they were analysed at. The git workflow
+	@# reclaims a worktree per completed task, so those paths keep dying, and the next
+	@# run in any checkout on this machine replays them. A replayed finding cannot be
+	@# suppressed: //nolint is resolved by re-reading the source at report time, and the
+	@# source is gone. Scoping the cache here means a reclaimed worktree takes its cache
+	@# with it. The other two tools in this target cannot have the defect — go vet
+	@# renders positions relative to the module it was invoked in, and gopls is handed
+	@# an explicit file list found under this checkout. TASK-203.
+	@GOLANGCI_LINT_CACHE="$(CURDIR)/tmp/golangci-lint-cache"; export GOLANGCI_LINT_CACHE; \
+	if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
 		mise exec -- golangci-lint run ./...; \
 	elif command -v golangci-lint >/dev/null 2>&1; then \
 		golangci-lint run ./...; \
@@ -101,6 +111,11 @@ fmt-check:
 clean:
 	rm -rf $(BUILD_DIR)
 	go clean -cache
+	@# go clean -cache clears GOCACHE only. Once lint has its own cache (see the lint
+	@# target), that cache has no other route out through make, and per-checkout scoping
+	@# does not remove the need: deleting a source file inside one checkout strands its
+	@# cached findings by the same mechanism, just less often. TASK-203.
+	rm -rf $(CURDIR)/tmp/golangci-lint-cache
 
 ## generate: Generate embeddable library reference from agent-mesh-flows/shared/library/
 generate:
