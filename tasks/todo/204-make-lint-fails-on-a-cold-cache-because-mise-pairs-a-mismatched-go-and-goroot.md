@@ -36,8 +36,11 @@ that wrapper:
 
 go 1.26.6 runs, looks up its tools in a GOROOT belonging to 1.26.5, finds `compile`
 1.26.5, and refuses the pair. Homebrew's go 1.26.6 was installed **2026-08-18 15:51**;
-`.mise.toml` and `go.mod` both pin 1.26.5, and `/opt/homebrew/bin` precedes mise's own
-go install directory in the PATH `mise exec` constructs (positions 15 and 20).
+`.mise.toml` and `go.mod` both pin 1.26.5. In the PATH this particular `mise exec`
+constructs, `/opt/homebrew/bin` (position 15) precedes mise's own go install directory
+(position 20) — but that is an observation of one failing run, not the rule. See *"That is
+a working configuration, not the condition"* below before drawing a PATH-ordering
+conclusion from it.
 
 **Single-variable confirmation.** Holding everything else fixed and changing only which
 `go` the wrapper resolves:
@@ -61,13 +64,31 @@ export PATH="$HOME/.local/share/mise/shims:$PATH"
 make lint      # measured on a cold cache: rc 0, "0 issues."
 ```
 
-Two details worth keeping, because they are easy to get wrong:
+**That is a working configuration, not the condition.** It would be easy to read the line
+above as "mise directories must come first" and go looking for a PATH ordering rule. There
+isn't one. Measured across two sessions:
 
-- The **shims** directory works; prepending mise's go **install** bin directory does not.
-  `mise exec` reorders its own install paths but leaves an unrelated directory alone — a
-  scratch directory holding just a `go` symlink to the pinned toolchain also works.
-- The shims directory is already on PATH here, at position 59, behind `/opt/homebrew/bin`
-  at 15. Being present is not the same as being first.
+| PATH the wrapper inherits | resolved pair |
+|---|---|
+| shims first | consistent (1.26.5 / 1.26.5) |
+| **no mise directories at all** (`/opt/homebrew/bin:/usr/bin:/bin`) | consistent |
+| led by mise's go **install** dir, go tool not active for that directory | **broken** (1.26.6 / 1.26.5) |
+| a scratch dir holding one `go` symlink to the pinned toolchain, first | consistent |
+
+Both extremes work and one middle case fails, so ordering is not the discriminator. The
+mechanism is `GOROOT`: when mise has nothing of its own on PATH it applies its resolution
+and both halves agree, but when its install path *is* present while the go tool is not
+active for that directory, it un-applies the path it owns and **does not retract the
+exported `GOROOT`**. Homebrew's go is then simply whatever is left standing underneath a
+`GOROOT` naming a different version. The stale `GOROOT` is the defect; the go binary is
+the survivor, not the cause — which is also why `env -u GOROOT` cannot help, since it
+removes a symptom from an environment mise rebuilds.
+
+`mise trust` is **not** an axis, despite looking like one (extraction directories are
+untrusted, the repo is trusted). Measured both ways with the directory byte-identical and
+the two arms in separate processes: trusted and untrusted both give the broken pair. An
+A/B that runs both arms inside one shell invocation will appear to confirm trust as the
+cause, because the trust write does not reach the second arm.
 
 So the environment half of this has a known one-line fix and needs no investigation. What
 this card is for is the other half: with the mismatch present, `make lint` reports four
@@ -135,11 +156,20 @@ it.
 1. Should the target hard-fail on a mismatch, or warn and fall back to the bare
    `golangci-lint` branch, which is measured to work? Failing is more honest; falling
    back keeps the gate usable on a machine nobody has cleaned up yet.
-2. ~~Is the mismatch reproducible in other sessions?~~ Largely answered. The primary
-   checkout's cache was written at 2026-08-19 18:25 — *after* the Homebrew upgrade — and
-   holds passing results, so that session resolved a consistent pair, which the shims-first
-   PATH above accounts for. The condition is therefore per-session PATH ordering, not a
-   machine-wide breakage. What remains open is narrower: whether anything in the repo
-   should assert the ordering, or whether it stays a shell-profile concern.
+2. ~~Is the mismatch reproducible in other sessions?~~ **Answered: yes.** A second session
+   on this machine probed the pairing directly — consistent (1.26.5 / 1.26.5) inside the
+   repo, then the broken pair (1.26.6 / 1.26.5) in a `git archive` extraction directory,
+   minutes apart. With PATH left as each session inherited it:
+
+   | session | inside the repo | extraction directory |
+   |---|---|---|
+   | this one | **broken** | **broken** |
+   | the peer's | consistent | **broken** |
+
+   An earlier draft of this card concluded the condition was per-session PATH ordering.
+   That was too narrow: a directory where mise's go tool is not active reproduces it for
+   *everyone*, and only the in-repo column varies by session. Since worktrees and
+   extractions are exposed regardless of whose shell created them, this belongs in the
+   Makefile rather than in a shell profile.
 3. `go vet` and `gopls check` are unaffected here (both passed in every failing run),
    but neither was tested under a deliberately mismatched pairing.
