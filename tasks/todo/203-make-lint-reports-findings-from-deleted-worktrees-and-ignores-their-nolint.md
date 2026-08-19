@@ -73,15 +73,27 @@ instances above are one session inheriting a peer's, then inheriting its own.
 
 ## Why it matters beyond the noise
 
-`gz-git integrate run` judges lint failures as "baseline failure, non-worsening:
-count 1 → 1, no diagnostics on changed paths". That judgement was correct here,
-but it is being made against a number that does not describe the tree. Two ways
-this goes wrong:
+**Measured.** `gz-git integrate run` emitted, verbatim: `WARN make lint — baseline
+failure, non-worsening: count 1 → 1, no diagnostics on changed paths`. The count
+of 1 was the phantom; the tree had zero findings. So the gate reached a correct
+verdict (the change was markdown) from a number that did not describe the tree.
 
-- A phantom inflates the baseline, so a **real** finding introduced by the change
-  can arrive as "1 → 1" and read as non-worsening.
-- Once a reader learns that dead-path findings are phantoms, the habit of
-  dismissing them is one careless step from dismissing a live one.
+**Unverified hypothesis, recorded as such.** If a phantom inflates the baseline,
+a genuine finding introduced by a change could arrive as `1 → 1` and read as
+non-worsening. This is *not* measured. It is a claim about how `gz-git` diffs and
+counts findings, and gz-git's source is not available on this machine — only the
+installed binary (`/Users/archmagece/go/bin/gz-git`, no source checkout found).
+Confirming or refuting it means reading how gz-git pairs before/after findings:
+if it matches on file+line+linter rather than on a bare count, a dead-path
+phantom cannot mask a live finding and the hypothesis is void.
+
+Do not treat that bullet as a reason to fix this card. **The measured reason is
+sufficient on its own**: a lint gate that fails on code containing no findings is
+wrong regardless of what any downstream consumer does with the number.
+
+The one judgement (not a measurement) worth stating: once a reader learns that
+dead-path findings are phantoms, dismissing them becomes a habit, and the habit
+does not check the path every time.
 
 This is the mirror of the defect the `lint` target already guards against for
 `gopls` (TASK-130, comment at the target): there the gate could report a pass it
@@ -128,6 +140,11 @@ never ran the reclaim.
   (`GOCACHE`). Neither produced a dead-path finding in the observed instances, but
   neither was tested for it. Worth one measurement before deciding whether the fix
   should cover them too.
+- Whether a phantom can mask a live finding through gz-git's `N → N` non-worsening
+  judgement is unverified and **does not belong to this card or this repo** — it is
+  a question about gz-git's counting logic, whose source is not on this machine. If
+  it turns out to be real it wants a card in whichever repo owns gz-git. Nothing in
+  this card's fix depends on the answer.
 
 ## Technical Notes
 
