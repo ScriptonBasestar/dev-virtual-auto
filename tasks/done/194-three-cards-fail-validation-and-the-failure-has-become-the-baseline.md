@@ -9,6 +9,44 @@ source: "measured 2026-08-19 — ce task validate --all reports 11 valid, 3 inva
 scope: "dva repo — tasks/done/082, tasks/done/123, tasks/done/164; possibly the ce validator"
 status: done
 completed-at: 2026-08-19T15:27:01+09:00
+quality-review: conditional
+quality-reviewed-at: 2026-08-19T15:31:26+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "AC1 — ce task validate --all, re-run rather than read from the card"
+    result: "Summary: 4 valid, 0 invalid (total: 4)", exit 0
+  - kind: automated
+    command-or-step: "AC2 first half — git ls-files tasks/decision, and git ls-tree -d --name-only HEAD tasks/"
+    result: 0 tracked paths; the tree carries tasks/_archive and tasks/done only. The directory is not in the repo, as the card argues
+  - kind: automated
+    command-or-step: "AC2 second half — grep -rl for the type value, anchored and bare"
+    result: anchored '^type: decision' = 0 files; bare 'type: decision' = 14, all prose. Both numbers match the card
+  - kind: automated
+    command-or-step: "AC2 provenance — git log --all -- 'tasks/decision/*'"
+    result: 40 commits; last is 2697295 (2026-08-07), a D of card 163. Confirms the claim that the last file out is one of the eleven later normalized
+  - kind: automated
+    command-or-step: "AC3 — dogfood closure re-observed from the artifacts, not from either card's prose"
+    result: fixture absent-plans-one-reserved present; case_ids.txt (4 lines) has absent_section_route:plans = 1 and lifecycle_boundary:up = 1; 40-evaluate.md carries the Cross-run promotion clause at ~:74; 60-evaluate.md absent (0 hits)
+  - kind: automated
+    command-or-step: "AC4 — ls tasks/done/082-* tasks/done/123-* tasks/done/164-*"
+    result: all three listed, exit 0; no filename changed
+  - kind: automated
+    command-or-step: "Resolution's 'deliberately not done' table, re-counted"
+    result: _archive type:fix=57, plan=1, feat=1, enhancement=1, priority:P4=18; every card outside _archive is type: chore, priority: P3. Table is accurate
+  - kind: automated
+    command-or-step: "make doc-check after the move"
+    result: 542 links checked, 0 broken, 0 oversized; cilabels and flowcheck OK. The todo->done rename broke no inbound link (0 references to the old path)
+  - kind: manual
+    command-or-step: "FINDING — one sentence in ## Resolution went stale in the commit that closed the card"
+    result: |
+      It reads "a fresh worktree of the same commit has _archive/, done/ and todo/ and
+      nothing else". True when written; false at 2b774e7. 194 was the last card in
+      tasks/todo/, so git ls-tree -d HEAD tasks/ now returns _archive and done only, and
+      tasks/todo/ has become exactly the untracked ghost that tasks/decision/ is - the
+      phenomenon the paragraph exists to describe, now true of one more directory.
+      Recorded rather than corrected: the reviewer does not edit the work. Scope is one
+      clause; the argument, both counts and every other binding re-derive, so this is
+      conditional rather than fail.
 ---
 
 # Task 194: Three cards fail validation and the failure has become the baseline
