@@ -33,8 +33,10 @@ source: "4ec336b — 30-configure.yaml has no check_config step to borrow from"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
 verification-summary: |
-  quality-review pass, re-observed at disposition. Both AC bindings exit 0 and the live summary
-  still prints `4 config-presence probe(s)`, so the rule's scope is non-empty. The four copies
+  quality-review pass, re-observed at disposition. Two of the four AC bindings are commands and
+  both exit 0; AC1 and AC2 are `verify: human —` and are carried by the re-read and hashing
+  recorded below, not by a command. "Both AC bindings" counted the command class as the whole
+  set before this correction. The live summary still prints `4 config-presence probe(s)`, so the rule's scope is non-empty. The four copies
   re-read out of the flows and hashed: one distinct spelling, sha256 3d9bcb5df0eb6de7…, at
   dva-diagnose.yaml:52, dva-improve.yaml:115, 00-analyze.yaml:83, 30-configure.yaml:162 —
   exactly the file/line pairs the Resolution table records. The in-review correction holds: the

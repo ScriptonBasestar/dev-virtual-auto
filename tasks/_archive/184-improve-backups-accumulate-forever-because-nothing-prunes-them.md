@@ -36,8 +36,10 @@ source: "4ec336b — backup_config only copies; no step or command deletes"
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
 verification-summary: |
-  quality-review pass, re-observed at disposition. All three AC bindings exit 0; `prune_backups`
-  is present at dva-improve.yaml:197 and 30-configure.yaml:212 and both copies carry the same
+  quality-review pass, re-observed at disposition. Three of the five AC bindings are commands
+  and all three exit 0; AC2 and AC3 are `verify: human —` and are carried by the fixture run
+  recorded below, not by a command. "All three AC bindings exit 0" counted the command class
+  as the whole set before this correction. `prune_backups` is present at dva-improve.yaml:197 and 30-configure.yaml:212 and both copies carry the same
   retention line, `ls -1 | grep '\.bak$' | sort -t '.' -k 3 -r | tail -n +11`. Selection re-run
   on a fresh 13-snapshot fixture mixing both filename spellings: the ten newest are kept across
   `dva.yaml.202608*` and `dva.yml.20260704-0710`, and exactly the three oldest are selected —

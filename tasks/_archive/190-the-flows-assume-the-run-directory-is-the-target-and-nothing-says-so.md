@@ -42,9 +42,12 @@ quality-review-evidence: |
     command-or-step: "residual check — the dropped 'improve must not run when its backup did not' criterion"
     result: accepted as written. The `when:` contract allows one `{{ref}} OP 'quoted'` comparison with no boolean composition, and the fresh-project vs errored-backup cases need an OR; the guard removes the only reachable cause. Correctly attributed to am rather than left as a silent gap
 verification-summary: |
-  quality-review pass, re-observed at disposition. All five AC bindings exit 0 (`am validate`,
+  quality-review pass, re-observed at disposition. Five of the seven AC bindings are commands
+  and all five exit 0 (`am validate`,
   `go run ./tools/flowcheck`, both `grep -q 'id: check_run_dir'`, `grep -q '실행 디렉토리
-  요구사항' USAGE.md`). The structural claim re-checked rather than taken from the record: the
+  요구사항' USAGE.md`); AC1 and AC2 are `verify: human —` and are carried by the guard
+  placement recorded below, not by a command. "All five AC bindings exit 0" counted the
+  command class as the whole set before this correction. The structural claim re-checked rather than taken from the record: the
   six guards still sit at dva-improve.yaml:67, 00-analyze:37, 10-verify:35, 20-transform:32,
   30-configure:58, 40-execute:35, and each is the FIRST `- id:` in its file, so no write can
   precede the guard. USAGE.md:955 carries the requirement and docs/50:107 links to that anchor.
