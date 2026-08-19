@@ -11,6 +11,8 @@ status: done
 completed-at: 2026-08-18T16:31:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:01:00+09:00
+verified-at: 2026-08-19T14:19:51+09:00
+archived-at: 2026-08-19T14:19:51+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC1 reproduction — check_run_dir shell extracted verbatim from the shipped YAML, run from a directory that is not the target"
@@ -39,6 +41,13 @@ quality-review-evidence: |
   - kind: manual
     command-or-step: "residual check — the dropped 'improve must not run when its backup did not' criterion"
     result: accepted as written. The `when:` contract allows one `{{ref}} OP 'quoted'` comparison with no boolean composition, and the fresh-project vs errored-backup cases need an OR; the guard removes the only reachable cause. Correctly attributed to am rather than left as a silent gap
+verification-summary: |
+  quality-review pass, re-observed at disposition. All five AC bindings exit 0 (`am validate`,
+  `go run ./tools/flowcheck`, both `grep -q 'id: check_run_dir'`, `grep -q '실행 디렉토리
+  요구사항' USAGE.md`). The structural claim re-checked rather than taken from the record: the
+  six guards still sit at dva-improve.yaml:67, 00-analyze:37, 10-verify:35, 20-transform:32,
+  30-configure:58, 40-execute:35, and each is the FIRST `- id:` in its file, so no write can
+  precede the guard. USAGE.md:955 carries the requirement and docs/50:107 links to that anchor.
 ---
 
 # Task 190: Make the CWD-equals-target assumption explicit, or stop depending on it

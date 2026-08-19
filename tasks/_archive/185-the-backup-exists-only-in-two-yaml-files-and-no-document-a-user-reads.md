@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T19:05:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:08:41+09:00
+verified-at: 2026-08-19T14:21:45+09:00
+archived-at: 2026-08-19T14:21:45+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "grep -rq 'backups/dva' docs/ (AC1)"
@@ -30,6 +32,14 @@ quality-review-evidence: |
 source: "4ec336b — grep for the backup path matches flow YAML only"
 scope: "dva repo — docs/, USAGE.md"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. `grep -rq 'backups/dva' docs/` exit 0 and all
+  four criteria still land where the review found them: docs/50 `## 왜 스냅샷이 필요한가` names
+  미커밋 로컬 수정 and routes the last-commit case to `git checkout --`; `## 어디에 남는가` shows
+  the `.gitignore` holding `*` and states the project root file is untouched; USAGE.md:983 links
+  docs/50 from the end of `### 설정 백업과 복원` (:971) and `make doc-check` exit 0 resolves it.
+  Archived with the recorded drift note standing: the Resolution's closing paragraph describes
+  retention as still open, which TASK-184 has since closed — superseded, not wrong when written.
 ---
 
 # Task 185: Tell users their config gets snapshotted

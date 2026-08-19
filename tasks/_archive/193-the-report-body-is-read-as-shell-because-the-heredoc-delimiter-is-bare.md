@@ -8,6 +8,8 @@ created-at: 2026-08-18T19:20:00+09:00
 completed-at: 2026-08-18T20:05:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:10:00+09:00
+verified-at: 2026-08-19T14:20:47+09:00
+archived-at: 2026-08-19T14:20:47+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC1 — save_report.action parsed out of the YAML, template refs substituted, executed under /bin/sh"
@@ -30,6 +32,13 @@ quality-review-evidence: |
 source: "TASK-192 — the corpus-wide am sweep that closed 192 left exactly one blocked step"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/40-execute.yaml, tools/flowcheck"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. Both AC bindings exit 0 and
+  TestHeredocDelimiter still reports 5 passing subtests. The structural claim re-measured
+  rather than re-read: 40-execute.yaml:126 opens `<<'EOF'` and :132 closes `EOF`, both at
+  indent 6 — the block-scalar base — so after YAML dedent the terminator sits at column 0 and
+  POSIX `<<` closes it. The only `<<[A-Za-z]` match left in agent-mesh-flows/ is the `<<<SEARCH`
+  here-string inside flow.schema.json's description text, which is not a shell field.
 ---
 
 # Task 193: The report body is read as shell because the heredoc delimiter is bare

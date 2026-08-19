@@ -8,6 +8,8 @@ created-at: 2026-08-18T17:46:43+09:00
 completed-at: 2026-08-18T17:46:43+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:04:00+09:00
+verified-at: 2026-08-19T14:20:08+09:00
+archived-at: 2026-08-19T14:20:08+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "go run ./tools/flowcheck (AC1)"
@@ -27,6 +29,12 @@ quality-review-evidence: |
 source: "4cfd365 — found while probing am for TASK-184"
 scope: "dva repo — agent-mesh-flows/ comments, tools/flowcheck"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. All four AC bindings exit 0; TestComment-
+  Substitution still reports 9 passing subtests, and the rule is emitted from
+  tools/flowcheck/shell.go:36, not from a comment. The three fields this card left blocked
+  were routed to TASK-192 rather than closed silently, and TASK-192 is itself reviewed pass and
+  dispositioned in this same run — the follow-up chain is closed, not dangling.
 ---
 
 # Task 191: A comment explaining the code is what stops the step from running

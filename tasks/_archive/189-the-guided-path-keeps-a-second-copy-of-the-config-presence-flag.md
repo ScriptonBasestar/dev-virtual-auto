@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:14:48+09:00
+verified-at: 2026-08-19T14:22:49+09:00
+archived-at: 2026-08-19T14:22:49+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "am validate agent-mesh-flows/dva-improve-guided/30-configure.yaml (AC3) and go run ./tools/flowcheck (AC4)"
@@ -30,6 +32,14 @@ quality-review-evidence: |
 source: "4ec336b — 30-configure.yaml has no check_config step to borrow from"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. Both AC bindings exit 0 and the live summary
+  still prints `4 config-presence probe(s)`, so the rule's scope is non-empty. The four copies
+  re-read out of the flows and hashed: one distinct spelling, sha256 3d9bcb5df0eb6de7…, at
+  dva-diagnose.yaml:52, dva-improve.yaml:115, 00-analyze.yaml:83, 30-configure.yaml:162 —
+  exactly the file/line pairs the Resolution table records. The in-review correction holds: the
+  00-analyze copy is published by `detect_basics`, and `analyze_project` now appears on the card
+  only inside the note that records the correction.
 ---
 
 # Task 189: One producer for one fact

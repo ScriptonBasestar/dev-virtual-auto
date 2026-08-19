@@ -8,6 +8,8 @@ created-at: 2026-08-18T17:46:43+09:00
 completed-at: 2026-08-18T19:12:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:07:00+09:00
+verified-at: 2026-08-19T14:20:22+09:00
+archived-at: 2026-08-19T14:20:22+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "go run ./tools/flowcheck (AC1) + grep -rn yaml_block_keys agent-mesh-flows/"
@@ -27,6 +29,13 @@ quality-review-evidence: |
 source: "TASK-191 — uncovered once the span that blocked first was removed"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/00-analyze.yaml, agent-mesh-flows/dva-improve.yaml, tools/flowcheck"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. All four AC bindings exit 0. The defect this
+  card removed stays removed: `yaml_block_keys` has zero occurrences anywhere in
+  agent-mesh-flows/, so no shell field calls a function it defines. TestLocalFunction +
+  TestCommentQuote report 13 passing subtests together (6 + 7, as reviewed), and both rule ids
+  are emitted from tools/flowcheck/shell.go:50 and :94. The `comment-apostrophe` ->
+  `comment-quote` rename recorded as a drift note was TASK-193's widening, not a defect here.
 ---
 
 # Task 192: A shell function the step defines is not a command am will run

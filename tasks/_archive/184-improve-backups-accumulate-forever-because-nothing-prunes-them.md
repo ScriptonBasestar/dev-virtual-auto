@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:07:37+09:00
+verified-at: 2026-08-19T14:21:23+09:00
+archived-at: 2026-08-19T14:21:23+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "grep -q 'id: prune_backups' agent-mesh-flows/dva-improve.yaml (AC1) and .../dva-improve-guided/30-configure.yaml (AC4)"
@@ -33,6 +35,14 @@ quality-review-evidence: |
 source: "4ec336b — backup_config only copies; no step or command deletes"
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. All three AC bindings exit 0; `prune_backups`
+  is present at dva-improve.yaml:197 and 30-configure.yaml:212 and both copies carry the same
+  retention line, `ls -1 | grep '\.bak$' | sort -t '.' -k 3 -r | tail -n +11`. Selection re-run
+  on a fresh 13-snapshot fixture mixing both filename spellings: the ten newest are kept across
+  `dva.yaml.202608*` and `dva.yml.20260704-0710`, and exactly the three oldest are selected —
+  the sort keys on the timestamp field, not on the whole name. docs/50 `## 보존` (:80) states
+  the same bound in user-facing text.
 ---
 
 # Task 184: Decide how long a snapshot is worth keeping

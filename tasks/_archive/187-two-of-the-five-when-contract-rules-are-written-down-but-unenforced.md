@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:11:01+09:00
+verified-at: 2026-08-19T14:22:00+09:00
+archived-at: 2026-08-19T14:22:00+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "go test ./tools/flowcheck/... (AC1-AC3 verify binding)"
@@ -33,6 +35,14 @@ quality-review-evidence: |
 source: "63ee185 — flowcheck enforces rules 1, 2 and 5 only"
 scope: "dva repo — tools/flowcheck/, agent-mesh-flows/dva-improve-guided.yaml"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. All three AC bindings exit 0.
+  TestSkipPropagation still reports 11 passing subtests; both rule ids are emitted from
+  tools/flowcheck/gate.go:137 and :141, not from prose; and dva-improve-guided.yaml:61 still
+  marks all five contract rules mechanically enforced. The non-vacuity guard holds — the live
+  summary prints `3 skippable reference(s)` beside the verdict, so the scope is non-empty.
+  Recorded drift (101 -> 103 shell fields, 12 -> 14 when-gates from later cards) is unchanged
+  and does not touch the count this card owns.
 ---
 
 # Task 187: Enforce the rest of the gate contract

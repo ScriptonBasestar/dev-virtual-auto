@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:40:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:12:33+09:00
+verified-at: 2026-08-19T14:22:19+09:00
+archived-at: 2026-08-19T14:22:19+09:00
 quality-review-evidence: |
   - kind: manual
     command-or-step: "AC1 — the decision and its reasoning are on the card"
@@ -33,6 +35,15 @@ quality-review-evidence: |
 source: "config-damage investigation — usage.log cannot attribute interactive runs to a flow"
 scope: "decision only — no dva code; possible upstream issue against agent-mesh"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. All three criteria are human-verified against
+  the card text: `## Decision: accept` (:51) carries the outcome and its three reasons, the
+  raised-upstream branch states its condition was not met, and the replacement evidence is
+  named. Log claims re-measured on the moving population: 5850 lines, still 0 with a third TSV
+  field, 4624 `am run validate` and 8 namespaced `am run dva ...` recorded by name against 891
+  bare `am run` — the form-not-interactivity finding reproduces. The evidence that replaces the
+  missing attribution is still shipped: `backups/dva` appears 4x in each of the two improve
+  flows, bounded at ten by TASK-184.
 ---
 
 # Task 188: Close or accept the attribution gap

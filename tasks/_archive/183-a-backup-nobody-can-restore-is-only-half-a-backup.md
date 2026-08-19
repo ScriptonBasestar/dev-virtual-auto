@@ -11,6 +11,8 @@ status: done
 completed-at: 2026-08-18T16:58:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T13:56:31+09:00
+verified-at: 2026-08-19T14:18:58+09:00
+archived-at: 2026-08-19T14:18:58+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "grep -rq 'backups/dva' docs/  (AC1 verify binding)"
@@ -27,6 +29,11 @@ quality-review-evidence: |
   - kind: automated
     command-or-step: "make doc-check"
     result: OK — 250 markdown checked, 541 links, 0 broken, 0 oversized (docs/50 is 5628 B, under the 10240 B gate)
+verification-summary: |
+  quality-review pass, re-observed at disposition. `grep -rq 'backups/dva' docs/` exit 0; the
+  restore section named by the review is still in place — docs/50 `## 복원 절차` at :42 with the
+  timestamped `cp` at :51 and the newest-snapshot one-liner at :65, and `make doc-check` exit 0
+  resolves the inbound link. Deliverables unchanged since review.
 ---
 
 # Task 183: Give the snapshot a way back

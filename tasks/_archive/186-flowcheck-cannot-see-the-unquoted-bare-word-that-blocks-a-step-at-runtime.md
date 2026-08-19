@@ -8,6 +8,8 @@ created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T18:41:00+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T13:58:00+09:00
+verified-at: 2026-08-19T14:19:33+09:00
+archived-at: 2026-08-19T14:19:33+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "go test ./tools/flowcheck/... (AC1-AC3 verify binding)"
@@ -27,6 +29,13 @@ quality-review-evidence: |
 source: "TASK-183 implementation — the backup step was blocked twice before the rule was found"
 scope: "dva repo — tools/flowcheck/rules.go, tools/flowcheck/rules_test.go"
 status: done
+verification-summary: |
+  quality-review pass, re-observed at disposition. `go test ./tools/flowcheck/...`, `go run
+  ./tools/flowcheck` and `am validate agent-mesh-flows/dva-improve.yaml` all exit 0;
+  TestBareWordArg still carries 15 passing subtests and `bare-word-arg` lives in shell.go.
+  Widened past the review: every `[ -f ` operand in agent-mesh-flows/ re-read — 26 quoted
+  literals, and the 19 remaining matches are all `"$var"` expansions (exempt by rule design)
+  or the two comments that document the rule. No bare literal operand in the corpus.
 ---
 
 # Task 186: Catch the quoting defect before the run does
