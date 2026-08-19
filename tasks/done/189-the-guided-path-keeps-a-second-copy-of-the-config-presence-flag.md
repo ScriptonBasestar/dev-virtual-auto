@@ -6,6 +6,27 @@ priority: P3
 effort: XS
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:14:48+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "am validate agent-mesh-flows/dva-improve-guided/30-configure.yaml (AC3) and go run ./tools/flowcheck (AC4)"
+    result: exit 0 both — corpus OK, `4 config-presence probe(s)` printed beside the verdict
+  - kind: automated
+    command-or-step: "AC1 — the four copies read out of the parsed YAML and hashed"
+    result: pass — one distinct spelling across all four (sha256 3d9bcb5df0eb…), and the pinning rule is `config-probe-drift` in tools/flowcheck/corpus.go, not a comment. git log -S confirms no flow file changed for this card
+  - kind: automated
+    command-or-step: "AC2 — probe extracted from 30-configure and run against a fixture with and against one without"
+    result: pass — `with -> true (bytes: 4)`, `without -> false (bytes: 5)`, reproducing the card's byte counts; no trailing newline, which is what keeps `== 'true'` comparable. Three gates consume it (30-configure.yaml:184, :193, :215), so backup_marker/backup_config/prune_backups run together and skip together
+  - kind: automated
+    command-or-step: "'The rule fires on real drift' — all three rows re-injected into the shipped flows, flowcheck run, files restored"
+    result: all three reproduce. echo-for-printf in 30-configure -> :162 reported by both config-probe-drift and gate-producer-newline, exit 1; dva-diagnose narrowed to one filename -> the other three copies reported (00-analyze:83, 30-configure:162, dva-improve:115), exit 1; `||` inverted to `&&` in 00-analyze -> :83 alone, exit 1. All three files restored byte-identical, git status clean
+  - kind: automated
+    command-or-step: "mutation table, two rows sampled"
+    result: both match. checkConfigProbe stubbed to nil kills exactly one_copy_drifts_to_echo, two_copies_drift, a_copy_stops_testing_the_other_filename; reBoolEmit relaxed to `(true|false)` kills shell_that_merely_mentions_true_is_not_a_probe and pulls the probe count 4 -> 6 with 2 findings, the deterministic_check pair the card names. corpus.go restored byte-identical
+  - kind: manual
+    command-or-step: "correction applied to the Resolution table"
+    result: the 00-analyze copy is published by `detect_basics`, not `analyze_project` — that id appears nowhere in the corpus and `git log -S` finds no commit that ever added it. File and line (83) were right. Cell corrected in place; the substance of the row is unaffected
 source: "4ec336b — 30-configure.yaml has no check_config step to borrow from"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
@@ -43,7 +64,7 @@ are **four**:
 |---|---|---|
 | `dva-diagnose.yaml` | `check_prerequisites.has_dva_yml` | 52 |
 | `dva-improve.yaml` | `check_config.has_dva_yml` | 115 |
-| `dva-improve-guided/00-analyze.yaml` | `analyze_project.has_dva_yml` | 83 |
+| `dva-improve-guided/00-analyze.yaml` | `detect_basics.has_dva_yml` | 83 |
 | `dva-improve-guided/30-configure.yaml` | `backup_paths.has_config` | 162 |
 
 All four byte-identical. Two of them are in flows that have nothing to do with each other —

@@ -6,6 +6,30 @@ priority: P3
 effort: XS
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:40:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:12:33+09:00
+quality-review-evidence: |
+  - kind: manual
+    command-or-step: "AC1 — the decision and its reasoning are on the card"
+    result: pass — "## Decision: accept" states the outcome and three independent reasons (attribution is lost to the argument form not to interactivity; documented usage already takes the logged branch; snapshots are stronger evidence than the missing log line), and says why it is not raised upstream
+  - kind: manual
+    command-or-step: "AC2 — the raised-upstream branch"
+    result: pass — condition not met, and the card says so in the criterion itself rather than leaving an unlinked claim
+  - kind: manual
+    command-or-step: "AC3 — what evidence exists for future runs instead"
+    result: pass — the snapshot in backups/dva/ plus `diff` against the live file, bounded at ten by TASK-184. Both halves verified in this queue run's reviews of TASK-183 and TASK-184
+  - kind: automated
+    command-or-step: "invocation-form claim re-measured against ~/.agent-mesh/usage.log, same session, without installing anything"
+    result: reproduced. `am run ./probe.yaml -y` at 14:10:33 and 14:10:39 each wrote a bare `am run`; `am run validate probe.yaml` at 14:12:08 wrote `am run validate`. A registry name is recorded, a filesystem path is dropped — the card's table, a different pair of invocations
+  - kind: automated
+    command-or-step: "corroborating log counts"
+    result: 0 of 5838 lines carry a third TSV field, so the log offers attribution and nothing else. `am run validate` 4623, `am run dva dva-discover` 8, `dva-improve` 0 matches anywhere in the file. Bare `am run` now 891 against the title's 638 — the card already warned the figure is not a stable population, and this queue run's own probes added to it
+  - kind: manual
+    command-or-step: "documented-usage claim, checked against the repo"
+    result: pass with a clarification. The six guard `Fix:` lines print the namespaced form (`am run dva dva-improve`, `am run dva dva-improve-guided <stage>`). CLAUDE.md:55-59 documents the bare form (`am run dva-improve`), which `am run --help` and `am flow list` confirm is a registered subcommand — so it resolves from the registry and takes the logged branch too. The claim holds; "registry form" covers both spellings
+  - kind: manual
+    command-or-step: "finding beyond the card (not a defect)"
+    result: an invocation rejected at argument parsing left no line at all — the log records neither the flow name nor the attempt. Strengthens the accept decision rather than weakening it
 source: "config-damage investigation — usage.log cannot attribute interactive runs to a flow"
 scope: "decision only — no dva code; possible upstream issue against agent-mesh"
 status: done

@@ -6,6 +6,30 @@ priority: P2
 effort: M
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:11:01+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "go test ./tools/flowcheck/... (AC1-AC3 verify binding)"
+    result: exit 0 — TestSkipPropagation carries 11 named subtests, 6 asserting a finding and 5 asserting silence, covering both rule ids (gate-skip-leak x4, gate-skip-prompt x2 among the positives)
+  - kind: automated
+    command-or-step: "mutation check on skipReaches — the card's non-vacuity claim, re-run"
+    result: reproduced exactly. `return true` fails exactly 6 subtests (the positives); `return false` fails exactly 3 (gated_dependent_is_protected, all-gated_chain_is_protected, gated_llm_instruction_is_protected — the negatives that reach it). gate.go restored byte-identical, sha256 191fcf30f074ed19d78c94c76dbc4259c4dd2ec8439e51268da356b174d4ea2c, git status clean
+  - kind: automated
+    command-or-step: "am probe flow reproducing all four rows of 'What the runtime actually does' (am today, `am run ./probe.yaml -y`)"
+    result: all four rows reproduce, whole run exit 0. dep_ungated RAN and printed the literal `k=[{{gated.k}}]`; dep_own_when_true was skipped with `dependency 'gated' was skipped` despite its own gate evaluating true; reads_without_depends RAN and printed the literal with no depends_on edge; mid and chain2 both skipped transitively. The stricter-than-the-card condition in the Resolution is the correct one
+  - kind: automated
+    command-or-step: "corpus identity check — skipReaches stubbed to false so every skippable reference surfaces as a finding"
+    result: exactly 3, and exactly the ones the card names — dva-improve.yaml:864 deterministic_check_1.structural_errors, :921 validate_pass2.result, :926 deterministic_check_2.structural_errors. So `3 skippable reference(s)` on the summary line is a real count, not an empty scope
+  - kind: manual
+    command-or-step: "protection paths for those 3, read from the parsed step graph"
+    result: pass — fix_validation_1 (gated) depends_on deterministic_check_1 and fix_validation_2 (gated) depends_on deterministic_check_2 are the direct cases; fix_validation_2 reads validate_pass2 two links out through deterministic_check_2, every node on the path gated. Matches the card's description of the transitive case
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC4) and grep -q 'enforces rules 1, 2, 3, 4 and 5' agent-mesh-flows/dva-improve-guided.yaml (AC5)"
+    result: exit 0 both — corpus OK with no decision-path defects; the contract comment at dva-improve-guided.yaml:61 marks all five rules mechanically enforced
+  - kind: manual
+    command-or-step: "drift note (not a defect in this card)"
+    result: the Evidence footer records 101 shell fields and 12 when-gates; the corpus now reads 103 and 14 because later cards added guards. The skippable-reference count is unchanged at 3
 source: "63ee185 — flowcheck enforces rules 1, 2 and 5 only"
 scope: "dva repo — tools/flowcheck/, agent-mesh-flows/dva-improve-guided.yaml"
 status: done

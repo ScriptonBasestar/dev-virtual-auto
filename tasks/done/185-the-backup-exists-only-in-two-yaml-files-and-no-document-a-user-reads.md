@@ -6,6 +6,27 @@ priority: P2
 effort: S
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T19:05:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:08:41+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "grep -rq 'backups/dva' docs/ (AC1)"
+    result: exit 0 — docs/50-improve-flow-backup-and-restore.md and USAGE.md both name the directory; the card's original finding was that only the two flow YAMLs matched
+  - kind: manual
+    command-or-step: "AC2 — read docs/50 for working-tree vs HEAD"
+    result: pass — "## 왜 스냅샷이 필요한가" names 미커밋 로컬 수정 in bold and tables the split, sending the last-commit case to `git checkout --` and reserving 스냅샷만 for the uncommitted one
+  - kind: manual
+    command-or-step: "AC3 — read docs/50 for the self-ignoring directory"
+    result: pass — "## 어디에 남는가" shows the tree with `.gitignore` containing `*`, states the project root .gitignore is untouched, and gives the reason (남의 저장소에 요청받지 않은 줄을 추가하지 않는다)
+  - kind: manual
+    command-or-step: "AC4 — placement of the inbound link"
+    result: pass — USAGE.md:983 links docs/50 from the end of `### 설정 백업과 복원` (USAGE.md:971), which sits inside `## LLM Integration` where the improve flows are described; make doc-check resolves the link
+  - kind: manual
+    command-or-step: "residual half — a user who finds the directory and asks what wrote it"
+    result: pass — docs/50's opening line names the `am run dva-improve` family and `## 구현 위치` tables both flows with their four steps
+  - kind: manual
+    command-or-step: "drift note (not a defect in this card)"
+    result: the Resolution's closing paragraph says retention is still open and docs/50 documents unbounded behaviour with a manual one-liner. True at completion; TASK-184 has since landed and docs/50 "## 보존" now states the 10-file bound. Superseded by a later card, not wrong when written
 source: "4ec336b — grep for the backup path matches flow YAML only"
 scope: "dva repo — docs/, USAGE.md"
 status: done

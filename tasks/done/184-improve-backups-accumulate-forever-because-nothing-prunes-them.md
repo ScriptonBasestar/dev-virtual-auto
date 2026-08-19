@@ -6,6 +6,30 @@ priority: P2
 effort: S
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T21:10:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:07:37+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "grep -q 'id: prune_backups' agent-mesh-flows/dva-improve.yaml (AC1) and .../dva-improve-guided/30-configure.yaml (AC4)"
+    result: exit 0 on both — the step is on both write paths, gated on check_config.has_dva_yml and backup_paths.has_config respectively, each depends_on backup_config
+  - kind: automated
+    command-or-step: "AC2 reproduction — prune_backups action parsed out of the shipped YAML (not retyped), run on a 13-snapshot fixture"
+    result: 13 -> 10; dva.yml.20260801/02/03 removed, the ten newest remain. Re-runs at the bound 10 -> 10 exit 0; 3 snapshots stay 3; a fixture with no backups/dva exits 0; five further runs each adding one snapshot hold at 10 with the newest present every time
+  - kind: automated
+    command-or-step: "AC3 scope reproduction — same 13-snapshot run, out-of-scope files planted"
+    result: .gitignore and notes.txt inside the directory, backups/outside2.bak one level up, and outside.bak at the fixture root all survived. `ls` without -a never lists the marker and the grep demands a .bak suffix
+  - kind: automated
+    command-or-step: "sort-field claim — ten dva.yml.202607*.bak plus three dva.yaml.202608*.bak, the config-rename state"
+    result: reproduced exactly as tabled. Whole-name `sort -r` keeps all ten July dva.yml and deletes every August dva.yaml; the shipped `sort -t '.' -k 3 -r` keeps the three August plus 20260704-0710. The field is load-bearing
+  - kind: automated
+    command-or-step: "am validate on both edited flows (AC5, widened past the single file the binding names)"
+    result: exit 0 on dva-improve.yaml and on dva-improve-guided/30-configure.yaml
+  - kind: automated
+    command-or-step: "gates — go run ./tools/flowcheck, make doc-check"
+    result: flowcheck OK across 10 flow files / 103 shell fields; doc-check OK, 250 markdown, 541 links, 0 broken, 0 oversized
+  - kind: manual
+    command-or-step: "cross-document check — docs/50 retention snippet vs the shipped step"
+    result: agree. docs/50:82 states the 10-file bound and :96 carries the field-3 sort, so the whole-name snippet the card corrects is no longer shipped anywhere
 source: "4ec336b — backup_config only copies; no step or command deletes"
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, agent-mesh-flows/dva-improve-guided/30-configure.yaml"
 status: done
