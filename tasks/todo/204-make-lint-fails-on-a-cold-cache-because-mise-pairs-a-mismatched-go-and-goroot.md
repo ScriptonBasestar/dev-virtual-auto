@@ -12,8 +12,9 @@ status: todo
 
 ## Summary
 
-`make lint` exits 2 with four `typecheck` errors whenever the golangci-lint cache is
-cold. The errors name stdlib imports and read as if the tree does not compile:
+`make lint` exits 2 with four `typecheck` errors whenever the golangci-lint cache is cold
+*and* the shell resolves a `go` that disagrees with the `GOROOT` mise exports. The errors
+name stdlib imports and read as if the tree does not compile:
 
 ```
 tools/cilabels/main.go:11:2: could not import os (.../go/1.26.5/src/os/dir.go:8:2:
@@ -47,7 +48,32 @@ go install directory in the PATH `mise exec` constructs (positions 15 and 20).
 | mise 1.26.5 (shim first on PATH) | mise 1.26.5 | **rc=0, `0 issues.`** |
 
 Neither `env -u GOROOT` nor an explicit `GOROOT=` override changes the outcome — mise
-re-exports `GOROOT` itself, so the mismatch cannot be corrected from outside the wrapper.
+re-exports `GOROOT` itself.
+
+## Known workaround — this is a recurrence, not a new condition
+
+This drift is already documented, including the `does not match go tool version` giveaway.
+Putting mise's **shims** directory first resolves `go` to the version `GOROOT` names, and
+the gate goes green:
+
+```bash
+export PATH="$HOME/.local/share/mise/shims:$PATH"
+make lint      # measured on a cold cache: rc 0, "0 issues."
+```
+
+Two details worth keeping, because they are easy to get wrong:
+
+- The **shims** directory works; prepending mise's go **install** bin directory does not.
+  `mise exec` reorders its own install paths but leaves an unrelated directory alone — a
+  scratch directory holding just a `go` symlink to the pinned toolchain also works.
+- The shims directory is already on PATH here, at position 59, behind `/opt/homebrew/bin`
+  at 15. Being present is not the same as being first.
+
+So the environment half of this has a known one-line fix and needs no investigation. What
+this card is for is the other half: with the mismatch present, `make lint` reports four
+`could not import` errors about stdlib packages, which reads as "the tree does not
+compile" and sends the reader after a defect that is not there. That is worth fixing on
+its own, because the condition is now met far more often than it used to be (see below).
 
 ## Why it is not visible today
 
@@ -95,9 +121,8 @@ it.
       verify: human — construct the mismatch by putting a differing `go` first on PATH,
       run `make lint`, and confirm the output names the two versions and does not print
       `could not import`
-- [ ] A cold-cache lint passes on a consistent toolchain.
-      verify: `GOLANGCI_LINT_CACHE=$(mktemp -d) make lint` → rc 0 (today this **fails**
-      with rc 2; it is the defect itself)
+- [ ] The failure names the remedy, so the reader does not have to rediscover it.
+      verify: `grep -c 'shims' Makefile` → at least 1 (today: **0**)
 - [ ] No change to which linters run.
       verify: `grep -c 'golangci-lint run ./...' Makefile` → 2, unchanged
 - [ ] The reported `go`/`GOROOT` pairing is read from the same wrapper the target
@@ -110,10 +135,11 @@ it.
 1. Should the target hard-fail on a mismatch, or warn and fall back to the bare
    `golangci-lint` branch, which is measured to work? Failing is more honest; falling
    back keeps the gate usable on a machine nobody has cleaned up yet.
-2. Is the mismatch reproducible in other sessions on this machine? The primary
-   checkout's cache was written at 2026-08-19 18:25 — *after* the Homebrew upgrade —
-   and holds passing results, which suggests at least one session resolved a consistent
-   pair. Worth one `mise exec -- sh -c 'command -v go; echo $GOROOT'` from a second
-   session before assuming the condition is universal.
+2. ~~Is the mismatch reproducible in other sessions?~~ Largely answered. The primary
+   checkout's cache was written at 2026-08-19 18:25 — *after* the Homebrew upgrade — and
+   holds passing results, so that session resolved a consistent pair, which the shims-first
+   PATH above accounts for. The condition is therefore per-session PATH ordering, not a
+   machine-wide breakage. What remains open is narrower: whether anything in the repo
+   should assert the ordering, or whether it stays a shell-profile concern.
 3. `go vet` and `gopls check` are unaffected here (both passed in every failing run),
    but neither was tested under a deliberately mismatched pairing.
