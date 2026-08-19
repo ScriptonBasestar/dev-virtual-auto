@@ -28,11 +28,24 @@ No task files found
 exit: 0
 ```
 
-All 197 cards live in `tasks/_archive/`, and the validator skips that directory by
-name — `internal/adapter/filesystem/task_storage.go:218` excludes `archive` and
-`_archive`, and `internal/usecase/task/canonical_validator.go:279` does the same. Every
-other state directory (`todo`, `doing`, `done`, `blocked`, `plan`, `decision`) is empty.
-The criterion reads as "the corpus validates" and measures "nothing was looked at".
+All 197 cards live in `tasks/_archive/`, and `--all` never opens them:
+`task_storage.go:218` returns `filepath.SkipDir` for any directory named `archive` or
+`_archive` while enumerating candidates (ce-agent-kit at `c99d1921`; the `ce` on PATH is
+built from `9b11760`, so line numbers may drift). Every other state directory (`todo`,
+`doing`, `done`, `blocked`, `plan`, `decision`) is empty. The criterion reads as "the
+corpus validates" and measures "nothing was looked at".
+
+That is not the only `_archive` skip, and the difference matters to anyone re-running this
+by hand. Validating an archived card *by path* takes a second, independent route:
+`canonicalFrozenZone` (`canonical_validator.go:277-284`, same repo) tests the same two
+directory names, but only after frontmatter parsing and after canonical detection have
+both succeeded. Measured 2026-08-19, that left 9 of 197 cards outside every skip and
+judged as if they were unfinished current work — `046`, whose unquoted YAML scalar errors
+before the check is reached, and `001`–`008`, which carry neither `id:` nor `type:`, are
+therefore not detected as canonical, and fall through to a legacy validator that has no
+archive concept at all. All nine exited 1. Both causes are fixed in the two commits
+preceding this one on this branch; the archive now measures 197 skipped, 0 non-zero.
+`--all` still scans 0 of 197 either way, which is what AC1 was written against.
 
 **AC4 (`194:177`) now fails.** The binding is
 `ls tasks/done/082-* tasks/done/123-* tasks/done/164-*`, whose stated purpose is "the
@@ -63,8 +76,11 @@ here the command is right and no longer points at what it was written to point a
 
 - `tasks/_archive/194-…:174` — AC1, the vacuous binding; `:177` — AC4, the stale path
 - `tasks/_archive/063-…:29-31` — the precedent: the same residue, disclosed in-record
-- `internal/adapter/filesystem/task_storage.go:218` and
-  `internal/usecase/task/canonical_validator.go:279` (ce-agent-kit) — where `_archive` is skipped
+- `internal/adapter/filesystem/task_storage.go:218` (ce-agent-kit `c99d1921`) — `--all`
+  skips the directory while enumerating, so archived files are never opened
+- `internal/usecase/task/canonical_validator.go:277-284` (same repo, `canonicalFrozenZone`)
+  — per-file validation skips the same names, but only after parsing and detection succeed.
+  Neither path exists in this repository; `ce` is installed here as a binary only
 - `faf7a17`, `6dccd36` — the same defect class through the count route
 
 ## Open Questions
@@ -83,3 +99,6 @@ here the command is right and no longer points at what it was written to point a
   The defect is in what the record claims, not in when it was judged.
 - `ce task validate --all` exiting 0 must never again be cited as a corpus gate in this
   repository without printing its denominator alongside.
+- The two `_archive` skips are independent, and "the archive is skipped" is not a single
+  fact. Saying it without naming which route was measured is exactly how nine red cards sat
+  unnoticed behind an `--all` that exits 0 without opening a single one of them.
