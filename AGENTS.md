@@ -150,6 +150,7 @@ plans:
 | Legacy declaration migration (`dva config migrate`) | `internal/config/migrate*.go` + `internal/cli/config_migrate.go` |
 | Config merge logic | `internal/config/merge.go` |
 | Validation warnings | `internal/config/validate_warnings.go` |
+| Stack declaration inspection | `internal/cli/show.go` (`dva show` lists every entry) |
 
 ## Build & Test
 
