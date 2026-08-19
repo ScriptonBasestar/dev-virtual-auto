@@ -1,7 +1,7 @@
 ---
 id: TASK-197
 title: "The migration layer has no end condition and the guide it points to never names it"
-type: plan
+type: docs
 priority: P2
 effort: M
 created-at: 2026-08-19T17:25:35+09:00

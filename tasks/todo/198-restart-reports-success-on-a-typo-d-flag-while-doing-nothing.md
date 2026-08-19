@@ -1,7 +1,7 @@
 ---
 id: TASK-198
 title: "`dva restart` reports success on a typo'd flag while doing nothing"
-type: fix
+type: bug
 priority: P2
 effort: S
 created-at: 2026-08-19T17:36:18+09:00
