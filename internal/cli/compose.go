@@ -73,28 +73,29 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 
 var upCmd = &cobra.Command{
 	Use:   "up [PLAN] [OPTIONS]",
-	Short: "Start a named plan (or all declared entries)",
+	Short: "Start services (a named plan, or the whole stack)",
 	Long: `Start a named plan when plans are configured.
-Without a plan name it starts every declared stack entry — unless the config
-sets default_plan or declares exactly one plan, which is then used.
+Without a plan name it uses default_plan, or the only plan when exactly one
+is declared. With several plans and no default_plan it refuses and asks you
+to name one. With no plans configured it starts every declared stack entry.
 
-	Plan usage:
-	  dva up <plan>           Start the selected plan
-	  --force                 Compose only: pass --force-recreate (other plugins ignore)
-	  --no-wait               Return without waiting for readiness
-	  --var KEY=VAL           Override a plan variable
-	  --dry-run               Print the variable resolution and the actions, without executing
+Plan usage:
+  dva up <plan>           Start the selected plan
+  --force                 Compose only: pass --force-recreate (other plugins ignore)
+  --no-wait               Return without waiting for readiness
+  --var KEY=VAL           Override a plan variable
+  --dry-run               Print the variable resolution and the actions, without executing
 
-	Stack flags:
-	  --force                   Compose only: pass --force-recreate (other plugins ignore)
-	  --no-wait                 Start services and return immediately without waiting
-	  --mode, -M MODE           Use a named mode from dva.yml modes section
-	  --env, -E ENV             Use a named environment from dva.yml environments section
-	  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
-	  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
+Stack flags:
+  --force                   Compose only: pass --force-recreate (other plugins ignore)
+  --no-wait                 Start services and return immediately without waiting
+  --mode, -M MODE           Use a named mode from dva.yml modes section
+  --env, -E ENV             Use a named environment from dva.yml environments section
+  --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
+  --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
 
-	Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
-	  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
+Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
+  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -288,10 +289,11 @@ func teardownCommon(args []string, verb string) (*config.Config, *config.Environ
 
 var downCmd = &cobra.Command{
 	Use:   "down [PLAN] [OPTIONS]",
-	Short: "Tear down a named plan (or all declared entries)",
+	Short: "Stop and remove services (a named plan, or the whole stack)",
 	Long: `Stop and remove a named plan.
-Without a plan name it tears down every declared stack entry — unless the config
-sets default_plan or declares exactly one plan, which is then used.
+Without a plan name it uses default_plan, or the only plan when exactly one
+is declared. With several plans and no default_plan it refuses and asks you
+to name one. With no plans configured it tears down every declared stack entry.
 
 Plan usage:
   dva down <plan>         Tear down the selected plan
@@ -308,7 +310,10 @@ Stack flags:
   --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags
 
 Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
-  --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
+  --var KEY=VAL             Override a plan variable. Ignored off the plan path.
+  --volumes, -v             Also remove volumes. Rejected off the plan path.
+  --purge                   Also remove volumes, locally built images and provision
+                            markers. Rejected off the plan path.`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -348,10 +353,11 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 
 var stopCmd = &cobra.Command{
 	Use:   "stop [PLAN] [OPTIONS]",
-	Short: "Stop a named plan (or all declared entries) without removing them",
+	Short: "Stop services without removing them (a named plan, or the whole stack)",
 	Long: `Stop a named plan without removing its resources.
-Without a plan name it stops every declared stack entry — unless the config
-sets default_plan or declares exactly one plan, which is then used.
+Without a plan name it uses default_plan, or the only plan when exactly one
+is declared. With several plans and no default_plan it refuses and asks you
+to name one. With no plans configured it stops every declared stack entry.
 
 Plan usage:
   dva stop <plan>         Stop the selected plan without removing resources
@@ -407,8 +413,9 @@ var restartCmd = &cobra.Command{
 	Use:   "restart [PLAN | SERVICE...] [OPTIONS]",
 	Short: "Restart services (stop + start)",
 	Long: `Restart a named plan (stop followed by start).
-Without a plan name it restarts every declared stack entry — unless the config
-sets default_plan or declares exactly one plan, which is then used.
+Without a plan name it uses default_plan, or the only plan when exactly one
+is declared. With several plans and no default_plan it refuses and asks you
+to name one. With no plans configured it restarts every declared stack entry.
 
 The first argument is read as a plan name when it names a plan, and as a stack
 entry name otherwise; the two cannot be combined.
@@ -420,8 +427,7 @@ Plan usage:
   --dry-run               Print the variable resolution and the actions, without executing
 
 Stack usage:
-  dva restart             Restart every stack entry
-  dva restart <service>   Restart only the named entries
+  dva restart <service>   Restart only the named entries (works in any config)
 
 Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
