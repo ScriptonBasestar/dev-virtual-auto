@@ -1,8 +1,9 @@
 ---
 id: TASK-060
 title: "The Go module path resolves to nothing — the documented go install cannot work"
-type: decision
+type: chore
 priority: P1
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: M
 created-at: 2026-07-30T00:00:00+09:00

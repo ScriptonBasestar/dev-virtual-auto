@@ -1,8 +1,9 @@
 ---
 id: TASK-090
 title: "Seven live documents exceed the 500-line/10KB doc standard, and nothing in the repo states or enforces it"
-type: decision
+type: chore
 priority: P3
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: M
 created-at: 2026-07-31T00:00:00+09:00

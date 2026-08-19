@@ -1,8 +1,9 @@
 ---
 id: TASK-163
 title: "Decide whether detectedProject survives as a name or collapses to a boolean"
-type: decision
+type: chore
 priority: P4
+normalized-by: "TASK-194 — was type: decision"
 effort: S
 created-at: 2026-08-03T15:40:00+09:00
 completed-at: 2026-08-07

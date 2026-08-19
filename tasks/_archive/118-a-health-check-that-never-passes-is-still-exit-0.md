@@ -1,8 +1,9 @@
 ---
 id: TASK-118
 title: "An app whose health check never passes exits 0 — decide whether that stays a warning"
-type: decision
+type: chore
 priority: P3
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: S
 created-at: 2026-07-31T00:00:00+09:00

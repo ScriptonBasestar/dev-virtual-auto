@@ -1,8 +1,9 @@
 ---
 id: TASK-122
 title: "`dva doctor` exits 0 when the compose files do not parse, because every built-in check is advisory"
-type: decision
+type: chore
 priority: P3
+normalized-by: "TASK-194 — was type: decision"
 effort: S
 status: done
 created-at: 2026-07-31T00:00:00+09:00

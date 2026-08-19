@@ -1,8 +1,9 @@
 ---
 id: TASK-129
 title: "Host env reaches a container on exactly one of four compose paths, and nothing records whether that is the design"
-type: decision
+type: chore
 priority: P2
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: M
 created-at: 2026-08-02T00:00:00+09:00

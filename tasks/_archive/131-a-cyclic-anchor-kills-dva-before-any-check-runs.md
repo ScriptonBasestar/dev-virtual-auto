@@ -1,8 +1,9 @@
 ---
 id: TASK-131
 title: "A cyclic YAML anchor kills dva before any check runs, and the crash is ours rather than yaml.v3's"
-type: decision
+type: chore
 priority: P2
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: M
 resolved-at: 2026-08-02T00:00:00+09:00

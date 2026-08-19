@@ -1,8 +1,9 @@
 ---
 id: TASK-063
 title: "README documents a release download, but no release and no tag has ever existed"
-type: decision
+type: chore
 priority: P2
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: S
 created-at: 2026-07-30T00:00:00+09:00

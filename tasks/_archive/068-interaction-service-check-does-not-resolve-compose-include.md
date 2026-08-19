@@ -1,8 +1,9 @@
 ---
 id: TASK-068
 title: "The interaction-service check exists and is precise, but does not resolve compose `include:` — 3 configs are at latent false-positive risk"
-type: decision
+type: chore
 priority: P4
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: XS
 created-at: 2026-07-30T00:00:00+09:00

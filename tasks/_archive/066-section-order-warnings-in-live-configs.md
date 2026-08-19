@@ -1,8 +1,9 @@
 ---
 id: TASK-066
 title: "Ten live configs warn on section order, and they disagree with canonical order in the same two ways"
-type: decision
+type: chore
 priority: P4
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: S
 scope: "Cross-repo: 10 ~/mydevbox/*/dva.yml; possibly internal/config/validate_warnings.go (canonicalSectionOrder). Needs the user's call — their tree"

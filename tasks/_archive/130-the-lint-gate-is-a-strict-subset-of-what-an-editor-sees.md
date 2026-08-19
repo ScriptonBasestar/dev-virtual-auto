@@ -1,8 +1,9 @@
 ---
 id: TASK-130
 title: "The lint gate is a strict subset of what a gopls-backed editor sees, and closing that costs a second mandatory tool"
-type: decision
+type: chore
 priority: P3
+normalized-by: "TASK-194 — was type: decision"
 status: done
 effort: S
 resolved-at: 2026-08-02T00:00:00+09:00
