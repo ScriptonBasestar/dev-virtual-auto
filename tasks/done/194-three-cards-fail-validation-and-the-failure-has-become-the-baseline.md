@@ -7,7 +7,8 @@ effort: S
 created-at: 2026-08-19T13:40:00+09:00
 source: "measured 2026-08-19 — ce task validate --all reports 11 valid, 3 invalid on a clean tree"
 scope: "dva repo — tasks/done/082, tasks/done/123, tasks/done/164; possibly the ce validator"
-status: todo
+status: done
+completed-at: 2026-08-19T15:27:01+09:00
 ---
 
 # Task 194: Three cards fail validation and the failure has become the baseline
@@ -118,25 +119,95 @@ of three error classes, while permanently weakening the vocabulary.
 
 ## Completion Criteria
 
-- [ ] `ce task validate --all` exits 0 | verify: `ce task validate --all; echo "exit: $?"`
-- [ ] `type: decision` is either accepted by the validator or absent from the repo, and `tasks/decision/` agrees with that answer | verify: human — read the decision recorded in this card, then `ls tasks/decision/ && grep -rl 'type: decision' tasks/`
-- [ ] The deferred dogfood-cycle work named in 164's quality review is either re-registered as its own card or explicitly cancelled with a reason | verify: human — the prose claim in `tasks/done/164-*.md` no longer describes work that nothing tracks
-- [ ] The three filenames are unchanged | verify: `ls tasks/done/082-* tasks/done/123-* tasks/done/164-*`
+- [x] `ce task validate --all` exits 0 | verify: `ce task validate --all; echo "exit: $?"`
+- [x] `type: decision` is either accepted by the validator or absent from the repo, and `tasks/decision/` agrees with that answer | verify: human — read the decision recorded in this card, then `ls tasks/decision/ && grep -rl 'type: decision' tasks/`
+- [x] The deferred dogfood-cycle work named in 164's quality review is either re-registered as its own card or explicitly cancelled with a reason | verify: human — the prose claim in `tasks/done/164-*.md` no longer describes work that nothing tracks
+- [x] The three filenames are unchanged | verify: `ls tasks/done/082-* tasks/done/123-* tasks/done/164-*`
+
+## Resolution
+
+Normalized, as the decision above directs. `ce task validate --all` exits 0.
+
+| binding | result |
+| --- | --- |
+| `ce task validate --all; echo "exit: $?"` | `Summary: 4 valid, 0 invalid (total: 4)`, exit 0 |
+| `ls tasks/decision/` | `No such file or directory` — see below |
+| `grep -rl '^type: decision' tasks/` | 0 files |
+| `ls tasks/done/082-* tasks/done/123-* tasks/done/164-*` | all three listed, exit 0 |
+
+The count moved from 3 invalid to 0 invalid out of **4**, not out of 14: thirteen cards were
+archived earlier in the same run, and `validate --all` does not read `tasks/_archive/`.
+
+### `tasks/decision/` is not in the repo
+
+This card's Summary calls it "a real directory in this repo (empty today)", and that is the
+half of the premise that does not survive checking. Git does not store empty directories, so
+it is tracked nowhere — `git ls-files tasks/decision` returns 0. It exists on disk only in
+the primary checkout, left over from when it held files; a fresh worktree of the same commit
+has `_archive/`, `done/` and `todo/` and nothing else. Three sibling zone directories,
+`blocked/`, `doing/` and `plan/`, are in the identical state.
+
+Forty commits touched `tasks/decision/*`. The last is `2697295` (2026-08-07), which deleted
+`163-decide-whether-detectedproject-…md` — one of the eleven archived cards this task went on
+to normalize. The state zone and the stale `type:` are one history seen twice.
+
+That strengthens the decision rather than changing it: the directory cannot have been
+disagreeing with the validator, because from git's point of view it is not there.
+
+### Beyond the three cards the decision names
+
+AC2 asks for `type: decision` to be absent from *the repo* and greps all of `tasks/`.
+Normalizing only the three live cards would have left that grep answering eleven, so the
+eleven archived cards carrying it were swept as well (`80376cd`), each keeping its former
+value in a `normalized-by:` field rather than only in the commit.
+
+The anchored grep now returns 0. A bare `grep -rl 'type: decision' tasks/` still returns 14,
+every one of them prose — this card's own argument plus the `normalized-by:` lines that quote
+the string. Anchor the pattern when re-checking.
+
+### Deliberately not done
+
+`tasks/_archive/` diverges from the enum far more widely than this card noticed, and is left
+that way:
+
+| value | archived cards | reachable by `validate --all` |
+| --- | --- | --- |
+| `type: fix` | 57 | 0 |
+| `type: plan`, `feat`, `enhancement` | 1 each | 0 |
+| `priority: P4` | 18 | 0 |
+
+The eleven were swept because an acceptance criterion on this card greps for that exact
+string. Nothing greps for `fix`, and rewriting sixty terminal records to satisfy a gate that
+never reads them would be churn. `164`'s `P4` moved for the same rule read the other way — it
+sits in `tasks/done/`, which the validator does read.
+
+### AC3 — the deferred dogfood work
+
+Neither re-registered nor cancelled: re-measured, and already closed. The claim at `164:80`
+was true when written on 2026-08-07 and stale a day later. It is kept as written and marked
+`### Superseded (2026-08-19)` inside 164 rather than deleted, with the fixture evidence
+re-observed here — `case_ids.txt` carries `absent_section_route:plans` and exactly one
+`lifecycle_boundary:up`, the cross-run promotion clause reads from `40-evaluate.md:74`,
+`60-evaluate.md` is gone, and both cards have 0 open checkboxes.
 
 ## References
 
 - `tasks/done/082-the-dogfood-loop-cannot-score-an-absent-section.md`
 - `tasks/done/123-dogfood-loop-cannot-score-a-reserved-name-collision.md`
 - `tasks/done/164-two-resolved-decisions-are-parked-where-the-archival-pass-cannot-see-them.md` — its `quality-review-evidence:` block is where the open work is recorded
-- The accepted frontmatter values are whatever `ce`'s `validator.go` enforces; the repo's own valid cards use `type:` ∈ {feature, bug, chore, docs} and `priority:` ∈ {P0…P3}
+- The accepted frontmatter values are whatever `ce`'s `validator.go` enforces: `type:` ∈ {feature, bug, chore, refactor, cleanup, docs, test} and `priority:` ∈ {P0…P3}. Measured 2026-08-19, every card the validator can reach uses `type: chore` and `priority: P3`; `tasks/_archive/` holds nine distinct `type:` values, four of them off that enum — see `## Resolution`
 
 ## Open Questions
 
 - ~~Fix direction is a maintainer call: widen the validator, or normalize the three cards.~~
   **Resolved 2026-08-19 — see `## Decision` above: normalize the cards, do not widen the
   validator.** Implementation may proceed without asking again.
-- Whether the deferred dogfood ACs are still worth doing at all — the stage collapse that
-  orphaned them may have made the question moot.
+- ~~Whether the deferred dogfood ACs are still worth doing at all — the stage collapse
+  that orphaned them may have made the question moot.~~ **Resolved 2026-08-19 — neither:
+  they were completed on 2026-08-08, one day after the review that called them open.**
+  The stage collapse is what closed them, not what orphaned them; `60-evaluate.md` is
+  gone and the promotion it carried reads from `40-evaluate.md:74`. See
+  `## Resolution § AC3`.
 
 ## Technical Notes
 
