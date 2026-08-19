@@ -50,7 +50,8 @@ Config Loader → Schema/Semantic Validation → Resolver
 - `internal/lifecycle/`는 이름 있는 실행 대상을 불변 `ExecutionPlan`으로 해석한다.
 - `order`와 `depends_on`으로 실행 wave를 계산한다.
 - teardown은 의존 관계의 역순으로 수행한다.
-- legacy app lifecycle은 새 계획 모델로 이동 중인 호환 영역이다.
+- 별도의 app lifecycle은 없다. 앱 프로세스도 `native` 러너를 쓰는 stack 엔트리로
+  같은 해석 경로를 탄다 (docs/43).
 
 ### Runners and execution
 

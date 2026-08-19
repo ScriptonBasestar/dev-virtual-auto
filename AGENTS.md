@@ -45,21 +45,19 @@ DVA는 개발 환경 오케스트레이터입니다. 핵심 방향은 `stack:`�
 cmd/dva/main.go                → Entry point
 internal/cli/                  → Cobra commands
   root.go                      → Dynamic routing (interaction → run)
-  stack.go                     → stack declaration inspection / legacy compatibility area
-  app.go                       → legacy app lifecycle area (migration target)
-  compose.go                   → legacy up/down/stop integration area (migration target)
-  run.go, ls.go, show.go       → Core commands
+  compose.go                   → up/down/stop/restart verbs (plan and whole-stack paths)
+  run.go, list.go, show.go     → Core commands
   validate.go                  → dva config validate (schema + semantic warnings)
+  config_migrate.go            → dva config migrate (legacy declaration conversion)
 internal/config/               → dva.yml loading, env interpolation, schema validation
   config.go                    → Config struct (Stack, Plans, Environments, Sites, Interaction, etc.)
   lifecycle.go                 → LifecycleEntry, plugin config types (Compose, Kubectl, Helm, ...)
   lifecycle_helpers.go         → SortedStack(), PrimaryComposeEntry(), ComposeEntries(), etc.
   merge.go                     → Field-level deep merge (modules/override 적용)
-  validate_warnings.go         → 13 semantic warning checks (non-fatal)
+  validate_warnings.go         → 19 semantic warning checks + canonical order (non-fatal)
   reserved.go                  → Reserved/restricted field definitions
 internal/lifecycle/            → Execution plan resolution + runtime orchestration
   orchestrator.go              → Resolved entry execution and teardown
-  app_manager.go               → legacy app lifecycle area (migration target)
   process.go                   → Process execution and signal handling
 internal/runner/               → Interaction execution (DockerCompose, Kubectl, Local)
 internal/exec/                 → Process execution (syscall.Exec, subprocess)
@@ -149,11 +147,9 @@ plans:
 | Fix env interpolation | `internal/config/environment.go` |
 | Modify compose behavior | `internal/runner/docker_compose.go` |
 | Plan orchestration | `internal/lifecycle/orchestrator.go` |
-| Legacy app lifecycle migration | `internal/lifecycle/app_manager.go` |
+| Legacy declaration migration (`dva config migrate`) | `internal/config/migrate*.go` + `internal/cli/config_migrate.go` |
 | Config merge logic | `internal/config/merge.go` |
 | Validation warnings | `internal/config/validate_warnings.go` |
-| Stack declaration inspection | `internal/cli/stack.go` |
-| Legacy app CLI migration | `internal/cli/app.go` |
 
 ## Build & Test
 
