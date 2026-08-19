@@ -6,8 +6,38 @@ priority: P2
 effort: S
 created-at: 2026-08-19T19:12:04+09:00
 source: "found verifying c41f88e's integration — gz-git reported 'baseline failure, non-worsening: count 1 → 1' and the one finding turned out to be anchored in a worktree that no longer exists"
-scope: "Makefile lint target: scope the golangci-lint cache per checkout. No change to which linters run or to any Go source."
-status: todo
+scope: "Makefile lint target: scope the golangci-lint cache per checkout. No change to which linters run or to any Go source. Grew one line in `clean` — see the evidence note."
+status: done
+completed-at: 2026-08-19T18:22:53+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T18:22:53+09:00
+verified-at: 2026-08-19T18:22:53+09:00
+archived-at: 2026-08-19T18:22:53+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "AC1/AC2/AC4 — the target scopes the cache, the path is ignored and untracked, the suppression survived"
+    result: `grep -c GOLANGCI_LINT_CACHE Makefile` → 1 (was 0); `git check-ignore -q tmp/golangci-lint-cache` → rc 0 and `git ls-files` on it prints nothing; `grep -c 'nolint:staticcheck' internal/runner/interaction_tree.go` → 1. The escaping suppression was not "resolved" by rewriting the string it fires on
+  - kind: automated
+    command-or-step: "AC3/AC6/AC7 — make lint, make test, make doc-check on the changed tree"
+    result: rc 0, rc 0, rc 0. lint reports `0 issues.` and the cache lands at `tmp/golangci-lint-cache` (10M) inside the checkout rather than in the machine-wide directory
+  - kind: automated
+    command-or-step: "AC5 — the four-step reproduction, run as a controlled A/B with the observer held fixed (the primary checkout, unfixed, both times)"
+    result: control (worktree at origin/master, shared cache) — lint inside rc 0, remove the worktree, lint in the primary **rc 2, 1 issue, 3 dead-path references**. Fixed (worktree at this branch) — lint inside rc 0, remove, lint in the primary **rc 0, 0 issues, 0 dead-path references, with no cache clean in between**. The ghost still fires on demand today, so the green half is not a repro that stopped working
+  - kind: automated
+    command-or-step: "the redirect observed at the source rather than inferred from the verdict"
+    result: after linting inside the fixed worktree, `golangci-lint cache status` printed its `Dir:` line with no `Size:` line — the machine-wide cache stayed empty while the worktree held 10M of its own
+  - kind: automated
+    command-or-step: "Open Question 1 — tmp/ or build/, decided on measurement"
+    result: `BUILD_DIR := ./bin` and `clean` is exactly `rm -rf ./bin` + `go clean -cache`, so nothing in this Makefile sweeps `tmp/`, and `.gitignore:34` already ignores it. The card's worry that `tmp/` may be swept does not hold in this repository
+  - kind: automated
+    command-or-step: "Open Question 2 — do go vet and gopls check share the defect"
+    result: no, and neither needed a change. `gopls check` is handed an explicit file list from `find cmd internal tools -name '*.go'`, recomputed per run under the current directory. `go vet` renders positions relative to the module it was invoked in — measured on a two-copy scratch module sharing one GOCACHE: copy A vetted, A's path made to disappear, byte-identical copy B still printed `main.go:7:14`, a path that resolves inside B
+  - kind: manual
+    command-or-step: "scope grew by one line outside the lint target"
+    result: accepted, and caused by this change rather than found beside it. `go clean -cache` clears GOCACHE, a different variable, so scoping the lint cache left `clean` with no route to it at all. Per-checkout scoping does not remove the need — deleting a source file inside a single checkout strands its cached findings by the same mechanism, just more rarely
+  - kind: manual
+    command-or-step: "boundary stated rather than left to be inferred from the criteria"
+    result: the fix holds for lint runs that go through `make`. A bare `golangci-lint run` still uses the default cache and can still replay a dead path. The integration path does go through make — `gz-git integrate check` reports `PASS make lint`
 ---
 
 # Task 203: `make lint` reports findings from deleted worktrees and cannot read their //nolint
@@ -116,13 +146,13 @@ never ran the reclaim.
 
 ## Completion Criteria
 
-- [ ] The `lint` target scopes the golangci-lint cache to the checkout | verify: `grep -c 'GOLANGCI_LINT_CACHE' Makefile` returns ≥ 1 (today: 0)
-- [ ] The cache directory it points at is gitignored and untracked | verify: human — read the path the `lint` target assigns, then confirm `git check-ignore -q <path>` exits 0 and `git ls-files -- <path>` prints nothing. Bound to a human because the path is an Open Question below; do not hardcode a guess here.
-- [ ] Lint still passes on a clean tree | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make lint`
-- [ ] The suppression that escaped is still present and still justified, i.e. the fix did not "resolve" this by rewriting the string | verify: `grep -c 'nolint:staticcheck' internal/runner/interaction_tree.go` returns 1
-- [ ] The 4-step reproduction no longer reds at step 3 | verify: human — create a worktree, `make lint` in it, remove it, then `make lint` in the primary checkout; step 3 must report `0 issues.` without a prior cache clean
-- [ ] `make test` passes | verify: `make test`
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] The `lint` target scopes the golangci-lint cache to the checkout | verify: `grep -c 'GOLANGCI_LINT_CACHE' Makefile` returns ≥ 1 (today: 0)
+- [x] The cache directory it points at is gitignored and untracked | verify: human — read the path the `lint` target assigns, then confirm `git check-ignore -q <path>` exits 0 and `git ls-files -- <path>` prints nothing. Bound to a human because the path is an Open Question below; do not hardcode a guess here.
+- [x] Lint still passes on a clean tree | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make lint`
+- [x] The suppression that escaped is still present and still justified, i.e. the fix did not "resolve" this by rewriting the string | verify: `grep -c 'nolint:staticcheck' internal/runner/interaction_tree.go` returns 1
+- [x] The 4-step reproduction no longer reds at step 3 | verify: human — create a worktree, `make lint` in it, remove it, then `make lint` in the primary checkout; step 3 must report `0 issues.` without a prior cache clean
+- [x] `make test` passes | verify: `make test`
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 
 ## References
 
@@ -133,13 +163,20 @@ never ran the reclaim.
 
 ## Open Questions
 
-- Should the cache live under `tmp/` (already gitignored, per the project's temp
-  convention) or under `build/`? `tmp/` looks right, but the lint cache is a build
-  artifact that benefits from surviving between runs, and `tmp/` may be swept.
-- `go vet` and `gopls check` also run in this target and have their own caches
-  (`GOCACHE`). Neither produced a dead-path finding in the observed instances, but
-  neither was tested for it. Worth one measurement before deciding whether the fix
-  should cover them too.
+- ~~Should the cache live under `tmp/` or under `build/`?~~ **Answered: `tmp/`.** The
+  worry was that `tmp/` may be swept. It is not, here: `BUILD_DIR := ./bin` and `clean`
+  is exactly `rm -rf ./bin` plus `go clean -cache`. Nothing in this Makefile touches
+  `tmp/`, and `.gitignore:34` already ignores it. `clean` now drops the lint cache
+  deliberately, which is a different thing from sweeping it out from under a run.
+- ~~Do `go vet` and `gopls check` share the defect?~~ **Answered: no, and neither needed
+  a change.** `gopls check` is handed an explicit file list from
+  `find cmd internal tools -name '*.go'`, recomputed per run under the current directory,
+  so it cannot name a path outside the checkout. `go vet` renders positions relative to
+  the module it was invoked in — measured on a two-copy scratch module sharing one
+  `GOCACHE`: copy A was vetted, A's path was made to disappear, and vetting byte-identical
+  copy B still printed `main.go:7:14`, a path that resolves inside B. The symptom that
+  defines this card — a finding at a path that no longer exists — has no route into
+  either tool's output.
 - Whether a phantom can mask a live finding through gz-git's `N → N` non-worsening
   judgement is unverified and **does not belong to this card or this repo** — it is
   a question about gz-git's counting logic, whose source is not on this machine. If
