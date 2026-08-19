@@ -9,6 +9,30 @@ source: "measured 2026-08-19 — grep -rln --include='*.md' flowcheck . | grep -
 scope: "docs/ page + a link from AGENTS.md; no change to tools/flowcheck behaviour"
 status: done
 completed-at: 2026-08-19T14:28:13+09:00
+quality-review: conditional
+quality-reviewed-at: 2026-08-19T14:37:03+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "AC2 re-run — every emittable rule id present in the page"
+    result: 16 ids derived, no MISSING line. Widened past the binding: `grep -rhoE '\"[a-z]+-[a-z-]+\"' tools/flowcheck/*.go | sort -u` returns the same 16 plus `agent-mesh-flows` (a directory, not a rule), so the derivation command hides no id
+  - kind: automated
+    command-or-step: "AC3 — grep -rln --include='*.md' flowcheck docs/ AGENTS.md"
+    result: docs/51-flowcheck-rules.md, AGENTS.md — both, not only tasks/
+  - kind: automated
+    command-or-step: "AC4 — make doc-check"
+    result: exit 0; page is 118 lines / 8559 bytes, inside the 500-line / 10240-byte gate
+  - kind: automated
+    command-or-step: "page's sample counts vs the binary's real output (not in any binding)"
+    result: identical — 10 flow files, 103 shell fields, 14 when-gates, 40 dva invocations, 3 report-reading fields, 3 skippable references, 4 config-presence probes, 23 built-in commands
+  - kind: automated
+    command-or-step: "page's allowlist claims vs source"
+    result: bareWordTriggers is exactly printf/test/[/[[ (shell.go:144); the four commands the page says are NOT blocked are the four the source comment measured; skipPromptFields matches the instruction/prompt/file.*/src the page names (gate.go:96)
+  - kind: manual
+    command-or-step: "AC1 — each of 16 entries carries id + silent-failure reason + wrong/right pair"
+    result: conditional. 15 rows carry an explicit `X -> Y`; `comment-substitution` states a remedy ("delete backticks and $( ) from comments") without a wrong form. The reason cell names both constructs so the pair is derivable, and config-probe-drift is deliberately prose per the card's own resolution, so the page is not wrong — one cell is weaker than the criterion's letter
+  - kind: manual
+    command-or-step: "disposition of the conditional"
+    result: accepted rather than carded. The fix is one table cell (e.g. `# run `dva up` first` -> `# run dva up first`) and belongs to the next edit of this page; this run already registered three cards and a fourth for one cell would be the overhead, not the fix
 ---
 
 # Task 195: Sixteen build-gating rules exist in no document a contributor reads
