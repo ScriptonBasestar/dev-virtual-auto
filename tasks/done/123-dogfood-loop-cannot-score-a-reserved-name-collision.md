@@ -7,8 +7,8 @@ effort: M
 created-at: 2026-07-31T00:00:00+09:00
 scope: "workflows/dva-dogfood — ref-evaluation.md lifecycle_boundary surface + stage 40 cross-run comparison"
 status: done
-quality-review: fail
-quality-reviewed-at: 2026-08-07T18:05:08+09:00
+quality-review: conditional
+quality-reviewed-at: 2026-08-19T15:34:28+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -25,6 +25,34 @@ quality-review-evidence: |
     unit: 123-fixture-one-reserved
     command-or-step: workflows/dva-dogfood/fixtures/absent-plans-one-reserved case derivation
     result: ok — exactly one lifecycle_boundary:up; EVIDENCE.md
+  - kind: re-review
+    command-or-step: "re-review 2026-08-19 — the fail above is the 2026-08-07 verdict, kept as the record it was; this entry and those below supersede it"
+    result: conditional. Its three causes are gone — no criterion cites the deleted 60-evaluate.md any more (the four remaining mentions are historical prose), the singleton reserved-name criterion closed via the fixture on 2026-08-08, and the promotion clause is re-homed in 40-evaluate.md. 5 of 5 criteria [x], 0 open
+  - kind: automated
+    command-or-step: "AC2 binding verbatim — /usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md"
+    result: exit 0, one hit at :26 — the discover clause naming "the reserved built-in command namespace" as an owner alongside stack, plans and interaction. This is the widening the criterion claims
+  - kind: automated
+    command-or-step: "AC5 premise re-derived against internal/config/reserved.go rather than against the fixture's own comment"
+    result: |
+      reservedCommands holds 23 names; `up` is one of them and `fixture-ping` is not.
+      The fixture therefore declares exactly one reserved-name interaction, and
+      case_ids.txt carries exactly one lifecycle_boundary id (`:up`) out of four ids,
+      with no `:build`. Premise and result both hold, checked independently of the
+      "must not add a second reserved key" comment that asserts it in the fixture
+  - kind: automated
+    command-or-step: "AC3 binding verbatim — grep -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md"
+    result: exit 0, prints line 74. FINDING — the criterion's suffix says "lines 74-79"; the clause runs 74-80. Identical sentence to 082's third criterion; the command half is correct in both
+  - kind: manual
+    command-or-step: "AC4 — cites dogfood run 20260807-193617-91531d (stage 10 freeze, stage 30 forward-test)"
+    result: |
+      FINDING - not re-verifiable. The run directory is gone and .gitignore:34 excludes
+      tmp/, so neither the frozen lifecycle_boundary:up and :build cases nor the
+      forward-test ownership output can be re-derived. The tick rests on the kind:
+      dogfood entry recorded above at the time. Recorded so a later reader does not
+      mistake it for re-checkable. Same limitation as 082 AC4/AC5, same run
+  - kind: automated
+    command-or-step: "normalization directed by TASK-194, verified after the fact"
+    result: type chore, priority P3, both `## Summary` and `## Completion Criteria` present; ce task validate --all exits 0 at 4 valid, 0 invalid
 rework-remarks: |
   Singleton reserved-name AC closed via fixture absent-plans-one-reserved (2026-08-08). All ACs [x].
   Dogfood run 20260807-193617-91531d (gorisa): interaction.up (before) and
