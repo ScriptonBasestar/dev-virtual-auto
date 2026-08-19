@@ -201,8 +201,17 @@ func TestStaticCommandOptionsCoverEveryRegisteredFlag(t *testing.T) {
 // invisible to an agent, and this test does not know that — so it asserts what it can, that every
 // command the parsers serve advertises the flags they accept.
 func TestHandParsedOptionsAreDocumented(t *testing.T) {
+	// The want map is hand-written, so it guards the manifest in one direction only:
+	// it catches an accepted flag that went undocumented, never a documented flag that
+	// stopped being accepted. That blind spot is what let "dev" and "docker" survive
+	// here after `applications:` took --dev and --docker with it (see the note at
+	// compose.go's rejectUnknownFlags call). Measured against the built binary:
+	// `dva up --docker` answers `unknown flag "--docker"`, identical to a nonsense
+	// flag, and `dva up --dev` only suggests --env. The authoritative list the binary
+	// prints is --force, --no-wait, --var, --mode, --env, --tag, --exclude-tag plus
+	// the global --dry-run/--debug/--json; neither name appears in it.
 	want := map[string][]string{
-		"up":      {"force", "no-wait", "dev", "docker", "mode", "env", "tag", "exclude-tag", "var"},
+		"up":      {"force", "no-wait", "mode", "env", "tag", "exclude-tag", "var"},
 		"down":    {"volumes", "mode", "env", "tag", "exclude-tag", "var"},
 		"stop":    {"mode", "env", "tag", "exclude-tag", "var"},
 		"restart": {"no-wait", "mode", "env", "tag", "exclude-tag", "var"},

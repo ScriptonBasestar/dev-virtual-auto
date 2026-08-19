@@ -286,8 +286,6 @@ func buildManifest(c *config.Config) *Manifest {
 				Options: map[string]string{
 					"force":       optForce,
 					"no-wait":     optNoWait,
-					"dev":         "Start applications in dev mode (hot-reload)",
-					"docker":      "Force the docker strategy for applications",
 					"mode":        optMode,
 					"env":         optEnv,
 					"tag":         optTag,

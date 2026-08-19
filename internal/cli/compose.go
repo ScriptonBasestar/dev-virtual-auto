@@ -75,7 +75,8 @@ var upCmd = &cobra.Command{
 	Use:   "up [PLAN] [OPTIONS]",
 	Short: "Start a named plan (or all declared entries)",
 	Long: `Start a named plan when plans are configured.
-Without plans, use the legacy stack and applications lifecycle.
+Without a plan name it starts every declared stack entry — unless the config
+sets default_plan or declares exactly one plan, which is then used.
 
 	Plan usage:
 	  dva up <plan>           Start the selected plan
@@ -84,7 +85,7 @@ Without plans, use the legacy stack and applications lifecycle.
 	  --var KEY=VAL           Override a plan variable
 	  --dry-run               Print the variable resolution and the actions, without executing
 
-	Legacy flags:
+	Stack flags:
 	  --force                   Compose only: pass --force-recreate (other plugins ignore)
 	  --no-wait                 Start services and return immediately without waiting
 	  --mode, -M MODE           Use a named mode from dva.yml modes section
@@ -289,7 +290,8 @@ var downCmd = &cobra.Command{
 	Use:   "down [PLAN] [OPTIONS]",
 	Short: "Tear down a named plan (or all declared entries)",
 	Long: `Stop and remove a named plan.
-Without plans, use the legacy applications and stack lifecycle.
+Without a plan name it tears down every declared stack entry — unless the config
+sets default_plan or declares exactly one plan, which is then used.
 
 Plan usage:
   dva down <plan>         Tear down the selected plan
@@ -299,7 +301,7 @@ Plan usage:
                           Asks for confirmation first; --force answers it.
   --dry-run               Print the variable resolution and the actions, without executing
 
-Legacy flags:
+Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -346,16 +348,17 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 
 var stopCmd = &cobra.Command{
 	Use:   "stop [PLAN] [OPTIONS]",
-	Short: "Stop applications and stack without removing resources",
+	Short: "Stop a named plan (or all declared entries) without removing them",
 	Long: `Stop a named plan without removing its resources.
-Without plans, use the legacy applications and stack lifecycle.
+Without a plan name it stops every declared stack entry — unless the config
+sets default_plan or declares exactly one plan, which is then used.
 
 Plan usage:
   dva stop <plan>         Stop the selected plan without removing resources
   --var KEY=VAL           Override a plan variable
   --dry-run               Print the variable resolution and the actions, without executing
 
-Legacy flags:
+Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -404,7 +407,8 @@ var restartCmd = &cobra.Command{
 	Use:   "restart [PLAN | SERVICE...] [OPTIONS]",
 	Short: "Restart services (stop + start)",
 	Long: `Restart a named plan (stop followed by start).
-Without plans, use the legacy applications and stack lifecycle.
+Without a plan name it restarts every declared stack entry — unless the config
+sets default_plan or declares exactly one plan, which is then used.
 
 The first argument is read as a plan name when it names a plan, and as a stack
 entry name otherwise; the two cannot be combined.
@@ -415,11 +419,11 @@ Plan usage:
   --no-wait               Return without waiting for readiness
   --dry-run               Print the variable resolution and the actions, without executing
 
-Legacy usage:
+Stack usage:
   dva restart             Restart every stack entry
   dva restart <service>   Restart only the named entries
 
-Legacy flags:
+Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
