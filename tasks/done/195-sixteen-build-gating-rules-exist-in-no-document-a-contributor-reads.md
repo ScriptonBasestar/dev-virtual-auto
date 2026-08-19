@@ -7,7 +7,8 @@ effort: S
 created-at: 2026-08-19T13:45:00+09:00
 source: "measured 2026-08-19 — grep -rln --include='*.md' flowcheck . | grep -v tasks/ returns nothing"
 scope: "docs/ page + a link from AGENTS.md; no change to tools/flowcheck behaviour"
-status: todo
+status: done
+completed-at: 2026-08-19T14:28:13+09:00
 ---
 
 # Task 195: Sixteen build-gating rules exist in no document a contributor reads
@@ -36,10 +37,10 @@ correct, the place to read about it did not exist.
 
 ## Completion Criteria
 
-- [ ] A page under `docs/` documents all 16 rules; each entry gives the rule id, the am behaviour that makes the mistake silent, and a wrong/right example | verify: human — read the page and confirm each rule has all three
-- [ ] Every rule id the binary can emit appears in that page | verify: `for id in $(grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u); do grep -q -- "$id" docs/*flowcheck*.md || echo "MISSING $id"; done` (no output = pass; the id list must come out to 16 today)
-- [ ] flowcheck is documented where a contributor looks, not only in `tasks/` | verify: `grep -rln --include='*.md' flowcheck docs/ AGENTS.md`
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] A page under `docs/` documents all 16 rules; each entry gives the rule id, the am behaviour that makes the mistake silent, and a wrong/right example | verify: human — read the page and confirm each rule has all three
+- [x] Every rule id the binary can emit appears in that page | verify: `for id in $(grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u); do grep -q -- "$id" docs/*flowcheck*.md || echo "MISSING $id"; done` (no output = pass; the id list must come out to 16 today)
+- [x] flowcheck is documented where a contributor looks, not only in `tasks/` | verify: `grep -rln --include='*.md' flowcheck docs/ AGENTS.md`
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 
 ## References
 
@@ -67,3 +68,34 @@ correct, the place to read about it did not exist.
   emission form would drop out of the list silently and the check would then pass while under-
   counting, so re-derive the count when the page is written and state it there.
 - `make doc-check` already knows about flowcheck; adding a page must not break it.
+
+## Resolution
+
+`docs/51-flowcheck-rules.md` (118 lines, 8559 bytes — inside the doc gate's 500-line/10240-byte
+limit) documents all 16 rules, and `AGENTS.md` links it from a new **Flow decision-path gate
+(flowcheck)** section placed beside the documentation gate.
+
+The id count was re-derived rather than copied from this card: the AC2 extraction returns
+**16** ids today, and each appears in the page. Both the page and AGENTS.md carry that
+extraction command rather than a hand-kept list, so the next rule that lands shows up as a
+`MISSING` line instead of silently falling out.
+
+Three shapes the page keeps, each for a measured reason:
+
+- **Grouped by the am behaviour, not alphabetically** — the five `when:` rules share one
+  contract, the three shell rules share one allowlist, and reading them apart loses why each
+  exists.
+- **`config-probe-drift` is prose, not a table row.** It reads the whole corpus rather than one
+  field, so "wrong → right" for it is about a set of four copies agreeing, and the same cell
+  shape as the others would have misdescribed it.
+- **The summary counts are documented as part of the contract.** A rule that matches nothing
+  reads exactly like a rule that passed, which is why the count sits beside the verdict.
+
+Two accuracy fixes fell out while writing it. `AGENTS.md` described `make doc-check` as
+"repo-wide markdown links + docs/workflows size" while the target has run three gates
+(`doccheck`, `cilabels`, `flowcheck`) — corrected. And the `exit-if-empty` example's `||`
+was unescaped inside a table cell, which markdown would have rendered as two empty columns;
+every row now splits to exactly three cells under a pipe-escape-aware check.
+
+Non-goals are stated on the page: flowcheck reads am *semantics*, `am validate` reads the
+schema, and prompt bodies are deliberately out of scope.
