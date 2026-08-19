@@ -9,6 +9,36 @@ source: "measured against am cb8b4ce while adding the 30-configure report marker
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, dva-improve-guided/*.yaml"
 status: done
 completed-at: 2026-08-18T16:31:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:01:00+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "AC1 reproduction — check_run_dir shell extracted verbatim from the shipped YAML, run from a directory that is not the target"
+    result: exit 1, stderr names both `run directory:` and `target:`; controls `target=<abs>` and `target=.` from inside the target both exit 0 with `yes`
+  - kind: automated
+    command-or-step: "AC2 reproduction — same guard with target=/nonexistent"
+    result: exit 1 at `cd ... || exit 1`, before any later step
+  - kind: automated
+    command-or-step: "AC1 structural check — position of check_run_dir in each flow"
+    result: check_run_dir is the FIRST step in all six flows (dva-improve.yaml:67 with no prior step; 00-analyze:37, 10-verify:35, 20-transform:32, 30-configure:58, 40-execute:35), so it precedes every write
+  - kind: automated
+    command-or-step: "grep -q 'id: check_run_dir' agent-mesh-flows/dva-improve.yaml (AC3)"
+    result: exit 0
+  - kind: automated
+    command-or-step: "grep -rq 'id: check_run_dir' agent-mesh-flows/dva-improve-guided/ (AC4)"
+    result: exit 0 — 5 guided stages carry one guard each, 6 guards total
+  - kind: automated
+    command-or-step: "grep -q '실행 디렉토리 요구사항' USAGE.md (AC5)"
+    result: exit 0 — USAGE.md:955 states the requirement with the `cd` example; docs/50 links to this anchor and doc-check resolves it
+  - kind: automated
+    command-or-step: "am validate on all seven improve flows (AC6, widened past the single file the binding names)"
+    result: exit 0 on every one
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC7)"
+    result: exit 0 — 10 flow files, 103 shell fields, no decision-path defects
+  - kind: manual
+    command-or-step: "residual check — the dropped 'improve must not run when its backup did not' criterion"
+    result: accepted as written. The `when:` contract allows one `{{ref}} OP 'quoted'` comparison with no boolean composition, and the fresh-project vs errored-backup cases need an OR; the guard removes the only reachable cause. Correctly attributed to am rather than left as a silent gap
 ---
 
 # Task 190: Make the CWD-equals-target assumption explicit, or stop depending on it

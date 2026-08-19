@@ -9,6 +9,24 @@ source: "4ec336b — backup landed with no restore path"
 scope: "dva repo — agent-mesh-flows/dva-improve.yaml, agent-mesh-flows/dva-improve-guided/, docs/"
 status: done
 completed-at: 2026-08-18T16:58:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T13:56:31+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "grep -rq 'backups/dva' docs/  (AC1 verify binding)"
+    result: exit 0 — docs/50-improve-flow-backup-and-restore.md and USAGE.md both name the directory
+  - kind: manual
+    command-or-step: "AC2 — read docs/50 for snapshot-selection rule"
+    result: pass — fixed-width zero-padded timestamp makes lexical order == chronological order; the multi-run case (newest snapshot already contains the first run's damage) is stated with the settling `diff`
+  - kind: automated
+    command-or-step: "AC3 re-run on a fresh fixture from examples/basic.yml: dva validate intact -> overwrite with invalid config -> cp \"$(ls -1 backups/dva/*.bak | tail -1)\" dva.yml -> dva validate"
+    result: exit 0 -> exit 1 -> exit 0; the documented one-liner restores a config DVA accepts
+  - kind: automated
+    command-or-step: "scoped-change check: backup_paths/backup_marker/backup_config/prune_backups present in both dva-improve.yaml and dva-improve-guided/30-configure.yaml"
+    result: all four steps present in both flows, matching the doc's implementation table
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: OK — 250 markdown checked, 541 links, 0 broken, 0 oversized (docs/50 is 5628 B, under the 10240 B gate)
 ---
 
 # Task 183: Give the snapshot a way back

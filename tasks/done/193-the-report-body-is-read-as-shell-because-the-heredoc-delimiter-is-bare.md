@@ -6,6 +6,27 @@ priority: P1
 effort: S
 created-at: 2026-08-18T19:20:00+09:00
 completed-at: 2026-08-18T20:05:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:10:00+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "AC1 — save_report.action parsed out of the YAML, template refs substituted, executed under /bin/sh"
+    result: exit 0, prints `Execution report saved.`, writes tmp/improve-guided/40-execution-report.txt holding both `=== DVA Status ===` and `=== DVA Show ===`
+  - kind: automated
+    command-or-step: "AC1 structural — heredoc terminator position after YAML block-scalar dedent"
+    result: `<<'EOF'` at dedented line 8 and `EOF` at column 0 on line 14; POSIX `<<` requires an unindented terminator, and the block-scalar dedent supplies it, so the heredoc closes
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC2) + grep for bare `<<` delimiters across agent-mesh-flows/"
+    result: exit 0 over 103 shell fields; the only `<<[A-Za-z]` hit repo-wide is the string `<<<SEARCH` inside flow.schema.json's description text — a here-string, which the rule discards by design, and not a shell field
+  - kind: automated
+    command-or-step: "go test ./tools/flowcheck/ -run TestHeredocDelimiter (AC3)"
+    result: exit 0 — 5 subtests: bare delimiter fires, single- and double-quoted forms stay silent, `<<-` is the same defect, `<<<` here-string is not a heredoc
+  - kind: automated
+    command-or-step: "am validate agent-mesh-flows/dva-improve-guided/40-execute.yaml (AC4)"
+    result: exit 0
+  - kind: manual
+    command-or-step: "cross-card check — the comment-apostrophe -> comment-quote rename this card performs"
+    result: confirmed in git: 499bd6b introduced `comment-apostrophe`, 55c2eb0 renamed it to `comment-quote`. 16 rule ids now live in tools/flowcheck, matching the set TASK-195 is filed to document
 source: "TASK-192 — the corpus-wide am sweep that closed 192 left exactly one blocked step"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/40-execute.yaml, tools/flowcheck"
 status: done

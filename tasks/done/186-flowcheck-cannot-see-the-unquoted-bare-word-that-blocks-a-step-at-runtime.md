@@ -6,6 +6,24 @@ priority: P1
 effort: M
 created-at: 2026-08-18T15:24:47+09:00
 completed-at: 2026-08-18T18:41:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T13:58:00+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "go test ./tools/flowcheck/... (AC1-AC3 verify binding)"
+    result: exit 0 — TestBareWordArg has 15 named subtests, non-vacuous, covering fires-on `[ -f dva.yml ]`, silent-on `[ -f 'dva.yml' ]`, silent-on expansions/flags/operators/numbers, and the `printf true` vs `printf yes` split
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC4 verify binding)"
+    result: exit 0 — 10 flow files, 103 shell fields, OK, no decision-path defects
+  - kind: manual
+    command-or-step: "AC4 fixed-not-exempted check: read the six lines the card names"
+    result: pass — 00-analyze.yaml uses `[ -f 'go.mod' ]`, `[ -f 'Cargo.toml' ]`, `[ -f 'package.json' ]`, `[ -f 'pyproject.toml' ]`; dva-improve.yaml:809 and :893 use `$([ -f 'dva.yml' ] && …)`. Operands are quoted; no exemption entry was added for them
+  - kind: automated
+    command-or-step: "am validate agent-mesh-flows/dva-improve.yaml (AC5 verify binding)"
+    result: exit 0 — valid, no issues found
+  - kind: manual
+    command-or-step: "drift note (not a defect in this card)"
+    result: Technical Notes lists the 9 rule ids current at completion; the corpus now carries 16. Later cards added rules; TASK-195 owns documenting the full set
 source: "TASK-183 implementation — the backup step was blocked twice before the rule was found"
 scope: "dva repo — tools/flowcheck/rules.go, tools/flowcheck/rules_test.go"
 status: done

@@ -6,6 +6,24 @@ priority: P1
 effort: S
 created-at: 2026-08-18T17:46:43+09:00
 completed-at: 2026-08-18T19:12:00+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:07:00+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC1) + grep -rn yaml_block_keys agent-mesh-flows/"
+    result: exit 0 over 103 shell fields; zero occurrences of yaml_block_keys remain, so no field calls a function it defines
+  - kind: automated
+    command-or-step: "go test ./tools/flowcheck/ -run 'TestLocalFunction|TestCommentQuote' (AC2)"
+    result: exit 0 — TestLocalFunction has 6 subtests carrying the design claims (a definition alone is not a call; the name as an argument is not a call; a call inside a double-quoted substitution is found, which is the tokenizer-descent fix); TestCommentQuote has 7
+  - kind: automated
+    command-or-step: "AC3 output equivalence — awk block extracted verbatim from dva-improve.yaml:249 and run on a compose fixture (3 services, 2 networks, 1 volume, nested ports:/image: keys)"
+    result: emits `services: web api db` / `networks: backend frontend` / `volumes:  pgdata` — the three blocks separate with the documented %-9s padding, and the `ind == base` guard excludes nested keys, so a network cannot be read as an undeclared service. Matches the output the card records byte for byte
+  - kind: automated
+    command-or-step: "am validate agent-mesh-flows/dva-improve.yaml && am validate agent-mesh-flows/dva-improve-guided/00-analyze.yaml (AC4)"
+    result: exit 0 on both
+  - kind: manual
+    command-or-step: "naming drift check on the rule id this card introduces"
+    result: the card names the rule `comment-apostrophe`, which is what 499bd6b shipped; 55c2eb0 (TASK-193) renamed it to `comment-quote` when it widened to double quotes. The card is accurate for its own commit — later rename, not an error here
 source: "TASK-191 — uncovered once the span that blocked first was removed"
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/00-analyze.yaml, agent-mesh-flows/dva-improve.yaml, tools/flowcheck"
 status: done

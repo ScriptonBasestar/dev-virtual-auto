@@ -6,6 +6,24 @@ priority: P1
 effort: S
 created-at: 2026-08-18T17:46:43+09:00
 completed-at: 2026-08-18T17:46:43+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-19T14:04:00+09:00
+quality-review-evidence: |
+  - kind: automated
+    command-or-step: "go run ./tools/flowcheck (AC1)"
+    result: exit 0 over a non-zero denominator — 10 flow files, 103 shell fields scanned, 0 findings
+  - kind: automated
+    command-or-step: "go test ./tools/flowcheck/ -run TestCommentSubstitution (AC2)"
+    result: exit 0 — 9 named subtests including the negative cases (span outside a comment, hash inside quotes, empty comment)
+  - kind: automated
+    command-or-step: "independent mutation check — stub commentSubstitutions to return nil, re-run the suite, then restore"
+    result: 6 of 9 subtests FAIL when stubbed; restored file is byte-identical (git diff empty) and the suite is green again. The card claimed 5 of 8; the suite has since grown one case, so the discrimination claim holds and is stronger than recorded
+  - kind: automated
+    command-or-step: "am validate agent-mesh-flows/dva-improve.yaml && am validate agent-mesh-flows/dva-improve-guided/10-verify.yaml (AC4)"
+    result: exit 0 on both
+  - kind: manual
+    command-or-step: "AC3 — three fields still blocked after the fix"
+    result: correctly attributed, not hidden. They were blocked at 4cfd365 too, on a different span, and are filed as TASK-192 rather than closed silently
 source: "4cfd365 — found while probing am for TASK-184"
 scope: "dva repo — agent-mesh-flows/ comments, tools/flowcheck"
 status: done
