@@ -16,7 +16,7 @@ archived-at: 2026-08-19T14:18:58+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "grep -rq 'backups/dva' docs/  (AC1 verify binding)"
-    result: exit 0 — docs/50-improve-flow-backup-and-restore.md and USAGE.md both name the directory
+    result: exit 0 — the binding is scoped to docs/ and matches docs/50-improve-flow-backup-and-restore.md alone. USAGE.md names the directory too (:973, :977, :978) but sits at the repository root, outside this grep. Corrected after archival: this line first read "docs/50 ... and USAGE.md both name the directory", crediting the binding with a match it cannot make
   - kind: manual
     command-or-step: "AC2 — read docs/50 for snapshot-selection rule"
     result: pass — fixed-width zero-padded timestamp makes lexical order == chronological order; the multi-run case (newest snapshot already contains the first run's damage) is stated with the settling `diff`

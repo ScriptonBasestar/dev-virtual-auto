@@ -13,7 +13,7 @@ archived-at: 2026-08-19T14:21:45+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "grep -rq 'backups/dva' docs/ (AC1)"
-    result: exit 0 — docs/50-improve-flow-backup-and-restore.md and USAGE.md both name the directory; the card's original finding was that only the two flow YAMLs matched
+    result: exit 0 — the binding is scoped to docs/ and matches docs/50-improve-flow-backup-and-restore.md alone. USAGE.md names the directory too (:973, :977, :978) but sits at the repository root, outside this grep. The card's original finding was that only the two flow YAMLs matched. Corrected after archival: this line first read "docs/50 ... and USAGE.md both name the directory", crediting the binding with a match it cannot make
   - kind: manual
     command-or-step: "AC2 — read docs/50 for working-tree vs HEAD"
     result: pass — "## 왜 스냅샷이 필요한가" names 미커밋 로컬 수정 in bold and tables the split, sending the last-commit case to `git checkout --` and reserving 스냅샷만 for the uncommitted one
