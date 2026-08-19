@@ -7,8 +7,8 @@ effort: M
 created-at: 2026-07-30T00:00:00+09:00
 scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 40 cross-run comparison"
 status: done
-quality-review: fail
-quality-reviewed-at: 2026-08-07T18:05:08+09:00
+quality-review: conditional
+quality-reviewed-at: 2026-08-19T15:33:33+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -29,6 +29,28 @@ quality-review-evidence: |
     unit: 082-fixture-absent-plans
     command-or-step: workflows/dva-dogfood/fixtures/absent-plans-one-reserved case derivation
     result: ok — case_ids include absent_section_route:plans; validate rc 0; EVIDENCE.md
+  - kind: re-review
+    command-or-step: "re-review 2026-08-19 — the fail above is the 2026-08-07 verdict, kept as the record it was; this entry and those below supersede it"
+    result: conditional. All three rework causes are gone — the promotion clause lives in 40-evaluate.md, the card's `60-evaluate.md` mentions are now historical prose only ("re-homed from deleted ..."), and 0 criteria are open (5 of 5 [x])
+  - kind: automated
+    command-or-step: "AC2 binding verbatim — grep -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md"
+    result: exit 0, prints line 74. FINDING — the criterion's suffix says the clause sits at "lines 74-79"; it runs 74-80, ending "never replaces current-run gates." with </gate> at 81. Off by one, in the prose half; the command half is correct. 123 carries the identical sentence
+  - kind: automated
+    command-or-step: "AC3 premise re-derived from the fixture rather than from EVIDENCE.md"
+    result: fixtures/absent-plans-one-reserved/dva.yml has version, stack and interaction and no plans key; case_ids.txt holds 4 ids including absent_section_route:plans. The premise the criterion asserts is what the fixture actually is
+  - kind: manual
+    command-or-step: "AC4 and AC5 — both cite dogfood run 20260807-193617-91531d"
+    result: |
+      FINDING - not re-verifiable. The run directory is gone and .gitignore:34 excludes
+      tmp/, so neither the frozen/post-edit hashes nor state.yaml's
+      not_applicable_surfaces can be re-derived by anyone reading this card. The ticks
+      rest on the kind: dogfood entry recorded above at the time, not on an artifact.
+      The durable half of AC4 - that the clause naming a hash delta as promotion exists
+      in 40-evaluate.md - does re-derive. Recorded so a later reader does not mistake
+      these two for re-checkable.
+  - kind: automated
+    command-or-step: "normalization directed by TASK-194, verified after the fact"
+    result: type chore, priority P3, both `## Summary` and `## Completion Criteria` present; ce task validate --all exits 0 at 4 valid, 0 invalid
 rework-remarks: |
   Residual AC closed via fixture absent-plans-one-reserved (2026-08-08). All ACs [x].
   Dogfood run 20260807-193617-91531d (gorisa): applications is not a command family
