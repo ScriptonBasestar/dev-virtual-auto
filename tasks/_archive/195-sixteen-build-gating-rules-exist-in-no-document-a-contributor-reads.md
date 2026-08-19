@@ -11,6 +11,8 @@ status: done
 completed-at: 2026-08-19T14:28:13+09:00
 quality-review: conditional
 quality-reviewed-at: 2026-08-19T14:37:03+09:00
+verified-at: 2026-08-19T14:38:52+09:00
+archived-at: 2026-08-19T14:38:52+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC2 re-run — every emittable rule id present in the page"
@@ -33,6 +35,15 @@ quality-review-evidence: |
   - kind: manual
     command-or-step: "disposition of the conditional"
     result: accepted rather than carded. The fix is one table cell (e.g. `# run `dva up` first` -> `# run dva up first`) and belongs to the next edit of this page; this run already registered three cards and a fourth for one cell would be the overhead, not the fix
+verification-summary: |
+  Re-observed at disposition, not carried from the review: 16 rule ids derived from
+  tools/flowcheck/*.go and every one present in docs/51-flowcheck-rules.md (0 missing);
+  page 118 lines / 8559 bytes, inside the 500-line / 10240-byte gate; AGENTS.md mentions
+  flowcheck on 4 lines; make doc-check exit 0; go run ./tools/flowcheck OK.
+
+  Archived on a conditional verdict. The condition is one cell — comment-substitution
+  states a remedy where the other fifteen rows state a wrong -> right pair — recorded as
+  accepted, with the upgrade owed to the next edit of that page rather than to a card.
 ---
 
 # Task 195: Sixteen build-gating rules exist in no document a contributor reads

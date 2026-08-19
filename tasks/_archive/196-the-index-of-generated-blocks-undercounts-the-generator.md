@@ -11,6 +11,8 @@ status: done
 completed-at: 2026-08-19T14:34:10+09:00
 quality-review: pass
 quality-reviewed-at: 2026-08-19T14:38:17+09:00
+verified-at: 2026-08-19T14:39:11+09:00
+archived-at: 2026-08-19T14:39:11+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC1/AC2 re-run — README tokens, corpus markers, generator writes"
@@ -39,6 +41,14 @@ quality-review-evidence: |
   - kind: automated
     command-or-step: "table rendering — cells split on unescaped pipes"
     result: 15 table rows, 0 with a cell count other than 3
+verification-summary: |
+  Re-observed at disposition: README carries both `version_rule` and `Rule 4`; markers 3,
+  replaceBlock calls 3, README table rows 3 — still in agreement; make check-generate exit 0
+  and make doc-check exit 0, with the generated regions untouched (git status shows only the
+  195 rename pending).
+
+  The invariant the card chose over a count is what makes this re-observation cheap: a fourth
+  replaceBlock call would leave the sentence true and only the table short.
 ---
 
 # Task 196: The index of generated blocks undercounts the generator
