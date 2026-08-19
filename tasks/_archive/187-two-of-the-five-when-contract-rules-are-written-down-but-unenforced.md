@@ -36,7 +36,10 @@ source: "63ee185 — flowcheck enforces rules 1, 2 and 5 only"
 scope: "dva repo — tools/flowcheck/, agent-mesh-flows/dva-improve-guided.yaml"
 status: done
 verification-summary: |
-  quality-review pass, re-observed at disposition. All three AC bindings exit 0.
+  quality-review pass, re-observed at disposition. All five AC bindings are commands and
+  every one exits 0 — three distinct commands (`go test ./tools/flowcheck/...` on three
+  criteria, `go run ./tools/flowcheck`, and the contract-comment `grep -q`). Corrected after
+  archival: this line first read "All three AC bindings", counting commands as criteria.
   TestSkipPropagation still reports 11 passing subtests; both rule ids are emitted from
   tools/flowcheck/gate.go:137 and :141, not from prose; and dva-improve-guided.yaml:61 still
   marks all five contract rules mechanically enforced. The non-vacuity guard holds — the live
@@ -133,7 +136,7 @@ skippable reference(s)` / `OK — no decision-path defects`.
 
 - `{{analyze.output}}` in `dva-improve-guided/00-analyze.yaml` looks like a cross-file read
   of the gated `analyze` step in the parent flow. It is not: `00-analyze.yaml` defines its
-  own ungated `analyze` at line 317. References the scanned file does not define — `param.*`
+  own ungated `analyze` at line 318. References the scanned file does not define — `param.*`
   and genuine cross-file pipeline reads — are skipped rather than guessed at, so a flow
   that reads a gated step in *another* file stays outside what this tool can see.
 - `backup_config` in `dva-improve.yaml` is a live example of correct rule-3 handling: it

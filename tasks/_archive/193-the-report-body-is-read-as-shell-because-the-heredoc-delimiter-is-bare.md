@@ -33,7 +33,9 @@ source: "TASK-192 — the corpus-wide am sweep that closed 192 left exactly one 
 scope: "dva repo — agent-mesh-flows/dva-improve-guided/40-execute.yaml, tools/flowcheck"
 status: done
 verification-summary: |
-  quality-review pass, re-observed at disposition. Both AC bindings exit 0 and
+  quality-review pass, re-observed at disposition. Three of the four AC bindings are commands
+  and all three exit 0; AC1 is `verify: human —` and was reproduced by running the extracted
+  field, recorded above. "Both AC bindings" undercounted them before this correction, and
   TestHeredocDelimiter still reports 5 passing subtests. The structural claim re-measured
   rather than re-read: 40-execute.yaml:126 opens `<<'EOF'` and :132 closes `EOF`, both at
   indent 6 — the block-scalar base — so after YAML dedent the terminator sits at column 0 and

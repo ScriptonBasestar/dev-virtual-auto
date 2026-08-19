@@ -33,9 +33,11 @@ verification-summary: |
   quality-review pass, re-observed at disposition. `go test ./tools/flowcheck/...`, `go run
   ./tools/flowcheck` and `am validate agent-mesh-flows/dva-improve.yaml` all exit 0;
   TestBareWordArg still carries 15 passing subtests and `bare-word-arg` lives in shell.go.
-  Widened past the review: every `[ -f ` operand in agent-mesh-flows/ re-read — 26 quoted
-  literals, and the 19 remaining matches are all `"$var"` expansions (exempt by rule design)
-  or the two comments that document the rule. No bare literal operand in the corpus.
+  Widened past the review: every `[ -f ` operand in agent-mesh-flows/ re-read — 61 in all,
+  being 40 quoted literals, 19 `"$var"` expansions (exempt by rule design) and the two
+  comment lines that document the rule. No bare literal operand in the corpus. Corrected
+  after archival: this line first read "26 quoted literals" against "the 19 remaining",
+  a count that does not sum to the corpus.
 ---
 
 # Task 186: Catch the quoting defect before the run does

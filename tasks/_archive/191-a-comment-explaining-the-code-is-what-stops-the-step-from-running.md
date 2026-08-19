@@ -30,9 +30,10 @@ source: "4cfd365 — found while probing am for TASK-184"
 scope: "dva repo — agent-mesh-flows/ comments, tools/flowcheck"
 status: done
 verification-summary: |
-  quality-review pass, re-observed at disposition. All four AC bindings exit 0; TestComment-
-  Substitution still reports 9 passing subtests, and the rule is emitted from
-  tools/flowcheck/shell.go:36, not from a comment. The three fields this card left blocked
+  quality-review pass, re-observed at disposition. Three of the four AC bindings are commands
+  and all three exit 0; AC3 is `verify: human —` and is carried by the Evidence table, not by a
+  command. TestCommentSubstitution still reports 9 passing subtests, and the rule is emitted
+  from tools/flowcheck/shell.go:36, not from a comment. The three fields this card left blocked
   were routed to TASK-192 rather than closed silently, and TASK-192 is itself reviewed pass and
   dispositioned in this same run — the follow-up chain is closed, not dangling.
 ---
