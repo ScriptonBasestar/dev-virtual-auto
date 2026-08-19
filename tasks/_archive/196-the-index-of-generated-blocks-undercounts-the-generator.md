@@ -78,7 +78,18 @@ why that particular paragraph refused to stay edited.
 
 Rewritten to state the invariant first and list the blocks second, which is the Open
 Question's larger option — a count is the thing that goes stale, and the next `replaceBlock`
-call would have made this file wrong again. The list survives as a table because it answers a
+call would have made this file wrong again.
+
+The invariant chosen here was itself wrong, and `6f3df72` replaced it. As written it said
+every region bounded by `AUTOGEN` markers is machine-owned "whether or not this file happens
+to name it". `libgen` never scans for markers: `replaceBlock` builds the marker string from
+the name it is handed (`tools/libgen/main.go:92-93`), and the tool opens exactly one file,
+the `guardrailsPath` constant (`:28`). A region the generator was not told about is silently
+left alone, so the rule promised a safety net that does not cover it — the failure mode it
+was meant to prevent (a stale count) was traded for one that fails silently. The
+count-versus-rule choice was still the right call; the rule was simply stated wider than the
+code. Recorded here because this card is where a later reader comes looking for that
+reasoning. The list survives as a table because it answers a
 different question than the rule does: the rule says *which regions are machine-owned*, the
 table says *which Go file to edit instead*.
 
