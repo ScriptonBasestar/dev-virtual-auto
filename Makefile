@@ -12,7 +12,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check
+.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check commit-check
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -152,6 +152,16 @@ doc-check:
 	go run ./tools/doccheck
 	go run ./tools/cilabels
 	go run ./tools/flowcheck
+
+## commit-check: Hold commit subjects since the gate's baseline to the format SSOT
+commit-check:
+	@# Deliberately not labelled (CI) and deliberately absent from ci.yml. The check reads
+	@# git history, and CI clones are routinely shallow — there the pinned baseline is
+	@# simply not present and the range would resolve to zero commits, which prints
+	@# identically to a clean repository. commitcheck exits 2 rather than pass in that
+	@# case, so wiring it into CI would trade a real local gate for a red build that says
+	@# nothing about the commits. Run it locally and before integrating.
+	go run ./tools/commitcheck
 
 ## help: Show this help
 help:
