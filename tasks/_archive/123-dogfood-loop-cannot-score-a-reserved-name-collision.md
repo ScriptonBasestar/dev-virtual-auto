@@ -9,6 +9,8 @@ scope: "workflows/dva-dogfood — ref-evaluation.md lifecycle_boundary surface +
 status: done
 quality-review: conditional
 quality-reviewed-at: 2026-08-19T15:34:28+09:00
+verified-at: 2026-08-19T15:37:48+09:00
+archived-at: 2026-08-19T15:37:48+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -59,6 +61,17 @@ rework-remarks: |
   interaction.build (replace) produced lifecycle_boundary:up and :build cases;
   forward-test children explained ownership correctly. Residual: exactly-one-case
   AC still wants a fixture with a single reserved-name interaction (gorisa has two).
+verification-summary: |
+  Archived at quality-review: conditional. The singleton criterion — one reserved-name
+  interaction yields exactly one case — was re-derived against internal/config/reserved.go
+  rather than against the fixture comment that asserts it: the map holds 23 names, `up` is
+  among them and `fixture-ping` is not, and case_ids.txt carries exactly one
+  lifecycle_boundary id with no :build. The discover clause naming the reserved built-in
+  namespace as an owner prints at ref-evaluation.md:26.
+
+  Conditional for two carried findings: the promotion criterion says lines 74-79 where the
+  clause runs 74-80 (identical sentence in 082), and AC4 cites dogfood run
+  20260807-193617-91531d, unrecoverable under a gitignored tmp/.
 ---
 
 # Task 123: Decide whether a reserved-name interaction collision is a case

@@ -10,6 +10,8 @@ scope: "dva repo — tasks zones for 082/123 parking + status agreement"
 status: done
 quality-review: conditional
 quality-reviewed-at: 2026-08-19T15:35:55+09:00
+verified-at: 2026-08-19T15:37:48+09:00
+archived-at: 2026-08-19T15:37:48+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -56,6 +58,20 @@ rework-remarks: |
   After 082/123 stage-40 honesty rework, deliverables still ship; deferred dogfood
   cycle ACs keep both cards in todo/ — correct, not premature done. This chore's
   parking/sweep intent is closed by the resweep below.
+verification-summary: |
+  Archived at quality-review: conditional. Its fail set one condition — re-verify after
+  082/123 rework — and both were re-reviewed to conditional on the same day, discharging it.
+
+  The sweep it demands was re-run with the counts it asks for. Run against the live zones it
+  is vacuous: tasks/decision, todo, blocked, plan and doing hold 0 files each and none is in
+  HEAD's tree, so three of its targets can no longer fail — which is the finding that holds
+  this at conditional. Run against _archive it is not: 9 of 193 cards lack status: done, and
+  that number decomposes into 001-008, filed before the schema had a status field, plus 106
+  at a deliberate status: superseded. Real disagreements 0 of 193, and 0 cards carry
+  status: done outside done/ and _archive/.
+
+  The stale paragraph claiming deferred dogfood ACs were still open is kept and marked
+  ### Superseded (2026-08-19) with the artifacts re-observed, rather than deleted.
 ---
 
 # Task 164: Move the two finished decisions out of the decision queue

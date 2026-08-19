@@ -11,6 +11,8 @@ status: done
 completed-at: 2026-08-19T15:27:01+09:00
 quality-review: conditional
 quality-reviewed-at: 2026-08-19T15:31:26+09:00
+verified-at: 2026-08-19T15:37:48+09:00
+archived-at: 2026-08-19T15:37:48+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC1 — ce task validate --all, re-run rather than read from the card"
@@ -47,6 +49,18 @@ quality-review-evidence: |
       Recorded rather than corrected: the reviewer does not edit the work. Scope is one
       clause; the argument, both counts and every other binding re-derive, so this is
       conditional rather than fail.
+verification-summary: |
+  Archived at quality-review: conditional. All four criteria hold and ce task validate --all
+  exits 0. The two human criteria were run rather than read, and the second disproved half of
+  this card's own premise: tasks/decision/ is not in the repo at all. Git does not store empty
+  directories, so it survives only as a leftover in the primary checkout while HEAD's tree
+  carries _archive and done. Forty commits touched it, the last deleting card 163 on
+  2026-08-07 — one of the eleven this task then normalized.
+
+  Conditional for one clause. The Resolution says a fresh worktree of the same commit has
+  _archive/, done/ and todo/; that stopped being true at 2b774e7, because 194 was the last
+  card in todo/ and its own close emptied the directory, making tasks/todo/ the same untracked
+  ghost the paragraph describes. Left as written, since the reviewer does not edit the work.
 ---
 
 # Task 194: Three cards fail validation and the failure has become the baseline

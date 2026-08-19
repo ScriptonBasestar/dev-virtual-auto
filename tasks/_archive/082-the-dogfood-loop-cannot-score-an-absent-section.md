@@ -9,6 +9,8 @@ scope: "workflows/dva-dogfood — ref-evaluation.md case manifest + stage 40 cro
 status: done
 quality-review: conditional
 quality-reviewed-at: 2026-08-19T15:33:33+09:00
+verified-at: 2026-08-19T15:37:48+09:00
+archived-at: 2026-08-19T15:37:48+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -58,6 +60,19 @@ rework-remarks: |
   applications case. Stage 20 fixed ref-evaluation discover/derivation (committed
   0a58cf5). Residual runtime ACs need a target/fixture missing a *live* section
   (stack or plans), not applications.
+verification-summary: |
+  Archived at quality-review: conditional. Every criterion re-derived from artifacts
+  rather than from the card: the cross-run-promotion clause is in 40-evaluate.md at
+  line 74, the fixture's dva.yml carries stack and interaction with no plans key, and
+  case_ids.txt holds absent_section_route:plans among four ids.
+
+  Two findings ride along and are why this is conditional, not pass. The third
+  criterion's suffix places the clause at lines 74-79 where it runs 74-80 — the rg
+  command it binds to is correct, only the sentence describing the output is off, and
+  123 carries the same sentence. AC4 and AC5 cite dogfood run 20260807-193617-91531d,
+  whose directory is gone under a tmp/ excluded at .gitignore:34, so the frozen and
+  post-edit hashes and state.yaml's not_applicable_surfaces are recorded in this card's
+  evidence block and nowhere re-checkable.
 ---
 
 # Task 082: Decide whether an absent section is a case
