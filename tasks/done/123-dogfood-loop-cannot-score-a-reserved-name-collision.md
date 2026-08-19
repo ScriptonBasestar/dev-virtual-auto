@@ -1,7 +1,7 @@
 ---
 id: TASK-123
 title: "The dogfood evaluation treats the reserved command namespace as a non-owner, so a reserved-name interaction collision is never a case"
-type: decision
+type: chore
 priority: P3
 effort: M
 created-at: 2026-07-31T00:00:00+09:00
@@ -35,7 +35,7 @@ rework-remarks: |
 
 # Task 123: Decide whether a reserved-name interaction collision is a case
 
-## The blind spot
+## Summary
 
 `workflows/dva-dogfood/ref-evaluation.md` declares the `lifecycle_boundary`
 surface with `instances: per_overlap`, discovering:
@@ -109,7 +109,7 @@ Criterion 4 is a runtime verification: it fires when stage 20 next runs against 
 reserved-name interaction, not at this edit. The manifest + stage-40 promotion clause is the
 actionable scope.
 
-## Acceptance criteria
+## Completion Criteria
 
 - [x] The decision is recorded as taken or deferred in this file's Resolution | verify: `human — the Resolution above records the decision as taken`
 - [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints the widened discover clause
@@ -126,3 +126,21 @@ actionable scope.
   should have caught this" section is the origin of this task.
 - [TASK-074](../_archive/074-app-subcommands-answer-an-absent-section-three-ways.md) — the other
   discovery defect 082/123 exist to keep watch over.
+
+## Normalization (TASK-194, 2026-08-19)
+
+Frontmatter and section headings were brought onto the schema that `ce task validate` and the
+task_management engine both enforce. The filename is unchanged.
+
+| field | was | now |
+|---|---|---|
+| `type` | `decision` | `chore` |
+| heading | `## The blind spot` | `## Summary` |
+| heading | `## Acceptance criteria` | `## Completion Criteria` |
+
+`decision` names a workflow *state* a card passes through (`decision/` → `todo` → `done`), not
+a kind of work, and `type:` has to survive the card's whole lifecycle. This card left the
+decision state long ago and sat in `done/` still declaring `type: decision`, which recorded
+where it had been rather than what it is. CE separately models a decision as its own document
+kind with an ADR schema under `decisions/`, so the value collided with a live concept instead
+of filling a gap. Full reasoning: `tasks/done/194-*.md`, `## Decision (2026-08-19)`.

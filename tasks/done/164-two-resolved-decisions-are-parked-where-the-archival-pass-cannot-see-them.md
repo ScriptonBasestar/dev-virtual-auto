@@ -2,7 +2,7 @@
 id: TASK-164
 title: "Two resolved decisions sit in tasks/decision/ with status done, where the archival pass never looks"
 type: chore
-priority: P4
+priority: P3
 effort: XS
 created-at: 2026-08-03T15:40:00+09:00
 source: "TASK-133 finalize verification — found while checking where an open decision belongs"
@@ -27,7 +27,7 @@ rework-remarks: |
 
 # Task 164: Move the two finished decisions out of the decision queue
 
-## Problem
+## Summary
 
 `tasks/decision/` is the queue of decisions still to be made. Two of its three files were already
 made when this was filed:
@@ -48,7 +48,7 @@ Two records is small. The reason to fix it is that a queue whose contents do not
 queue name says stops being readable as a queue — the same shape as a gate whose silence reads
 as a pass.
 
-## Acceptance criteria
+## Completion Criteria
 
 - [x] Both files are verified against their deliverables the way any `done` item is — the
       resolution is checked against what actually shipped, not accepted from the `status:` field
@@ -81,6 +81,26 @@ In-repo resolution **shipped**. Deferred dogfood-cycle ACs remain open on both c
 only), so both correctly stay in `tasks/todo/` with `status: todo` — **reopened**, not archived.
 Premature `done/` would repeat the QR failure.
 
+### Superseded (2026-08-19)
+
+The paragraph above is kept as written and is no longer true. It was measured on 2026-08-07;
+the deferred dogfood-cycle ACs were closed the next day by the fixture
+`workflows/dva-dogfood/fixtures/absent-plans-one-reserved`, and both cards record the closure
+in their `rework-remarks`. Re-observed at the time of this note, not read from those remarks:
+
+| claim | measured 2026-08-19 |
+|---|---|
+| fixture exists | `workflows/dva-dogfood/fixtures/absent-plans-one-reserved/` — `case_ids.txt`, `dva.yml`, `compose.yaml`, `EVIDENCE.md` |
+| 082's absent live section case | `case_ids.txt` contains `absent_section_route:plans` |
+| 123's exactly-one reserved case | `case_ids.txt` contains exactly one `lifecycle_boundary:up` |
+| promotion clause re-homed | `workflows/dva-dogfood/40-evaluate.md:74` — `**Cross-run promotion.**` |
+| `60-evaluate.md` | absent from `workflows/`, as the review said |
+| open checkboxes on 082 / 123 | 0 and 0 |
+
+So nothing here describes work that no card tracks: the work was finished, and both cards are
+in `done/` with every criterion ticked. Recorded rather than deleted, because the failure this
+card exists to prevent is a claim outliving its measurement.
+
 **Criterion 2 — `tasks/decision/` after resweep: 0 files checked, 0 disagreements.**
 
 Directory empty. Count checked: **0 / 0**.
@@ -108,3 +128,20 @@ directory" remains open product design — but the two must not stay in disagree
 directory-as-authority reading is what the rest of the process already assumes. This card closes
 the observed parking bug and the post-rework resweep; it does not wait on dogfood cycle ACs on
 082/123.
+
+## Normalization (TASK-194, 2026-08-19)
+
+Frontmatter and section headings were brought onto the schema that `ce task validate` and the
+task_management engine both enforce. The filename is unchanged.
+
+| field | was | now |
+|---|---|---|
+| `priority` | `P4` | `P3` |
+| heading | `## Problem` | `## Summary` |
+| heading | `## Acceptance criteria` | `## Completion Criteria` |
+
+`P4` is defined nowhere in the system: `taskFilenameRe` admits `P[0-3]`, the engine's file
+schema stops at P3, and CE issues stop at P2. Since this card's filename may not change,
+accepting `P4` in frontmatter alone would have split one convention against itself. The card
+is already in `done/`, so its priority is historical. Full reasoning: `tasks/done/194-*.md`,
+`## Decision (2026-08-19)`.

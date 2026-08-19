@@ -1,7 +1,7 @@
 ---
 id: TASK-082
 title: "The dogfood evaluation files an absent surface as not-applicable, so no cycle can score how dva answers it"
-type: decision
+type: chore
 priority: P3
 effort: M
 created-at: 2026-07-30T00:00:00+09:00
@@ -40,7 +40,7 @@ rework-remarks: |
 
 # Task 082: Decide whether an absent section is a case
 
-## The blind spot
+## Summary
 
 `workflows/dva-dogfood/ref-evaluation.md` routes cases by declared surface, and states that a
 surface with **no** instance in the target is not a case: the absence is recorded under
@@ -119,7 +119,7 @@ Criteria 2-4 are runtime verifications: they fire when the dogfood loop next run
 stack-only target, not at this edit. The manifest + stage-40 promotion clause is the
 actionable scope.
 
-## Acceptance criteria
+## Completion Criteria
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
 - [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
@@ -127,3 +127,20 @@ actionable scope.
 - [x] If A: a case_manifest_hash delta is treated as promotion, not regression | verify: dogfood stage 40 run `20260807-193617-91531d` records frozen hash `2b72f5f5…` → post-edit `33561703…` as cross-run promotion for the next baseline (clause in `40-evaluate.md`)
 - [x] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: gorisa dogfood stage 10 filed `absent_section_route` not_applicable with evidence (stack+plans present; applications not live on installed binary) — see `$RUN_DIR/state.yaml`
 
+## Normalization (TASK-194, 2026-08-19)
+
+Frontmatter and section headings were brought onto the schema that `ce task validate` and the
+task_management engine both enforce. The filename is unchanged.
+
+| field | was | now |
+|---|---|---|
+| `type` | `decision` | `chore` |
+| heading | `## The blind spot` | `## Summary` |
+| heading | `## Acceptance criteria` | `## Completion Criteria` |
+
+`decision` names a workflow *state* a card passes through (`decision/` → `todo` → `done`), not
+a kind of work, and `type:` has to survive the card's whole lifecycle. This card left the
+decision state long ago and sat in `done/` still declaring `type: decision`, which recorded
+where it had been rather than what it is. CE separately models a decision as its own document
+kind with an ADR schema under `decisions/`, so the value collided with a live concept instead
+of filling a gap. Full reasoning: `tasks/done/194-*.md`, `## Decision (2026-08-19)`.
