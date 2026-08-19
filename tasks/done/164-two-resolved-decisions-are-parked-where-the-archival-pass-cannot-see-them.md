@@ -8,8 +8,8 @@ created-at: 2026-08-03T15:40:00+09:00
 source: "TASK-133 finalize verification — found while checking where an open decision belongs"
 scope: "dva repo — tasks zones for 082/123 parking + status agreement"
 status: done
-quality-review: fail
-quality-reviewed-at: 2026-08-07T18:05:08+09:00
+quality-review: conditional
+quality-reviewed-at: 2026-08-19T15:35:55+09:00
 quality-review-evidence: |
   - kind: rework
     command-or-step: quality-review
@@ -18,6 +18,39 @@ quality-review-evidence: |
     unit: 164-resweep
     command-or-step: re-verify 082/123 surfaces + zone/status sweep after 082+123 honesty retarget
     result: ok — surfaces present; 082/123 stay in todo with deferred cycle ACs; decision/ empty; zero status:done outside done/; parking bug gone
+  - kind: re-review
+    command-or-step: "re-review 2026-08-19 — the fail above is the 2026-08-07 verdict, kept as the record it was; its stated condition was 're-verify after 082/123 rework'"
+    result: conditional. 082 and 123 were re-reviewed today and both hold at conditional, so the condition is discharged. 3 of 3 criteria [x], 0 open
+  - kind: automated
+    command-or-step: "AC2 re-run with the count the criterion demands rather than a 'clean' verdict"
+    result: |
+      0 files checked, 0 disagreements. FINDING - the criterion can now only pass
+      vacuously. tasks/decision/ holds no files and is absent from HEAD's tree
+      entirely, so "every file in it has status: matching an undecided state" is a
+      claim about the empty set. The criterion's own guard - print the count, not
+      just clean - is what makes that visible, which is the reason it was written
+      that way. Same underlying fact TASK-194 records
+  - kind: automated
+    command-or-step: "AC3 status-vs-directory sweep across every state directory, zeros included"
+    result: |
+      todo 0 files, blocked 0, plan 0, doing 0, decision 0, done 4, _archive 193.
+      The three the card names as unchecked when it was filed - todo, blocked, plan -
+      are all 0-file directories absent from HEAD's tree, so they too can only pass
+      vacuously now. 0 cards carry status: done outside done/ and _archive/
+  - kind: automated
+    command-or-step: "AC3 continued — the same sweep run the other way, against _archive/"
+    result: |
+      9 of 193 archived cards lack `status: done`, and the raw count is misleading.
+      Eight are 001-008, which have no `status:` field at all - they predate the
+      schema. The ninth is 106, deliberately `status: superseded`, a terminal state
+      that is not a disagreement. Real disagreements: 0 of 193. Recorded because the
+      naive number is 9 and a later sweep will produce it again
+  - kind: automated
+    command-or-step: "the superseded-prose repair this card received under TASK-194"
+    result: "`### Superseded (2026-08-19)` re-observes the closure from the artifacts: fixture absent-plans-one-reserved present, case_ids.txt carries absent_section_route:plans and exactly one lifecycle_boundary:up, the promotion clause reads from 40-evaluate.md:74, 60-evaluate.md absent, 0 open checkboxes on 082 and 123"
+  - kind: automated
+    command-or-step: "normalization directed by TASK-194, verified after the fact"
+    result: type chore, priority P3 (was P4), both `## Summary` and `## Completion Criteria` present; ce task validate --all exits 0 at 4 valid, 0 invalid
 rework-remarks: |
   Original parking (082/123 in decision/ with status done) no longer matches layout.
   After 082/123 stage-40 honesty rework, deliverables still ship; deferred dogfood
