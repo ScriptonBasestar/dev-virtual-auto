@@ -192,13 +192,8 @@ a probe that quietly stops matching — so `am validate` reports the flow valid 
 produces a confident wrong answer.
 
 Rule ids, the am behaviour behind each, and a wrong/right example:
-[docs/51-flowcheck-rules.md](docs/51-flowcheck-rules.md).
-
-The id list is derived from the source string literals, not hand-kept:
-
-```bash
-grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u
-```
+[docs/51-flowcheck-rules.md](docs/51-flowcheck-rules.md). The id list there is derived from
+the source string literals, not hand-kept — that document carries the extraction command.
 
 <!-- skills:auto:start -->
 ## AI Skills

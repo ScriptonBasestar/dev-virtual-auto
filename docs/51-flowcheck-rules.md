@@ -75,8 +75,10 @@ am은 셸 필드를 정적 분석해 명령 이름을 뽑고 허용목록에 없
 | `phantom-command` | 없는 `dva` 하위 명령의 오류 텍스트가 리포트에 **발견 사항처럼** 렌더된다 | `dva app ls` → `dva ls` (예약 23개 중 하나) |
 | `exit-if-empty` | `exit_if_empty`는 파이프라인을 **성공으로** 끝낸다. 전제 조건 누락과 "할 일 없음"이 구분되지 않는다 | `exit_if_empty: true` → `[ -n "$x" ] \|\| exit 1` |
 
-`phantom-command`가 쓰는 예약 명령 목록은 Go 소스에서 생성된다(`tools/libgen`). 손으로 관리하는
-목록이 아니므로 명령이 추가되면 다음 `make generate`에서 따라온다.
+`phantom-command`가 쓰는 예약 명령 목록은 `internal/config`를 컴파일 시점에 import해서 얻는다
+(`tools/flowcheck/main.go`의 `config.ReservedCommands()`). 손으로 관리하는 목록이 아니므로 명령이
+추가되면 다음 `go run ./tools/flowcheck` 실행부터 곧바로 반영된다 — 생성 단계(`make generate`)도,
+생성된 산출물도 거치지 않는다.
 
 ## 스키마
 
