@@ -196,7 +196,7 @@ func TestLinks_resolvesMovedTaskLink(t *testing.T) {
 	root := t.TempDir()
 	referrer := "tasks/_archive/113-old.md"
 	moved := "tasks/done/153-app-up.md"
-	writeFile(t, root, referrer, "# 113\n\nSee [153](../todo/153-app-up.md).\n")
+	writeFile(t, root, referrer, "---\nid: TASK-113\n---\n\n# 113\n\nSee [153](../todo/153-app-up.md).\n")
 	writeFile(t, root, moved, "# 153\n")
 	inv := mustInventory(t, root, referrer, moved)
 
@@ -305,7 +305,7 @@ func TestLinks_movedTaskLinkAnchorCheckedAgainstResolved(t *testing.T) {
 	root := t.TempDir()
 	referrer := "tasks/_archive/113-old.md"
 	moved := "tasks/done/153-app-up.md"
-	writeFile(t, root, referrer, "# 113\n\nSee [153 section](../todo/153-app-up.md#the-heading).\n")
+	writeFile(t, root, referrer, "---\nid: TASK-113\n---\n\n# 113\n\nSee [153 section](../todo/153-app-up.md#the-heading).\n")
 	writeFile(t, root, moved, "# 153\n\n## The Heading\n")
 	inv := mustInventory(t, root, referrer, moved)
 

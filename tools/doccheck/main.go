@@ -8,10 +8,15 @@
 //   - verify bindings: every `go test … -run …` written in inline code selects at
 //     least one test declared in the tree, so a binding cannot name a test that
 //     does not exist and still exit 0 (TASK-136)
+//   - archive frontmatter: every card under tasks/_archive/ carries `id:` or
+//     `type:`, the fields ce's canonical detection accepts. Detection runs before
+//     the archive skip, so a card missing both is audited against a format that
+//     postdates it (TASK-206)
 //
-// Exit 1 on vacuous runs (zero candidates, zero links, or _test.go files that
-// yield no test names), broken links, oversized size-enforced docs, or -run
-// patterns selecting nothing. Stdlib only — no third-party packages.
+// Exit 1 on vacuous runs (zero candidates, zero links, _test.go files that yield
+// no test names, or archive files that yield no cards), broken links, oversized
+// size-enforced docs, -run patterns selecting nothing, or archived cards missing
+// both detection fields. Stdlib only — no third-party packages.
 package main
 
 import (
@@ -50,6 +55,8 @@ func printReport(res Result) {
 	fmt.Printf("test_funcs_found:    %d (from %d _test.go files)\n", res.TestFuncsFound, res.TestFilesSwept)
 	fmt.Printf("run_patterns:        %d\n", res.RunPatternsChecked)
 	fmt.Printf("unmatched_run:       %d\n", res.UnmatchedRunFlags)
+	fmt.Printf("archive_cards:       %d (from %d file(s) under %s)\n", res.ArchiveCards, res.ArchiveFilesSeen, archivePrefix)
+	fmt.Printf("archive_missing:     %d\n", res.ArchiveMissing)
 	for _, d := range res.OversizedDetail {
 		fmt.Printf("  OVERSIZE %s\n", d)
 	}
@@ -58,6 +65,9 @@ func printReport(res Result) {
 	}
 	for _, d := range res.UnmatchedRunDetail {
 		fmt.Printf("  NO-TESTS %s\n", d)
+	}
+	for _, d := range res.ArchiveDetail {
+		fmt.Printf("  ARCHIVE  %s\n", d)
 	}
 	for _, e := range res.Errors {
 		fmt.Printf("  ERROR    %s\n", e)

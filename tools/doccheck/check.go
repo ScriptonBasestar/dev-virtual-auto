@@ -28,10 +28,14 @@ type Result struct {
 	TestFuncsFound     int
 	RunPatternsChecked int
 	UnmatchedRunFlags  int
+	ArchiveFilesSeen   int
+	ArchiveCards       int
+	ArchiveMissing     int
 	Errors             []string
 	BrokenDetail       []string
 	OversizedDetail    []string
 	UnmatchedRunDetail []string
+	ArchiveDetail      []string
 }
 
 // Check validates repository-wide relative markdown links against the git
@@ -159,6 +163,13 @@ func Check(in CheckInput) Result {
 		}
 	}
 
+	seen, cards, archiveMsgs, archiveErrs := checkArchiveFrontmatter(in.Root, in.Inventory)
+	res.ArchiveFilesSeen = seen
+	res.ArchiveCards = cards
+	res.ArchiveMissing = len(archiveMsgs)
+	res.ArchiveDetail = archiveMsgs
+	res.Errors = append(res.Errors, archiveErrs...)
+
 	if res.LinksChecked == 0 {
 		res.Errors = append(res.Errors, "vacuous: zero links checked")
 	}
@@ -176,6 +187,15 @@ func Check(in CheckInput) Result {
 	}
 	if res.OversizedDocs > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d oversized doc(s)", res.OversizedDocs))
+	}
+	// Files under the prefix but none read as cards means the sweep stopped reaching the archive
+	// — a renamed extension, or a prefix that drifted. Without this the guard reports the same
+	// silence for "the archive is clean" and "the archive was never looked at" (TASK-206).
+	if res.ArchiveFilesSeen > 0 && res.ArchiveCards == 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("vacuous: %d file(s) under %s, zero read as cards", res.ArchiveFilesSeen, archivePrefix))
+	}
+	if res.ArchiveMissing > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d archived card(s) carrying neither `id:` nor `type:`", res.ArchiveMissing))
 	}
 
 	res.OK = len(res.Errors) == 0
