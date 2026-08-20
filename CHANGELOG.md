@@ -66,8 +66,14 @@ All notable changes to DVA are documented here.
   범위를 좁히려고 쓴 플래그가 가장 넓은 결과를 냈습니다. 메시지는 형태별로 구분됩니다
   (`requires a value` / `requires a non-empty value` / `requires a non-blank value` /
   `requires non-empty tags`). `--tag=a,b` 같은 정상 목록의 동작은 그대로입니다.
-  **아직 닫히지 않은 부분**: 선언되지 않은 태그(`--tag=<오타>`)는 여전히 조용히 아무것도
-  실행하지 않고 exit 0으로 끝납니다 (TASK-214)
+  **아직 닫히지 않은 부분**: 값 자체는 형식상 멀쩡한 두 경우가 남아 있고, 둘 다
+  `--exclude-` 쪽이 조용히 **스택 전체를 실행**합니다 — 매칭이 0이면 제외도 0이기 때문에
+  좁히기 실패가 넓히기로 뒤집힙니다.
+  - 선언되지 않은 태그: `--tag=<오타>`는 아무것도 실행하지 않고 exit 0,
+    `--exclude-tag=<오타>`는 스택 전체를 실행하고 exit 0 (TASK-214)
+  - 값을 빠뜨리고 다음 플래그를 이어 쓴 경우: `--exclude-tag --tag=x`는 `--tag=x`를
+    제외 태그 *값*으로 삼아 스택 전체를 실행하고 exit 0 (TASK-215).
+    `--exclude-tag --`와 줄 끝의 `--exclude-tag`는 TASK-211이 이미 거부합니다
 
 ### Removed
 > **Breaking.** 아래 표면은 `0.1.16` 이후 master에만 존재했고 태그된 릴리스에 포함된 적이

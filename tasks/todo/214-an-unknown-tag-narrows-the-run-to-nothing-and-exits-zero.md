@@ -39,7 +39,18 @@ no entry happens to carry.
 This is TASK-211's harm — a narrowing flag producing a result the user cannot
 tell from success — arrived at through a value that is well-formed. TASK-211 and
 TASK-213 closed the ill-formed values (`--tag`, `--tag=`, `--tag=,`,
-`--tag=" "`); the class this card names is what is left after they are gone.
+`--tag=" "`); this card is the well-formed-but-undeclared class.
+
+It is **not** the last one. This sentence read "the class this card names is what
+is left after they are gone" until a review found a third: `--exclude-tag
+--tag=x` stores the *next flag* as the value, which is neither ill-formed nor
+undeclared, and runs the whole stack at rc=0. That is TASK-215. A card is a poor
+place to declare a family closed — the two cards that tried both had to be
+corrected by the next reviewer who probed instead of reasoned.
+
+`--tag=<U+200B>` (zero-width space) belongs here rather than to TASK-213:
+`strings.TrimSpace` rejects only `unicode.IsSpace`, and a zero-width space is
+not one, so it arrives as a well-formed tag that nothing declares.
 
 ## Why TASK-213 did not close it
 
@@ -76,7 +87,7 @@ only an error on some paths.
 - [ ] An unknown tag is refused by name rather than silently narrowing | verify: `grep -rn 'no entry declares' internal/lifecycle/*.go internal/cli/*.go | grep -v _test` returns at least one line — **today 0, measured**
 - [ ] A test asserts nothing ran *and* an error was returned for an unknown tag, against a fixture that declares real tags | verify: `grep -c 'unknown tag: nothing should have run' internal/cli/*_test.go` ≥ 1 — **today 0, measured.** The first draft of this criterion bound on `grep -c 'tags: \[db\]'`, which already returned 1 and so could not fail: `writeRestartTaggedPlanProbeConfig` (`restart_names_test.go`) has declared `web`/`db` tags since TASK-033. **Reuse it — do not write a third fixture**, and note that the default `writeRestartProbeConfig` declares no tags at all, so a test written against *that* one passes for the wrong reason
 - [ ] The `--exclude-tag` side is settled explicitly, not by default | verify: human — record in this card whether an unknown excluded tag is an error, with the measurement that decided it
-- [ ] The control still passes: a tag that does match still narrows the run to the matching entries | verify: a test runs `--tag=db` against the tagged fixture and asserts `s1` ran and `s2` did not — **without this row every criterion above is satisfied by a build that refuses every tag**
+- [ ] The control still passes: a tag that does match still narrows the run to the matching entries | verify: a test runs `--tag=db` against `writeRestartTaggedPlanProbeConfig` and asserts **`s2` ran and `s1` did not** — measured: `--tag=db` → `[s2_stop s2_up]`, `--tag=web` → `[s1_stop s1_up]`. **Without this row every criterion above is satisfied by a build that refuses every tag.** This said "`s1` ran and `s2` did not" until a review measured it: that mapping is the ad-hoc fixture in the summary table above, where `s1` carries `db`, and the criterion carried it over to the mandated fixture, which is the other way round. An implementer following it literally writes a test that fails on a correct build
 - [ ] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK
 
 ## References

@@ -84,10 +84,10 @@ TASK-211 argued the reporting belongs. Same argument applies here — put it in
 - [x] `--mode=`, `-M=`, `--env=`, `--tag=` and `--exclude-tag=` each produce a non-zero exit and a message naming the flag as the user spelled it | verify: `grep -c '"--mode="' internal/cli/flagvalue_missing_test.go` returns ≥ 1 — **today 0**. Bound on the `=`-spelled table row, not on `wantFlag`, which already returns 4 and so could not fail; the first draft of this criterion made that mistake — **returns 1 at `138f030`**
 - [x] A test asserts nothing ran for the empty-value spelling, not only that rc≠0 | verify: the new rows go through `restartCmd.RunE` and assert `ranMarkers` is empty, the same shape as `TestParseDvaFlagsRejectsAMissingValue` — **`grep -c 'nothing should have run' internal/cli/flagvalue_missing_test.go` ≥ 2, one per table — 3 at `f38ad5c`.** Written as "returns 2" until the review round added a third table, which is the same trap criterion 4 fell into two lines below; an exact count in a criterion is a claim about a file's future
 - [x] The `--env=` reading is settled explicitly, not by default | verify: human — record in this card whether `--env=` means "no environment" or is an error, and why — **settled as an error; see "The `--env=` reading" below, with the measurement**
-- [x] `--var`'s answer and these four agree, or the disagreement is documented at both sites | verify: `grep -c 'TASK-213' internal/cli/plan_lifecycle.go internal/cli/compose.go` — both non-zero, or a recorded decision here that they should differ — **both non-zero; the answer is a documented disagreement, and it is documented because agreement was measured to be wrong.** The first version of this line said "both return 1" and was already false when written down: `02ce928` had made `plan_lifecycle.go` return 2 on the same branch. Counts here are ≥-bindings for that reason — today 3 and 2 at `f38ad5c`
+- [x] `--var`'s answer and these four agree, or the disagreement is documented at both sites | verify: `grep -c 'TASK-213' internal/cli/plan_lifecycle.go internal/cli/compose.go` — both non-zero, or a recorded decision here that they should differ — **both non-zero; the answer is a documented disagreement, and it is documented because agreement was measured to be wrong.** The first version of this line said "both return 1" and was already false when written down: `02ce928` had made `plan_lifecycle.go` return 2 on the same branch. Counts here are ≥-bindings for that reason — `plan_lifecycle.go` 2, `compose.go` 3, in the argument order the command uses. Written as "3 and 2" for one commit, transposed against that order and against this line's own preceding sentence, which says `02ce928` made `plan_lifecycle.go` return 2
 - [x] A value that is empty *after* the split is refused too, not only one that is empty as typed | verify: `grep -c 'requires non-empty tags' internal/cli/compose.go` ≥ 1 — **1 at `f38ad5c`, 0 at `1e7d476`, measured on both**. Bound on the message rather than on `takeList`'s name, so renaming the helper cannot satisfy it
 - [x] Every spelling `parseDvaFlags` recognises has a rejection row, not a representative sample | verify: `for f in --mode -M --env -E --tag --tags -T --exclude-tag --exclude-tags; do grep -q "\"$f=\"" internal/cli/flagvalue_missing_test.go || echo MISSING $f; done` prints nothing — **prints nothing at `f38ad5c`; at `1e7d476` it printed `-E`, `--tags`, `-T`, `--exclude-tags`**
-- [x] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK — **re-run after the review round, at `f38ad5c`: `make test` 9 packages ok, `internal/cli` 75.0% (was 74.8%); `make lint` 289 files checked, 0 unformatted, 0 issues; `make doc-check` broken_links 0, oversized_docs 0, test_funcs 1130 from 172 files, run_patterns 128, unmatched_run 0, archive_cards 205, archive_missing 0, plus cilabels 5/5 and flowcheck 10 flows / 103 shell fields**
+- [x] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK — **re-run after the second review round: `make test` 9 packages ok, `internal/cli` 75.0%; `make lint` 289 files checked, 0 unformatted, 0 issues; `make doc-check` broken_links 0, oversized_docs 0, test_funcs 1131 from 172 files (1130 before `TestParseDvaFlags_FirstBadFlagIsReported`), run_patterns 128, unmatched_run 0, archive_cards 205, archive_missing 0, plus cilabels 5/5 and flowcheck 10 flows / 103 shell fields.** `make test-integration` also passes, and is recorded here as *not evidence for this change*: `go list -deps -tags=integration ./internal/integration/... | grep -c 'dva/internal/cli'` returns 0, so it cannot exercise this code in either direction
 
 ## Outcome
 
@@ -126,21 +126,34 @@ repo-wide, 8 hits" — which no command in the paragraph reproduces, and a revie
 that tried got different figures again. A number no one can re-derive is not
 evidence, however green the verdict it sits beside.
 
-| measurement | command | at `f38ad5c` |
+Every command below is scoped `-- ':!tasks/'`, and that scoping is the finding.
+The first version of this table was stamped "at `f38ad5c`" and swept the whole
+repository including this file — so writing the table changed three of its own
+numbers, and a review measuring at `4b73299` got 106 / 120 / 3 where the table
+said 99 / 110 / 3. One row was wrong at the commit it was stamped with, because
+the third `--env=` occurrence was the line this card added. Re-measuring again
+while fixing that produced 109 / 124: a repo-wide count of a string that appears
+in prose is not a measurement of the code, it is a measurement of how much has
+been written about the code, and it moves every time anyone writes about it.
+
+| measurement | command (all scoped `-- ':!tasks/'`) | at `4b73299` |
 |---|---|---|
-| files containing `--env=` (the positive control — it must fire) | `git grep -l -- '--env=' \| wc -l` | 6 |
-| lines containing `--env`, repo-wide | `git grep -c -- '--env' \| awk -F: '{s+=$NF} END{print s}'` | 99 |
-| occurrences of `--env`, repo-wide | `git grep -o -- '--env' \| wc -l` | 110 |
-| the empty-inline spelling | `git grep -nE -- '--env=($\|[[:space:]"\x27])'` | 3, all of them this card or its new test rows |
-| a selector flag fed a shell variable | `git grep -nE -- '--(env\|mode\|tag\|exclude-tag)[= ]"?\$'` | 1, and it is this card's own sentence saying there are none — 0 outside `tasks/` |
+| files containing `--env=` (the positive control — it must fire) | `git grep -l -- '--env=' -- ':!tasks/' \| wc -l` | 4 |
+| the empty-inline spelling, in code and docs | `git grep -nE -- '--env=($\|[[:space:]"\x27])' -- ':!tasks/' \| wc -l` | 2 |
+| a selector flag fed a shell variable | `git grep -nE -- '--(env\|mode\|tag\|exclude-tag)[= ]"?\$' -- ':!tasks/' \| wc -l` | 0 |
 
 The last row is the reliance vector that would matter in real use, since `--env
 "$VAR"` with an unset `VAR` is how an empty value actually reaches a CLI; a
-parallel session checked it and I had not thought to. Note what it also
-demonstrates: a corpus sweep whose pattern matches the prose describing the
-sweep. The 6-file control was previously written up as "`git grep -n -- '--env='`
-finds 6 files", which is the `-l` count attributed to a `-n` command that prints
-20 lines.
+parallel session checked it and I had not thought to. It reads 0 outside
+`tasks/`, and it read 1 inside `tasks/` for exactly as long as this card
+contained a sentence saying there were none — a corpus sweep whose pattern
+matches the prose describing the sweep. The unscoped "lines" and "occurrences"
+rows are gone rather than corrected: they never bore on the verdict, and their
+only stable property was drifting.
+
+The 4-file control was previously written up as "`git grep -n -- '--env='` finds
+6 files", which is a `-l` count attributed to a `-n` command, at a scope that
+counted this card among the callers.
 
 One detail sharpens the verdict. `--mode=` is not merely *equivalent* to absent:
 `applyDefaultMode` (`compose.go:947-949` at `cd93ed7`) reads `if mode != "" ||
@@ -213,6 +226,26 @@ Five more after the review, against the second fix:
 S10 is the S2 of this round and the reason it is worth repeating: the rows that
 survive a hardcoded identity are the ones that agree with it by luck, so the
 count is not the finding — *which* rows lived is.
+
+A second review then sabotaged the *second* fix and found it unpinned. `f38ad5c`
+consists of moving `i += n` out of `if ok` in four near-identical case arms;
+only `--mode` had a test, because `--mode` was the spelling that had leaked.
+Reverting the other three left the package green — `ok internal/cli 9.2s`, zero
+failures — with `["--env","","s1"]` handing `["","s1"]` to passthrough callers
+again. Deleting both `if err == nil` guards, so the *last* bad flag wins instead
+of the first, was also green: no row used two bad flags. Both are pinned now,
+and re-sabotaged to confirm the pins fire:
+
+| # | sabotage | rows failed | signature |
+|---|---|---|---|
+| S11a-d | `i += n` back inside `if ok`, one arm at a time | 1 each | exactly the subtest for that flag — `--mode`, `--env`, `--tag`, `--exclude-tag` in turn, never another |
+| S12 | both `if err == nil` guards dropped (last error wins) | 1 | `TestParseDvaFlags_FirstBadFlagIsReported`: `err` names `--tag`, the flag typed second |
+
+S11's signature is the useful part: four sabotages, four different single
+failures, no overlap. A blanket failure would have proved only that the tests
+run. **A fix is pinned at the granularity it was written**, and this one was
+written four times — a shape that is easy to review as one change and easy to
+revert as four.
 
 The degenerate rows also use `Errorf` rather than `Fatalf` on the missing-error
 branch, deliberately. With `Fatalf` the subtest returns before `ranMarkers`, so
@@ -311,17 +344,32 @@ Probed per flag afterwards:
 Two of four, not four of four. The generalisation is the defect; the single
 measurement was correct. All four are refused in `takeValue` now, with a message
 distinct from the empty one (`requires a non-blank value, got " "`) so a fix for
-either cannot satisfy the other's rows.
+either cannot satisfy the other's rows. "Whitespace" here means
+`unicode.IsSpace`, about 25 runes; `--tag=<U+200B>` is a zero-width space, is not
+one of them, and passes as a well-formed tag that nothing declares — TASK-214's
+class, noted there.
 
-What remains open, and deliberately: **nothing is trimmed off values that
-survive.** `--tag=" a"` is still passed through as the tag `" a"`, which will not
-match an entry declaring `a`, and the run is empty at rc=0. That is an
-unknown-tag complaint rather than an empty-value one — the same shape as
-`--mode=xyz`, which already fails loudly because something owns mode names and
-checks them. Nothing owns tag names: `filterByTags` treats an unknown tag as a
-tag that matches nothing. Rewriting the user's input in `takeValue` would hide
-that rather than fix it. **This is a real gap and it is carded, not waved off**
-— see TASK-214.
+Two gaps remain, both carded rather than waved off:
+
+- **Nothing is trimmed off values that survive.** `--tag=" a"` is still passed
+  through as the tag `" a"`, which will not match an entry declaring `a`, and the
+  run is empty at rc=0. That is an unknown-tag complaint rather than an
+  empty-value one — the same shape as `--mode=xyz`, which already fails loudly
+  because something owns mode names and checks them. Nothing owns tag names:
+  `filterByTags` treats an unknown tag as a tag that matches nothing. Rewriting
+  the user's input in `takeValue` would hide that rather than fix it. TASK-214.
+- **A flag typed where a value belongs is swallowed as that value.**
+  `dva restart --exclude-tag --tag=x` stores `"--tag=x"` as an excluded tag,
+  matches nothing, excludes nothing, and **runs the whole stack at rc=0** — this
+  card's own title, reached by forgetting a value rather than by typing an empty
+  one. TASK-211 closed `--tag --` and `--tag` at end-of-args; this is the third
+  spelling of the same slip and it is the silent one. TASK-215.
+
+The second was found by a review probing what the new rules still admit, after
+this section had already been rewritten once for over-generalising. The sentence
+it replaces began "What remains open, and deliberately:" and named one thing.
+**A list of what a fix leaves open is itself a claim that has to be probed**, and
+neither time was it wrong about the item it named — only about being complete.
 
 ## References
 
@@ -338,7 +386,8 @@ right about different trees. TASK-208 is five comments that lost this argument.
 - `internal/lifecycle/orchestrator.go` — `filterByTags` / `hasAnyTag`; why "matches nothing" is safe for `--tag` and is the whole defect for `--exclude-tag`
 - `internal/cli/flagtoken_test.go` — `TestSplitFlagToken`; pins `--mode=` at the grammar level only, which says nothing about whether an empty value is acceptable. Do not mistake it for coverage
 - `tasks/_archive/211-a-stack-flag-missing-its-value-is-dropped-and-the-command-runs-as-if-unwritten.md` — the card whose review measured this. Cited as `tasks/todo/…` until `f38ad5c`; it was archived in the same session that filed this one
-- `tasks/todo/214-an-unknown-tag-narrows-the-run-to-nothing-and-exits-zero.md` — what is left of the class once the ill-formed values are refused: a well-formed tag no entry declares
+- `tasks/todo/214-an-unknown-tag-narrows-the-run-to-nothing-and-exits-zero.md` — a well-formed tag no entry declares
+- `tasks/todo/215-a-flag-typed-where-a-value-belongs-is-swallowed-as-that-value.md` — `--exclude-tag --tag=x`, found by the review of this card's fix. Filed because this card twice wrote down what it left open and twice named a proper subset
 
 ## Technical Notes
 
