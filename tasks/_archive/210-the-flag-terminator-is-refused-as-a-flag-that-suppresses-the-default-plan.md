@@ -174,6 +174,40 @@ what follows it:
    said in every config shape without a resolvable default. The message stopped
    depending on a key that has nothing to do with it.
 
+## Caller census — the surface is seven commands, not four
+
+The criteria below ask for `up`, `down` and `stop` beside `restart`. That is the
+population the card imagined, and it is smaller than the real one. Measured:
+
+```
+$ grep -rn 'detectPlanRoute(' internal --include='*.go' | grep -v _test.go | grep -v 'func detect'   # 7
+$ grep -rn 'rejectSuppressedDefaultPlan(' internal --include='*.go' | grep -v _test.go | grep -v 'func reject'   # 7
+```
+
+Seven each: `up`, `down`, `stop`, `restart`, `build`, `logs`, `status`. Satisfying
+this card's third criterion in full would still have left three commands
+unmeasured, which is worth recording as a property of the criterion and not only
+of the work — a criterion that names its population understates coverage exactly
+as far as that population is wrong.
+
+All three were then measured, on fixtures A/B/C/F2, before and after:
+
+| command | `--` before | `--` after |
+|---|---|---|
+| `logs` | unchanged in all four | unchanged — cobra strips the terminator before `RunE` (no `DisableFlagParsing`) |
+| `status` | unchanged in all four | unchanged, same reason |
+| `build` | rc=1 `flags suppress the default plan` (C, F2) | runs the default plan, identical to a bare `dva build` |
+
+So `build` is a fourth verb the fix corrected, and `logs`/`status` never reach the
+changed code at all. No regression in any of the three.
+
+**One pre-existing defect surfaced by the census, filed rather than fixed here.**
+In the several-plans-no-default shape, `dva build --` does not refuse where a bare
+`dva build` does — it starts building. Identical on `9bf3ee0` and on this branch,
+so it is not a TASK-210 regression, and it is the one caller `rejectUnknownFlags`
+cannot backstop because build must forward unknown flags to docker (TASK-172).
+Filed as TASK-214.
+
 ## Completion Criteria
 
 - [x] A fixture that actually declares a default plan exists, not only prose about one; the lone-plan shape needs one too, and it declares no key at all | verify: `grep -c 'default_plan: ' internal/cli/restart_names_test.go` returns ≥ 1 **→ 1** (was 0 — the bare word appears 7 times in that file, every one of them prose such as "no default_plan" in a shape label or a comment, which is why this binds on the YAML key and not on the word)
