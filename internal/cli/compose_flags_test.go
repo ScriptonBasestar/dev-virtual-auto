@@ -111,16 +111,9 @@ func TestConsumeDryRunFlag(t *testing.T) {
 	}
 }
 
-func TestParseDvaFlags_MissingValue(t *testing.T) {
-	// --mode at end with no value — should not panic
-	mode, _, _, _, filtered, _ := parseDvaFlags([]string{"--mode"})
-	if mode != "" {
-		t.Errorf("mode = %q, want empty (no value provided)", mode)
-	}
-	if len(filtered) != 0 {
-		t.Errorf("filtered = %v, want empty", filtered)
-	}
-}
+// The four TestParseDvaFlags_Missing*Value tests that used to sit here now live in
+// flagvalue_missing_test.go, next to the end-to-end refusal they are the unit-level
+// half of. TASK-211.
 
 func TestParseDvaFlags_ExcludeTags(t *testing.T) {
 	_, _, _, excludeTags, filtered, _ := parseDvaFlags([]string{"--exclude-tags", "infra", "-d"})
@@ -412,27 +405,6 @@ func TestParseDvaFlags_ExcludeTagsEquals(t *testing.T) {
 	_, _, _, excludeTags, _, _ := parseDvaFlags([]string{"--exclude-tags=db,cache"})
 	if len(excludeTags) != 2 {
 		t.Errorf("excludeTags = %v, want 2 items", excludeTags)
-	}
-}
-
-func TestParseDvaFlags_MissingEnvValue(t *testing.T) {
-	_, env, _, _, _, _ := parseDvaFlags([]string{"--env"})
-	if env != "" {
-		t.Errorf("env = %q, want empty (no value)", env)
-	}
-}
-
-func TestParseDvaFlags_MissingTagValue(t *testing.T) {
-	_, _, includeTags, _, _, _ := parseDvaFlags([]string{"--tag"})
-	if len(includeTags) != 0 {
-		t.Errorf("includeTags = %v, want empty (no value)", includeTags)
-	}
-}
-
-func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
-	_, _, _, excludeTags, _, _ := parseDvaFlags([]string{"--exclude-tag"})
-	if len(excludeTags) != 0 {
-		t.Errorf("excludeTags = %v, want empty (no value)", excludeTags)
 	}
 }
 

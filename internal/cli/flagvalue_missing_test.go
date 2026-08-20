@@ -66,3 +66,57 @@ func TestParseDvaFlagsRejectsAMissingValue(t *testing.T) {
 		}
 	})
 }
+
+// The four below predate TASK-211 and lived in compose_flags_test.go, where every one of
+// them discarded err with `_`. They therefore passed identically before the fix and
+// after it — the state they asserted (an empty result) was true either way — so what
+// they were actually documenting was the silent drop, as intended behaviour. They now
+// require the error, which is what makes them a test of this fix rather than a record of
+// the defect. They are kept because they reach parseDvaFlags directly: the subtests
+// above go through restartCmd.RunE, so a refusal that came from somewhere else on that
+// path would still satisfy them.
+
+func TestParseDvaFlags_MissingValue(t *testing.T) {
+	mode, _, _, _, filtered, err := parseDvaFlags([]string{"--mode"})
+	if err == nil {
+		t.Fatal("parseDvaFlags([--mode]) returned no error, want a missing-value error")
+	}
+	if mode != "" {
+		t.Errorf("mode = %q, want empty (no value provided)", mode)
+	}
+	// Worth asserting apart from the error: a recognised flag is never appended to
+	// filtered, so the token reaches no passthrough caller's argv either.
+	if len(filtered) != 0 {
+		t.Errorf("filtered = %v, want empty", filtered)
+	}
+}
+
+func TestParseDvaFlags_MissingEnvValue(t *testing.T) {
+	_, env, _, _, _, err := parseDvaFlags([]string{"--env"})
+	if err == nil {
+		t.Fatal("parseDvaFlags([--env]) returned no error, want a missing-value error")
+	}
+	if env != "" {
+		t.Errorf("env = %q, want empty (no value)", env)
+	}
+}
+
+func TestParseDvaFlags_MissingTagValue(t *testing.T) {
+	_, _, includeTags, _, _, err := parseDvaFlags([]string{"--tag"})
+	if err == nil {
+		t.Fatal("parseDvaFlags([--tag]) returned no error, want a missing-value error")
+	}
+	if len(includeTags) != 0 {
+		t.Errorf("includeTags = %v, want empty (no value)", includeTags)
+	}
+}
+
+func TestParseDvaFlags_MissingExcludeTagValue(t *testing.T) {
+	_, _, _, excludeTags, _, err := parseDvaFlags([]string{"--exclude-tag"})
+	if err == nil {
+		t.Fatal("parseDvaFlags([--exclude-tag]) returned no error, want a missing-value error")
+	}
+	if len(excludeTags) != 0 {
+		t.Errorf("excludeTags = %v, want empty (no value)", excludeTags)
+	}
+}
