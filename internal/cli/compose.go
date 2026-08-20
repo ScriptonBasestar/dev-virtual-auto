@@ -802,10 +802,39 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// flagValue is concerned even though a token follows. Both spellings have to error or
 	// the fix closes one door and leaves its twin open — that pair is what TASK-207's
 	// review was looking at when it filed this.
+	// An empty value is refused here too, and for the same harm rather than for symmetry.
+	// `--mode=` reaches flagValue's hasValue branch, which reports ok=true because a value
+	// was supplied — so before TASK-213 mode was set to "", which is precisely what no
+	// --mode at all leaves behind, applyDefaultMode then filled in the default, and the
+	// narrowing flag produced the widest possible run at rc=0. `--tag=` is the mirror:
+	// includeTags becomes [""], which matches nothing, so the run is empty and still
+	// reported as success. Both spellings of emptiness are covered — `--mode=` through the
+	// hasValue branch and `--mode ""` through the next-token branch — because a fix aimed
+	// at the `=` spelling alone leaves its twin open, the same way TASK-211 had to take
+	// `--mode --` along with `--mode`.
+	//
+	// Distinct wording on purpose: the user did supply a value, so "requires a value" would
+	// describe a different mistake than the one they made. It also keeps the two branches
+	// separable by test.
+	//
+	// Returning ok=false without consuming n means the empty next token in `--mode ""` is
+	// re-read by the loop and lands in filtered. That is unreachable rather than tolerated:
+	// err is set, and all six non-test callers of parseDvaFlags (compose.go:120, 245, 339,
+	// 397, 476, 648) check it before touching filtered. Measured, not assumed — if a caller
+	// is ever added that reads filtered first, this is the comment it invalidates.
 	takeValue := func(name, value string, hasValue bool, i int) (string, int, bool) {
 		v, n, ok := flagValue(args, i, end, value, hasValue)
-		if !ok && err == nil {
-			err = fmt.Errorf("%s requires a value", name)
+		if !ok {
+			if err == nil {
+				err = fmt.Errorf("%s requires a value", name)
+			}
+			return v, n, ok
+		}
+		if v == "" {
+			if err == nil {
+				err = fmt.Errorf("%s requires a non-empty value", name)
+			}
+			return "", n, false
 		}
 		return v, n, ok
 	}

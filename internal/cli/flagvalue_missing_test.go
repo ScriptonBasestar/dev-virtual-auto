@@ -80,6 +80,82 @@ func TestParseDvaFlagsRejectsAMissingValue(t *testing.T) {
 	})
 }
 
+// TestParseDvaFlagsRejectsAnEmptyValue covers the other way a value-taking flag ends up
+// with no usable value: one was supplied and it is empty. TASK-211 closed `--mode` and
+// `--mode --`; `--mode=` went on running the whole stack at rc=0, which is verbatim the
+// harm TASK-211's summary describes, reached through the branch above the one it fixed.
+// flagValue returns ok=true for an empty inline value, so takeValue never fired and mode
+// was set to "" — indistinguishable downstream from never having typed the flag, because
+// that is exactly what "no --mode" leaves behind. TASK-213.
+//
+// The `--mode ""` rows are here for the same reason `--mode --` is in the missing table:
+// it is the same emptiness reached through the other flagValue branch, so a fix written
+// only against the `=` spelling leaves a twin open. Both are refused by one check in
+// takeValue, which is why this table mixes them rather than splitting the function.
+func TestParseDvaFlagsRejectsAnEmptyValue(t *testing.T) {
+	empty := []struct {
+		what     string
+		args     []string
+		wantFlag string
+	}{
+		{"--mode=", []string{"--mode="}, "--mode"},
+		{"the short form -M=", []string{"-M="}, "-M"},
+		{"--env=", []string{"--env="}, "--env"},
+		{"--tag=", []string{"--tag="}, "--tag"},
+		{"--exclude-tag=", []string{"--exclude-tag="}, "--exclude-tag"},
+		{"--mode with an empty next token", []string{"--mode", ""}, "--mode"},
+		{"--tag with an empty next token", []string{"--tag", ""}, "--tag"},
+	}
+	for _, tc := range empty {
+		t.Run(tc.what, func(t *testing.T) {
+			dir := writeRestartProbeConfig(t)
+
+			err := restartCmd.RunE(restartCmd, tc.args)
+			if err == nil {
+				t.Fatalf("restart %v: want an error, got nil", tc.args)
+			}
+			// Deliberately not "requires a value": the user did supply one. Asserting the
+			// distinct phrase also keeps this table from passing on the TASK-211 message,
+			// which would mean the empty case had been folded into the missing case and
+			// the two branches were no longer separable by test.
+			if !strings.Contains(err.Error(), "requires a non-empty value") {
+				t.Errorf("restart %v: %q does not say the value must be non-empty", tc.args, err)
+			}
+			if !strings.Contains(err.Error(), tc.wantFlag) {
+				t.Errorf("restart %v: %q does not name %s", tc.args, err, tc.wantFlag)
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Errorf("restart %v: nothing should have run, ran %v", tc.args, got)
+			}
+		})
+	}
+
+	// The control, and it is the load-bearing row. Every rejection above is satisfied by a
+	// build that refuses the inline spelling outright — `--env=dev` too — which would be a
+	// far worse regression than the bug being fixed, and invisible to the table. This row
+	// is the only thing standing between the fix and that build.
+	//
+	// It is deliberately `--env=dev`, the same flag and value as the missing table's
+	// control one spelling apart, so the only difference between a passing control and a
+	// passing rejection row is the `=`. `--mode=dev` looks like the better control and is
+	// not: this fixture declares no per-entry modes, so mode filtering drops s1 and s2 and
+	// the row fails with "no lifecycle entries matched filters" on a correct build. That
+	// is a control reporting on the fixture rather than on the fix.
+	t.Run("but a non-empty inline value is still taken", func(t *testing.T) {
+		dir := writeRestartProbeConfig(t)
+
+		if err := restartCmd.RunE(restartCmd, []string{"--env=dev"}); err != nil {
+			t.Fatalf("restart --env=dev: %v", err)
+		}
+		got := ranMarkers(t, dir)
+		for _, m := range []string{"s1_up", "s1_stop", "s2_up", "s2_stop"} {
+			if !got[m] {
+				t.Errorf("restart --env=dev: %s missing, ran %v", m, got)
+			}
+		}
+	})
+}
+
 // The four below predate TASK-211 and lived in compose_flags_test.go, where every one of
 // them discarded err with `_`. They therefore passed identically before the fix and
 // after it — the state they asserted (an empty result) was true either way — so what
