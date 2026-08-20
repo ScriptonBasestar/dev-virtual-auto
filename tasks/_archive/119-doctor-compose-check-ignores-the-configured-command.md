@@ -86,7 +86,7 @@ contract, which TASK-115 had no mandate to make.
 - [x] doctor runs the configured binary | verify: `go test ./internal/cli/ -run 'Doctor.*Compose' -v`
 - [x] Interpolation is applied | verify: `go test ./internal/cli/ -run 'Doctor.*Compose' -v` — a `files:` entry containing `${VAR}` must be checked expanded
 - [x] A missing binary is reported, not skipped | verify: `go test ./internal/cli/ -run 'Doctor.*Compose' -v` — the result set must be non-empty and name the binary
-- [x] No sixth copy | verify: `grep -n '"compose"' internal/cli/doctor.go | wc -l` — must be 0
+- [x] No sixth copy | verify: `f=internal/cli/doctor.go; [ -f "$f" ] || { echo "$f does not exist — nothing was measured"; exit 2; }; n=$(/usr/bin/grep -c '"compose"' "$f" || true); echo "occurrences=$n in $f ($(wc -l < "$f" | tr -d ' ') lines)"; [ "$n" -eq 0 ]` — **`occurrences=0 in internal/cli/doctor.go (811 lines)`, exit 0 (TASK-199).** The binding was `grep -n '"compose"' internal/cli/doctor.go | wc -l` — must be 0. The target was stated only in prose: `wc -l` ends the pipeline, so the command exited 0 whatever it counted, and it prints `0` for a file that has been renamed or deleted exactly as it does for a file with no hardcoded literal. Since this criterion exists to catch a *sixth copy* appearing in a file that keeps changing, "the file is gone" is the reading it could least afford to score as a pass. The line count is printed so a later reader can see the file was actually read. Sabotaged against a fixture `internal/cli/doctor.go` containing `[]string{"docker", "compose"}` — `occurrences=1`, exit 1 — and against a tree without the file — exit 2
 - [x] Full suite passes | verify: `make test`
 
 ## Resolution
