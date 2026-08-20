@@ -283,6 +283,15 @@ out of scope here; this card only makes the build diagnose the condition.
       verify: human — measured discriminator, must hold on this machine today:
       `mise exec -- go version` → `go1.26.5` (mismatch invisible) while
       `mise exec -- sh -c 'go version'` → `go1.26.6` (mismatch visible)
+- [x] A pairing the guard **cannot read** fails, with its own message rather than the
+      mismatch one. Either substitution failing yields the empty string, and two empty
+      strings compare equal, so the comparison alone reports health having verified
+      nothing — the failure this card and TASK-205 both exist to remove, one level up.
+      verify: `grep -c 'cannot read the go/GOROOT pairing' Makefile` → at least 1
+      (today, on 07d0c47: **0**)
+      verify: human — put a `#!/bin/sh` / `exit 3` stub named `go` first on PATH and run
+      the guard's collapsed script; it must exit 1 naming both empty values, where before
+      it printed `tool=[] root=[]` and exited 0
 
 ## Verification (2026-08-20)
 
@@ -314,6 +323,47 @@ write `$$` for a literal `$`, so that string cannot occur in any correct impleme
 the criterion could never *pass* — the mirror image of the never-fails shape TASK-205
 exists for. The binding now names the `$$` form. What it was written to demand is unchanged
 and is met: `head -1` is present, and the reason it is required sits beside it.
+
+### The guard shipped in 07d0c47 could report health without verifying anything
+
+Found in review of that commit, fixed before integration. The comparison was
+`[ "$tool" != "$root" ]` and nothing else. If either substitution fails it yields the
+empty string, **two empty strings compare equal**, and the guard exits 0 in silence —
+output indistinguishable from a verified match.
+
+| case | before | after |
+|---|---|---|
+| `go` absent from PATH | `PASS tool=[] root=[]` rc=**0** | rc=**1**, names both empty values |
+| `go` present, executable, exits 3 | `PASS tool=[] root=[]` rc=**0** | rc=**1**, same message |
+| healthy pairing | silent, rc=0 | silent, rc=0 — unchanged |
+
+The second row is the one that matters: the trigger is not *no go on PATH*, it is *either
+read failing*. And the reachable environment is not a hand-built PATH — it is any machine
+where go comes only through mise, a CI runner or a fresh box, because `mise exec` reverts
+toward the pre-activation PATH. On this machine the guard was non-vacuous only because a
+second toolchain, Homebrew's go, happens to exist — which is the very condition this card
+detects.
+
+It also degraded the wrong way. A **partial** failure makes the two strings differ, so the
+guard fired loudly about a mismatch that did not exist; a **total** failure passed in
+silence. The worse environment produced the quieter output.
+
+Two failure modes now carry two messages, since "go and GOROOT disagree" would be false
+when neither could be read. Both arms above were re-measured after the fix and are
+unchanged: mismatch still fails with `Error 1` and no `could not import` line, healthy
+still runs through to `0 issues.`
+
+Rejected counter-argument, recorded because it is the strongest one available: the guard's
+remit is a *pairing mismatch*, so an unreadable toolchain is a different fault with a
+better-placed diagnostician, and hard-failing turns an environment problem into a lint red.
+It loses on a measured premise rather than on principle — golangci-lint runs under the same
+`mise exec` and resolves `go` through the same PATH the guard's subshell uses, so "the
+guard cannot read go" and "lint works" cannot coexist. Hard-failing therefore produces no
+false reds; it produces the true red earlier, with a name on it. (One leg of that argument
+— that `make vet` gates a broken GOROOT first — was checked and holds only under an ambient
+PATH, where `go` is the real binary: `GOROOT=/nonexistent go vet` gives rc=2 there, but
+rc=0 through the mise shim, which sanitises GOROOT. It was cited toward *less* severity, so
+its collapse does not weaken the conclusion.)
 
 The same defect appeared in the guard's own comment, which explained the rule as
 `$(GOROOT)/VERSION`. In a recipe line make expands that to the empty string before

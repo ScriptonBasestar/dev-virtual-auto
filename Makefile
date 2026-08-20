@@ -56,8 +56,20 @@ lint: vet fmt-check
 	@# not cosmetic: $$(go env GOROOT)/VERSION is two lines (the version, then a build
 	@# timestamp), so comparing it whole against one-line `go version` output would fail
 	@# the gate on a correctly paired machine.
+	@#
+	@# An unreadable pairing must fail, and with its own message. If either substitution
+	@# fails it yields the empty string, and two empty strings compare EQUAL — so without
+	@# the -z check below a `go` that is missing, or present but exiting non-zero, makes
+	@# this guard report health having verified nothing, indistinguishable from a real
+	@# match. Measured: a `#!/bin/sh exit 3` stub named go gives tool=[] root=[] rc=0.
+	@# That is the failure shape of TASK-205 one level up — hiding the diagnostic rather
+	@# than the result — and the same shape the gopls rc check below rejects. Note it
+	@# degrades the wrong way if left alone: a PARTIAL failure makes the strings differ
+	@# and fires loudly about a mismatch that does not exist, while a TOTAL failure passes
+	@# in silence. The reachable case is not an exotic PATH — it is any machine where go
+	@# comes only through mise, since `mise exec` reverts toward the pre-activation PATH.
 	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
-		mise exec -- sh -c 'tool=$$(go version | cut -d" " -f3); root=$$(head -1 "$$(go env GOROOT)/VERSION"); if [ "$$tool" != "$$root" ]; then echo "make lint: go and GOROOT disagree - go tool is $$tool, GOROOT holds $$root" >&2; echo "  go:     $$(command -v go)" >&2; echo "  GOROOT: $$(go env GOROOT)" >&2; echo "  Unchecked, this surfaces as could-not-import errors about stdlib packages. TASK-204." >&2; exit 1; fi' || exit 1; \
+		mise exec -- sh -c 'tool=$$(go version | cut -d" " -f3); root=$$(head -1 "$$(go env GOROOT)/VERSION"); if [ -z "$$tool" ] || [ -z "$$root" ]; then echo "make lint: cannot read the go/GOROOT pairing under mise exec" >&2; echo "  go version     -> [$$tool] (empty: go did not run)" >&2; echo "  GOROOT/VERSION -> [$$root] (empty: GOROOT unset, or VERSION unreadable)" >&2; exit 1; fi; if [ "$$tool" != "$$root" ]; then echo "make lint: go and GOROOT disagree - go tool is $$tool, GOROOT holds $$root" >&2; echo "  go:     $$(command -v go)" >&2; echo "  GOROOT: $$(go env GOROOT)" >&2; echo "  Unchecked, this surfaces as could-not-import errors about stdlib packages. TASK-204." >&2; exit 1; fi' || exit 1; \
 	fi
 	@# golangci-lint's cache is machine-wide by default (~/Library/Caches/golangci-lint)
 	@# and its entries carry the absolute paths they were analysed at. The git workflow

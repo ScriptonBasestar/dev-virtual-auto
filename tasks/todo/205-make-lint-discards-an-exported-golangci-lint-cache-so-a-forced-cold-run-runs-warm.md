@@ -120,6 +120,20 @@ defect. No second instance of this bug.
 
 Open Question 1 stands as its leaning: `clean` still deletes only the default path.
 
+**`:-` rather than `-` is load-bearing, and this is measured rather than reasoned.** The
+two differ only on an exported-but-empty value, which looks like a detail:
+
+| `GOLANGCI_LINT_CACHE` | `${VAR:-D}` | `${VAR-D}` | `golangci-lint cache status` |
+|---|---|---|---|
+| unset | `D` | `D` | `Dir: ~/Library/Caches/golangci-lint` |
+| exported empty | `D` | *empty* | `Dir: ~/Library/Caches/golangci-lint` |
+| exported to a path | the path | the path | `Dir: /tmp/xyz-probe-dva` |
+
+With `-`, an exported-empty value survives as empty, and golangci-lint then falls back to
+its own machine-wide cache — TASK-203's bug back in full, through the very line written to
+prevent it. The third column is the part that is easy to assert from the shell fact alone
+and get wrong; it was run, not inferred.
+
 ## Open Questions
 
 1. `make clean` deletes `$(CURDIR)/tmp/golangci-lint-cache` only. Once an override is
