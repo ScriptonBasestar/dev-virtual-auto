@@ -228,9 +228,11 @@ func printPlanResolution(plan *lifecycle.ExecutionPlan) {
 
 // setPlanVar deliberately disagrees with takeValue (compose.go) on empty values; TASK-213
 // asked whether the two should agree and the answer is that they cannot. There an empty
-// scalar names nothing, so `--mode=` is an error. Here the unit is a KEY=VAL pair judged in
-// halves: `--var=K=` is accepted and sets K to "", a real thing to want, while a bare
-// `--var=` fails below as a malformed pair — a format check, not an empty-value policy.
+// scalar names nothing, so `--mode=` is an error. Here the unit is a KEY=VAL pair, and the
+// guard below is a format check rather than an empty-value policy — which is provable from
+// either side: `--var=K=` is ACCEPTED and sets K to "", while `--var=x` is REJECTED with the
+// same message despite x being non-empty. Emptiness is not what is being tested, so adopting
+// TASK-213's rule here would break `--var=K=`, a real thing to want.
 func setPlanVar(dst map[string]string, kv string) error {
 	parts := strings.SplitN(kv, "=", 2)
 	if len(parts) != 2 || strings.TrimSpace(parts[0]) == "" {
