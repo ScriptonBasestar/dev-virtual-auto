@@ -361,3 +361,32 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 		})
 	}
 }
+
+// TestRestartBareTerminatorRestartsEverything pins the one behaviour change the
+// terminator exemption carries beyond `dva restart -- s1`, which f95872b's
+// message did not state. Measured A/B with this file byte-identical and only
+// compose.go varying:
+//
+//	restart --   master: rc=0, nothing restarted
+//	restart --   here:   rc=0, s1 and s2 both restarted
+//
+// The ruling is that the new behaviour is the correct one and master's was the
+// defect TASK-198 exists to close. `--` means "no options follow"; with nothing
+// after it there are no names, and a restart with no names restarts every
+// declared entry -- exactly what bare `dva restart` does. Master instead read
+// the terminator itself as a service name, matched nothing, and reported the
+// empty selection as success: the card's signature, reached by a different
+// token. Note this widens rather than narrows, so it is pinned rather than left
+// as a side effect of the exemption.
+func TestRestartBareTerminatorRestartsEverything(t *testing.T) {
+	dir := writeRestartProbeConfig(t)
+	if err := restartCmd.RunE(restartCmd, []string{"--"}); err != nil {
+		t.Fatalf("restart --: %v", err)
+	}
+	got := ranMarkers(t, dir)
+	for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+		if !got[m] {
+			t.Fatalf("restart --: %s did not run; a terminator with no names must restart the whole stack, not be read as a name and match nothing (got %v)", m, got)
+		}
+	}
+}
