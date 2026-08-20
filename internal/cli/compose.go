@@ -764,17 +764,24 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// caller can take over this job, because a passthrough command must forward the flags it
 	// does not recognise — this is the last code that knows `--debug` is DVA's. TASK-172.
 	//
-	// The first bad flag wins: reporting one is what the user has to fix first. The loop then
-	// runs to the end rather than returning early because a closure has no return to take —
-	// not because anything reads the values it keeps filling in. Every caller checks err
-	// before touching any other return value, so those values are never observed.
+	// The first bad flag wins: reporting one is what the user has to fix first. That is what
+	// the `if err == nil` guards below are for, and it is pinned by
+	// TestParseDvaFlags_FirstBadFlagIsReported — a review deleted both guards, making the
+	// last flag win, and nothing failed until that test existed. The loop then runs to the
+	// end rather than returning early because a closure has no return to take — not because
+	// anything reads the values it keeps filling in. Every caller checks err before touching
+	// any other return value, so those values are never observed.
 	//
 	// Both sentences carried a count until TASK-213 — "7 of the 12 call sites" and "all 12
 	// callers" — and by then the real numbers were 2 and 6. Neither was ever reread, which is
 	// TASK-208's subject exactly. They are stated as properties now; the counts are one
 	// command away and belong in a commit message rather than in a comment that outlives it:
 	//   grep -n 'parseDvaFlags(args)' internal/cli/*.go | grep -v _test  # callers: 6 today
-	//   grep -n 'rejectUnknownFlags(' internal/cli/*.go | grep -v _test  # 2, upCmd + restartCmd
+	//   grep -n 'rejectUnknownFlags(' internal/cli/*.go | grep -v _test | grep -v 'func '  # call sites: 2, upCmd + restartCmd
+	//
+	// The second command carried `# 2` for one commit while returning 3, because it also
+	// matched the func declaration in selectors.go. A command written to retire a stale
+	// count is worth running once before it ships.
 	takeBool := func(name, value string, hasValue bool, target *bool) {
 		if v, ok := flagBoolValue(value, hasValue); ok {
 			*target = v
@@ -870,10 +877,16 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// TASK-213 examined only the second and called the family harmless.
 	//
 	// TrimSpace rather than == "" because a blank element is the same non-value written
-	// differently. Nothing is trimmed off the values that survive: an element with
-	// surrounding spaces is a tag that will not match, which is an unknown-tag complaint
-	// rather than this one, and it belongs to whoever validates tag names against the
-	// config. Rewriting the user's input on the way through would hide that from them.
+	// differently — for the ~25 runes unicode.IsSpace calls space, which is the boundary
+	// this draws and not the boundary "invisible" would draw. `--tag=<U+200B>` is a
+	// zero-width space, is not IsSpace, and passes as a one-element list; it then matches
+	// no declared tag, which lands it in TASK-214 with every other tag no entry carries.
+	// Widening this check to "unprintable" would be a second, different rule about what a
+	// tag may be made of, and it belongs with the code that validates tag names.
+	//
+	// Nothing is trimmed off the values that survive: an element with surrounding spaces is
+	// a tag that will not match, which is an unknown-tag complaint rather than this one.
+	// Rewriting the user's input on the way through would hide that from them.
 	takeList := func(name, value string, hasValue bool, i int) ([]string, int, bool) {
 		v, n, ok := takeValue(name, value, hasValue, i)
 		if !ok {

@@ -308,15 +308,64 @@ func TestParseDvaFlags_MissingValue(t *testing.T) {
 // version of the fix left it and described it. A review declined that: unreachable-by-what-
 // the-callers-do-next is a property of six other functions, not of this one. Asserting it
 // here is what turns the argument into a test. TASK-213.
+//
+// Every flag gets a row, and that is the whole point of the table. The first version of
+// this test asserted only --mode, the one spelling that had actually leaked. A review
+// sabotaged the fix by moving `i += n` back inside `if ok` for --env, --tag and
+// --exclude-tag — three of the four lines the commit consists of — and the package stayed
+// green: `ok internal/cli 9.2s`, zero failures, with ["--env","","s1"] leaking ["","s1"]
+// again. A fix is pinned at the granularity it was written, not at the granularity of the
+// example that motivated it: four near-identical case arms are four chances to revert one.
 func TestParseDvaFlags_RejectedValueIsStillConsumed(t *testing.T) {
-	_, _, _, _, filtered, err := parseDvaFlags([]string{"--mode", "", "s1"})
-	if err == nil {
-		t.Fatal(`parseDvaFlags(["--mode", "", "s1"]) returned no error, want an empty-value error`)
+	// Each flag is spelled with its own case arm in parseDvaFlags, so each needs its own
+	// row; the aliases share an arm with the long form and are covered by it.
+	for _, tc := range []struct {
+		name string
+		flag string
+	}{
+		{"--mode", "--mode"},
+		{"--env", "--env"},
+		{"--tag", "--tag"},
+		{"--exclude-tag", "--exclude-tag"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := []string{tc.flag, "", "s1"}
+			_, _, _, _, filtered, err := parseDvaFlags(args)
+			if err == nil {
+				t.Errorf("parseDvaFlags(%q) returned no error, want an empty-value error", args)
+			}
+			// s1 survives and "" does not: the flag's value was consumed even though it was
+			// refused, and the positional argument that followed it is untouched. Asserted
+			// with Errorf above so this runs either way — a build that both accepts the
+			// value and leaks it should report both, not just the first.
+			if len(filtered) != 1 || filtered[0] != "s1" {
+				t.Errorf("parseDvaFlags(%q): filtered = %q, want [\"s1\"] — the refused value leaked into passthrough args", args, filtered)
+			}
+		})
 	}
-	// s1 survives and "" does not: the flag's value was consumed even though it was refused,
-	// and the positional argument that followed it is untouched.
-	if len(filtered) != 1 || filtered[0] != "s1" {
-		t.Errorf("filtered = %q, want [\"s1\"]", filtered)
+}
+
+// TestParseDvaFlags_FirstBadFlagIsReported pins the `if err == nil` guards inside takeValue
+// and takeList. They exist so the message names the flag the user has to fix first, rather
+// than whichever bad flag happens to sit last on the line.
+//
+// It is here because a review deleted both guards — making the last error win — and the
+// package stayed green: no existing row used two bad flags, so nothing could tell the
+// orders apart. A property stated in a comment and asserted nowhere is a property that
+// survives exactly until someone reads the comment as decoration. TASK-213.
+func TestParseDvaFlags_FirstBadFlagIsReported(t *testing.T) {
+	// Two different flags, two different rules (blank value vs empty-after-splitting), so
+	// the two messages cannot be confused for one another.
+	args := []string{"--mode=", "--tag=,"}
+	_, _, _, _, _, err := parseDvaFlags(args)
+	if err == nil {
+		t.Fatalf("parseDvaFlags(%q) returned no error, want the first flag's error", args)
+	}
+	if !strings.Contains(err.Error(), "--mode") {
+		t.Errorf("parseDvaFlags(%q): err = %v, want the FIRST bad flag (--mode) named, not the last", args, err)
+	}
+	if strings.Contains(err.Error(), "--tag") {
+		t.Errorf("parseDvaFlags(%q): err = %v, names --tag; the later flag overwrote the first error", args, err)
 	}
 }
 
