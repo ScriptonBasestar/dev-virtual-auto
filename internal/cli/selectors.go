@@ -112,10 +112,14 @@ func dropFlagTerminator(names []string) []string {
 // is excluded by --tag selects nothing legitimately and stays a warning; only a name that could
 // never match anything is an error here. TASK-198's open question owns the tag arm.
 //
-// A dash-prefixed token can still arrive: rejectUnknownFlags requires len >= 2, so a bare "-"
-// slips it, and after the `--` terminator every token is a name whatever it spells. Both get a
-// line saying so, because "unknown entry" alone reads as a config problem to someone who
-// believed they were typing a flag.
+// A dash-prefixed token can still arrive, by two different routes, and they get two different
+// explanations because "unknown stack entry" alone reads as a config problem to someone who
+// believed they were typing a flag: a bare "-" is below rejectUnknownFlags' len >= 2 floor,
+// and anything after the `--` terminator is a name whatever it spells.
+//
+// noun is bare ("stack entry"), not the article-prefixed form rejectUnknownFlags takes — that
+// one only ever drops its noun into a sentence, while this one also uses it as a headline, and
+// sharing the string produced "unknown a stack entry name".
 func rejectUnknownEntryNames(path, noun string, names, declared []string) error {
 	known := make(map[string]struct{}, len(declared))
 	for _, d := range declared {
@@ -127,8 +131,11 @@ func rejectUnknownEntryNames(path, noun string, names, declared []string) error 
 		}
 		var msg strings.Builder
 		fmt.Fprintf(&msg, "unknown %s %q for \"dva %s\"", noun, n, path)
-		if strings.HasPrefix(n, "-") {
-			fmt.Fprintf(&msg, "\n       → read as %s, not a flag: after \"--\" every argument is a name, and a bare \"-\" is too short to be a flag", noun)
+		switch {
+		case n == "-":
+			fmt.Fprintf(&msg, "\n       → read as a %s name: a lone \"-\" is too short to be a flag", noun)
+		case strings.HasPrefix(n, "-"):
+			fmt.Fprintf(&msg, "\n       → read as a %s name, not a flag: after \"--\" every argument is a name. Move it before the \"--\"", noun)
 		}
 		if len(declared) == 0 {
 			msg.WriteString("\n       → this config declares no stack entries")
@@ -149,10 +156,17 @@ func rejectUnknownEntryNames(path, noun string, names, declared []string) error 
 
 // similarTo returns the candidates within edit distance 2 of s, matching the threshold
 // resolveProvisionProfile already uses for its "Did you mean?".
+//
+// The distance must also be shorter than s itself, or a short token matches everything: `dva
+// restart -` suggested BOTH s1 and s2, since one character is two edits from any two-character
+// name. Measured against the built binary, not reasoned about. The extra condition is
+// unreachable for the flag caller — its inputs are dash-prefixed and its candidates are two
+// characters at the shortest, so every match there is already distance 1 — and it costs the
+// name caller nothing real: `s3` still suggests s1 and s2 at distance 1.
 func similarTo(s string, candidates []string) []string {
 	var out []string
 	for _, c := range candidates {
-		if levenshtein(s, c) <= 2 {
+		if d := levenshtein(s, c); d <= 2 && d < len(s) {
 			out = append(out, c)
 		}
 	}

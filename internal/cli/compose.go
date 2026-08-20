@@ -526,7 +526,7 @@ Stack flags:
 		for _, entry := range c.SortedStack() {
 			declared = append(declared, entry.Name)
 		}
-		if err := rejectUnknownEntryNames("restart", "a stack entry name", names, declared); err != nil {
+		if err := rejectUnknownEntryNames("restart", "stack entry", names, declared); err != nil {
 			return err
 		}
 		mode, isDefault := applyDefaultMode(c, mode)
