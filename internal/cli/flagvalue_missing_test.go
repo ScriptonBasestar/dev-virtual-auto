@@ -105,6 +105,17 @@ func TestParseDvaFlagsRejectsAnEmptyValue(t *testing.T) {
 		{"--exclude-tag=", []string{"--exclude-tag="}, "--exclude-tag"},
 		{"--mode with an empty next token", []string{"--mode", ""}, "--mode"},
 		{"--tag with an empty next token", []string{"--tag", ""}, "--tag"},
+		// Every spelling parseDvaFlags recognises, not a representative sample. The four
+		// below were missing until an adversarial review guarded takeValue with `&& name !=
+		// "--tags" && name != "--exclude-tags" && name != "-E" && name != "-T"` and the
+		// whole package stayed green while `dva restart -E=` and `dva restart
+		// --exclude-tags=` bounced the entire stack at rc=0. The case arms alias these to
+		// the long forms, so a row per alias looks redundant — it is exactly what catches a
+		// fix applied per-name instead of at the funnel. TASK-213.
+		{"the short form -E=", []string{"-E="}, "-E"},
+		{"the short form -T=", []string{"-T="}, "-T"},
+		{"the plural --tags=", []string{"--tags="}, "--tags"},
+		{"the plural --exclude-tags=", []string{"--exclude-tags="}, "--exclude-tags"},
 	}
 	for _, tc := range empty {
 		t.Run(tc.what, func(t *testing.T) {
@@ -162,6 +173,102 @@ func TestParseDvaFlagsRejectsAnEmptyValue(t *testing.T) {
 		for _, m := range []string{"s1_up", "s1_stop", "s2_up", "s2_stop"} {
 			if !got[m] {
 				t.Errorf("restart --env=dev: %s missing, ran %v", m, got)
+			}
+		}
+	})
+}
+
+// TestParseDvaFlagsRejectsADegenerateValue covers the values that are not empty but carry
+// no more information than empty does. An adversarial review of the fix above found the
+// harm reachable one character past the spelling it refuses: `dva restart --exclude-tag=,`
+// is a one-character value, so the whole-value check passes it, and strings.Split turns it
+// into ["", ""] — two tags that match nothing. For --exclude-tag, matching nothing means
+// excluding nothing, so that spelling bounced the entire stack and exited 0, which is
+// verbatim the harm this card exists to close. TASK-213.
+//
+// The family is not uniform and the rows say so per flag, because the first draft of the
+// card measured the safe member (`--tag=a,,b`, which narrows to nothing) and generalised to
+// the class. Measured on the unfixed build: `--exclude-tag=,` and `--exclude-tag=" "` run
+// EVERYTHING, `--tag=,` and `--tag=" "` run NOTHING, and both are reported as success. The
+// second pair is the quieter defect, not the absent one.
+func TestParseDvaFlagsRejectsADegenerateValue(t *testing.T) {
+	// wantPhrase differs by shape on purpose. Blankness and an empty list element are
+	// distinct mistakes with distinct fixes, and a single shared phrase would let a fix for
+	// one satisfy the rows of the other — the same reason the empty table refuses to accept
+	// TASK-211's "requires a value".
+	degenerate := []struct {
+		what       string
+		args       []string
+		wantFlag   string
+		wantPhrase string
+	}{
+		// Blank: non-empty by len, empty by content. --mode and --env already failed loudly
+		// downstream ("mode ' ' not found"); these rows move the refusal to the argument
+		// layer so all four flags answer the same way rather than three by accident.
+		{"a blank --mode", []string{"--mode= "}, "--mode", "requires a non-blank value"},
+		{"a blank --env", []string{"--env= "}, "--env", "requires a non-blank value"},
+		{"a blank --tag", []string{"--tag= "}, "--tag", "requires a non-blank value"},
+		{"a tab as --exclude-tag", []string{"--exclude-tag=\t"}, "--exclude-tag", "requires a non-blank value"},
+		{"a blank next token", []string{"--mode", " "}, "--mode", "requires a non-blank value"},
+		// A lone separator. Every list spelling, for the reason the empty table lists every
+		// alias: the split happens in the case arms, so a fix written into one arm leaves
+		// the other open.
+		{"--tag=,", []string{"--tag=,"}, "--tag", "requires non-empty tags"},
+		{"--tags=,", []string{"--tags=,"}, "--tags", "requires non-empty tags"},
+		{"-T=,", []string{"-T=,"}, "-T", "requires non-empty tags"},
+		{"--exclude-tag=,", []string{"--exclude-tag=,"}, "--exclude-tag", "requires non-empty tags"},
+		{"--exclude-tags=,", []string{"--exclude-tags=,"}, "--exclude-tags", "requires non-empty tags"},
+		// A hole in an otherwise real list. This is the row the card originally called
+		// harmless; it is harmless for --tag and not for --exclude-tag, and neither of them
+		// is something a user can have meant.
+		{"a hole in a --tag list", []string{"--tag=a,,b"}, "--tag", "requires non-empty tags"},
+		{"a hole in an --exclude-tag list", []string{"--exclude-tag=a,,b"}, "--exclude-tag", "requires non-empty tags"},
+		{"a blank element", []string{"--tag=a, ,b"}, "--tag", "requires non-empty tags"},
+	}
+	for _, tc := range degenerate {
+		t.Run(tc.what, func(t *testing.T) {
+			dir := writeRestartProbeConfig(t)
+
+			err := restartCmd.RunE(restartCmd, tc.args)
+			// Errorf, not Fatalf, and that is the point of the row rather than a style
+			// choice: a Fatalf here returns before the marker check, so the failure a
+			// missing refusal produces would read "want an error, got nil" for every flag
+			// alike and say nothing about what the build did instead. With the check
+			// reached, the unfixed build separates into its two harms in the log —
+			// --exclude-tag=, reports `ran [s1_stop s1_up s2_stop s2_up]`, --tag=, reports
+			// nothing at all — which is the distinction the card got wrong by reading only
+			// the second one.
+			if err == nil {
+				t.Errorf("restart %v: want an error, got nil", tc.args)
+			} else {
+				if !strings.Contains(err.Error(), tc.wantPhrase) {
+					t.Errorf("restart %v: %q does not say %q", tc.args, err, tc.wantPhrase)
+				}
+				if !strings.Contains(err.Error(), tc.wantFlag) {
+					t.Errorf("restart %v: %q does not name %s", tc.args, err, tc.wantFlag)
+				}
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Errorf("restart %v: nothing should have run, ran %v", tc.args, got)
+			}
+		})
+	}
+
+	// The control, and it has to be a comma list: every row above is satisfied by a build
+	// that refuses commas outright, which would delete the documented `--tag=a,b` syntax.
+	// --exclude-tag with tags no entry carries is the spelling that proves the value was
+	// parsed AND that the run proceeded — the include side would run nothing here and be
+	// indistinguishable from a build that refused the flag.
+	t.Run("but a real comma list is still taken", func(t *testing.T) {
+		dir := writeRestartProbeConfig(t)
+
+		if err := restartCmd.RunE(restartCmd, []string{"--exclude-tag=a,b"}); err != nil {
+			t.Fatalf("restart --exclude-tag=a,b: %v", err)
+		}
+		got := ranMarkers(t, dir)
+		for _, m := range []string{"s1_up", "s1_stop", "s2_up", "s2_stop"} {
+			if !got[m] {
+				t.Errorf("restart --exclude-tag=a,b: %s missing, ran %v", m, got)
 			}
 		}
 	})

@@ -836,7 +836,45 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 			}
 			return "", n, false
 		}
+		if strings.TrimSpace(v) == "" {
+			if err == nil {
+				err = fmt.Errorf("%s requires a non-blank value, got %q", name, v)
+			}
+			return "", n, false
+		}
 		return v, n, ok
+	}
+
+	// takeList is takeValue plus the rule the comma-separated flags need, and it exists
+	// because the check above sits on the wrong side of the split to see the whole defect.
+	// `--exclude-tag=,` is one character, so it passes as non-empty, and strings.Split turns
+	// it into ["", ""] — two tags nothing carries. For --exclude-tag, matching nothing means
+	// excluding nothing, so that spelling bounced the entire stack at rc=0: the same harm
+	// TASK-211 and the check above were filed against, reached one character past the
+	// spelling they refuse. `--tag=,` is the mirror and fails the other way, running nothing
+	// and still exiting 0. Both were measured on the unfixed build, and the first draft of
+	// TASK-213 examined only the second and called the family harmless.
+	//
+	// TrimSpace rather than == "" because a blank element is the same non-value written
+	// differently. Nothing is trimmed off the values that survive: an element with
+	// surrounding spaces is a tag that will not match, which is an unknown-tag complaint
+	// rather than this one, and it belongs to whoever validates tag names against the
+	// config. Rewriting the user's input on the way through would hide that from them.
+	takeList := func(name, value string, hasValue bool, i int) ([]string, int, bool) {
+		v, n, ok := takeValue(name, value, hasValue, i)
+		if !ok {
+			return nil, n, false
+		}
+		parts := strings.Split(v, ",")
+		for _, p := range parts {
+			if strings.TrimSpace(p) == "" {
+				if err == nil {
+					err = fmt.Errorf("%s requires non-empty tags, got %q", name, v)
+				}
+				return nil, n, false
+			}
+		}
+		return parts, n, true
 	}
 
 	for i := 0; i < end; i++ {
@@ -854,13 +892,13 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 				i += n
 			}
 		case "--tag", "--tags", "-T":
-			if v, n, ok := takeValue(name, value, hasValue, i); ok {
-				includeTags = append(includeTags, strings.Split(v, ",")...)
+			if v, n, ok := takeList(name, value, hasValue, i); ok {
+				includeTags = append(includeTags, v...)
 				i += n
 			}
 		case "--exclude-tag", "--exclude-tags":
-			if v, n, ok := takeValue(name, value, hasValue, i); ok {
-				excludeTags = append(excludeTags, strings.Split(v, ",")...)
+			if v, n, ok := takeList(name, value, hasValue, i); ok {
+				excludeTags = append(excludeTags, v...)
 				i += n
 			}
 		// Callers set DisableFlagParsing, so cobra never parses the root
