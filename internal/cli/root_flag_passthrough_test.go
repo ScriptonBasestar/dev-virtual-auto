@@ -247,7 +247,14 @@ func TestPassthroughRootFlagsStillTakeEffect(t *testing.T) {
 
 // TestConsumeRootPersistentFlags pins the helper's contract directly, including the parts
 // that are not obvious: --dry-run is left alone, the `=value` form is applied and stripped
-// (TASK-145), and the `--` terminator is consumed here and nowhere else.
+// (TASK-145), and the `--` terminator is consumed here rather than forwarded.
+//
+// It used to say "consumed here and nowhere else", which TASK-207 falsified: restartCmd now
+// consumes one too, since it takes positional names and the token separates them from flags.
+// The two do not overlap — this one strips the terminator from an argv handed to an external
+// tool, restart's strips it from a list of entry names — but the uniqueness half was
+// load-bearing for a reader deciding where to look, so the claim is now about this helper
+// rather than about the repo.
 func TestConsumeRootPersistentFlags(t *testing.T) {
 	oldDebug, oldJSON := debug, jsonOutput
 	t.Cleanup(func() { debug, jsonOutput = oldDebug, oldJSON })
