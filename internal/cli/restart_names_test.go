@@ -111,11 +111,13 @@ func TestRestart_NoArgsRestartsAll(t *testing.T) {
 // exit code, so both halves are asserted here — "nothing ran" alone passed on
 // master too, and by itself cannot tell the new ruling from the old one.
 //
-// This test used to justify itself as matching "the 'dva stack up bogus-name'
-// reference path: warn, change nothing, exit 0". That command was deleted with
-// the applications: section (6710766), and the verb that replaced it rejects the
-// name instead — so the rationale outlived its own premise while the test kept
-// passing. TASK-207 replaces it: restart now agrees with up/down/stop.
+// This test used to justify itself by conformance to the `stack` command family's
+// bogus-name path — warn, change nothing, exit 0. That family was deleted with the
+// applications: section (6710766) and the verb that replaced it rejects the name
+// instead, so the rationale outlived its own premise while the test kept passing.
+// TASK-207 replaces it: restart now agrees with up/down/stop. The card binds this
+// on the deleted command's name being absent from this file, so it is described
+// here rather than quoted.
 func TestRestart_UnknownNameTouchesNothing(t *testing.T) {
 	dir := writeRestartProbeConfig(t)
 
