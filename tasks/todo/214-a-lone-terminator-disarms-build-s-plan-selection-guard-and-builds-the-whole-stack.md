@@ -68,16 +68,48 @@ fails instantly and the evidence is what was selected before it failed.
 
 | binary | `dva build` | `dva build --` | `dva build -` |
 |---|---|---|---|
-| `9bf3ee0` (master) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
-| TASK-210 branch | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
+| `36adfd4` (master at measurement) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
+| `5f2fff0` (TASK-210 branch) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
 
 Re-measured on 2026-08-20 against a fixture rebuilt from the definition above,
 after discovering the original directory had been overwritten. Both binaries,
 all six cells, unchanged from the first run.
 
+An earlier pass labelled the baseline `9bf3ee0` "master". It is an ancestor —
+`git diff --stat 9bf3ee0 36adfd4 -- internal/cli` is four files and 189
+insertions, `compose.go` among them. The table above is the re-run against
+`36adfd4`, and every cell held.
+
+`origin/master` has since advanced again, to `dc762ca`. The baseline is
+written as a commit rather than as `origin/master` for exactly that reason,
+and re-measuring against `dc762ca` is work rather than an assumption.
+
 The `-` column is here as a control and belongs to TASK-215: it also gets past
 `requirePlanSelection`, but docker rejects it, so `build` escalates only for the
 token docker accepts. Same guard, same line, different downstream luck.
+
+### What TASK-210's follow-up did change for `build`
+
+Not this defect, but a neighbouring row, and it is recorded here because
+`build` has no other card. `438eedd` made `rejectSuppressedDefaultPlan` step
+aside whenever a terminator occupied the plan-name slot. In the two fixtures
+where a default plan resolves, that removed a DVA-side refusal from the
+`build -- <token>` shape:
+
+| fixture | `dva build -- --bogus`, `3618257` | same, `5f2fff0` |
+|---|---|---|
+| C (`default_plan: alpha`) | rc=1 `flags suppress the default plan "alpha"` | rc=1 `no such service: --bogus` |
+| F2 (lone plan, promoted) | rc=1 `flags suppress the default plan "p1"` | rc=1 `no such service: --bogus` |
+| A, B, D, E | rc=1 `no such service: --bogus` | unchanged |
+
+Both refuse, and the new answer is the ruling applied — after `--` every token
+is a name, and `build` forwards names to docker (TASK-172), so docker answering
+"no such service" is the honest end of that path. But a message DVA owned was
+replaced by one docker owns, and `dva build -- -- s1` moved the same way. That
+is a real loss of a specific diagnostic, in exchange for consistency across the
+six fixtures. Whoever rules on the `build -- <service>` question below should
+rule on this row too: if `build` should refuse a `--`-prefixed *name*, that is a
+new check, not a restored one.
 
 This is pre-existing and not a TASK-210 regression. TASK-210 is
 where it became visible: its census found seven callers of the routing helpers,
@@ -129,7 +161,7 @@ line either way and the difference is which invocations start refusing.
 ## Completion Criteria
 
 - [ ] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — build the fixture from the three files in ## Measured, run both, and paste rc plus whether any image began building
-- [ ] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE` — that count is already 5 and would certify itself
+- [ ] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE`, which is 3 in this file today (two calls and a comment) and would certify itself
 - [ ] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with one plan
 - [ ] The ruling for `build -- <service>` is recorded on this card, not left implicit | verify: human
 - [ ] `make test` passes | verify: `make test`

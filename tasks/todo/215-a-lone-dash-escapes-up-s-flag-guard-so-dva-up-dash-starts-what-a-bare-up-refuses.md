@@ -4,7 +4,7 @@ title: "A lone dash escapes up's flag guard, so `dva up -` starts what a bare `d
 type: bug
 priority: P2
 effort: S
-created-at: 2026-08-20T19:05:00+09:00
+created-at: 2026-08-20T19:00:00+09:00
 source: "found while writing TASK-210's restart table — the `-` row needed a second expected message depending on config shape, and asking why turned up an escalation behind it"
 scope: "internal/cli/selectors.go:60 (rejectUnknownFlags' length test), internal/cli/plan_lifecycle.go:153 (rejectSuppressedDefaultPlan's dash test), internal/cli/selectors.go:140-141 (the message that already states the opposite rule). Not the terminator — that is TASK-216."
 status: todo
@@ -45,9 +45,21 @@ the guard TASK-087 added excludes them.
 
 ## Measured
 
-Six fixtures, `bin` built from `9bf3ee0` (master) and from the TASK-210 branch,
-run with `DOCKER_HOST=unix:///nonexistent-dva-review.sock` so docker fails at
-once and the evidence is what was selected before it failed.
+Six fixtures, run with `DOCKER_HOST=unix:///nonexistent-dva-review.sock` so
+docker fails at once and the evidence is what was selected before it failed.
+
+Two binaries: `36adfd4` and `5f2fff0`, the head of the TASK-210 branch.
+`36adfd4` was the tip of `origin/master` when this table was taken. An earlier
+pass had measured `9bf3ee0` and labelled *that* "master"; it is an ancestor,
+and `git diff --stat 9bf3ee0 36adfd4 -- internal/cli` is four files and 189
+insertions. The table below was re-measured against `36adfd4` and every row
+held, so the conclusion never moved — but the provenance line did, and a
+baseline named wrong is a table nobody can reproduce.
+
+`origin/master` has since advanced to `dc762ca`: ten commits, `compose.go`
++138 lines, `plan_lifecycle.go` 501 → 508. Naming a branch where a commit
+belongs is what made the first error possible, so this baseline stays written
+as `36adfd4`, and the re-measure against `dc762ca` is work, not an assumption.
 
 | fixture | shape | `dva up -` | `dva down -` / `stop -` | `dva restart -` |
 |---|---|---|---|---|
@@ -55,7 +67,8 @@ once and the evidence is what was selected before it failed.
 | B, D, E | no `plans:` at all | `[lifecycle] <first entry>` — whole stack | `unknown flag "-"` | `unknown stack entry "-"` |
 | C, F2 | a default plan resolves | `flags suppress the default plan` | same | same |
 
-**All 24 rows are byte-identical between the two binaries**, so none of this is
+**All 24 rows are byte-identical between the two binaries** (`diff` of the two
+sweeps: no output), so none of this is
 a TASK-210 regression; TASK-210 is only where it became visible.
 
 Two readings of the escalation, and they differ:
@@ -76,17 +89,26 @@ neither and passes `-` to docker, which answers `no such service: -` — the sam
 
 Four classifiers see the same token and answer differently:
 
-| guard | test | verdict on `-` |
-|---|---|---|
-| `rejectSuppressedDefaultPlan` (`plan_lifecycle.go:153`) | `HasPrefix(head[0], "-")` | flag |
-| `rejectUnknownFlags` (`selectors.go:60`) | `len(a) < 2 \|\| !HasPrefix(a, "-")` | **not a flag** |
-| `rejectUpPositionalArg` (`plan_lifecycle.go:205`) | `HasPrefix(name, "-")` → return nil | flag (someone else's problem) |
-| `requirePlanSelection` (`plan_lifecycle.go:73`) | `len(args) > 0` | a selection was made |
+| # | guard | call site | test | verdict on `-` |
+|---|---|---|---|---|
+| 1 | `requirePlanSelection` (`plan_lifecycle.go:73`) | `compose.go:110` | `len(args) > 0` | a selection was made |
+| 2 | `rejectSuppressedDefaultPlan` (`plan_lifecycle.go:153`) | `compose.go:113` | `HasPrefix(head[0], "-")` | flag |
+| 3 | `rejectUpPositionalArg` (`plan_lifecycle.go:205`) | `compose.go:116` | `HasPrefix(name, "-")` → return nil | flag (someone else's problem) |
+| 4 | `rejectUnknownFlags` (`selectors.go:60`) | `compose.go:169` | `len(a) < 2 \|\| !HasPrefix(a, "-")` | **not a flag** |
 
-`up` calls all four, in that order. With a default plan the first one fires and
-the user gets a message. Without one it returns nil, the second skips the token
-on length, the third hands it off, and the fourth reads the surviving `-` as
-"the user named something, do not ask which plan". Nothing is left to refuse.
+The order matters and is the opposite of what reading the guards by name
+suggests: `requirePlanSelection` runs **first**, on the raw `args`, and
+`rejectUnknownFlags` runs **last**, on the `leftover` that survives
+`parseDvaFlags` (`compose.go:120`). `rejectUpPositionalArg` runs twice, at
+`:116` and again at `:172`.
+
+So guard 1 decides the plan question before any classifier has looked at the
+token, and it decides it by counting: one token present, therefore the user
+named something, therefore do not ask which plan. Whether anything then refuses
+comes down to guard 2, which fires only where a default plan resolves — that is
+the whole difference between fixtures C/F2 and fixture A. In A guard 2 returns
+nil for want of a default plan, guard 3 hands the token off on its dash test,
+and guard 4 skips it on length. Nothing is left to refuse.
 
 The disagreement also ships as two contradictory sentences. `selectors.go:140-141`
 already tells the user the rule:
@@ -95,7 +117,7 @@ already tells the user the rule:
 → read as a stack entry name: a lone "-" is too short to be a flag
 ```
 
-while `plan_lifecycle.go:155-158` tells the same user, about the same token:
+while `plan_lifecycle.go:156-159` tells the same user, about the same token:
 
 ```
 ERROR: flags suppress the default plan "alpha"; name it explicitly: dva up alpha -
@@ -114,15 +136,18 @@ test into the other. Copying `len < 2` into `rejectSuppressedDefaultPlan` makes
 `dva up -` in fixtures C and F2 stop refusing and start the whole stack, trading
 a wrong message for a wrong action. The refusal has to survive the alignment.
 
-The narrow shape that keeps it: let `requirePlanSelection` stop counting tokens
-that no guard downstream will accept, or give `up` the name-shaped check
-`down`/`stop` already have. Decide against the measured table, not from the
-guard you happen to be editing.
+The narrow shape that keeps it has to reckon with the order above.
+`requirePlanSelection` runs first, so it cannot defer to a classifier that has
+not run yet: making it stop counting a lone `-` means giving it its own test, or
+moving the plan question after the guards that classify. The alternative is to
+give `up` the name-shaped check `down`/`stop` already have at `compose.go:261`,
+which fires early enough to matter. Decide against the measured table, not from
+the guard you happen to be editing.
 
 ## Completion Criteria
 
 - [ ] `dva up -` and a bare `dva up` agree on whether anything starts, in the two-plans-no-`default_plan` shape | verify: human — paste rc and the first non-warning line of both, run in a config with two plans, no `default_plan`, and two stack entries
-- [ ] The agreement is pinned by a differential test comparing the two invocations, not by an expected string | verify: `grep -c 'func TestUpLoneDashAgreesWithABareUp' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source because `go test -run` exits 0 when it matches nothing, and on a name that does not exist yet because every existing count in that file is already non-zero and would certify itself
+- [ ] The agreement is pinned by a differential test comparing the two invocations, not by an expected string | verify: `grep -c 'func TestUpLoneDashAgreesWithABareUp' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source because `go test -run` exits 0 when it matches nothing, and on a name that does not exist yet: `grep -c 'func Test' internal/cli/plan_lifecycle_test.go` is 18 today, so any criterion phrased as a count of existing test functions passes before the work starts
 - [ ] No two shipped messages give contradictory accounts of what `-` is | verify: human — paste `dva up -` and `dva restart -` from the same config and confirm both call `-` the same thing
 - [ ] The ruling — flag or name — is written on this card before the code changes | verify: human
 - [ ] `dva up --force` and `dva up --no-wait` still run in a plan-less config, so the fix did not widen into real flags | verify: human — paste both; each must reach `[lifecycle] <entry>`. Not `-v`: `dva up` has no such flag and already answers `unknown flag "-v"`, so it would pass whatever the fix does
@@ -131,9 +156,9 @@ guard you happen to be editing.
 ## References
 
 - `internal/cli/selectors.go:58-79` — `rejectUnknownFlags`, the length test
-- `internal/cli/selectors.go:130-160` — `rejectUnknownEntryNames`, the message that states the opposite rule
+- `internal/cli/selectors.go:128-162` — `rejectUnknownEntryNames`, the message that states the opposite rule
 - `internal/cli/plan_lifecycle.go:68-78` — `requirePlanSelection`, where one surviving token means "do not ask"
-- `internal/cli/plan_lifecycle.go:140-162` — `rejectSuppressedDefaultPlan`
+- `internal/cli/plan_lifecycle.go:128-160` — `rejectSuppressedDefaultPlan`
 - `internal/cli/compose.go:261` — `teardownCommon`'s dash test, the one with no length exception
 - `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pins the divergent message so this fails loudly when the ruling lands
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the defect this is the one-character remainder of

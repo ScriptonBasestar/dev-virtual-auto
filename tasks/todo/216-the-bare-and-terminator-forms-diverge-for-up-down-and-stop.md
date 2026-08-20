@@ -4,9 +4,9 @@ title: "The bare and `--` forms diverge for up, down and stop in 12 of 18 fixtur
 type: chore
 priority: P3
 effort: S
-created-at: 2026-08-20T19:20:00+09:00
+created-at: 2026-08-20T19:01:00+09:00
 source: "TASK-210 made `dva restart --` identical to a bare `dva restart` in every config shape; running the same comparison across the other lifecycle verbs showed the identity stops at restart"
-scope: "A ruling, not a patch. internal/cli/selectors.go:81-88 records the opposite ruling in a comment, so this card exists to overturn it or to confirm it in writing — either outcome is the deliverable."
+scope: "A ruling, not a patch. internal/cli/selectors.go:81-91 records the opposite ruling in a comment (the ruling itself is the last paragraph, 89-91), so this card exists to overturn it or to confirm it in writing — either outcome is the deliverable."
 status: todo
 ---
 
@@ -52,7 +52,8 @@ bare form — and that one is TASK-214, not this card.
 
 ## The prior ruling
 
-This is not an oversight. `internal/cli/selectors.go:81-88` states it:
+This is not an oversight. `internal/cli/selectors.go:81-91` states it, and the
+ruling is the last paragraph of that comment, 89-91:
 
 > `parseDvaFlags` deliberately KEEPS the terminator in its output, and that is
 > right for its other callers: `dva up` takes no positional names, so the
@@ -73,8 +74,14 @@ observation, made about the verb that got the identity.
 One of two, written down here before any code moves:
 
 1. **Extend the identity.** `up`/`down`/`stop` consume a leading `--` the way
-   `restart` does. Cost: a stray `--` stops being reported, and the help text at
-   `compose.go` has to stop saying the terminator is refused.
+   `restart` does. Cost: a stray `--` stops being reported, and `restart`'s help
+   text has to be broadened rather than kept verb-local — `compose.go:436` and
+   `441-453` are the only place in the file that documents the terminator at all,
+   and they document it as a `restart` property. The `up`/`down`/`stop` help
+   bodies (`compose.go:78-101`, `294-317`, `358-377`) say nothing about `--`:
+   `grep -c 'terminator\|separator'` over each of the three ranges returns 0. So
+   there is no claim to retract, only a rule to widen — check this before
+   budgeting the change, because the reverse assumption makes it look larger.
 2. **Keep the ruling.** The identity is a `restart` property, because `restart`
    is the only verb that takes names. Cost: USAGE.md must keep the divergence
    paragraph, and the wrapper-script case stays a documented trap.
@@ -89,14 +96,14 @@ than ruled.
 
 - [ ] The ruling — extend or keep — is written on this card with its reason | verify: human
 - [ ] The 18-pair table is re-measured after the ruling and every row matches what the ruling predicts | verify: human — paste the table
-- [ ] USAGE.md's terminator section states the ruling, and states it once | verify: `grep -c 'TASK-216' USAGE.md` returns 1 (today: 1, pointing at this card as open — the criterion is that the sentence around it describes a settled rule, so read the line, do not trust the count alone)
+- [ ] USAGE.md's terminator section states the ruling instead of deferring it to this card | verify: `grep -c '다시 판정할지는' USAGE.md` returns 0 (today: 1 — that clause is the deferral, USAGE.md:213-214). Bound on the deferral disappearing, not on `grep -c 'TASK-216' USAGE.md`, which returns 1 today and would mark this criterion passed before any work started
 - [ ] If the ruling is "extend": the identity is pinned by a differential test over all three verbs, not by expected strings | verify: `grep -c 'func TestLoneTerminatorMatchesTheBareForm' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Skip this criterion, marking it N/A on the card, if the ruling is "keep"
-- [ ] If the ruling is "keep": `selectors.go:81-88`'s comment is updated to say the identity deliberately stops at `restart`, naming this card | verify: `grep -c 'TASK-216' internal/cli/selectors.go` returns 1 (today: 0). Skip, marking N/A, if the ruling is "extend"
+- [ ] If the ruling is "keep": `selectors.go:81-91`'s comment is updated to say the identity deliberately stops at `restart`, naming this card | verify: `grep -c 'TASK-216' internal/cli/selectors.go` returns 1 (today: 0). Skip, marking N/A, if the ruling is "extend"
 - [ ] `make test` passes | verify: `make test`
 
 ## References
 
-- `internal/cli/selectors.go:81-95` — `dropFlagTerminator` and the comment recording the current ruling
+- `internal/cli/selectors.go:81-100` — `dropFlagTerminator` (comment 81-91, function 92-100); the ruling is in the comment's last paragraph
 - `internal/cli/selectors.go:58-79` — `rejectUnknownFlags`, how `up` refuses
 - `internal/cli/compose.go:261` — `teardownCommon`, how `down`/`stop` refuse
 - `internal/cli/plan_lifecycle.go` — `dropLeadingTerminator`, what `restart` does instead
@@ -116,3 +123,20 @@ divergence is not "three verbs behave differently"; it is "one shared router
 handles the default-plan shape, and each verb handles the rest for itself".
 Any fix that adds a third private classifier makes the next table worse, not
 better.
+
+One more measurement, recorded here because it widened this card's subject
+after the card was written. TASK-210's follow-up commit (`438eedd`) made
+`rejectSuppressedDefaultPlan` step aside whenever a terminator occupied the
+plan-name slot, and that moved the `-- <token>` shape onto the
+`rejectUnknownFlags` path in the two default-plan fixtures as well:
+
+| fixture | `dva up -- --bogus`, `3618257` | same, `5f2fff0` |
+|---|---|---|
+| C, F2 | `flags suppress the default plan "<plan>"` | `unknown flag "--" for "dva up"` |
+| A, B, D, E | `unknown flag "--" for "dva up"` | unchanged |
+
+`down -- --bogus` moves the same way; both are rc=1 before and after, so no
+invocation changed from refused to accepted. The consequence for this card is
+that `unknown flag "--"` is now the answer in **all six** fixtures rather than
+four, so whichever way the ruling goes it applies uniformly — there is no
+longer a config shape where a different message would have to be preserved.
