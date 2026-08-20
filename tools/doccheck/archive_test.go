@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -195,4 +196,94 @@ func TestArchiveFrontmatter_sweepsTheRealCorpus(t *testing.T) {
 			res.ArchiveMissing, strings.Join(res.ArchiveDetail, "\n  "))
 	}
 	t.Logf("swept %d archived card(s) from %d file(s) under %s", res.ArchiveCards, res.ArchiveFilesSeen, archivePrefix)
+}
+
+// TestArchiveFrontmatter_reportsAnUnreadableCard pins that a card under tasks/_archive/ which
+// cannot be read fails this gate, and that the archive guard is one of the things failing it.
+//
+// It matters because ce no longer says anything here. Fixed ce decides the archive exemption
+// from the path before it opens the file, so an unreadable archived card answers
+// `rc=0 Skipped: archived` — true, and the only reason it gives; `--all` does not walk the
+// archive either.
+//
+// The assertions are split because inside dva the failure is reported twice, and a Check-level
+// assertion cannot tell which pass produced it. The link scan reads every non-symlink markdown
+// candidate in the inventory and formats its read failures identically (check.go), so `res.OK`
+// stays false even with the archive guard's error deleted — measured, by deleting it. The direct
+// call is therefore the assertion that can fail; the Check-level count pins the duplication as a
+// measured fact rather than an assumption, and will fail loudly if either source stops reporting.
+//
+// A readable card sits beside the broken one deliberately. Alone, the unreadable card would also
+// trip the `zero read as cards` vacuity guard, and this test would pass on that error while the
+// read error went unnoticed. With ArchiveCards at 1 that guard cannot fire, which the final
+// assertion checks.
+func TestArchiveFrontmatter_reportsAnUnreadableCard(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("permission bits do not gate reads on windows")
+	}
+	// Root bypasses DAC permission checks, so chmod 000 leaves the file readable and the test
+	// would assert against a condition it never established — green, and measuring nothing.
+	// Containerised CI runs as root by default, which is exactly where this would go unnoticed.
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: chmod 000 cannot make the fixture unreadable")
+	}
+
+	const (
+		broken = "tasks/_archive/206-unreadable.md"
+		intact = "tasks/_archive/206-readable.md"
+	)
+	root := t.TempDir()
+	writeFile(t, root, "docs/a.md", "# A\n\nSee [self](a.md).\n")
+	writeFile(t, root, intact, "---\nid: TASK-206\n---\n\n# Readable\n")
+	writeFile(t, root, broken, "---\nid: TASK-206\n---\n\n# Unreadable\n")
+
+	full := filepath.Join(root, filepath.FromSlash(broken))
+	if err := os.Chmod(full, 0o000); err != nil {
+		t.Fatalf("chmod: %v", err)
+	}
+	// t.TempDir removes the file via its parent directory, which is still writable, but restore
+	// the mode anyway so cleanup cannot depend on that detail.
+	t.Cleanup(func() { _ = os.Chmod(full, 0o644) })
+
+	// Verify the precondition instead of trusting the chmod: some filesystems ignore permission
+	// bits, and a fixture that did not take must not read as a pass.
+	if _, err := os.ReadFile(full); err == nil {
+		t.Skip("filesystem ignores permission bits here; the fixture is still readable")
+	}
+
+	inv := mustInventory(t, root, "docs/a.md", intact, broken)
+
+	// The guard on its own. This is the only assertion here that stops holding if the read-error
+	// branch is softened to a bare `continue`.
+	filesSeen, checked, msgs, errs := checkArchiveFrontmatter(root, inv)
+	if filesSeen != 2 || checked != 1 {
+		t.Fatalf("files_seen=%d checked=%d, want 2 and 1 — the unreadable file is seen but cannot be read as a card", filesSeen, checked)
+	}
+	if len(errs) != 1 || !strings.Contains(errs[0], broken+": read:") {
+		t.Fatalf("archive guard errors %v, want exactly one naming the read failure on %s", errs, broken)
+	}
+	if len(msgs) != 0 {
+		t.Errorf("archive guard messages %v — an unreadable card must not be judged on frontmatter it never yielded", msgs)
+	}
+
+	// The wiring, and the duplication that makes the split above necessary.
+	res := Check(CheckInput{Root: root, Inventory: inv})
+	n := 0
+	for _, e := range res.Errors {
+		if strings.Contains(e, broken+": read:") {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("%d error(s) name the read failure on %s, want 2 — the link scan and the archive guard each report it; if one stopped, the other is now the only reporter and this gate has half the coverage it reads as having", n, broken)
+	}
+	if res.OK {
+		t.Error("Check reported OK over an archive holding an unreadable card")
+	}
+	if res.ArchiveFilesSeen != 2 || res.ArchiveCards != 1 {
+		t.Errorf("archive_files_seen=%d archive_cards=%d, want 2 and 1 — Check must carry the guard's own counts, not just its errors", res.ArchiveFilesSeen, res.ArchiveCards)
+	}
+	if containsAny(res.Errors, "zero read as cards") {
+		t.Errorf("errors %v name the vacuous sweep; this test must fail on the read error alone", res.Errors)
+	}
 }

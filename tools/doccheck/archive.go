@@ -178,6 +178,18 @@ func checkArchiveFrontmatter(root string, inv []InventoryEntry) (filesSeen, chec
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(e.Path)))
+		// A read failure is an error, not a file to pass over. Nothing in ce reports one any more:
+		// after 7391ac64 the exemption is decided from the path before the read, so an unreadable
+		// archived card answers `rc=0 Skipped: archived` — true, and the only reason it gives.
+		// Measured on both binaries against a chmod 000 card: old rc=1 `Cannot read file`, new rc=0,
+		// while the same card at a non-archive path still errors under both.
+		//
+		// Deleting this append still leaves Check red today, so a green run does not license the
+		// simplification — the link scan reads every non-symlink markdown candidate and formats its
+		// read failures identically (check.go). What is lost is attribution and the accounting:
+		// filesSeen would keep counting a file checked never counts, and the pair that exists to
+		// separate a clean archive from an unreached one would disagree with nothing saying why.
+		// The `zero read as cards` floor covers only total failure; one readable card silences it.
 		if err != nil {
 			errs = append(errs, fmt.Sprintf("%s: read: %v", e.Path, err))
 			continue
