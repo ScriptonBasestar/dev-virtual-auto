@@ -28,11 +28,22 @@ verification-summary: |
   against the card's own instruction — 066's 31 measures 25, 060's 50 measures 40 of 81 —
   which is the argument for printing a denominator rather than asserting one. Criterion 5
   measured itself wrong and is recorded as such: its pattern matches the quotations that
-  criterion 6 mandates, so it returns 2 after the fix; on the binding-span axis it is 4
-  bindings in 3 files before and 0 after. make doc-check OK (broken_links 0, oversized_docs
-  0, run_patterns 128, unmatched_run 0, archive_cards 205). The unswept general shape is
-  filed as TASK-216 with three measured axes: 7 escaped-pipe bindings (6 actionable), 55
-  naming this machine's checkout, 22 rooted at ~/mydevbox.
+  criterion 6 mandates, so after the fix it still returns 3 files — its recorded count, with
+  none of its recorded membership, since 060 drops out and this card enters through a fenced
+  quotation at 199:78; on the binding-span axis it is 4 bindings in 3 files before and 0
+  after. Review found three
+  more, all of the same shape as the defects above and all fixed here: 066:89 printed its
+  recorded configs=25 warnings=0 and exited 0 with dva absent from PATH, because the tool's
+  error was swallowed by the pipe it was written into, so it now probes the tool as well as
+  the corpus; 060:162 was given the pipe fix but no denominator and still printed nothing on
+  success, and now sweeps git ls-files rather than find, whose count moves from 4395 to 423
+  between two checkouts of the same commit; and four of the seven rewrites were bound by no
+  criterion at all, which criteria 8-11 close one site each, running the published span and
+  asserting its printed denominator — all four exit 1 against master, where those cards still
+  carry the original text, and exit 2 if the named line stops being the named criterion. make doc-check OK (broken_links 0,
+  oversized_docs 0, run_patterns 128, unmatched_run 0, archive_cards 206). The unswept
+  general shape is filed as TASK-216 with three measured axes: 6 escaped-pipe bindings, 55
+  naming this machine's checkout, 20 rooted at ~/mydevbox.
 ---
 
 # Task 199: Three archived bindings cannot produce the result recorded beside them
@@ -86,9 +97,13 @@ is a slip; the inverted exit and the swallowed status are both cases of a shell 
 - [x] `130`'s recorded "lint job has 6 steps" is either re-derived by the binding or moved out of the binding's suffix | verify: `python3 -c "import yaml,sys; d=yaml.safe_load(open('.github/workflows/ci.yml')); print(len(d['jobs']['lint']['steps']))"` prints the number the card claims — **prints `6`.** The shipped binding goes further and gates on it: asking the same text for `n == 7` against the byte-identical file exits 1, so a seventh step reads as a red criterion rather than a changed number nobody looks at
 - [x] `066`'s binding exits 0 on the healthy state | verify: the rewritten binding, run unchanged, exits 0 today and exits non-zero against a fixture config that does warn — both directions demonstrated, not just the passing one — **`configs=25 warnings=0` exit 0; against a two-config fixture ordering `stack:` before `vars:`, `configs=2 warnings=1` exit 1. A third state was added that the criterion did not ask for: a corpus with no `dva.yml` prints `nothing was measured` and exits 2, which is what any reader without this machine's `~/mydevbox` now gets instead of a silent pass over zero files**
 - [x] `060`'s binding can fail | verify: the rewritten binding exits non-zero when the count is 0 (test with a path that matches nothing), and exits 0 today at count 40 — **`canonical=40 of 81` exit 0; `canonical=0 of 2` exit 1 against a fixture holding configs with no canonical ref; exit 2 for a path with no `dva.yml`.** The criterion's failing direction had to be split in two: a path that matches nothing produces the count 0 *and* an empty corpus at once, and a binding that cannot tell those apart is the defect this card is about
-- [x] The two sibling `| wc -l` cards are dispositioned, not merely counted | verify: `grep -rlE 'verify:.*\| *wc -l.?( —|$)' tasks/_archive/*.md` returns 3 files (060, 115, 119), and each is either fixed or recorded as intentionally non-gating — **all three fixed, and this criterion measured itself wrong.** Run as written *after* the fix it still returns 2 files, because criterion 6 requires each rewrite to quote the binding it replaces and the quotation matches the pattern. The two criteria are in direct tension; on this axis only one of them can be satisfied. Re-measured on the axis that separates them — the *binding span*, the first inline code span after `verify:` — it returns **4 bindings in 3 files at `dc762ca`** (`060:164`, `115:125`, `115:126`, `119:89`; one more than "3 cards" implied, since `115` has two) **and 0 after**
+- [x] The two sibling `| wc -l` cards are dispositioned, not merely counted | verify: `/usr/bin/grep -rlE 'verify:.*\| *wc -l.?( —|$)' tasks/_archive/*.md` returns 3 files (060, 115, 119), and each is either fixed or recorded as intentionally non-gating — **all three fixed, and this criterion measured itself wrong twice over.** Run as written *after* the fix it returns 3 files — the recorded count, and not one of the recorded three. `060` has dropped out; `115` and `119` still match because criterion 6 requires each rewrite to quote the binding it replaces and the quotation sits on the same line; and the third file is **this card**, matched at `199:78`, where the defect is quoted inside a fenced block. The count survived while its membership turned over completely, which no reader could have seen from the number — the failure this card is about, committed by the card's own criterion. Criteria 5 and 6 are also in direct tension: as long as the archive keeps what it replaced, a line-wide pattern can never reach 0. Re-measured on the axis that separates them — the *binding span*, the first inline code span after `verify:` — it returns **4 bindings in 3 files at `dc762ca`** (`060:164`, `115:125`, `115:126`, `119:89`; one more than "3 cards" implied, since `115` has two) **and 0 after**
 - [x] Every rewritten binding keeps the original alongside it, so the archive shows the correction | verify: human — read the three cards and confirm each says what the binding first was — **all seven rewritten bindings quote the original: `130:141`, `060:162`, `060:164`, `066:89`, `115:125`, `115:126`, `119:89`**
-- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` — **OK. `broken_links` 0, `oversized_docs` 0, `run_patterns` 128, `unmatched_run` 0, `archive_cards` 205**
+- [x] `060:162`'s rewrite is exercised by a criterion, not only described in its own annotation | verify: `f=tasks/_archive/060-go-module-path-does-not-resolve.md; l=$(sed -n '162p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'No tracked source names the old repo' || { echo '060:162 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'offenders=0 of [1-9][0-9]* tracked files swept'` — **`offenders=0 of 420 tracked files swept`, exit 0.** Four of the seven rewrites — this one, `115:125`, `115:126` and `119:89` — were made by this card and asserted by nothing in it. Criteria 8-11 close that one site per criterion: a single criterion covering all four would stay green with three of them reverted. Each extracts the **published** span rather than a copy (`tr` turns the backticks into newlines, so what runs is whatever the card now says) and asserts the *printed denominator*, not the exit code, because every pre-fix binding here exited 0 while measuring nothing. Failing directions, both produced by varying the artifact and not the command: run against `master`, where these four cards still carry their original text at the same line numbers, all four exit 1 — `find: |: unknown primary or operator` for this one, a bare `0` for the other three; and with the line number moved off its criterion, all four exit 2
+- [x] `115:125`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/115-four-compose-argv-builders-share-two-bugs.md; l=$(sed -n '125p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'The four copies are one' || { echo '115:125 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'declarations=1 call sites=[2-9][0-9]*'` — **`declarations=1 call sites=8`, exit 0; exit 1 on `master`, where the published binding prints `0` and exits 0 — the case that made 4 and 0 read alike**
+- [x] `115:126`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/115-four-compose-argv-builders-share-two-bugs.md; l=$(sed -n '126p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'Path joining is uniform' || { echo '115:126 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'occurrences=0 over [1-9][0-9]* files'` — **`occurrences=0 over 257 files`, exit 0; exit 1 on `master`, whose binding prints `0` for a clean tree and for a missing path alike**
+- [x] `119:89`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/119-doctor-compose-check-ignores-the-configured-command.md; l=$(sed -n '89p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'No sixth copy' || { echo '119:89 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'occurrences=0 in internal/cli/doctor.go \([1-9][0-9]* lines\)'` — **`occurrences=0 in internal/cli/doctor.go (811 lines)`, exit 0; exit 1 on `master`, whose binding prints `0` whether the file holds no literal or has been deleted**
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` — **OK. `broken_links` 0, `oversized_docs` 0, `run_patterns` 128, `unmatched_run` 0, `archive_cards` 206**
 
 ## Resolution
 
@@ -104,9 +119,11 @@ scope, same defect — was fixed with it rather than left to a sweep that might 
 
 **`115:125` had no target, so it could not drift.** Its binding printed a count and the card
 never wrote the count down. Run at `115`'s own archival commit `2065066` it prints **4**; run
-today it prints **0**, because the call sites moved to `internal/runner/docker_compose.go`,
-`internal/runner/kubectl.go` and `internal/cli/validate.go`. With no target stated, 4 and 0
-read alike. It was also measuring the wrong thing: three named files cannot show that *one*
+today it prints **0**. All three files it names still exist — none was renamed — they simply
+no longer call `SplitCommand`. The 8 call sites are in 6 other files: `internal/exec/exec.go`
+(beside the one declaration), `internal/exec/compose_argv.go`, `internal/runner/runner.go`,
+`internal/cli/validate.go`, and `internal/runner/docker_compose.go` and
+`internal/runner/kubectl.go` with two each. With no target stated, 4 and 0 read alike. It was also measuring the wrong thing: three named files cannot show that *one*
 implementation exists. Rebound on `declarations=1 call sites=8`.
 
 **Every "must be 0" gate needed a denominator, not just a comparison.** `grep` over a path
@@ -135,8 +152,9 @@ binding now says so.
 
 The second Open Question — whether the corpus holds more of this — is answered by
 [TASK-216](216-a-verify-binding-that-only-runs-on-this-machine-is-not-a-binding.md), filed
-with three measured axes and their denominators: 7 bindings whose shell pipes are escaped
-(6 actionable), 55 that `cd` into this machine's checkout, and 22 rooted at `~/mydevbox`.
+with three measured axes and their denominators, each stated with the extraction rule that
+produces it: 6 bindings in 5 cards whose shell pipes are escaped, 55 in 25 cards that `cd`
+into this machine's checkout, and 20 in 10 cards rooted at `~/mydevbox`.
 Its first axis needed the discriminator this card learned the hard way — nine further
 bindings contain `\|` inside a quoted `grep` pattern, where it is correct BRE alternation,
 so the sweep has to ask whether the backslash sits at shell top level, not whether the line

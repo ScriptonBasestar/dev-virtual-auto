@@ -20,36 +20,54 @@ own Open Questions that it had not swept for the general shape. Sweeping it turn
 distinct axes, none of which `199` names, and all of which break the same promise: *a later
 reader can re-run this command and get the recorded answer.*
 
-Every count below is measured at `dc762ca` plus this branch's edits, on the **binding span
-only** — the first inline code span after `verify:` — and excluding `human —` bindings,
-which promise nothing mechanical. That axis matters: a looser sweep that reads every code
-span on the line counts `199`'s and this card's *quotations* of the defect as instances of
-it, and reports 18 where the real number is 7.
+Every count below is measured at `dc762ca` plus this branch's edits, under one rule stated
+in full because the numbers move when any part of it changes: a **criterion line** (`- [ ]`,
+`- [x]` or `- [~]`), fenced regions removed exactly where `tools/doccheck` removes them, the
+**first inline code span after `verify:`** and nothing else on the line, and `human —`
+bindings dropped because they promise nothing mechanical. Each clause is load-bearing.
+Reading every span on the line instead of the first counts `199`'s and this card's
+*quotations* of the defect as instances of it. Keeping fenced regions admits `199:46`, which
+is a quotation inside a ``` block. Dropping `[~]` loses `063:162`, a real instance. An
+earlier draft of this card mixed those rules between the two halves of one pair and recorded
+`22 | 11` for axis 3, a line count from one population and a card count from another.
 
 | axis | lines | cards | what a later reader gets |
 |---|---|---|---|
-| shell pipe written `\|` | 7 | 6 | `find: \|: unknown primary or operator` — the command never runs |
+| shell pipe written `\|` | 6 | 5 | `find: \|: unknown primary or operator` — the command never runs |
 | absolute path to this checkout | 55 | 25 | `cd: no such file or directory` in any other clone |
-| `~/mydevbox` external corpus | 22 | 11 | nothing to point at; the corpus is one laptop's |
+| `~/mydevbox` external corpus | 20 | 10 | nothing to point at; the corpus is one laptop's |
 
 ### Axis 1 — the pipe is escaped, so it is not a pipe
 
 `tools/doccheck/verifyrun.go:85-91` already states the rule in a comment: GFM processes a
 backslash escape inside a code span **only in a table row**, so outside one, `\|` reaches
-the shell as a literal backslash and pipe. Every one of the 7 is a list item, not a table
+the shell as a literal backslash and pipe. Every one of the 6 is a list item, not a table
 row. `doccheck` applies that knowledge to `go test … -run` patterns and to nothing else.
 
-The 7: `057:119`, `059:156`, `063:162`, `065:101`, `065:102`, `104:163`, and `199:46`.
-The last is `199` quoting `060`'s broken binding as evidence and archives with it, so the
-actionable set is **6 lines in 5 cards**. `060:162` and `060:164` were the same defect and
-are fixed on this branch — `find . … -print0 \| xargs -0 …` was measured dying with
+The 6, all actionable: `057:119`, `059:156`, `063:162`, `065:101`, `065:102`, `104:163`.
+`060:162` and `060:164` were the same defect and are fixed on this branch —
+`find . … -print0 \| xargs -0 …` was measured dying with
 `find: |: unknown primary or operator` before it reached `xargs`.
+
+An earlier draft listed `199:46` as a seventh and called the actionable set 6 in 5 cards.
+`199:46` is a quotation inside a fenced block, so it is not in the population at all under
+the rule above; the number was right by cancellation, because this card's own criterion 3
+was written as `` verify: `\|` `` and *was* a live seventh instance. A card whose sweep
+counts its own criterion is the trap it exists to catch, so criteria 3 and 4 are now
+`human —` prose and the count is 6.
 
 **Not in this axis:** nine further bindings contain `\|` inside a quoted `grep` pattern,
 where it is BRE alternation and entirely correct — `grep -rn "환경 변수 우선순위\|Priority:"`
-(`012:85`) and eight others. A sweep on "the binding contains `\|`" flags all nine and
-reports 16. The discriminator is whether the backslash sits at shell top level, outside
-quotes.
+(`012:85`), plus `022:63`, `075:92`, `113:168`, `196:73`, `199:89`, `201:43`, `201:44` and
+`208:80`. A sweep on "the binding contains `\|`" flags all nine too and reports 15. The discriminator is whether
+the backslash sits at shell top level, outside quotes — but "outside quotes" has to be
+evaluated with a nesting stack, not a boolean. `063:162` is the counterexample:
+`git tag \| /usr/bin/grep -qx "v$(./bin/dva version \| /usr/bin/awk '{print $NF}')"` puts
+its second `\|` inside double quotes *and* inside `$( )`, where the shell reads a fresh
+command. It is a broken pipe, not alternation. The first extractor written for this card got
+that wrong in both directions — it classified `063:162`'s inner pipe as quoted and
+`075:92`'s genuinely single-quoted alternation as shell — which is the reason the rule is
+written out here rather than left as "outside quotes".
 
 One of them is a third defect and is *not* claimed here: `057:119` writes
 `grep -vE '/tmp/\|/\.omo/evidence/'`, using BRE alternation syntax under `-E`, where `\|`
@@ -66,11 +84,14 @@ rather than 25 decisions.
 
 ### Axis 3 — the corpus does not exist for anyone else
 
-22 bindings read `~/mydevbox`, a directory of live personal configs. There is no portable
+20 bindings read `~/mydevbox`, a directory of live personal configs. There is no portable
 replacement: the value of these criteria was that they ran DVA against configs nobody wrote
-for DVA's tests. `060:164` and `066:89` were two of them and are fixed on this branch, and
-`199:46` archives with `199`, leaving **19 lines in 8 cards** (`056`, `057`, `058`, `059`,
-`062`, `064`, `065`, `071`).
+for DVA's tests. `060:164` and `066:89` are two of them and are fixed on this branch,
+leaving **18 lines in 8 cards**: `056:92`, `057:119`, `058:87`, `058:88`, `058:89`,
+`058:90`, `058:92`, `058:93`, `059:156`, `062:122`, `062:123`, `062:124`, `064:100`,
+`064:102`, `065:101`, `065:102`, `071:74`, `071:76`. The enumeration is here rather than a
+bare count because the earlier `22 | 11 → 19 in 8` arithmetic subtracted `199:46` from a
+population that never contained it, and no reader could have seen that from the numbers.
 
 The fix used for `060` and `066` is the pattern to copy: measure the corpus size first and
 `exit 2` with `nothing was measured` when it is empty, so a reader without the corpus gets a
@@ -80,10 +101,24 @@ about section order having changed.
 
 ## Why this is worth a card rather than a cleanup pass
 
-`task-validator` executes these bindings and scores `exit 0 = pass`. All three axes produce
-a non-zero exit, so today they read as **failing criteria on closed tasks** — which is the
-harmless direction, but it means the archive cannot be re-validated as a whole, and nobody
-will notice when a criterion starts failing for a real reason. Axis 1 additionally hides a
+`task-validator` executes these bindings and scores `exit 0 = pass`. An earlier draft said
+all three axes produce a non-zero exit and read as failing criteria on closed tasks — the
+harmless direction. Half of axis 1 does the opposite. Run from the primary checkout:
+
+| binding | rc | what it printed |
+|---|---|---|
+| `057:119` | **0** | `find: \|: unknown primary or operator` |
+| `059:156` | 1 | `ERROR: unknown shorthand flag: 'q' in -q` |
+| `063:162` | 129 | git: `unknown switch 'q'` |
+| `065:101` | **0** | `ERROR: unknown shorthand flag: 'c' in -c` |
+| `065:102` | 1 | `ERROR: unknown shorthand flag: 'q' in -q` |
+| `104:163` | **0** | the full `dva manifest` JSON |
+
+`057:119` and `065:101` end in `; test $? -ne 0`, which inverts the `find`/`dva` failure into
+a pass; `104:163` passes because `dva` ignores the stray `\|` argv and prints the manifest
+the `jq` filter never saw. Three of six are **green while measuring nothing**, which is the
+class TASK-199 was filed for, on cards already closed. Axis 2 does fail loudly (`cd` to a
+missing path), and axis 3 mostly returns an empty corpus. Axis 1 additionally hides a
 `grep`-inverted binding (`057`, `065:101`) behind a command that never got as far as
 running, so fixing the escape may expose a second defect underneath. Expect that.
 
@@ -91,11 +126,11 @@ running, so fixing the escape may expose a second defect underneath. Expect that
 
 - [ ] `doccheck` gains a portability check for verify bindings | verify: `n=$(/usr/bin/grep -rl 'func checkBindingPortability' tools/doccheck/ | wc -l | tr -d ' '); echo "declarations=$n"; [ "$n" -eq 1 ]` — prints `declarations=0` and exits 1 today, so this criterion can fail
 - [ ] The check is tested against a planted instance of each axis | verify: `n=$(/usr/bin/grep -rho 'func TestBindingPortability[A-Za-z]*' tools/doccheck/ | sort -u | wc -l | tr -d ' '); echo "test funcs=$n"; [ "$n" -ge 3 ]` — prints `test funcs=0` and exits 1 today. Bound on the test *source* rather than on a `go test` run, because a run naming a test that does not exist yet prints "no tests to run" and exits 0 — and because `doccheck`'s own TASK-136 guard rejects such a binding, which is how this line got written twice
-- [ ] The check reads the binding span, not the line | verify: a test case whose line carries `\|` in prose *after* a correct binding must not be flagged — plant it and assert 0 findings, since a sweep on the whole line reports 18 where the truth is 7
-- [ ] The check does not flag BRE alternation | verify: a test case with `grep "a\|b"` inside quotes must not be flagged; without this the check reports 16 instead of 7
-- [ ] Axis 1 is closed | verify: `make doc-check` exits 0 with the new check active, and the check's own count for axis 1 is `0` over `tasks/` excluding `tasks/_archive/199-*.md`
-- [ ] Axis 2 is closed | verify: the check's count for absolute-checkout bindings is `0`, down from the 55 recorded above
-- [ ] Axis 3 is dispositioned per card, not swept | verify: human — each of the 8 remaining cards either carries the `exit 2` guard `060:164` uses, or is reclassified to a `human —` binding with the count in its prose. A mechanical rewrite of all 19 satisfies the letter and loses the intent
+- [ ] The check reads the binding span, not the line | verify: human — a `doccheck` test case whose criterion line carries an escaped pipe in the *annotation* after a correct binding must yield 0 findings. Written as prose deliberately: an earlier draft put the two-character defect in the binding span itself, which made this card's own criterion the seventh member of the axis it was counting, and handed `task-validator` a command that exits 127
+- [ ] The check does not flag BRE alternation | verify: human — a test case holding a quoted `grep` alternation must yield 0 findings, and one holding the same two characters inside `$( )` *within* double quotes must yield 1. `063:162` is the live instance of the second, and the first extractor written for this card misclassified it, so a check that only asks "inside quotes?" reproduces the bug it is meant to catch
+- [ ] Axis 1 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^escaped_pipe_bindings: *0$'); echo "escaped_pipe_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, because `doc-check` reports no such counter. The count is bound to the checker's own output rather than to a `grep` over `tasks/`, so the number a reader sees is the one the gate enforces
+- [ ] Axis 2 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^abs_checkout_bindings: *0$'); echo "abs_checkout_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, down from the 55 recorded above once the check exists
+- [ ] Axis 3 is dispositioned per card, not swept | verify: human — each of the 8 remaining cards either carries the `exit 2` guard `060:164` uses, or is reclassified to a `human —` binding with the count in its prose. A mechanical rewrite of all 18 satisfies the letter and loses the intent. The guard has to cover the **tool** as well as the corpus: `066:89` was rewritten with a corpus probe and still printed its recorded `configs=25 warnings=0` and exited 0 with `dva` absent from `PATH`, because the tool's error was swallowed by the `2>&1 |` it was piped into
 - [ ] The gate can fail | verify: human — plant one instance of each axis in a scratch card, confirm `make doc-check` goes red naming the file and line, and remove it line-scoped
 - [ ] `make doc-check` and `make lint` pass | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check && make lint`
 
