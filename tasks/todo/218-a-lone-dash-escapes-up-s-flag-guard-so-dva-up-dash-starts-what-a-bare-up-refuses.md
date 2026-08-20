@@ -1,5 +1,5 @@
 ---
-id: TASK-215
+id: TASK-218
 title: "A lone dash escapes up's flag guard, so `dva up -` starts what a bare `dva up` refuses to start"
 type: bug
 priority: P2
@@ -10,7 +10,7 @@ scope: "internal/cli/selectors.go:60 (rejectUnknownFlags' length test), internal
 status: todo
 ---
 
-# Task 215: a lone dash escapes up's flag guard
+# Task 218: a lone dash escapes up's flag guard
 
 ## Summary
 
@@ -83,7 +83,7 @@ Two readings of the escalation, and they differ:
 length test, so it catches what `rejectUnknownFlags` skips. `restart` is safe
 because `rejectUnknownEntryNames` reports the token as a name. `build` has
 neither and passes `-` to docker, which answers `no such service: -` — the same
-`requirePlanSelection` line TASK-214 owns.
+`requirePlanSelection` line TASK-217 owns.
 
 ## Cause
 
@@ -162,7 +162,7 @@ the guard you happen to be editing.
 - `internal/cli/compose.go:261` — `teardownCommon`'s dash test, the one with no length exception
 - `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pins the divergent message so this fails loudly when the ruling lands
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the defect this is the one-character remainder of
-- `tasks/todo/214-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — same `requirePlanSelection` line, different token
+- `tasks/todo/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — same `requirePlanSelection` line, different token
 - `tasks/todo/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the `--` half; ruled deliberately the other way, so it is not this card
 
 ## Technical Notes
@@ -184,3 +184,12 @@ extra hits are why the discriminator has to be stated: `build.go:167` and
 token. One site tests the length of the token itself. A census whose command
 does not distinguish those two would have reported this defect as three-way
 disagreement and sent the fix to the wrong files.
+
+### Why this card is 218 and not 215
+
+Filed as TASK-215; a concurrent session filed a different TASK-215 —
+`tasks/todo/215-a-flag-typed-where-a-value-belongs-is-swallowed-as-that-value.md`
+— and integrated it first. Same silent collision as TASK-217's, resolved the
+same way: the integrated number keeps it, this card moves, and every inbound
+link moves with it. References to "TASK-215" elsewhere in the tree now mean the
+flag-as-value card.

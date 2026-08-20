@@ -619,7 +619,7 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// pinned rather than skipped so it fails loudly when that is settled. `-` is too short
 	// for rejectUnknownFlags (len < 2) but not for rejectSuppressedDefaultPlan's dash test,
 	// so where a default plan resolves it is refused as a flag instead of reported as an
-	// unmatchable name. TASK-215 owns it; aligning the two guards here instead would have
+	// unmatchable name. TASK-218 owns it; aligning the two guards here instead would have
 	// re-opened TASK-087's hole, where an unrecognised token loses its effect and the command
 	// runs anyway — in the two default-plan fixtures, which are the only ones where that guard
 	// fires. What is measured is the selection: `dva up -` reaches `[lifecycle] <entry>` with
@@ -627,7 +627,7 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// and every row ends rc=1 there; rc=0 is TASK-087's report, not this harness's. The hole is
 	// not merely hypothetical elsewhere: with no default plan to resolve, nothing catches a
 	// lone dash, and `dva up -` already takes the whole-stack path in all four remaining
-	// fixtures — in one of them a bare `dva up` refuses outright. TASK-215 carries the
+	// fixtures — in one of them a bare `dva up` refuses outright. TASK-218 carries the
 	// measurement; the point here is only that copying one guard's rule into the other
 	// trades a wrong message for a wrong action.
 	cases := []struct {

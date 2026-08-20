@@ -1,5 +1,5 @@
 ---
-id: TASK-214
+id: TASK-217
 title: "A lone terminator disarms build's plan-selection guard and builds the whole stack"
 type: bug
 priority: P2
@@ -10,7 +10,7 @@ scope: "internal/cli/compose.go buildCmd RunE, the requirePlanSelection call at 
 status: todo
 ---
 
-# Task 214: A lone terminator disarms build's plan-selection guard and builds the whole stack
+# Task 217: A lone terminator disarms build's plan-selection guard and builds the whole stack
 
 ## Summary
 
@@ -84,7 +84,7 @@ insertions, `compose.go` among them. The table above is the re-run against
 written as a commit rather than as `origin/master` for exactly that reason,
 and re-measuring against `dc762ca` is work rather than an assumption.
 
-The `-` column is here as a control and belongs to TASK-215: it also gets past
+The `-` column is here as a control and belongs to TASK-218: it also gets past
 `requirePlanSelection`, but docker rejects it, so `build` escalates only for the
 token docker accepts. Same guard, same line, different downstream luck.
 
@@ -173,7 +173,7 @@ line either way and the difference is which invocations start refusing.
 - `internal/cli/plan_lifecycle.go` — `dropLeadingTerminator`, `requirePlanSelection`
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — the census that found this, and the ruling it would extend
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the terminator/bare identity
-- `tasks/todo/215-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds
+- `tasks/todo/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds
 - `tasks/todo/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the terminator ruling for the verbs that take no names; `build` is the exception it does not cover
 
 ## Technical Notes
@@ -188,3 +188,17 @@ invocations, **0 pass a `--`**. The commands that forward unknown flags to a too
 are exactly the ones whose terminator handling nobody writes a test for, because
 the interesting cases all look like flags. That is the same blind spot this card
 describes in the code.
+
+### Why this card is 217 and not 214
+
+It was filed as TASK-214 on a branch cut from `36adfd4`. A concurrent session
+filed a different TASK-214 — `tasks/todo/214-an-unknown-tag-narrows-the-run-to-
+nothing-and-exits-zero.md` — and integrated it first, so `origin/master` owns
+that number. Rebasing produced two cards with the same id, and git said nothing:
+the filenames differ, so the merge is clean and the collision is silent.
+
+The integrated number wins and the unintegrated one moves. What that costs is
+every inbound link, which is why the renumber swept `USAGE.md`,
+`internal/cli/restart_names_test.go`, the sibling cards and the archived
+TASK-210 rather than only the two files being renamed. Anything that still says
+"TASK-214" now means the unknown-tag card.

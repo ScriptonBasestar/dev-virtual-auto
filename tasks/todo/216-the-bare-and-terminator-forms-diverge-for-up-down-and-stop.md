@@ -48,7 +48,7 @@ it changed them *into* agreement. The twelve are identical between master and
 the branch.
 
 `build` diverges in the opposite direction — its `--` form does *more* than the
-bare form — and that one is TASK-214, not this card.
+bare form — and that one is TASK-217, not this card.
 
 ## The prior ruling
 
@@ -110,8 +110,8 @@ than ruled.
 - `USAGE.md` — the terminator section; its last paragraph is the divergence this card would remove or keep
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — where the identity was first ruled, for `restart`
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — where it was completed for `restart`, and where this table was measured
-- `tasks/todo/214-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — `build`, diverging the other way
-- `tasks/todo/215-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same question for `-`, which is a live bug rather than a ruling
+- `tasks/todo/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — `build`, diverging the other way
+- `tasks/todo/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same question for `-`, which is a live bug rather than a ruling
 
 ## Technical Notes
 

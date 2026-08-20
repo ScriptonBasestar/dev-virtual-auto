@@ -206,7 +206,7 @@ In the several-plans-no-default shape, `dva build --` does not refuse where a ba
 `dva build` does — it starts building. Identical on `9bf3ee0` and on this branch,
 so it is not a TASK-210 regression, and it is the one caller `rejectUnknownFlags`
 cannot backstop because build must forward unknown flags to docker (TASK-172).
-Filed as TASK-214.
+Filed as TASK-217.
 
 ## Completion Criteria
 
