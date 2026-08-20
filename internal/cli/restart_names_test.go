@@ -202,3 +202,52 @@ func TestRestartAcceptsKnownFlagsAfterGuard(t *testing.T) {
 		})
 	}
 }
+
+// TestRestartTerminatorStillNamesEntries is the half of TASK-198 the guard got
+// wrong on its first pass. parseDvaFlags keeps `--` on purpose so each command
+// can rule on it, and `dva up` rejects a stray one because it takes no positional
+// names at all. restart does take them, so `--` is the ordinary way to say the
+// next word is a name; checking it unconditionally turned a working invocation
+// into `unknown flag "--"`. Measured against the built binary: rc=0 restarting s1
+// before the guard, rc=1 with the guard applied to the terminator, rc=0 again
+// with it exempt.
+//
+// Asserting the markers rather than the exit code is deliberate — `restart --`
+// with the terminator swallowed as a name also exits 0, having done nothing.
+func TestRestartTerminatorStillNamesEntries(t *testing.T) {
+	dir := writeRestartProbeConfig(t)
+
+	if err := restartCmd.RunE(restartCmd, []string{"--", "s1"}); err != nil {
+		t.Fatalf("restart -- s1: %v", err)
+	}
+
+	got := ranMarkers(t, dir)
+	for _, want := range []string{"s1_stop", "s1_up"} {
+		if !got[want] {
+			t.Errorf("restart -- s1: %s did not run; the terminator must not swallow the name", want)
+		}
+	}
+	for _, unwanted := range []string{"s2_stop", "s2_up"} {
+		if got[unwanted] {
+			t.Errorf("restart -- s1: %s ran, but s2 was not named", unwanted)
+		}
+	}
+}
+
+// TestRestartTerminatorDoesNotDisarmTheGuard pins the other edge of the exemption.
+// Only what precedes `--` is checked, so a typo before it must still be caught;
+// without this, `dva restart --no-wat --` would be a way to opt out of the guard.
+func TestRestartTerminatorDoesNotDisarmTheGuard(t *testing.T) {
+	dir := writeRestartProbeConfig(t)
+
+	err := restartCmd.RunE(restartCmd, []string{"--no-wat", "--", "s1"})
+	if err == nil {
+		t.Fatal("restart --no-wat -- s1: exited 0; a terminator must not disarm the guard for flags before it")
+	}
+	if !strings.Contains(err.Error(), "unknown flag") || !strings.Contains(err.Error(), "--no-wat") {
+		t.Errorf("restart --no-wat -- s1: message %q does not name the flag", err)
+	}
+	if got := ranMarkers(t, dir); len(got) != 0 {
+		t.Errorf("restart --no-wat -- s1: %v ran; a rejected command must touch nothing", got)
+	}
+}

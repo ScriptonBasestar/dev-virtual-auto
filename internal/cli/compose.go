@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -471,7 +472,21 @@ Stack flags:
 		// rejectUnknownFlags' contract forbids. They are rejected with the rest instead of
 		// silently swallowed; whether they should warn and continue, as `dva up` does for
 		// --var, is a separate ruling this card does not make.
-		if err := rejectUnknownFlags("restart", "a stack entry name", names, stackSelectorFlags); err != nil {
+		//
+		// The `--` terminator is exempt, and it is the one place restart must NOT copy up.
+		// parseDvaFlags keeps the terminator deliberately so each caller can rule on it, and
+		// up rejects a stray one because it takes no positional names at all. restart does
+		// take them, so `dva restart -- s1` is the ordinary way to say s1 is a name and not
+		// a flag — measured working before this guard and rc=1 "unknown flag \"--\"" with an
+		// unconditional check, which is a regression the card's "no change to which flags
+		// restart accepts" forbids. Everything after the terminator is a name by
+		// construction, so only what precedes it is checked.
+		guarded := names
+		if i := slices.Index(names, "--"); i >= 0 {
+			guarded = names[:i]
+			names = append(names[:i:i], names[i+1:]...)
+		}
+		if err := rejectUnknownFlags("restart", "a stack entry name", guarded, stackSelectorFlags); err != nil {
 			return err
 		}
 		mode, isDefault := applyDefaultMode(c, mode)
