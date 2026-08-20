@@ -6,7 +6,7 @@ priority: P2
 effort: S
 created-at: 2026-08-20T15:35:00+09:00
 source: "found by the adversarial review of TASK-207 — a second spelling reached this pre-existing hole, which is how the hole was noticed"
-scope: "internal/cli/compose.go parseDvaFlags value-taking cases and internal/cli/flagtoken.go flagValue. All 12 parseDvaFlags callers are affected, not restart alone."
+scope: "internal/cli/compose.go parseDvaFlags value-taking cases and internal/cli/flagtoken.go flagValue. Every parseDvaFlags caller is affected, not restart alone; count the call sites when the work starts rather than quoting a figure — TASK-208 exists because the comment's count is wrong."
 status: todo
 ---
 
