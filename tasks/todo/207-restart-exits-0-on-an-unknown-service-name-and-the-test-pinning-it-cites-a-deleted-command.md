@@ -124,7 +124,7 @@ different case and is not in scope.
 - `internal/cli/compose.go` — `restartCmd` RunE, the name path below TASK-198's guard
 - `internal/cli/selectors.go:57` — `rejectUnknownFlags`, and the leading-dash condition that makes it blind to this
 - `internal/cli/restart_names_test.go` — `TestRestart_UnknownNameTouchesNothing`, the test with the stale rationale
-- `tasks/todo/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the flag half, and its Open Question on the empty selection
+- `tasks/_archive/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the flag half, and its Open Question on the empty selection
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the name-fallthrough class, filed against the removed `stack` family
 - `internal/cli/restart_names_test.go` — `TestRestartBareTerminatorChangesNothing`, which pins the `--` row of the table above so this card's ruling has to be explicit about it
 

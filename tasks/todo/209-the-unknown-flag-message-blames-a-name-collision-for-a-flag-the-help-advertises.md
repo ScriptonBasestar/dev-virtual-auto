@@ -88,7 +88,7 @@ is chosen; that half is independent.
 - `internal/cli/flagtoken_test.go`, `internal/cli/manifest_static_commands_test.go` — where the helper is exercised today; there is no `selectors_test.go`, so pick one of these or add it
 - `internal/cli/compose.go:151` — `up`'s `--var=` split, the form `restart` lacks
 - `internal/cli/compose.go` — `restartCmd`'s Long help, where TASK-198 added the `(plan only)` markers this message contradicts
-- `tasks/todo/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the card whose review found this
+- `tasks/_archive/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the card whose review found this
 
 ## Technical Notes
 
