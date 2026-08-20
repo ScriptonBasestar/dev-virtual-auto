@@ -17,17 +17,25 @@ import (
 // the first would leave `--mode --` silently dropped, which is the shape TASK-207's
 // review actually walked into.
 func TestParseDvaFlagsRejectsAMissingValue(t *testing.T) {
+	// wantFlag is the flag the message must name, spelled as the user spelled it. Asserting
+	// only the "requires a value" phrase was not enough: an adversarial review replaced
+	// fmt.Errorf("%s requires a value", name) with a hardcoded "--mode requires a value"
+	// and the whole package stayed green. That build sends someone who typed `dva restart
+	// --tag` off to fix a --mode they never wrote. Passing the flag's name through is also
+	// the sole argument for reporting in parseDvaFlags rather than in flagValue, so until
+	// these rows existed the suite did not check the property the design rests on.
 	missing := []struct {
-		what string
-		args []string
+		what     string
+		args     []string
+		wantFlag string
 	}{
-		{"a trailing --mode", []string{"--mode"}},
-		{"--mode before the terminator", []string{"--mode", "--"}},
-		{"the short form -M", []string{"-M"}},
-		{"a repeatable --tag", []string{"--tag"}},
-		{"--tag before the terminator", []string{"--tag", "--"}},
-		{"--env", []string{"--env"}},
-		{"--exclude-tag", []string{"--exclude-tag"}},
+		{"a trailing --mode", []string{"--mode"}, "--mode"},
+		{"--mode before the terminator", []string{"--mode", "--"}, "--mode"},
+		{"the short form -M", []string{"-M"}, "-M"},
+		{"a repeatable --tag", []string{"--tag"}, "--tag"},
+		{"--tag before the terminator", []string{"--tag", "--"}, "--tag"},
+		{"--env", []string{"--env"}, "--env"},
+		{"--exclude-tag", []string{"--exclude-tag"}, "--exclude-tag"},
 	}
 	for _, tc := range missing {
 		t.Run(tc.what, func(t *testing.T) {
@@ -39,6 +47,11 @@ func TestParseDvaFlagsRejectsAMissingValue(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), "requires a value") {
 				t.Errorf("restart %v: %q does not say a value is required", tc.args, err)
+			}
+			// The short form matters most here: -M must be reported as -M. A message that
+			// silently rewrote it to --mode would be naming a token the user did not type.
+			if !strings.Contains(err.Error(), tc.wantFlag) {
+				t.Errorf("restart %v: %q does not name %s", tc.args, err, tc.wantFlag)
 			}
 			// Asserting only that it errored would pass on a build that acts first and
 			// complains afterwards. The markers are what say nothing was touched.

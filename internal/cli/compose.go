@@ -784,8 +784,13 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// required. flagValue stays a bool — what it cannot supply is the flag's name, and it
 	// has no err to set. Note that its own doc comment used to justify the silence by
 	// saying the helper is also used where taking the next token is optional; it is not.
-	// grep says flagValue has exactly four callers and they are the four cases below, so
-	// the helper's neutrality is prospective, not a current constraint. TASK-211.
+	// Before this change flagValue had exactly four callers and they were the four cases
+	// below, so the helper's neutrality was prospective rather than a current constraint.
+	// It now has exactly one — this closure — which is the point of the change: the four
+	// cases no longer touch it. Past tense on purpose. TASK-208 exists because five
+	// comments went on quoting a call-site count a refactor had already changed, and the
+	// first draft of this one said "grep says flagValue has exactly four callers" in the
+	// present tense, in the very commit that made it one. TASK-211.
 	//
 	// Until then every case ignored ok=false, and a recognised flag is never appended to
 	// filtered, so the token vanished: `dva restart --mode` ran the whole stack and

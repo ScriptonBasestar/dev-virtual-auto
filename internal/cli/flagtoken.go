@@ -114,10 +114,17 @@ func flagBoolValue(value string, hasValue bool) (v, ok bool) {
 //
 // ok=false is a report about the token run, not a verdict: this helper is not told the
 // flag's name and has no error to return, so it cannot say "--mode requires a value". Its
-// callers decide. Every caller today is a case in parseDvaFlags and all four now treat it
-// as an error (TASK-211); this comment previously said the opposite, and claimed the
-// silence was owed to callers for which taking the next token is optional — there are
-// none, and a future one would have to earn the exception rather than inherit it.
+// caller decides.
+//
+// There is exactly one caller — parseDvaFlags' takeValue closure, which turns ok=false
+// into that error (TASK-211). Before TASK-211 there were four, the four value-taking
+// cases, each ignoring ok=false; this comment justified their silence by claiming the
+// helper also served callers for which taking the next token is optional. There were
+// none then and there are none now, so a future caller that wants the silence has to
+// earn the exception rather than inherit it from a sentence that was never true.
+//
+// Counts here are stated with the commit they describe because they go stale silently —
+// TASK-208 is five comments that did not.
 func flagValue(args []string, i, end int, value string, hasValue bool) (v string, consumed int, ok bool) {
 	if hasValue {
 		return value, 0, true
