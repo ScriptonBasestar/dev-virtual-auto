@@ -32,19 +32,54 @@ into a whole-stack build.
 
 ## Measured
 
-Fixture G: two plans (`alpha`, `beta`), **no** `default_plan` (0 occurrences in
-the file), entries `s1`/`s2`, and a compose service with a real `build:` context
-so entry selection is visible rather than warned away.
+The fixture is three files, written out here because the original lived in a
+scratch directory that has since been overwritten — a card whose evidence is a
+path is a card nobody can re-run:
+
+```yaml
+# dva.yml — two plans, NO default_plan (grep -c default_plan → 0)
+version: "0.1.44"
+stack:
+  s1: {description: entry one, default_runner: compose,
+       runners: {compose: {files: [docker-compose.yml], project_name: p1}}}
+  s2: {description: entry two, default_runner: compose,
+       runners: {compose: {files: [docker-compose.yml], project_name: p2}}}
+plans:
+  alpha: {description: first plan,  entries: [{name: s1, runner: compose, order: 10}]}
+  beta:  {description: second plan, entries: [{name: s2, runner: compose, order: 10}]}
+```
+
+```yaml
+# docker-compose.yml — a real build: context, so entry selection is visible
+services:
+  web:
+    build: {context: ./ctx}
+    command: sleep 1
+```
+
+```dockerfile
+# ctx/Dockerfile
+FROM alpine
+RUN true
+```
 
 Run with `DOCKER_HOST=unix:///nonexistent-dva-review.sock`, so the docker call
 fails instantly and the evidence is what was selected before it failed.
 
-| binary | `dva build` | `dva build --` |
-|---|---|---|
-| `9bf3ee0` (master) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure |
-| TASK-210 branch | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure |
+| binary | `dva build` | `dva build --` | `dva build -` |
+|---|---|---|---|
+| `9bf3ee0` (master) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
+| TASK-210 branch | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
 
-Identical, so this is pre-existing and not a TASK-210 regression. TASK-210 is
+Re-measured on 2026-08-20 against a fixture rebuilt from the definition above,
+after discovering the original directory had been overwritten. Both binaries,
+all six cells, unchanged from the first run.
+
+The `-` column is here as a control and belongs to TASK-215: it also gets past
+`requirePlanSelection`, but docker rejects it, so `build` escalates only for the
+token docker accepts. Same guard, same line, different downstream luck.
+
+This is pre-existing and not a TASK-210 regression. TASK-210 is
 where it became visible: its census found seven callers of the routing helpers,
 and measuring the three it had not covered (`build`, `logs`, `status`) turned
 this up. `logs` and `status` were unchanged in all four fixtures — cobra strips
@@ -93,7 +128,7 @@ line either way and the difference is which invocations start refusing.
 
 ## Completion Criteria
 
-- [ ] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — run both against fixture G and paste rc + whether any image began building
+- [ ] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — build the fixture from the three files in ## Measured, run both, and paste rc plus whether any image began building
 - [ ] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE` — that count is already 5 and would certify itself
 - [ ] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with one plan
 - [ ] The ruling for `build -- <service>` is recorded on this card, not left implicit | verify: human
@@ -106,6 +141,8 @@ line either way and the difference is which invocations start refusing.
 - `internal/cli/plan_lifecycle.go` — `dropLeadingTerminator`, `requirePlanSelection`
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — the census that found this, and the ruling it would extend
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the terminator/bare identity
+- `tasks/todo/215-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds
+- `tasks/todo/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the terminator ruling for the verbs that take no names; `build` is the exception it does not cover
 
 ## Technical Notes
 
