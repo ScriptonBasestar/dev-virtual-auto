@@ -81,7 +81,7 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 	if c == nil || !c.HasPlans() {
 		return "", nil, false
 	}
-	args = planRoutingArgs(args)
+	args = dropLeadingTerminator(planRoutingArgs(args))
 
 	if len(args) > 0 {
 		if _, exists := c.Plans[args[0]]; exists {
@@ -97,6 +97,21 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 	return "", nil, false
 }
 
+// dropLeadingTerminator removes a `--` occupying the plan-name slot, and only there.
+//
+// Deliberately NOT dropFlagTerminator, whose contract is "the first `--` anywhere" — right for
+// a positional name list, wrong here. detectPlanRoute hands everything after the plan name to
+// runPlan*, so consuming a terminator further in would strip the separator out of a plan's own
+// extra args: `dva restart p1 -- --no-wat` must keep `--no-wat` a name for the plan runner to
+// refuse, not become a flag it silently honours. Only args[0] is ever the plan-name slot, so
+// only args[0] is ever a separator rather than an argument. TASK-210.
+func dropLeadingTerminator(args []string) []string {
+	if len(args) > 0 && args[0] == "--" {
+		return args[1:]
+	}
+	return args
+}
+
 // rejectSuppressedDefaultPlan refuses silent whole-stack fallthrough when exactly
 // one plan exists (DefaultPlan) but leading args prevented detectPlanRoute from
 // selecting it. Name the plan explicitly instead (e.g. dva up p1 --dev).
@@ -104,17 +119,22 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 // Non-flag tokens are left to rejectUnknownPlanArg / rejectUpPositionalArg so
 // unknown plan names keep their existing messages.
 func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string) error {
-	if c == nil || !c.HasPlans() || len(args) == 0 {
+	// Classify what the terminator SEPARATES, not the terminator itself. `dva restart -- s1`
+	// names an entry exactly as `dva restart s1` does, so judging args[0]=="--" refused a
+	// perfectly explicit invocation. The message still echoes the untouched args, because the
+	// suggestion has to be a command the user can paste back. TASK-210.
+	head := dropLeadingTerminator(args)
+	if c == nil || !c.HasPlans() || len(head) == 0 {
 		return nil
 	}
 	def := c.DefaultPlan()
 	if def == "" {
 		return nil
 	}
-	if _, exists := c.Plans[args[0]]; exists {
+	if _, exists := c.Plans[head[0]]; exists {
 		return nil
 	}
-	if !strings.HasPrefix(args[0], "-") {
+	if !strings.HasPrefix(head[0], "-") {
 		return nil
 	}
 	return fmt.Errorf(

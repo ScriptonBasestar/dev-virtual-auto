@@ -195,10 +195,15 @@ entry 이름을 받는 것이 `restart`뿐이라, 거기서만 플래그와 이�
 `"$@"`가 비면 master에서는 아무 일도 없었지만 이제는 전체 재시작이거나 rc=1이며, 둘 다
 이전 동작이 아닙니다.
 
-예외는 기본 plan이 **해석되는** 설정으로, 여기서는 맨 앞의 `--`가 아직 플래그로 취급되어
-거부됩니다 (master에서도 동일한 기존 동작, TASK-210). `default_plan:` 키가 있는 경우만이
-아닙니다 — plan이 정확히 하나면 그 plan이 암묵 기본값이므로(`config.go`의 `DefaultPlan`),
-`default_plan`을 한 번도 쓰지 않은 설정에서도 이 예외가 걸립니다.
+기본 plan이 **해석되는** 설정도 같습니다 — `dva restart --`는 맨 `dva restart`처럼 기본
+plan을 실행합니다. 이것이 마지막 예외였고 TASK-210에서 없앴습니다. `--`는 구분자이므로
+분류되는 것은 그 **뒤**이지 구분자 자신이 아닙니다. 같은 이유로 `dva restart -- s1`은
+`dva restart s1`과, `dva restart -- <plan>`은 `dva restart <plan>`과 동일합니다.
+
+이 규칙은 `restart`만이 아니라 `up`/`down`/`stop`에도 같이 적용됩니다: 기본 plan이 있는
+설정에서 `dva up --`/`down --`/`stop --`는 각각 맨 `dva up`/`down`/`stop`과 동일하게
+기본 plan을 실행합니다. 기본 plan이 없으면 이전과 같이 `unknown flag "--"`로 거부합니다
+(그 세 동사는 entry 이름을 받지 않으므로 끊을 이름이 없습니다).
 
 #### 라이프사이클 플래그
 
@@ -206,7 +211,7 @@ entry 이름을 받는 것이 `restart`뿐이라, 거기서만 플래그와 이�
 
 **이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
 
-`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --force`처럼 plan 이름을 명시해야 한다. 이 검사는 플래그 유효성보다 먼저 돌기 때문에, 오타 난 플래그도 "plan 이름을 쓰라"는 메시지를 받는다.
+`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --force`처럼 plan 이름을 명시해야 한다. `--`는 여기서 말하는 플래그가 아니다 — 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않는다 (TASK-210). 이 검사는 플래그 유효성보다 먼저 돌기 때문에, 오타 난 플래그도 "plan 이름을 쓰라"는 메시지를 받는다.
 
 | Flag | Description |
 |---|---|

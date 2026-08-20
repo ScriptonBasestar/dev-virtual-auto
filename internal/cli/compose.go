@@ -443,13 +443,14 @@ every argument is a name whatever it spells, so a flag written there is reported
 as an unknown name rather than silently dropped.
 
 A bare "dva restart --" means "no names given" and does whatever a bare
-"dva restart" does in that config, in both directions: it restarts every declared
-entry where a bare restart does, and it refuses to guess where several plans are
-configured. Wrapper scripts should know that "dva restart -- $@" with an empty
-"$@" restarts everything in a plan-less config; it was a no-op before TASK-207.
-The exception is a config with a resolvable default plan — an explicit
-default_plan, or a lone plan, which counts as one — where a leading -- is still
-refused as a flag.
+"dva restart" does in that config, with no exceptions: it restarts every declared
+entry where a bare restart does, it runs the default plan where a bare restart
+runs it, and it refuses to guess where several plans are configured. Wrapper
+scripts should know that "dva restart -- $@" with an empty "$@" restarts
+everything in a plan-less config; it was a no-op before TASK-207. A config with a
+resolvable default plan — an explicit default_plan, or a lone plan, which counts
+as one — was the last exception, and TASK-210 removed it: the terminator is a
+separator, so what follows it is classified, never the separator itself.
 
 Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
@@ -557,10 +558,11 @@ Stack flags:
 		// "no names given", so that is what this asks: strip --debug/--json exactly as the gate
 		// itself does, drop the terminator, and require nothing else to be left.
 		//
-		// The identity this restores is with the STACK route. A config with a default_plan
-		// refuses `dva restart --` earlier, from rejectSuppressedDefaultPlan, because args[0]
-		// starts with "-" — on master too. That helper is shared with up/down/stop, so narrowing
-		// it is TASK-210's call and not one restart gets to make from inside its own RunE.
+		// The identity this restores is with the STACK route. The PLAN route was decided one
+		// card later: a config with a default_plan refused `dva restart --` earlier still, from
+		// rejectSuppressedDefaultPlan, because args[0] starts with "-". TASK-210 consumed the
+		// leading terminator in detectPlanRoute and in that helper instead, which is why this
+		// gate now sees an empty list here rather than being unreachable in that shape.
 		//
 		// Checked against SortedStack, the DECLARED entries, not the post-filter selection —
 		// a name that exists but is excluded by --tag selects nothing legitimately and keeps

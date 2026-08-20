@@ -379,6 +379,129 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 	}
 }
 
+// writeRestartDefaultPlanProbeConfig is the shape TASK-210 is about: a plan is
+// resolvable with no name given. The key is written out rather than implied,
+// because the two routes into DefaultPlan() are not interchangeable evidence --
+// see writeRestartLonePlanProbeConfig for the other one.
+func writeRestartDefaultPlanProbeConfig(t *testing.T) string {
+	t.Helper()
+	return writeRestartConfigBody(t, `version: "0.1.44"
+default_plan: p1
+stack:
+  s1:
+    order: 1
+    script:
+      up: touch s1_up
+      stop: touch s1_stop
+  s2:
+    order: 2
+    script:
+      up: touch s2_up
+      stop: touch s2_stop
+plans:
+  p1:
+    entries:
+      - name: s1
+  p2:
+    entries:
+      - name: s2
+`)
+}
+
+// writeRestartLonePlanProbeConfig reaches the same resolvable default without
+// declaring one: Config.DefaultPlan() promotes a lone plan. It is the shape a
+// real dva.yml is most likely to have, and the one where a user is least likely
+// to expect a "default plan" refusal, having never written the words. Kept
+// separate from the explicit fixture so a regression in either promotion path
+// fails on its own subtest instead of hiding behind the other.
+func writeRestartLonePlanProbeConfig(t *testing.T) string {
+	t.Helper()
+	return writeRestartConfigBody(t, `version: "0.1.44"
+stack:
+  s1:
+    order: 1
+    script:
+      up: touch s1_up
+      stop: touch s1_stop
+  s2:
+    order: 2
+    script:
+      up: touch s2_up
+      stop: touch s2_stop
+plans:
+  p1:
+    entries:
+      - name: s1
+`)
+}
+
+// writeRestartConfigBody is the chdir-and-reset half of a fixture writer. The
+// three writers above it predate this helper and are deliberately left alone:
+// each carries extra content of its own, so folding them in would be a rewrite
+// rather than a move, and their bodies are what other tests are pinned to.
+func writeRestartConfigBody(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+
+	// loadConfig/loadEnv memoize into package globals; without a reset each test
+	// would reuse the previous test's (already-removed) temp dir.
+	cfg, env = nil, nil
+	t.Cleanup(func() {
+		os.Chdir(oldWd)
+		cfg, env = nil, nil
+	})
+	return dir
+}
+
+// TestRestartTerminatorNamesEntriesUnderAResolvableDefaultPlan covers the half of
+// TASK-210 that the bare-terminator test cannot reach. With a resolvable default
+// plan, `dva restart -- s1` never reaches detectPlanRoute's name branch as a plan
+// name; it falls through to rejectSuppressedDefaultPlan, which on master read
+// args[0] == "--", called it a flag, and refused an invocation that names one
+// entry as explicitly as any. Differential against the form without the
+// terminator, so it pins the identity rather than today's output.
+func TestRestartTerminatorNamesEntriesUnderAResolvableDefaultPlan(t *testing.T) {
+	fixtures := []struct {
+		shape string
+		write func(*testing.T) string
+	}{
+		{"explicit default_plan", writeRestartDefaultPlanProbeConfig},
+		{"lone plan promoted to default", writeRestartLonePlanProbeConfig},
+	}
+
+	for _, fx := range fixtures {
+		t.Run(fx.shape, func(t *testing.T) {
+			plainDir := fx.write(t)
+			plainErr := restartCmd.RunE(restartCmd, []string{"s1"})
+			plainRan := ranMarkers(t, plainDir)
+
+			termDir := fx.write(t)
+			termErr := restartCmd.RunE(restartCmd, []string{"--", "s1"})
+			termRan := ranMarkers(t, termDir)
+
+			if (plainErr == nil) != (termErr == nil) {
+				t.Fatalf("restart -- s1: %v; restart s1: %v; the terminator separates the name, it does not change what the name means", termErr, plainErr)
+			}
+			for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+				if plainRan[m] != termRan[m] {
+					t.Errorf("restart -- s1: %s ran=%v; restart s1: ran=%v", m, termRan[m], plainRan[m])
+				}
+			}
+		})
+	}
+}
+
 // TestRestartBareTerminatorMeansABareRestart is the `--` row of TASK-207's ruling,
 // and it inverts what this test asserted under TASK-198 — where it was
 // TestRestartBareTerminatorChangesNothing and required rc=0 with nothing run.
@@ -422,6 +545,8 @@ func TestRestartBareTerminatorMeansABareRestart(t *testing.T) {
 	}{
 		{"no plans", writeRestartProbeConfig},
 		{"two plans, no default_plan", writeRestartPlanProbeConfig},
+		{"explicit default_plan", writeRestartDefaultPlanProbeConfig},
+		{"lone plan promoted to default", writeRestartLonePlanProbeConfig},
 	}
 
 	for _, fx := range fixtures {
