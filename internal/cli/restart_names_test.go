@@ -588,11 +588,14 @@ func TestRestartBareTerminatorMeansABareRestart(t *testing.T) {
 // leave the ruling's reach unmeasured on the config shape most users have.
 func TestRestartUnknownNameRuling(t *testing.T) {
 	fixtures := []struct {
-		shape string
-		write func(*testing.T) string
+		shape          string
+		write          func(*testing.T) string
+		hasDefaultPlan bool
 	}{
-		{"no plans", writeRestartProbeConfig},
-		{"two plans, no default_plan", writeRestartPlanProbeConfig},
+		{"no plans", writeRestartProbeConfig, false},
+		{"two plans, no default_plan", writeRestartPlanProbeConfig, false},
+		{"explicit default_plan", writeRestartDefaultPlanProbeConfig, true},
+		{"lone plan promoted to default", writeRestartLonePlanProbeConfig, true},
 	}
 
 	// hint pins the explanation, not just the quoted token, wherever the token alone
@@ -604,19 +607,40 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// The `--` row is not here: `restart --` is empty-name-list, whose whole meaning
 	// is "the same as a bare restart", and that is a claim about two invocations
 	// rather than about one. TestRestartBareTerminatorMeansABareRestart owns it.
+	//
+	// The two default-plan fixtures were added by TASK-210, and they are what makes the
+	// hint column earn its keep: before that fix the two terminator rows were answered by
+	// rejectSuppressedDefaultPlan, whose message ECHOES the args and so quotes `--no-wat`
+	// just as the name guard does. The token alone said the rows passed. Only the hint
+	// separates "this argument names no entry" from "you wrote a flag, which suppressed
+	// the default plan" — and the user wrote no flag.
+	//
+	// hintUnderDefaultPlan is the one row where the ruling is still config-shape-dependent,
+	// pinned rather than skipped so it fails loudly when that is settled. `-` is too short
+	// for rejectUnknownFlags (len < 2) but not for rejectSuppressedDefaultPlan's dash test,
+	// so where a default plan resolves it is refused as a flag instead of reported as an
+	// unmatchable name. TASK-215 owns it; aligning the two guards here instead would have
+	// re-opened TASK-087's hole, where `dva up -` starts the whole stack and exits 0 — in the
+	// two default-plan fixtures, which are the only ones where that guard fires. The hole is
+	// not merely hypothetical elsewhere: with no default plan to resolve, nothing catches a
+	// lone dash, and `dva up -` already takes the whole-stack path in all four remaining
+	// fixtures — in one of them a bare `dva up` refuses outright. TASK-215 carries the
+	// measurement; the point here is only that copying one guard's rule into the other
+	// trades a wrong message for a wrong action.
 	cases := []struct {
-		what    string
-		args    []string
-		names   string // the token the message must quote; "" when the call succeeds
-		hint    string // wording the message must carry; "" when the token suffices
-		wantRan []string
+		what                 string
+		args                 []string
+		names                string // the token the message must quote; "" when the call succeeds
+		hint                 string // wording the message must carry; "" when the token suffices
+		hintUnderDefaultPlan string // replaces hint where a default plan resolves; "" means no divergence
+		wantRan              []string
 	}{
-		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", "", nil},
-		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", "", nil},
-		{"a bare dash, too short for the flag guard", []string{"-"}, "-", "too short to be a flag", nil},
-		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", "every argument is a name", nil},
-		{"a second terminator, an ordinary word", []string{"--", "--", "s1"}, "--", "only the first", nil},
-		{"a real name after the terminator", []string{"--", "s1"}, "", "", []string{"s1_stop", "s1_up"}},
+		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", "", "", nil},
+		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", "", "", nil},
+		{"a bare dash, too short for the flag guard", []string{"-"}, "-", "too short to be a flag", "flags suppress the default plan", nil},
+		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", "every argument is a name", "", nil},
+		{"a second terminator, an ordinary word", []string{"--", "--", "s1"}, "--", "only the first", "", nil},
+		{"a real name after the terminator", []string{"--", "s1"}, "", "", "", []string{"s1_stop", "s1_up"}},
 	}
 
 	for _, fx := range fixtures {
@@ -625,6 +649,11 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 				dir := fx.write(t)
 				err := restartCmd.RunE(restartCmd, tc.args)
 
+				wantHint := tc.hint
+				if fx.hasDefaultPlan && tc.hintUnderDefaultPlan != "" {
+					wantHint = tc.hintUnderDefaultPlan
+				}
+
 				if tc.names != "" {
 					if err == nil {
 						t.Fatalf("restart %v: exited 0; TASK-207 rules an unmatchable name an error", tc.args)
@@ -632,8 +661,8 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 					if !strings.Contains(err.Error(), tc.names) {
 						t.Errorf("restart %v: message %q does not quote %q, so it cannot tell the user which argument was wrong", tc.args, err, tc.names)
 					}
-					if tc.hint != "" && !strings.Contains(err.Error(), tc.hint) {
-						t.Errorf("restart %v: message %q lacks %q, so this row cannot tell the guard's error from any other error mentioning the same token", tc.args, err, tc.hint)
+					if wantHint != "" && !strings.Contains(err.Error(), wantHint) {
+						t.Errorf("restart %v: message %q lacks %q, so this row cannot tell the guard's error from any other error mentioning the same token", tc.args, err, wantHint)
 					}
 				} else if err != nil {
 					t.Fatalf("restart %v: %v; this selection is legitimate and must survive the guard", tc.args, err)

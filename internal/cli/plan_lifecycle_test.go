@@ -247,6 +247,43 @@ func TestUpPlanGuardOnlyInspectsPlanNameSlot(t *testing.T) {
 	}
 }
 
+// A `--` in the plan-name slot is a separator, so the token after it is the plan name —
+// the same reading detectPlanRoute uses. Left unconsumed the terminator took the
+// leading-dash early return with it and this guard went quiet: `dva status -- -- s1` ran a
+// full status and exited 0, where `dva status -- s1` refused with "plan 's1' not found".
+//
+// Asserted differentially against the unseparated form rather than against the message,
+// because the claim is that the separator changes nothing about what the name means.
+// TASK-210.
+func TestRejectUnknownPlanArg_TerminatorDoesNotDisarmTheCheck(t *testing.T) {
+	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
+
+	plain := rejectUnknownPlanArg(c, []string{"s1"})
+	separated := rejectUnknownPlanArg(c, []string{"--", "s1"})
+	switch {
+	case (plain == nil) != (separated == nil):
+		t.Fatalf("rejectUnknownPlanArg(--, s1) = %v; rejectUnknownPlanArg(s1) = %v; a separator does not change what the name after it means", separated, plain)
+	case plain != nil && plain.Error() != separated.Error():
+		t.Fatalf("rejectUnknownPlanArg(--, s1) = %q; rejectUnknownPlanArg(s1) = %q; same name, same refusal", separated, plain)
+	}
+
+	// A terminator names nothing on its own, so there is nothing to reject.
+	if err := rejectUnknownPlanArg(c, []string{"--"}); err != nil {
+		t.Fatalf("a lone terminator names no plan: %v", err)
+	}
+	// The leading-dash early return still applies to what FOLLOWS the separator. This guard
+	// only ever says "plan not found", which is the wrong sentence for a dash-shaped token;
+	// the command's own name guard owns that one.
+	if err := rejectUnknownPlanArg(c, []string{"--", "--force"}); err != nil {
+		t.Fatalf("a dash-shaped token is not this guard's to name: %v", err)
+	}
+	// Not asserted here: `--, p1` with p1 declared. This guard is fallthrough-only — every
+	// caller runs detectPlanRoute first, which routes a declared plan and never reaches it —
+	// so it does not re-check the name against c.Plans, and calling it with a real plan name
+	// produces "plan 'p1' not found. Available: p1". A test asserting that call would pin a
+	// message no user can reach. Found by writing it and reading the failure. TASK-210.
+}
+
 func TestRejectSuppressedDefaultPlan_LeadingFlag(t *testing.T) {
 	c := &config.Config{Plans: map[string]*config.PlanConfig{"p1": {}}}
 

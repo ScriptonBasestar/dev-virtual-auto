@@ -101,10 +101,17 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 //
 // Deliberately NOT dropFlagTerminator, whose contract is "the first `--` anywhere" — right for
 // a positional name list, wrong here. detectPlanRoute hands everything after the plan name to
-// runPlan*, so consuming a terminator further in would strip the separator out of a plan's own
-// extra args: `dva restart p1 -- --no-wat` must keep `--no-wat` a name for the plan runner to
-// refuse, not become a flag it silently honours. Only args[0] is ever the plan-name slot, so
-// only args[0] is ever a separator rather than an argument. TASK-210.
+// runPlan*, so a terminator further in belongs to the plan runner's argument list, not to the
+// router. Only args[0] is ever the plan-name slot, so only args[0] is ever a separator rather
+// than an argument.
+//
+// What that costs today is one word in one message, and the honest version is worth writing
+// down: with dropFlagTerminator, `dva up alpha -- --bogus` is refused as `unsupported plan
+// flag: --bogus`; with this helper it is refused as `unsupported plan flag: --`. Both refuse —
+// measured across up/down/stop/restart, 10 rows, no invocation changed from refused to
+// accepted. The choice is not "refuse vs silently honour"; it is which layer owns a token the
+// user wrote after the plan name. Consuming it here would let the router eat a separator meant
+// for the runner, and that is the part a future passthrough would need. TASK-210.
 func dropLeadingTerminator(args []string) []string {
 	if len(args) > 0 && args[0] == "--" {
 		return args[1:]
@@ -125,6 +132,15 @@ func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string
 	// suggestion has to be a command the user can paste back. TASK-210.
 	head := dropLeadingTerminator(args)
 	if c == nil || !c.HasPlans() || len(head) == 0 {
+		return nil
+	}
+	// A terminator occupied the plan-name slot, so the dash test below cannot apply: the user
+	// wrote no flag, and "flags suppress the default plan" would be a false account of an
+	// invocation that contains none. `dva restart -- --no-wat` said exactly that where a
+	// default plan resolved, while the same command in a plan-less config already answered
+	// `unknown stack entry "--no-wat"`. The command's own name check is the one that can tell
+	// the user what is wrong with the token; this guard steps aside so it is reached. TASK-210.
+	if len(head) != len(args) {
 		return nil
 	}
 	def := c.DefaultPlan()
@@ -154,6 +170,13 @@ func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string
 // never a plan name, and a leading flag means detectPlanRoute never treated the
 // invocation as plan-routed either.
 func rejectUnknownPlanArg(c *config.Config, args []string) error {
+	// Same separator rule as detectPlanRoute, and required because this guard reads the same
+	// slot. Commands that let cobra parse flags never see the terminator the user typed — it is
+	// stripped before RunE — so a `--` surviving to here is a second one, and the token after it
+	// is the plan name as surely as in the one-terminator form. Left in place it took the
+	// leading-dash early return with it: `dva status -- -- s1` ran a full status and exited 0
+	// while `dva status -- s1` refused with "plan 's1' not found". TASK-210.
+	args = dropLeadingTerminator(args)
 	if c == nil || !c.HasPlans() || len(args) == 0 {
 		return nil
 	}
