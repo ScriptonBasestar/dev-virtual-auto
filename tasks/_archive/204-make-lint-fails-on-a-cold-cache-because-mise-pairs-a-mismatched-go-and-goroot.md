@@ -7,7 +7,35 @@ effort: S
 created-at: 2026-08-19T18:39:59+09:00
 source: "found while re-running TASK-203's reproduction against the landed fix — the control worktree's first `make lint` failed with 4 typecheck errors that had nothing to do with the cache"
 scope: "Makefile lint target: detect a go/GOROOT mismatch and say so. No change to which linters run, no Go source change. The mismatched toolchain is an environment condition, but the target's preference for `mise exec` is what converts it into a failure — the bare `golangci-lint` branch is measured to pass on the same machine — so this is not purely environmental. Choosing between the two branches is Open Question 1; this card only makes the build report the condition legibly instead of as four import errors."
-status: todo
+status: done
+completed-at: 2026-08-20T10:22:15+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-20T10:22:15+09:00
+verified-at: 2026-08-20T10:22:15+09:00
+archived-at: 2026-08-20T10:22:15+09:00
+quality-review-evidence: |
+  Implemented in 07d0c47, hardened in 4cbfdcd. Reviewed by an independent session that did
+  not write the change; three in-process review agents before it terminated without
+  delivering a report, so the review that counts is the cross-session one.
+  It found that the guard shipped in 07d0c47 could exit 0 having read neither version —
+  both substitutions yield the empty string on failure and two empty strings compare equal.
+  That finding was reproduced here before being acted on rather than accepted on report,
+  including the broader trigger the reviewer supplied: a `go` that is present and
+  executable but exits non-zero (`#!/bin/sh` / `exit 3` stub) gave `tool=[] root=[]` rc=0.
+  One leg of the reviewer's argument did not survive checking — that `make vet` gates a
+  broken GOROOT first holds under an ambient PATH (rc=2) but not through the mise shim
+  (rc=0), which sanitises GOROOT. It was cited toward lesser severity, so its collapse
+  strengthens rather than weakens the conclusion; recorded on the card either way.
+  Re-measured after the fix in all three directions: unreadable pairing fails naming both
+  empty values; mismatch still fails with `Error 1` and zero `could not import` lines;
+  healthy pairing still runs through to `0 issues.`
+  Two of this card's own acceptance bindings were defective and were corrected with the
+  reason stated, not adjusted to fit the code — one bound on a shell-syntax literal that no
+  Makefile can contain, so it could never pass, the mirror of the never-fails shape
+  TASK-205 exists for.
+  All six bindings on this card re-run and passing. Gates at 4cbfdcd: doc-check,
+  check-generate, lint, test, commit-check, and `ce task validate --all` across 9 cards,
+  all green.
 ---
 
 ## Summary

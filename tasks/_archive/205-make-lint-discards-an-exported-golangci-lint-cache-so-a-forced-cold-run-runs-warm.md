@@ -7,7 +7,32 @@ effort: XS
 created-at: 2026-08-19T19:03:34+09:00
 source: "found by a peer session while reproducing TASK-204 — it tried to force a cold cache with `GOLANGCI_LINT_CACHE=$(mktemp -d) make lint`, got rc=0 with no typecheck errors, and nearly concluded that a known-broken toolchain pairing does not affect the gate. It caught the discarded override itself before reporting anything; this card's author independently reproduced the defect and its consequence"
 scope: "Makefile lint target, one assignment operator. No change to which linters run, no change to the default cache location, no change to TASK-203's per-checkout scoping, no Go source change."
-status: todo
+status: done
+completed-at: 2026-08-20T10:22:15+09:00
+quality-review: pass
+quality-reviewed-at: 2026-08-20T10:22:15+09:00
+verified-at: 2026-08-20T10:22:15+09:00
+archived-at: 2026-08-20T10:22:15+09:00
+quality-review-evidence: |
+  Fixed in 07d0c47, measured with the default cache directory moved aside first so its
+  presence could not be inherited from an earlier run: exported, the supplied dir goes
+  0 -> 10,448 KB and the default is never created; unset, the default is created at
+  10,444 KB, so TASK-203's per-checkout scoping is preserved. Both arms print `0 issues.`,
+  which is why the evidence is stated as a magnitude rather than as a verdict.
+  An earlier pass of that measurement recorded the default location as created, which would
+  have contradicted the first arm. It was residue from TASK-204's runs in the same worktree
+  minutes earlier; it was re-measured under control rather than reported.
+  Independent review established by measurement — not by reasoning from the shell fact —
+  that `:-` rather than `-` is load-bearing here: an exported-but-empty value survives as
+  empty under `-`, and `golangci-lint cache status` then reports the machine-wide dir,
+  which would reintroduce TASK-203's bug through the very line written to prevent it.
+  Open Question 2 swept with its axis and denominator stated rather than named: 4
+  tab-indented recipe lines carrying a `NAME="..."` assignment, one of which was this
+  defect; the other three are shell locals where discarding an inherited value is intended.
+  No second instance.
+  All four bindings on this card re-run and passing. Gates at 4cbfdcd: doc-check,
+  check-generate, lint, test, commit-check, and `ce task validate --all` across 9 cards,
+  all green.
 ---
 
 ## Summary
