@@ -7,6 +7,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -136,5 +137,68 @@ func TestRestart_NameNotConfusedWithFlagValue(t *testing.T) {
 		if got[unwanted] {
 			t.Errorf("restart s1 -E dev: %s ran; 'dev' must not be read as an entry name", unwanted)
 		}
+	}
+}
+
+// TestRestartRejectsUnknownFlag is the TASK-198 guard. Before it, an unrecognised
+// token fell through parseDvaFlags into the service-name list, matched no entry,
+// and the empty selection was reported as success: `dva restart --no-wat` exited 0
+// having restarted nothing. Measured against the built binary at 8762d15, up/down/
+// stop all exited 1 on the same argument — restart was the only one of the four
+// lifecycle verbs that did not.
+//
+// Both halves are asserted. An error alone would also be produced by a command that
+// rejected everything, so the run must fail AND leave the stack untouched, and the
+// message must name the offending flag rather than merely refusing.
+func TestRestartRejectsUnknownFlag(t *testing.T) {
+	// --zzznonsense is the nonsense control from the card; the rest are the plausible
+	// typos measured beside it, each of which exited 0 before this guard. --no-wait
+	// and --var are real flags of this command's PLAN path, and reaching the stack
+	// path means the config declares no plans at all, so they are unknown here too.
+	for _, flag := range []string{"--zzznonsense", "--no-wat", "--dev", "--docker", "--force", "--no-wait", "--var"} {
+		t.Run(flag, func(t *testing.T) {
+			dir := writeRestartProbeConfig(t)
+
+			err := restartCmd.RunE(restartCmd, []string{flag})
+			if err == nil {
+				t.Fatalf("restart %s: exited 0; an unrecognised flag must not be read as a service name", flag)
+			}
+			if !strings.Contains(err.Error(), "unknown flag") {
+				t.Errorf("restart %s: message %q does not say \"unknown flag\"", flag, err)
+			}
+			if !strings.Contains(err.Error(), flag) {
+				t.Errorf("restart %s: message %q does not name the flag the user has to fix", flag, err)
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Errorf("restart %s: %v ran; a rejected command must touch nothing", flag, got)
+			}
+		})
+	}
+}
+
+// TestRestartAcceptsKnownFlagsAfterGuard pins the other direction. rejectUnknownFlags
+// fires on ANY dash-prefixed leftover, so the guard is only correct while every flag
+// restart honours is consumed by parseDvaFlags before it. A future flag added to the
+// command but not to parseDvaFlags would start being refused, and the table above
+// cannot see that — it only proves the guard fires.
+func TestRestartAcceptsKnownFlagsAfterGuard(t *testing.T) {
+	for _, args := range [][]string{
+		{"-E", "dev"},
+		{"--env", "dev"},
+		{"--env=dev"},
+		{"--dry-run"},
+		{"s1", "--dry-run"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			// parseDvaFlags writes --dry-run into the package global, which outlives the
+			// subtest and would silently turn a later test's restart into a no-op.
+			saved := dryRun
+			t.Cleanup(func() { dryRun = saved })
+
+			writeRestartProbeConfig(t)
+			if err := restartCmd.RunE(restartCmd, args); err != nil {
+				t.Fatalf("restart %v: %v; this flag is honoured here and must survive the guard", args, err)
+			}
+		})
 	}
 }

@@ -455,6 +455,25 @@ Stack flags:
 		if err != nil {
 			return err
 		}
+		// Everything parseDvaFlags did not recognise arrives here as a service name, and
+		// DisableFlagParsing means cobra never vets it. Measured: `dva restart --no-wat`
+		// matched no entry, restarted nothing and exited 0, reporting only `[warn] no
+		// lifecycle entries matched filters` — the same shape TASK-113 closed for `up`.
+		// The other three lifecycle verbs already reject a leftover flag; restart is the
+		// only one taking flags AND positional names, so it needs up's allowlist form
+		// (:168) rather than teardownCommon's wholesale refusal (:261). TASK-198.
+		//
+		// The advertised list is stackSelectorFlags alone. --var and --no-wait appear in
+		// this command's help under "Plan usage" and runPlanRestart consumes them there;
+		// reaching this line means the config declares no plans at all, where the stack
+		// path hardcodes Wait: true and has no plan variables to override. Naming them in
+		// "accepted here" would advertise a flag this path then ignores, which is what
+		// rejectUnknownFlags' contract forbids. They are rejected with the rest instead of
+		// silently swallowed; whether they should warn and continue, as `dva up` does for
+		// --var, is a separate ruling this card does not make.
+		if err := rejectUnknownFlags("restart", "a stack entry name", names, stackSelectorFlags); err != nil {
+			return err
+		}
 		mode, isDefault := applyDefaultMode(c, mode)
 
 		if err := applyEnv(e, c, envName); err != nil {
