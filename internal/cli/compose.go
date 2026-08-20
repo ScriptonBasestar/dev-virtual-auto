@@ -438,7 +438,9 @@ Stack usage:
 A name matching no declared stack entry is an error, as it is for up, down and
 stop. After -- every argument is a name whatever it spells, so a flag written
 there is reported as an unknown name rather than silently dropped. A bare
-"dva restart --" means "no names given", identical to a bare "dva restart".
+"dva restart --" means "no names given" and does what a bare "dva restart" does,
+including refusing to guess when several plans are configured. The exception is
+a config with a default_plan, where a leading -- is still refused as a flag.
 
 Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section

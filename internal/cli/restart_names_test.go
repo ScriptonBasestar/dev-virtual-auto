@@ -379,7 +379,7 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 	}
 }
 
-// TestRestartBareTerminatorMeansEveryEntry is the `--` row of TASK-207's ruling,
+// TestRestartBareTerminatorMeansABareRestart is the `--` row of TASK-207's ruling,
 // and it inverts what this test asserted under TASK-198 — where it was
 // TestRestartBareTerminatorChangesNothing and required rc=0 with nothing run.
 // The inversion is the point of having had the test: the behaviour moved because
