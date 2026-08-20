@@ -16,7 +16,7 @@ status: todo
 
 `flagValue` (`internal/cli/flagtoken.go:114-122`) returns `ok=false` when a
 value-taking flag is the last token, and every caller in `parseDvaFlags`
-(`internal/cli/compose.go:762-780`) is written as
+(`internal/cli/compose.go:764-783`) is written as
 
 ```go
 case "--mode", "-M":
@@ -38,8 +38,38 @@ dva restart               rc=0   s1 and s2 both stopped and started
 ```
 
 A caller who wrote `--mode` meant to narrow the run. They got the widest possible
-run, reported as success. The same holds for `--env`, `--tag`, `--exclude-tag`
-and `--var`, and for every command that parses its flags this way.
+run, reported as success. The same holds for `--env`, `--tag` and
+`--exclude-tag` — the four value-taking cases in `parseDvaFlags` — and for every
+command that parses its flags this way.
+
+Not `--var`, though the first draft of this card said so. `--var` is not a
+`parseDvaFlags` case at all; it is handled in `parsePlanFlags`
+(`internal/cli/plan_lifecycle.go:186-192`) and already errors:
+
+```
+dva restart p1 --var      rc=1   ERROR: --var requires KEY=VAL      (master and branch)
+```
+
+That is the shape the four cases here should copy, and it is in this repo
+already — which also means a fix aimed at `parseDvaFlags` will not touch `--var`
+and does not need to.
+
+The terminator swallows a value the same way, and TASK-207's ruling turns that
+into an escalation. Measured, two plans and no `default_plan`, final TASK-207
+binary `f0abf9449eeb` against master `2d8bc83e46a9`:
+
+```
+                     master           TASK-207 branch
+restart --mode --    rc=0 nothing     rc=0 whole stack
+restart --env --     rc=0 nothing     rc=0 whole stack
+restart --mode       rc=0 whole stack rc=0 whole stack
+restart              rc=1 refused     rc=1 refused
+```
+
+The last two rows are why this is filed as the root cause rather than a TASK-207
+regression: master already restarts the whole stack for a bare `--mode` in a
+config whose bare `restart` it refuses. The branch only makes the `--mode --`
+spelling agree with the `--mode` spelling. Closing this card closes both.
 
 ## Why it surfaced now
 
@@ -94,7 +124,7 @@ reusing either number).
 ## References
 
 - `internal/cli/flagtoken.go:114-122` — `flagValue`, whose `ok=false` is correct and ignored
-- `internal/cli/compose.go:762-780` — the four value-taking cases with no `else`
+- `internal/cli/compose.go:764-783` — the four value-taking cases with no `else`
 - `internal/cli/compose.go:748-756` — `takeBool`, the pattern to follow, and TASK-172's argument for reporting here
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the card whose review measured this
 - `tasks/todo/208-five-comments-size-the-flag-fallthrough-class-at-twelve-call-sites-the-real-count-is-six.md` — before quoting a call-site count, read this

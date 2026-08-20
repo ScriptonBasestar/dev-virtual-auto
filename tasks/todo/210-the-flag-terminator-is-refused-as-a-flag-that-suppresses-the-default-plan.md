@@ -14,8 +14,8 @@ status: todo
 
 ## Summary
 
-In a config that names a `default_plan`, the flag/name separator is reported as
-a flag:
+In a config with a resolvable default plan, the flag/name separator is reported
+as a flag:
 
 ```
 $ dva restart --
@@ -46,6 +46,23 @@ Fixture: two plans, `default_plan: p1`, entries `s1` and `s2` writing markers.
 |---|---|---|
 | master `8c48687` | rc=0, p1 runs (s1) | rc=1, refused |
 | TASK-207 branch  | rc=0, p1 runs (s1) | rc=1, refused |
+
+**It is not limited to configs that write the key.** Second fixture: **one** plan
+`p1`, entries `s1`/`s2`, and zero occurrences of `default_plan` anywhere in the
+file. Identical on master `2d8bc83e46a9` and the final TASK-207 binary
+`f0abf9449eeb`:
+
+```
+dva restart      rc=0, p1 runs (s1)
+dva restart --   rc=1  ERROR: flags suppress the default plan "p1"; name it explicitly: dva restart p1 --
+```
+
+`Config.DefaultPlan` (`internal/config/config.go:585-591`) makes a lone plan the
+implicit default, so the helper fires in a config that never mentions the key —
+and the error names a plan the author never declared as default. A reader who
+checks their `dva.yml` for `default_plan` and finds none will conclude this card
+does not describe them. Whatever is ruled here has to cover both fixtures, which
+is why the criteria below name the lone-plan shape explicitly.
 
 Identical, so this is pre-existing and not a TASK-207 regression. TASK-207 is
 where it became visible: that card ruled `dva restart --` means the same as a
@@ -90,8 +107,8 @@ stated, which is why TASK-207 states it there today.
 
 ## Completion Criteria
 
-- [ ] A fixture that actually declares a default plan exists, not only prose about one | verify: `grep -c 'default_plan: ' internal/cli/restart_names_test.go` returns ≥ 1 (today: 0 — the phrase appears 5 times in that file, every one of them the words "no default_plan" in a shape label, which is why this binds on the YAML key and not on the word)
-- [ ] The differential test covers that fixture, so the ruling is measured against a bare invocation rather than hardcoded | verify: `grep -A12 'func TestRestartBareTerminatorMeansABareRestart' internal/cli/restart_names_test.go | grep -c 'DefaultPlan'` returns ≥ 1 (today: 0)
+- [ ] A fixture that actually declares a default plan exists, not only prose about one; the lone-plan shape needs one too, and it declares no key at all | verify: `grep -c 'default_plan: ' internal/cli/restart_names_test.go` returns ≥ 1 (today: 0 — the bare word appears 7 times in that file, every one of them prose such as "no default_plan" in a shape label or a comment, which is why this binds on the YAML key and not on the word)
+- [ ] The differential test grows a default-plan shape, so the ruling is measured against a bare invocation rather than hardcoded | verify: `go test ./internal/cli/ -run TestRestartBareTerminatorMeansABareRestart -count=1 -v | grep -c -- '--- PASS: TestRestartBareTerminatorMeansABareRestart/'` returns ≥ 3 (today: 2 — this counts subtests that actually ran, so unlike a grep for a fixture name it cannot be satisfied by naming a helper)
 - [ ] Whatever is ruled, `up`, `down` and `stop` are measured on the same fixture and the result recorded on this card | verify: human — run all four verbs with `--` against a default-plan config and paste rc + what ran
 - [ ] `dva restart -- p1` still selects the plan | verify: human — run it and confirm only p1's entries restart
 - [ ] `make test` passes | verify: `make test`

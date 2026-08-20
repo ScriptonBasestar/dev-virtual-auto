@@ -253,8 +253,9 @@ So the terminator path did what the bare path is explicitly *refused*: TASK-198'
 escalation, arriving from the other side. The cause is gate ordering, not the name
 guard. `requirePlanSelection` runs on the **raw** args, where `["--"]` counts as "a
 token was given" and passes; `dropFlagTerminator` then leaves zero names, which
-lifecycle reads as "every entry". `dec4e3e` re-applies the gate on the empty list —
-the only shape that can reach it — and the two agree again.
+lifecycle reads as "every entry". `dec4e3e` re-applies the gate, and the two agree again.
+(That first attempt gated on the empty name list, which is *not* the terminator's
+signature — see the second correction below.)
 
 **The test asserted the divergence as correct.** `TestRestartUnknownNameRuling`'s
 `the terminator alone` row hardcoded all four markers and ran under *both* fixtures,
@@ -265,21 +266,30 @@ about two invocations. The row moved out of the table into
 `restart --` in the same fixture and requires the same error text or the same
 success, and the same markers. A/B with the plan gate removed and the test file
 byte-identical: that test **FAILs on the plans fixture and passes on the plan-less
-one** — the second is the positive control.
+one**. The plans fixture is the one that must flip when the mechanism is removed;
+the plan-less subtest staying green is the control that says the failure is the
+mechanism and not the file.
 
 **Re-measured, two binaries, `8c48687` vs `dec4e3e`** (sha256 differ; markers via a
 script fixture):
 
 ```
-                                     master 8c48687          dec4e3e
+                                     master 8c48687          final (f0abf944)
 plans, no default   restart          rc=1 refused            rc=1 refused
-plans, no default   restart --       rc=0 whole stack        rc=1 refused  (now identical)
-plans, no default   restart --mode --rc=0 nothing            rc=1 refused
+plans, no default   restart --       rc=0 nothing            rc=1 refused  (now identical)
+plans, no default   restart --tag T  rc=0 acts               rc=0 acts     (parity kept)
+plans, no default   restart --mode --rc=0 nothing            rc=0 whole stack (see below)
 no plans            restart          rc=0 whole stack        rc=0 whole stack
 no plans            restart --       rc=0 nothing            rc=0 whole stack (the ruling)
 default_plan: p1    restart          rc=0 p1 only            rc=0 p1 only
 default_plan: p1    restart --       rc=1 refused            rc=1 refused (unchanged)
 ```
+
+Row 2's master column read "rc=0 whole stack" until the second review corrected it.
+That measurement belongs to `523f359`, this branch *before* the correction, not to
+master: master leaves `--` in the name list, where it matches no entry, so it warns
+and does nothing. Three binaries, sha256 recorded: master `2d8bc83e46a9` rc=0
+nothing, pre-fix `7b82895e68f4` rc=0 whole stack, final `f0abf9449eeb` rc=1 refused.
 
 **The default_plan shape is the one exception and it is pre-existing** — identical
 on both binaries. `rejectSuppressedDefaultPlan` classifies any `args[0]` starting
@@ -299,6 +309,85 @@ One finding was left out of scope and carded: a value-taking flag with no value 
 silently dropped, so `dva restart --mode` restarts everything on master and here
 alike. This branch adds a second spelling that reaches it (`--mode --`), which is
 how it was noticed. **TASK-211**.
+
+## Second review correction (2026-08-20) — the fix was too wide
+
+Two independent reviews of `dec4e3e` — a subagent against the diff, a peer session
+against two freshly built binaries — landed on the same class of defect from
+different sides. All of it is fixed on this branch; measurements are against the
+final binary `f0abf9449eeb` unless another sha is named.
+
+**The gate refused nine shapes, not one.** `dec4e3e` guarded on `len(names) == 0`,
+reading an empty name list as the terminator's signature. It is not: every stack
+selector empties it too. Measured in a two-plan, no-`default_plan` config with
+tagged entries:
+
+```
+                        master 8c48687        dec4e3e            final
+restart --tag web       rc=0, s1 bounced      rc=1 refused       rc=0, s1 bounced
+restart -T web          rc=0, s1 bounced      rc=1 refused       rc=0, s1 bounced
+restart --exclude-tag   rc=0, s1 bounced      rc=1 refused       rc=0, s1 bounced
+restart --mode dev      rc=1 "mode not found" rc=1 "plans"       rc=1 "mode not found"
+up --tag web            rc=0                  rc=0               rc=0
+stop --tag web          rc=0                  rc=0               rc=0
+```
+
+`up` and `stop` never changed, so `dec4e3e` made restart the one lifecycle verb
+whose tag filter needed a plan name, and it answered "you mistyped a mode" with
+"pick a plan". The gate is now applied to the raw args rather than to the name
+list: strip `--debug`/`--json` as `requirePlanSelection` itself does, drop the
+terminator, and require that nothing else survived. `TestRestartStackFlagsDoNotNeedAPlanName`
+pins the two shapes against each other in one fixture — four selectors that must
+act, and a bare `--` that must still be refused. Removing the gate fails the
+terminator row; restoring the `len(names)` form fails the four selector rows.
+
+**The help claimed a parity that does not exist.** `restart --help` said an
+unknown name is an error "as it is for up, down and stop". None of the three ever
+compares a token to the declared stack entries: `dva up s1` is rc=1 `plan 's1' not
+found` even where `s1` is declared, and `down`/`stop` refuse positionals wholesale.
+USAGE.md, edited in the same commit, said the opposite and was right. The help now
+states the rule as restart's own.
+
+**The default_plan exception was stated too narrowly.** `restart --help`, USAGE.md
+and TASK-210 all scoped it to "a config with a `default_plan`". Measured in a
+config with **one** plan and no `default_plan` key at all: `dva restart --` is
+rc=1 `flags suppress the default plan "p1"` on master, `dec4e3e` and the final
+binary alike, because `Config.DefaultPlan` treats a lone plan as the implicit
+default. A reader who greps their `dva.yml` for the key and finds none would
+conclude the exception does not apply. All three now say "a resolvable default
+plan — an explicit `default_plan`, or a lone plan".
+
+**The help documented only the reassuring half of the ruling.** "does what a bare
+`dva restart` does" was followed by the refusal and not by the other consequence:
+in a plan-less config it stops and starts every declared entry. `dva restart --
+"$@"` with an empty `"$@"` was a no-op on master and is now either a whole-stack
+bounce or rc=1 — neither is the old behaviour, and a wrapper script is exactly
+where that matters. Both directions are now stated in `restart --help` and USAGE.md.
+
+**The suggestion threshold was one-sided.** `d < len(s)`, added in `71dcd3c` to
+stop `dva restart -` suggesting both `s1` and `s2`, left the mirror open: with a
+one-character entry `b` declared, `dva restart wob` suggested it (d=2 against a
+3-character input). It is now `d < min(len(s), len(c))`, with
+`TestSimilarToWeighsBothNames` pinning both directions. The comment's claim that
+the rule "costs the name caller nothing real" was wrong and is corrected there:
+configs with one-character entry names get no suggestions at all, and the printed
+list of declared entries is the fallback.
+
+**One divergence from master is shipped deliberately.** `dva restart --mode --`
+(and `--env --`, `--tag --`) is rc=0 whole stack here and rc=0 nothing on master.
+The cause is TASK-211: the flag's value is swallowed by the terminator and the
+flag is silently dropped, so the invocation reduces to "no names given", which the
+ruling says means a bare restart. Master is not consistent here either — a bare
+`dva restart --mode` already restarts everything on master — so this makes two
+spellings of the same mistake agree rather than introducing a new rule. The honest
+fix is TASK-211's, not another special case in this RunE.
+
+**Two card defects found by the same reviews and fixed:** TASK-211 claimed `--var`
+shares the missing-value defect. It does not — `--var` is handled in
+`parsePlanFlags` (`plan_lifecycle.go:192`) and already errors `--var requires
+KEY=VAL` on both binaries; `parseDvaFlags` has no `--var` case. Its cited range
+`compose.go:762-780` was also off; the four value-taking cases span `764-783`. And
+TASK-211's frontmatter quoted the very call-site count TASK-208 exists to retire.
 
 ## Technical Notes
 
