@@ -164,16 +164,24 @@ func rejectUnknownEntryNames(path, noun string, names, declared []string) error 
 // similarTo returns the candidates within edit distance 2 of s, matching the threshold
 // resolveProvisionProfile already uses for its "Did you mean?".
 //
-// The distance must also be shorter than s itself, or a short token matches everything: `dva
-// restart -` suggested BOTH s1 and s2, since one character is two edits from any two-character
-// name. Measured against the built binary, not reasoned about. The extra condition is
-// unreachable for the flag caller — its inputs are dash-prefixed and its candidates are two
-// characters at the shortest, so every match there is already distance 1 — and it costs the
-// name caller nothing real: `s3` still suggests s1 and s2 at distance 1.
+// The distance must also be shorter than the shorter of the two names, or a short token
+// matches everything: `dva restart -` suggested BOTH s1 and s2, since one character is two
+// edits from any two-character name. Measured against the built binary, not reasoned about.
+// The extra condition is unreachable for the flag caller — its inputs are dash-prefixed and
+// its candidates are two characters at the shortest, so every match there is already distance
+// 1 — and the ordinary name caller keeps its suggestions: `s3` still offers s1 and s2 at
+// distance 1. It is not free, though; see the note at the comparison.
 func similarTo(s string, candidates []string) []string {
 	var out []string
 	for _, c := range candidates {
-		if d := levenshtein(s, c); d <= 2 && d < len(s) {
+		// The distance must be small relative to BOTH strings, not just the input.
+		// Keying on len(s) alone suppressed "-" matching s1/s2 (d=2, len 1) as intended
+		// but left the mirror open: "wob" suggested the one-character entry "b" (d=2,
+		// len 3), which is the same noise seen from the other end. Neither direction
+		// helps a caller. Note the consequence: with one-character entry names nothing
+		// can satisfy d < 1, so those configs get no suggestions at all — the declared
+		// list is printed above regardless, which is the fallback that matters.
+		if d := levenshtein(s, c); d <= 2 && d < min(len(s), len(c)) {
 			out = append(out, c)
 		}
 	}
