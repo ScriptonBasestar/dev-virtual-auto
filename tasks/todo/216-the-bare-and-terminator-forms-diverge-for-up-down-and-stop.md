@@ -35,7 +35,9 @@ ERROR: unknown flag "--" for "dva down"    rc=1
 ## Measured
 
 Six fixtures × three verbs = 18 pairs, run against the TASK-210 branch with
-`DOCKER_HOST=unix:///nonexistent-dva-review.sock`.
+`DOCKER_HOST=unix:///nonexistent-dva-review.sock`. The fixtures are defined in
+TASK-218's `## Measured`; what matters here is the `shape` column, and A, C and
+F2 are one config each while B, D and E are three variants of the same shape.
 
 | fixture | shape | bare form | `--` form | verdict |
 |---|---|---|---|---|
@@ -52,12 +54,18 @@ bare form — and that one is TASK-217, not this card.
 
 ## The prior ruling
 
-This is not an oversight. `internal/cli/selectors.go:81-91` states it, and the
-ruling is the last paragraph of that comment, 89-91:
+This is not an oversight. `internal/cli/selectors.go:81-91` states it. The
+rationale is at 83-85:
 
 > `parseDvaFlags` deliberately KEEPS the terminator in its output, and that is
 > right for its other callers: `dva up` takes no positional names, so the
 > surviving `--` is what makes `rejectUnknownFlags` refuse a stray one.
+
+and the ruling those three lines support is the comment's last paragraph, 89-91:
+
+> Restart-local on purpose. Dropping it inside `parseDvaFlags` would newly
+> ACCEPT a stray terminator on every other caller, which is the regression
+> `parseDvaFlags`' own closing comment warns about. TASK-207.
 
 The argument is coherent: a separator separates flags from *names*, and a
 command that accepts no names has nothing to separate, so writing one is a

@@ -146,7 +146,7 @@ the thing actually hurting today is the misreading, not the line counts.
 - [ ] The ruling is recorded on this card, with the reason | verify: human
 - [ ] Whatever the ruling, `AGENTS.md` states whether Go file length is gated here and by what | verify: `grep -ci 'file length\|파일 길이\|file size' AGENTS.md` returns ≥ 1 (today: 0 — measured, not assumed)
 - [ ] If the ruling is 1 (declare it here): the limit is in a file this repository tracks, and `make lint` or a new target reports it | verify: `git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml` returns ≥ 1 (today: 0). Skip, marking N/A, under rulings 2 or 3
-- [ ] If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: re-run the census command in ## Technical Notes; the non-test count is below 13 (today: 13). Skip, marking N/A, under rulings 1 or 3
+- [ ] If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: `bash -c 'n=0; for f in $(git ls-files "*.go" | grep -v "_test.go"); do [ "$(wc -l < "$f")" -gt 500 ] && n=$((n+1)); done; test "$n" -lt 13'` exits 0 (today it exits 1, n=13). Not bound on the listing command in ## Technical Notes: that pipeline ends in `sort`, which exits 0 whatever it printed, so it would mark this criterion passed the day the card was filed. Skip, marking N/A, under rulings 1 or 3
 - [ ] No source file is split as a side effect of an unrelated card | verify: human — the point of this card is that the ruling comes first
 
 ## References

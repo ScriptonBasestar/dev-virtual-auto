@@ -6,7 +6,7 @@ priority: P2
 effort: S
 created-at: 2026-08-20T16:56:47+09:00
 source: "found by TASK-210's caller census — the card measured four verbs, the two functions it changed have seven callers, and build was the one whose terminator behaviour was already wrong"
-scope: "internal/cli/compose.go buildCmd RunE, the requirePlanSelection call at :661. The routing helpers are not at fault; build is the one caller that cannot be backstopped by rejectUnknownFlags."
+scope: "internal/cli/compose.go buildCmd RunE, the requirePlanSelection call at :662. The routing helpers are not at fault; build is the one caller that cannot be backstopped by rejectUnknownFlags."
 status: todo
 ---
 
@@ -88,8 +88,12 @@ token docker accepts. Same guard, same line, different downstream luck.
 
 TASK-210's card says it measured four verbs. `build` is a fifth caller of the
 same helpers, and two of that branch's commits each moved a different `build`
-row. Bisected across the four reachable commits, on the shared `207fix`
-fixtures (`DOCKER_HOST` pointed at a dead socket, so rc is the evidence):
+row. Bisected across every state where the answer can differ: `dc762ca`, plus
+the only two commits on this branch that change behaviour. Four of the
+branch's commits touch `.go` files, but `eec5b3f` and `b293242` touch comments
+alone — their diffs are empty once comment lines are excluded — so neither can
+move a row. Fixtures are the ones TASK-218 defines; `DOCKER_HOST` points at a
+dead socket, so rc is the evidence:
 
 | shape | `dc762ca` master | `d51dc98` fix 1 | `51bbf79` fix 2 |
 |---|---|---|---|
@@ -159,8 +163,11 @@ use:
   re-runs `requirePlanSelection` when nothing else is left.
 - `logs`, `status` — cobra consumes the terminator; it never reaches this code.
 - `build` — cannot refuse unknown flags at all. `dva build --no-cache` has to
-  reach docker verbatim (TASK-172), so the guard that backstops up/down/stop is
-  deliberately absent here. That is the whole reason this one survived.
+  reach docker verbatim (TASK-172) *wherever it reaches docker at all*, which
+  measured is fixtures A and B; where a default plan resolves,
+  `rejectSuppressedDefaultPlan` refuses `--no-cache` first. So the guard that
+  backstops up/down/stop is deliberately absent here. That is the whole reason
+  this one survived.
 
 ## What to change
 
@@ -179,7 +186,7 @@ line either way and the difference is which invocations start refusing.
 
 - [ ] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — build the fixture from the three files in ## Measured, run both, and paste rc plus whether any image began building
 - [ ] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE`, which is 3 in this file today (two calls and a comment) and would certify itself
-- [ ] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with one plan
+- [ ] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged wherever they reach it today, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with **no** default plan (fixture A or B). Do not use a one-plan config: the lone plan is promoted to default, and `dva build --no-cache` is refused there today by `rejectSuppressedDefaultPlan` — that refusal is not this card's to remove, and a verifier sent to that shape would read it as a regression
 - [ ] The ruling for `build -- <service>` is recorded on this card, not left implicit | verify: human
 - [ ] `make test` passes | verify: `make test`
 

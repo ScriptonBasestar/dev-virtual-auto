@@ -48,6 +48,23 @@ the guard TASK-087 added excludes them.
 Six fixtures, run with `DOCKER_HOST=unix:///nonexistent-dva-review.sock` so
 docker fails at once and the evidence is what was selected before it failed.
 
+The six fixtures, defined here so the letters are rebuildable rather than a
+path into someone's scratch directory:
+
+| fixture | `stack:` entries | `plans:` | `default_plan:` | also carries |
+|---|---|---|---|---|
+| A | 2 | 2 | absent | — |
+| B | 2 | 0 | n/a — no plans to name | — |
+| C | 2 | 2 | `alpha`, top level | — |
+| D | 2 | 0 | n/a — no plans to name | entry `tags:`, a `modes:` section |
+| E | 3 | 0 | n/a — no plans to name | — |
+| F2 | 2 | 1 | absent — the lone plan is promoted | — |
+
+B, D and E share one shape, "no `plans:` at all", and differ only in fields no
+guard on this path reads. They are kept as three variants precisely to show the
+answer does not depend on those fields; a reader rebuilding only B loses
+nothing but that control.
+
 Two binaries: `dc762ca`, the current tip of `origin/master`, and `b293242`,
 the head of the TASK-210 branch.
 
@@ -55,8 +72,11 @@ The baseline was named wrong twice before it was named as a commit, which is
 the reason it is written this way now. The first pass measured `9bf3ee0` and
 called it "master"; it was an ancestor. The second measured `36adfd4`, which
 was the tip at the time, and `origin/master` then advanced ten commits to
-`dc762ca` — `compose.go` +138 lines, `plan_lifecycle.go` 501 → 508 — while
-this card sat open.
+`dc762ca` — `compose.go` 1042 → 1140 lines, `plan_lifecycle.go` 501 → 508 —
+while this card sat open. Those are net line counts. `git diff --stat` prints
+138 for the same file and it is not the growth: it sums 118 insertions and 20
+deletions, so a file that churns without growing scores high there and a
+shrinking file still scores positive.
 
 Both re-runs reproduced the table. The 24 rows at `dc762ca` are byte-identical
 to the 24 at `36adfd4`, so none of those ten commits touched this behaviour,
@@ -87,8 +107,10 @@ Two readings of the escalation, and they differ:
 (`compose.go:261`) runs its own `strings.HasPrefix(remaining[0], "-")` with no
 length test, so it catches what `rejectUnknownFlags` skips. `restart` is safe
 because `rejectUnknownEntryNames` reports the token as a name. `build` has
-neither and passes `-` to docker, which answers `no such service: -` — the same
-`requirePlanSelection` line TASK-217 owns.
+neither, so where no default plan resolves — A and B — it passes `-` to docker,
+which answers `no such service: -`. Where one does resolve, C and F2,
+`rejectSuppressedDefaultPlan` refuses first and docker is never reached; the
+guard `build` is missing is the same `requirePlanSelection` line TASK-217 owns.
 
 ## Cause
 
