@@ -134,6 +134,14 @@ different case and is not in scope.
 left in the name list.** The pairing matters: it is what dissolves the objection
 the card itself raises against (1).
 
+One precision the Summary table invites a reader to miss, measured rather than
+inferred: `up`/`down`/`stop` do not perform a name check at all. They read a
+positional argument as a **plan** name only, so in a plan-less config `dva up s1`
+is rc=1 even though `s1` IS a declared entry. What restart now shares with them is
+the outcome for an unknown name, not the mechanism — it remains the only lifecycle
+verb taking entry names positionally, which is both why it was the last one exposed
+to this defect and why it is the only one that can tell a declared name from a typo.
+
 Outcome (2), rejecting only when *no* name matched, was rejected on the card's own
 worst row. `restart -- --no-wat s1` matches `s1`, so under (2) it stays rc=0 with
 the typo discarded — the exact "does something while ignoring what you asked for"
