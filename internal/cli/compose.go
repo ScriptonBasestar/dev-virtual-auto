@@ -465,13 +465,23 @@ Stack flags:
 		// (:168) rather than teardownCommon's wholesale refusal (:261). TASK-198.
 		//
 		// The advertised list is stackSelectorFlags alone. --var and --no-wait appear in
-		// this command's help under "Plan usage" and runPlanRestart consumes them there;
-		// reaching this line means the config declares no plans at all, where the stack
-		// path hardcodes Wait: true and has no plan variables to override. Naming them in
+		// this command's help under "Plan usage" and runPlanRestart consumes them there.
+		// Here they are unknown, and the reason is the path rather than the config: this
+		// line is reached whenever no plan was selected, and then Wait is hardcoded true
+		// below and there is no plan whose variables --var could override. Naming them in
 		// "accepted here" would advertise a flag this path then ignores, which is what
 		// rejectUnknownFlags' contract forbids. They are rejected with the rest instead of
 		// silently swallowed; whether they should warn and continue, as `dva up` does for
 		// --var, is a separate ruling this card does not make.
+		//
+		// Do NOT restate that as "the config declares no plans at all" — measured false.
+		// requirePlanSelection returns nil as soon as planRoutingArgs leaves anything
+		// behind, and planRoutingArgs strips only --debug and --json, so a leading FLAG
+		// counts as something left behind. With two plans and no default_plan,
+		// `dva restart --no-wait` and `dva restart s1 --zzznonsense` both land here with
+		// plans configured. The second is the worse half of the defect this guard closes:
+		// before it, that invocation restarted s1 and exited 0 having silently discarded
+		// the argument, rather than merely doing nothing.
 		//
 		// The `--` terminator is exempt, and it is the one place restart must NOT copy up.
 		// parseDvaFlags keeps the terminator deliberately so each caller can rule on it, and

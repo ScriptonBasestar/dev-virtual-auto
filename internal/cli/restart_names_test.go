@@ -251,3 +251,113 @@ func TestRestartTerminatorDoesNotDisarmTheGuard(t *testing.T) {
 		t.Errorf("restart --no-wat -- s1: %v ran; a rejected command must touch nothing", got)
 	}
 }
+
+// writeRestartPlanProbeConfig is writeRestartProbeConfig plus two plans and no
+// default_plan. That combination is the one that disproves the tempting reading
+// of the guard above it: it is NOT true that reaching parseDvaFlags means the
+// config declares no plans. requirePlanSelection returns nil as soon as
+// planRoutingArgs leaves any token behind, and planRoutingArgs strips only
+// --debug and --json, so a flag counts as a token left behind. DefaultPlan() is
+// "" here (two plans, none named default), so rejectSuppressedDefaultPlan
+// returns nil too, and the stack path runs with plans configured.
+func writeRestartPlanProbeConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	body := `version: "0.1.44"
+stack:
+  s1:
+    order: 1
+    script:
+      up: touch s1_up
+      stop: touch s1_stop
+  s2:
+    order: 2
+    script:
+      up: touch s2_up
+      stop: touch s2_stop
+plans:
+  p1:
+    entries:
+      - name: s1
+  p2:
+    entries:
+      - name: s2
+`
+	if err := os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	cfg, env = nil, nil
+	t.Cleanup(func() {
+		os.Chdir(oldWd)
+		cfg, env = nil, nil
+	})
+	return dir
+}
+
+// TestRestartRejectsUnknownFlagBesideANameWithPlansConfigured pins the worse
+// half of TASK-198, which the card did not record and which only appears once
+// a name precedes the typo. `dva restart s1 --zzznonsense` on master exited 0
+// having restarted s1 and silently discarded the argument -- not the "does
+// nothing" the card describes, but "does something while ignoring what you
+// asked for", which no warning reports. The plans-present fixture is deliberate:
+// it is the shape that shows the defect is not confined to plan-less configs.
+func TestRestartRejectsUnknownFlagBesideANameWithPlansConfigured(t *testing.T) {
+	for _, args := range [][]string{
+		{"--zzznonsense"},
+		{"s1", "--zzznonsense"},
+		{"s1", "--no-wait"},
+	} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			dir := writeRestartPlanProbeConfig(t)
+			err := restartCmd.RunE(restartCmd, args)
+			if err == nil {
+				t.Fatalf("restart %v: exited 0; an unrecognised flag must not be read as a service name, plans or no plans", args)
+			}
+			if !strings.Contains(err.Error(), "unknown flag") {
+				t.Fatalf("restart %v: want an unknown-flag error, got %v", args, err)
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Fatalf("restart %v: rejected but still ran %v; the guard must refuse before any entry is touched", args, got)
+			}
+		})
+	}
+}
+
+// TestRestartPlanRoutingSurvivesTheGuard is the over-rejection axis for the
+// plans-present config. The guard sits after detectPlanRoute, so a plan name
+// must still route, and a bare stack name must still restart only that entry.
+func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
+	for _, tc := range []struct {
+		args []string
+		want []string
+	}{
+		{args: []string{"p1"}, want: []string{"s1_stop", "s1_up"}},
+		{args: []string{"s1"}, want: []string{"s1_stop", "s1_up"}},
+	} {
+		t.Run(strings.Join(tc.args, " "), func(t *testing.T) {
+			dir := writeRestartPlanProbeConfig(t)
+			if err := restartCmd.RunE(restartCmd, tc.args); err != nil {
+				t.Fatalf("restart %v: %v", tc.args, err)
+			}
+			got := ranMarkers(t, dir)
+			for _, m := range tc.want {
+				if !got[m] {
+					t.Fatalf("restart %v: %s did not run; got %v", tc.args, m, got)
+				}
+			}
+			for _, m := range []string{"s2_stop", "s2_up"} {
+				if got[m] {
+					t.Fatalf("restart %v: %s ran; the selection must not widen to the whole stack", tc.args, m)
+				}
+			}
+		})
+	}
+}
