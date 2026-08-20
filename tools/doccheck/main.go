@@ -9,9 +9,9 @@
 //     least one test declared in the tree, so a binding cannot name a test that
 //     does not exist and still exit 0 (TASK-136)
 //   - archive frontmatter: every card under tasks/_archive/ carries `id:` or
-//     `type:`, the fields ce's canonical detection accepts. Detection runs before
-//     the archive skip, so a card missing both is audited against a format that
-//     postdates it (TASK-206)
+//     `type:`. ce tests for those two fields before it tests whether the file is
+//     archived, so a card missing both falls through to the legacy validator and
+//     is audited against a card format that postdates it (TASK-206)
 //
 // Exit 1 on vacuous runs (zero candidates, zero links, _test.go files that yield
 // no test names, or archive files that yield no cards), broken links, oversized

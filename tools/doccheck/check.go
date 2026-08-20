@@ -191,11 +191,19 @@ func Check(in CheckInput) Result {
 	// Files under the prefix but none read as cards means the sweep stopped reaching the archive
 	// — a renamed extension, or a prefix that drifted. Without this the guard reports the same
 	// silence for "the archive is clean" and "the archive was never looked at" (TASK-206).
+	//
+	// Gated on ArchiveFilesSeen, unlike "zero links checked" above, because a tree with no
+	// archive is a legitimate state — a fresh checkout of this tool elsewhere — while a tree
+	// with no links is not. That makes the unconditional floor a repo-specific fact, so it lives
+	// in the test that knows how many archived cards this repository has, not here.
 	if res.ArchiveFilesSeen > 0 && res.ArchiveCards == 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("vacuous: %d file(s) under %s, zero read as cards", res.ArchiveFilesSeen, archivePrefix))
 	}
+	// Deliberately not naming the two fields: a flow mapping carries both and is still reported,
+	// because this line-based reader cannot evaluate it. The per-card ARCHIVE lines carry the
+	// actual reason, and a rollup that asserted "neither field" would be false about that one.
 	if res.ArchiveMissing > 0 {
-		res.Errors = append(res.Errors, fmt.Sprintf("%d archived card(s) carrying neither `id:` nor `type:`", res.ArchiveMissing))
+		res.Errors = append(res.Errors, fmt.Sprintf("%d archived card(s) rejected by the archive frontmatter guard", res.ArchiveMissing))
 	}
 
 	res.OK = len(res.Errors) == 0

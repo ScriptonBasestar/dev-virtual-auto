@@ -9,36 +9,101 @@ import (
 )
 
 // archivePrefix is the frozen zone this guard covers. `ce task validate` has a rule that
-// archived documents are history and are not maintained, but it evaluates that rule *after*
-// frontmatter parsing and canonical detection have both succeeded — so a card that fails
-// detection never reaches the skip, and is audited against a card format that postdates it.
-// Nothing in this repository asserted the property the archive silently depends on; this does
-// (TASK-206).
+// archived documents are history and are not maintained, but it evaluates that rule last.
+// Read from ce-agent-kit source at 01e4dc52 (internal/usecase/task/canonical_validator.go,
+// validateCanonicalTask), the order is:
+//
+//  1. parse; "detected" means only that line 1 trimmed is `---`
+//  2. YAML error      -> hard error, returns          <- before the skip
+//  3. no id, no type  -> falls through to the legacy validator
+//  4. canonicalFrozenZone(path) -> "Skipped: archived..."
+//
+// So a card reaching step 3 is judged as unfinished current work, in a directory named
+// `_archive`, against a card format that postdates it. Nothing in this repository asserted
+// the property the archive silently depends on; this does (TASK-206).
+//
+// Three boundaries, each measured, so this guard is not read as more than it is:
+//
+//   - It asserts step 3 only. A card with `id:` and malformed YAML is a step-2 hard error and
+//     passes here — doccheck is stdlib-only and cannot parse YAML to see it.
+//   - Archived *decision* docs (a path component `decision`/`decisions`/`adr`/`adrs`) never
+//     reach the skip at all: validator.go routes them away before any of this, and no
+//     frontmatter rescues them. That is a path rule, not a frontmatter one, so a frontmatter
+//     guard cannot express it — the reason it is absent here, rather than that dva has none.
+//   - `ce task validate --all` excludes the archive during its tree walk, so none of this
+//     fires there — measured, 7 files validated against 200 archived cards on disk. The
+//     defect is reachable only by explicit path, which is how an audit sweep reaches it.
 const archivePrefix = "tasks/_archive/"
 
-// canonicalFields are the frontmatter keys that satisfy ce's canonical detection. Both are
-// listed because detection accepts *either*, measured on one archived card mutated three ways:
-// as committed it skips as history; with the single line `id:` deleted it produces five errors
-// reading as unfinished current work; with `id:` deleted and `type:` added it skips again.
-// Requiring `id:` alone would reject a card that ce classifies correctly — a gate whose verdict
-// disagrees with the tool it exists to protect is the same class of defect as one that cannot
-// fire.
+// canonicalFields are the frontmatter keys that satisfy step 3 above. Both are listed because
+// it accepts *either* — confirmed against source, where the whole test is a presence lookup for
+// "id" then "type" in the parsed frontmatter map, with no third key and no inspection of the
+// value. Requiring `id:` alone would reject a card ce classifies correctly, and a gate whose
+// verdict disagrees with the tool it exists to protect is the same class of defect as one that
+// cannot fire.
 var canonicalFields = []string{"id", "type"}
 
-// splitFrontmatter returns the YAML frontmatter block of a markdown document and whether one was
-// present. The opening fence must be the very first line: a `---` further down is a horizontal
-// rule, and accepting it would let a card pass on a field that appears only in its prose.
-func splitFrontmatter(body string) (string, bool) {
+// frontmatterState distinguishes the two ways a document yields no frontmatter block. The
+// verdict is the same — no card can be read — but the diagnosis is the part someone acts on,
+// and "no frontmatter block" is simply false about a file that opened one and never closed it.
+// ce separates them too: an unopened block falls through to the legacy validator, while an
+// unterminated one is a hard `Invalid YAML frontmatter: unterminated frontmatter`.
+type frontmatterState int
+
+const (
+	frontmatterOK frontmatterState = iota
+	frontmatterAbsent
+	frontmatterUnterminated
+)
+
+// splitFrontmatter returns the YAML frontmatter block of a markdown document.
+//
+// The opening fence must be the very first line: a `---` further down is a horizontal rule,
+// and accepting it would let a card pass on a field that appears only in its prose.
+//
+// Both fences are compared after trimming surrounding whitespace, which matters in both
+// directions and was measured in both. ce detects on `strings.TrimSpace(lines[0]) == "---"`,
+// so an *indented opening fence* is a card it skips as history and this guard used to reject.
+// And a *closing fence with one trailing space* used to go unrecognised, sending this scan on
+// into the body to take the next horizontal rule as the close — after which everything between
+// was walked as frontmatter, and a card carrying neither field passed on an `id:` quoted
+// inside a ```yaml example. That was a silent false pass one byte wide, found in review.
+func splitFrontmatter(body string) (string, frontmatterState) {
 	lines := strings.Split(strings.TrimPrefix(body, "\uFEFF"), "\n")
-	if len(lines) == 0 || strings.TrimRight(lines[0], "\r") != "---" {
-		return "", false
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", frontmatterAbsent
 	}
 	for i := 1; i < len(lines); i++ {
-		if strings.TrimRight(lines[i], "\r") == "---" {
-			return strings.Join(lines[1:i], "\n"), true
+		if strings.TrimSpace(lines[i]) == "---" {
+			return strings.Join(lines[1:i], "\n"), frontmatterOK
 		}
 	}
-	return "", false
+	return "", frontmatterUnterminated
+}
+
+// malformedFrontmatterReason names what went wrong and what ce does about it, for each way a
+// document fails to yield a readable frontmatter block. The two are kept apart because the
+// diagnosis is what someone acts on: an unopened block is a card ce never detects, while an
+// unterminated one never even reaches detection's field test.
+func malformedFrontmatterReason(state frontmatterState) string {
+	if state == frontmatterUnterminated {
+		return "frontmatter opened and never closed — ce fails this earlier still, as `Invalid YAML frontmatter: unterminated frontmatter`"
+	}
+	return "no frontmatter block — ce never detects it as a card and the legacy validator audits it as unfinished current work"
+}
+
+// flowMappingFrontmatter reports frontmatter written as a YAML flow mapping
+// (`{id: TASK-1, title: ...}`). ce parses it and accepts it — measured, rc=0 with the archive
+// skip — and a line-based reader cannot evaluate it. Reporting "carries neither field" about
+// such a card would state something false, so it gets its own message. It still fails the
+// gate: every archived card here is a block mapping, so one that is not is worth a look.
+func flowMappingFrontmatter(frontmatter string) bool {
+	for line := range strings.SplitSeq(frontmatter, "\n") {
+		if t := strings.TrimSpace(line); t != "" {
+			return strings.HasPrefix(t, "{")
+		}
+	}
+	return false
 }
 
 // hasCanonicalField reports whether the frontmatter carries a key detection accepts. Only
@@ -46,7 +111,11 @@ func splitFrontmatter(body string) (string, bool) {
 // one is precisely how a card would stop being detected while still containing the string — so a
 // substring search here would report health for the file it is meant to catch.
 func hasCanonicalField(frontmatter string) bool {
-	for line := range strings.SplitSeq(frontmatter, "\n") {
+	// Blank fenced code blocks first. Well-formed frontmatter has none, so this only matters
+	// once a malformed fence has already carried the scan into the body — it keeps an `id:`
+	// quoted in a ```yaml example from being read as a real key. Belt to the fence fix's
+	// braces, using the helper the link and anchor passes already share.
+	for line := range strings.SplitSeq(stripFencedRegions(frontmatter), "\n") {
 		if line == "" || line[0] == ' ' || line[0] == '\t' || line[0] == '#' || line[0] == '-' {
 			continue
 		}
@@ -54,15 +123,29 @@ func hasCanonicalField(frontmatter string) bool {
 		if !ok {
 			continue
 		}
-		if slices.Contains(canonicalFields, strings.TrimSpace(key)) {
+		if slices.Contains(canonicalFields, unquoteKey(strings.TrimSpace(key))) {
 			return true
 		}
 	}
 	return false
 }
 
-// checkArchiveFrontmatter reports every archived card that carries neither `id:` nor `type:` at
-// the top level of its frontmatter, and would therefore be judged as current work.
+// unquoteKey strips one matching pair of surrounding quotes. YAML allows a quoted key, and ce
+// reads these fields off a real YAML parse, so `"id":` reaches it as the bare key `id` and is
+// accepted — measured. A line-based reader that did not unquote would reject a card ce
+// classifies correctly, which is the failure this guard was written to avoid rather than
+// commit. An import from another tracker, the very case TASK-206 names, is where a quoted key
+// actually arrives.
+func unquoteKey(key string) string {
+	if len(key) >= 2 && (key[0] == '"' || key[0] == '\'') && key[len(key)-1] == key[0] {
+		return key[1 : len(key)-1]
+	}
+	return key
+}
+
+// checkArchiveFrontmatter reports every archived card this guard cannot confirm carries `id:`
+// or `type:` at the top level of its frontmatter, and which ce would therefore judge as current
+// work.
 //
 // filesSeen counts everything under the prefix and checked counts what was read as a card, so
 // the two together can distinguish "the archive is clean" from "the sweep stopped reaching it".
@@ -83,15 +166,19 @@ func checkArchiveFrontmatter(root string, inv []InventoryEntry) (filesSeen, chec
 			continue
 		}
 		checked++
-		frontmatter, ok := splitFrontmatter(string(data))
-		if !ok {
+		frontmatter, state := splitFrontmatter(string(data))
+		if state != frontmatterOK {
+			msgs = append(msgs, fmt.Sprintf("%s: %s", e.Path, malformedFrontmatterReason(state)))
+			continue
+		}
+		if flowMappingFrontmatter(frontmatter) {
 			msgs = append(msgs, fmt.Sprintf(
-				"%s: no frontmatter block — ce fails canonical detection and audits it as unfinished current work", e.Path))
+				"%s: frontmatter is a YAML flow mapping — ce parses it, this guard cannot; rewrite it as a block mapping", e.Path))
 			continue
 		}
 		if !hasCanonicalField(frontmatter) {
 			msgs = append(msgs, fmt.Sprintf(
-				"%s: frontmatter carries neither `id:` nor `type:` — ce fails canonical detection here and never reaches its archive skip", e.Path))
+				"%s: frontmatter carries neither `id:` nor `type:` — ce falls through to the legacy validator here and never reaches its archive skip", e.Path))
 		}
 	}
 	return filesSeen, checked, msgs, errs

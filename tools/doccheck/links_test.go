@@ -313,11 +313,17 @@ func TestLinks_movedTaskLinkAnchorCheckedAgainstResolved(t *testing.T) {
 		t.Fatalf("expected the moved link's anchor to resolve against the moved file; detail=%v", res.BrokenDetail)
 	}
 
-	// Same link, anchor absent from the resolved file → broken.
+	// Same link, anchor absent from the resolved file → broken. Asserted on the anchor named in
+	// the detail, not on !res2.OK: the fixture writes a card under tasks/_archive/, so the
+	// archive frontmatter guard also runs over it, and any failure of that check would satisfy
+	// a bare !OK and let this test pass while the anchor logic it owns was broken.
 	writeFile(t, root, moved, "# 153\n\n## Some Other Heading\n")
 	inv2 := mustInventory(t, root, referrer, moved)
 	res2 := Check(CheckInput{Root: root, Inventory: inv2})
-	if res2.OK {
-		t.Fatal("expected a moved link with an absent anchor to fail")
+	if res2.BrokenLinks != 1 {
+		t.Fatalf("broken_links=%d want 1; detail=%v errors=%v", res2.BrokenLinks, res2.BrokenDetail, res2.Errors)
+	}
+	if !containsAny(res2.BrokenDetail, "#the-heading") {
+		t.Fatalf("expected the broken detail to name the absent anchor; detail=%v", res2.BrokenDetail)
 	}
 }

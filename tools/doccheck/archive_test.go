@@ -59,6 +59,45 @@ func TestArchiveFrontmatter_flagsCardsDetectionWouldReject(t *testing.T) {
 			body: "# Body\n\n---\nid: TASK-001\n---\n",
 			want: "no frontmatter block",
 		},
+		{
+			// The one-byte false pass this guard shipped with, found in review. A single
+			// trailing space on the closing fence made the scan walk past it and take the
+			// next horizontal rule as the close, so the fenced yaml example in the body was
+			// read as frontmatter and this card passed on an `id:` that is documentation.
+			// Its real frontmatter is title+status, and ce rejects it. Trimming both fences
+			// is what closes the hole; this case is what keeps it closed.
+			name: "closing fence with a trailing space does not leak the body",
+			body: "---\ntitle: \"x\"\nstatus: done\n--- \n\n# Body\n\n```yaml\nid: TASK-999\ntype: bug\n```\n\n---\n\nMore body.\n",
+			want: "neither `id:` nor `type:`",
+		},
+		{
+			// The same leak with the bait outside a code fence, which is what makes this case
+			// worth its own line: the one above is caught by stripFencedRegions even with the
+			// fence trim reverted — measured, it stays green on that mutation — so it pins the
+			// two defences only together. Here nothing but trimming the closing fence stands
+			// between the scan and a body line that reads like a key.
+			name: "trailing-space fence does not leak unfenced body prose either",
+			body: "---\ntitle: \"x\"\nstatus: done\n--- \n\n# Body\n\nid: TASK-999 is the field this card is about.\n\n---\n\nMore body.\n",
+			want: "neither `id:` nor `type:`",
+		},
+		{
+			// Distinct from "no frontmatter block", and the distinction is the point: this
+			// card opened one. ce fails it before the field test with exactly the message
+			// quoted in the diagnosis — measured on this shape and on a `...` terminator,
+			// which ce also calls unterminated rather than accepting as YAML would.
+			name: "frontmatter opened and never closed is diagnosed as such",
+			body: "---\nid: TASK-001\ntitle: \"x\"\n\n# Body\n",
+			want: "opened and never closed",
+		},
+		{
+			// ce parses this and accepts it; a line-based reader cannot. The guard is louder
+			// than ce here by choice, but it says the true thing about why — reporting that
+			// this card "carries neither field" would be a false statement about a card that
+			// carries both.
+			name: "flow mapping is reported as unreadable, not as missing fields",
+			body: "---\n{id: TASK-001, title: \"x\"}\n---\n\n# Body\n",
+			want: "flow mapping",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			res := archiveFixture(t, archiveCard{"tasks/_archive/001-x.md", tt.body})
@@ -88,6 +127,17 @@ func TestArchiveFrontmatter_acceptsEitherFieldAlone(t *testing.T) {
 		{"type: alone, which ce also accepts", "---\ntype: bug\ntitle: \"x\"\n---\n\n# Body\n"},
 		{"both", "---\nid: TASK-001\ntype: bug\n---\n\n# Body\n"},
 		{"id: not first in the block", "---\ntitle: \"x\"\nstatus: done\nid: TASK-001\n---\n\n# Body\n"},
+		// ce reads these fields off a real YAML parse, so a quoted key arrives as the bare key
+		// and is accepted — confirmed against ce-agent-kit source at 01e4dc52, where the test is
+		// a map lookup on `fields["id"]`. A line-based reader that did not unquote would be
+		// stricter than the tool it protects, on the imported-card case TASK-206 names.
+		{"double-quoted key", "---\n\"id\": TASK-001\ntitle: \"x\"\n---\n\n# Body\n"},
+		{"single-quoted key", "---\n'type': bug\ntitle: \"x\"\n---\n\n# Body\n"},
+		// ce detects on `strings.TrimSpace(lines[0]) == "---"`, so it reads this card and skips
+		// it as history — measured. A guard requiring the fence at column 0 would fail a card ce
+		// is entirely happy with: the false-alarm direction, noisy rather than dangerous, but it
+		// invites someone to "fix" a card that was never broken.
+		{"indented opening fence, which ce trims too", "  ---\nid: TASK-001\ntitle: \"x\"\n---\n\n# Body\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			res := archiveFixture(t, archiveCard{"tasks/_archive/001-x.md", tt.body})
@@ -133,7 +183,7 @@ func TestArchiveFrontmatter_sweepsTheRealCorpus(t *testing.T) {
 	}
 	res := Check(CheckInput{Root: root, Inventory: inv})
 
-	// 200 archived cards on 2026-08-20, 0 carrying neither field (198 when TASK-206 was written; 8762d15
+	// 201 archived cards on 2026-08-20, 0 carrying neither field (198 when TASK-206 was written; 8762d15
 	// archived two more). The floor is well under that:
 	// this test owns "the sweep still reaches the archive", not "the archive stopped shrinking".
 	if res.ArchiveCards < 150 {
