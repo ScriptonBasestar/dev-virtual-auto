@@ -130,10 +130,21 @@ func TestParseDvaFlagsRejectsAnEmptyValue(t *testing.T) {
 		})
 	}
 
-	// The control, and it is the load-bearing row. Every rejection above is satisfied by a
-	// build that refuses the inline spelling outright — `--env=dev` too — which would be a
-	// far worse regression than the bug being fixed, and invisible to the table. This row
-	// is the only thing standing between the fix and that build.
+	// The control. Every rejection above is satisfied by a build that refuses the inline
+	// spelling outright — `--env=dev` too — which would be a far worse regression than the
+	// bug being fixed and is invisible to the table.
+	//
+	// It is not, however, the only guard, and the first draft of this comment claimed it
+	// was. Sabotaging takeValue to refuse every inline value fails this row plus eight
+	// pre-existing tests that call parseDvaFlags directly — TestParseDvaFlags_EqualsSyntax,
+	// _ShortEqualsSyntax, _TagEqualsFormat, _TagsEqualsFormat, _ExcludeTagEquals,
+	// _ExcludeTagsEquals, _IncludeTagsCommaSeparated and _ExcludeTagsCommaSeparated in
+	// compose_flags_test.go. The claim was written before it was measured and the sabotage
+	// disproved it; a "this is the only test that catches X" comment is exactly what a
+	// later refactor cites when deleting the row. What this row adds over those eight is
+	// the path: they stop at parseDvaFlags, this one goes through restartCmd.RunE and
+	// asserts the stack actually bounced, so it also fails on a build that refuses the
+	// value somewhere further down.
 	//
 	// It is deliberately `--env=dev`, the same flag and value as the missing table's
 	// control one spelling apart, so the only difference between a passing control and a
