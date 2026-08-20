@@ -108,10 +108,10 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 // What that costs today is one word in one message, and the honest version is worth writing
 // down: with dropFlagTerminator, `dva up alpha -- --bogus` is refused as `unsupported plan
 // flag: --bogus`; with this helper it is refused as `unsupported plan flag: --`. Both refuse —
-// measured across up/down/stop/restart, 10 rows, no invocation changed from refused to
-// accepted. The choice is not "refuse vs silently honour"; it is which layer owns a token the
-// user wrote after the plan name. Consuming it here would let the router eat a separator meant
-// for the runner, and that is the part a future passthrough would need. TASK-210.
+// four lifecycle verbs x the three plan-bearing fixtures, 12 rows, every one rc=1 on both, so
+// nothing changed from refused to accepted. The choice is not "refuse vs silently honour"; it
+// is which layer owns a token the user wrote after the plan name. Consuming it here would let
+// the router eat a separator meant for the runner — what a future passthrough needs. TASK-210.
 func dropLeadingTerminator(args []string) []string {
 	if len(args) > 0 && args[0] == "--" {
 		return args[1:]

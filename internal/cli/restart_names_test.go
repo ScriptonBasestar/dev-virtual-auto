@@ -620,8 +620,11 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// for rejectUnknownFlags (len < 2) but not for rejectSuppressedDefaultPlan's dash test,
 	// so where a default plan resolves it is refused as a flag instead of reported as an
 	// unmatchable name. TASK-215 owns it; aligning the two guards here instead would have
-	// re-opened TASK-087's hole, where `dva up -` starts the whole stack and exits 0 — in the
-	// two default-plan fixtures, which are the only ones where that guard fires. The hole is
+	// re-opened TASK-087's hole, where an unrecognised token loses its effect and the command
+	// runs anyway — in the two default-plan fixtures, which are the only ones where that guard
+	// fires. What is measured is the selection: `dva up -` reaches `[lifecycle] <entry>` with
+	// no plan line. The exit code is not, because the fixtures run without a reachable docker
+	// and every row ends rc=1 there; rc=0 is TASK-087's report, not this harness's. The hole is
 	// not merely hypothetical elsewhere: with no default plan to resolve, nothing catches a
 	// lone dash, and `dva up -` already takes the whole-stack path in all four remaining
 	// fixtures — in one of them a bare `dva up` refuses outright. TASK-215 carries the
