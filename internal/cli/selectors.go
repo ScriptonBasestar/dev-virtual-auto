@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -67,6 +68,75 @@ func rejectUnknownFlags(path, noun string, args, known []string) error {
 		msg.WriteString("\n       → accepted here: ")
 		msg.WriteString(strings.Join(known, ", "))
 		if s := similarTo(a, known); len(s) > 0 {
+			msg.WriteString("\n\nDid you mean?")
+			for _, k := range s {
+				fmt.Fprintf(&msg, "\n  dva %s %s", path, k)
+			}
+		}
+		return fmt.Errorf("%s", msg.String())
+	}
+	return nil
+}
+
+// dropFlagTerminator removes the first `--` from a list of positional names.
+//
+// parseDvaFlags deliberately KEEPS the terminator in its output, and that is right for its
+// other callers: `dva up` takes no positional names, so the surviving `--` is what makes
+// rejectUnknownFlags refuse a stray one. A command that does take names has to consume it
+// instead, because there the token is a separator and not an argument. Only the first is
+// dropped — a second `--` is an ordinary word, and `dva restart -- -- s1` should say so.
+//
+// Restart-local on purpose. Dropping it inside parseDvaFlags would newly ACCEPT a stray
+// terminator on every other caller, which is the regression parseDvaFlags' own closing
+// comment warns about. TASK-207.
+func dropFlagTerminator(names []string) []string {
+	i := slices.Index(names, "--")
+	if i < 0 {
+		return names
+	}
+	out := make([]string, 0, len(names)-1)
+	out = append(out, names[:i]...)
+	return append(out, names[i+1:]...)
+}
+
+// rejectUnknownEntryNames fails on a positional argument naming no declared stack entry.
+//
+// The name-shaped twin of rejectUnknownFlags, and needed because that one fires only on a
+// leading dash. filterByNames (internal/lifecycle) keeps the entries whose name was asked for
+// and silently drops the rest, so a typo narrowed the selection to nothing and the empty
+// selection was reported as success — a warning and exit 0. `dva up` rejects an unknown
+// positional outright and down/stop take none at all, which left restart as the only lifecycle
+// verb still exposed to it (TASK-207).
+//
+// declared is every entry the config declares, NOT the post-filter set. A name that exists but
+// is excluded by --tag selects nothing legitimately and stays a warning; only a name that could
+// never match anything is an error here. TASK-198's open question owns the tag arm.
+//
+// A dash-prefixed token can still arrive: rejectUnknownFlags requires len >= 2, so a bare "-"
+// slips it, and after the `--` terminator every token is a name whatever it spells. Both get a
+// line saying so, because "unknown entry" alone reads as a config problem to someone who
+// believed they were typing a flag.
+func rejectUnknownEntryNames(path, noun string, names, declared []string) error {
+	known := make(map[string]struct{}, len(declared))
+	for _, d := range declared {
+		known[d] = struct{}{}
+	}
+	for _, n := range names {
+		if _, ok := known[n]; ok {
+			continue
+		}
+		var msg strings.Builder
+		fmt.Fprintf(&msg, "unknown %s %q for \"dva %s\"", noun, n, path)
+		if strings.HasPrefix(n, "-") {
+			fmt.Fprintf(&msg, "\n       → read as %s, not a flag: after \"--\" every argument is a name, and a bare \"-\" is too short to be a flag", noun)
+		}
+		if len(declared) == 0 {
+			msg.WriteString("\n       → this config declares no stack entries")
+		} else {
+			msg.WriteString("\n       → declared here: ")
+			msg.WriteString(strings.Join(declared, ", "))
+		}
+		if s := similarTo(n, declared); len(s) > 0 {
 			msg.WriteString("\n\nDid you mean?")
 			for _, k := range s {
 				fmt.Fprintf(&msg, "\n  dva %s %s", path, k)

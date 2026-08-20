@@ -106,13 +106,25 @@ func TestRestart_NoArgsRestartsAll(t *testing.T) {
 	}
 }
 
-// TestRestart_UnknownNameTouchesNothing matches the 'dva stack up bogus-name'
-// reference path: warn, change nothing, exit 0.
+// TestRestart_UnknownNameTouchesNothing pins the half of the old behaviour that
+// TASK-207 kept: an unmatchable name still touches nothing. What changed is the
+// exit code, so both halves are asserted here — "nothing ran" alone passed on
+// master too, and by itself cannot tell the new ruling from the old one.
+//
+// This test used to justify itself as matching "the 'dva stack up bogus-name'
+// reference path: warn, change nothing, exit 0". That command was deleted with
+// the applications: section (6710766), and the verb that replaced it rejects the
+// name instead — so the rationale outlived its own premise while the test kept
+// passing. TASK-207 replaces it: restart now agrees with up/down/stop.
 func TestRestart_UnknownNameTouchesNothing(t *testing.T) {
 	dir := writeRestartProbeConfig(t)
 
-	if err := restartCmd.RunE(restartCmd, []string{"definitely-not-an-entry"}); err != nil {
-		t.Fatalf("restart unknown: %v", err)
+	err := restartCmd.RunE(restartCmd, []string{"definitely-not-an-entry"})
+	if err == nil {
+		t.Fatal("restart <unknown>: exited 0; TASK-207 rules an unmatchable name an error")
+	}
+	if !strings.Contains(err.Error(), "definitely-not-an-entry") {
+		t.Errorf("restart <unknown>: message %q does not name the argument", err)
 	}
 
 	if got := ranMarkers(t, dir); len(got) != 0 {
@@ -365,35 +377,113 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 	}
 }
 
-// TestRestartBareTerminatorChangesNothing pins the case that decided how far the
-// terminator exemption should go. A first draft removed `--` from the name list
-// as well as skipping the guard for it. That reads like tidying and is not: an
-// empty Names means "every entry" to lifecycle, so the token's absence is a
-// selection of everything. Measured A/B with this file byte-identical and only
-// compose.go varying:
+// TestRestartBareTerminatorMeansEveryEntry is the `--` row of TASK-207's ruling,
+// and it inverts what this test asserted under TASK-198 — where it was
+// TestRestartBareTerminatorChangesNothing and required rc=0 with nothing run.
+// The inversion is the point of having had the test: the behaviour moved because
+// a card ruled, and the diff says so out loud.
+//
+// Under 198 a first draft removed `--` from the name list, and the escalation was
+// measured, with this file byte-identical and only compose.go varying:
 //
 //	restart --   master:      rc=0, nothing restarted
 //	restart --   that draft:  rc=0, s1 and s2 both stopped and started
-//	restart --   here:        rc=0, nothing restarted
+//	restart --   198 shipped: rc=0, nothing restarted
+//	restart --   207 (here):  rc=0, s1 and s2 both stopped and started
 //
-// `dva restart -- "$@"` with an empty "$@" is the exact idiom `--` exists for,
-// and it went from a no-op to a full stack bounce at exit 0. Silently doing more
-// is the one direction a guard-tightening card must not drift in, so the token
-// stays and `--` remains a name that matches nothing.
+// 207 lands on that draft's behaviour, from the opposite direction. 198's
+// objection was sound on its own terms — an empty Names means "every entry" to
+// lifecycle, and silently doing MORE is the one direction a guard-tightening
+// change must not drift in. What dissolves it is the guard 207 adds beside it:
+// with unmatchable names rejected, leaving the token in no longer means "a no-op",
+// it means `dva restart -- "$@"` with an empty "$@" exits 1. That is not the
+// conservative option, it is a different regression — the idiom `--` exists for,
+// broken. Consuming the terminator makes the empty case mean "no names given",
+// which is what a bare `dva restart` already means, so the two agree.
 //
-// That leaves master's behaviour intact, including its defect: exit 0 with
-// nothing done is TASK-198's own signature. It is not defended here. It is the
-// unmatchable-name ruling, which TASK-207 owns for `--`, a bare `-`, and a
-// typo'd service name together; settling it inside a flag-rejection card would
-// decide three cases by accident. This test exists so that whichever way 207
-// rules, the change is deliberate and visible rather than a side effect of slice
-// arithmetic — which is exactly how it arrived the first time.
-func TestRestartBareTerminatorChangesNothing(t *testing.T) {
+// Asserting the markers rather than the exit code is deliberate and inherited:
+// swallowing `--` as an unmatchable name would also exit 0, having done nothing.
+func TestRestartBareTerminatorMeansEveryEntry(t *testing.T) {
 	dir := writeRestartProbeConfig(t)
 	if err := restartCmd.RunE(restartCmd, []string{"--"}); err != nil {
-		t.Fatalf("restart --: %v", err)
+		t.Fatalf("restart --: %v; a consumed terminator leaves no names, which is a whole-stack restart, not an error", err)
 	}
-	if got := ranMarkers(t, dir); len(got) != 0 {
-		t.Fatalf("restart --: ran %v; a bare terminator must stay an unmatchable name, not become a selection of the whole stack (see TASK-207 for whether it should error instead)", got)
+	got := ranMarkers(t, dir)
+	for _, want := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+		if !got[want] {
+			t.Errorf("restart --: %s did not run; `dva restart --` must mean the same as a bare `dva restart`, ran %v", want, got)
+		}
+	}
+}
+
+// TestRestartUnknownNameRuling is TASK-207's ruling, in one table, for all four
+// tokens the card enumerates. They reach the same rc=0-nothing-done outcome by
+// different routes, so ruling on them separately would have been four chances to
+// answer the same question four ways.
+//
+// Both fixtures are exercised because the stack path is NOT the plan-less path:
+// detectPlanRoute returns ok=false for "no plans" and for "several plans, none
+// selected" alike, and requirePlanSelection lets the second through as soon as
+// planRoutingArgs leaves any token behind. Measuring only the plain fixture would
+// leave the ruling's reach unmeasured on the config shape most users have.
+func TestRestartUnknownNameRuling(t *testing.T) {
+	fixtures := []struct {
+		shape string
+		write func(*testing.T) string
+	}{
+		{"no plans", writeRestartProbeConfig},
+		{"two plans, no default_plan", writeRestartPlanProbeConfig},
+	}
+
+	cases := []struct {
+		what    string
+		args    []string
+		names   string // the token the message must quote; "" when the call succeeds
+		wantRan []string
+	}{
+		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", nil},
+		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", nil},
+		{"a bare dash, too short for the flag guard", []string{"-"}, "-", nil},
+		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", nil},
+		{"the terminator alone", []string{"--"}, "", []string{"s1_stop", "s1_up", "s2_stop", "s2_up"}},
+		{"a real name after the terminator", []string{"--", "s1"}, "", []string{"s1_stop", "s1_up"}},
+	}
+
+	for _, fx := range fixtures {
+		for _, tc := range cases {
+			t.Run(fx.shape+"/"+tc.what, func(t *testing.T) {
+				dir := fx.write(t)
+				err := restartCmd.RunE(restartCmd, tc.args)
+
+				if tc.names != "" {
+					if err == nil {
+						t.Fatalf("restart %v: exited 0; TASK-207 rules an unmatchable name an error", tc.args)
+					}
+					if !strings.Contains(err.Error(), tc.names) {
+						t.Errorf("restart %v: message %q does not quote %q, so it cannot tell the user which argument was wrong", tc.args, err, tc.names)
+					}
+				} else if err != nil {
+					t.Fatalf("restart %v: %v; this selection is legitimate and must survive the guard", tc.args, err)
+				}
+
+				got := ranMarkers(t, dir)
+				want := map[string]bool{}
+				for _, m := range tc.wantRan {
+					want[m] = true
+				}
+				// Asserted as an exact set, not a subset. "s1 ran" is true of the
+				// defect the card calls its worst row (`restart -- --no-wat s1`
+				// restarted s1 and discarded the typo), so a test that only checks
+				// what SHOULD run would pass on the behaviour being fixed.
+				for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+					if want[m] && !got[m] {
+						t.Errorf("restart %v: %s did not run, want it to (ran %v)", tc.args, m, got)
+					}
+					if !want[m] && got[m] {
+						t.Errorf("restart %v: %s ran, want it untouched (ran %v)", tc.args, m, got)
+					}
+				}
+			})
+		}
 	}
 }

@@ -487,31 +487,46 @@ Stack flags:
 		// before it, that invocation restarted s1 and exited 0 having silently discarded
 		// the argument, rather than merely doing nothing.
 		//
-		// The `--` terminator is exempt, and it is the one place restart must NOT copy up.
-		// parseDvaFlags keeps the terminator deliberately so each caller can rule on it, and
-		// up rejects a stray one because it takes no positional names at all. restart does
-		// take them, so `dva restart -- s1` is the ordinary way to say s1 is a name and not
-		// a flag — measured working before this guard and rc=1 "unknown flag \"--\"" with an
-		// unconditional check, which is a regression the card's "no change to which flags
-		// restart accepts" forbids. Only what precedes the terminator is checked.
-		//
-		// The terminator stays IN names on purpose. Removing it looks like tidying and is
-		// not: an empty Names means "every entry" to lifecycle, so dropping the token turns
-		// `dva restart --` from a no-op into a full stop+start of the whole stack, and
-		// `dva restart -- "$@"` with an empty "$@" is the exact idiom `--` exists for. A
-		// first draft of this guard did remove it; the escalation was measured, not read.
-		// Left in, `--` is simply a name that matches nothing, which is what master does.
-		// That is still the card's own exit-0 signature, so it is not defended here — it is
-		// the unmatchable-name ruling, and TASK-207 owns it for `--`, `-`, and any typo'd
-		// service name alike. Deciding it inside a flag-rejection card would settle three
-		// cases by accident. Note this is also why a bad flag AFTER the terminator still
-		// slips (`restart -- --no-wat s1` restarts s1 and discards the typo): after `--`
-		// every token is a name, so it is 207's class rather than this one's.
+		// The `--` terminator is exempt from the FLAG check, and it is the one place restart
+		// must not copy up. parseDvaFlags keeps the terminator deliberately so each caller can
+		// rule on it, and up rejects a stray one because it takes no positional names at all.
+		// restart does take them, so `dva restart -- s1` is the ordinary way to say s1 is a
+		// name and not a flag — measured working before this guard, and rc=1 `unknown flag
+		// "--"` with an unconditional check, which the card's "no change to which flags restart
+		// accepts" forbids. Only what precedes the terminator is flag-checked.
 		guarded := names
 		if i := slices.Index(names, "--"); i >= 0 {
 			guarded = names[:i]
 		}
 		if err := rejectUnknownFlags("restart", "a stack entry name", guarded, stackSelectorFlags); err != nil {
+			return err
+		}
+
+		// TASK-207 — the unmatchable-name ruling TASK-198 deferred to here, for `--`, `-`, a
+		// bad flag after the terminator, and a typo'd entry name alike. 198 left all four
+		// exiting 0 on purpose: deciding them inside a flag-rejection card would have settled
+		// four cases by accident. They are one class, because after `--` every token is a name
+		// whatever it spells, so a single name-shaped check answers all four.
+		//
+		// Consuming the terminator has to come first, and it is what makes rejecting the rest
+		// safe. 198's comment argued the token had to stay in names, reasoning that an empty
+		// Names means "every entry" to lifecycle, so dropping it would escalate `dva restart --`
+		// from a no-op into a stop+start of the whole stack. The premise is right and the
+		// conclusion does not survive the next line: with unknown names rejected, keeping it
+		// makes `dva restart --` exit 1 instead — and `dva restart -- "$@"` with an empty "$@"
+		// is the exact idiom `--` exists for, whose meaning is "no names given", i.e. exactly
+		// what a bare `dva restart` does. Dropping it is what preserves that; the escalation
+		// 198 measured is the correct behaviour once the token means "separator" here.
+		//
+		// Checked against SortedStack, the DECLARED entries, not the post-filter selection —
+		// a name that exists but is excluded by --tag selects nothing legitimately and keeps
+		// its warning. See rejectUnknownEntryNames.
+		names = dropFlagTerminator(names)
+		declared := make([]string, 0, len(c.Stack))
+		for _, entry := range c.SortedStack() {
+			declared = append(declared, entry.Name)
+		}
+		if err := rejectUnknownEntryNames("restart", "a stack entry name", names, declared); err != nil {
 			return err
 		}
 		mode, isDefault := applyDefaultMode(c, mode)
