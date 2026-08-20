@@ -433,6 +433,12 @@ are no plan variables to override.
 
 Stack usage:
   dva restart <service>   Restart only the named entries (works in any config)
+  dva restart -- <name>   Read what follows as names, never as flags
+
+A name matching no declared stack entry is an error, as it is for up, down and
+stop. After -- every argument is a name whatever it spells, so a flag written
+there is reported as an unknown name rather than silently dropped. A bare
+"dva restart --" means "no names given", identical to a bare "dva restart".
 
 Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
