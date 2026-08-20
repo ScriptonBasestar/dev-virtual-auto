@@ -190,8 +190,11 @@ func TestRestartAcceptsKnownFlagsAfterGuard(t *testing.T) {
 		{"s1", "--dry-run"},
 	} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			// parseDvaFlags writes --dry-run into the package global, which outlives the
-			// subtest and would silently turn a later test's restart into a no-op.
+			// --dry-run reaches the package global through wrapWithHooks'
+			// consumeDryRunFlag (root.go), which strips it before RunE's body runs --
+			// not through parseDvaFlags, so those two rows never reach the guard at
+			// all. The save/restore is still required either way: the global outlives
+			// the subtest and would silently turn a later test's restart into a no-op.
 			saved := dryRun
 			t.Cleanup(func() { dryRun = saved })
 
@@ -362,31 +365,35 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 	}
 }
 
-// TestRestartBareTerminatorRestartsEverything pins the one behaviour change the
-// terminator exemption carries beyond `dva restart -- s1`, which f95872b's
-// message did not state. Measured A/B with this file byte-identical and only
+// TestRestartBareTerminatorChangesNothing pins the case that decided how far the
+// terminator exemption should go. A first draft removed `--` from the name list
+// as well as skipping the guard for it. That reads like tidying and is not: an
+// empty Names means "every entry" to lifecycle, so the token's absence is a
+// selection of everything. Measured A/B with this file byte-identical and only
 // compose.go varying:
 //
-//	restart --   master: rc=0, nothing restarted
-//	restart --   here:   rc=0, s1 and s2 both restarted
+//	restart --   master:      rc=0, nothing restarted
+//	restart --   that draft:  rc=0, s1 and s2 both stopped and started
+//	restart --   here:        rc=0, nothing restarted
 //
-// The ruling is that the new behaviour is the correct one and master's was the
-// defect TASK-198 exists to close. `--` means "no options follow"; with nothing
-// after it there are no names, and a restart with no names restarts every
-// declared entry -- exactly what bare `dva restart` does. Master instead read
-// the terminator itself as a service name, matched nothing, and reported the
-// empty selection as success: the card's signature, reached by a different
-// token. Note this widens rather than narrows, so it is pinned rather than left
-// as a side effect of the exemption.
-func TestRestartBareTerminatorRestartsEverything(t *testing.T) {
+// `dva restart -- "$@"` with an empty "$@" is the exact idiom `--` exists for,
+// and it went from a no-op to a full stack bounce at exit 0. Silently doing more
+// is the one direction a guard-tightening card must not drift in, so the token
+// stays and `--` remains a name that matches nothing.
+//
+// That leaves master's behaviour intact, including its defect: exit 0 with
+// nothing done is TASK-198's own signature. It is not defended here. It is the
+// unmatchable-name ruling, which TASK-207 owns for `--`, a bare `-`, and a
+// typo'd service name together; settling it inside a flag-rejection card would
+// decide three cases by accident. This test exists so that whichever way 207
+// rules, the change is deliberate and visible rather than a side effect of slice
+// arithmetic — which is exactly how it arrived the first time.
+func TestRestartBareTerminatorChangesNothing(t *testing.T) {
 	dir := writeRestartProbeConfig(t)
 	if err := restartCmd.RunE(restartCmd, []string{"--"}); err != nil {
 		t.Fatalf("restart --: %v", err)
 	}
-	got := ranMarkers(t, dir)
-	for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
-		if !got[m] {
-			t.Fatalf("restart --: %s did not run; a terminator with no names must restart the whole stack, not be read as a name and match nothing (got %v)", m, got)
-		}
+	if got := ranMarkers(t, dir); len(got) != 0 {
+		t.Fatalf("restart --: ran %v; a bare terminator must stay an unmatchable name, not become a selection of the whole stack (see TASK-207 for whether it should error instead)", got)
 	}
 }
