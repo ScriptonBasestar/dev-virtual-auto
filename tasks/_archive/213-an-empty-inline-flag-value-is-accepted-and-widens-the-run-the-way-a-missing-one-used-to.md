@@ -107,13 +107,33 @@ repeated TASK-211's own near-miss, where `--mode --` had to be taken along with
 ### The `--env=` reading
 
 Settled as **an error**, and the measurement is what settles it rather than
-taste. `applyEnv` (`compose.go:915-917`) opens with `if envName == "" { return
-nil }` — so an empty env is not a spelling of "no environment", it is *identical
-to not passing the flag at all*, which is already spelled by omitting it.
-Rejecting therefore removes no capability. Corpus check, with a positive control
-so the zero is not vacuous: `git grep -n -- '--env='` finds 6 files (the control
-fires), while `git grep -nE -- '--env=($|[[:space:]"\x27])'` returns **0** outside
-the new test. Nothing in the tree spells an empty env.
+taste. `applyEnv` opens with `if envName == "" { return nil }` — at
+`compose.go:915-916` as of `cd93ed7`, and at `886-887` on `origin/master` before
+this change. Both numbers are right for their own tree, which is exactly why the
+commit is named beside them: a bare line number would have gone stale inside this
+card, and TASK-208 exists because five comments did that.
+
+So an empty env is not a spelling of "no environment"; it is *identical to not
+passing the flag at all*, which is already spelled by omitting the flag.
+Rejecting removes no capability.
+
+Corpus check, with a positive control so the zero is not vacuous:
+`git grep -n -- '--env='` finds 6 files (the control fires), while
+`git grep -nE -- '--env=($|[[:space:]"\x27])'` returns **0** outside the new
+test. An independent sweep run in parallel by a second session reached the same
+verdict against a larger denominator — 89 `--env` occurrences repo-wide, 8 hits
+for the empty-inline pattern, every one of them this card, the new test row, or
+a comment quoting *`kubectl run --env=[]`*, which is another tool's help text.
+It also checked the reliance vector I had not thought to check, and it is the one
+that would matter in real use: no script anywhere passes a selector flag a shell
+variable (`--env "$VAR"`), which is how an empty value actually reaches a CLI —
+0 hits.
+
+One detail sharpens the verdict. `--mode=` is not merely *equivalent* to absent:
+`applyDefaultMode` (`compose.go:947-949` at `cd93ed7`) reads `if mode != "" ||
+c.DefaultMode == "" { return mode, false }`, so an empty mode gets `default_mode`
+substituted. A "clear the mode" reading of `--mode=` would produce the opposite
+of clearing.
 
 ### Why `--var` does not follow, and must not
 
@@ -122,8 +142,18 @@ the reason is measured, not argued. Probing `setPlanVar` directly:
 
 | call | result |
 |---|---|
-| `setPlanVar(m, "K=")` | accepted, sets `K` to `""` |
 | `setPlanVar(m, "")` | `invalid --var format "", expected KEY=VAL` |
+| `setPlanVar(m, "x")` | `invalid --var format "x", expected KEY=VAL` |
+| `setPlanVar(m, "=v")` | `invalid --var format "=v", expected KEY=VAL` |
+| `setPlanVar(m, "K=")` | accepted, sets `K` to `""` |
+| `setPlanVar(m, "K=v")` | accepted, sets `K` to `"v"` |
+
+The middle row is the one that decides it, and it is not the row I first
+measured: `"x"` is **non-empty and still rejected, with the same message**. So
+the branch is not testing emptiness at all. My first draft rested on the weaker
+pair (`""` rejected, `"K="` accepted), which is consistent with an empty-value
+policy that simply looks one level deeper; the `"x"` row rules that reading out.
+It came from the parallel session's sweep, not from me.
 
 So `--var=`'s rejection is a **KEY=VAL format check, not an empty-value policy**,
 and `--var` deliberately accepts an empty *value* — setting a variable to the
