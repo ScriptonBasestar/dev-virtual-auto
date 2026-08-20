@@ -68,48 +68,65 @@ fails instantly and the evidence is what was selected before it failed.
 
 | binary | `dva build` | `dva build --` | `dva build -` |
 |---|---|---|---|
-| `36adfd4` (master at measurement) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
-| `5f2fff0` (TASK-210 branch) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
+| `dc762ca` (master) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
+| `b293242` (TASK-210 branch) | rc=1, `multiple plans configured` | rc=1, **`Image p1-web Building`** then docker API failure | rc=1, `no such service: -` |
 
-Re-measured on 2026-08-20 against a fixture rebuilt from the definition above,
-after discovering the original directory had been overwritten. Both binaries,
-all six cells, unchanged from the first run.
-
-An earlier pass labelled the baseline `9bf3ee0` "master". It is an ancestor —
-`git diff --stat 9bf3ee0 36adfd4 -- internal/cli` is four files and 189
-insertions, `compose.go` among them. The table above is the re-run against
-`36adfd4`, and every cell held.
-
-`origin/master` has since advanced again, to `dc762ca`. The baseline is
-written as a commit rather than as `origin/master` for exactly that reason,
-and re-measuring against `dc762ca` is work rather than an assumption.
+Measured three times now, against a fixture rebuilt from the definition above
+each time, and every cell has held. The baseline moved twice while this card
+was open and that is the reason to name commits here rather than a branch:
+the first pass labelled `9bf3ee0` "master" when it was an ancestor, the second
+labelled `36adfd4` "master" and `origin/master` advanced to `dc762ca` before
+the card was integrated. Both re-runs reproduced the table exactly. The
+conclusion never moved; only the provenance line did, and a baseline named
+wrong is a table nobody can reproduce.
 
 The `-` column is here as a control and belongs to TASK-218: it also gets past
 `requirePlanSelection`, but docker rejects it, so `build` escalates only for the
 token docker accepts. Same guard, same line, different downstream luck.
 
-### What TASK-210's follow-up did change for `build`
+### What TASK-210 already changed for `build`, without measuring it
 
-Not this defect, but a neighbouring row, and it is recorded here because
-`build` has no other card. `438eedd` made `rejectSuppressedDefaultPlan` step
-aside whenever a terminator occupied the plan-name slot. In the two fixtures
-where a default plan resolves, that removed a DVA-side refusal from the
-`build -- <token>` shape:
+TASK-210's card says it measured four verbs. `build` is a fifth caller of the
+same helpers, and two of that branch's commits each moved a different `build`
+row. Bisected across the four reachable commits, on the shared `207fix`
+fixtures (`DOCKER_HOST` pointed at a dead socket, so rc is the evidence):
 
-| fixture | `dva build -- --bogus`, `3618257` | same, `5f2fff0` |
-|---|---|---|
-| C (`default_plan: alpha`) | rc=1 `flags suppress the default plan "alpha"` | rc=1 `no such service: --bogus` |
-| F2 (lone plan, promoted) | rc=1 `flags suppress the default plan "p1"` | rc=1 `no such service: --bogus` |
-| A, B, D, E | rc=1 `no such service: --bogus` | unchanged |
+| shape | `dc762ca` master | `d51dc98` fix 1 | `51bbf79` fix 2 |
+|---|---|---|---|
+| A: `build` | rc=1 `multiple plans configured` | = | = |
+| **A: `build --`** | **rc=0, builds** | **=** | **=** |
+| C, F2: `build` | rc=0, builds | = | = |
+| **C, F2: `build --`** | **rc=1 `flags suppress the default plan`** | **rc=0, builds** | = |
+| C, F2: `build -- --bogus` | rc=1 `flags suppress the default plan` | = | rc=1 `no such service: --bogus` |
 
-Both refuse, and the new answer is the ruling applied — after `--` every token
-is a name, and `build` forwards names to docker (TASK-172), so docker answering
-"no such service" is the honest end of that path. But a message DVA owned was
-replaced by one docker owns, and `dva build -- -- s1` moved the same way. That
-is a real loss of a specific diagnostic, in exchange for consistency across the
-six fixtures. Whoever rules on the `build -- <service>` question below should
-rule on this row too: if `build` should refuse a `--`-prefixed *name*, that is a
-new check, not a restored one.
+Two separate movements, and they are not the same kind of change.
+
+**Fix 1 turned a refusal into a build.** In the two fixtures where a default
+plan resolves, `dva build --` was refused on master and now runs. That is the
+ruling applied — a bare `dva build` is rc=0 there, so the terminator form now
+matches the bare form, which is the identity TASK-207 and TASK-210 exist to
+establish. It is still a refuse-to-accept transition that TASK-210 made without
+measuring `build`, and it is written down here because nothing else records it.
+
+**Fix 2 changed who answers.** `build -- --bogus` refuses on both sides; the
+DVA-owned "flags suppress the default plan" became docker's "no such service".
+After `--` every token is a name and `build` forwards names to docker
+(TASK-172), so docker answering is the honest end of that path — but a specific
+diagnostic was lost, and `dva build -- -- s1` moved the same way. Whoever rules
+on the `build -- <service>` question below should rule on this row too: if
+`build` should refuse a `--`-prefixed *name*, that is a new check, not a
+restored one.
+
+**Neither touched the row this card is about.** Fixture A — two plans, no
+default — reads `build` rc=1, `build --` rc=0 at every one of the four commits.
+That is this defect in the shared harness, invisible in the output only because
+A's compose file uses `image:` and so has nothing to build; the card's own
+fixture supplies a build context to make it visible. The reason the same change
+fixed C and F2 but not A is the whole fix: in C and F2 the guard that fired was
+`rejectSuppressedDefaultPlan`, which TASK-210 taught to step aside for a leading
+terminator; in A it is `requirePlanSelection`, which still counts `--` as a
+selection. The sibling guard has already been given the treatment this card
+asks for.
 
 This is pre-existing and not a TASK-210 regression. TASK-210 is
 where it became visible: its census found seven callers of the routing helpers,

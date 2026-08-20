@@ -125,18 +125,20 @@ Any fix that adds a third private classifier makes the next table worse, not
 better.
 
 One more measurement, recorded here because it widened this card's subject
-after the card was written. TASK-210's follow-up commit (`438eedd`) made
+after the card was written. TASK-210's second fix commit made
 `rejectSuppressedDefaultPlan` step aside whenever a terminator occupied the
 plan-name slot, and that moved the `-- <token>` shape onto the
-`rejectUnknownFlags` path in the two default-plan fixtures as well:
+`rejectUnknownFlags` path in the two default-plan fixtures as well. Bisected
+across the branch, so the attribution is measured rather than inferred:
 
-| fixture | `dva up -- --bogus`, `3618257` | same, `5f2fff0` |
-|---|---|---|
-| C, F2 | `flags suppress the default plan "<plan>"` | `unknown flag "--" for "dva up"` |
-| A, B, D, E | `unknown flag "--" for "dva up"` | unchanged |
+| fixture | `dva up -- --bogus` at `dc762ca` | at `d51dc98` fix 1 | at `51bbf79` fix 2 |
+|---|---|---|---|
+| C, F2 | `flags suppress the default plan "<plan>"` | = | `unknown flag "--" for "dva up"` |
+| A, B, D, E | `unknown flag "--" for "dva up"` | = | = |
 
-`down -- --bogus` moves the same way; both are rc=1 before and after, so no
-invocation changed from refused to accepted. The consequence for this card is
+Fix 1 moved nothing here; the whole change is fix 2's. `down -- --bogus` moves
+the same way, and all rows are rc=1 at all three commits, so no invocation
+changed from refused to accepted. The consequence for this card is
 that `unknown flag "--"` is now the answer in **all six** fixtures rather than
 four, so whichever way the ruling goes it applies uniformly — there is no
 longer a config shape where a different message would have to be preserved.

@@ -48,18 +48,21 @@ the guard TASK-087 added excludes them.
 Six fixtures, run with `DOCKER_HOST=unix:///nonexistent-dva-review.sock` so
 docker fails at once and the evidence is what was selected before it failed.
 
-Two binaries: `36adfd4` and `5f2fff0`, the head of the TASK-210 branch.
-`36adfd4` was the tip of `origin/master` when this table was taken. An earlier
-pass had measured `9bf3ee0` and labelled *that* "master"; it is an ancestor,
-and `git diff --stat 9bf3ee0 36adfd4 -- internal/cli` is four files and 189
-insertions. The table below was re-measured against `36adfd4` and every row
-held, so the conclusion never moved — but the provenance line did, and a
-baseline named wrong is a table nobody can reproduce.
+Two binaries: `dc762ca`, the current tip of `origin/master`, and `b293242`,
+the head of the TASK-210 branch.
 
-`origin/master` has since advanced to `dc762ca`: ten commits, `compose.go`
-+138 lines, `plan_lifecycle.go` 501 → 508. Naming a branch where a commit
-belongs is what made the first error possible, so this baseline stays written
-as `36adfd4`, and the re-measure against `dc762ca` is work, not an assumption.
+The baseline was named wrong twice before it was named as a commit, which is
+the reason it is written this way now. The first pass measured `9bf3ee0` and
+called it "master"; it was an ancestor. The second measured `36adfd4`, which
+was the tip at the time, and `origin/master` then advanced ten commits to
+`dc762ca` — `compose.go` +138 lines, `plan_lifecycle.go` 501 → 508 — while
+this card sat open.
+
+Both re-runs reproduced the table. The 24 rows at `dc762ca` are byte-identical
+to the 24 at `36adfd4`, so none of those ten commits touched this behaviour,
+and the table below is reproducible at either. The conclusion never moved;
+only the provenance line did, and a baseline named wrong is a table nobody can
+reproduce.
 
 | fixture | shape | `dva up -` | `dva down -` / `stop -` | `dva restart -` |
 |---|---|---|---|---|
@@ -68,8 +71,10 @@ as `36adfd4`, and the re-measure against `dc762ca` is work, not an assumption.
 | C, F2 | a default plan resolves | `flags suppress the default plan` | same | same |
 
 **All 24 rows are byte-identical between the two binaries** (`diff` of the two
-sweeps: no output), so none of this is
-a TASK-210 regression; TASK-210 is only where it became visible.
+sweeps: no output), so none of this is a TASK-210 regression; TASK-210 is only
+where it became visible. Stated with its denominator because an empty sweep
+would also diff clean: 24 rows each side, 6 fixtures x 4 verbs, every row
+carrying an rc and a first line.
 
 Two readings of the escalation, and they differ:
 
@@ -87,7 +92,9 @@ neither and passes `-` to docker, which answers `no such service: -` — the sam
 
 ## Cause
 
-Four classifiers see the same token and answer differently:
+Four classifiers see the same token and answer differently. The line cited
+beside each guard is where it *tests*, not where it is declared, so the
+citation and the `test` column name the same line:
 
 | # | guard | call site | test | verdict on `-` |
 |---|---|---|---|---|
