@@ -40,6 +40,31 @@ outlier in TASK-198.
 The guard TASK-198 added sits one line above the code that discards the
 unmatched name.
 
+## The four tokens this covers
+
+An adversarial review of TASK-198 found three more ways into the same rc=0,
+nothing-done outcome. They are not separate defects — they are the same
+unmatchable-name path reached by different tokens, which is why they belong in
+one ruling instead of three:
+
+```
+restart zzznosuchservice       rc=0   nothing ran      an ordinary typo
+restart --                     rc=0   nothing ran      terminator, no names follow
+restart -                      rc=0   nothing ran      too short for the dash guard (len < 2)
+restart -- --no-wat s1         rc=0   s1 ran           after `--` a flag IS a name; typo discarded
+```
+
+The last row is the worst of the four and matches what TASK-198 calls the worse
+half of its own defect: something *does* happen, and the argument the user typed
+is silently dropped. The bare `-` case is shared with `up` and `down` and is
+pre-existing in all three.
+
+TASK-198 deliberately declined to settle any of these. Its guard leaves `--` in
+the name list rather than removing it, precisely so that this card decides what
+an unmatchable name means instead of inheriting an answer from slice arithmetic
+— an earlier draft removed the token and turned `dva restart --` into a full
+stack bounce, which is recorded in `TestRestartBareTerminatorChangesNothing`.
+
 ## Why this is a decision and not just a fix
 
 The behaviour is **already pinned by a passing test**, whose stated
@@ -67,7 +92,8 @@ Three defensible outcomes, in the order I would argue them:
 1. **Reject, matching `up`.** An unknown name is a typo far more often than an
    intentional no-op, and `restart` is the last verb that disagrees with its
    siblings. Cost: `dva restart $SERVICE` in a script now fails where it used to
-   warn.
+   warn — and note `dva restart -- "$@"` with an empty `"$@"` becomes an error
+   under this reading, which is the idiom `--` exists for.
 2. **Reject only when *no* name matched**, keeping a partial match (`restart s1
    zzztypo`) as a warn. Narrower, and it preserves batch invocations.
 3. **Keep exit 0 deliberately**, and rewrite the test comment to say so on its
@@ -87,6 +113,8 @@ different case and is not in scope.
 - [ ] `TestRestart_UnknownNameTouchesNothing` no longer justifies itself by `dva stack up` | verify: `grep -c 'dva stack up' internal/cli/restart_names_test.go` returns 0 (today: 1)
 - [ ] The ruling is pinned by a test named for it, so the behaviour stops being inherited from the flag guard | verify: `grep -c 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go` returns 1 (today: 0)
 - [ ] That test exercises a plans-present config too, since the stack path is reachable with plans configured | verify: `grep -A30 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go | grep -c 'writeRestartPlanProbeConfig'` returns ≥ 1 (today: 0, the function does not exist)
+- [ ] All four tokens from "The four tokens this covers" are ruled on together, not just the typo | verify: human — the disposition states the outcome for `zzznosuchservice`, `--`, `-`, and a flag after `--`; a ruling that leaves any of the four unnamed is incomplete
+- [ ] `TestRestartBareTerminatorChangesNothing` is updated rather than left asserting a behaviour this card overturned | verify: human — read the test and confirm it asserts the chosen ruling for `--`; a presence grep would pass unchanged and prove nothing
 - [ ] The whole cli package passes | verify: `go test ./internal/cli/ -count=1`
 - [ ] Confirmed against the built binary | verify: human — rebuild and re-run the 4-verb `zzznosuchservice` table from Summary; state which rows changed
 - [ ] `make test` passes | verify: `make test`
@@ -98,6 +126,7 @@ different case and is not in scope.
 - `internal/cli/restart_names_test.go` — `TestRestart_UnknownNameTouchesNothing`, the test with the stale rationale
 - `tasks/todo/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the flag half, and its Open Question on the empty selection
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the name-fallthrough class, filed against the removed `stack` family
+- `internal/cli/restart_names_test.go` — `TestRestartBareTerminatorChangesNothing`, which pins the `--` row of the table above so this card's ruling has to be explicit about it
 
 ## Technical Notes
 
