@@ -82,14 +82,16 @@ TASK-211 argued the reporting belongs. Same argument applies here — put it in
 ## Completion Criteria
 
 - [x] `--mode=`, `-M=`, `--env=`, `--tag=` and `--exclude-tag=` each produce a non-zero exit and a message naming the flag as the user spelled it | verify: `grep -c '"--mode="' internal/cli/flagvalue_missing_test.go` returns ≥ 1 — **today 0**. Bound on the `=`-spelled table row, not on `wantFlag`, which already returns 4 and so could not fail; the first draft of this criterion made that mistake — **returns 1 at `138f030`**
-- [x] A test asserts nothing ran for the empty-value spelling, not only that rc≠0 | verify: the new rows go through `restartCmd.RunE` and assert `ranMarkers` is empty, the same shape as `TestParseDvaFlagsRejectsAMissingValue` — **`grep -c 'nothing should have run' internal/cli/flagvalue_missing_test.go` returns 2, one per table**
+- [x] A test asserts nothing ran for the empty-value spelling, not only that rc≠0 | verify: the new rows go through `restartCmd.RunE` and assert `ranMarkers` is empty, the same shape as `TestParseDvaFlagsRejectsAMissingValue` — **`grep -c 'nothing should have run' internal/cli/flagvalue_missing_test.go` ≥ 2, one per table — 3 at `f38ad5c`.** Written as "returns 2" until the review round added a third table, which is the same trap criterion 4 fell into two lines below; an exact count in a criterion is a claim about a file's future
 - [x] The `--env=` reading is settled explicitly, not by default | verify: human — record in this card whether `--env=` means "no environment" or is an error, and why — **settled as an error; see "The `--env=` reading" below, with the measurement**
-- [x] `--var`'s answer and these four agree, or the disagreement is documented at both sites | verify: `grep -c 'TASK-213' internal/cli/plan_lifecycle.go internal/cli/compose.go` — both non-zero, or a recorded decision here that they should differ — **both return 1; the answer is a documented disagreement, and it is documented because agreement was measured to be wrong**
-- [x] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK — **`make test` 9 packages ok, `internal/cli` 74.8%; `make lint` 289 files checked, 0 unformatted, 0 issues; `make doc-check` broken_links 0, oversized_docs 0, test_funcs 1128 from 172 files, run_patterns 128, unmatched_run 0, archive_cards 204, archive_missing 0, plus cilabels 5/5 and flowcheck 10 flows / 103 shell fields**
+- [x] `--var`'s answer and these four agree, or the disagreement is documented at both sites | verify: `grep -c 'TASK-213' internal/cli/plan_lifecycle.go internal/cli/compose.go` — both non-zero, or a recorded decision here that they should differ — **both non-zero; the answer is a documented disagreement, and it is documented because agreement was measured to be wrong.** The first version of this line said "both return 1" and was already false when written down: `02ce928` had made `plan_lifecycle.go` return 2 on the same branch. Counts here are ≥-bindings for that reason — today 3 and 2 at `f38ad5c`
+- [x] A value that is empty *after* the split is refused too, not only one that is empty as typed | verify: `grep -c 'requires non-empty tags' internal/cli/compose.go` ≥ 1 — **1 at `f38ad5c`, 0 at `1e7d476`, measured on both**. Bound on the message rather than on `takeList`'s name, so renaming the helper cannot satisfy it
+- [x] Every spelling `parseDvaFlags` recognises has a rejection row, not a representative sample | verify: `for f in --mode -M --env -E --tag --tags -T --exclude-tag --exclude-tags; do grep -q "\"$f=\"" internal/cli/flagvalue_missing_test.go || echo MISSING $f; done` prints nothing — **prints nothing at `f38ad5c`; at `1e7d476` it printed `-E`, `--tags`, `-T`, `--exclude-tags`**
+- [x] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK — **re-run after the review round, at `f38ad5c`: `make test` 9 packages ok, `internal/cli` 75.0% (was 74.8%); `make lint` 289 files checked, 0 unformatted, 0 issues; `make doc-check` broken_links 0, oversized_docs 0, test_funcs 1130 from 172 files, run_patterns 128, unmatched_run 0, archive_cards 205, archive_missing 0, plus cilabels 5/5 and flowcheck 10 flows / 103 shell fields**
 
 ## Outcome
 
-Fixed in `ec64bf9`, comments corrected in `138f030`.
+Fixed in `ec64bf9`, comments corrected in `138f030`. **Reopened by an adversarial review and finished in `a25b38c` and `f38ad5c`** — the first fix closed part of the class it claimed to close. See "What the review found" below; the short version is that `dva restart --exclude-tag=,` still bounced the entire stack at rc=0, one character past the spelling `ec64bf9` refuses.
 
 The refusal went into `takeValue` (`compose.go`), the single funnel all four
 value-taking flags already pass through — so it is one check, not four, and
@@ -117,17 +119,28 @@ So an empty env is not a spelling of "no environment"; it is *identical to not
 passing the flag at all*, which is already spelled by omitting the flag.
 Rejecting removes no capability.
 
-Corpus check, with a positive control so the zero is not vacuous:
-`git grep -n -- '--env='` finds 6 files (the control fires), while
-`git grep -nE -- '--env=($|[[:space:]"\x27])'` returns **0** outside the new
-test. An independent sweep run in parallel by a second session reached the same
-verdict against a larger denominator — 89 `--env` occurrences repo-wide, 8 hits
-for the empty-inline pattern, every one of them this card, the new test row, or
-a comment quoting *`kubectl run --env=[]`*, which is another tool's help text.
-It also checked the reliance vector I had not thought to check, and it is the one
-that would matter in real use: no script anywhere passes a selector flag a shell
-variable (`--env "$VAR"`), which is how an empty value actually reaches a CLI —
-0 hits.
+Corpus check, with a positive control so the zero is not vacuous. Every number
+below is stated with the command that produces it, because the first version of
+this paragraph quoted a parallel session's denominators — "89 `--env` occurrences
+repo-wide, 8 hits" — which no command in the paragraph reproduces, and a review
+that tried got different figures again. A number no one can re-derive is not
+evidence, however green the verdict it sits beside.
+
+| measurement | command | at `f38ad5c` |
+|---|---|---|
+| files containing `--env=` (the positive control — it must fire) | `git grep -l -- '--env=' \| wc -l` | 6 |
+| lines containing `--env`, repo-wide | `git grep -c -- '--env' \| awk -F: '{s+=$NF} END{print s}'` | 99 |
+| occurrences of `--env`, repo-wide | `git grep -o -- '--env' \| wc -l` | 110 |
+| the empty-inline spelling | `git grep -nE -- '--env=($\|[[:space:]"\x27])'` | 3, all of them this card or its new test rows |
+| a selector flag fed a shell variable | `git grep -nE -- '--(env\|mode\|tag\|exclude-tag)[= ]"?\$'` | 1, and it is this card's own sentence saying there are none — 0 outside `tasks/` |
+
+The last row is the reliance vector that would matter in real use, since `--env
+"$VAR"` with an unset `VAR` is how an empty value actually reaches a CLI; a
+parallel session checked it and I had not thought to. Note what it also
+demonstrates: a corpus sweep whose pattern matches the prose describing the
+sweep. The 6-file control was previously written up as "`git grep -n -- '--env='`
+finds 6 files", which is the `-l` count attributed to a `-n` command that prints
+20 lines.
 
 One detail sharpens the verdict. `--mode=` is not merely *equivalent* to absent:
 `applyDefaultMode` (`compose.go:947-949` at `cd93ed7`) reads `if mode != "" ||
@@ -187,6 +200,26 @@ Five sabotages, each aimed at a different mechanism:
 | S4 | check only when `hasValue` | 2 | exactly the two `--mode ""` / `--tag ""` rows |
 | S5 | refuse every inline value | 1 + 8 pre-existing | the control, plus `compose_flags_test.go` |
 
+Five more after the review, against the second fix:
+
+| # | sabotage | rows failed | signature |
+|---|---|---|---|
+| S6 | the review's own: `&& name != "--tags" && name != "--exclude-tags" && name != "-E" && name != "-T"` | 4 | exactly the four alias rows, which did not exist before this round |
+| S7 | delete `takeList`'s element rule | 8 | every `,` and hole row, `--exclude-tag` ones also reporting `ran [s1_stop s1_up s2_stop s2_up]` |
+| S8 | element rule on `p == ""` instead of `TrimSpace(p) == ""` | 1 | only `a blank element` (`--tag=a, ,b`) |
+| S9 | delete the blank-value rule | 5 | the four blank rows plus the blank next token |
+| S10 | hardcode the flag name in both new messages | 8 | `does not name` — and the survivors are exactly the rows whose flag *is* the hardcoded name |
+
+S10 is the S2 of this round and the reason it is worth repeating: the rows that
+survive a hardcoded identity are the ones that agree with it by luck, so the
+count is not the finding — *which* rows lived is.
+
+The degenerate rows also use `Errorf` rather than `Fatalf` on the missing-error
+branch, deliberately. With `Fatalf` the subtest returns before `ranMarkers`, so
+S7 would report `want an error, got nil` for every flag alike; with the check
+reached, the log separates `--exclude-tag=,` (ran everything) from `--tag=,`
+(ran nothing), which is precisely the distinction the deleted section got wrong.
+
 S1 and S3 fail the same count, so the count alone does not separate them; the
 *reason* does (`flagvalue_missing_test.go:115` vs `:122`), which is why the table
 records signatures and not just numbers. S4 is the one that pays for the widened
@@ -205,32 +238,107 @@ was replaced in `138f030` with what the row actually adds — those eight stop a
 bounced — because a "this is the only test that catches X" comment is precisely
 what a later refactor cites when deleting the row.
 
-## An adjacent axis, measured and closed here
+## What the review found
 
-`--tag=a,,b` yields `includeTags = ["a","","b"]`, which *looks* like the same
-family and is not a defect: `filterByTags` (`lifecycle/orchestrator.go`) builds a
-set and matches with `hasAnyTag`, so the empty element can only match an entry
-that declares an empty tag. It behaves as `--tag=a,b`. No follow-up card — this
-paragraph exists so the next reader does not re-open it.
+The section that stood here was wrong, and wrong in the most expensive way a
+section can be: it examined one member of a family, generalised the verdict to
+the family, and told the next reader not to re-open it. It read —
+
+> `--tag=a,,b` yields `includeTags = ["a","","b"]`, which *looks* like the same
+> family and is not a defect […] No follow-up card — this paragraph exists so the
+> next reader does not re-open it.
+
+Every clause about `--tag` is true. `filterByTags` does build a set, the empty
+element does match nothing, and for the *include* side matching nothing means
+running nothing. What was never measured is the complement. For `--exclude-tag`,
+matching nothing means **excluding** nothing:
+
+| spelling | error | what ran |
+|---|---|---|
+| `--exclude-tag=,` | none, rc=0 | `s1_up s1_stop s2_up s2_stop` — the whole stack |
+| `--exclude-tags=,` | none, rc=0 | the whole stack |
+| `--exclude-tag=a,,b` | none, rc=0 | the whole stack |
+| `--exclude-tag=" "` | none, rc=0 | the whole stack |
+| `--tag=,` | none, rc=0 | nothing |
+| `--tag=" "` | none, rc=0 | nothing |
+
+The first four rows are verbatim the harm named in this card's own title,
+reachable one character past the spelling `ec64bf9` refuses, under a heading
+saying the axis was closed. The last two are the quieter half — a narrowing flag
+that silently runs nothing and reports success is the same defect as TASK-211,
+pointed the other way.
+
+The cause is a guard on the wrong side of a transform. `if v == ""` ran before
+`strings.Split(v, ",")`, so it validated the string the user typed rather than
+the values the program uses; `,` is non-empty as a string and empty as a list.
+`takeList` (`compose.go`) now applies the rule after the split, and `takeValue`
+also refuses a blank value, which is what closes the `" "` rows.
+
+**Three further findings from the same review, all acted on:**
+
+- The "What this card does not close" section measured whitespace on `--mode`
+  alone and asserted the conclusion for four flags. Per flag it was: `--mode` and
+  `--env` loud, `--tag` silent-and-empty, `--exclude-tag` silent-and-everything.
+  Rewritten below, and the behaviour it described is now fixed rather than
+  documented.
+- The rejection table listed `--mode, -M, --env, --tag, --exclude-tag` and had no
+  row for `-E`, `-T`, `--tags` or `--exclude-tags`. Guarding `takeValue` with
+  `&& name != "--tags" && name != "--exclude-tags" && name != "-E" && name != "-T"`
+  left the package fully green while `dva restart -E=` ran the whole stack. Four
+  rows added; that sabotage is S6 below.
+- `parseDvaFlags(["--mode","","s1"])` returned `filtered = ["","s1"]` — a rejected
+  flag's value reaching what passthrough callers hand to docker. `a25b38c`'s
+  comment called it unreachable, which is a property of the six callers rather
+  than of this function. Fixed in `f38ad5c` by advancing `i` whether or not the
+  value was accepted, and pinned by
+  `TestParseDvaFlags_RejectedValueIsStillConsumed`.
 
 ## What this card does not close
 
-`takeValue` refuses an empty value; it does not refuse a *whitespace-only* one.
-That was left open on purpose, and the reason is measured rather than assumed —
-probed on the same fixture, `restart --mode=" "` returns `mode ' ' not found. No
-modes defined in dva.yml under 'modes:'` and ran nothing. So it is already a
-loud failure of a different kind (an unknown value, not an absent one), not the
-silent widening this card is about, and trimming in `takeValue` would move the
-report away from the code that owns mode names. Not carded; recorded here so
-the omission is deliberate rather than overlooked.
+Whitespace-only values *are* closed now, and the way that changed is worth
+recording. The section that stood here left them open on a measurement of
+`--mode=" "` — which returns `mode ' ' not found` and runs nothing, a loud
+failure of a different kind — and then stated the conclusion for all four flags.
+Probed per flag afterwards:
+
+| spelling | before | |
+|---|---|---|
+| `--mode=" "` | `mode ' ' not found`, ran nothing | loud |
+| `--env=" "` | `env ' ' not found. Available: dev`, ran nothing | loud |
+| `--tag=" "` | no error, rc=0, ran nothing | silent |
+| `--exclude-tag=" "` | no error, rc=0, **ran the whole stack** | silent widening |
+
+Two of four, not four of four. The generalisation is the defect; the single
+measurement was correct. All four are refused in `takeValue` now, with a message
+distinct from the empty one (`requires a non-blank value, got " "`) so a fix for
+either cannot satisfy the other's rows.
+
+What remains open, and deliberately: **nothing is trimmed off values that
+survive.** `--tag=" a"` is still passed through as the tag `" a"`, which will not
+match an entry declaring `a`, and the run is empty at rc=0. That is an
+unknown-tag complaint rather than an empty-value one — the same shape as
+`--mode=xyz`, which already fails loudly because something owns mode names and
+checks them. Nothing owns tag names: `filterByTags` treats an unknown tag as a
+tag that matches nothing. Rewriting the user's input in `takeValue` would hide
+that rather than fix it. **This is a real gap and it is carded, not waved off**
+— see TASK-214.
 
 ## References
 
-- `internal/cli/flagtoken.go:121-129` — `flagValue`; the `hasValue` branch is the one this card is about
-- `internal/cli/compose.go:782-810` — `takeValue` and TASK-211's argument for reporting there
-- `internal/cli/plan_lifecycle.go:231-233` — `--var`'s empty-value rejection, the model TASK-211 nominated
-- `internal/cli/flagtoken_test.go:22` — pins `--mode=` at the `splitFlagToken` grammar level only, which says nothing about whether an empty value is acceptable; do not mistake it for coverage
-- `tasks/todo/211-a-stack-flag-missing-its-value-is-dropped-and-the-command-runs-as-if-unwritten.md` — the card whose review measured this
+References name symbols rather than line numbers. Every line number this card
+carried moved at least once while the card was open — `applyEnv`'s guard was
+cited as 915-917, then 915-916, and is at 953-955 after `f38ad5c` — and a review
+spent time establishing that two sessions reporting different numbers were both
+right about different trees. TASK-208 is five comments that lost this argument.
+
+- `internal/cli/flagtoken.go` — `flagValue`; its `hasValue` branch is the one this card is about, and its `consumed=0` on the nothing-to-take branch is what makes advancing unconditionally safe
+- `internal/cli/compose.go` — `takeValue` (the funnel, and TASK-211's argument for reporting there) and `takeList` (the same rule on the far side of `strings.Split`)
+- `internal/cli/compose.go` — `applyEnv`'s opening `if envName == "" { return nil }`, and `applyDefaultMode`'s `if mode != "" || c.DefaultMode == ""`, the two guards that make an empty value identical to an absent one
+- `internal/cli/plan_lifecycle.go` — `setPlanVar`'s rejection, the model TASK-211 nominated and this card measured to be a different rule
+- `internal/lifecycle/orchestrator.go` — `filterByTags` / `hasAnyTag`; why "matches nothing" is safe for `--tag` and is the whole defect for `--exclude-tag`
+- `internal/cli/flagtoken_test.go` — `TestSplitFlagToken`; pins `--mode=` at the grammar level only, which says nothing about whether an empty value is acceptable. Do not mistake it for coverage
+- `tasks/_archive/211-a-stack-flag-missing-its-value-is-dropped-and-the-command-runs-as-if-unwritten.md` — the card whose review measured this. Cited as `tasks/todo/…` until `f38ad5c`; it was archived in the same session that filed this one
+- `tasks/todo/214-an-unknown-tag-narrows-the-run-to-nothing-and-exits-zero.md` — what is left of the class once the ill-formed values are refused: a well-formed tag no entry declares
 
 ## Technical Notes
 

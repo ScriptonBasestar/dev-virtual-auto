@@ -1,0 +1,95 @@
+---
+id: TASK-214
+title: "An unknown tag narrows the run to nothing and exits zero"
+type: bug
+priority: P2
+effort: M
+created-at: 2026-08-20T19:20:00+09:00
+source: "carved out of TASK-213, which refused the degenerate tag values (empty, blank, `,`) and measured that the non-degenerate ones fail the same way for a different reason"
+scope: "`--tag`/`--tags`/`-T` and `--exclude-tag`/`--exclude-tags` against `filterByTags` in internal/lifecycle/orchestrator.go. Mode and env are out of scope — they already validate against the config and are the model this card asks tags to follow."
+status: todo
+---
+
+# Task 214: An unknown tag narrows the run to nothing and exits zero
+
+## Summary
+
+A tag that matches nothing is not a mistake as far as DVA is concerned. Measured
+on a two-entry fixture where `s1` declares `tags: [db]` and `s2` declares
+`tags: [api]` — written for this measurement before finding that
+`writeRestartTaggedPlanProbeConfig` in `internal/cli/restart_names_test.go`
+already provides the same shape with `web`/`db`, which is the one to reuse:
+
+| invocation | error | what ran |
+|---|---|---|
+| `dva restart --tag=db` | none | `s1_up s1_stop` — the control, and it fires |
+| `dva restart --tag=dbb` | **none, rc=0** | **nothing** |
+| `dva restart --tag=" db"` | **none, rc=0** | **nothing** |
+| `dva restart --exclude-tag=dbb` | **none, rc=0** | the whole stack |
+| `dva restart --mode=nosuchmode` | `mode 'nosuchmode' not found…` | nothing |
+
+The last row is the point. One typed character separates rows 2 and 1, and the
+result of getting it wrong is a command that reports success having done nothing.
+The same typo in `--mode` is refused by name, because something owns mode names
+and checks them against the config. Nothing owns tag names: `filterByTags`
+(`internal/lifecycle/orchestrator.go`) builds a set from what was asked for and
+keeps entries via `hasAnyTag`, so an unknown tag is indistinguishable from a tag
+no entry happens to carry.
+
+This is TASK-211's harm — a narrowing flag producing a result the user cannot
+tell from success — arrived at through a value that is well-formed. TASK-211 and
+TASK-213 closed the ill-formed values (`--tag`, `--tag=`, `--tag=,`,
+`--tag=" "`); the class this card names is what is left after they are gone.
+
+## Why TASK-213 did not close it
+
+TASK-213 refuses values that carry no information *as values*: empty, blank, and
+empty-after-splitting. It deliberately does not trim what survives, because
+trimming would silently rewrite the user's input — `--tag=" db"` would become
+`--tag=db` and the run would look correct rather than be questioned. The right
+answer is not to normalise the value but to check it against the config, which
+is a different piece of code in a different package and needs its own card.
+
+## What to change
+
+`filterByTags` (or its caller in `internal/cli`) should report tags that match no
+declared tag in the loaded config. Two constraints worth settling before writing
+code:
+
+- **Where.** `filterByTags` has the config and is the natural place, but it
+  currently returns a filtered slice and no error. The alternative is validating
+  in `parseDvaFlags`' callers, which have `c *config.Config` in hand — at the
+  cost of doing it once per command instead of once.
+- **How strict.** "No entry carries this tag" is unambiguous for the include
+  side. For `--exclude-tag` the same condition is arguably harmless (excluding
+  nothing is what the user asked for if nothing matches) — but it is exactly the
+  spelling that ran the whole stack in TASK-213's review, so the card's default
+  is to refuse both and let the implementer argue otherwise from a measurement.
+
+Whatever is chosen, the empty-run case needs a distinguishable outcome. Compare
+`--mode`: a mode filter that leaves nothing already fails with `no lifecycle
+entries matched filters`, which tags never reach because filtering to zero is
+only an error on some paths.
+
+## Completion Criteria
+
+- [ ] An unknown tag is refused by name rather than silently narrowing | verify: `grep -rn 'no entry declares' internal/lifecycle/*.go internal/cli/*.go | grep -v _test` returns at least one line — **today 0, measured**
+- [ ] A test asserts nothing ran *and* an error was returned for an unknown tag, against a fixture that declares real tags | verify: `grep -c 'unknown tag: nothing should have run' internal/cli/*_test.go` ≥ 1 — **today 0, measured.** The first draft of this criterion bound on `grep -c 'tags: \[db\]'`, which already returned 1 and so could not fail: `writeRestartTaggedPlanProbeConfig` (`restart_names_test.go`) has declared `web`/`db` tags since TASK-033. **Reuse it — do not write a third fixture**, and note that the default `writeRestartProbeConfig` declares no tags at all, so a test written against *that* one passes for the wrong reason
+- [ ] The `--exclude-tag` side is settled explicitly, not by default | verify: human — record in this card whether an unknown excluded tag is an error, with the measurement that decided it
+- [ ] The control still passes: a tag that does match still narrows the run to the matching entries | verify: a test runs `--tag=db` against the tagged fixture and asserts `s1` ran and `s2` did not — **without this row every criterion above is satisfied by a build that refuses every tag**
+- [ ] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK
+
+## References
+
+- `internal/lifecycle/orchestrator.go` — `filterByTags` and `hasAnyTag`, where an unknown tag becomes an empty result
+- `internal/cli/compose.go` — `takeValue` / `takeList`, which refuse the ill-formed values and deliberately do not trim the rest; `resolveMode`, the validation model this card asks for
+- `tasks/_archive/213-an-empty-inline-flag-value-is-accepted-and-widens-the-run-the-way-a-missing-one-used-to.md` — the card whose review measured this, under "What this card does not close"
+- `tasks/_archive/211-a-stack-flag-missing-its-value-is-dropped-and-the-command-runs-as-if-unwritten.md` — the original shape: a narrowing flag whose failure is indistinguishable from success
+
+## Technical Notes
+
+The two sides fail in opposite directions from the same cause, which is worth
+keeping in mind when picking the message. For `--tag`, matching nothing means
+running nothing; for `--exclude-tag`, matching nothing means excluding nothing
+and running everything. A single "tag matched no entries" warning would describe
+both, but the consequence it should warn about is the opposite in each case.

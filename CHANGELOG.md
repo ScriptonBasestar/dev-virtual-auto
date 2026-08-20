@@ -57,6 +57,17 @@ All notable changes to DVA are documented here.
   **주의**: `dva.yml`에만 선언한 변수도 이제 전달되므로 이미지에 내장된 값을 덮어씁니다 —
   `PATH`를 선언했다면 exec 시 컨테이너의 `PATH`가 교체됩니다.
   `kubectl exec`은 env 플래그가 없어 해당 경로는 변경 없음
+- **값이 없거나 비어 있는 선택 플래그가 무시되는 대신 에러로 멈춥니다** (TASK-211, TASK-213):
+  `--mode`/`-M`, `--env`/`-E`, `--tag`/`--tags`/`-T`, `--exclude-tag`/`--exclude-tags` 전 표기에
+  대해 값이 없는 경우(`dva up --mode`, `dva up --mode --`), 빈 값(`--mode=`, `--mode ""`),
+  공백뿐인 값(`--mode=" "`), 분리 후 비는 값(`--tag=,`, `--tag=a,,b`)이 모두 거부됩니다.
+  이전에는 `--mode=`가 "모드 미지정"과 구분되지 않아 `default_mode`가 적용됐고,
+  `--exclude-tag=,`는 아무것도 제외하지 못해 **스택 전체가 실행되고 exit 0**이었습니다 —
+  범위를 좁히려고 쓴 플래그가 가장 넓은 결과를 냈습니다. 메시지는 형태별로 구분됩니다
+  (`requires a value` / `requires a non-empty value` / `requires a non-blank value` /
+  `requires non-empty tags`). `--tag=a,b` 같은 정상 목록의 동작은 그대로입니다.
+  **아직 닫히지 않은 부분**: 선언되지 않은 태그(`--tag=<오타>`)는 여전히 조용히 아무것도
+  실행하지 않고 exit 0으로 끝납니다 (TASK-214)
 
 ### Removed
 > **Breaking.** 아래 표면은 `0.1.16` 이후 master에만 존재했고 태그된 릴리스에 포함된 적이
