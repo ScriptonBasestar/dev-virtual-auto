@@ -1,5 +1,5 @@
 ---
-id: TASK-216
+id: TASK-220
 title: "A verify binding that only runs on this machine is not a binding"
 type: docs
 priority: P2
@@ -10,7 +10,7 @@ scope: "verify: bindings in tasks/**/*.md, and a new portability check in tools/
 status: todo
 ---
 
-# Task 216: A verify binding that only runs on this machine is not a binding
+# Task 220: A verify binding that only runs on this machine is not a binding
 
 ## Summary
 
@@ -19,6 +19,10 @@ fixed five bindings that could not produce the result recorded beside them, and 
 own Open Questions that it had not swept for the general shape. Sweeping it turns up three
 distinct axes, none of which `199` names, and all of which break the same promise: *a later
 reader can re-run this command and get the recorded answer.*
+
+This card was drafted as TASK-216 and renumbered on rebase, a peer session having landed
+216-219 on master while the branch was open. Every count re-measures identically on the
+rebased base `3ad895a`: its five new cards add no instance of any of the three axes.
 
 Every count below is measured at `dc762ca` plus this branch's edits, under one rule stated
 in full because the numbers move when any part of it changes: a **criterion line** (`- [ ]`,

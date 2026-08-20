@@ -31,8 +31,8 @@ verification-summary: |
   criterion 6 mandates, so after the fix it still returns 3 files — its recorded count, with
   none of its recorded membership, since 060 drops out and this card enters through a fenced
   quotation at 199:78; on the binding-span axis it is 4 bindings in 3 files before and 0
-  after. Review found three
-  more, all of the same shape as the defects above and all fixed here: 066:89 printed its
+  after. Review found three more, all of the same shape as the defects above and all fixed
+  here: 066:89 printed its
   recorded configs=25 warnings=0 and exited 0 with dva absent from PATH, because the tool's
   error was swallowed by the pipe it was written into, so it now probes the tool as well as
   the corpus; 060:162 was given the pipe fix but no denominator and still printed nothing on
@@ -40,10 +40,14 @@ verification-summary: |
   between two checkouts of the same commit; and four of the seven rewrites were bound by no
   criterion at all, which criteria 8-11 close one site each, running the published span and
   asserting its printed denominator — all four exit 1 against master, where those cards still
-  carry the original text, and exit 2 if the named line stops being the named criterion. make doc-check OK (broken_links 0,
-  oversized_docs 0, run_patterns 128, unmatched_run 0, archive_cards 206). The unswept
-  general shape is filed as TASK-216 with three measured axes: 6 escaped-pipe bindings, 55
-  naming this machine's checkout, 20 rooted at ~/mydevbox.
+  carry the original text, and exit 2 if the named line stops being the named criterion.
+  make doc-check OK (broken_links 0, oversized_docs 0, run_patterns 128, unmatched_run 0,
+  archive_cards 207 on the rebased base). The unswept general shape is filed as TASK-220,
+  with three measured axes: 6 escaped-pipe bindings, 55 naming this machine's checkout, and
+  20 rooted at ~/mydevbox, all three unchanged by the rebase.
+  It was drafted as TASK-216 and renumbered when this branch rebased: a peer session landed
+  216-219 on master while the branch was open, so the id was taken by the time it caught up.
+  The commits below still say TASK-216, which is what they said when they were written.
 ---
 
 # Task 199: Three archived bindings cannot produce the result recorded beside them
@@ -103,7 +107,7 @@ is a slip; the inverted exit and the swallowed status are both cases of a shell 
 - [x] `115:125`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/115-four-compose-argv-builders-share-two-bugs.md; l=$(sed -n '125p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'The four copies are one' || { echo '115:125 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'declarations=1 call sites=[2-9][0-9]*'` — **`declarations=1 call sites=8`, exit 0; exit 1 on `master`, where the published binding prints `0` and exits 0 — the case that made 4 and 0 read alike**
 - [x] `115:126`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/115-four-compose-argv-builders-share-two-bugs.md; l=$(sed -n '126p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'Path joining is uniform' || { echo '115:126 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'occurrences=0 over [1-9][0-9]* files'` — **`occurrences=0 over 257 files`, exit 0; exit 1 on `master`, whose binding prints `0` for a clean tree and for a missing path alike**
 - [x] `119:89`'s rewrite is exercised by a criterion | verify: `f=tasks/_archive/119-doctor-compose-check-ignores-the-configured-command.md; l=$(sed -n '89p' "$f"); printf '%s' "$l" | /usr/bin/grep -q 'No sixth copy' || { echo '119:89 is not that criterion any more — nothing was measured'; exit 2; }; b=$(printf '%s' "$l" | sed 's/^.*verify: *//' | tr '\140' '\n' | sed -n '2p'); out=$(eval "$b"); echo "$out"; printf '%s' "$out" | /usr/bin/grep -qE 'occurrences=0 in internal/cli/doctor.go \([1-9][0-9]* lines\)'` — **`occurrences=0 in internal/cli/doctor.go (811 lines)`, exit 0; exit 1 on `master`, whose binding prints `0` whether the file holds no literal or has been deleted**
-- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` — **OK. `broken_links` 0, `oversized_docs` 0, `run_patterns` 128, `unmatched_run` 0, `archive_cards` 206**
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` — **OK. `broken_links` 0, `oversized_docs` 0, `run_patterns` 128, `unmatched_run` 0, `archive_cards` 207 after the rebase, 206 before it**
 
 ## Resolution
 
@@ -151,7 +155,7 @@ assert is that the canonical URL is *in use*, not that the migration is complete
 binding now says so.
 
 The second Open Question — whether the corpus holds more of this — is answered by
-[TASK-216](216-a-verify-binding-that-only-runs-on-this-machine-is-not-a-binding.md), filed
+[TASK-220](../todo/220-a-verify-binding-that-only-runs-on-this-machine-is-not-a-binding.md), filed
 with three measured axes and their denominators, each stated with the extraction rule that
 produces it: 6 bindings in 5 cards whose shell pipes are escaped, 55 in 25 cards that `cd`
 into this machine's checkout, and 20 in 10 cards rooted at `~/mydevbox`.
