@@ -391,7 +391,7 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 //	restart --   master:      rc=0, nothing restarted
 //	restart --   that draft:  rc=0, s1 and s2 both stopped and started
 //	restart --   198 shipped: rc=0, nothing restarted
-//	restart --   207 (here):  rc=0, s1 and s2 both stopped and started
+//	restart --   207 (here):  whatever a bare `dva restart` does, per config shape
 //
 // 207 lands on that draft's behaviour, from the opposite direction. 198's
 // objection was sound on its own terms — an empty Names means "every entry" to
@@ -403,18 +403,51 @@ func TestRestartPlanRoutingSurvivesTheGuard(t *testing.T) {
 // broken. Consuming the terminator makes the empty case mean "no names given",
 // which is what a bare `dva restart` already means, so the two agree.
 //
-// Asserting the markers rather than the exit code is deliberate and inherited:
+// The last row used to read "rc=0, s1 and s2 both stopped and started", hardcoded,
+// and an adversarial review measured it false: with several plans and no
+// default_plan a bare `dva restart` is REFUSED as ambiguous, while `restart --`
+// bounced the whole stack — 198's escalation, arriving from the other side. The
+// test had measured that divergence and read it as agreement, because it asserted
+// an outcome instead of the claim. So it now asserts the claim: same error text or
+// same success, and the same markers, as a bare invocation in the same fixture.
+// A differential assertion cannot be satisfied by a coincidence the way a literal
+// expectation can.
+//
+// Comparing markers rather than only the exit code is deliberate and inherited:
 // swallowing `--` as an unmatchable name would also exit 0, having done nothing.
-func TestRestartBareTerminatorMeansEveryEntry(t *testing.T) {
-	dir := writeRestartProbeConfig(t)
-	if err := restartCmd.RunE(restartCmd, []string{"--"}); err != nil {
-		t.Fatalf("restart --: %v; a consumed terminator leaves no names, which is a whole-stack restart, not an error", err)
+func TestRestartBareTerminatorMeansABareRestart(t *testing.T) {
+	fixtures := []struct {
+		shape string
+		write func(*testing.T) string
+	}{
+		{"no plans", writeRestartProbeConfig},
+		{"two plans, no default_plan", writeRestartPlanProbeConfig},
 	}
-	got := ranMarkers(t, dir)
-	for _, want := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
-		if !got[want] {
-			t.Errorf("restart --: %s did not run; `dva restart --` must mean the same as a bare `dva restart`, ran %v", want, got)
-		}
+
+	for _, fx := range fixtures {
+		t.Run(fx.shape, func(t *testing.T) {
+			bareDir := fx.write(t)
+			bareErr := restartCmd.RunE(restartCmd, nil)
+			bareRan := ranMarkers(t, bareDir)
+
+			termDir := fx.write(t)
+			termErr := restartCmd.RunE(restartCmd, []string{"--"})
+			termRan := ranMarkers(t, termDir)
+
+			switch {
+			case bareErr == nil && termErr != nil:
+				t.Fatalf("restart --: %v; a bare restart succeeds in this config, so the terminator form must too", termErr)
+			case bareErr != nil && termErr == nil:
+				t.Fatalf("restart -- exited 0 having run %v, but a bare restart here is refused with %v; `--` must never do more than the bare form is permitted to", termRan, bareErr)
+			case bareErr != nil && termErr != nil && bareErr.Error() != termErr.Error():
+				t.Fatalf("restart --: %q; a bare restart says %q, and \"no names given\" must be the same refusal", termErr, bareErr)
+			}
+			for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+				if bareRan[m] != termRan[m] {
+					t.Errorf("restart --: %s ran=%v; a bare restart ran=%v", m, termRan[m], bareRan[m])
+				}
+			}
+		})
 	}
 }
 
@@ -437,18 +470,28 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 		{"two plans, no default_plan", writeRestartPlanProbeConfig},
 	}
 
+	// hint pins the explanation, not just the quoted token, wherever the token alone
+	// would not discriminate. `strings.Contains(err, "-")` is true of most messages
+	// this command can emit — including rejectSuppressedDefaultPlan's — so the dash
+	// rows would have passed on the wrong error the moment a fixture with a
+	// default_plan is added. The row asserts the guard's own words instead.
+	//
+	// The `--` row is not here: `restart --` is empty-name-list, whose whole meaning
+	// is "the same as a bare restart", and that is a claim about two invocations
+	// rather than about one. TestRestartBareTerminatorMeansABareRestart owns it.
 	cases := []struct {
 		what    string
 		args    []string
 		names   string // the token the message must quote; "" when the call succeeds
+		hint    string // wording the message must carry; "" when the token suffices
 		wantRan []string
 	}{
-		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", nil},
-		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", nil},
-		{"a bare dash, too short for the flag guard", []string{"-"}, "-", nil},
-		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", nil},
-		{"the terminator alone", []string{"--"}, "", []string{"s1_stop", "s1_up", "s2_stop", "s2_up"}},
-		{"a real name after the terminator", []string{"--", "s1"}, "", []string{"s1_stop", "s1_up"}},
+		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", "", nil},
+		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", "", nil},
+		{"a bare dash, too short for the flag guard", []string{"-"}, "-", "too short to be a flag", nil},
+		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", "every argument is a name", nil},
+		{"a second terminator, an ordinary word", []string{"--", "--", "s1"}, "--", "only the first", nil},
+		{"a real name after the terminator", []string{"--", "s1"}, "", "", []string{"s1_stop", "s1_up"}},
 	}
 
 	for _, fx := range fixtures {
@@ -463,6 +506,9 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 					}
 					if !strings.Contains(err.Error(), tc.names) {
 						t.Errorf("restart %v: message %q does not quote %q, so it cannot tell the user which argument was wrong", tc.args, err, tc.names)
+					}
+					if tc.hint != "" && !strings.Contains(err.Error(), tc.hint) {
+						t.Errorf("restart %v: message %q lacks %q, so this row cannot tell the guard's error from any other error mentioning the same token", tc.args, err, tc.hint)
 					}
 				} else if err != nil {
 					t.Fatalf("restart %v: %v; this selection is legitimate and must survive the guard", tc.args, err)

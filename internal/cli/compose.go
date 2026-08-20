@@ -524,10 +524,29 @@ Stack flags:
 		// what a bare `dva restart` does. Dropping it is what preserves that; the escalation
 		// 198 measured is the correct behaviour once the token means "separator" here.
 		//
+		// Emptying the name list re-opens a gate that has already run. requirePlanSelection is
+		// called above against the RAW args, where ["--"] counts as "a token was given", so a
+		// config with several plans and no default_plan lets it through — and dropping the token
+		// then leaves zero names, which lifecycle reads as "every entry". Measured, not reasoned
+		// about: `dva restart --` stopped and started the whole stack in a config whose bare
+		// `dva restart` is refused as too ambiguous to act on. That is 198's escalation arriving
+		// from the other side, so the gate is re-applied on the empty list — the only shape that
+		// can reach it. Found by review; the test above asserted the divergence as correct.
+		//
+		// The identity this restores is with the STACK route. A config with a default_plan
+		// refuses `dva restart --` earlier, from rejectSuppressedDefaultPlan, because args[0]
+		// starts with "-" — on master too. That helper is shared with up/down/stop, so narrowing
+		// it is TASK-210's call and not one restart gets to make from inside its own RunE.
+		//
 		// Checked against SortedStack, the DECLARED entries, not the post-filter selection —
 		// a name that exists but is excluded by --tag selects nothing legitimately and keeps
 		// its warning. See rejectUnknownEntryNames.
 		names = dropFlagTerminator(names)
+		if len(names) == 0 {
+			if err := requirePlanSelection(c, "restart", nil); err != nil {
+				return err
+			}
+		}
 		declared := make([]string, 0, len(c.Stack))
 		for _, entry := range c.SortedStack() {
 			declared = append(declared, entry.Name)

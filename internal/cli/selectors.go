@@ -112,10 +112,15 @@ func dropFlagTerminator(names []string) []string {
 // is excluded by --tag selects nothing legitimately and stays a warning; only a name that could
 // never match anything is an error here. TASK-198's open question owns the tag arm.
 //
-// A dash-prefixed token can still arrive, by two different routes, and they get two different
-// explanations because "unknown stack entry" alone reads as a config problem to someone who
-// believed they were typing a flag: a bare "-" is below rejectUnknownFlags' len >= 2 floor,
-// and anything after the `--` terminator is a name whatever it spells.
+// A dash-prefixed token can still arrive, by three different routes, and they get three
+// different explanations because "unknown stack entry" alone reads as a config problem to
+// someone who believed they were typing a flag: a bare "-" is below rejectUnknownFlags'
+// len >= 2 floor, a SECOND "--" is an ordinary word once the first has been consumed, and
+// anything else after the terminator is a name whatever it spells.
+//
+// The second "--" earns its own line because the generic one tells the caller to "move it
+// before the --", which is meaningless advice for a token that IS "--". A review caught the
+// message giving it; nothing in the flow made it wrong, only the wording.
 //
 // noun is bare ("stack entry"), not the article-prefixed form rejectUnknownFlags takes — that
 // one only ever drops its noun into a sentence, while this one also uses it as a headline, and
@@ -134,6 +139,8 @@ func rejectUnknownEntryNames(path, noun string, names, declared []string) error 
 		switch {
 		case n == "-":
 			fmt.Fprintf(&msg, "\n       → read as a %s name: a lone \"-\" is too short to be a flag", noun)
+		case n == "--":
+			fmt.Fprintf(&msg, "\n       → read as a %s name: only the first \"--\" separates flags from names", noun)
 		case strings.HasPrefix(n, "-"):
 			fmt.Fprintf(&msg, "\n       → read as a %s name, not a flag: after \"--\" every argument is a name. Move it before the \"--\"", noun)
 		}
