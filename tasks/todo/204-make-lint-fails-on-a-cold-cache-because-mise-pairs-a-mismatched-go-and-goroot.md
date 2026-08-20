@@ -6,7 +6,7 @@ priority: P2
 effort: S
 created-at: 2026-08-19T18:39:59+09:00
 source: "found while re-running TASK-203's reproduction against the landed fix — the control worktree's first `make lint` failed with 4 typecheck errors that had nothing to do with the cache"
-scope: "Makefile lint target: detect a go/GOROOT mismatch and say so. No change to which linters run, no Go source change. The mismatch itself is an environment condition, not a dva defect — this card is about the Makefile reporting it legibly instead of as four import errors."
+scope: "Makefile lint target: detect a go/GOROOT mismatch and say so. No change to which linters run, no Go source change. The mismatched toolchain is an environment condition, but the target's preference for `mise exec` is what converts it into a failure — the bare `golangci-lint` branch is measured to pass on the same machine — so this is not purely environmental. Choosing between the two branches is Open Question 1; this card only makes the build report the condition legibly instead of as four import errors."
 status: todo
 ---
 
@@ -39,8 +39,10 @@ go 1.26.6 runs, looks up its tools in a GOROOT belonging to 1.26.5, finds `compi
 `.mise.toml` and `go.mod` both pin 1.26.5. In the PATH `mise exec` *constructs*,
 `/opt/homebrew/bin` (position 15) precedes mise's own go install directory (position 20).
 That signature holds in every failing run measured — but it describes the PATH the wrapper
-built, not the PATH you handed it, and nothing inspectable beforehand predicts which one
-you will get. See the grid below before drawing any PATH conclusion from it.
+built, not the PATH you handed it, and **no predicate anyone has proposed predicts which
+one you will get**: four have been tried and all four are falsified below. That is a
+weaker claim than "nothing inspectable could predict it", which six PATH variants do not
+license. See the grid below before drawing any PATH conclusion from this table.
 
 **Single-variable confirmation.** Holding everything else fixed and changing only which
 `go` the wrapper resolves:
@@ -88,19 +90,24 @@ What that kills:
    extremes and both pass, while A fails with mise's own go install directory already at
    **position 1** of the inherited PATH. Ordering co-varies; it does not decide.
 2. **"The directory is the axis"** — that a directory where mise's go tool is not active
-   behaves differently. It does not. Both a checkout and a `git archive` extraction
-   directory give identical results under every PATH above. This one survived only because
-   the in-repo probe supporting it had been run with a PATH the measuring session had
-   already fixed, without treating that habit as a variable.
+   behaves differently. It does not. *Evidence: not the grid above*, whose rows are all
+   same-directory — it is a second run of that whole grid in a `git archive` extraction
+   directory, which gave identical results row for row. This hypothesis was **mine**; it
+   survived as long as it did because the single in-repo cell supporting it came from the
+   peer session, which later disclosed that cell had been measured with a PATH it had
+   already fixed and had stopped counting as a variable. I did not ask what else could
+   produce that cell before building on it.
 3. **"It breaks when `mise exec` inherits a PATH holding mise's own go install
    directory."** Falsified in both directions by a single run: **E** has that directory and
    passes, **D1** has none and fails. Note what this would have cost — a Makefile check
    grepping for that path would look for a string that is *present* in a working
    configuration and *absent* in a broken one.
-4. **"mise's recorded activation state is stale."** `__MISE_DIFF`, `__MISE_ORIG_PATH`,
-   `__MISE_SESSION` and `MISE_SHELL` are all exported by zsh activation. Clearing them
-   individually and together, with the raw PATH held fixed, changes nothing — every
-   variant stays `go1.26.6` against `GOROOT` 1.26.5.
+4. **"mise's recorded activation state is stale."** *Evidence: also not the grid above*,
+   which has no environment-variable rows — this is a separate experiment holding the raw
+   PATH fixed at row A and varying only the activation variables. `__MISE_DIFF`,
+   `__MISE_ORIG_PATH`, `__MISE_SESSION` and `MISE_SHELL` are all exported by zsh
+   activation. Clearing them individually and together changes nothing — every variant
+   stays `go1.26.6` against `GOROOT` 1.26.5.
 
 Also not the axis: `mise trust`. It looks like it should be, since extraction directories
 are untrusted and the repo is trusted, but with the directory byte-identical and the two
@@ -120,9 +127,17 @@ working one. The one visible difference between failing and passing runs is the 
 
 With a heavily activated PATH the wrapper hands back something close to the pre-activation
 PATH and does not re-apply its tools, while `GOROOT` stays exported from the outer
-activation; with a PATH it does not recognise as its own activation it applies normally.
-What state triggers that revert is **not known** — the four variables above are not it. It
-is Open Question 4, and it does not block this card.
+activation; with the other PATHs above it applies normally. **What separates the two cases
+is not known** — the four variables above are not it. Any verb here suggesting the wrapper
+*recognises* or *detects* its own activation would be inventing the answer to Open
+Question 4 rather than reporting a measurement.
+
+One detail sharpens that question rather than answering it: row **D1** has every
+`installs/go/*` entry stripped out of the PATH handed in, yet the PATH the wrapper builds
+still carries mise's go install dir at position 20. The wrapper is therefore
+reconstructing that entry from something other than its input — its own config, or state
+carried in the activation environment. Which of the two, and why only in the failing
+cases, is unmeasured. It does not block this card.
 
 It does change the argument, though, and in the card's favour. **If the trigger cannot be
 predicted from the PATH a developer has, no PATH-shaped check is safe** — see the E/D1 pair
@@ -145,12 +160,32 @@ when golangci-lint has to re-analyse:
 
 - a newly created checkout or worktree — measured: a fresh export of `c100ba0` fails
   `make lint` with rc=2, cold **and** warm;
-- after `make clean`, which as of TASK-203 deletes `$(CURDIR)/tmp/golangci-lint-cache`;
-- golangci-lint invoked **directly** against a fresh cache —
-  `GOLANGCI_LINT_CACHE=… golangci-lint run ./...` in the primary checkout: rc=1, the same
-  4 typecheck errors.
+- after `make clean`, which as of TASK-203 deletes `$(CURDIR)/tmp/golangci-lint-cache`.
 
-Do **not** try that last one through `make`. `Makefile:54` assigns `GOLANGCI_LINT_CACHE`
+**The failure is wrapper-specific, and an earlier draft of this card had that backwards.**
+That draft listed a third trigger — a direct `golangci-lint` invocation against a fresh
+cache — and claimed it produced the same 4 typecheck errors. It does not. Measured as an
+A/B in this worktree, both arms genuinely cold, 2026-08-20:
+
+| arm | result | cache written |
+|---|---|---|
+| `GOLANGCI_LINT_CACHE=<fresh> golangci-lint run ./...` | **`0 issues.`** | 10,436 KB |
+| `GOLANGCI_LINT_CACHE=<fresh> mise exec -- golangci-lint run ./...` | `4 issues: * typecheck: 4` | 4 KB |
+
+Same binary in both arms — `mise which golangci-lint` and `command -v golangci-lint`
+resolve to the identical path. The cache column is what makes the passing arm readable as
+evidence rather than as an absence: it wrote 10 MB, so it really did analyse the tree,
+while the failing arm wrote 4 KB because it never got past the import chain. Without that
+column a `0 issues.` is indistinguishable from a run that did nothing — which is precisely
+the failure described one paragraph down.
+
+That correction matters beyond tidiness: the wrong bullet asserted the failure was *not*
+wrapper-specific, which would have demolished this card's mechanism, its title, and the
+"degrades a working environment" conclusion. It survived a rewrite because it sat in a
+list of supporting details rather than in the argument.
+
+Do **not** try the cold-cache route through `make`. The `lint` recipe assigns
+`GOLANGCI_LINT_CACHE`
 unconditionally, so an environment override is discarded and the run quietly uses the
 checkout's warm cache instead. Measured here: the supplied directory stayed 0 KB while
 `tmp/golangci-lint-cache` was created beside it. A run intended to be cold reads as a pass
@@ -164,11 +199,15 @@ worktree.
 
 ## Reproduction
 
-1. `mkdir /tmp/probe && git archive HEAD | tar -x -C /tmp/probe`
-2. `cd /tmp/probe && make lint`
+1. `mkdir -p tmp/probe && git archive HEAD | tar -x -C tmp/probe`
+2. `cd tmp/probe && make lint`
 3. Observe rc=2 and `4 issues: * typecheck: 4`, with `does not match go tool version`
    inside the import chain.
-4. `PATH=<dir containing a go symlink to mise's pinned go>:$PATH make lint` → rc=0.
+4. `PATH="$HOME/.local/share/mise/shims:$PATH" make lint` → rc=0, `0 issues.`
+
+Step 4 uses the shims form from the Workaround above, which is the variant actually
+measured (row G). An earlier draft named a hand-built directory holding a `go` symlink —
+that variant appears nowhere in the grid and should not be reproduced from.
 
 ## Proposed fix
 
@@ -177,13 +216,33 @@ exported `GOROOT` disagree, and print both versions. This follows the same princ
 target already applies to `gopls check` (TASK-130): a tool that cannot run must not be
 allowed to read as a clean lint, and the failure must name its own cause.
 
-The comparison itself is two lines, measured from inside the `mise exec` branch. It
-differs when the pairing is broken and matches when it is not:
+The comparison itself is two lines, but **how it is invoked decides whether it works at
+all**, and the obvious way is wrong. Measured 2026-08-20:
+
+```
+mise exec -- go version                → go1.26.5    mismatch INVISIBLE
+mise exec -- sh -c 'go version'        → go1.26.6    mismatch visible
+mise exec -- sh -c 'command -v go'     → /opt/homebrew/bin/go
+```
+
+`mise exec` resolves a `go` given **directly as its argument** through its own tool table,
+not through the PATH it constructs. golangci-lint is a separate binary that afterwards
+finds `go` on that PATH — which is why golangci-lint breaks while `mise exec -- go version`
+looks healthy. A check written the obvious way would therefore report a matched pair on a
+machine that is currently broken: a gate that cannot fail, on a card whose sibling
+TASK-205 exists because of a gate that could not fail. It has to resolve `go` the way the
+linter does — through PATH, in a subshell, under the wrapper:
 
 ```bash
-go version | cut -d' ' -f3        # broken: go1.26.6   ok: go1.26.5
-cat "$(go env GOROOT)/VERSION"    # broken: go1.26.5   ok: go1.26.5
+mise exec -- sh -c '
+  tool=$(go version | cut -d" " -f3)                 # broken: go1.26.6   ok: go1.26.5
+  root=$(head -1 "$(go env GOROOT)/VERSION")         # broken: go1.26.5   ok: go1.26.5
+  [ "$tool" = "$root" ]'
 ```
+
+`head -1` is required, not cosmetic: `$(go env GOROOT)/VERSION` is **two** lines
+(`go1.26.5` then a `time …` stamp), so a bare `cat` compared against one-line `go version`
+output differs on a *correctly* paired machine and would fail the gate everywhere.
 
 The environment condition is fixed separately, by whichever of these the maintainer
 prefers — removing or unlinking the Homebrew `go`, or moving `.mise.toml` and `go.mod` to
@@ -206,14 +265,22 @@ out of scope here; this card only makes the build diagnose the condition.
       so such a check would misfire in both directions.
       verify: `grep -c 'GOROOT)/VERSION' Makefile` → at least 1 (today: **0**); measured
       to read `go1.26.6` vs `go1.26.5` when broken and to match when not
+      verify: `grep -c 'head -1 "$(go env GOROOT)/VERSION"' Makefile` → at least 1
+      (today: **0**) — the `VERSION` file is two lines, so a bare `cat` fails the gate on
+      a correctly paired machine
       + regression guard, not an acceptance test: `grep -c '1\.26\.[0-9]' Makefile` stays
       **0**, so no specific version is baked into the gate
 - [ ] No change to which linters run.
-      verify: `grep -c 'golangci-lint run ./...' Makefile` → 2, unchanged
-- [ ] The reported `go`/`GOROOT` pairing is read from the same wrapper the target
-      actually uses, not from the ambient shell.
-      verify: human — the check must run inside the `mise exec` branch, since the
-      ambient shell resolves a *consistent* pair and would report no problem
+      + regression guard, not an acceptance test:
+      `grep -c 'golangci-lint run ./...' Makefile` → 2, unchanged
+- [ ] The reported `go`/`GOROOT` pairing is read the way **golangci-lint** resolves it —
+      through PATH, in a subshell, under the wrapper — not as a direct `mise exec`
+      argument and not from the ambient shell. Both of those report a matched pair on a
+      machine that is currently broken, so a check written either way can never fire.
+      verify: `grep -c "mise exec -- sh -c" Makefile` → at least 1 (today: **0**)
+      verify: human — measured discriminator, must hold on this machine today:
+      `mise exec -- go version` → `go1.26.5` (mismatch invisible) while
+      `mise exec -- sh -c 'go version'` → `go1.26.6` (mismatch visible)
 
 ## Open Questions
 
@@ -224,8 +291,9 @@ out of scope here; this card only makes the build diagnose the condition.
    independent sessions reproduce it, in a checkout and in a `git archive` extraction
    directory alike, with PATH as an activated shell supplies it. Neither the session nor
    the directory is an axis. An earlier table in this card showed the two sessions
-   disagreeing inside the repo; that cell was an artifact of the measuring session having
-   already applied the workaround and not counting it as a variable. Re-measured without
+   disagreeing inside the repo; that cell came from the **peer session**, and was an
+   artifact of its having already applied the workaround and stopped counting it as a
+   variable — disclosed by that session itself. Re-measured without
    it, both break. Every shell here with mise activation applied is in the failing
    configuration by default — which is why the primary checkout passes on a warm cache
    rather than on a working toolchain.

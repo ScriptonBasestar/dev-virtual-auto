@@ -5,14 +5,16 @@ type: bug
 priority: P2
 effort: XS
 created-at: 2026-08-19T19:03:34+09:00
-source: "found while reproducing TASK-204 — a session tried to force a cold cache with `GOLANGCI_LINT_CACHE=$(mktemp -d) make lint`, got rc=0 with no typecheck errors, and nearly reported that a known-broken toolchain pairing does not affect the gate"
+source: "found by a peer session while reproducing TASK-204 — it tried to force a cold cache with `GOLANGCI_LINT_CACHE=$(mktemp -d) make lint`, got rc=0 with no typecheck errors, and nearly concluded that a known-broken toolchain pairing does not affect the gate. It caught the discarded override itself before reporting anything; this card's author independently reproduced the defect and its consequence"
 scope: "Makefile lint target, one assignment operator. No change to which linters run, no change to the default cache location, no change to TASK-203's per-checkout scoping, no Go source change."
 status: todo
 ---
 
 ## Summary
 
-`Makefile:54` sets the lint cache with an unconditional assignment:
+The `lint` recipe sets the cache with an unconditional assignment — the first line of the
+target's shell block, cited by variable rather than by line number because TASK-204's
+proposed check inserts lines into this same recipe:
 
 ```make
 @GOLANGCI_LINT_CACHE="$(CURDIR)/tmp/golangci-lint-cache"; export GOLANGCI_LINT_CACHE; \
@@ -35,11 +37,18 @@ scratch reports success without having re-analysed anything, and nothing in the 
 says so. This is the same shape the repo already gates against in acceptance criteria — a
 check that cannot fail certifies itself — except here it is the build doing it.
 
-It has already misled a measurement. A session verifying whether the TASK-204 toolchain
-mismatch actually fails `make lint` used exactly this command, got rc=0 with zero
-typecheck lines, and was about to conclude the mismatch is harmless to the gate. It is
-not: forced cold by other means, the same tree gives rc=2 and 4 typecheck errors. The
-wrong conclusion would have closed a real bug as unreproducible.
+It has already misled a measurement. A **peer session** verifying whether the TASK-204
+toolchain mismatch actually fails `make lint` used exactly this command, got rc=0 with
+zero typecheck lines, and was about to conclude the mismatch is harmless to the gate. It
+caught the discarded override itself, before reporting anything, on the reflex that rc=0
+was too convenient — so the near-miss is a near-miss and not a false report.
+
+The conclusion would have been wrong. Forced cold by other means, the same tree gives
+rc=2 and 4 typecheck errors, and a direct `golangci-lint` run on a genuinely cold cache
+gives `0 issues.` while writing 10 MB of cache — measured for TASK-204. That
+reproduction, and the catch above, are **different facts with different authors**: the
+peer caught the discarded override, this card's author established what it would have
+cost. Left unfixed, the wrong conclusion closes a real bug as unreproducible.
 
 TASK-203, which introduced the line, is not wrong — scoping the cache per checkout is what
 stops a reclaimed worktree leaving phantom findings behind. The defect is only that the
