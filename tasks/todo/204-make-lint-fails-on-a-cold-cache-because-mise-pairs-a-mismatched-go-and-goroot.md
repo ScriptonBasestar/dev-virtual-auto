@@ -252,28 +252,30 @@ out of scope here; this card only makes the build diagnose the condition.
 
 ## Completion Criteria
 
-- [ ] The lint target inspects the toolchain pairing before running golangci-lint.
+- [x] The lint target inspects the toolchain pairing before running golangci-lint.
       verify: `grep -c 'go env GOROOT' Makefile` → at least 1 (today: **0**)
-- [ ] A mismatched pairing fails with a message naming both versions, not with typecheck
+- [x] A mismatched pairing fails with a message naming both versions, not with typecheck
       errors about stdlib imports.
       verify: human — construct the mismatch by putting a differing `go` first on PATH,
       run `make lint`, and confirm the output names the two versions and does not print
       `could not import`
-- [ ] The check **compares two versions it reads at run time**. It must not sniff a PATH,
+- [x] The check **compares two versions it reads at run time**. It must not sniff a PATH,
       a directory name, or a hard-coded version — the grid above contains a measured case
       where a path check is present in a working configuration and absent in a broken one,
       so such a check would misfire in both directions.
       verify: `grep -c 'GOROOT)/VERSION' Makefile` → at least 1 (today: **0**); measured
       to read `go1.26.6` vs `go1.26.5` when broken and to match when not
-      verify: `grep -c 'head -1 "$(go env GOROOT)/VERSION"' Makefile` → at least 1
+      verify: `grep -c 'head -1 "$$(go env GOROOT)/VERSION"' Makefile` → at least 1
       (today: **0**) — the `VERSION` file is two lines, so a bare `cat` fails the gate on
-      a correctly paired machine
+      a correctly paired machine. Bound on the `$$` form because that is the literal a
+      Makefile holds — make collapses it to one `$` before `/bin/sh` sees it, so a binding
+      written in shell syntax matches nothing and can never pass.
       + regression guard, not an acceptance test: `grep -c '1\.26\.[0-9]' Makefile` stays
       **0**, so no specific version is baked into the gate
-- [ ] No change to which linters run.
+- [x] No change to which linters run.
       + regression guard, not an acceptance test:
       `grep -c 'golangci-lint run ./...' Makefile` → 2, unchanged
-- [ ] The reported `go`/`GOROOT` pairing is read the way **golangci-lint** resolves it —
+- [x] The reported `go`/`GOROOT` pairing is read the way **golangci-lint** resolves it —
       through PATH, in a subshell, under the wrapper — not as a direct `mise exec`
       argument and not from the ambient shell. Both of those report a matched pair on a
       machine that is currently broken, so a check written either way can never fire.
@@ -281,6 +283,42 @@ out of scope here; this card only makes the build diagnose the condition.
       verify: human — measured discriminator, must hold on this machine today:
       `mise exec -- go version` → `go1.26.5` (mismatch invisible) while
       `mise exec -- sh -c 'go version'` → `go1.26.6` (mismatch visible)
+
+## Verification (2026-08-20)
+
+Implemented in the `lint` target, ahead of the golangci-lint invocation. Open Question 1
+was answered **hard-fail**: the fallback branch would let a broken machine pass quietly,
+which is the shape this card and TASK-205 both exist to remove.
+
+| arm | PATH handed to `make` | result |
+|---|---|---|
+| A | as an activated shell supplies it — broken pairing | guard fires, `make: *** [lint] Error 1`, **no** `could not import` |
+| B | mise shims first — consistent pairing | guard silent, `go vet` clean, `gofmt -s: 285 files checked, 0 unformatted`, `0 issues.` |
+
+Arm A's output, verbatim:
+
+```
+make lint: go and GOROOT disagree - go tool is go1.26.6, GOROOT holds go1.26.5
+  go:     /opt/homebrew/bin/go
+  GOROOT: /Users/archmagece/.local/share/mise/installs/go/1.26.5
+  Unchecked, this surfaces as could-not-import errors about stdlib packages. TASK-204.
+```
+
+The arms differ only in PATH — the tree is byte-identical across them — which is what
+makes arm B readable as *the guard does not fire on a healthy machine* rather than *the
+guard is inert*.
+
+**One binding was wrong, and was corrected rather than quietly dropped.** As registered,
+criterion 3 bound on `grep -c 'head -1 "$(go env GOROOT)/VERSION"'`. A Makefile recipe must
+write `$$` for a literal `$`, so that string cannot occur in any correct implementation:
+the criterion could never *pass* — the mirror image of the never-fails shape TASK-205
+exists for. The binding now names the `$$` form. What it was written to demand is unchanged
+and is met: `head -1` is present, and the reason it is required sits beside it.
+
+The same defect appeared in the guard's own comment, which explained the rule as
+`$(GOROOT)/VERSION`. In a recipe line make expands that to the empty string before
+`/bin/sh` sees it, so the comment described a literal the file does not contain. It now
+reads `$$(go env GOROOT)/VERSION`, matching the code it explains.
 
 ## Open Questions
 

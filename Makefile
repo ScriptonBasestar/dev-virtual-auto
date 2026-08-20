@@ -42,6 +42,23 @@ test-integration:
 
 ## lint: Run linters (golangci-lint v2 + gopls check, both pinned in .mise.toml)
 lint: vet fmt-check
+	@# A go binary that disagrees with the GOROOT mise exports makes golangci-lint fail
+	@# with "could not import os/strings/..." on every cold analysis, which reads as if
+	@# the tree does not compile. Measured: the same binary on the same cold cache
+	@# reports 0 issues when run without the wrapper, so the failure is wrapper-specific
+	@# rather than a property of the tree. TASK-204.
+	@#
+	@# The check must resolve go the way golangci-lint does — through PATH, in a
+	@# subshell, under the wrapper. `mise exec -- go version` resolves a go passed
+	@# directly as its argument through mise's own tool table rather than through the
+	@# PATH it constructs, so it reports a MATCHED pair on a machine where the linter is
+	@# about to fail; a check written that way could never fire. head -1 is required,
+	@# not cosmetic: $$(go env GOROOT)/VERSION is two lines (the version, then a build
+	@# timestamp), so comparing it whole against one-line `go version` output would fail
+	@# the gate on a correctly paired machine.
+	@if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
+		mise exec -- sh -c 'tool=$$(go version | cut -d" " -f3); root=$$(head -1 "$$(go env GOROOT)/VERSION"); if [ "$$tool" != "$$root" ]; then echo "make lint: go and GOROOT disagree - go tool is $$tool, GOROOT holds $$root" >&2; echo "  go:     $$(command -v go)" >&2; echo "  GOROOT: $$(go env GOROOT)" >&2; echo "  Unchecked, this surfaces as could-not-import errors about stdlib packages. TASK-204." >&2; exit 1; fi' || exit 1; \
+	fi
 	@# golangci-lint's cache is machine-wide by default (~/Library/Caches/golangci-lint)
 	@# and its entries carry the absolute paths they were analysed at. The git workflow
 	@# reclaims a worktree per completed task, so those paths keep dying, and the next
@@ -51,7 +68,12 @@ lint: vet fmt-check
 	@# with it. The other two tools in this target cannot have the defect — go vet
 	@# renders positions relative to the module it was invoked in, and gopls is handed
 	@# an explicit file list found under this checkout. TASK-203.
-	@GOLANGCI_LINT_CACHE="$(CURDIR)/tmp/golangci-lint-cache"; export GOLANGCI_LINT_CACHE; \
+	@# Default-if-unset, not an unconditional assignment: a caller forcing a cold run
+	@# with GOLANGCI_LINT_CACHE=<dir> must not have it silently discarded and get the
+	@# checkout's warm cache — that reads as a pass without having re-analysed anything.
+	@# With nothing exported the path is exactly what TASK-203 set, so a reclaimed
+	@# worktree still takes its cache with it. TASK-205.
+	@GOLANGCI_LINT_CACHE="$${GOLANGCI_LINT_CACHE:-$(CURDIR)/tmp/golangci-lint-cache}"; export GOLANGCI_LINT_CACHE; \
 	if command -v mise >/dev/null 2>&1 && mise which golangci-lint >/dev/null 2>&1; then \
 		mise exec -- golangci-lint run ./...; \
 	elif command -v golangci-lint >/dev/null 2>&1; then \

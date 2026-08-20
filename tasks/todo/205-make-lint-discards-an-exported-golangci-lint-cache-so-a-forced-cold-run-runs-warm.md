@@ -77,16 +77,48 @@ is today, so a reclaimed worktree still takes its cache with it.
 
 ## Completion Criteria
 
-- [ ] An exported `GOLANGCI_LINT_CACHE` is honoured by `make lint`.
+- [x] An exported `GOLANGCI_LINT_CACHE` is honoured by `make lint`.
       verify: `grep -c 'GOLANGCI_LINT_CACHE:-' Makefile` → at least 1 (today: **0**)
-- [ ] The default location is unchanged when nothing is exported, so TASK-203's
+- [x] The default location is unchanged when nothing is exported, so TASK-203's
       per-checkout scoping still holds.
       verify: `grep -c 'tmp/golangci-lint-cache' Makefile` → 2, unchanged
-- [ ] No change to which linters run.
+- [x] No change to which linters run.
       verify: `grep -c 'golangci-lint run ./...' Makefile` → 2, unchanged
-- [ ] A run forced cold actually runs cold.
+- [x] A run forced cold actually runs cold.
       verify: human — run the reproduction above after the fix; the supplied directory
       must be non-empty at step 3, and the run must re-analyse rather than replay
+
+## Verification (2026-08-20)
+
+Fixed as proposed. Both arms measured in one sitting in this worktree, with the default
+cache directory moved aside first so its presence could not be inherited from an earlier
+run:
+
+| arm | `GOLANGCI_LINT_CACHE` | supplied dir before → after | default dir afterwards |
+|---|---|---|---|
+| 1 | exported to a fresh empty dir | 0 KB → **10,448 KB** | **not created** |
+| 2 | unset | — | created, **10,444 KB** |
+
+Both arms print `0 issues.`, which is exactly why the verdict is stated as a magnitude:
+`0 issues.` and *did nothing* are the same output, and 10 MB written versus 0 KB is the
+only thing that separates them.
+
+Arm 2 is the TASK-203 regression check — with nothing exported the cache still lands in
+`$(CURDIR)/tmp/golangci-lint-cache`, so a reclaimed worktree still takes its cache with it.
+
+An earlier pass of this measurement recorded "default location created: **YES**", which
+would have contradicted arm 1. That reading was residue: the directory had been created by
+TASK-204's arm A/B runs in the same worktree minutes earlier, not by the override run. The
+table above is the re-measurement with the default moved aside, and it is the one to quote.
+
+**Open Question 2, now swept rather than named.** Axis: tab-indented recipe lines
+containing a `NAME="..."` assignment. Denominator: **4** in the Makefile today. One was
+this defect (the `GOLANGCI_LINT_CACHE` line, fixed). The other three — `GO_BIN_DIR` in
+`install`, `gopls_cmd` twice in `lint` — are shell locals computed inside the recipe, not
+names a caller conventionally exports; discarding an inherited value is their intent, not a
+defect. No second instance of this bug.
+
+Open Question 1 stands as its leaning: `clean` still deletes only the default path.
 
 ## Open Questions
 
