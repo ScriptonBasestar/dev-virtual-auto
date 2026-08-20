@@ -298,6 +298,28 @@ func TestParseDvaFlags_MissingValue(t *testing.T) {
 	}
 }
 
+// TestParseDvaFlags_RejectedValueIsStillConsumed pins the invariant the comment in
+// TestParseDvaFlags_MissingValue calls worth asserting, for the one spelling that used to
+// violate it. `--mode ""` was rejected without advancing i, so the loop re-read the empty
+// token and appended it to filtered: parseDvaFlags(["--mode","","s1"]) returned ["", "s1"],
+// the value of a recognised flag sitting in what passthrough callers hand to docker.
+//
+// It was unreachable — err is set and every caller returns on it — which is why the first
+// version of the fix left it and described it. A review declined that: unreachable-by-what-
+// the-callers-do-next is a property of six other functions, not of this one. Asserting it
+// here is what turns the argument into a test. TASK-213.
+func TestParseDvaFlags_RejectedValueIsStillConsumed(t *testing.T) {
+	_, _, _, _, filtered, err := parseDvaFlags([]string{"--mode", "", "s1"})
+	if err == nil {
+		t.Fatal(`parseDvaFlags(["--mode", "", "s1"]) returned no error, want an empty-value error`)
+	}
+	// s1 survives and "" does not: the flag's value was consumed even though it was refused,
+	// and the positional argument that followed it is untouched.
+	if len(filtered) != 1 || filtered[0] != "s1" {
+		t.Errorf("filtered = %q, want [\"s1\"]", filtered)
+	}
+}
+
 func TestParseDvaFlags_MissingEnvValue(t *testing.T) {
 	_, env, _, _, _, err := parseDvaFlags([]string{"--env"})
 	if err == nil {

@@ -760,15 +760,21 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 
 	// A malformed boolean value (`--debug=notabool`) is rejected here rather than passed down
 	// in filtered. It used to fall through "for the caller's own rejectUnknownFlags to name",
-	// which only 7 of the 12 call sites have; `dva build` instead appended it to docker's
-	// argv. No caller can take over this job, because a passthrough command must forward the
-	// flags it does not recognise — this is the last code that knows `--debug` is DVA's.
-	// TASK-172.
+	// which most call sites do not have; `dva build` instead appended it to docker's argv. No
+	// caller can take over this job, because a passthrough command must forward the flags it
+	// does not recognise — this is the last code that knows `--debug` is DVA's. TASK-172.
 	//
 	// The first bad flag wins: reporting one is what the user has to fix first. The loop then
 	// runs to the end rather than returning early because a closure has no return to take —
-	// not because anything reads the values it keeps filling in. All 12 callers check err
+	// not because anything reads the values it keeps filling in. Every caller checks err
 	// before touching any other return value, so those values are never observed.
+	//
+	// Both sentences carried a count until TASK-213 — "7 of the 12 call sites" and "all 12
+	// callers" — and by then the real numbers were 2 and 6. Neither was ever reread, which is
+	// TASK-208's subject exactly. They are stated as properties now; the counts are one
+	// command away and belong in a commit message rather than in a comment that outlives it:
+	//   grep -n 'parseDvaFlags(args)' internal/cli/*.go | grep -v _test  # callers: 6 today
+	//   grep -n 'rejectUnknownFlags(' internal/cli/*.go | grep -v _test  # 2, upCmd + restartCmd
 	takeBool := func(name, value string, hasValue bool, target *bool) {
 		if v, ok := flagBoolValue(value, hasValue); ok {
 			*target = v
@@ -818,10 +824,18 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// separable by test.
 	//
 	// Returning ok=false without consuming n means the empty next token in `--mode ""` is
-	// re-read by the loop and lands in filtered. That is unreachable rather than tolerated:
-	// err is set, and all six non-test callers of parseDvaFlags (compose.go:120, 245, 339,
-	// 397, 476, 648) check it before touching filtered. Measured, not assumed — if a caller
-	// is ever added that reads filtered first, this is the comment it invalidates.
+	// The rejection paths return the token count they consumed, and the cases below advance
+	// by it whether or not the value was accepted. That is not symmetry either: a rejected
+	// `--mode ""` used to leave i where it was, so the loop re-read the empty token and
+	// appended it to filtered — the value of a recognised flag reaching a passthrough
+	// command's argv. It was unreachable, because err is set and every non-test caller of
+	// parseDvaFlags (upCmd, teardownCommon, downCmd, stopCmd, restartCmd, buildCmd) checks it
+	// on the line immediately after the call. "Unreachable" was the first draft of this
+	// comment and a review was right to call it a latent invariant violation rather than a
+	// property: it holds because of what six callers happen to do next, and buildCmd is one
+	// reorder away from forwarding that "" to docker. flagValue returns consumed=0 on the
+	// nothing-to-take branch, so advancing unconditionally is a no-op there and the fix costs
+	// one line per case.
 	takeValue := func(name, value string, hasValue bool, i int) (string, int, bool) {
 		v, n, ok := flagValue(args, i, end, value, hasValue)
 		if !ok {
@@ -882,24 +896,28 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		name, value, hasValue := splitFlagToken(a)
 		switch name {
 		case "--mode", "-M":
-			if v, n, ok := takeValue(name, value, hasValue, i); ok {
+			v, n, ok := takeValue(name, value, hasValue, i)
+			i += n
+			if ok {
 				mode = v
-				i += n
 			}
 		case "--env", "-E":
-			if v, n, ok := takeValue(name, value, hasValue, i); ok {
+			v, n, ok := takeValue(name, value, hasValue, i)
+			i += n
+			if ok {
 				env = v
-				i += n
 			}
 		case "--tag", "--tags", "-T":
-			if v, n, ok := takeList(name, value, hasValue, i); ok {
+			v, n, ok := takeList(name, value, hasValue, i)
+			i += n
+			if ok {
 				includeTags = append(includeTags, v...)
-				i += n
 			}
 		case "--exclude-tag", "--exclude-tags":
-			if v, n, ok := takeList(name, value, hasValue, i); ok {
+			v, n, ok := takeList(name, value, hasValue, i)
+			i += n
+			if ok {
 				excludeTags = append(excludeTags, v...)
-				i += n
 			}
 		// Callers set DisableFlagParsing, so cobra never parses the root
 		// persistent --dry-run. Without this it falls through to filtered and
