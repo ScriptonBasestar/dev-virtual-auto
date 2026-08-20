@@ -9,9 +9,11 @@
 //     least one test declared in the tree, so a binding cannot name a test that
 //     does not exist and still exit 0 (TASK-136)
 //   - archive frontmatter: every card under tasks/_archive/ carries `id:` or
-//     `type:`. ce tests for those two fields before it tests whether the file is
-//     archived, so a card missing both falls through to the legacy validator and
-//     is audited against a card format that postdates it (TASK-206)
+//     `type:`. Older ce tested those fields before testing whether the file was
+//     archived, so a card missing both was audited against a format that
+//     postdates it; fixed ce skips the archive before reading it and reports
+//     nothing there. Neither build asserts this property — only this does, and
+//     the upgrade widens its remit rather than retiring it (TASK-206)
 //
 // Exit 1 on vacuous runs (zero candidates, zero links, _test.go files that yield
 // no test names, or archive files that yield no cards), broken links, oversized

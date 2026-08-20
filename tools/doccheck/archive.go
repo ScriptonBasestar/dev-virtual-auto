@@ -8,31 +8,48 @@ import (
 	"strings"
 )
 
-// archivePrefix is the frozen zone this guard covers. `ce task validate` has a rule that
-// archived documents are history and are not maintained, but it evaluates that rule last.
-// Read from ce-agent-kit source at 01e4dc52 (internal/usecase/task/canonical_validator.go,
-// validateCanonicalTask), the order is:
+// archivePrefix is the frozen zone this guard covers. The property asserted is that every card
+// under it carries `id:` or `type:` in its frontmatter. `ce task validate` does not assert that,
+// under either build of it — and the two builds fail to assert it for opposite reasons, which is
+// why this comment describes both rather than whichever one happens to be installed.
+//
+// ce has a rule that archived documents are history and are not maintained. Before ce-agent-kit
+// 7391ac64 it evaluated that rule last, which left the rule mostly unreachable. Read from source
+// at 01e4dc52 (internal/usecase/task/canonical_validator.go, validateCanonicalTask), the order
+// was:
 //
 //  1. parse; "detected" means only that line 1 trimmed is `---`
 //  2. YAML error      -> hard error, returns          <- before the skip
 //  3. no id, no type  -> falls through to the legacy validator
 //  4. canonicalFrozenZone(path) -> "Skipped: archived..."
 //
-// So a card reaching step 3 is judged as unfinished current work, in a directory named
-// `_archive`, against a card format that postdates it. Nothing in this repository asserted
-// the property the archive silently depends on; this does (TASK-206).
+// so a card reaching step 3 was judged as unfinished current work, in a directory named
+// `_archive`, against a card format that postdates it. 7391ac64 hoists the zone decision into
+// Validator.Validate ahead of both the decision-doc route and validateCanonicalTask, so an
+// archived card is exempt before anything reads it. Measured across both binaries: 13 cards the
+// old one reported red — 10 with neither field, 3 with malformed YAML — every one of them skips
+// under the new one.
+//
+// Fixed ce therefore does not mis-judge these cards. It also reports nothing whatsoever about
+// them, which is the same fact seen from the other side: the property above was only ever
+// enforced by ce's incidental red, so once the fix lands it is enforced by nothing but this file
+// (TASK-206). "Current ce handles the archive correctly" is not a reason to delete this guard —
+// correct-and-silent is the exact condition under which it becomes the only check left.
 //
 // Three boundaries, each measured, so this guard is not read as more than it is:
 //
-//   - It asserts step 3 only. A card with `id:` and malformed YAML is a step-2 hard error and
-//     passes here — doccheck is stdlib-only and cannot parse YAML to see it.
-//   - Archived *decision* docs (a path component `decision`/`decisions`/`adr`/`adrs`) never
-//     reach the skip at all: validator.go routes them away before any of this, and no
-//     frontmatter rescues them. That is a path rule, not a frontmatter one, so a frontmatter
-//     guard cannot express it — the reason it is absent here, rather than that dva has none.
-//   - `ce task validate --all` excludes the archive during its tree walk, so none of this
-//     fires there — measured, 7 files validated against 200 archived cards on disk. The
-//     defect is reachable only by explicit path, which is how an audit sweep reaches it.
+//   - It asserts field presence only. A card with `id:` and malformed YAML passes here —
+//     doccheck is stdlib-only and cannot parse YAML to see it. Pre-fix ce caught that as a
+//     step-2 hard error; fixed ce skips it with everything else. So it is an open gap, not a
+//     division of labour, and it widens rather than closes when ce is upgraded.
+//   - Archived *decision* docs (a path component `decision`/`decisions`/`adr`/`adrs`) are
+//     uncovered under both builds: pre-fix, validator.go routed them away before any of this;
+//     post-fix, the hoisted zone check exempts them first. That is a path rule, not a
+//     frontmatter one, so a frontmatter guard cannot express it — the reason it is absent
+//     here, rather than that dva has none.
+//   - `ce task validate --all` excludes the archive during its tree walk, so none of this ever
+//     fired there — measured, 7 files validated against 200 archived cards on disk. The old
+//     misjudgement was reachable only by explicit path, which is how an audit sweep reaches it.
 const archivePrefix = "tasks/_archive/"
 
 // canonicalFields are the frontmatter keys that satisfy step 3 above. Both are listed because
