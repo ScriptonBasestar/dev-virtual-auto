@@ -779,27 +779,53 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 		}
 	}
 
+	// A value-taking flag with nothing to take is an error, reported here for the same
+	// reason takeBool reports a malformed boolean: only this code knows a value was
+	// required. flagValue stays a bool — what it cannot supply is the flag's name, and it
+	// has no err to set. Note that its own doc comment used to justify the silence by
+	// saying the helper is also used where taking the next token is optional; it is not.
+	// grep says flagValue has exactly four callers and they are the four cases below, so
+	// the helper's neutrality is prospective, not a current constraint. TASK-211.
+	//
+	// Until then every case ignored ok=false, and a recognised flag is never appended to
+	// filtered, so the token vanished: `dva restart --mode` ran the whole stack and
+	// reported success — the widest possible result for someone who typed a narrowing
+	// flag. Same for --env, --tag and --exclude-tag.
+	//
+	// "Nothing to take" includes a flag sitting just before the terminator, because
+	// dvaFlagEnd puts end at the first `--`: in `--mode --` the flag is last as far as
+	// flagValue is concerned even though a token follows. Both spellings have to error or
+	// the fix closes one door and leaves its twin open — that pair is what TASK-207's
+	// review was looking at when it filed this.
+	takeValue := func(name, value string, hasValue bool, i int) (string, int, bool) {
+		v, n, ok := flagValue(args, i, end, value, hasValue)
+		if !ok && err == nil {
+			err = fmt.Errorf("%s requires a value", name)
+		}
+		return v, n, ok
+	}
+
 	for i := 0; i < end; i++ {
 		a := args[i]
 		name, value, hasValue := splitFlagToken(a)
 		switch name {
 		case "--mode", "-M":
-			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+			if v, n, ok := takeValue(name, value, hasValue, i); ok {
 				mode = v
 				i += n
 			}
 		case "--env", "-E":
-			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+			if v, n, ok := takeValue(name, value, hasValue, i); ok {
 				env = v
 				i += n
 			}
 		case "--tag", "--tags", "-T":
-			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+			if v, n, ok := takeValue(name, value, hasValue, i); ok {
 				includeTags = append(includeTags, strings.Split(v, ",")...)
 				i += n
 			}
 		case "--exclude-tag", "--exclude-tags":
-			if v, n, ok := flagValue(args, i, end, value, hasValue); ok {
+			if v, n, ok := takeValue(name, value, hasValue, i); ok {
 				excludeTags = append(excludeTags, strings.Split(v, ",")...)
 				i += n
 			}

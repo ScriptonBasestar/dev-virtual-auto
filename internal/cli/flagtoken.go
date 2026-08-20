@@ -109,8 +109,15 @@ func flagBoolValue(value string, hasValue bool) (v, ok bool) {
 // flagValue returns a value-taking flag's value and how many extra tokens it consumed.
 //
 // `--mode=dev` consumes none, `--mode dev` consumes one. ok is false when a bare flag ends
-// the run of DVA flags with nothing to take — `dva up --mode` — which every caller has
-// always treated as "no value given" rather than as an error.
+// the run of DVA flags with nothing to take — `dva up --mode`, and also `dva up --mode --`,
+// since dvaFlagEnd puts end at the terminator.
+//
+// ok=false is a report about the token run, not a verdict: this helper is not told the
+// flag's name and has no error to return, so it cannot say "--mode requires a value". Its
+// callers decide. Every caller today is a case in parseDvaFlags and all four now treat it
+// as an error (TASK-211); this comment previously said the opposite, and claimed the
+// silence was owed to callers for which taking the next token is optional — there are
+// none, and a future one would have to earn the exception rather than inherit it.
 func flagValue(args []string, i, end int, value string, hasValue bool) (v string, consumed int, ok bool) {
 	if hasValue {
 		return value, 0, true
