@@ -4,7 +4,7 @@ title: "A lone terminator disarms build's plan-selection guard and builds the wh
 type: bug
 priority: P2
 effort: S
-created-at: 2026-08-20T17:20:00+09:00
+created-at: 2026-08-20T16:56:47+09:00
 source: "found by TASK-210's caller census — the card measured four verbs, the two functions it changed have seven callers, and build was the one whose terminator behaviour was already wrong"
 scope: "internal/cli/compose.go buildCmd RunE, the requirePlanSelection call at :661. The routing helpers are not at fault; build is the one caller that cannot be backstopped by rejectUnknownFlags."
 status: todo
