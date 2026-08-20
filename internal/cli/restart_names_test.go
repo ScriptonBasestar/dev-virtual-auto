@@ -1,5 +1,5 @@
 // Package cli — regression tests for TASK-033.
-// restartCmd advertises "[PLAN | SERVICE...]" in its Use string; these tests
+// restartCmd advertises "[PLAN | ENTRY...]" in its Use string; these tests
 // assert that on the legacy (no-plans) path the names actually reach
 // lifecycle.UpOptions.Names instead of being discarded.
 package cli
@@ -534,4 +534,105 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 			})
 		}
 	}
+}
+
+func writeRestartTaggedPlanProbeConfig(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	body := `version: "0.1.44"
+stack:
+  s1:
+    order: 1
+    tags: [web]
+    script:
+      up: touch s1_up
+      stop: touch s1_stop
+  s2:
+    order: 2
+    tags: [db]
+    script:
+      up: touch s2_up
+      stop: touch s2_stop
+plans:
+  p1:
+    entries:
+      - name: s1
+  p2:
+    entries:
+      - name: s2
+`
+	if err := os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	cfg, env = nil, nil
+	t.Cleanup(func() {
+		os.Chdir(oldWd)
+		cfg, env = nil, nil
+	})
+	return dir
+}
+
+// TestRestartStackFlagsDoNotNeedAPlanName separates the two invocations that both
+// arrive at an empty name list, in one config where the difference is visible:
+// several plans, no default_plan, so the plan gate has something to refuse.
+//
+// `dva restart --` means "no names given" and is refused, exactly as a bare
+// `dva restart` is. `dva restart --tag web` also leaves zero names behind, and is
+// NOT the same statement — a selector was given, and the raw-args gate has already
+// ruled that a surviving token means "do not ask for a plan". A first version of
+// the terminator fix gated on the empty list alone and refused both: measured,
+// `restart --tag web` went from rc=0 bouncing s1 to rc=1 "multiple plans
+// configured", while `up --tag web` and `stop --tag web` were untouched. This test
+// is what makes that regression visible, so it asserts the two shapes in the same
+// fixture rather than checking either alone.
+func TestRestartStackFlagsDoNotNeedAPlanName(t *testing.T) {
+	selectors := []struct {
+		what string
+		args []string
+		ran  []string
+	}{
+		{"a tag selector", []string{"--tag", "web"}, []string{"s1_stop", "s1_up"}},
+		{"its short form", []string{"-T", "web"}, []string{"s1_stop", "s1_up"}},
+		{"an attached value", []string{"--tag=web"}, []string{"s1_stop", "s1_up"}},
+		{"an exclusion", []string{"--exclude-tag", "db"}, []string{"s1_stop", "s1_up"}},
+	}
+	for _, tc := range selectors {
+		t.Run(tc.what, func(t *testing.T) {
+			dir := writeRestartTaggedPlanProbeConfig(t)
+			if err := restartCmd.RunE(restartCmd, tc.args); err != nil {
+				t.Fatalf("restart %v: %v; a selector is a token, and the raw-args gate lets a token through — refusing here would make restart the only lifecycle verb whose tag filter needs a plan name", tc.args, err)
+			}
+			got := ranMarkers(t, dir)
+			want := map[string]bool{}
+			for _, m := range tc.ran {
+				want[m] = true
+			}
+			for _, m := range []string{"s1_stop", "s1_up", "s2_stop", "s2_up"} {
+				if want[m] != got[m] {
+					t.Errorf("restart %v: %s ran=%v, want %v (ran %v)", tc.args, m, got[m], want[m], got)
+				}
+			}
+		})
+	}
+
+	// The control. Same fixture, same empty name list, opposite ruling — without
+	// this row the test above would also pass on a build with no gate at all.
+	t.Run("but the bare terminator still is a missing name", func(t *testing.T) {
+		dir := writeRestartTaggedPlanProbeConfig(t)
+		err := restartCmd.RunE(restartCmd, []string{"--"})
+		if err == nil {
+			t.Fatalf("restart --: exited 0 having run %v; with several plans and no default_plan a bare restart is refused, and `--` says the same thing", ranMarkers(t, dir))
+		}
+		if ran := ranMarkers(t, dir); len(ran) != 0 {
+			t.Errorf("restart --: refused with %v but ran %v; a refusal must not act first", err, ran)
+		}
+	})
 }

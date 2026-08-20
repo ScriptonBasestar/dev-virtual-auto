@@ -411,7 +411,7 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 }
 
 var restartCmd = &cobra.Command{
-	Use:   "restart [PLAN | SERVICE...] [OPTIONS]",
+	Use:   "restart [PLAN | ENTRY...] [OPTIONS]",
 	Short: "Restart services (stop + start)",
 	Long: `Restart a named plan (stop followed by start).
 Without a plan name it uses default_plan, or the only plan when exactly one
@@ -432,15 +432,24 @@ they are rejected rather than accepted and ignored: it always waits, and there
 are no plan variables to override.
 
 Stack usage:
-  dva restart <service>   Restart only the named entries (works in any config)
+  dva restart <entry>     Restart only the named stack entries (works in any config)
   dva restart -- <name>   Read what follows as names, never as flags
 
-A name matching no declared stack entry is an error, as it is for up, down and
-stop. After -- every argument is a name whatever it spells, so a flag written
-there is reported as an unknown name rather than silently dropped. A bare
-"dva restart --" means "no names given" and does what a bare "dva restart" does,
-including refusing to guess when several plans are configured. The exception is
-a config with a default_plan, where a leading -- is still refused as a flag.
+A name matching no declared stack entry is an error. That rule is restart's own,
+not a parity with its siblings: restart is the only lifecycle verb taking stack
+entry names at all, up reads a positional as a plan name and rejects a real entry
+with "plan not found", and down and stop refuse positionals outright. After --
+every argument is a name whatever it spells, so a flag written there is reported
+as an unknown name rather than silently dropped.
+
+A bare "dva restart --" means "no names given" and does whatever a bare
+"dva restart" does in that config, in both directions: it restarts every declared
+entry where a bare restart does, and it refuses to guess where several plans are
+configured. Wrapper scripts should know that "dva restart -- $@" with an empty
+"$@" restarts everything in a plan-less config; it was a no-op before TASK-207.
+The exception is a config with a resolvable default plan — an explicit
+default_plan, or a lone plan, which counts as one — where a leading -- is still
+refused as a flag.
 
 Stack flags:
   --mode, -M MODE           Use a named mode from dva.yml modes section
@@ -532,8 +541,21 @@ Stack flags:
 		// then leaves zero names, which lifecycle reads as "every entry". Measured, not reasoned
 		// about: `dva restart --` stopped and started the whole stack in a config whose bare
 		// `dva restart` is refused as too ambiguous to act on. That is 198's escalation arriving
-		// from the other side, so the gate is re-applied on the empty list — the only shape that
-		// can reach it. Found by review; the test above asserted the divergence as correct.
+		// from the other side, so the gate is re-applied. Found by review; the test above
+		// asserted the divergence as correct.
+		//
+		// It is re-applied on the RAW args, not on the empty name list, and the difference is
+		// the whole guard. An empty `names` is not the terminator's signature: `dva restart
+		// --tag web` empties it too, and so does every other stack selector. A first draft
+		// gated on `len(names) == 0` alone and refused all of them — measured, `restart --tag
+		// web` went from rc=0 bouncing s1 on master to rc=1 "multiple plans configured", while
+		// `up --tag web` and `stop --tag web` kept working, making restart the one lifecycle
+		// verb whose tag filter needs a plan name. `restart --mode dev` stopped reporting the
+		// unknown mode and reported the plan gate instead. The raw-args gate above has already
+		// ruled on flag-only invocations — any surviving token means "do not ask for a plan" —
+		// and that ruling stands. Only an invocation whose every token was the terminator means
+		// "no names given", so that is what this asks: strip --debug/--json exactly as the gate
+		// itself does, drop the terminator, and require nothing else to be left.
 		//
 		// The identity this restores is with the STACK route. A config with a default_plan
 		// refuses `dva restart --` earlier, from rejectSuppressedDefaultPlan, because args[0]
@@ -544,7 +566,7 @@ Stack flags:
 		// a name that exists but is excluded by --tag selects nothing legitimately and keeps
 		// its warning. See rejectUnknownEntryNames.
 		names = dropFlagTerminator(names)
-		if len(names) == 0 {
+		if len(dropFlagTerminator(planRoutingArgs(args))) == 0 {
 			if err := requirePlanSelection(c, "restart", nil); err != nil {
 				return err
 			}
