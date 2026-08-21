@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
@@ -354,5 +356,153 @@ func TestUpWithoutPlansGuardOnlyInspectsPlanNameSlot(t *testing.T) {
 		if err := upCmd.RunE(upCmd, args); err != nil {
 			t.Errorf("'dva up %s' must not be read as a positional argument: %v", strings.Join(args, " "), err)
 		}
+	}
+}
+
+// TestLoneTerminatorMatchesTheBareForm is TASK-216's ruling in one table: `dva <verb> --`
+// means what `dva <verb>` means, for up, down and stop, in every config shape. TASK-207 and
+// TASK-210 had ruled the identity restart-local, and 12 of the 18 verb x fixture pairs
+// disagreed with the bare form as a result — 9 of them by refusing where a bare invocation
+// tore the whole stack down, which is the shape `dva down -- "$@"` lands in when "$@" is
+// empty.
+//
+// restart is here as a control, not as new coverage. It already held the identity before this
+// card, so its rows failing means the harness moved, not that the ruling regressed; and it is
+// the only verb that reaches the identity through a different helper (dropFlagTerminator on
+// the name list, rather than dropLeadingTerminator on the raw args), so keeping it in the same
+// table is what stops the two implementations drifting apart unnoticed.
+//
+// Differential rather than expected-string, which is the point of the criterion: the assertion
+// is that the two forms agree with EACH OTHER, so rewording any of these messages leaves it
+// passing and reopening the divergence fails it. A hardcoded-message version would have had to
+// be rewritten by the very change it exists to catch — TestRestartBareTerminatorMeansABareRestart
+// records that happening once already, where a literal expectation read a measured divergence
+// as agreement.
+//
+// Markers are compared as well as the error, because on the teardown verbs "refused" and "ran
+// nothing" are not distinguishable from the exit code alone: a variant that swallowed `--` as
+// an unmatchable name would exit 0 having done nothing, which no error comparison separates
+// from the whole-stack teardown a bare `dva down` performs.
+func TestLoneTerminatorMatchesTheBareForm(t *testing.T) {
+	verbs := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"up", upCmd},
+		{"down", downCmd},
+		{"stop", stopCmd},
+		{"restart", restartCmd},
+	}
+	// The four shapes TASK-216 measured, reusing restart's fixture writers rather than a
+	// parallel set: they are the configs the identity was first ruled against, and the down
+	// hooks they now carry are what make the teardown rows observable at all.
+	fixtures := []struct {
+		shape string
+		write func(*testing.T) string
+	}{
+		{"no plans", writeRestartProbeConfig},
+		{"two plans, no default_plan", writeRestartPlanProbeConfig},
+		{"explicit default_plan", writeRestartDefaultPlanProbeConfig},
+		{"lone plan promoted to default", writeRestartLonePlanProbeConfig},
+	}
+	markers := []string{"s1_up", "s1_stop", "s1_down", "s2_up", "s2_stop", "s2_down"}
+
+	// Positive control, counted PER VERB. Agreement is the assertion, and two invocations that
+	// both do nothing agree perfectly — so a fixture that could not reach a lifecycle hook, or
+	// a marker list that named files no hook writes, would pass this whole table without
+	// measuring anything. Counted rather than asserted per row, because the refusing shapes
+	// are SUPPOSED to leave no markers; what must not happen is a whole VERB being nothing but
+	// those.
+	//
+	// Per verb and not one total, because a single global counter is satisfied by the loudest
+	// column and then reports for the quiet ones. Measured: neutering only the `down:` hooks in
+	// the four fixture writers (8 substitutions) left all 16 subtests passing under a global
+	// counter — the `up` rows kept it non-zero while the entire `down` column silently compared
+	// two empty marker sets. Per verb, that same edit fails on `down`, which is the column the
+	// 9 silent-direction rows of this card live in.
+	ranSomething := map[string]int{}
+
+	for _, v := range verbs {
+		for _, fx := range fixtures {
+			t.Run(v.name+"/"+fx.shape, func(t *testing.T) {
+				bareDir := fx.write(t)
+				bareErr := v.cmd.RunE(v.cmd, nil)
+				bareRan := ranMarkers(t, bareDir)
+
+				termDir := fx.write(t)
+				termErr := v.cmd.RunE(v.cmd, []string{"--"})
+				termRan := ranMarkers(t, termDir)
+
+				if len(bareRan) > 0 {
+					ranSomething[v.name]++
+				}
+
+				switch {
+				case bareErr == nil && termErr != nil:
+					t.Fatalf("dva %s --: %v; a bare `dva %s` succeeds in this config, so the terminator form must too", v.name, termErr, v.name)
+				case bareErr != nil && termErr == nil:
+					t.Fatalf("dva %s -- exited 0 having run %v, but a bare `dva %s` here is refused with %v; `--` must never do more than the bare form is permitted to", v.name, termRan, v.name, bareErr)
+				case bareErr != nil && termErr != nil && bareErr.Error() != termErr.Error():
+					t.Fatalf("dva %s --: %q; a bare `dva %s` says %q, and \"no names given\" must be the same refusal", v.name, termErr, v.name, bareErr)
+				}
+				for _, m := range markers {
+					if bareRan[m] != termRan[m] {
+						t.Errorf("dva %s --: %s ran=%v; a bare `dva %s` ran=%v", v.name, m, termRan[m], v.name, bareRan[m])
+					}
+				}
+			})
+		}
+	}
+
+	for _, v := range verbs {
+		if ranSomething[v.name] == 0 {
+			t.Errorf("no %s row reached a lifecycle hook across %d fixtures; the %s column above agrees only because both forms did nothing", v.name, len(fixtures), v.name)
+		}
+	}
+}
+
+// TestLeadingTerminatorIsConsumedOnceNotRepeatedly pins the half of the ruling the table above
+// cannot see. `dva <verb> --` ≡ `dva <verb>` is upheld there by comparing the two forms; a
+// variant that dropped EVERY leading terminator rather than the first would satisfy every one
+// of those rows, because they only ever pass one. Measured before this test existed: rewriting
+// dropLeadingTerminator as a loop passed `go test ./internal/cli/` whole-package green while
+// contradicting dropFlagTerminator's doc comment and USAGE.md:218.
+//
+// The fixture is the shape where a bare invocation SUCCEEDS, so "still refused" is a real
+// verdict rather than one refusal standing in for another: `dva up --` starts the stack here,
+// and `dva up -- --` must not, because the second `--` is an argument and these verbs take
+// none. Markers are checked too — under a drop-all variant the doubled form does not merely
+// exit 0, it runs the whole stack.
+func TestLeadingTerminatorIsConsumedOnceNotRepeatedly(t *testing.T) {
+	verbs := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"up", upCmd},
+		{"down", downCmd},
+		{"stop", stopCmd},
+		{"restart", restartCmd},
+	}
+
+	for _, v := range verbs {
+		t.Run(v.name, func(t *testing.T) {
+			bareDir := writeRestartProbeConfig(t)
+			if err := v.cmd.RunE(v.cmd, []string{"--"}); err != nil {
+				t.Fatalf("dva %s --: %v; this fixture is chosen because the single terminator form succeeds in it", v.name, err)
+			}
+			if len(ranMarkers(t, bareDir)) == 0 {
+				t.Fatalf("dva %s -- ran no lifecycle hook here; the contrast below would be between two refusals", v.name)
+			}
+
+			doubleDir := writeRestartProbeConfig(t)
+			err := v.cmd.RunE(v.cmd, []string{"--", "--"})
+			ran := ranMarkers(t, doubleDir)
+			if err == nil {
+				t.Fatalf("dva %s -- -- exited 0 having run %v; only the leading terminator is a separator, so the second one is an argument and %s takes none", v.name, ran, v.name)
+			}
+			if len(ran) > 0 {
+				t.Errorf("dva %s -- -- was refused with %v but still ran %v", v.name, err, ran)
+			}
+		})
 	}
 }

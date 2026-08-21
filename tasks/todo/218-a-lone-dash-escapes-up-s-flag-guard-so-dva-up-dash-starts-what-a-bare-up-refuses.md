@@ -6,7 +6,7 @@ priority: P2
 effort: S
 created-at: 2026-08-20T19:00:00+09:00
 source: "found while writing TASK-210's restart table — the `-` row needed a second expected message depending on config shape, and asking why turned up an escalation behind it"
-scope: "internal/cli/selectors.go:60 (rejectUnknownFlags' length test), internal/cli/plan_lifecycle.go:153 (rejectSuppressedDefaultPlan's dash test), internal/cli/selectors.go:140-141 (the message that already states the opposite rule). Not the terminator — that is TASK-216."
+scope: "internal/cli/selectors.go:60 (rejectUnknownFlags' length test), internal/cli/plan_lifecycle.go:153 (rejectSuppressedDefaultPlan's dash test), internal/cli/selectors.go:140-141 (the message that already states the opposite rule). Not the terminator — that is TASK-216, which ruled extend and gave this bug a second spelling (`dva up -- -`)."
 status: todo
 ---
 
@@ -192,7 +192,7 @@ the guard you happen to be editing.
 - `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pins the divergent message so this fails loudly when the ruling lands
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the defect this is the one-character remainder of
 - `tasks/todo/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — same `requirePlanSelection` line, different token
-- `tasks/todo/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the `--` half; ruled deliberately the other way, so it is not this card
+- `tasks/_archive/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the `--` half, and still not this card, but no longer for the reason written here first. TASK-216 **overturned** the restart-local ruling: `up`/`down`/`stop` now consume a leading `--`. That widened this bug rather than leaving it alone — `dva up -- -` went rc=1 to rc=0 there, inheriting `dva up -`, so the dash now has two spellings and this card owns both
 
 ## Technical Notes
 

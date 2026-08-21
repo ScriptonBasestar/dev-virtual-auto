@@ -112,6 +112,13 @@ func detectPlanRoute(c *config.Config, args []string) (planName string, extraArg
 // nothing changed from refused to accepted. The choice is not "refuse vs silently honour"; it
 // is which layer owns a token the user wrote after the plan name. Consuming it here would let
 // the router eat a separator meant for the runner — what a future passthrough needs. TASK-210.
+//
+// TASK-216 added three callers outside this file: up, down and stop each call it on their raw
+// args once detectPlanRoute has declined to route them, which is what makes `dva up --` mean
+// what a bare `dva up` means. The "args[0] only" contract is why they call this one and not
+// dropFlagTerminator: on the whole-stack path a `--` further in is a token their own guards
+// have to classify, and a helper that reached in to remove it would silence them. The choice of
+// helper is therefore the same choice made here for the same reason, one route over.
 func dropLeadingTerminator(args []string) []string {
 	if len(args) > 0 && args[0] == "--" {
 		return args[1:]

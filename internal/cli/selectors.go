@@ -80,15 +80,29 @@ func rejectUnknownFlags(path, noun string, args, known []string) error {
 
 // dropFlagTerminator removes the first `--` from a list of positional names.
 //
-// parseDvaFlags deliberately KEEPS the terminator in its output, and that is right for its
-// other callers: `dva up` takes no positional names, so the surviving `--` is what makes
-// rejectUnknownFlags refuse a stray one. A command that does take names has to consume it
-// instead, because there the token is a separator and not an argument. Only the first is
-// dropped — a second `--` is an ordinary word, and `dva restart -- -- s1` should say so.
+// parseDvaFlags deliberately KEEPS the terminator in its output so that each caller can rule
+// on it for itself. A command that takes names has to consume it, because there the token is a
+// separator and not an argument. Only the first is dropped — a second `--` is an ordinary word,
+// and `dva restart -- -- s1` should say so.
 //
-// Restart-local on purpose. Dropping it inside parseDvaFlags would newly ACCEPT a stray
-// terminator on every other caller, which is the regression parseDvaFlags' own closing
-// comment warns about. TASK-207.
+// This helper stays restart's alone, and that is now a statement about WHERE the drop happens
+// rather than about which verbs get the identity. TASK-207 ruled `dva restart --` ≡ `dva
+// restart` and called the identity restart-local, reasoning that a verb taking no positional
+// names has nothing to separate, so a `--` written there is a mistake worth reporting.
+// TASK-216 overturned that half, having measured what keeping it cost: `--` is what a wrapper
+// writes when its own argument list may be empty, `dva down -- "$@"` with an empty "$@" is the
+// ordinary use of it, and it was refused in exactly the config shape where `dva down` is most
+// often run bare — 12 of 18 verb x fixture pairs disagreed with the bare form, 9 of them by
+// refusing where the bare form ran the whole stack. So up/down/stop consume a leading
+// terminator too, via dropLeadingTerminator on the whole-stack path (compose.go), not via this
+// helper: they have no positional name list for the "first `--` anywhere" contract to scan, and
+// only their args[0] is ever a separator.
+//
+// What has NOT changed is where the drop must not go. Moving it into parseDvaFlags would newly
+// ACCEPT a stray terminator on every caller at once, including ones no card has ruled on —
+// `build` is one, and TASK-217 owns it — which is the regression parseDvaFlags' own closing
+// comment warns about. The three RunE bodies opt in one at a time and say so where they do;
+// parseDvaFlags would opt them all in with nothing left to read to find out which.
 func dropFlagTerminator(names []string) []string {
 	i := slices.Index(names, "--")
 	if i < 0 {

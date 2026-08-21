@@ -14,6 +14,18 @@ import (
 // writeRestartProbeConfig creates a two-entry script stack in a temp dir and
 // chdirs into it. Each hook touches a marker file, so "which entries ran" is
 // observable without parsing subprocess output.
+//
+// The `down:` hooks are TASK-216's addition. Without them a `dva down` differential
+// over this fixture is vacuous — ScriptPlugin.Down returns nil without running
+// anything when the hook is absent, so both forms of the invocation "agree" whatever
+// the router does. Adding them does not by itself prevent that; nothing here can,
+// because a fixture cannot detect a caller that ignores it. What enforces it is the
+// per-verb positive control in TestLoneTerminatorMatchesTheBareForm, which fails on
+// the `down` column if these eight lines are removed. Under the single global counter
+// that test first shipped with, removing them left all 16 subtests passing.
+//
+// The restart tests below never fire them — restart is stop+up — so nothing they
+// assert moves.
 func writeRestartProbeConfig(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -28,11 +40,13 @@ stack:
     script:
       up: touch s1_up
       stop: touch s1_stop
+      down: touch s1_down
   s2:
     order: 2
     script:
       up: touch s2_up
       stop: touch s2_stop
+      down: touch s2_down
 `
 	if err := os.WriteFile(filepath.Join(dir, "dva.yml"), []byte(body), 0644); err != nil {
 		t.Fatal(err)
@@ -59,7 +73,7 @@ stack:
 func ranMarkers(t *testing.T, dir string) map[string]bool {
 	t.Helper()
 	got := map[string]bool{}
-	for _, m := range []string{"s1_up", "s1_stop", "s2_up", "s2_stop"} {
+	for _, m := range []string{"s1_up", "s1_stop", "s1_down", "s2_up", "s2_stop", "s2_down"} {
 		if _, err := os.Stat(filepath.Join(dir, m)); err == nil {
 			got[m] = true
 		}
@@ -287,11 +301,13 @@ stack:
     script:
       up: touch s1_up
       stop: touch s1_stop
+      down: touch s1_down
   s2:
     order: 2
     script:
       up: touch s2_up
       stop: touch s2_stop
+      down: touch s2_down
 plans:
   p1:
     entries:
@@ -393,11 +409,13 @@ stack:
     script:
       up: touch s1_up
       stop: touch s1_stop
+      down: touch s1_down
   s2:
     order: 2
     script:
       up: touch s2_up
       stop: touch s2_stop
+      down: touch s2_down
 plans:
   p1:
     entries:
@@ -423,11 +441,13 @@ stack:
     script:
       up: touch s1_up
       stop: touch s1_stop
+      down: touch s1_down
   s2:
     order: 2
     script:
       up: touch s2_up
       stop: touch s2_stop
+      down: touch s2_down
 plans:
   p1:
     entries:

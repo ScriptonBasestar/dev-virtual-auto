@@ -80,6 +80,13 @@ Without a plan name it uses default_plan, or the only plan when exactly one
 is declared. With several plans and no default_plan it refuses and asks you
 to name one. With no plans configured it starts every declared stack entry.
 
+A leading -- is a separator, never an argument: "dva up --" does exactly what a
+bare "dva up" does in that config, and "dva up -- X" is read exactly as
+"dva up X" -- including when that is a refusal. So a wrapper written as
+'dva up -- "$@"' is safe when "$@" is empty. Only the LEADING one is consumed:
+"dva up -- --" is still an error, and a -- written after something else is left
+alone.
+
 Plan usage:
   dva up <plan>           Start the selected plan
   --force                 Compose only: pass --force-recreate (other plugins ignore)
@@ -107,6 +114,37 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanUp(c, e, planName, extraArgs)
 		}
+		// A LEADING `--` is a separator: `dva up --` ≡ `dva up`, and `dva up -- X` ≡ `dva up X`.
+		// TASK-216 widened TASK-207's restart-local identity to up/down/stop; the argument, and
+		// what keeping it restart-local cost, is written at dropFlagTerminator (selectors.go).
+		//
+		// "Leading" and not "the first one anywhere", which is load-bearing in both directions.
+		// `dva up --debug --` keeps its terminator and is still refused — that one is not at
+		// args[0]. And the identity is false at X = `--`: `dva up -- --` is `unknown flag "--"`
+		// while `dva up --` starts the stack, because exactly one is consumed and `up` takes no
+		// arguments. That is not an exception to the rule; it is what a separator means, and
+		// `restart` behaves the same way (`dva restart -- -- s1` refuses).
+		//
+		// It has to go HERE — above requirePlanSelection — rather than beside the flag guard
+		// that used to refuse the token. detectPlanRoute returns ok=false for "no plans" before
+		// it reaches its own dropLeadingTerminator, and for "several plans, none named" as well,
+		// so the terminator survives into both, and requirePlanSelection is the first guard to
+		// read it: it counts one surviving token as "the user named something" and lets the
+		// several-plans config through, where a bare `dva up` is refused. Dropping any later
+		// leaves that row diverging.
+		//
+		// What the guards see is unchanged: `dva up -- X` reaches rejectSuppressedDefaultPlan,
+		// rejectUpPositionalArg and rejectUnknownFlags with exactly the args `dva up X` reaches
+		// them with. What that does NOT mean is "only the empty case moved" — an earlier draft
+		// of this comment said so and the review refuted it. `dva up -- -` went rc=1
+		// (`unknown flag "--"`) to rc=0 starting the whole stack, and so did `dva up -- --debug`,
+		// because `dva up -` and `dva up --debug` were ALREADY rc=0: rejectUnknownFlags is
+		// reached only after parseDvaFlags has consumed the token. So the identity is applied
+		// faithfully and it inherits whatever `dva up X` does, including where that is wrong.
+		// `dva up -` accepting a bare dash is TASK-218's open bug; this line gives it a second
+		// spelling and fixes neither. down/stop do not propagate it — teardownCommon refuses
+		// `-` on its own.
+		args = dropLeadingTerminator(args)
 		if err := requirePlanSelection(c, "up", args); err != nil {
 			return err
 		}
@@ -296,6 +334,13 @@ Without a plan name it uses default_plan, or the only plan when exactly one
 is declared. With several plans and no default_plan it refuses and asks you
 to name one. With no plans configured it tears down every declared stack entry.
 
+A leading -- is a separator, never an argument: "dva down --" does exactly what a
+bare "dva down" does in that config, and "dva down -- X" is read exactly as
+"dva down X" -- including when that is a refusal. So a wrapper written as
+'dva down -- "$@"' is safe when "$@" is empty. Only the LEADING one is consumed:
+"dva down -- --" is still an error, and a -- written after something else is left
+alone.
+
 Plan usage:
   dva down <plan>         Tear down the selected plan
   --var KEY=VAL           Override a plan variable
@@ -325,6 +370,16 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanDown(c, e, planName, extraArgs)
 		}
+		// `dva down --` ≡ `dva down`. TASK-216; the ruling and its cost are at
+		// dropFlagTerminator (selectors.go), the placement argument at `up` above.
+		//
+		// down refuses a surviving terminator through a different door than up — teardownCommon's
+		// own dash test, not rejectUnknownFlags — and the fix is deliberately not applied at
+		// either door. Consuming the separator once, before the guards, is what stops the table
+		// looking arbitrary; a third classifier that knows about `--` is what TASK-216 asked not
+		// to add. A token after the terminator still reaches teardownCommon and is still refused
+		// there, flag-shaped or name-shaped alike.
+		args = dropLeadingTerminator(args)
 		if err := requirePlanSelection(c, "down", args); err != nil {
 			return err
 		}
@@ -360,6 +415,13 @@ Without a plan name it uses default_plan, or the only plan when exactly one
 is declared. With several plans and no default_plan it refuses and asks you
 to name one. With no plans configured it stops every declared stack entry.
 
+A leading -- is a separator, never an argument: "dva stop --" does exactly what a
+bare "dva stop" does in that config, and "dva stop -- X" is read exactly as
+"dva stop X" -- including when that is a refusal. So a wrapper written as
+'dva stop -- "$@"' is safe when "$@" is empty. Only the LEADING one is consumed:
+"dva stop -- --" is still an error, and a -- written after something else is left
+alone.
+
 Plan usage:
   dva stop <plan>         Stop the selected plan without removing resources
   --var KEY=VAL           Override a plan variable
@@ -383,6 +445,10 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
 			return runPlanStop(c, e, planName, extraArgs)
 		}
+		// `dva stop --` ≡ `dva stop`. TASK-216; same ruling, same placement argument, and the
+		// same teardownCommon door as `down` above — stop and down share that helper, but not
+		// this line, because each RunE reads the raw args through its own plan guards first.
+		args = dropLeadingTerminator(args)
 		if err := requirePlanSelection(c, "stop", args); err != nil {
 			return err
 		}
