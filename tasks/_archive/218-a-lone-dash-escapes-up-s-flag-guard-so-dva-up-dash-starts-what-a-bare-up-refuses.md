@@ -6,8 +6,9 @@ priority: P2
 effort: S
 created-at: 2026-08-20T19:00:00+09:00
 source: "found while writing TASK-210's restart table — the `-` row needed a second expected message depending on config shape, and asking why turned up an escalation behind it"
-scope: "internal/cli/selectors.go:60 (rejectUnknownFlags' length test), internal/cli/plan_lifecycle.go:153 (rejectSuppressedDefaultPlan's dash test), internal/cli/selectors.go:140-141 (the message that already states the opposite rule). Not the terminator — that is TASK-216, which ruled extend and gave this bug a second spelling (`dva up -- -`)."
-status: todo
+scope: "internal/cli/flagtoken.go isFlagToken (new), adopted at the three plan_lifecycle.go guards that read a plan-name slot and — after review — at the two entry-name slots one position later, build.go and logs.go, whose own comments already claimed to read a token the same way the plan-name slot does. selectors.go was not touched: rejectUnknownFlags already applied this rule and its message already stated it. Not the terminator — that is TASK-216/217. Not root.go isFlag — TASK-223."
+status: done
+completed-at: 2026-08-21T18:20:00+09:00
 ---
 
 # Task 218: a lone dash escapes up's flag guard
@@ -175,21 +176,166 @@ the guard you happen to be editing.
 
 ## Completion Criteria
 
-- [ ] `dva up -` and a bare `dva up` agree on whether anything starts, in the two-plans-no-`default_plan` shape | verify: human — paste rc and the first non-warning line of both, run in a config with two plans, no `default_plan`, and two stack entries
-- [ ] The agreement is pinned by a differential test comparing the two invocations, not by an expected string | verify: `grep -c 'func TestUpLoneDashAgreesWithABareUp' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source because `go test -run` exits 0 when it matches nothing, and on a name that does not exist yet: `grep -c 'func Test' internal/cli/plan_lifecycle_test.go` is 18 today, so any criterion phrased as a count of existing test functions passes before the work starts
-- [ ] No two shipped messages give contradictory accounts of what `-` is | verify: human — paste `dva up -` and `dva restart -` from the same config and confirm both call `-` the same thing
-- [ ] The ruling — flag or name — is written on this card before the code changes | verify: human
-- [ ] `dva up --force` and `dva up --no-wait` still run in a plan-less config, so the fix did not widen into real flags | verify: human — paste both; each must reach `[lifecycle] <entry>`. Not `-v`: `dva up` has no such flag and already answers `unknown flag "-v"`, so it would pass whatever the fix does
-- [ ] `make test` passes | verify: `make test`
+- [x] `dva up -` and a bare `dva up` agree on whether anything starts, in the two-plans-no-`default_plan` shape | verify: human — paste rc and the first non-warning line of both, run in a config with two plans, no `default_plan`, and two stack entries
+- [x] The agreement is pinned by a differential test comparing the two invocations, not by an expected string | verify: `grep -c 'func TestUpLoneDashAgreesWithABareUp' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source because `go test -run` exits 0 when it matches nothing, and on a name that does not exist yet: `grep -c 'func Test' internal/cli/plan_lifecycle_test.go` is 18 today, so any criterion phrased as a count of existing test functions passes before the work starts
+- [x] No two shipped messages give contradictory accounts of what `-` is | verify: human — paste `dva up -` and `dva restart -` from the same config and confirm both call `-` the same thing
+- [x] The ruling — flag or name — is written on this card before the code changes | verify: human — see ## Resolution, "The ruling"
+- [x] `dva up --force` and `dva up --no-wait` still run in a plan-less config, so the fix did not widen into real flags | verify: human — paste both; each must reach `[lifecycle] <entry>`. Not `-v`: `dva up` has no such flag and already answers `unknown flag "-v"`, so it would pass whatever the fix does
+- [x] `make test` passes | verify: `make test`
+
+## Resolution
+
+**The ruling: a lone `-` is a NAME.** It matches nothing, so every guard that
+reads a name slot must report it, and none may step aside for it.
+
+That was already DVA's rule in two places. `rejectUnknownFlags`
+(`selectors.go:60`) has skipped it via `len(a) < 2` since TASK-172, and
+`rejectUnknownEntryNames` (`selectors.go:155`) prints `read as a <noun> name: a
+lone "-" is too short to be a flag` to the user's face. What was missing was a
+predicate the other guards could share, so the rule was restated as a bare
+`strings.HasPrefix` at each site and came out backwards.
+
+`internal/cli/flagtoken.go` now holds it:
+
+```go
+func isFlagToken(a string) bool { return len(a) > 1 && strings.HasPrefix(a, "-") }
+```
+
+adopted at `plan_lifecycle.go:175` (`rejectSuppressedDefaultPlan`), `:206`
+(`rejectUnknownPlanArg`) and `:228` (`rejectUpPositionalArg`).
+
+**`detectPlanRoute` is why "name" is the right reading and not a coin toss.** It
+has never had a dash test at all — it looks `args[0]` up in `c.Plans` and finds
+nothing (`plan_lifecycle.go:102`). The router reading the plan-name slot already
+treated `-` as an unmatched name; the guards reading that same slot were the ones
+disagreeing with it. This aligns them, rather than choosing between two opinions.
+
+### Measured
+
+Final binary, `DOCKER_HOST` at a dead socket, first non-empty line:
+
+```
+fixture A (2 plans, no default_plan)
+  dva up        ERROR: multiple plans configured; specify one: dva up <alpha|beta>
+  dva up -      ERROR: plan '-' not found. Available: alpha, beta      (was: started the whole stack)
+  dva up -- -   ERROR: plan '-' not found. Available: alpha, beta      (TASK-216's second spelling, same answer)
+
+fixture B (no plans)
+  dva up        [lifecycle] s1 (compose)
+  dva up -      ERROR: unexpected argument '-': 'dva up' takes no positional arguments ...
+  dva up -- -   ERROR: unexpected argument '-': ... (same)
+
+fixtures C, F2 (a default plan resolves)
+  dva up -      ERROR: plan '-' not found. Available: alpha, beta      (was: flags suppress the default plan)
+```
+
+The C/F2 row is the contradiction this card names, gone: `-` is now described
+the same way in every config shape, so no two shipped messages disagree about
+what it is.
+
+Across the full 264-row differential (six fixtures x seven verbs x six spellings)
+11 of the 18 verdict changes belong to this card, and **0 rows newly reached a
+runner while 8 stopped reaching one**.
+
+### TASK-087's hole did not re-open
+
+`restart_names_test.go` carried a tripwire predicting that aligning these guards
+would restore TASK-087, "where an unrecognised token loses its effect and the
+command runs anyway". The prediction was conditionally right and worth heeding:
+it assumed the fix would transplant `rejectUnknownFlags`' **length test** into
+`rejectSuppressedDefaultPlan`, which would have left `-` caught by nobody.
+
+Unifying the predicate while leaving the name guards live means the token is
+still caught — as a name. Measured, not argued: 0 rows newly reached a runner.
+
+### What was left
+
+Two sites still call a lone `-` a flag, both message-only, both filed rather than
+fixed here because each needs a new message branch rather than a predicate swap:
+
+- `compose.go:302` — `down`/`stop` answer `unknown flag "-"`. Adopting the
+  predicate here makes the message *worse*, measured: the replacement hint never
+  names the token the user typed. That is a wording ruling, not a swap.
+- `plan_lifecycle.go:268` — `parsePlanFlags` answers `unsupported plan flag: -`.
+
+`root.go:247` (`isFlag`) also answers `-` as a flag. It is **not** a settled
+counterweight — see the correction below. TASK-223 owns it.
+
+### Correction: two sites this card should have changed, and a claim it got wrong
+
+An independent audit of the six remaining sites, run against a snapshot of this
+branch, refuted two things written above.
+
+**1. The entry-name slot was left behind, and its comment said so.**
+`build.go` and `logs.go` each read the first extra argument as an entry name, one
+position after the plan-name slot, and each carried a comment claiming *"the same
+reading detectPlanRoute gives the plan-name slot one position earlier"*. Changing
+only the plan-name slot made that comment false. The visible cost, measured on a
+plan with an entry literally named `-`:
+
+```
+before   dva build multi -   ERROR: plan "multi" builds 2 entries, so - cannot be
+                                    routed to one of them; name it:
+                                    dva build multi <-|s2>
+```
+
+The suggestion offers `-` and the same sentence refuses it. Both sites now use
+`isFlagToken`; `dva build multi -` and `dva logs multi -` route to the entry, and
+`dva build multi --no-cache` / `dva logs multi -f` still get the ambiguity error.
+Pinned separately, per site, by `TestPlanBuildRoutesToAnEntryNamedWithALoneDash`
+and `TestPlanLogsRoutesToAnEntryNamedWithALoneDash` — reverting either site fails
+exactly its own test and no other.
+
+**2. "The command slot only withholds a shorthand" was false.**
+That sentence justified leaving `isFlag` alone, and it was generalised from two
+one-token measurements (`dva -`, `dva run -`). `isFlag` has *two* call sites, and
+the second one was never measured. `Execute:210` partitions every argument
+flags-first before rewriting `os.Args`, so with an interaction named `-` declared:
+
+```
+dva greet -        rc=0   RAN_DASH_with=[] greet     ← asked for greet, ran "-"
+dva run greet -    rc=0   RAN_GREET_with=[] -        ← the explicit form disagrees
+```
+
+A wrong answer in that slot *acts*, at rc=0, and runs a different interaction than
+the one named. So the two predicates are not separated by differing cost; they are
+separated only by which one has been fixed. `TestDashPredicatesDisagreeOnPurpose`
+and the `flagtoken.go` doc comment now say that, and TASK-223 carries the defect.
+
+The lesson is narrower than "measure more": both measurements this card ran were
+real, and both were of the *one-token* forms. The defect lives in the two-token
+form, which the census axis (`HasPrefix`, then `== "-"`) could not suggest either,
+because it enumerates predicate *definitions* and this is a property of a *call
+site*. Counting definitions never asks how many callers each has.
+
+### Correction to the census in ## Technical Notes
+
+The census command was `grep -rn 'HasPrefix(.*"-")' internal/cli/*.go | grep -v
+_test`, and its **10** was correct for that pattern. The pattern cannot see
+byte-indexing, and that is where `isFlag` lives:
+
+```
+baseline c51dd95, pattern HasPrefix(...,"-")                          10 sites
+baseline c51dd95, widened to  == "-" | == "--" | s[0] == '-'          16 sites
+  of which invisible to the narrower pattern                           6 sites
+  including root.go:247 — the one site that answers "-" the other way on purpose
+after this change, wide axis                                          14 sites
+```
+
+Six invisible sites, and the single one that mattered was among them. The card
+could not have anticipated the `isFlag` conflict, because the command it shipped
+as reproducible evidence was blind to it. A census is only as wide as its axis,
+and the axis has to be stated with the count.
+
 
 ## References
 
-- `internal/cli/selectors.go:58-79` — `rejectUnknownFlags`, the length test
-- `internal/cli/selectors.go:128-162` — `rejectUnknownEntryNames`, the message that states the opposite rule
-- `internal/cli/plan_lifecycle.go:68-78` — `requirePlanSelection`, where one surviving token means "do not ask"
-- `internal/cli/plan_lifecycle.go:128-160` — `rejectSuppressedDefaultPlan`
-- `internal/cli/compose.go:261` — `teardownCommon`'s dash test, the one with no length exception
-- `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pins the divergent message so this fails loudly when the ruling lands
+- `internal/cli/selectors.go:58` — `rejectUnknownFlags`; its `len(a) < 2` at :60 is the rule the fix generalises
+- `internal/cli/selectors.go:142` — `rejectUnknownEntryNames`; :154 already answers `n == "-"` and :155 prints `a lone "-" is too short to be a flag`. The message was right and the guards disagreed with it
+- `internal/cli/plan_lifecycle.go:68` — `requirePlanSelection`; TASK-217 fixed its terminator handling at :87
+- `internal/cli/plan_lifecycle.go:150` — `rejectSuppressedDefaultPlan`; the dash test is :175, now `isFlagToken`
+- `internal/cli/compose.go:302` — `teardownCommon`'s dash test, still with no length exception. Deliberately out of scope; see ## Resolution, "What was left"
+- `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pinned the divergent message so this would fail loudly when the ruling landed. It did. The column is gone and `TestRestartUnknownNameRuling` now asserts the opposite property: no case's outcome may differ across the four plan shapes
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the defect this is the one-character remainder of
 - `tasks/todo/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` — same `requirePlanSelection` line, different token
 - `tasks/_archive/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the `--` half, and still not this card, but no longer for the reason written here first. TASK-216 **overturned** the restart-local ruling: `up`/`down`/`stop` now consume a leading `--`. That widened this bug rather than leaving it alone — `dva up -- -` went rc=1 to rc=0 there, inheriting `dva up -`, so the dash now has two spellings and this card owns both

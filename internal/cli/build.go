@@ -163,8 +163,12 @@ func runPlanBuild(c *config.Config, e *config.Environment, planName string, extr
 	}
 
 	// Only the first token is ever the entry-name slot, and only when it is not a flag — the
-	// same reading detectPlanRoute gives the plan-name slot one position earlier.
-	if len(extraArgs) > 0 && !strings.HasPrefix(extraArgs[0], "-") {
+	// same reading detectPlanRoute gives the plan-name slot one position earlier. That parity
+	// is the point of the line, so it moved to isFlagToken when the plan-name slot did: a bare
+	// strings.HasPrefix here would call a lone "-" a flag one position after the plan-name slot
+	// had called it a name. Before TASK-218 this refused an entry named "-" while advertising
+	// it in its own suggestion — `dva build multi <-|s2>`, measured 2026-08-21.
+	if len(extraArgs) > 0 && !isFlagToken(extraArgs[0]) {
 		for _, target := range targets {
 			if target.name == extraArgs[0] {
 				return buildPlanEntry(e, c, target, extraArgs[1:])

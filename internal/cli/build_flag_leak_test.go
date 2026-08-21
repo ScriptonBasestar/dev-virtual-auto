@@ -210,3 +210,37 @@ func TestTeardownDoesNotAdviseRunningDvasOwnFlag(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildLoneTerminatorMeansABareBuild is TASK-217, bound to requirePlanSelection's
+// dropLeadingTerminator and to nothing else. Named for the sibling it mirrors,
+// TestRestartBareTerminatorMeansABareRestart, because it asserts the same identity.
+//
+// build is the one verb that reaches the guard with the terminator intact: it sets
+// DisableFlagParsing, and parseDvaFlags keeps `--` on purpose so a stray one can still be
+// rejected downstream. requirePlanSelection then counted that surviving token as a
+// selection and stood down, so `dva build --` reached docker in a config where `dva build`
+// refuses. The token kept FOR rejection was the token that suppressed the rejection.
+//
+// Asserted as an identity against the bare form rather than against a fixed string. A
+// message assertion would still pass if both forms regressed together; the property is
+// that `--` never does more than the bare form is permitted to do.
+func TestBuildLoneTerminatorMeansABareBuild(t *testing.T) {
+	writeRestartPlanProbeConfig(t)
+	bareErr := buildCmd.RunE(buildCmd, nil)
+
+	writeRestartPlanProbeConfig(t)
+	termErr := buildCmd.RunE(buildCmd, []string{"--"})
+
+	if bareErr == nil {
+		t.Fatalf("build: exited 0 in a two-plan config with no default_plan; this fixture is the whole premise of the test")
+	}
+	if termErr == nil {
+		t.Fatalf("build --: exited 0, but a bare build here is refused with %v; the terminator must not buy a selection the user did not make", bareErr)
+	}
+	if bareErr.Error() != termErr.Error() {
+		t.Fatalf("build --: %q; a bare build says %q, and an empty name list must reach the same refusal", termErr, bareErr)
+	}
+	if !strings.Contains(termErr.Error(), "multiple plans configured") {
+		t.Fatalf("build --: %q; both forms agree but neither is the plan guard, so this test would pass on any shared failure", termErr)
+	}
+}

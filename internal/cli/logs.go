@@ -127,8 +127,9 @@ func runPlanLogs(c *config.Config, e *config.Environment, planName string, extra
 
 	// Only the first token is ever the entry-name slot, and only when it is not a flag —
 	// the same reading detectPlanRoute gives the plan-name slot one position earlier, so a
-	// flag value is never mistaken for a name.
-	if len(extraArgs) > 0 && !strings.HasPrefix(extraArgs[0], "-") {
+	// flag value is never mistaken for a name. isFlagToken is what makes that one reading
+	// rather than two spellings of it; see the same line in runPlanBuild. TASK-218.
+	if len(extraArgs) > 0 && !isFlagToken(extraArgs[0]) {
 		for _, target := range targets {
 			if target.name == extraArgs[0] {
 				return showPlanEntryLogs(e, c, target, extraArgs[1:])

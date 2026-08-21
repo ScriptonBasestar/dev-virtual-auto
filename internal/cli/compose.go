@@ -141,9 +141,12 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		// because `dva up -` and `dva up --debug` were ALREADY rc=0: rejectUnknownFlags is
 		// reached only after parseDvaFlags has consumed the token. So the identity is applied
 		// faithfully and it inherits whatever `dva up X` does, including where that is wrong.
-		// `dva up -` accepting a bare dash is TASK-218's open bug; this line gives it a second
-		// spelling and fixes neither. down/stop do not propagate it — teardownCommon refuses
-		// `-` on its own.
+		// `dva up -` accepted a bare dash when this was written, so the identity inherited that
+		// too. TASK-218 has since settled it the other way — isFlagToken reads a lone `-` as a
+		// name and rejectUpPositionalArg reports it — and both spellings now refuse together.
+		// The identity held across that change without this line being touched, which is what
+		// it is for. down/stop reach `-` by another route: teardownCommon still refuses it as an
+		// unknown FLAG, wording TASK-218 deliberately left alone.
 		args = dropLeadingTerminator(args)
 		if err := requirePlanSelection(c, "up", args); err != nil {
 			return err

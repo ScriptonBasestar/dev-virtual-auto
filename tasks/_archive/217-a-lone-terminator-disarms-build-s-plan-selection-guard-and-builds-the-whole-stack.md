@@ -6,8 +6,9 @@ priority: P2
 effort: S
 created-at: 2026-08-20T16:56:47+09:00
 source: "found by TASK-210's caller census — the card measured four verbs, the two functions it changed have seven callers, and build was the one whose terminator behaviour was already wrong"
-scope: "internal/cli/compose.go buildCmd RunE, the requirePlanSelection call at :662. The routing helpers are not at fault; build is the one caller that cannot be backstopped by rejectUnknownFlags."
-status: todo
+scope: "internal/cli/plan_lifecycle.go requirePlanSelection. Filed against buildCmd's call site; the fix landed one level down, in the guard itself — see ## Resolution for why that is narrower rather than wider."
+status: done
+completed-at: 2026-08-21T18:20:00+09:00
 ---
 
 # Task 217: A lone terminator disarms build's plan-selection guard and builds the whole stack
@@ -184,17 +185,92 @@ line either way and the difference is which invocations start refusing.
 
 ## Completion Criteria
 
-- [ ] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — build the fixture from the three files in ## Measured, run both, and paste rc plus whether any image began building
-- [ ] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE`, which is 3 in this file today (two calls and a comment) and would certify itself
-- [ ] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged wherever they reach it today, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with **no** default plan (fixture A or B). Do not use a one-plan config: the lone plan is promoted to default, and `dva build --no-cache` is refused there today by `rejectSuppressedDefaultPlan` — that refusal is not this card's to remove, and a verifier sent to that shape would read it as a regression
-- [ ] The ruling for `build -- <service>` is recorded on this card, not left implicit | verify: human
-- [ ] `make test` passes | verify: `make test`
+- [x] `dva build --` refuses in the several-plans-no-default shape exactly as a bare `dva build` does | verify: human — build the fixture from the three files in ## Measured, run both, and paste rc plus whether any image began building
+- [x] The identity is pinned by a differential test comparing `build --` to a bare `build`, not by an expected string | verify: `grep -c 'func TestBuildLoneTerminatorMeansABareBuild' internal/cli/build_flag_leak_test.go` returns 1 (today: 0). Bound on the test's source rather than on `go test -run`, which exits 0 when it matches nothing, and on a name that does not exist yet rather than on a count of `buildCmd.RunE`, which is 3 in this file today (two calls and a comment) and would certify itself
+- [x] `dva build -- <service>` and `dva build --no-cache` still reach docker unchanged wherever they reach it today, whichever way the ruling goes | verify: human — paste both invocations' first line against a config with **no** default plan (fixture A or B). Do not use a one-plan config: the lone plan is promoted to default, and `dva build --no-cache` is refused there today by `rejectSuppressedDefaultPlan` — that refusal is not this card's to remove, and a verifier sent to that shape would read it as a regression
+- [x] The ruling for `build -- <service>` is recorded on this card, not left implicit | verify: human — see ## Resolution, "The ruling"
+- [x] `make test` passes | verify: `make test`
+
+## Resolution
+
+Fixed in `requirePlanSelection` (`internal/cli/plan_lifecycle.go:87`), not in `buildCmd`.
+
+```go
+args = dropLeadingTerminator(planRoutingArgs(args))
+```
+
+That is the line `detectPlanRoute` already had eight lines below, reading the same
+slot. `parseDvaFlags` keeps the terminator deliberately, so "the callers that
+reject unknown flags have always rejected a stray `--`" — and this is the caller
+where the token kept **for** rejection was the token that suppressed the
+rejection.
+
+**Why this is narrower than the plan, not wider.** The card proposed restart's
+shape: a special case inside `buildCmd`. Moving it into the guard produces the
+identical measured outcome and touches nothing else, because the guard's only
+output is its verdict. The args handed to docker are the caller's own slice and
+are never rewritten, so every invocation that reaches docker today reaches it
+spelled exactly as before. A `buildCmd`-local fix would have been one more place
+that knows about terminators; this is one fewer.
+
+### The ruling
+
+**`dva build -- <service>` keeps reaching docker as a service name.** The
+terminator means "no names follow" only when nothing follows it. `build -- web`
+follows it with a name, so it is a selection and TASK-172 protects it. Only the
+lone terminator changes.
+
+Measured after the fix, fixture A (two plans, `grep -c default_plan` → 0), first
+non-empty line, dead `DOCKER_HOST`:
+
+```
+dva build              ERROR: multiple plans configured; specify one: dva build <alpha|beta>
+dva build --           ERROR: multiple plans configured; specify one: dva build <alpha|beta>   <- the fix
+dva build web          time="TS" level=warning msg="No services to build"                      <- docker answered
+dva build -- web       time="TS" level=warning msg="No services to build"                      <- unchanged
+dva build -- --no-cache  no such service: --no-cache                                           <- unchanged
+```
+
+`build -- web` and `build -- --no-cache` are "unchanged" by the differential, not
+by inspection: neither appears among the 18 verdict changes or the 21
+message-only changes below. The docker warning is what reaching docker looks like
+in this fixture, whose compose file declares `image:` and so has nothing to build.
+
+`build -- --no-cache` reaching docker as a *service name* — and docker replying
+`no such service: --no-cache` — is left alone, and is not this card's to fix.
+`internal/cli/flagtoken.go` already argues it should not leak; that is filed
+separately.
+
+### Measured
+
+264-row differential, six fixtures x seven verbs x six argv spellings, base
+`c51dd95` against the fix, `DOCKER_HOST` pointed at a dead socket. Discriminator:
+the first non-empty output line, classified `GUARD` when it starts with `ERROR: `
+and `PASS` otherwise. rc is **not** a discriminator here — a row that passed every
+guard and then failed in docker also exits 1 — and a `[lifecycle]`/`[plan:` scan
+is worse still: `build` and `logs` never print those lines, so it reports a false
+zero for exactly the verb this card is about.
+
+| | rows |
+|---|---|
+| unchanged | 225 |
+| verdict changed (GUARD/PASS) | 18 |
+| message changed only | 21 |
+
+Of the 18: **1 is this card** (`A: build --`, PASS → GUARD). 11 are TASK-218.
+6 are C/F2 rows moving GUARD → PASS, where the token now reaches docker as a name
+and docker refuses it, which is how `logs nosuch` already behaved.
+
+Positive control for the discriminator, so that "18 changed" is distinguishable
+from a column that cannot move: rows reaching a runner fell 56 → 48 across the
+same differential.
+
 
 ## References
 
-- `internal/cli/compose.go:640-668` — `buildCmd`'s prologue, `parseDvaFlags` → `detectPlanRoute` → `requirePlanSelection`
+- `internal/cli/compose.go:687-734` — `buildCmd`'s prologue: `DisableFlagParsing` :708, `parseDvaFlags` :719, `detectPlanRoute` :728, `requirePlanSelection` :731, `rejectSuppressedDefaultPlan` :734. The frontmatter's original `:662` and this line's original `:640-668` were both stale by the time the card was worked; re-derived at the fix commit
 - `internal/cli/compose.go` — `restartCmd`'s terminator re-check, the shape this would copy
-- `internal/cli/plan_lifecycle.go` — `dropLeadingTerminator`, `requirePlanSelection`
+- `internal/cli/plan_lifecycle.go:68` `requirePlanSelection`, `:95` `detectPlanRoute`, `:137` `dropLeadingTerminator` — the fix is one line at :87, and the eight lines between :87 and :99 are the whole argument for it
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — the census that found this, and the ruling it would extend
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the terminator/bare identity
 - `tasks/todo/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds

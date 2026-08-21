@@ -69,7 +69,22 @@ func requirePlanSelection(c *config.Config, command string, args []string) error
 	if c == nil || !c.HasPlans() {
 		return nil
 	}
-	args = planRoutingArgs(args)
+	// dropLeadingTerminator, exactly as detectPlanRoute does eight lines below, and for the
+	// same slot. Without it a bare `--` counted as a selection and stood the guard down:
+	// `dva build --` reached docker while `dva build` refused with "multiple plans
+	// configured". parseDvaFlags keeps the terminator on purpose so that "the callers that
+	// reject unknown flags" can reject a stray one (compose.go), and this is the caller
+	// where the token kept FOR rejection was the token that suppressed it. TASK-217.
+	//
+	// up/down/stop drop it at their call sites already (TASK-216) and logs never sees one
+	// — consumeRootPersistentFlags returns args[end+1:]. Only build reaches here with the
+	// terminator intact, but the rule belongs to the guard, not to the one caller that
+	// currently trips it.
+	//
+	// This changes the guard's verdict only. The args handed to docker are the caller's
+	// own slice and are untouched, so `dva build -- web` and `dva build -- --no-cache`
+	// still reach docker spelled exactly as before.
+	args = dropLeadingTerminator(planRoutingArgs(args))
 	if len(args) > 0 || c.DefaultPlan() != "" {
 		return nil
 	}
@@ -157,7 +172,7 @@ func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string
 	if _, exists := c.Plans[head[0]]; exists {
 		return nil
 	}
-	if !strings.HasPrefix(head[0], "-") {
+	if !isFlagToken(head[0]) {
 		return nil
 	}
 	return fmt.Errorf(
@@ -188,7 +203,7 @@ func rejectUnknownPlanArg(c *config.Config, args []string) error {
 		return nil
 	}
 	name := args[0]
-	if strings.HasPrefix(name, "-") {
+	if isFlagToken(name) {
 		return nil
 	}
 	return fmt.Errorf("plan '%s' not found. Available: %s", name, strings.Join(sortedPlanNames(c), ", "))
@@ -197,8 +212,9 @@ func rejectUnknownPlanArg(c *config.Config, args []string) error {
 // rejectUpPositionalArg guards the plan-name slot of 'up', which advertises
 // "up [OPTIONS]" and so has no positional argument that means anything else.
 // It reads args the same way rejectUnknownPlanArg does — only args[0], and a
-// leading '-' returns early — so flag values such as '--var FOO=x' are never
-// mistaken for a plan name.
+// flag token returns early — so flag values such as '--var FOO=x' are never
+// mistaken for a plan name. A lone '-' is not a flag token and so is reported
+// as the unmatchable name it is; see isFlagToken. TASK-218.
 //
 // Unlike rejectUnknownPlanArg it also fires when no plans are configured. There
 // args[0] was never a plan name either, and permitting it made 'dva up s1'
@@ -209,7 +225,7 @@ func rejectUpPositionalArg(c *config.Config, args []string) error {
 		return nil
 	}
 	name := args[0]
-	if strings.HasPrefix(name, "-") {
+	if isFlagToken(name) {
 		return nil
 	}
 	if c == nil || !c.HasPlans() {

@@ -506,3 +506,42 @@ func TestLeadingTerminatorIsConsumedOnceNotRepeatedly(t *testing.T) {
 		})
 	}
 }
+
+// TestUpLoneDashAgreesWithABareUp is TASK-218's differential, in the shape the card
+// specifies: two plans, no default_plan. There a bare `dva up` refuses — it will not guess
+// which plan — while `dva up -` started every entry in the stack and reported success. One
+// character turned a refusal into a whole-stack start.
+//
+// Asserted on what RAN rather than on the messages, because the two invocations are not
+// answered by the same guard and never will be: a bare up is refused by requirePlanSelection
+// ("multiple plans configured"), a dash by the name guard ("plan '-' not found"). Those are
+// both correct and both different. The claim is narrower and is the one the escalation
+// violates — `-` must not buy an action the bare form is refused.
+//
+// The no-plans shape is pinned separately by
+// TestUpPositionalGuardReportsALoneDashWithNoPlans, where a different guard fires; keeping
+// them apart means a revert of either one fails on its own subtest.
+func TestUpLoneDashAgreesWithABareUp(t *testing.T) {
+	bareDir := writeRestartPlanProbeConfig(t)
+	bareErr := upCmd.RunE(upCmd, nil)
+	bareRan := ranMarkers(t, bareDir)
+
+	dashDir := writeRestartPlanProbeConfig(t)
+	dashErr := upCmd.RunE(upCmd, []string{"-"})
+	dashRan := ranMarkers(t, dashDir)
+
+	if bareErr == nil {
+		t.Fatalf("up: exited 0 having run %v; this fixture declares two plans and no default_plan, and a bare up refusing to guess is the premise of the differential", bareRan)
+	}
+	if dashErr == nil {
+		t.Fatalf("up -: exited 0 having run %v, but a bare up here is refused with %v; a lone dash must not buy an action the bare form cannot have", dashRan, bareErr)
+	}
+	for _, m := range []string{"s1_up", "s2_up"} {
+		if bareRan[m] != dashRan[m] {
+			t.Errorf("up -: %s ran=%v; a bare up ran=%v", m, dashRan[m], bareRan[m])
+		}
+	}
+	if len(dashRan) != 0 {
+		t.Errorf("up -: refused with %v but still ran %v; the guard must stop the command before any entry is touched", dashErr, dashRan)
+	}
+}

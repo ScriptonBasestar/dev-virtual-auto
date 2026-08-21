@@ -608,14 +608,13 @@ func TestRestartBareTerminatorMeansABareRestart(t *testing.T) {
 // leave the ruling's reach unmeasured on the config shape most users have.
 func TestRestartUnknownNameRuling(t *testing.T) {
 	fixtures := []struct {
-		shape          string
-		write          func(*testing.T) string
-		hasDefaultPlan bool
+		shape string
+		write func(*testing.T) string
 	}{
-		{"no plans", writeRestartProbeConfig, false},
-		{"two plans, no default_plan", writeRestartPlanProbeConfig, false},
-		{"explicit default_plan", writeRestartDefaultPlanProbeConfig, true},
-		{"lone plan promoted to default", writeRestartLonePlanProbeConfig, true},
+		{"no plans", writeRestartProbeConfig},
+		{"two plans, no default_plan", writeRestartPlanProbeConfig},
+		{"explicit default_plan", writeRestartDefaultPlanProbeConfig},
+		{"lone plan promoted to default", writeRestartLonePlanProbeConfig},
 	}
 
 	// hint pins the explanation, not just the quoted token, wherever the token alone
@@ -635,36 +634,43 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// separates "this argument names no entry" from "you wrote a flag, which suppressed
 	// the default plan" — and the user wrote no flag.
 	//
-	// hintUnderDefaultPlan is the one row where the ruling is still config-shape-dependent,
-	// pinned rather than skipped so it fails loudly when that is settled. `-` is too short
-	// for rejectUnknownFlags (len < 2) but not for rejectSuppressedDefaultPlan's dash test,
-	// so where a default plan resolves it is refused as a flag instead of reported as an
-	// unmatchable name. TASK-218 owns it; aligning the two guards here instead would have
-	// re-opened TASK-087's hole, where an unrecognised token loses its effect and the command
-	// runs anyway — in the two default-plan fixtures, which are the only ones where that guard
-	// fires. What is measured is the selection: `dva up -` reaches `[lifecycle] <entry>` with
-	// no plan line. The exit code is not, because the fixtures run without a reachable docker
-	// and every row ends rc=1 there; rc=0 is TASK-087's report, not this harness's. The hole is
-	// not merely hypothetical elsewhere: with no default plan to resolve, nothing catches a
-	// lone dash, and `dva up -` already takes the whole-stack path in all four remaining
-	// fixtures — in one of them a bare `dva up` refuses outright. TASK-218 carries the
-	// measurement; the point here is only that copying one guard's rule into the other
-	// trades a wrong message for a wrong action.
+	// The dash row was config-shape-dependent when this table was written, and the harness
+	// carried a hintUnderDefaultPlan column to pin the divergence rather than skip it, so
+	// that settling it would fail here loudly. TASK-218 settled it and this is that failure,
+	// resolved: `-` is read as a name in every shape, so the column is gone and the identity
+	// below asserts that no shape splits any row again.
+	//
+	// The prior author's warning was that aligning the guards would re-open TASK-087's hole,
+	// where an unrecognised token loses its effect and the command runs anyway. It was
+	// conditionally right and worth heeding: transplanting rejectUnknownFlags' LENGTH test
+	// into rejectSuppressedDefaultPlan would have left `-` caught by nobody. What TASK-218
+	// did instead was unify the predicate and leave the name guards live, so the token is
+	// still caught -- as a name. Measured across six fixtures and every lifecycle verb:
+	// 0 rows newly reached a runner, 8 rows stopped reaching one.
+	//
+	// detectPlanRoute is why "as a name" is the right reading rather than a second opinion.
+	// It has never had a dash test at all; it looks args[0] up in c.Plans and finds nothing.
+	// The guards reading that same slot were the ones disagreeing with the router.
 	cases := []struct {
-		what                 string
-		args                 []string
-		names                string // the token the message must quote; "" when the call succeeds
-		hint                 string // wording the message must carry; "" when the token suffices
-		hintUnderDefaultPlan string // replaces hint where a default plan resolves; "" means no divergence
-		wantRan              []string
+		what    string
+		args    []string
+		names   string // the token the message must quote; "" when the call succeeds
+		hint    string // wording the message must carry; "" when the token suffices
+		wantRan []string
 	}{
-		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", "", "", nil},
-		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", "", "", nil},
-		{"a bare dash, too short for the flag guard", []string{"-"}, "-", "too short to be a flag", "flags suppress the default plan", nil},
-		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", "every argument is a name", "", nil},
-		{"a second terminator, an ordinary word", []string{"--", "--", "s1"}, "--", "only the first", "", nil},
-		{"a real name after the terminator", []string{"--", "s1"}, "", "", "", []string{"s1_stop", "s1_up"}},
+		{"a typo'd entry name", []string{"zzznosuchservice"}, "zzznosuchservice", "", nil},
+		{"a typo'd name beside a real one", []string{"s1", "zzznosuchservice"}, "zzznosuchservice", "", nil},
+		{"a bare dash, too short for the flag guard", []string{"-"}, "-", "too short to be a flag", nil},
+		{"a flag after the terminator", []string{"--", "--no-wat", "s1"}, "--no-wat", "every argument is a name", nil},
+		{"a second terminator, an ordinary word", []string{"--", "--", "s1"}, "--", "only the first", nil},
+		{"a real name after the terminator", []string{"--", "s1"}, "", "", []string{"s1_stop", "s1_up"}},
 	}
+
+	// Every row's outcome, keyed by case then shape. The ruling is that a config's plan
+	// shape changes which entries a legitimate selection touches, never how an illegitimate
+	// token is described -- so these must collapse to one value per case. Checked after the
+	// loops rather than inside them, because a divergence is a claim about a pair of runs.
+	outcomes := map[string]map[string]string{}
 
 	for _, fx := range fixtures {
 		for _, tc := range cases {
@@ -673,8 +679,14 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 				err := restartCmd.RunE(restartCmd, tc.args)
 
 				wantHint := tc.hint
-				if fx.hasDefaultPlan && tc.hintUnderDefaultPlan != "" {
-					wantHint = tc.hintUnderDefaultPlan
+
+				if outcomes[tc.what] == nil {
+					outcomes[tc.what] = map[string]string{}
+				}
+				if err == nil {
+					outcomes[tc.what][fx.shape] = "exit 0"
+				} else {
+					outcomes[tc.what][fx.shape] = err.Error()
 				}
 
 				if tc.names != "" {
@@ -709,6 +721,25 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 					}
 				}
 			})
+		}
+	}
+
+	for _, tc := range cases {
+		byShape := outcomes[tc.what]
+		if len(byShape) != len(fixtures) {
+			t.Errorf("%s: recorded %d outcomes for %d fixtures; the identity below would be vacuous", tc.what, len(byShape), len(fixtures))
+			continue
+		}
+		var first, firstShape string
+		for _, fx := range fixtures {
+			got := byShape[fx.shape]
+			if firstShape == "" {
+				first, firstShape = got, fx.shape
+				continue
+			}
+			if got != first {
+				t.Errorf("%s: %q under %q but %q under %q; the plan shape must not change how a token is described", tc.what, got, fx.shape, first, firstShape)
+			}
 		}
 	}
 }
