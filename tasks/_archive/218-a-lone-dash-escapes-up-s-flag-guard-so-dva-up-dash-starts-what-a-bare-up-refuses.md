@@ -243,9 +243,11 @@ notes, both owed after the fact:
   was a description of the matrix, and a wrong one.
 - The zero is scoped, narrowly. **No fixture here declares a stack entry named `-`**
   — A, B, C, D and F2 declare `s1`/`s2`, E declares `a`/`b`/`web` — so this matrix
-  cannot observe the entry-name slots this card later adopted in `build.go` and
-  `logs.go`. It is a zero that could not have moved. On a fixture that does declare
-  one, two rows newly reach a runner; see the correction below.
+  cannot observe a config in which the token names anything at all. It is a zero
+  that could not have moved. On a fixture that does declare one, three rows newly
+  reach a runner — `restart -`, `build multi -`, `logs multi -` — and `up -` moves
+  guards without reaching one. See the correction below for the table and for the
+  two wrong readings that preceded it.
 
 ### TASK-087's hole did not re-open
 
@@ -476,36 +478,49 @@ seven adopt the helper here and two are left message-only: the same 5 + 2 this c
 elsewhere. Six matches no row of either census on this card except the count of *invisible*
 sites at :429 above, which is a different axis.
 
-**3. One finding whose argument was right and whose exhibit was not.** The review read
+**3. A finding I recorded as unreproducible, which reproduces.** The review read
 `restart_names_test.go:649` — "0 rows newly reached a runner" — and said the zero comes from
 a corpus that excludes by construction the only class that could falsify it: a config
-declaring an entry named `-`. That is correct, and it was already fixed at `ecb3d8a`, one
-commit after the `33b3e76` the review audited. The paragraph now at `:651` scopes the zero
-and names the rows a dash-declaring fixture moves.
+declaring an entry named `-`. That half was right, and the fix for it landed at `ecb3d8a`.
+The review also gave an exhibit: on such a fixture, `dva restart -` goes rc 1 → 0. I reported
+that it did not reproduce. It does. Measured on `dashEntryBuildConfig` with binaries built
+from pinned clean checkouts — `git rev-parse HEAD` verified with an empty `git status` at
+build time, not a label on a file:
 
-The exhibit attached to it does not reproduce. Measured on `dashEntryBuildConfig` itself —
-the fixture the review named — with the pre-change binary and the current one:
-
-| row | before | after |
+| row | c51dd95 | 33b3e76 |
 |---|---|---|
-| `dva restart -` | rc 0, stops the entry | rc 0, stops the entry |
+| `dva restart -` | rc 1, "flags suppress the default plan" | rc 0, stops the entry |
 | `dva build multi -` | rc 1, "cannot be routed to one of them" | rc 0, runs its build |
 | `dva logs multi -` | rc 1, "name one" | rc 0, reaches its runner |
+| `dva up -` | rc 1, "flags suppress the default plan" | rc 1, "plan '-' not found" |
 
-`restart -` does not move, and that is what the ruling predicts: `## Resolution` opens on
-`selectors.go` already reading a lone `-` as a name. The pair is a real pair rather than two
-copies of one binary — the other two rows flip across exactly these two files.
+Three rows newly reach a runner, not two, and `restart -` is one of them.
 
-Re-measuring it caught a defect of this card's own, inside the fix that answered the
-finding: that paragraph named compose and the docker API for those two rows, and
-`dashEntryBuildConfig` declares `native` runners. It was written from the shape a compose
-fixture would have taken rather than from the one the tests actually declare, and it named
-no fixture at all, so nothing in it pointed at the file that would have contradicted it.
-Corrected in place.
+**The binary I called the baseline was not c51dd95.** It answered rc 1 on `build multi -`
+like c51dd95 and rc 0 on `restart -` like 33b3e76 — it held the three plan-name guard
+adoptions and not the two entry-slot ones. That combination exists at no commit: `c51dd95` is
+`33b3e76^` with nothing in between. It was a working-tree build taken mid-change, at the
+moment the fix commit's own body describes, "the three plan-name guards, and -- after review
+-- the two entry-name slots one position later." I built it after the first clause.
 
-One trap in taking these numbers: zsh does not word-split an unquoted `$row`, so a probe loop
-that passes a whole command line through one variable hands `dva` a single argument and every
-row answers `unknown command`. That table looks like a clean null.
+**The control passed and was blind.** I checked the pair with `build multi -`, which flipped
+rc 1 → 0, and concluded the pair spanned the change. It does span *a* change — the entry-slot
+half, the half that binary was missing. The disputed row runs through the guard half, which
+that control cannot see. `null-diff-needs-a-positive-control` already says to aim the control
+at the mechanism rather than the outcome; I aimed it at the outcome and it answered a
+different question convincingly. A control that shares no code path with the disputed row is
+not a control for it.
+
+So the rule is narrower than "build a positive control": **pin a baseline binary to a commit
+at build time.** Record the resolved `HEAD` and a clean `git status` beside the sha256, at the
+moment of the copy. A file named `dva-v0` asserts nothing.
+
+Two smaller things that survive from the round. The review's own exhibit was mislabeled — it
+named `dashEntryBuildConfig` and pasted rows measured on a script-runner fixture, asserting
+the shapes equivalent rather than measuring it; they are equivalent, and it was still the same
+defect the review was about. And the `ecb3d8a` fix this finding produced had a defect of its
+own: it named compose and the docker API for two rows on a fixture that declares native
+runners. Both are corrected in place at `restart_names_test.go:651`.
 
 ## References
 

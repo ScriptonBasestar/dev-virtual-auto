@@ -649,19 +649,29 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// 0 rows newly reached a runner, 8 rows stopped reaching one.
 	//
 	// Scope that zero, because it is the kind that cannot move: none of those six fixtures
-	// declares an entry named "-", so the matrix never reached the entry-name slots in
-	// build.go and logs.go. Measured on dashEntryBuildConfig, which does declare one, two rows
-	// go the other way: `build multi -` goes rc 1 -> 0 and runs that entry's build, and `logs
-	// multi -` goes rc 1 -> 0 and reaches its runner -- the token reaching a runner BECAUSE it
-	// names a declared entry, which is this ruling working rather than TASK-087 returning.
-	// Neither row is compose: that fixture declares native runners, and an earlier draft of
-	// this paragraph named compose and the docker API for them, which is the shape a DIFFERENT
-	// fixture would have taken.
+	// declares an entry named "-", so the matrix never reached a config where the token can name
+	// something. Measured on dashEntryBuildConfig, which does declare one, with binaries built
+	// from pinned clean checkouts of c51dd95 and its child 33b3e76:
 	//
-	// `restart -` is the control that does not move -- rc 0 on that same fixture before and
-	// after, running the entry both times. selectors.go already read a lone "-" as a name, and
-	// that is the premise `## Resolution` on card 218 opens with. A review of the fix reported
-	// this row as newly reaching a runner; it does not, on the fixture the report itself named.
+	//	restart -       rc 1 "flags suppress the default plan" -> rc 0, stops the entry
+	//	build multi -   rc 1 "cannot be routed to one of them" -> rc 0, runs its build
+	//	logs multi -    rc 1 "name one"                        -> rc 0, reaches its runner
+	//	up -            rc 1 "flags suppress the default plan" -> rc 1 "plan '-' not found"
+	//
+	// Three rows newly reach a runner, the token getting there BECAUSE it names a declared entry
+	// -- this ruling working rather than TASK-087 returning. `up -` is the control that keeps
+	// those two readings apart: it moves guards without reaching anything, because "-" names no
+	// plan. None of these runners is compose; that fixture declares native runners.
+	//
+	// Two earlier drafts of this paragraph were wrong, and a binary was the reason both times.
+	// The first named compose and the docker API for rows on a native fixture. The second called
+	// `restart -` a control that does not move, off a "baseline" build that was not c51dd95 at
+	// all: it carried the three plan-name guard adoptions and lacked the two entry-slot ones, a
+	// combination that exists at no commit, since c51dd95 is 33b3e76's direct parent with
+	// nothing in between. Its `build multi -` control flipped anyway -- that row rides the half
+	// the binary was missing, so it certified the pair while blind to the half the disputed row
+	// runs through. Pin a baseline binary to a commit at build time: record `git rev-parse HEAD`
+	// and a clean `git status` beside the sha256, or the label on the file is a guess.
 	//
 	// detectPlanRoute is why "as a name" is the right reading rather than a second opinion.
 	// It has never had a dash test at all; it looks args[0] up in c.Plans and finds nothing.
