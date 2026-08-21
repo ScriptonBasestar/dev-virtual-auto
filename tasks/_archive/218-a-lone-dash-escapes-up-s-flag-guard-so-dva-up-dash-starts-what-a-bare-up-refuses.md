@@ -233,9 +233,19 @@ The C/F2 row is the contradiction this card names, gone: `-` is now described
 the same way in every config shape, so no two shipped messages disagree about
 what it is.
 
-Across the full 264-row differential (six fixtures x seven verbs x six spellings)
-11 of the 18 verdict changes belong to this card, and **0 rows newly reached a
-runner while 8 stopped reaching one**.
+Across the full 264-row differential 11 of the 18 verdict changes belong to this
+card, and **0 rows newly reached a runner while 8 stopped reaching one**. Two scope
+notes, both owed after the fact:
+
+- The shape written here first — "six fixtures x seven verbs x six spellings" —
+  multiplies to 252, not 264. The total is the load-bearing number and card 217's
+  table corroborates it (225 unchanged + 18 verdict + 21 message = 264); the product
+  was a description of the matrix, and a wrong one.
+- The zero is scoped, narrowly. **No fixture here declares a stack entry named `-`**
+  — A, B, C, D and F2 declare `s1`/`s2`, E declares `a`/`b`/`web` — so this matrix
+  cannot observe the entry-name slots this card later adopted in `build.go` and
+  `logs.go`. It is a zero that could not have moved. On a fixture that does declare
+  one, two rows newly reach a runner; see the correction below.
 
 ### TASK-087's hole did not re-open
 
@@ -246,7 +256,12 @@ it assumed the fix would transplant `rejectUnknownFlags`' **length test** into
 `rejectSuppressedDefaultPlan`, which would have left `-` caught by nobody.
 
 Unifying the predicate while leaving the name guards live means the token is
-still caught — as a name. Measured, not argued: 0 rows newly reached a runner.
+still caught — as a name. Measured, not argued: 0 rows newly reached a runner —
+over a matrix in which no fixture declares an entry named `-`. Read that zero as
+"the guards let nothing slip", not as "nothing anywhere runs now": on the DASH
+fixture `dva build multi -` moves rc 1 → 0 and reaches compose, because `-` is a
+declared entry there and the user named it. A token reaching a runner *because it
+names something declared* is this ruling working, not TASK-087 returning.
 
 ### What was left
 
@@ -276,6 +291,70 @@ fixed here because each needs a new message branch rather than a predicate swap:
 
 `root.go:247` (`isFlag`) also answers `-` as a flag. It is **not** a settled
 counterweight — see the correction below. TASK-223 owns it.
+
+### The sweep this card owed: 13 decision sites, and where the other axis sits
+
+"What was left" named three sites and never said how many there were. Naming a class is
+not sweeping for it, so here is the sweep with its axis and its denominator. From the
+worktree root:
+
+    { grep -rn 'strings\.HasPrefix' --include='*.go' internal/ | grep '"-"'
+      grep -rn 'isFlagToken(\|isFlag(' --include='*.go' internal/
+      grep -rn "\[0\] == '-'" --include='*.go' internal/
+    } | grep -v '_test.go' | grep -vE ':[0-9]+:[[:space:]]*//' | sort -u
+
+**17** lines on 2026-08-21. Four are the two predicate *definitions*, leaving **13
+decision sites**. The population is Go under `internal/`, so this card's prose cannot
+enter its own count.
+
+    5   adopted isFlagToken here   build.go:171, logs.go:132,
+                                   plan_lifecycle.go:175, :206, :228
+    2   left, named above          compose.go:302, plan_lifecycle.go:268
+    2   the isFlag defect          root.go:190, :210          → TASK-223
+    4   never counted before       selectors.go:60, :158, flagtoken.go:46,
+                                   runner/interaction_tree.go:269
+
+This is a different axis from the **12** in "Correction to the census" below, and the two
+must not be read as one number disagreeing with itself. Seven lines are in both. The wide
+axis sees five this one does not — the `== "--"` terminator tests and the `--help`/`-h`
+literals, which decide a specific token rather than the flag/name question. This one sees
+ten the wide axis does not, because the wide axis predates the helper and matches only
+spellings, so every `isFlagToken(...)` and `isFlag(...)` **call** is invisible to it,
+along with anything outside `internal/cli`.
+
+The four never counted:
+
+- `selectors.go:60` — `len(a) < 2 || !strings.HasPrefix(a, "-")` **is** `!isFlagToken(a)`,
+  exactly. Compared exhaustively over 39 distinct tokens: 0 disagreements, while a control
+  that drops the length test disagrees on 3 — so the comparison was able to fail. The
+  References line below already calls this "the rule the fix generalises"; what no one
+  measured is that generalising it left this site behind, holding a third spelling of the
+  reading `isFlagToken`'s own comment says the helper exists to prevent. The drift is live,
+  not hypothetical: sabotaging `isFlagToken` to `len(a) > 0` fails 8 test functions and
+  **none** is a `rejectUnknownFlags` test, because this site computes the predicate itself.
+
+  Left unchanged deliberately. The swap is a no-op today — a lone `-` is skipped by both
+  spellings — so on its own it is a refactor no test can fail. It is worth doing only with
+  a test that drives `-` through `rejectUnknownFlags` and asserts it is read as a name:
+  that test fails under the same sabotage *only after* the swap, which is the pin missing
+  now.
+- `selectors.go:158` — its sibling case `n == "-"` already answers the token the way this
+  card argued for, in a user-facing message, and predates the card. Measured on fixture
+  `207fix/F2`:
+
+        $ dva restart -
+        ERROR: unknown stack entry "-" for "dva restart"
+               → read as a stack entry name: a lone "-" is too short to be a flag
+               → declared here: s1, s2
+
+  References records this; the argument never used it. It is the strongest support the
+  change had — the `-`-is-a-name reading was already dva's stated position *to users*, so
+  the guards were disagreeing with dva's own message, not only with `detectPlanRoute`.
+- `flagtoken.go:46` — `splitFlagToken`'s prefix test is inert for `-`: the token holds no
+  `=`, so both readings return `("-", "", false)`. Nothing is decided.
+- `runner/interaction_tree.go:269` — `normalizeRunOptions` prefixes option **names declared
+  in config**, not argv tokens. Different domain; not a slot this card governs, and the
+  first site here found outside `internal/cli`.
 
 ### Correction: two sites this card should have changed, and a claim it got wrong
 
@@ -335,13 +414,21 @@ baseline c51dd95, pattern HasPrefix(...,"-")                          10 sites
 baseline c51dd95, widened to  == "-" | == "--" | s[0] == '-'          16 sites
   of which invisible to the narrower pattern                           6 sites
   including root.go:247 — the one site that answers "-" the other way on purpose
-after this change, wide axis                                          14 sites
+after this change, wide axis                                          12 sites
+  the 14 first written here, minus build.go and logs.go                2 sites
 ```
 
 Six invisible sites, and the single one that mattered was among them. The card
 could not have anticipated the `isFlag` conflict, because the command it shipped
 as reproducible evidence was blind to it. A census is only as wide as its axis,
 and the axis has to be stated with the count.
+
+The `14` was itself stale for one revision: it was measured before this card adopted
+`isFlagToken` at `build.go` and `logs.go`, and those two sites had spelled the rule
+with `HasPrefix`, so adopting the helper removed them from the pattern. Re-running the
+same wide command on the finished tree answers **12**. The correction below rewrote the
+prose about those two sites and left this number describing the tree before them —
+which is the same class of defect one paragraph up, in the paragraph that names it.
 
 
 ## References

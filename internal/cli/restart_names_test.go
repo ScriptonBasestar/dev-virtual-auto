@@ -648,6 +648,13 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	// still caught -- as a name. Measured across six fixtures and every lifecycle verb:
 	// 0 rows newly reached a runner, 8 rows stopped reaching one.
 	//
+	// Scope that zero, because it is the kind that cannot move: none of those six fixtures
+	// declares an entry named "-", so the matrix never reached the entry-name slots in
+	// build.go and logs.go. A fixture that does declare one puts two rows the other way --
+	// `build multi -` goes rc 1 -> 0 and reaches compose, `logs multi -` reaches the docker
+	// API -- the token reaching a runner BECAUSE it names a declared entry, which is this
+	// ruling working rather than TASK-087 returning.
+	//
 	// detectPlanRoute is why "as a name" is the right reading rather than a second opinion.
 	// It has never had a dash test at all; it looks args[0] up in c.Plans and finds nothing.
 	// The guards reading that same slot were the ones disagreeing with the router.
