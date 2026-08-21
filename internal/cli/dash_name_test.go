@@ -25,7 +25,7 @@ import (
 // away is the one response the test exists to prevent.
 func TestDashPredicatesDisagreeOnPurpose(t *testing.T) {
 	if !isFlag("-") {
-		t.Errorf(`isFlag("-") = false; root_test.go pins true, and Execute relies on it to keep a lone dash out of the interaction lookup`)
+		t.Errorf("isFlag(\"-\") = false; root_test.go pins true. TASK-223 owns that change -- if you meant it, land it there and measure `dva greet -` both ways, because Execute:210 sorts flags ahead of the command name and this answer decides whether a lone dash can RUN an interaction. If you did not mean it, root.go moved under you. See this test's doc comment before deleting either predicate.")
 	}
 	if isFlagToken("-") {
 		t.Errorf(`isFlagToken("-") = true; a lone dash names nothing, and calling it a flag stands the name guards down -- the TASK-218 defect`)

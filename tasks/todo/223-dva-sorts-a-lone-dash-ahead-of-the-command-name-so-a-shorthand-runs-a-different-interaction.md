@@ -53,8 +53,9 @@ least rc=1.
 ```go
 :190   if !isTopLevelCommand(firstArg) && !isFlag(firstArg) {
 :210           if isFlag(a) {
-:214           } else { nonFlags = append(nonFlags, a) }
-:217   args = append([]string{"run"}, append(flags, nonFlags...)...)
+:212-213       } else { nonFlags = append(nonFlags, a) }
+:216   args = append([]string{"run"}, append(flags, nonFlags...)...)
+:217   os.Args = append([]string{os.Args[0]}, args...)
 
 :247   func isFlag(s string) bool { return len(s) > 0 && s[0] == '-' }
 ```

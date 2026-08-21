@@ -58,8 +58,14 @@ func splitFlagToken(a string) (name, value string, hasValue bool) {
 // `len(a) < 2` skips it — and the one selectors.go states to the user's face when the
 // token reaches a name guard: `read as a %s name: a lone "-" is too short to be a flag`.
 //
-// Six other places wrote the same test as a bare strings.HasPrefix and so answered the
-// opposite. On the plan-selection path that inverted the verdict rather than the wording,
+// Seven other places wrote the same test as a bare strings.HasPrefix and so answered the
+// opposite — 7 of the 10 bare-HasPrefix sites under internal/cli at c51dd95. The other
+// three decide nothing for a lone "-": selectors.go:60 guards it with len(a) < 2,
+// selectors.go:158 sits behind `case n == "-"` at :154, and splitFlagToken
+// above classifies no token at all. Five of the seven adopt this helper; the two left are
+// message-only and are recorded in TASK-218.
+//
+// On the plan-selection path that inverted the verdict rather than the wording,
 // because those guards return early for a flag: `dva up -` in a config with two plans and
 // no default started every entry in the stack while plain `dva up` refused with "multiple
 // plans configured". Measured at c51dd95 across six fixtures. TASK-218.

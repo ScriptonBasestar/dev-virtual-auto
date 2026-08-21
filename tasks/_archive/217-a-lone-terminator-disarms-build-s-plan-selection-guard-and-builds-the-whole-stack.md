@@ -266,15 +266,55 @@ from a column that cannot move: rows reaching a runner fell 56 → 48 across the
 same differential.
 
 
+### Correction: the line moves four rows this card said it could not
+
+An adversarial review of the fix commit, re-measured here from scratch, refuted the
+sentence that justified the change.
+
+**`Only build reaches here with the terminator intact` — false for four rows.** The
+comment above the fix said up/down/stop drop the terminator at their call sites and that
+logs never sees one. Both halves are true of a *single* terminator and neither is true of
+a second one: the call sites drop the leading terminator, and whatever follows rides
+through untouched. Measured by reverting that one line on a two-plan no-default fixture,
+with `dva build -- --` and `dva restart -- --` as controls that do not move:
+
+| argv | line reverted | line present |
+|---|---|---|
+| `dva up -- --` | `unknown flag "--" for "dva up"` | `multiple plans configured; specify one: dva up <p1\|p2>` |
+| `dva down -- --` | `unknown flag "--" for "dva down"` | the same refusal, for `down` |
+| `dva stop -- --` | `unknown flag "--" for "dva stop"` | the same refusal, for `stop` |
+| `dva build --` | rc 0, `No services to build` | the refusal — the row this card is about |
+| `dva logs -- --` | reaches the docker API | the refusal |
+
+Five rows move and four are not build. Those four are an improvement, and the card
+asserted they could not happen.
+
+**The count of tests pinning the line was measured on a run that never finished.** The
+first answer was "one test, `TestBuildLoneTerminatorMeansABareBuild`". That test does not
+merely fail under the revert — `dva build --` reaches `execComposePassthrough`, and
+`ExecReplace` panics the test binary on purpose (TASK-144) rather than let `syscall.Exec`
+swallow the run. The binary died after **30 of 808** tests, so "one test fails" was the
+first failure before an abort, not a count. Re-run with that one test skipped, the suite
+completes at 807 and the true set is visible.
+
+`TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard` now pins up/down/stop: each asserts
+the `-- --` refusal is the plan guard's, word for word what a bare verb gets, rather than
+the unknown-flag guard's one layer out. Reverting the line fails all three subtests on a
+run that finishes. `logs -- --` is deliberately not a subtest — it would reach the same
+passthrough tripwire and trade one recorded failure for every test after it.
+
+Any later "reverting X fails N tests" in this card or 218 should be read off a run whose
+`=== RUN` count matches the unsabotaged baseline. Where it does not, the number is a floor.
+
 ## References
 
 - `internal/cli/compose.go:687-734` — `buildCmd`'s prologue: `DisableFlagParsing` :708, `parseDvaFlags` :719, `detectPlanRoute` :728, `requirePlanSelection` :731, `rejectSuppressedDefaultPlan` :734. The frontmatter's original `:662` and this line's original `:640-668` were both stale by the time the card was worked; re-derived at the fix commit
 - `internal/cli/compose.go` — `restartCmd`'s terminator re-check, the shape this would copy
-- `internal/cli/plan_lifecycle.go:68` `requirePlanSelection`, `:95` `detectPlanRoute`, `:137` `dropLeadingTerminator` — the fix is one line at :87, and the eight lines between :87 and :99 are the whole argument for it
+- `internal/cli/plan_lifecycle.go:68` `requirePlanSelection`, `:103` `detectPlanRoute`, `:145` `dropLeadingTerminator` — the fix is one line, at `:95` once the correction below rewrote the comment above it. The earlier form of this entry gave a span, `:87`–`:99`, that was stale and miscounted at once: 87 to 99 is eleven lines apart, not eight. The durable statement is the relative one — `detectPlanRoute` begins exactly eight lines below the fix line and does the same thing for the same slot, and that distance held across the rewrite
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — the census that found this, and the ruling it would extend
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the terminator/bare identity
-- `tasks/todo/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds
-- `tasks/todo/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the terminator ruling for the verbs that take no names; `build` is the exception it does not cover
+- `tasks/_archive/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds
+- `tasks/_archive/216-the-bare-and-terminator-forms-diverge-for-up-down-and-stop.md` — the terminator ruling for the verbs that take no names; `build` is the exception it does not cover
 
 ## Technical Notes
 

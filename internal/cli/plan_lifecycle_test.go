@@ -507,6 +507,59 @@ func TestLeadingTerminatorIsConsumedOnceNotRepeatedly(t *testing.T) {
 	}
 }
 
+// TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard pins the four rows TASK-217's own
+// comment said could not exist. That comment claimed up/down/stop drop the terminator at
+// their call sites and that only `dva build` reaches requirePlanSelection with one intact.
+// Reverting that single line on a two-plan no-default fixture moves five rows, and four of
+// them are not build: `up -- --`, `down -- --`, `stop -- --` and `logs -- --`. The call
+// sites drop the FIRST terminator, so a second one arrives here exactly as build's only one
+// does.
+//
+// TestLeadingTerminatorIsConsumedOnceNotRepeatedly cannot see this. It runs on the
+// default-plan fixture, where both readings refuse and run nothing, and it asserts only
+// that something refused. The claim here is narrower and is the one the revert breaks: the
+// refusal must come from the plan guard, in the same words a bare verb gets, rather than
+// from the unknown-flag guard one layer out.
+//
+// `logs -- --` is the fourth moved row and is deliberately NOT a subtest here. Under the
+// revert it reaches execComposePassthrough, and ExecReplace panics the test binary on
+// purpose (TASK-144) rather than letting syscall.Exec swallow the run. A subtest for it
+// would trade one recorded failure for the loss of every test after it —
+// TestBuildLoneTerminatorMeansABareBuild already aborts the suite that way when this line
+// regresses, which is why "the revert fails one test" must be read off a run that finished.
+func TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard(t *testing.T) {
+	verbs := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"up", upCmd},
+		{"down", downCmd},
+		{"stop", stopCmd},
+	}
+
+	for _, v := range verbs {
+		t.Run(v.name, func(t *testing.T) {
+			writeRestartPlanProbeConfig(t)
+			bareErr := v.cmd.RunE(v.cmd, nil)
+			if bareErr == nil {
+				t.Fatalf("dva %s: exited 0 in a two-plan config with no default_plan; that refusal is the whole premise of this test", v.name)
+			}
+
+			doubleDir := writeRestartPlanProbeConfig(t)
+			termErr := v.cmd.RunE(v.cmd, []string{"--", "--"})
+			if termErr == nil {
+				t.Fatalf("dva %s -- --: exited 0 having run %v; a bare %s here is refused with %v", v.name, ranMarkers(t, doubleDir), v.name, bareErr)
+			}
+			if termErr.Error() != bareErr.Error() {
+				t.Errorf("dva %s -- --: %q; a bare %s says %q. The second terminator is an argument this verb does not take, so both must reach the same guard", v.name, termErr, v.name, bareErr)
+			}
+			if !strings.Contains(termErr.Error(), "multiple plans configured") {
+				t.Errorf("dva %s -- --: %q; the two forms agree but neither is the plan guard, so this subtest would pass on any shared failure", v.name, termErr)
+			}
+		})
+	}
+}
+
 // TestUpLoneDashAgreesWithABareUp is TASK-218's differential, in the shape the card
 // specifies: two plans, no default_plan. There a bare `dva up` refuses — it will not guess
 // which plan — while `dva up -` started every entry in the stack and reported success. One

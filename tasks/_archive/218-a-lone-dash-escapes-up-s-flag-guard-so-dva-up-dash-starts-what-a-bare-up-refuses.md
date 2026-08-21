@@ -439,6 +439,74 @@ prose about those two sites and left this number describing the tree before them
 which is the same class of defect one paragraph up, in the paragraph that names it.
 
 
+### Correction: three claims re-measured after an adversarial review
+
+**1. "Reverting any single site fails exactly its own test and no other" is false for
+three of the five sites.** The fix commit's body generalised a property only the two
+entry-name sites have. Each site reverted alone to `strings.HasPrefix(x, "-")`, `go vet`
+clean before every run, on runs that each completed at 808 of 808 tests:
+
+| site reverted | tests that fail |
+|---|---|
+| `build.go:171` | `TestPlanBuildRoutesToAnEntryNamedWithALoneDash` |
+| `logs.go:132` | `TestPlanLogsRoutesToAnEntryNamedWithALoneDash` |
+| `plan_lifecycle.go:175` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestRestartUnknownNameRuling` |
+| `plan_lifecycle.go:206` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestUnknownPlanGuardReportsALoneDash`, `TestUpLoneDashAgreesWithABareUp` |
+| `plan_lifecycle.go:228` | `TestUpPositionalGuardReportsALoneDashWithNoPlans`, `TestUpLoneDashAgreesWithABareUp` |
+
+`TestDefaultPlanGuardDoesNotCallALoneDashAFlag` answers for two sites and
+`TestUpLoneDashAgreesWithABareUp` for two others, so for the three `plan_lifecycle.go`
+sites no test is "its own". What does hold is weaker and is the claim worth making: all
+five failing **sets** are distinct, so a reverted site is still identifiable from the
+output alone. The narrower sentence above — that the two entry-name sites each fail
+exactly one test — is measured and stands.
+
+Read every such count off a run whose `=== RUN` total matches the unsabotaged baseline.
+TASK-217's correction section records why: a sabotage that reaches a runner panics the
+test binary by design, and the count taken from the truncated run was wrong.
+
+**2. `flagtoken.go` said "Six other places". It is seven.**
+`git grep -n 'HasPrefix([^,]*, *"-")' c51dd95 -- 'internal/cli/*.go' | grep -v _test`
+returns **10** lines. Seven answer "flag" for a lone `-`, the opposite of the helper:
+`build.go:167`, `logs.go:131`, `plan_lifecycle.go:160`, `:191`, `:212`, `:252`,
+`compose.go:299`. The other three decide nothing for that token — `selectors.go:60` guards
+it with `len(a) < 2`, `selectors.go:158` sits behind `case n == "-"` at :154,
+and `flagtoken.go:46` is `splitFlagToken`, which classifies no token at all. Five of the
+seven adopt the helper here and two are left message-only: the same 5 + 2 this card reports
+elsewhere. Six matches no row of either census on this card except the count of *invisible*
+sites at :429 above, which is a different axis.
+
+**3. One finding whose argument was right and whose exhibit was not.** The review read
+`restart_names_test.go:649` — "0 rows newly reached a runner" — and said the zero comes from
+a corpus that excludes by construction the only class that could falsify it: a config
+declaring an entry named `-`. That is correct, and it was already fixed at `ecb3d8a`, one
+commit after the `33b3e76` the review audited. The paragraph now at `:651` scopes the zero
+and names the rows a dash-declaring fixture moves.
+
+The exhibit attached to it does not reproduce. Measured on `dashEntryBuildConfig` itself —
+the fixture the review named — with the pre-change binary and the current one:
+
+| row | before | after |
+|---|---|---|
+| `dva restart -` | rc 0, stops the entry | rc 0, stops the entry |
+| `dva build multi -` | rc 1, "cannot be routed to one of them" | rc 0, runs its build |
+| `dva logs multi -` | rc 1, "name one" | rc 0, reaches its runner |
+
+`restart -` does not move, and that is what the ruling predicts: `## Resolution` opens on
+`selectors.go` already reading a lone `-` as a name. The pair is a real pair rather than two
+copies of one binary — the other two rows flip across exactly these two files.
+
+Re-measuring it caught a defect of this card's own, inside the fix that answered the
+finding: that paragraph named compose and the docker API for those two rows, and
+`dashEntryBuildConfig` declares `native` runners. It was written from the shape a compose
+fixture would have taken rather than from the one the tests actually declare, and it named
+no fixture at all, so nothing in it pointed at the file that would have contradicted it.
+Corrected in place.
+
+One trap in taking these numbers: zsh does not word-split an unquoted `$row`, so a probe loop
+that passes a whole command line through one variable hands `dva` a single argument and every
+row answers `unknown command`. That table looks like a clean null.
+
 ## References
 
 - `internal/cli/selectors.go:58` — `rejectUnknownFlags`; its `len(a) < 2` at :60 is the rule the fix generalises

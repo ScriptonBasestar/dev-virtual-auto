@@ -650,10 +650,18 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	//
 	// Scope that zero, because it is the kind that cannot move: none of those six fixtures
 	// declares an entry named "-", so the matrix never reached the entry-name slots in
-	// build.go and logs.go. A fixture that does declare one puts two rows the other way --
-	// `build multi -` goes rc 1 -> 0 and reaches compose, `logs multi -` reaches the docker
-	// API -- the token reaching a runner BECAUSE it names a declared entry, which is this
-	// ruling working rather than TASK-087 returning.
+	// build.go and logs.go. Measured on dashEntryBuildConfig, which does declare one, two rows
+	// go the other way: `build multi -` goes rc 1 -> 0 and runs that entry's build, and `logs
+	// multi -` goes rc 1 -> 0 and reaches its runner -- the token reaching a runner BECAUSE it
+	// names a declared entry, which is this ruling working rather than TASK-087 returning.
+	// Neither row is compose: that fixture declares native runners, and an earlier draft of
+	// this paragraph named compose and the docker API for them, which is the shape a DIFFERENT
+	// fixture would have taken.
+	//
+	// `restart -` is the control that does not move -- rc 0 on that same fixture before and
+	// after, running the entry both times. selectors.go already read a lone "-" as a name, and
+	// that is the premise `## Resolution` on card 218 opens with. A review of the fix reported
+	// this row as newly reaching a runner; it does not, on the fixture the report itself named.
 	//
 	// detectPlanRoute is why "as a name" is the right reading rather than a second opinion.
 	// It has never had a dash test at all; it looks args[0] up in c.Plans and finds nothing.

@@ -76,10 +76,18 @@ func requirePlanSelection(c *config.Config, command string, args []string) error
 	// reject unknown flags" can reject a stray one (compose.go), and this is the caller
 	// where the token kept FOR rejection was the token that suppressed it. TASK-217.
 	//
-	// up/down/stop drop it at their call sites already (TASK-216) and logs never sees one
-	// — consumeRootPersistentFlags returns args[end+1:]. Only build reaches here with the
-	// terminator intact, but the rule belongs to the guard, not to the one caller that
-	// currently trips it.
+	// It is not only build, and the first draft of this comment said it was. up/down/stop
+	// drop the FIRST terminator at their call sites (TASK-216) and consumeRootPersistentFlags
+	// consumes logs' — so `dva up --` and `dva logs --` never arrive here with one. `dva up
+	// -- --` and `dva logs -- --` do: only the leading terminator is a separator, so the
+	// second is an ordinary argument that rides through. Measured by reverting this line
+	// alone on a two-plan no-default fixture — five rows move, and four are not build:
+	// up/down/stop `-- --` go from `unknown flag "--"`, and `logs -- --` from a docker call,
+	// to the same "multiple plans configured" a bare verb gets. The rule belongs to the
+	// guard, which is why it is written here once instead of at each caller.
+	//
+	// Pinned for up/down/stop by TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard; logs
+	// cannot be pinned in-process, and that test's comment says why.
 	//
 	// This changes the guard's verdict only. The args handed to docker are the caller's
 	// own slice and are untouched, so `dva build -- web` and `dva build -- --no-cache`
