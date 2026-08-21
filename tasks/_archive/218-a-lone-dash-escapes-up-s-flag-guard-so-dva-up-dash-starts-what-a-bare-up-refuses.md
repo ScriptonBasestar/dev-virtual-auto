@@ -311,7 +311,7 @@ enter its own count.
                                    plan_lifecycle.go:175, :206, :228
     2   left, named above          compose.go:302, plan_lifecycle.go:268
     2   the isFlag defect          root.go:190, :210          → TASK-223
-    4   never counted before       selectors.go:60, :158, flagtoken.go:46,
+    4   in no tally, ever           selectors.go:60, :158, flagtoken.go:46,
                                    runner/interaction_tree.go:269
 
 This is a different axis from the **12** in "Correction to the census" below, and the two
@@ -322,16 +322,23 @@ ten the wide axis does not, because the wide axis predates the helper and matche
 spellings, so every `isFlagToken(...)` and `isFlag(...)` **call** is invisible to it,
 along with anything outside `internal/cli`.
 
-The four never counted:
+The four in no tally. Two of these functions are not new to this card —
+`## Resolution` opens on them, as the ruling's premise: "That was already DVA's
+rule in two places." It cites `:60` and `:155` — `:155` being the print inside the
+lone-dash case whose sibling is the `:158` counted here. What never happened is
+*counting* them. They appear as an argument and never as sites, so "Two sites
+still call a lone `-` a flag" could open `### What was left` just above without
+anyone noticing the population it was drawn from had never been enumerated:
 
 - `selectors.go:60` — `len(a) < 2 || !strings.HasPrefix(a, "-")` **is** `!isFlagToken(a)`,
   exactly. Compared exhaustively over 39 distinct tokens: 0 disagreements, while a control
-  that drops the length test disagrees on 3 — so the comparison was able to fail. The
-  References line below already calls this "the rule the fix generalises"; what no one
-  measured is that generalising it left this site behind, holding a third spelling of the
-  reading `isFlagToken`'s own comment says the helper exists to prevent. The drift is live,
-  not hypothetical: sabotaging `isFlagToken` to `len(a) > 0` fails 8 test functions and
-  **none** is a `rejectUnknownFlags` test, because this site computes the predicate itself.
+  that drops the length test disagrees on 3 — so the comparison was able to fail.
+  `## Resolution` cites it as half of "already DVA's rule", and References calls it "the
+  rule the fix generalises". What no one measured is that generalising it left this site
+  behind, holding a third spelling of the reading `isFlagToken`'s own comment says the
+  helper exists to prevent. The drift is live, not hypothetical: sabotaging `isFlagToken`
+  to `len(a) > 0` fails 8 test functions and **none** is a `rejectUnknownFlags` test,
+  because this site computes the predicate itself.
 
   Left unchanged deliberately. The swap is a no-op today — a lone `-` is skipped by both
   spellings — so on its own it is a refactor no test can fail. It is worth doing only with
@@ -347,9 +354,10 @@ The four never counted:
                → read as a stack entry name: a lone "-" is too short to be a flag
                → declared here: s1, s2
 
-  References records this; the argument never used it. It is the strongest support the
-  change had — the `-`-is-a-name reading was already dva's stated position *to users*, so
-  the guards were disagreeing with dva's own message, not only with `detectPlanRoute`.
+  `## Resolution` already rests on this — it is the second of the "two places" — and the
+  point survives the correction: the `-`-is-a-name reading was dva's stated position *to
+  users* before the card existed, so the guards were disagreeing with dva's own message,
+  not only with `detectPlanRoute`. It was argued from and never counted.
 - `flagtoken.go:46` — `splitFlagToken`'s prefix test is inert for `-`: the token holds no
   `=`, so both readings return `("-", "", false)`. Nothing is decided.
 - `runner/interaction_tree.go:269` — `normalizeRunOptions` prefixes option **names declared
