@@ -275,10 +275,12 @@ sentence that justified the change.
 comment above the fix said up/down/stop drop the terminator at their call sites and that
 logs never sees one. Both halves are true of a *single* terminator and neither is true of
 a second one: the call sites drop the leading terminator, and whatever follows rides
-through untouched. Measured by reverting that one line on a two-plan no-default fixture,
-with `dva build -- --` and `dva restart -- --` as controls that do not move:
+through untouched. Measured at `c51dd95` -- the commit before `33b3e76` added that line --
+against HEAD, both built from clean checkouts and run in one directory whose `dva.yml`
+declares two plans, no `default_plan`, and two compose entries backed by a real
+`docker-compose.yml`, with `restart -- --` as the control that does not move:
 
-| argv | line reverted | line present |
+| argv | line absent (`c51dd95`) | line present (HEAD) |
 |---|---|---|
 | `dva up -- --` | `unknown flag "--" for "dva up"` | `multiple plans configured; specify one: dva up <p1\|p2>` |
 | `dva down -- --` | `unknown flag "--" for "dva down"` | the same refusal, for `down` |
@@ -288,6 +290,25 @@ with `dva build -- --` and `dva restart -- --` as controls that do not move:
 
 Five rows move and four are not build. Those four are an improvement, and the card
 asserted they could not happen.
+
+Those compose entries are load-bearing, and the earlier form of this paragraph named no
+fixture at all. On a `script:`-runner fixture the `dva build --` cell reads rc 1, `no
+configuration file provided` -- docker's answer when it finds no project -- instead of rc 0,
+`No services to build`. The defect is the same and the message is not, so a reviewer who
+picks the other shape reports the cell as not reproducing, which is what happened. A row
+whose text depends on the fixture has to name the fixture.
+
+**`dva build -- --` was listed here as a second control and is not one.** `restart -- --` is:
+`unknown stack entry "--"` at both revisions, refused on either side. `build -- --` also reads
+the same at both revisions -- but what it reads is `no such service: --`, which is docker
+answering after it has loaded the project and looked the token up as a service name. The row
+does not move because the guard is bypassed on **both** sides, not because it sits outside the
+fix. `dropLeadingTerminator` drops exactly one `--`; up/down/stop drop another at their call
+sites, so `up -- --` arrives empty and is refused, while build has only the guard's own drop
+and arrives holding `["--"]`, which `len(args) > 0` reads as a selection made. A control
+broken on both sides certifies nothing, and this one was offered as the boundary of the fix --
+the same "a control that shares no code path with the disputed row is not a control for it"
+this pair of cards spends two sections on. The row is open at HEAD and is filed as TASK-224.
 
 **The count of tests pinning the line was measured on a run that never finished.** The
 first answer was "one test, `TestBuildLoneTerminatorMeansABareBuild`". That test does not
@@ -319,7 +340,7 @@ Any later "reverting X fails N tests" in this card or 218 should be read off a r
 
 - `internal/cli/compose.go:687-734` — `buildCmd`'s prologue: `DisableFlagParsing` :708, `parseDvaFlags` :719, `detectPlanRoute` :728, `requirePlanSelection` :731, `rejectSuppressedDefaultPlan` :734. The frontmatter's original `:662` and this line's original `:640-668` were both stale by the time the card was worked; re-derived at the fix commit
 - `internal/cli/compose.go` — `restartCmd`'s terminator re-check, the shape this would copy
-- `internal/cli/plan_lifecycle.go:68` `requirePlanSelection`, `:103` `detectPlanRoute`, `:145` `dropLeadingTerminator` — the fix is one line, at `:95` once the correction below rewrote the comment above it. The earlier form of this entry gave a span, `:87`–`:99`, that was stale and miscounted at once: 87 to 99 is eleven lines apart, not eight. The durable statement is the relative one — `detectPlanRoute` begins exactly eight lines below the fix line and does the same thing for the same slot, and that distance held across the rewrite
+- `internal/cli/plan_lifecycle.go:68` `requirePlanSelection`, `:103` `detectPlanRoute`, `:145` `dropLeadingTerminator` — the fix is one line, at `:95` once the correction below rewrote the comment above it. The earlier form of this entry gave a span, `:87`–`:99`, and this card called it stale and miscounted. Both charges were wrong. At `4e88aa8`, the tree it was written on, `:87` is the fix line and `:99` is `detectPlanRoute`'s own `dropLeadingTerminator` call — two calls to the same helper, which is what the span was pointing at, not a distance from a function's first line. It went stale afterwards, when the correction below rewrote the comment above the fix and pushed everything down eight lines. That is this commit's edit, not an earlier author's error, and reading a moved citation as a wrong one gets the blame exactly backwards. The durable statement is the relative one — `detectPlanRoute` begins exactly eight lines below the fix line and does the same thing for the same slot, and that distance held across the rewrite
 - `tasks/_archive/210-the-flag-terminator-is-refused-as-a-flag-that-suppresses-the-default-plan.md` — the census that found this, and the ruling it would extend
 - `tasks/_archive/207-restart-exits-0-on-an-unknown-service-name-and-the-test-pinning-it-cites-a-deleted-command.md` — the terminator/bare identity
 - `tasks/_archive/218-a-lone-dash-escapes-up-s-flag-guard-so-dva-up-dash-starts-what-a-bare-up-refuses.md` — the same `requirePlanSelection` line reached by `-` instead of `--`; whichever card lands first should check the other's table still holds

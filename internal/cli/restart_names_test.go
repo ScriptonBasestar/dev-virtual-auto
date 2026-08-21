@@ -655,8 +655,14 @@ func TestRestartUnknownNameRuling(t *testing.T) {
 	//
 	//	restart -       rc 1 "flags suppress the default plan" -> rc 0, stops the entry
 	//	build multi -   rc 1 "cannot be routed to one of them" -> rc 0, runs its build
-	//	logs multi -    rc 1 "name one"                        -> rc 0, reaches its runner
+	//	logs multi -    rc 1 "name one"                        -> rc 1 no log file for entry "-"
 	//	up -            rc 1 "flags suppress the default plan" -> rc 1 "plan '-' not found"
+	//
+	// Every row is a cold directory. The logs row keeps rc 1 and moves only its message, from
+	// the guard refusing to route the token to the logs runner reporting that the entry it did
+	// route to has no log file yet; it reads rc 0 only after something has run and left
+	// .sb/dva/logs/-.log behind. An earlier form of this table gave that warm result beside two
+	// cold ones. Read the message, not the exit code -- routing is what moved.
 	//
 	// Three rows newly reach a runner, the token getting there BECAUSE it names a declared entry
 	// -- this ruling working rather than TASK-087 returning. `up -` is the control that keeps

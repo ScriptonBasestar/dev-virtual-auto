@@ -115,16 +115,26 @@ guard `build` is missing is the same `requirePlanSelection` line TASK-217 owns.
 
 ## Cause
 
-Four classifiers see the same token and answer differently. The line cited
-beside each guard is where it *tests*, not where it is declared, so the
-citation and the `test` column name the same line:
+Four classifiers see the same token and answer differently. Every line below is
+read at `c51dd95`, the commit this card diagnoses, and the line cited beside each
+guard is where it *tests*, not where it is declared, so the citation and the
+`test` column name the same line:
 
-| # | guard | call site | test | verdict on `-` |
+| # | guard | call site (`up`) | test | verdict on `-` |
 |---|---|---|---|---|
-| 1 | `requirePlanSelection` (`plan_lifecycle.go:73`) | `compose.go:110` | `len(args) > 0` | a selection was made |
-| 2 | `rejectSuppressedDefaultPlan` (`plan_lifecycle.go:153`) | `compose.go:113` | `HasPrefix(head[0], "-")` | flag |
-| 3 | `rejectUpPositionalArg` (`plan_lifecycle.go:205`) | `compose.go:116` | `HasPrefix(name, "-")` → return nil | flag (someone else's problem) |
-| 4 | `rejectUnknownFlags` (`selectors.go:60`) | `compose.go:169` | `len(a) < 2 \|\| !HasPrefix(a, "-")` | **not a flag** |
+| 1 | `requirePlanSelection` (`plan_lifecycle.go:73`) | `compose.go:148` | `len(args) > 0` | a selection was made |
+| 2 | `rejectSuppressedDefaultPlan` (`plan_lifecycle.go:160`) | `compose.go:151` | `HasPrefix(head[0], "-")` | flag |
+| 3 | `rejectUpPositionalArg` (`plan_lifecycle.go:212`) | `compose.go:154` | `HasPrefix(name, "-")` → return nil | flag (someone else's problem) |
+| 4 | `rejectUnknownFlags` (`selectors.go:60`) | `compose.go:207` | `len(a) < 2 \|\| !HasPrefix(a, "-")` | **not a flag** |
+
+Seven of those eight numbers were wrong when this correction re-read them, and the
+table had been quoted twice without anyone resolving one: the guard rows read
+`:153`/`:205` where `c51dd95` has `:160`/`:212`, and the call-site column pointed at
+`compose.go:110`/`:113`/`:116`/`:169`, which are `return cmd.Help()`, `e := loadEnv(c)`,
+a closing brace and a `switch` — the three guard calls are at `:148`/`:151`/`:154`.
+The card's own census twelve sections down cites `:160` and `:212` for the same two
+guards at the same revision, so the document disagreed with itself in print. Only
+`plan_lifecycle.go:73` and `selectors.go:60` survived unchanged.
 
 The order matters and is the opposite of what reading the guards by name
 suggests: `requirePlanSelection` runs **first**, on the raw `args`, and
@@ -201,12 +211,12 @@ predicate the other guards could share, so the rule was restated as a bare
 func isFlagToken(a string) bool { return len(a) > 1 && strings.HasPrefix(a, "-") }
 ```
 
-adopted at `plan_lifecycle.go:175` (`rejectSuppressedDefaultPlan`), `:206`
-(`rejectUnknownPlanArg`) and `:228` (`rejectUpPositionalArg`).
+adopted at `plan_lifecycle.go:183` (`rejectSuppressedDefaultPlan`), `:214`
+(`rejectUnknownPlanArg`) and `:236` (`rejectUpPositionalArg`).
 
 **`detectPlanRoute` is why "name" is the right reading and not a coin toss.** It
 has never had a dash test at all — it looks `args[0]` up in `c.Plans` and finds
-nothing (`plan_lifecycle.go:102`). The router reading the plan-name slot already
+nothing (`plan_lifecycle.go:110`). The router reading the plan-name slot already
 treated `-` as an unmatched name; the guards reading that same slot were the ones
 disagreeing with it. This aligns them, rather than choosing between two opinions.
 
@@ -310,8 +320,8 @@ decision sites**. The population is Go under `internal/`, so this card's prose c
 enter its own count.
 
     5   adopted isFlagToken here   build.go:171, logs.go:132,
-                                   plan_lifecycle.go:175, :206, :228
-    2   left, named above          compose.go:302, plan_lifecycle.go:268
+                                   plan_lifecycle.go:183, :214, :236
+    2   left, named above          compose.go:302, plan_lifecycle.go:276
     2   the isFlag defect          root.go:190, :210          → TASK-223
     4   in no tally, ever           selectors.go:60, :158, flagtoken.go:46,
                                    runner/interaction_tree.go:269
@@ -446,7 +456,8 @@ which is the same class of defect one paragraph up, in the paragraph that names 
 **1. "Reverting any single site fails exactly its own test and no other" is false for
 three of the five sites.** The fix commit's body generalised a property only the two
 entry-name sites have. Each site reverted alone to `strings.HasPrefix(x, "-")`, `go vet`
-clean before every run, on runs that each completed at 808 of 808 tests:
+clean before every run, on runs that each completed at 808 of 808 tests in `internal/cli`
+(`make test` covers the whole module and runs 1920):
 
 | site reverted | tests that fail |
 |---|---|
@@ -501,10 +512,17 @@ build time, not a label on a file:
 |---|---|---|
 | `dva restart -` | rc 1, "flags suppress the default plan" | rc 0, stops the entry |
 | `dva build multi -` | rc 1, "cannot be routed to one of them" | rc 0, runs its build |
-| `dva logs multi -` | rc 1, "name one" | rc 0, reaches its runner |
+| `dva logs multi -` | rc 1, "name one" | rc 1, `no log file for entry "-"` |
 | `dva up -` | rc 1, "flags suppress the default plan" | rc 1, "plan '-' not found" |
 
-Three rows newly reach a runner, not two, and `restart -` is one of them.
+Three rows newly reach a runner, not two, and `restart -` is one of them. Only two of the
+three also flip rc: the logs row stays at rc 1 and moves only its message, from the guard
+refusing to route the token to the logs runner reporting that the entry it *did* route to has
+no log file yet. An earlier form of this table gave that cell as rc 0, which is true only in a
+directory where something has already run and left `.sb/dva/logs/-.log` behind. The two rows
+above it are cold-directory measurements, so one warm run had been mixed into a cold table.
+The claim the row is here to make -- that routing now reaches the runner -- holds either way,
+and it is the message, not the exit code, that carries it.
 
 **The binary I called the baseline was not c51dd95.** It answered rc 1 on `build multi -`
 like c51dd95 and rc 0 on `restart -` like 33b3e76 — it held the three plan-name guard
@@ -536,8 +554,8 @@ runners. Both are corrected in place at `restart_names_test.go:651`.
 
 - `internal/cli/selectors.go:58` — `rejectUnknownFlags`; its `len(a) < 2` at :60 is the rule the fix generalises
 - `internal/cli/selectors.go:142` — `rejectUnknownEntryNames`; :154 already answers `n == "-"` and :155 prints `a lone "-" is too short to be a flag`. The message was right and the guards disagreed with it
-- `internal/cli/plan_lifecycle.go:68` — `requirePlanSelection`; TASK-217 fixed its terminator handling at :87
-- `internal/cli/plan_lifecycle.go:150` — `rejectSuppressedDefaultPlan`; the dash test is :175, now `isFlagToken`
+- `internal/cli/plan_lifecycle.go:68` — `requirePlanSelection`; TASK-217 fixed its terminator handling at :95
+- `internal/cli/plan_lifecycle.go:158` — `rejectSuppressedDefaultPlan`; the dash test is :183, now `isFlagToken`
 - `internal/cli/compose.go:302` — `teardownCommon`'s dash test, still with no length exception. Deliberately out of scope; see ## Resolution, "What was left"
 - `internal/cli/restart_names_test.go` — `hintUnderDefaultPlan` pinned the divergent message so this would fail loudly when the ruling landed. It did. The column is gone and `TestRestartUnknownNameRuling` now asserts the opposite property: no case's outcome may differ across the four plan shapes
 - `tasks/_archive/087-unrecognized-stack-args-become-entry-names.md` — the defect this is the one-character remainder of
