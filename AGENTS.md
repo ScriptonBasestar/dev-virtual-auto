@@ -192,6 +192,44 @@ Rule ids, the am behaviour behind each, and a wrong/right example:
 [docs/51-flowcheck-rules.md](docs/51-flowcheck-rules.md). The id list there is derived from
 the source string literals, not hand-kept — that document carries the extraction command.
 
+## Source file length is not gated here (TASK-219 ruling)
+
+**dva declares no limit on Go source file length, and nothing in this repository
+enforces one.** `make lint` reads `.golangci.yml`, which enables the default set plus
+`modernize` and `unparam` — none of those measures file length. `make doc-check` does
+gate size, but only Markdown, and only under `docs/` and `workflows/` (see the
+documentation gate above). That contrast is the whole point: docs have a declared,
+versioned, CI-enforced limit; source has none.
+
+**A workstation may still gate it, and its verdict is advisory here.** ce-agent-kit
+ships a `PostToolUse` hook (`ce-validate-filesize.sh` → `ce validate filesize`) whose
+`file-size.yaml` sets `go` to `warning_lines: 300` / `error_lines: 500` and `test` to
+600. A contributor cloning this repository does not have it. Do not cite it in a commit
+message or a review as "the limit" without saying whose it is (TASK-211).
+
+**An error-shaped file length verdict does not mean your edit was rejected.** The hook
+runs *after* the write has already landed — exit 2 is feedback, not a failed tool call.
+Retrying the edit lands a second copy of the change. Read the verdict, then continue.
+
+**The verdict names whichever file you touched, never the census.** Measured at
+`3ad895a` over `git ls-files '*.go'` (289 files, not a sample): **13 of 117 non-test
+files exceed 500 lines** — largest `internal/config/config.go` at 1162 and
+`internal/cli/compose.go` at 1142 — and **4 of 172 `_test.go` files exceed 600**. So a
+file being over the limit is the normal case in this repository, not an anomaly of the
+file you happened to edit.
+
+```bash
+for f in $(git ls-files '*.go' | grep -v '_test.go'); do
+  n=$(wc -l < "$f"); [ "$n" -gt 500 ] && printf '%5d  %s\n' "$n" "$f"
+done | sort -rn
+```
+
+**No source file is split on the strength of that verdict alone.** Splitting one of the
+thirteen is its own task, argued on its own merits and filed as its own card. If the
+ruling is ever revisited to declare a limit here, it needs a starting threshold above
+the current worst file or a grandfathered list, because CI would otherwise go red on
+thirteen files on day one.
+
 <!-- skills:auto:start -->
 ## AI Skills
 

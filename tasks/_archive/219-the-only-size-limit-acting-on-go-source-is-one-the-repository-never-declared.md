@@ -7,7 +7,8 @@ effort: S
 created-at: 2026-08-20T20:02:00+09:00
 source: "found by the adversarial review of TASK-210's follow-up: both of the reviewer's Edit calls came back as errors naming a 500-line limit, while the edits had in fact applied"
 scope: "a ruling, recorded on this card. Optionally .golangci.yml or the Makefile if the ruling is to declare a limit here. No source file is split without that ruling first."
-status: todo
+status: done
+completed-at: 2026-08-21T10:13:08+09:00
 ---
 
 # Task 219: The only size limit acting on Go source is one the repository never declared
@@ -141,13 +142,52 @@ The recommendation is 3 now and 1 later, because 3 is the only one that can
 be done without touching a file another session may be holding, and because
 the thing actually hurting today is the misreading, not the line counts.
 
+## Ruling
+
+**Option 3. dva does not gate Go source file length. A workstation may, and its
+verdict is advisory here.** Recorded in `AGENTS.md` under "Source file length is
+not gated here (TASK-219 ruling)".
+
+Three reasons, in the order they decided it.
+
+**The thing costing time today is the misreading, not the line counts.** The
+hook is a `PostToolUse` hook: the write has already landed when the verdict
+arrives. An agent that reads exit 2 as a rejected edit retries and lands the
+change twice. That failure mode is real, has already happened once (this card's
+`source:`), and is fixed by one paragraph — no file moves, no CI change.
+
+**Option 1 would go red on thirteen files on day one.** Re-counted here at
+`3ad895a`, the census is *identical* to the one taken at `b293242` in the
+Measured section: 289 tracked `.go`, 117 non-test with 13 over 500, 172 test
+with 4 over 600. Declaring 500 today therefore does not describe this
+repository; it describes an aspiration, and a gate that thirteen files violate
+on the day it lands teaches contributors to route around gates. Option 1 stays
+available, but it needs a threshold above 1162 or a grandfathered list, and that
+is a separate argument this card does not need to win.
+
+**Option 2 is the one that can hurt another session.** Two of the thirteen —
+`internal/cli/compose.go` (1142) and `internal/lifecycle/orchestrator.go` (655)
+— are named in the `scope:` of cards still in the queue. Splitting a file while
+another branch holds it reproduces, in code, the collision this card's own
+branch already hit in card numbers.
+
+**What the ruling does not say.** It does not say the thirteen files are fine,
+and it does not close the question. Splitting any one of them remains a task
+that can be filed and argued on its own merits; what is now settled is that it
+does not happen as a side effect of an editing verdict.
+
+**Scope check.** The ruling touched `AGENTS.md` only. `.golangci.yml`, the
+`Makefile` and every `.go` file are unchanged — which is what a ruling of 3
+should look like in a diff, and is why criteria 3 and 4 below are marked N/A
+rather than left open.
+
 ## Completion Criteria
 
-- [ ] The ruling is recorded on this card, with the reason | verify: human
-- [ ] Whatever the ruling, `AGENTS.md` states whether Go file length is gated here and by what | verify: `grep -ci 'file length\|파일 길이\|file size' AGENTS.md` returns ≥ 1 (today: 0 — measured, not assumed)
-- [ ] If the ruling is 1 (declare it here): the limit is in a file this repository tracks, and `make lint` or a new target reports it | verify: `git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml` returns ≥ 1 (today: 0). Skip, marking N/A, under rulings 2 or 3
-- [ ] If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: `bash -c 'n=0; for f in $(git ls-files "*.go" | grep -v "_test.go"); do [ "$(wc -l < "$f")" -gt 500 ] && n=$((n+1)); done; test "$n" -lt 13'` exits 0 (today it exits 1, n=13). Not bound on the listing command in ## Technical Notes: that pipeline ends in `sort`, which exits 0 whatever it printed, so it would mark this criterion passed the day the card was filed. Skip, marking N/A, under rulings 1 or 3
-- [ ] No source file is split as a side effect of an unrelated card | verify: human — the point of this card is that the ruling comes first
+- [x] The ruling is recorded on this card, with the reason | verify: human — see `## Ruling`: option 3, with the three reasons that decided it and an explicit statement of what it does not settle
+- [x] Whatever the ruling, `AGENTS.md` states whether Go file length is gated here and by what | verify: `grep -ci 'file length\|파일 길이\|file size' AGENTS.md` returns ≥ 1 (today: 0 — measured, not assumed) — now **4**
+- [~] N/A under ruling 3. If the ruling is 1 (declare it here): the limit is in a file this repository tracks, and `make lint` or a new target reports it | verify: `git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml` returns ≥ 1 (today: 0). Skip, marking N/A, under rulings 2 or 3 — re-run after the ruling: still **0**, i.e. the diff did not quietly declare a limit
+- [~] N/A under ruling 3. If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: `bash -c 'n=0; for f in $(git ls-files "*.go" | grep -v "_test.go"); do [ "$(wc -l < "$f")" -gt 500 ] && n=$((n+1)); done; test "$n" -lt 13'` exits 0 (today it exits 1, n=13). Not bound on the listing command in ## Technical Notes: that pipeline ends in `sort`, which exits 0 whatever it printed, so it would mark this criterion passed the day the card was filed. Skip, marking N/A, under rulings 1 or 3 — re-run after the ruling: exits **1** at n=**13**, unchanged, which is the positive control that no file was split here
+- [x] No source file is split as a side effect of an unrelated card | verify: human — the point of this card is that the ruling comes first. The diff of this branch touches `AGENTS.md` and this card only; `git diff --stat master..HEAD -- '*.go'` is empty
 
 ## References
 
