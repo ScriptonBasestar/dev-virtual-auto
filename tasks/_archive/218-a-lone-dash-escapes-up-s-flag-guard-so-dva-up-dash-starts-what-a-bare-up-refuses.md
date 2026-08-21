@@ -463,9 +463,13 @@ five failing **sets** are distinct, so a reverted site is still identifiable fro
 output alone. The narrower sentence above — that the two entry-name sites each fail
 exactly one test — is measured and stands.
 
-Read every such count off a run whose `=== RUN` total matches the unsabotaged baseline.
-TASK-217's correction section records why: a sabotage that reaches a runner panics the
-test binary by design, and the count taken from the truncated run was wrong.
+Read every such count off a run whose `=== RUN` total matches the unsabotaged baseline of
+the same tree. The fix commit's body called these "verified by sabotage with a go vet build
+check", and that check is the wrong one: `go vet` proves the sabotage compiles, not that the
+run reached the end. TASK-217's correction section records the failure it misses -- a
+sabotage that reaches a runner panics the test binary by design, and the count taken off the
+truncated run was a floor, not a total. An independent reviewer hit the identical trap on
+its own tree, with `go vet` run first exactly as its brief required.
 
 **2. `flagtoken.go` said "Six other places". It is seven.**
 `git grep -n 'HasPrefix([^,]*, *"-")' c51dd95 -- 'internal/cli/*.go' | grep -v _test`

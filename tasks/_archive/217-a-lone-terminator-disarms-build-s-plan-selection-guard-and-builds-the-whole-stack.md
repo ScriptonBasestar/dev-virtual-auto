@@ -293,9 +293,18 @@ asserted they could not happen.
 first answer was "one test, `TestBuildLoneTerminatorMeansABareBuild`". That test does not
 merely fail under the revert — `dva build --` reaches `execComposePassthrough`, and
 `ExecReplace` panics the test binary on purpose (TASK-144) rather than let `syscall.Exec`
-swallow the run. The binary died after **30 of 808** tests, so "one test fails" was the
+swallow the run. The binary died after **30 of 809** tests, so "one test fails" was the
 first failure before an abort, not a count. Re-run with that one test skipped, the suite
-completes at 807 and the true set is visible.
+completes and the true set is visible.
+
+Two trees are involved and their totals differ by this card's own new test, so read each
+count against the unsabotaged baseline of the tree it came from. The aborted run was taken
+while that test still carried a `logs` subtest: 809 with it, 808 once it was dropped, and
+807 on the final tree with the one aborting test skipped. `go vet` passing proves only that
+a sabotage compiles. The count needs `grep -c '^=== RUN'` matching that tree's own baseline
+and `grep -c '^panic:'` at zero, both stated, or the number is a floor wearing a total's
+clothes. An independent reviewer reached the same conclusion from a run that died at 30 of
+804 on the parent commit -- a third tree, a third denominator, the same defect.
 
 `TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard` now pins up/down/stop: each asserts
 the `-- --` refusal is the plan guard's, word for word what a bare verb gets, rather than
