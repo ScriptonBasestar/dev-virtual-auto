@@ -204,8 +204,14 @@ versioned, CI-enforced limit; source has none.
 **A workstation may still gate it, and its verdict is advisory here.** ce-agent-kit
 ships a `PostToolUse` hook (`ce-validate-filesize.sh` → `ce validate filesize`) whose
 `file-size.yaml` sets `go` to `warning_lines: 300` / `error_lines: 500` and `test` to
-600. A contributor cloning this repository does not have it. Do not cite it in a commit
-message or a review as "the limit" without saying whose it is (TASK-211).
+`400` / `600`. A contributor cloning this repository does not have it. Do not cite it in
+a commit message or a review as "the limit" without saying whose it is (TASK-211), and
+do not cite the cache path without a date — it is versioned and moves.
+
+"Advisory" describes its status here, not its track record: `tasks/_archive/187` and
+`tasks/_archive/193` each split a Go file specifically to stay under 500, neither citing
+a repository rule because there is none to cite. Splitting a file for that reason is a
+legitimate choice; making it as though the repository required it is not.
 
 **An error-shaped file length verdict does not mean your edit was rejected.** The hook
 runs *after* the write has already landed — exit 2 is feedback, not a failed tool call.

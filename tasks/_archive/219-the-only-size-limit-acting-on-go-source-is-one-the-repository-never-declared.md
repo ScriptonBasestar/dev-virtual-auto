@@ -91,6 +91,27 @@ baseline that had since moved.
 runs `ce validate filesize --changed-only <rel>` and exits 2 when the output
 carries a `File Size Validation` header.
 
+*Re-checked while ruling, 2026-08-21.* Two corrections to that paragraph, left
+as annotations rather than a rewrite so the drift stays visible. The installed
+cache is now `core/0.6.2/`; `0.6.1/` no longer exists on disk, so the path
+above resolves to nothing today. The `go` numbers are unchanged (300/500), and
+kind `test` is `warning_lines: 400` / `error_lines: 600` — the paragraph gave
+only the error limit. The threshold is not in the hook script at all: that file
+carries no number and shells out to `ce validate filesize --changed-only`,
+which reads the yaml; the comparison is `lines >= lineLimit` in ce-agent-kit's
+`internal/usecase/quality/filesize_validator.go`. This is the same failure the
+card's own Measured section warns about one paragraph up — a path is a fact
+about a moment, and a card that cites one without a date cannot be re-checked.
+
+**The rule has already reshaped this codebase twice.** Two archived cards split
+a Go file specifically to stay under the undeclared 500:
+`tasks/_archive/187-*.md:117` — "`tools/flowcheck/rules.go` had grown past the
+500-line limit, so it was split" — and `tasks/_archive/193-*.md:80` —
+"`shell.go` had reached 468 lines against a 500-line ceiling". Neither cites a
+repository rule, because there is none to cite. This is the strongest evidence
+in the card and it was found only when the ruling was reviewed: the limit is
+not merely advisory in practice, it has been obeyed.
+
 **Where it does not live.** `git grep` for `error_lines`, `warning_lines`,
 `max.?lines`, `file.?size` and `line limit` across `Makefile`,
 `.golangci.yml`, `AGENTS.md`, `CLAUDE.md`, `docs/` and `tools/` returns
@@ -170,6 +191,19 @@ is a separate argument this card does not need to win.
 — are named in the `scope:` of cards still in the queue. Splitting a file while
 another branch holds it reproduces, in code, the collision this card's own
 branch already hit in card numbers.
+
+**One word in the ruling is descriptively wrong, and it is kept deliberately.**
+Calling the workstation verdict "advisory" describes its intended status here,
+not its observed effect. The review of this ruling turned up two archived cards
+— `187:117` and `193:80` — where a Go file was split *specifically* to stay
+under 500, neither citing a repository rule, because there is none to cite. So
+the undeclared number has already moved code twice. That does not flip the
+ruling: option 1's cost is thirteen red files on day one whether or not the
+number has been obeyed before. It changes what the ruling is *for*. The point
+is not to make contributors stop caring about file length; it is that a
+constraint which has already reshaped the codebase twice should be arguable in
+the repository that carries the code, and today it is not. Option 1 is the fix
+for that, and this card leaves it on the table rather than closing it.
 
 **What the ruling does not say.** It does not say the thirteen files are fine,
 and it does not close the question. Splitting any one of them remains a task
