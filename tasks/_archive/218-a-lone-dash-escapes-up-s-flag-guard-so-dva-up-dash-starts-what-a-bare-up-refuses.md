@@ -257,6 +257,22 @@ fixed here because each needs a new message branch rather than a predicate swap:
   predicate here makes the message *worse*, measured: the replacement hint never
   names the token the user typed. That is a wording ruling, not a swap.
 - `plan_lifecycle.go:268` — `parsePlanFlags` answers `unsupported plan flag: -`.
+  It says the same of the terminator, and that is the sharper half: measured on
+  fixture A after this change,
+
+  ```
+  dva up alpha -          unsupported plan flag: -
+  dva up alpha --         unsupported plan flag: --
+  dva up alpha -- -       unsupported plan flag: --
+  dva up -- -             plan '-' not found. Available: alpha, beta
+  ```
+
+  The last two lines are the same two tokens answered opposite ways, decided by
+  whether a plan was named. `requirePlanSelection` drops a leading terminator
+  (TASK-217); `parsePlanFlags`, one branch later, rejects it as a flag. Neither
+  is wrong on its own and together they cannot both be right. This card widened
+  the gap by fixing only the first, and the fix belongs with whoever rules on
+  the wording — `--` is not a "plan flag" under any reading.
 
 `root.go:247` (`isFlag`) also answers `-` as a flag. It is **not** a settled
 counterweight — see the correction below. TASK-223 owns it.
