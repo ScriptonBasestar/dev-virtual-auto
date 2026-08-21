@@ -450,11 +450,17 @@ clean before every run, on runs that each completed at 808 of 808 tests:
 
 | site reverted | tests that fail |
 |---|---|
-| `build.go:171` | `TestPlanBuildRoutesToAnEntryNamedWithALoneDash` |
-| `logs.go:132` | `TestPlanLogsRoutesToAnEntryNamedWithALoneDash` |
-| `plan_lifecycle.go:175` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestRestartUnknownNameRuling` |
-| `plan_lifecycle.go:206` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestUnknownPlanGuardReportsALoneDash`, `TestUpLoneDashAgreesWithABareUp` |
-| `plan_lifecycle.go:228` | `TestUpPositionalGuardReportsALoneDashWithNoPlans`, `TestUpLoneDashAgreesWithABareUp` |
+| `runPlanBuild` — `build.go:171` | `TestPlanBuildRoutesToAnEntryNamedWithALoneDash` |
+| `runPlanLogs` — `logs.go:132` | `TestPlanLogsRoutesToAnEntryNamedWithALoneDash` |
+| `rejectSuppressedDefaultPlan` — `plan_lifecycle.go:183` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestRestartUnknownNameRuling` |
+| `rejectUnknownPlanArg` — `plan_lifecycle.go:214` | `TestDefaultPlanGuardDoesNotCallALoneDashAFlag`, `TestUnknownPlanGuardReportsALoneDash`, `TestUpLoneDashAgreesWithABareUp` |
+| `rejectUpPositionalArg` — `plan_lifecycle.go:236` | `TestUpPositionalGuardReportsALoneDashWithNoPlans`, `TestUpLoneDashAgreesWithABareUp` |
+
+The three `plan_lifecycle.go` sites were measured at `:175`, `:206` and `:228`, and the
+commit that published this table is what moved them: rewriting the comment above
+`detectPlanRoute` added eight lines over all three. A citation can be correct when taken and
+wrong when read, without anyone touching it — so each row names its function, which the
+revert has to find anyway.
 
 `TestDefaultPlanGuardDoesNotCallALoneDashAFlag` answers for two sites and
 `TestUpLoneDashAgreesWithABareUp` for two others, so for the three `plan_lifecycle.go`
