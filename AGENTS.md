@@ -195,11 +195,24 @@ the source string literals, not hand-kept — that document carries the extracti
 ## Source file length is not gated here (TASK-219 ruling)
 
 **dva declares no limit on Go source file length, and nothing in this repository
-enforces one.** `make lint` reads `.golangci.yml`, which enables the default set plus
-`modernize` and `unparam` — none of those measures file length. `make doc-check` does
-gate size, but only Markdown, and only under `docs/` and `workflows/` (see the
-documentation gate above). That contrast is the whole point: docs have a declared,
-versioned, CI-enforced limit; source has none.
+enforces one.** `make lint` (`Makefile:44`) is four gates, not one: `go vet ./...`,
+`gofmt -l` through `fmt-check`, `golangci-lint run ./...`, and `gopls check
+-severity=hint` over `cmd internal tools`. CI runs the same four as separate steps —
+Vet (`.github/workflows/ci.yml:34`), Format (`:48`), `golangci-lint-action@v8` (`:53`),
+gopls check (`:72`). `.golangci.yml` enables the default set plus `modernize` and
+`unparam`, and sets `govet: enable-all: true` with exactly two analyzers disabled by
+name (`fieldalignment`, `shadow`). Not one of the four measures file length, and the two
+golangci-lint linters that would — `funlen`, `lll` — are not enabled:
+
+```bash
+git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml
+# no output, exit 1
+```
+
+`make doc-check` does gate size, but only Markdown, and only under `docs/` and
+`workflows/` (see the documentation gate above) — this file is under neither. That
+contrast is the whole point: docs have a declared, versioned, CI-enforced limit; source
+has none.
 
 **A workstation may still gate it, and its verdict is advisory here.** ce-agent-kit
 ships a `PostToolUse` hook (`ce-validate-filesize.sh` → `ce validate filesize`) whose
@@ -215,7 +228,19 @@ legitimate choice; making it as though the repository required it is not.
 
 **An error-shaped file length verdict does not mean your edit was rejected.** The hook
 runs *after* the write has already landed — exit 2 is feedback, not a failed tool call.
-Retrying the edit lands a second copy of the change. Read the verdict, then continue.
+What a retry costs depends on the shape of the edit, which is why "it is only a retry"
+is not a safe default: a `Write` re-lands the same bytes harmlessly, an `Edit` whose
+`old_string` the first pass consumed fails loudly, and an `Edit` that wrapped or
+extended a still-present `old_string` matches again and lands the addition twice. Read
+the verdict, then continue.
+
+**A fourth option exists and is deliberately not taken.** `file-size.yaml` carries an
+`exemption:` block matched on the bare token `size-limit: exempt`, so `// size-limit:
+exempt` in the first 1KB of a Go file suppresses the verdict for that file entirely
+(`<!-- size-limit: 2000 -->` sets a custom budget instead). That would end the
+misreading by deleting the message — and with it the only signal anyone gets that a file
+is growing, on precisely the thirteen files where the signal is worth most. The ruling
+keeps the message and corrects what it means.
 
 **The verdict names whichever file you touched, never the census.** Measured at
 `3ad895a` over `git ls-files '*.go'` (289 files, not a sample): **13 of 117 non-test

@@ -34,6 +34,12 @@ is deliberate feedback, not a failed write. But an agent that reads an
 error-shaped response as "my edit was rejected" will retry it, and the retry
 lands a second copy of the change.
 
+> *Annotated 2026-08-21, left in place rather than rewritten.* The last clause
+> is true of one edit shape and asserted of all of them; see the correction
+> under `## Ruling`. Nothing on this card ever observed a duplicate landing —
+> the `source:` above records two error-shaped Edit responses whose edits had
+> applied, which is the opportunity to misread and not a retry.
+
 **The limit is not this repository's.** dva declares no size limit on Go
 source anywhere. The rule comes from a workstation policy in ce-agent-kit,
 which a contributor cloning this repository does not have.
@@ -173,9 +179,24 @@ Three reasons, in the order they decided it.
 
 **The thing costing time today is the misreading, not the line counts.** The
 hook is a `PostToolUse` hook: the write has already landed when the verdict
-arrives. An agent that reads exit 2 as a rejected edit retries and lands the
-change twice. That failure mode is real, has already happened once (this card's
-`source:`), and is fixed by one paragraph — no file moves, no CI change.
+arrives, so an agent that reads exit 2 as a rejected edit is acting on a belief
+about its own tree that is false. That is fixed by one paragraph — no file
+moves, no CI change.
+
+*Corrected while reviewing this ruling, 2026-08-21.* The sentence above
+originally said the retry "lands the change twice" and that this "has already
+happened once (this card's `source:`)". Both overreached, and the second is the
+sharper error: the `source:` records two Edit calls that came back error-shaped
+while having applied — the *opportunity* to misread, not a retry, and not a
+duplicated hunk. Nothing on this card ever showed a duplicate landing. The first
+overreached in a different direction: what a retry does depends on the edit's
+shape. A `Write` re-lands the same bytes harmlessly; an `Edit` whose `old_string`
+the first pass consumed fails loudly; only an `Edit` that wrapped or extended a
+still-present `old_string` matches again and lands the addition twice. So
+duplication is one outcome of the misreading, not its definition, and the reason
+this is the deciding cost stands without it: the agent's next decision is made
+against a tree it believes is in a state it is not. `AGENTS.md` states it that
+way.
 
 **Option 1 would go red on thirteen files on day one.** Re-counted here at
 `3ad895a`, the census is *identical* to the one taken at `b293242` in the
@@ -210,6 +231,46 @@ and it does not close the question. Splitting any one of them remains a task
 that can be filed and argued on its own merits; what is now settled is that it
 does not happen as a side effect of an editing verdict.
 
+**There was a fourth option, and the card never listed it.** `file-size.yaml`
+carries an `exemption:` block — `exempt_marker` matched on the bare token
+`size-limit: exempt`, so `// size-limit: exempt` in a Go file's first 1KB works,
+and `custom_marker_pattern` `<!-- size-limit: (\d+) -->` for a per-file budget.
+Marking the thirteen exempt would have ended the misreading by deleting the
+message, needs no ruling from this repository, and would have been the cheapest
+of the four. It is rejected on what it costs rather than on what it takes: the
+verdict is the only running signal that a Go file is growing, and suppressing it
+first on the thirteen largest files removes it exactly where it carries
+information. That the option was invisible until the review is itself the
+finding — three options were enumerated as though they were the whole space.
+
+**The first paragraph of the `AGENTS.md` section was wrong about its own
+evidence, and the conclusion survived it.** As first written it said `make lint`
+"reads `.golangci.yml`, which enables the default set plus `modernize` and
+`unparam`". `make lint` is `lint: vet fmt-check` (`Makefile:44`) *plus*
+`golangci-lint run ./...` *plus* `gopls check -severity=hint` over `cmd internal
+tools`, and CI runs the four as separate steps (`ci.yml:34`, `:48`, `:53`,
+`:72`); the config also sets `govet: enable-all: true`, disabling only
+`fieldalignment` and `shadow`. So the paragraph inventoried one of four gates and
+described that one incompletely. The claim it was supporting — that nothing here
+measures file length — holds for all four, and the sweep it rests on
+(`git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml`,
+no output, exit 1) was already the right binding. Corrected in the same pass as
+this paragraph. The lesson generalises past this card: a true conclusion is not
+evidence that the sentence written under it was ever checked, and a supporting
+inventory is exactly where nobody looks, because only the claim under argument
+gets read for truth.
+
+**The commit that recorded this ruling defers to a card that does not exist.**
+`4fba05d`'s closing paragraph concedes that criterion 2's binding
+(`grep -ci 'file length\|파일 길이\|file size' AGENTS.md`) certifies that a
+statement exists and not that it is the right one, then says "TASK-221 is where
+that class gets a rule". There is no TASK-221 — on this branch, on `master`, or
+anywhere; 219 is the highest id. A commit message cannot be amended after it is
+pushed, so the correction lives here: the concession stands on its own and the
+mitigation named beside it does not. The class is real and still unowned. Naming
+an unfiled id as though it were a plan is the same move the concession was
+apologising for, one paragraph later.
+
 **Scope check.** The ruling touched `AGENTS.md` only. `.golangci.yml`, the
 `Makefile` and every `.go` file are unchanged — which is what a ruling of 3
 should look like in a diff, and is why criteria 3 and 4 below are marked N/A
@@ -219,9 +280,9 @@ rather than left open.
 
 - [x] The ruling is recorded on this card, with the reason | verify: human — see `## Ruling`: option 3, with the three reasons that decided it and an explicit statement of what it does not settle
 - [x] Whatever the ruling, `AGENTS.md` states whether Go file length is gated here and by what | verify: `grep -ci 'file length\|파일 길이\|file size' AGENTS.md` returns ≥ 1 (today: 0 — measured, not assumed) — now **4**
-- [~] N/A under ruling 3. If the ruling is 1 (declare it here): the limit is in a file this repository tracks, and `make lint` or a new target reports it | verify: `git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml` returns ≥ 1 (today: 0). Skip, marking N/A, under rulings 2 or 3 — re-run after the ruling: still **0**, i.e. the diff did not quietly declare a limit
-- [~] N/A under ruling 3. If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: `bash -c 'n=0; for f in $(git ls-files "*.go" | grep -v "_test.go"); do [ "$(wc -l < "$f")" -gt 500 ] && n=$((n+1)); done; test "$n" -lt 13'` exits 0 (today it exits 1, n=13). Not bound on the listing command in ## Technical Notes: that pipeline ends in `sort`, which exits 0 whatever it printed, so it would mark this criterion passed the day the card was filed. Skip, marking N/A, under rulings 1 or 3 — re-run after the ruling: exits **1** at n=**13**, unchanged, which is the positive control that no file was split here
-- [x] No source file is split as a side effect of an unrelated card | verify: human — the point of this card is that the ruling comes first. The diff of this branch touches `AGENTS.md` and this card only; `git diff --stat master..HEAD -- '*.go'` is empty
+- [~] N/A under ruling 3. If the ruling is 1 (declare it here): the limit is in a file this repository tracks, and `make lint` or a new target reports it | verify: `git grep -cE 'error_lines|max-lines|funlen|lll' -- Makefile .golangci.yml` returns ≥ 1 (today: 0). Skip, marking N/A, under rulings 2 or 3 — re-run after the ruling: **no output, exit 1**. Recorded that way rather than as "still 0" because `git grep -c` prints nothing at all when no file matches; "0" was a value I supplied for a command that never printed one. The reading is the same — the diff did not quietly declare a limit — but the two are different observations and only one of them happened
+- [~] N/A under ruling 3. If the ruling is 2 (split): the census shrinks, and the number is stated rather than implied | verify: `bash -c 'n=0; for f in $(git ls-files "*.go" | grep -v "_test.go"); do [ "$(wc -l < "$f")" -gt 500 ] && n=$((n+1)); done; test "$n" -lt 13'` exits 0 (today it exits 1, n=13). Not bound on the listing command in ## Technical Notes: that pipeline ends in `sort`, which exits 0 whatever it printed, so it would mark this criterion passed the day the card was filed. Skip, marking N/A, under rulings 1 or 3 — re-run after the ruling: exits **1** at n=**13**, unchanged. That is a null result, not a positive control, and the earlier wording here called it one. An unchanged value is consistent with "no file was split" and equally consistent with a probe that could not have seen a split; what makes it readable at all is the separate observation that `git diff --stat master..HEAD -- '*.go'` is empty, and criterion 5 below records why *that* one is weaker than it looks
+- [x] No source file is split as a side effect of an unrelated card — **on this branch**, which is the only span the evidence covers | verify: human — the diff of this branch touches `AGENTS.md` and this card only; `git diff --stat master..HEAD -- '*.go'` is empty. **The qualifier is a correction, not a hedge.** As written the criterion made an unqualified claim and was marked done against `git diff master..HEAD`, a probe scoped to this branch alone: it cannot see any commit reachable from `master`, so it could only ever have returned the answer it returned, and the review of this card found two commits it structurally could not see. `tasks/_archive/187-*.md:117` splits `tools/flowcheck/rules.go` because it "had grown past the 500-line limit", and `tasks/_archive/193-*.md:80` splits `shell.go` at 468 "against a 500-line ceiling" — both on cards about something else, which is exactly the side effect this criterion names. The unqualified version of it is **false**. The binding that would have caught it is repository-wide and must exclude its own writeup: `git grep -nE '500-line (limit|ceiling)' -- 'tasks/' ':!tasks/*219-*'` returns exactly those **2** lines, where the same sweep without the exclusion returns **3** files and 4 extra matches, all of them this card arguing about them. What is true, and all that is claimed here, is that this branch did not add a third
 
 ## References
 
