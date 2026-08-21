@@ -264,12 +264,22 @@ gets read for truth.
 `4fba05d`'s closing paragraph concedes that criterion 2's binding
 (`grep -ci 'file length\|파일 길이\|file size' AGENTS.md`) certifies that a
 statement exists and not that it is the right one, then says "TASK-221 is where
-that class gets a rule". There is no TASK-221 — on this branch, on `master`, or
-anywhere; 219 is the highest id. A commit message cannot be amended after it is
-pushed, so the correction lives here: the concession stands on its own and the
-mitigation named beside it does not. The class is real and still unowned. Naming
-an unfiled id as though it were a plan is the same move the concession was
-apologising for, one paragraph later.
+that class gets a rule". At the time that paragraph was written there was no
+TASK-221 — not on that branch, not on `master`, not anywhere; 219 was the highest
+id. A commit message cannot be amended after it is pushed, so the correction
+lives here: the concession stood on its own and the mitigation named beside it
+did not. Naming an unfiled id as though it were a plan is the same move the
+concession was apologising for, one paragraph later.
+
+**Resolved as to the id, not as to the class.**
+[TASK-221](../todo/221-the-grep-that-measured-a-binding-is-not-the-grep-that-re-runs-it.md)
+was filed afterwards, and 220 and 222 landed on `master` in between, so the
+reference is no longer dangling. But 221's subject is *bare wrapped tools in
+bindings* — whether a binding's recorded number is the reader's number. That is
+not *bindings that certify existence instead of correctness*. 221 is a card that
+happens to carry the number, not the plan that was promised, and the class named
+above is still unowned. This paragraph is left standing rather than deleted for
+the reason the paragraph two above it gives.
 
 **Scope check.** The ruling touched `AGENTS.md` only. `.golangci.yml`, the
 `Makefile` and every `.go` file are unchanged — which is what a ruling of 3
