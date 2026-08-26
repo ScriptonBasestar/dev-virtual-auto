@@ -1,5 +1,5 @@
 ---
-name: config
+name: dva-config
 description: >-
   Use when creating, auditing, repairing, or migrating a dva.yml configuration; diagnosing `dva
   config validate`, `dva show`, or `dva doctor` warnings; separating DVA CLI defects from project

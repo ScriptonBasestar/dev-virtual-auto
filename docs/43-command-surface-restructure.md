@@ -147,7 +147,7 @@ dva init / version / completion / config(show|migrate) / ssh / console / docs
 - 삭제/흡수 파일: `app.go`, `infra.go`, `stack.go`(조회 비트는 `ls`/`show`로), compose.go의 clean.
 - `plan_lifecycle.go`: `logs`/`build`/`status` plan-aware 확장 + `down --purge`.
 - 정규 문서 동기화: [USAGE.md](../USAGE.md), [ARCHITECTURE.md](../ARCHITECTURE.md) 도메인 경계·실행 흐름,
-  [PRODUCT.md](../PRODUCT.md) 현재 상태, `skills/dva`·`skills/config`, manifest/ls 노출 로직.
+  [PRODUCT.md](../PRODUCT.md) 현재 상태, `skills/dva`·`skills/dva-config`, manifest/ls 노출 로직.
 
 ## 19. 결정 사항 요약
 

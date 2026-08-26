@@ -10,7 +10,7 @@ canonical skill and regenerate (single-source-of-truth; see TASK-053).
 filesystem path (machine-specific, unresolvable elsewhere):
 
 > `https://github.com/ScriptonBasestar/dva` → `skills/<name>/SKILL.md`
-> e.g. `https://github.com/ScriptonBasestar/dva/blob/master/skills/config/SKILL.md`
+> e.g. `https://github.com/ScriptonBasestar/dva/blob/master/skills/dva-config/SKILL.md`
 
 ## Layout
 

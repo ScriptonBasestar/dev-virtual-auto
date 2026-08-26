@@ -43,7 +43,7 @@ config, or target behavior. Existing runs are optional evidence, never blockers.
      (tracked files under `workflows/dva-dogfood/` only — never a recursive hash of the
      directory, which picks up untracked `.ce` telemetry);
    - the installed `dva` executable path, version, and build commit;
-   - the canonical skill hash for `skills/config` and `skills/dva`, and each
+   - the canonical skill hash for `skills/dva-config` and `skills/dva`, and each
      projection declared by `skills/_targets.yaml`, proven by the relation its
      shape supports per ARTIFACTS Evidence rules (path-independent content digest —
      not the dirty-hash form);

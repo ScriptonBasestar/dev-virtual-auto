@@ -13,7 +13,7 @@ FALLBACK_RUNS_ROOT = ${XDG_STATE_HOME:-$HOME/.local/state}/dogfood-dva/<PROJECT_
 RUN_DIR = RUNS_ROOT/<RUN_ID>
 </constants>
 
-The loop's canonical skill targets are `skills/config` and `skills/dva` in this
+The loop's canonical skill targets are `skills/dva-config` and `skills/dva` in this
 repo. Platform-visible copies are projections described by `skills/_targets.yaml`;
 never treat an installed or generated copy as an independent source.
 
@@ -41,7 +41,7 @@ installing, syncing, or synthesizing a projection.
 
 | Owner                         | Put here                                                             | Do not put here                                        |
 | ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ |
-| `skills/config`, `skills/dva` | Reusable DVA workflows, heuristics, validation, and operation safety | Machine paths, project ports, target-specific commands |
+| `skills/dva-config`, `skills/dva` | Reusable DVA workflows, heuristics, validation, and operation safety | Machine paths, project ports, target-specific commands |
 | `dev-virtual-auto`            | CLI behavior, schema parser, discovery/doctor implementation         | Workarounds that belong only to one project            |
 | Target project                | `dva.yml`, Compose files, project commands and docs                  | Cross-project policy                                    |
 | `workflows/dva-dogfood`       | Evaluation orchestration, stage routing, and references              | Product implementation or target-specific fixes        |
@@ -51,7 +51,7 @@ installing, syncing, or synthesizing a projection.
 **Worked example — the default plan.** The `default_plan` field and per-plan run
 selection are DVA mechanism (`dev-virtual-auto`). The convention "define
 `dev`/`preview` plans and default to `dev` for local devbox work" is a reusable
-heuristic (`skills/config`). The concrete `default_plan: dev` value is written into
+heuristic (`skills/dva-config`). The concrete `default_plan: dev` value is written into
 the target's `dva.yml`. Never bake a dev-vs-preview default into DVA itself, and
 never solve it as a per-project workaround.
 

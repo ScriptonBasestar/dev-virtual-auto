@@ -1,6 +1,6 @@
 <!-- AI_SKIP: Human documentation -->
 
-# config (dva:config)
+# dva-config (dva:dva-config)
 
 Reusable workflow for creating, preserving, migrating, and diagnosing DVA configuration in devbox
 projects. Ported from the `claude-ce-plugin` `tool-dva-config` skill; the DVA repository is now the
@@ -19,7 +19,7 @@ canonical owner.
 
 - **`dva`** — CLI execution: build, test, run, logs, lifecycle. Enforces DVA over raw
   docker/compose/kubectl.
-- **`config`** (this skill) — configuration authoring, migration, and defect attribution.
+- **`dva-config`** (this skill) — configuration authoring, migration, and defect attribution.
   Auto-triggered (`user-invocable: false`) when DVA configuration work is detected.
 
 See [SKILL.md](SKILL.md) for the executable workflow.

@@ -10,7 +10,7 @@ of `skills/` — different purpose (see [Relationship to skills/](#relationship-
 | ---- | ---------------- | -------------- |
 | `shared-guardrails.md` | mixed (per rule) | partly hand-authored, partly generated |
 | `shared-checklist.md` | this file | hand-authored |
-| `dva-schema.md` | `skills/config/references/schema-reference.md` (symlink — skills is canonical) | hand-authored |
+| `dva-schema.md` | `skills/dva-config/references/schema-reference.md` (symlink — skills is canonical) | hand-authored |
 | `naming-presets.md` | this file | hand-authored |
 | `reference-examples.md` | this file | hand-authored |
 
@@ -64,7 +64,7 @@ fails if they diverge again. That is a consistency check, not a source of truth:
 no ports itself, it only requires every statement of the rule to match the others.
 
 `dva-schema.md` is a third case: it has a canonical home under `skills/` already
-(`skills/config/references/schema-reference.md`) and is symlinked here.
+(`skills/dva-config/references/schema-reference.md`) and is symlinked here.
 
 ## Relationship to skills/
 
@@ -74,7 +74,7 @@ no ports itself, it only requires every statement of the rule to match the other
 | Loaded by | `am run` (`read_file`) | Claude Code / Antigravity / OpenCode host |
 | Format | plain markdown fragments | Agent Skills `SKILL.md` |
 
-`skills/config/SKILL.md` is *methodology* — how to diagnose, the ownership model, risk
+`skills/dva-config/SKILL.md` is *methodology* — how to diagnose, the ownership model, risk
 order. This directory is *facts* — the exact reserved list, the exact section order. They
 do not duplicate each other: the skill reasons about concepts, this directory lists the
 concrete values.

@@ -76,7 +76,7 @@ new hypothesis and a new baseline.
 ## Sources of truth
 
 - Dogfood orchestration: `workflows/dva-dogfood` (this directory)
-- Skills: this repo's canonical `skills/config` and `skills/dva`; platform copies
+- Skills: this repo's canonical `skills/dva-config` and `skills/dva`; platform copies
   are projections generated or linked from those sources, never independent sources
 - DVA tool: this repository
 

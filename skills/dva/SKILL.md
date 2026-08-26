@@ -59,8 +59,8 @@ Read the `dynamic_commands` section from manifest output to identify project-spe
 ### Author or Migrate Configuration
 
 For deep configuration authoring, migration, and defect attribution (ownership
-model, change modes, risk-ordered validation), use the **`config` skill**
-(`dva:config`). This section covers only the quick-start surface.
+model, change modes, risk-ordered validation), use the **`dva-config` skill**
+(`dva:dva-config`). This section covers only the quick-start surface.
 
 For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template:
 

@@ -1,1 +1,1 @@
-../../../skills/config/references/schema-reference.md
+../../../skills/dva-config/references/schema-reference.md

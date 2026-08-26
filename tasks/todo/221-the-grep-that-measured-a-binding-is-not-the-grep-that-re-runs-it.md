@@ -193,7 +193,7 @@ This repo single-sources by symlink. Six tracked symlinks:
 
 | link | target |
 |---|---|
-| `agent-mesh-flows/shared/library/dva-schema.md` | `skills/config/references/schema-reference.md` |
+| `agent-mesh-flows/shared/library/dva-schema.md` | `skills/dva-config/references/schema-reference.md` |
 | `.agents/skills`, `claude-plugin/skills` | `skills/` |
 | `internal/{cli,config,lifecycle}/AGENTS.md` | `AGENTS.md` |
 
@@ -265,7 +265,7 @@ unverifiable by hand, which is the actual promise a binding makes.
 - [ ] The recorded census is re-measured at the commit this card is closed at, not carried forward | verify: human — the Summary stamps every figure with a commit: `128 of 159` at `dc762ca`, `136 of 167` at `3ad895a`, `132 of 180` at `330f96e`. It moved twice in 19 commits and reversed direction, so a number with no commit beside it is the defect one layer up. Re-measure at close and record **which of the two mechanisms moved it** — new spans arriving, or existing spans rewritten — because they argue in opposite directions and a bare delta hides which happened. Exclude `tasks/todo/221-*.md` from the sweep, or the card's own four bindings enter the denominator it reports
 - [ ] No recorded count changed silently in the rewrite | verify: human — for every binding whose recorded number changes when it is rewritten, the new number is measured, recorded, and the old one kept beside it with the reason
 - [ ] `025:65` is rewritten so its exclusion fires and its denominator is printed | verify: `f=$(ls tasks/_archive/025-*.md); [ -f "$f" ] || { echo "025 card not found — nothing was measured"; exit 2; }; anchor=$(/usr/bin/grep -c "grep -v '\^" "$f" || true); den=$(/usr/bin/grep -c 'swept lines' "$f" || true); echo "inert ./ anchors=$anchor printed denominators=$den"; [ "$anchor" -eq 0 ] && [ "$den" -ge 1 ]` — prints `inert ./ anchors=1 printed denominators=0` and exits 1 today. Bound on the card text, not on the sweep's outcome: with the exclusion corrected to `/tasks/` the sweep already returns `offenders=0 over 1 swept lines`, so an outcome binding would pass before the rewrite and certify itself
-- [ ] `067:148` can fail | verify: human — plant the offending sentence in `skills/config/references/schema-reference.md`, confirm the rewritten binding goes red through the `dva-schema.md` symlink, and remove the planted line by line, not by `git checkout`. Then plant it in any other file under `agent-mesh-flows/` and confirm the *unrewritten* binding already goes red there — the gate is blind to one path of 40, not to all of them, and a criterion that does not separate those two states certifies the wrong claim
+- [ ] `067:148` can fail | verify: human — plant the offending sentence in `skills/dva-config/references/schema-reference.md`, confirm the rewritten binding goes red through the `dva-schema.md` symlink, and remove the planted line by line, not by `git checkout`. Then plant it in any other file under `agent-mesh-flows/` and confirm the *unrewritten* binding already goes red there — the gate is blind to one path of 40, not to all of them, and a criterion that does not separate those two states certifies the wrong claim
 - [ ] `make doc-check` passes with the new check active | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 
 ## Open Questions

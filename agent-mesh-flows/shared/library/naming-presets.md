@@ -3,7 +3,7 @@
 > improve 워크플로우가 dva.yml을 생성할 때 참조하는 네이밍 규약 — 현재 `plans` +
 > `environments` + `sites` 모델 기준. 새/rewrite 설정에 **절대 legacy `modes:` /
 > `compose_services` / `default_mode`를 생성하지 않는다**(shared-guardrails 규칙 2,
-> skills/config 참조). `modes`는 explicit migration(preserve) 시에만 유지.
+> skills/dva-config 참조). `modes`는 explicit migration(preserve) 시에만 유지.
 
 ## Service Tags
 

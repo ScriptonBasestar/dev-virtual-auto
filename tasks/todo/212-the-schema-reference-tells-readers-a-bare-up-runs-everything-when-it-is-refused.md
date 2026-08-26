@@ -6,7 +6,7 @@ priority: P3
 effort: S
 created-at: 2026-08-20T16:10:00+09:00
 source: "surfaced by the TASK-207 impact re-sweep as the one line in the 106-file doc corpus that misdescribes the no-name plan gate; measured here on three fixtures"
-scope: "skills/config/references/schema-reference.md:721 and its generated copy internal/cli/library_reference.txt:897. Documentation only — no code change is proposed, and the behaviour described is correct as it stands."
+scope: "skills/dva-config/references/schema-reference.md:721 and its generated copy internal/cli/library_reference.txt:897. Documentation only — no code change is proposed, and the behaviour described is correct as it stands."
 status: todo
 ---
 
@@ -14,7 +14,7 @@ status: todo
 
 ## Summary
 
-`skills/config/references/schema-reference.md:721` opens the lifecycle example
+`skills/dva-config/references/schema-reference.md:721` opens the lifecycle example
 block with:
 
 ```bash
@@ -25,7 +25,7 @@ The parenthetical is true for a config with no `plans:` section and false for th
 shape it most looks like it is describing: several plans, none of them marked
 `default_plan`. There a bare `dva up` is refused, and nothing runs.
 
-The line is read by two audiences. `skills/config/references/schema-reference.md`
+The line is read by two audiences. `skills/dva-config/references/schema-reference.md`
 is a skill page, and `agent-mesh-flows/shared/library/dva-schema.md` is a symlink
 to it, so `make generate` copies the same sentence into
 `internal/cli/library_reference.txt:897`, which the `am` flows read when they
@@ -76,15 +76,15 @@ second wording to maintain.
 
 ## Completion Criteria
 
-- [ ] The claim that a bare `dva up` runs every declared entry is gone from the skill page | verify: `grep -c 'every declared entry if none' skills/config/references/schema-reference.md` returns 0 (today: 1)
+- [ ] The claim that a bare `dva up` runs every declared entry is gone from the skill page | verify: `grep -c 'every declared entry if none' skills/dva-config/references/schema-reference.md` returns 0 (today: 1)
 - [ ] The generated copy agrees, i.e. `make generate` was run rather than the file hand-edited | verify: `grep -c 'every declared entry if none' internal/cli/library_reference.txt` returns 0 (today: 1)
-- [ ] The replacement states the several-plans-no-default refusal | verify: `grep -c 'default_plan' skills/config/references/schema-reference.md` returns ≥ 2 (today: 1 — the single occurrence is the `default_plan:` key in the schema table, not a statement about the gate, so a rewrite that mentions the gate must add one)
+- [ ] The replacement states the several-plans-no-default refusal | verify: `grep -c 'default_plan' skills/dva-config/references/schema-reference.md` returns ≥ 2 (today: 1 — the single occurrence is the `default_plan:` key in the schema table, not a statement about the gate, so a rewrite that mentions the gate must add one)
 - [ ] The replacement does not contradict the lone-plan implicit default | verify: human — read the new sentence against the three-row table above and say which row it covers
 - [ ] `make generate` leaves no other diff | verify: `git status --porcelain internal/cli/library_reference.txt` names only the expected file
 
 ## References
 
-- `skills/config/references/schema-reference.md:721` — the line
+- `skills/dva-config/references/schema-reference.md:721` — the line
 - `internal/cli/library_reference.txt:897` — the generated copy read by `am` flows
 - `agent-mesh-flows/shared/library/dva-schema.md` — the symlink that carries one into the other
 - `internal/config/config.go:576-593` — `DefaultPlan`, including the lone-plan fallback

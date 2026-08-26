@@ -88,6 +88,9 @@ func main() {
 			}
 			fmt.Printf("skillgen: %-9s -> %s -> ../skills (symlink)\n", tname, t.Output)
 		case "mdc":
+			if err := removeStaleCursorRules(*root, skills, t.Output, t.Ext); err != nil {
+				fatal("cursor cleanup %s: %v", tname, err)
+			}
 			for _, s := range skills {
 				if err := emitCursor(*root, s, man, t.Output, t.Ext, t.DefaultAlwaysApply); err != nil {
 					fatal("cursor %s: %v", s.fm.Name, err)
@@ -107,6 +110,68 @@ func main() {
 			fmt.Printf("skillgen: %-9s -> shape %q not yet implemented (skipped)\n", tname, t.Shape)
 		}
 	}
+}
+
+// removeStaleCursorRules removes only obsolete files previously emitted by
+// skillgen. Unrelated hand-authored rules in the same output directory are
+// preserved. This keeps a skill rename from leaving both old and new rules active.
+func removeStaleCursorRules(root string, skills []skill, outDir, ext string) error {
+	dir := filepath.Join(root, filepath.FromSlash(outDir))
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	expected := make(map[string]bool, len(skills))
+	for _, s := range skills {
+		expected[s.fm.Name+ext] = true
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Type()&os.ModeSymlink != 0 || expected[entry.Name()] || !strings.HasSuffix(entry.Name(), ext) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if !isGeneratedCursorRule(data) {
+			continue
+		}
+		if err := os.Remove(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isGeneratedCursorRule(data []byte) bool {
+	lines := strings.Split(strings.ReplaceAll(string(data), "\r\n", "\n"), "\n")
+	if len(lines) < 5 || lines[0] != "---" {
+		return false
+	}
+	frontmatterEnd := -1
+	for i := 1; i < len(lines); i++ {
+		if lines[i] == "---" {
+			frontmatterEnd = i
+			break
+		}
+	}
+	if frontmatterEnd == -1 || frontmatterEnd+2 >= len(lines) || lines[frontmatterEnd+1] != "" {
+		return false
+	}
+
+	const prefix = "<!-- GENERATED from skills/"
+	const suffix = "/SKILL.md by tools/skillgen — do not edit; edit the canonical skill and run `make generate` -->"
+	banner := lines[frontmatterEnd+2]
+	if !strings.HasPrefix(banner, prefix) || !strings.HasSuffix(banner, suffix) {
+		return false
+	}
+	skillName := strings.TrimSuffix(strings.TrimPrefix(banner, prefix), suffix)
+	return skillName != "" && !strings.Contains(skillName, "/")
 }
 
 // emitCursor writes .cursor/rules/<name>.mdc. Cursor rules are lazy-loaded on
