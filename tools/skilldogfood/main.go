@@ -369,6 +369,10 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 	if err := verifyOwnedArtifacts(project, stateRoot); err != nil {
 		return fmt.Errorf("installed artifacts: %w", err)
 	}
+	sharedBefore, sharedFilesBefore, err := sharedReceiptSnapshot(project, stateRoot)
+	if err != nil {
+		return fmt.Errorf("snapshot shared receipt before Codex unlink: %w", err)
+	}
 
 	unlinked, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", "codex")
 	if err != nil {
@@ -397,7 +401,7 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 	if err := requireRuntimeStatuses(partial.Results[0], map[string]string{"codex": "absent", "antigravity": "installed"}); err != nil {
 		return fmt.Errorf("shared destination membership: %w", err)
 	}
-	if err := verifySharedUnlink(project, stateRoot); err != nil {
+	if err := verifySharedUnlink(project, stateRoot, sharedBefore, sharedFilesBefore); err != nil {
 		return fmt.Errorf("shared runtime unlink artifacts: %w", err)
 	}
 
@@ -448,7 +452,23 @@ func verifyOwnedArtifacts(project, stateRoot string) error {
 	return nil
 }
 
-func verifySharedUnlink(project, stateRoot string) error {
+func sharedReceiptSnapshot(project, stateRoot string) (receiptRecord, []fileHash, error) {
+	destination := filepath.Join(project, ".agents", "skills")
+	files, err := installedSkillFiles(destination)
+	if err != nil {
+		return receiptRecord{}, nil, err
+	}
+	record, err := readReceipt(stateRoot, destination)
+	if err != nil {
+		return receiptRecord{}, nil, err
+	}
+	if err := requireReceiptContract(destination, record, []string{"antigravity", "codex"}, files); err != nil {
+		return receiptRecord{}, nil, err
+	}
+	return record, files, nil
+}
+
+func verifySharedUnlink(project, stateRoot string, before receiptRecord, beforeFiles []fileHash) error {
 	destination := filepath.Join(project, ".agents", "skills")
 	files, err := installedSkillFiles(destination)
 	if err != nil {
@@ -460,6 +480,34 @@ func verifySharedUnlink(project, stateRoot string) error {
 	}
 	if err := requireReceiptContract(destination, record, []string{"antigravity"}, files); err != nil {
 		return err
+	}
+	return requireSharedUnlinkPreservation(destination, before, record, beforeFiles, files)
+}
+
+// requireSharedUnlinkPreservation pins the uninstall contract: removing one
+// runtime from a shared destination changes membership only. Installed bytes and
+// every other Schema 1 receipt field must remain exactly as they were before it.
+func requireSharedUnlinkPreservation(destination string, before, after receiptRecord, beforeFiles, afterFiles []fileHash) error {
+	if !sameFiles(afterFiles, beforeFiles) {
+		return fmt.Errorf("shared installed files changed after unlink for %s", destination)
+	}
+	if before.Schema != after.Schema {
+		return fmt.Errorf("shared receipt schema changed after unlink for %s", destination)
+	}
+	if before.Scope != after.Scope {
+		return fmt.Errorf("shared receipt scope changed after unlink for %s", destination)
+	}
+	if before.Destination != after.Destination {
+		return fmt.Errorf("shared receipt destination changed after unlink for %s", destination)
+	}
+	if before.Version != after.Version {
+		return fmt.Errorf("shared receipt version changed after unlink for %s", destination)
+	}
+	if !sameFiles(before.Files, after.Files) {
+		return fmt.Errorf("shared receipt files changed after unlink for %s", destination)
+	}
+	if before.BundleSHA != after.BundleSHA {
+		return fmt.Errorf("shared receipt bundle_sha256 changed after unlink for %s", destination)
 	}
 	return nil
 }

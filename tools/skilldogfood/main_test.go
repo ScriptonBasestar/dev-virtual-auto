@@ -202,6 +202,66 @@ func TestGitTreeStateDetectsContentChangeInAlreadyDirtyTrackedFile(t *testing.T)
 	}
 }
 
+func TestSharedUnlinkPreservationRejectsReceiptOrFileMutation(t *testing.T) {
+	files := []fileHash{
+		{Path: "dva/SKILL.md", SHA: strings.Repeat("a", 64)},
+		{Path: "dva-config/SKILL.md", SHA: strings.Repeat("b", 64)},
+	}
+	before := receiptRecord{
+		Schema:      1,
+		Scope:       "project",
+		Destination: "/fixture/.agents/skills",
+		Runtimes:    []string{"antigravity", "codex"},
+		Version:     "0.1.44",
+		BundleSHA:   bundleSHA(files),
+		Files:       append([]fileHash(nil), files...),
+	}
+	after := before
+	after.Runtimes = []string{"antigravity"}
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*receiptRecord, *[]fileHash)
+	}{
+		{
+			name: "version",
+			mutate: func(record *receiptRecord, _ *[]fileHash) {
+				record.Version = "tampered"
+			},
+		},
+		{
+			name: "receipt-files",
+			mutate: func(record *receiptRecord, _ *[]fileHash) {
+				record.Files = append([]fileHash(nil), record.Files...)
+				record.Files[0].SHA = strings.Repeat("c", 64)
+			},
+		},
+		{
+			name: "bundle-sha",
+			mutate: func(record *receiptRecord, _ *[]fileHash) {
+				record.BundleSHA = strings.Repeat("d", 64)
+			},
+		},
+		{
+			name: "installed-file-bytes",
+			mutate: func(_ *receiptRecord, installed *[]fileHash) {
+				*installed = append([]fileHash(nil), (*installed)...)
+				(*installed)[0].SHA = strings.Repeat("e", 64)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			gotReceipt := after
+			gotReceipt.Files = append([]fileHash(nil), after.Files...)
+			gotFiles := append([]fileHash(nil), files...)
+			test.mutate(&gotReceipt, &gotFiles)
+			if err := requireSharedUnlinkPreservation(before.Destination, before, gotReceipt, files, gotFiles); err == nil {
+				t.Fatal("post-unlink receipt/file mutation unexpectedly accepted")
+			}
+		})
+	}
+}
+
 func TestCommandOutputSHA256DoesNotExposeStdoutOnFailure(t *testing.T) {
 	script := filepath.Join(t.TempDir(), "fail.sh")
 	if err := os.WriteFile(script, []byte("printf private-diff\nprintf bounded-error >&2\nexit 1\n"), 0o600); err != nil {
