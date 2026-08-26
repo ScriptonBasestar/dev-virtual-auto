@@ -655,6 +655,11 @@ func uninstallDestination(options Options, target destination) (DestinationResul
 		if bundleErr != nil {
 			return DestinationResult{}, bundleErr
 		}
+		if options.DryRun {
+			entry.Status = "not-installed"
+			setAllRuntimeStatuses(&entry, entry.Status)
+			return entry, nil
+		}
 		claimPaths, claimErr := claimDestinations(target, bundle)
 		if claimErr != nil {
 			return DestinationResult{}, claimErr

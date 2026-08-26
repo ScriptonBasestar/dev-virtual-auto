@@ -1005,6 +1005,25 @@ func TestDryRunDoesNotMutate(t *testing.T) {
 	}
 }
 
+func TestAbsentUninstallDryRunDoesNotCreateClaimState(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	options.DryRun = true
+	result, err := Uninstall(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Destinations[0].Status != "not-installed" {
+		t.Fatalf("absent uninstall dry-run = %s", result.Destinations[0].Status)
+	}
+	if _, err := os.Lstat(filepath.Join(filepath.Dir(options.StateRoot), "agent-skills")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("absent uninstall dry-run created persistent state: %v", err)
+	}
+	if _, err := os.Lstat(options.ProjectRoot); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("absent uninstall dry-run created project state: %v", err)
+	}
+}
+
 func TestUninstallDryRunDoesNotMutate(t *testing.T) {
 	t.Parallel()
 	options := testOptions(t, ScopeUser, RuntimeClaudeCode)
