@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "name": "dva",
+  "kind": "file",
+  "state": "active",
+  "operation_id": "op-001",
+  "generation": 1,
+  "destination": "/example/skills/dva.md",
+  "producer": "example-producer",
+  "format": "flat-markdown",
+  "scope": "user",
+  "consumers": ["example"],
+  "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "files": [{"path": ".", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
+}
