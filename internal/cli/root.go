@@ -186,36 +186,14 @@ func Execute() {
 	args := os.Args[1:]
 
 	// Dynamic routing: if first arg is not a top-level command,
-	// check if it's an interaction command or namespace:command and prepend "run"
+	// check if it's an interaction command or namespace:command and prepend "run".
+	// Keep the lookup here, where its error is intentionally non-fatal; the pure rewrite below
+	// is also used by tests to compare shorthand routing with explicit `dva run`.
 	if len(args) > 0 {
 		firstArg := args[0]
 		if !isTopLevelCommand(firstArg) && !isFlag(firstArg) {
-			shouldRoute := false
-			c, err := loadConfig()
-			if err == nil {
-				// Check direct interaction command
-				if c.Interaction[firstArg] != nil {
-					shouldRoute = true
-				}
-				// Check namespace:command syntax (e.g., "engine:test")
-				if !shouldRoute && strings.Contains(firstArg, ":") {
-					parts := strings.SplitN(firstArg, ":", 2)
-					if _, ok := c.Subprojects[parts[0]]; ok {
-						shouldRoute = true
-					}
-				}
-			}
-			if shouldRoute {
-				// Separate flags and non-flags
-				var flags, nonFlags []string
-				for _, a := range args {
-					if isFlag(a) {
-						flags = append(flags, a)
-					} else {
-						nonFlags = append(nonFlags, a)
-					}
-				}
-				args = append([]string{"run"}, append(flags, nonFlags...)...)
+			if c, err := loadConfig(); err == nil {
+				args = dynamicRunArgs(args, c)
 				os.Args = append([]string{os.Args[0]}, args...)
 			}
 		}
@@ -246,7 +224,34 @@ func Execute() {
 }
 
 func isFlag(s string) bool {
-	return len(s) > 0 && s[0] == '-'
+	return len(s) > 1 && s[0] == '-'
+}
+
+// dynamicRunArgs rewrites a dynamic-command shorthand into the explicit run form.
+//
+// A lone "-" is a supported interaction or entry name, not a flag. More generally, shorthand
+// must preserve the explicit form's token order: Cobra already parses run and persistent flags
+// in interspersed position and honours `--`, while reordering can detach a value from its flag
+// or move a child argument ahead of the interaction name.
+func dynamicRunArgs(args []string, c *config.Config) []string {
+	if len(args) == 0 {
+		return args
+	}
+	firstArg := args[0]
+	if isTopLevelCommand(firstArg) || isFlag(firstArg) || c == nil {
+		return args
+	}
+
+	shouldRoute := c.Interaction[firstArg] != nil
+	if !shouldRoute && strings.Contains(firstArg, ":") {
+		parts := strings.SplitN(firstArg, ":", 2)
+		_, shouldRoute = c.Subprojects[parts[0]]
+	}
+	if !shouldRoute {
+		return args
+	}
+
+	return append([]string{"run"}, args...)
 }
 
 // applyRootPersistentFlagsFromArgs sets root persistent --debug and --json from

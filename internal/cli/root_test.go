@@ -2,26 +2,81 @@ package cli
 
 import (
 	"os"
+	"slices"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/runner"
 )
 
 func TestIsFlag(t *testing.T) {
 	tests := []struct {
+		name  string
 		input string
 		want  bool
 	}{
-		{"--debug", true},
-		{"-d", true},
-		{"run", false},
-		{"", false},
-		{"up", false},
-		{"-", true},
+		{"long flag", "--debug", true},
+		{"short flag", "-d", true},
+		{"command", "run", false},
+		{"empty", "", false},
+		{"built-in command", "up", false},
+		{"supported lone-dash name", "-", false},
 	}
 	for _, tt := range tests {
-		if got := isFlag(tt.input); got != tt.want {
-			t.Errorf("isFlag(%q) = %v, want %v", tt.input, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isFlag(tt.input); got != tt.want {
+				t.Errorf("isFlag(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSugarFormAgreesWithExplicitRun verifies the routing result, not a remembered argv. Both
+// interactions are declared because the regression selected the wrong one at exit 0: a test
+// with only greet would prove a failure message, not that the user-named interaction runs.
+func TestSugarFormAgreesWithExplicitRun(t *testing.T) {
+	c := &config.Config{Interaction: map[string]*config.InteractionCommand{
+		"greet": {Command: "echo RAN_GREET"},
+		"-":     {Command: "echo RAN_DASH"},
+	}}
+
+	shorthand := dynamicRunArgs([]string{"greet", "-"}, c)
+	explicit := []string{"run", "greet", "-"}
+	if !slices.Equal(shorthand, explicit) {
+		t.Fatalf("shorthand routing = %q, explicit routing = %q", shorthand, explicit)
+	}
+
+	resolve := func(args []string) *runner.ResolvedCommand {
+		if len(args) < 2 || args[0] != "run" {
+			t.Fatalf("routed args = %q, want explicit run form", args)
+		}
+		return runner.NewInteractionTree(c.Interaction).Find(args[1], args[2:]...)
+	}
+	sugarResolved := resolve(shorthand)
+	explicitResolved := resolve(explicit)
+	if sugarResolved == nil || explicitResolved == nil {
+		t.Fatalf("routing reached sugar=%v explicit=%v", sugarResolved, explicitResolved)
+	}
+	if sugarResolved.Name != explicitResolved.Name || !slices.Equal(sugarResolved.Argv, explicitResolved.Argv) {
+		t.Errorf("resolved sugar=%q argv=%q, explicit=%q argv=%q", sugarResolved.Name, sugarResolved.Argv, explicitResolved.Name, explicitResolved.Argv)
+	}
+}
+
+func TestDynamicRunArgsPreservesExplicitRunOrder(t *testing.T) {
+	c := &config.Config{Interaction: map[string]*config.InteractionCommand{
+		"greet": {Command: "echo RAN_GREET"},
+	}}
+
+	for _, input := range [][]string{
+		{"greet", "-"},
+		{"greet", "--debug"},
+		{"greet", "-e"},
+		{"greet", "--project", "api"},
+		{"greet", "--", "-M", "dev"},
+	} {
+		want := append([]string{"run"}, input...)
+		if got := dynamicRunArgs(input, c); !slices.Equal(got, want) {
+			t.Errorf("dynamicRunArgs(%q) = %q, want explicit order %q", input, got, want)
 		}
 	}
 }

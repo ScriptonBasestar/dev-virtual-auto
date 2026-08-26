@@ -7,7 +7,30 @@ effort: S
 created-at: 2026-08-21T14:30:00+09:00
 source: "found by an audit of the six sites TASK-218 left alone; it refuted TASK-218's own justification for leaving this one"
 scope: "internal/cli/root.go — isFlag (:247) and the flags-first partition in Execute (:210). Its pins move with it: root_test.go's `{\"-\", true}` row and TestDashPredicatesDisagreeOnPurpose. Not the plan-name or entry-name slots — TASK-218 settled those."
-status: todo
+status: done
+completed-at: 2026-08-26T12:13:43+09:00
+completion-summary: "Treat lone dash as a supported name and preserve dynamic interaction argv order by prepending only run."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test"
+    result: "passed with race and coverage across all packages; internal/cli coverage 75.6%"
+  - kind: automated
+    command-or-step: "dva lint && make doc-check"
+    result: "passed; 294 Go files formatted, 0 lint issues, all documentation gates passed"
+  - kind: runtime
+    command-or-step: "rebuilt binary against greet and dash interactions"
+    result: "shorthand/explicit lone-dash forms both ran greet with [-]; --debug executed greet; -e resolved explain; -M dev failed equally; -- -M dev forwarded equally; dva - ran the dash interaction"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:15:11+09:00
+quality-review-evidence:
+  - "independent reviewer confirmed dynamicRunArgs preserves explicit run argv order and the built-in/flag lookup guard remains intact"
+  - "differential test compares both resolved interaction identity and argv while named dash predicate coverage remains"
+  - "focused and package tests, runtime probes, full gates, and git diff check passed"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-223-review-receipt.json
+archived-at: 2026-08-26T12:15:45+09:00
+verified-at: 2026-08-26T12:15:45+09:00
+verification-summary: "Dynamic shorthand now preserves explicit run argv order, lone dash routes consistently, and supported flags plus terminator semantics are verified."
 ---
 
 # Task 223: a lone dash is sorted ahead of the command name
@@ -93,14 +116,41 @@ Whichever lands must also answer the product question this card does not:
 > If the answer is "no", the fix belongs in schema validation and all of this
 > becomes a validation error instead.
 
+## Resolution
+
+Names consisting of `-` remain supported for both interactions and stack entries. Validation
+accepts them, explicit `dva run -` already reaches such an interaction, and TASK-218 established
+the same name treatment for entry slots. Adding a new validation prohibition here would break an
+existing accepted and executable declaration without solving the flags-first disagreement for
+ordinary interaction arguments.
+
+Therefore `isFlag` adopts the same length rule as `isFlagToken`: a flag token must contain at
+least one character after the leading dash. The dynamic rewrite also stops partitioning argv and
+only prepends `run`, preserving the explicit form's order exactly. Cobra already handles valid
+root and `run` flags in interspersed position and honours `--`; moving tokens adds no capability
+and can detach a flag from its value. In a configuration declaring an interaction named `-`,
+`dva -` consequently routes to it, matching the already-supported explicit form.
+
+The original completion criterion named `-M dev`, but the canonical interaction contract says
+`dva run` has no `-M`/`-E` selector. Both explicit `dva run greet -M dev` and the corrected
+shorthand therefore refuse it; forwarding those child arguments requires `--`. The regression
+criterion uses the real root/run flags `--debug` and `-e` instead of inventing mode support on the
+interaction path.
+
+The implementation extracts `dynamicRunArgs` as a pure routing helper and returns
+`append([]string{"run"}, args...)` once an interaction or imported namespace is recognized.
+`TestSugarFormAgreesWithExplicitRun` compares both argv and resolved interaction/arguments, while
+a table pins original-order preservation for lone dash, persistent/run flags, value-taking project
+selection, and the `-- -M dev` child-argument form.
+
 ## Completion Criteria
 
-- [ ] `dva greet -` and `dva run greet -` run the same interaction, in a config that also declares an interaction named `-` | verify: human — paste both, with rc and the marker line; the two must name the same interaction
-- [ ] The agreement is pinned by a differential test comparing the two spellings, not by an expected string | verify: `grep -c 'func TestSugarFormAgreesWithExplicitRun' internal/cli/root_test.go` returns 1 (today: 0). Bound on the test's source, not on `go test -run`, which exits 0 when it matches nothing
-- [ ] `root_test.go`'s `{"-", true}` row and `TestDashPredicatesDisagreeOnPurpose` are updated with the argument replaced, not just the value | verify: human — both tests changed in the same commit as `root.go`, and neither is deleted
-- [ ] The product ruling on names like `-` is written on this card before the code changes | verify: human — a `## Resolution` section stating it
-- [ ] `dva greet --debug` and `dva greet -M dev` still reach the interaction with the flag applied, so the fix did not stop hoisting real flags | verify: human — paste both
-- [ ] `make test` passes | verify: `make test`
+- [x] `dva greet -` and `dva run greet -` run the same interaction, in a config that also declares an interaction named `-` | verify: human — paste both, with rc and the marker line; the two must name the same interaction
+- [x] The agreement is pinned by a differential test comparing the two spellings, not by an expected string | verify: `grep -c 'func TestSugarFormAgreesWithExplicitRun' internal/cli/root_test.go` returns 1 (today: 0). Bound on the test's source, not on `go test -run`, which exits 0 when it matches nothing
+- [x] `root_test.go`'s `{"-", true}` row and `TestDashPredicatesDisagreeOnPurpose` are updated with the argument replaced, not just the value | verify: human — both tests changed in the same commit as `root.go`, and neither is deleted
+- [x] The product ruling on names like `-` is written on this card before the code changes | verify: human — a `## Resolution` section stating it
+- [x] `dva greet --debug` and `dva greet -e` still reach the interaction with the flag applied, so preserving order did not break real root/run flags | verify: human — paste both; `--debug` executes the marker with debug logging and `-e` resolves the interaction in explain mode
+- [x] `make test` passes | verify: `make test`
 
 ## References
 

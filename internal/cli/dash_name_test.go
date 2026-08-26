@@ -5,38 +5,31 @@ import (
 	"testing"
 )
 
-// TestDashPredicatesDisagreeOnPurpose pins the one token DVA's two flag predicates
-// answer differently, and pins that it is the only one.
+// TestDashPredicatesDisagreeOnPurpose keeps the historical name that made the former
+// disagreement visible, and now pins the product ruling that removed it.
 //
 // isFlag (root.go) classifies the COMMAND slot: Execute asks it whether os.Args[1]
-// should be resolved as an interaction, and partitions argv before rewriting os.Args.
+// should be resolved as an interaction before prepending run without reordering argv.
 // isFlagToken classifies the PLAN-NAME and ENTRY-NAME slots, where the guards decide
 // whether to report a token or step aside.
 //
-// This test pins what the two predicates do TODAY. It does not certify that the split is
-// right. An earlier draft argued that only isFlagToken's slot could turn a wrong answer
-// into an action; review refuted that by measurement -- with an interaction named "-",
-// `dva greet -` runs "-" and hands it "greet" as an argument, rc=0, because Execute:210
-// sorts flags ahead of the command name. TASK-223 owns that. When it lands, isFlag("-")
-// becomes false and this test fails on purpose.
-//
-// So read a failure here as a question, not a verdict: did you MEAN to change root.go, and
-// have you measured `dva greet -` both ways? Deleting either predicate to make the red go
-// away is the one response the test exists to prevent.
+// A lone dash is a supported interaction and entry name. It must therefore be a non-flag in
+// every name-bearing slot. TASK-223 removed the flags-first rewrite that turned `dva greet -`
+// into `dva run - greet` and adopted isFlagToken's len>1 rule for isFlag; this test ensures a
+// later local rewrite cannot reintroduce the predicate disagreement behind that defect.
 func TestDashPredicatesDisagreeOnPurpose(t *testing.T) {
-	if !isFlag("-") {
-		t.Errorf("isFlag(\"-\") = false; root_test.go pins true. TASK-223 owns that change -- if you meant it, land it there and measure `dva greet -` both ways, because Execute:210 sorts flags ahead of the command name and this answer decides whether a lone dash can RUN an interaction. If you did not mean it, root.go moved under you. See this test's doc comment before deleting either predicate.")
+	if isFlag("-") {
+		t.Errorf("isFlag(\"-\") = true; a lone dash is a supported name, so Execute must not sort it ahead of an interaction")
 	}
 	if isFlagToken("-") {
 		t.Errorf(`isFlagToken("-") = true; a lone dash names nothing, and calling it a flag stands the name guards down -- the TASK-218 defect`)
 	}
 
-	// Every other token the two predicates ever see must get the same answer from both.
-	// Without this the test would permit the divergence to spread token by token, which
-	// is how ten disagreeing dash tests accumulated in the first place.
+	// Every token the two predicates ever see must get the same answer from both. Without
+	// this the historical disagreement could spread again token by token.
 	for _, tok := range []string{"", "--", "-v", "-M", "--debug", "--var", "-x=1", "up", "s1", "KEY=value"} {
 		if isFlag(tok) != isFlagToken(tok) {
-			t.Errorf("isFlag(%q)=%v but isFlagToken(%q)=%v; \"-\" is the only token these two are allowed to disagree on", tok, isFlag(tok), tok, isFlagToken(tok))
+			t.Errorf("isFlag(%q)=%v but isFlagToken(%q)=%v; name-bearing slots must share one flag rule", tok, isFlag(tok), tok, isFlagToken(tok))
 		}
 	}
 }

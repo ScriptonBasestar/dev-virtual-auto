@@ -75,24 +75,12 @@ func splitFlagToken(a string) (name, value string, hasValue bool) {
 // length test. The terminator is dvaFlagEnd's business, not this predicate's; a caller that
 // means "and not the terminator either" says so with dropLeadingTerminator.
 //
-// isFlag (root.go) answers "-" the other way, and the two are not merged today — but not
-// because isFlag's answer is free. It has two call sites and they differ. Execute:190 gates
-// the interaction lookup, and there answering "flag" only hides an interaction named "-"
-// (nothing validates the charset — `dva validate` accepts one; `dva -` prints root help
-// while `dva run -` reaches it). Execute:210 partitions *every* argument flags-first before
-// rewriting os.Args, and there the same answer moves "-" ahead of the command name: with an
-// interaction named "-" declared, `dva greet -` becomes `run - greet` and runs "-", passing
-// the name the user actually typed to it as an argument, at rc=0. Measured 2026-08-21:
-//
-//	dva greet -        RAN_DASH_with=[] greet     ← asked for greet, ran "-"
-//	dva run greet -    RAN_GREET_with=[] -        ← the explicit form disagrees
-//
-// A first draft of this comment claimed that slot merely withheld a shorthand; the two rows
-// above are what refuted it. So both predicates can turn a wrong answer into an action, and
-// root.go's is an open defect (TASK-223), not a settled counterweight. root_test.go pins
-// isFlag("-") == true and TestDashPredicatesDisagreeOnPurpose pins the pair — so whoever
-// fixes root.go fails both deliberately, with that measurement in hand, instead of merging
-// the two on the strength of their similar names.
+// root.go's isFlag uses this same len>1 rule. A lone dash is a supported interaction or entry
+// name, so treating it as a flag would suppress shorthand lookup for `dva -`. Before TASK-223,
+// the same answer also fed a flags-first rewrite that could turn `dva greet -` into
+// `dva run - greet` and run a different declared interaction. TASK-223 aligned the predicates
+// and removed that reordering; root_test.go compares shorthand and explicit routing, while
+// TestDashPredicatesDisagreeOnPurpose preserves the historical test name and pins the agreement.
 func isFlagToken(a string) bool {
 	return len(a) > 1 && strings.HasPrefix(a, "-")
 }
