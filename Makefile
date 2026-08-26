@@ -37,7 +37,13 @@ install: build
 # prebuilt executable without writing generated source files in the checkout.
 install-binary:
 	@set -eu; \
-		fail() { printf '%s\n' "make install: ERROR: $$*" >&2; exit 1; }; \
+		replacement_ledger='none'; \
+		fail() { \
+			printf '%s\n' "make install: ERROR: $$*" >&2; \
+			if [ "$$replacement_ledger" = none ]; then printf '%s\n' "make install: replacement ledger: none; no destination was updated" >&2; \
+			else printf '%s\n' "make install: completed replacement ledger: $$replacement_ledger" >&2; fi; \
+			exit 1; \
+		}; \
 		sha256() { \
 			if command -v sha256sum >/dev/null 2>&1; then \
 				hash_output=$$(sha256sum "$$1") || return $$?; digest=$${hash_output%% *}; \
@@ -60,7 +66,12 @@ install-binary:
 			else \
 				configured_gobin=$$(go env GOBIN) || fail "cannot resolve Go bin directory with go env GOBIN"; \
 				if [ -n "$$configured_gobin" ]; then printf '%s\n' "$$configured_gobin"; \
-				else configured_gopath=$$(go env GOPATH) || fail "cannot resolve Go bin directory with go env GOPATH"; [ -n "$$configured_gopath" ] || fail "go env GOPATH returned an empty path"; printf '%s/bin\n' "$$configured_gopath"; fi; \
+				else \
+					configured_gopath=$$(go env GOPATH) || fail "cannot resolve Go bin directory with go env GOPATH"; \
+					first_gopath=$${configured_gopath%%:*}; \
+					[ -n "$$first_gopath" ] || fail "go env GOPATH returned an empty first path"; \
+					printf '%s/bin\n' "$$first_gopath"; \
+				fi; \
 			fi; \
 		}; \
 		preflight_target() { \
@@ -105,10 +116,9 @@ install-binary:
 		else \
 			stage_candidate "$$go_dir" go; \
 		fi; \
-		replacement_ledger='none'; \
 		replace_candidate() { \
 			if ! mv -f "$$1" "$$2"; then \
-				fail "atomic replacement failed for $$2; replacement ledger: $$replacement_ledger; a listed destination was updated before this failure"; \
+				fail "atomic replacement failed for $$2"; \
 			fi; \
 			if [ "$$replacement_ledger" = none ]; then replacement_ledger="$$2"; else replacement_ledger="$$replacement_ledger, $$2"; fi; \
 		}; \

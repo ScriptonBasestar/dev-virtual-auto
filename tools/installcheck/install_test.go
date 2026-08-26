@@ -49,6 +49,54 @@ func TestInstallerOnlyTargetRespectsIsolatedHOMEAndGOBIN(t *testing.T) {
 	assertSameBinary(t, source, filepath.Join(goDir, "dva"))
 }
 
+func TestInstallerOnlyTargetUsesFirstPOSIXGOPATHEntry(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	first := filepath.Join(fixture, "first")
+	second := filepath.Join(fixture, "second")
+	binDir := filepath.Join(fixture, "fake-bin")
+	writeExecutable(t, filepath.Join(binDir, "go"), "#!/bin/sh\ncase \"$2\" in\n  GOBIN) printf '\\n' ;;\n  GOPATH) printf '%s\\n' \"$FAKE_GOPATH\" ;;\n  *) exit 31 ;;\nesac\n")
+	localDir := filepath.Join(fixture, "local", "bin")
+
+	runInstaller(t, repo, source,
+		"LOCAL_BIN_DIR="+localDir,
+		"GO_BIN_DIR=",
+		"GOBIN=",
+		"PATH="+binDir+":"+os.Getenv("PATH"),
+		"FAKE_GOPATH="+first+":"+second,
+	)
+	assertSameBinary(t, source, filepath.Join(first, "bin", "dva"))
+	if _, err := os.Stat(filepath.Join(second, "bin", "dva")); !os.IsNotExist(err) {
+		t.Fatalf("installer used a later GOPATH entry: stat error: %v", err)
+	}
+}
+
+func TestInstallerOnlyTargetRejectsEmptyFirstPOSIXGOPATHEntry(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	second := filepath.Join(fixture, "second")
+	binDir := filepath.Join(fixture, "fake-bin")
+	writeExecutable(t, filepath.Join(binDir, "go"), "#!/bin/sh\ncase \"$2\" in\n  GOBIN) printf '\\n' ;;\n  GOPATH) printf '%s\\n' \"$FAKE_GOPATH\" ;;\n  *) exit 31 ;;\nesac\n")
+	localDir := filepath.Join(fixture, "local", "bin")
+
+	output, err := runInstallerResult(repo, source, nil,
+		"LOCAL_BIN_DIR="+localDir,
+		"GO_BIN_DIR=",
+		"GOBIN=",
+		"PATH="+binDir+":"+os.Getenv("PATH"),
+		"FAKE_GOPATH=:"+second,
+	)
+	if err == nil {
+		t.Fatalf("install unexpectedly accepted an empty first GOPATH entry:\n%s", output)
+	}
+	if !strings.Contains(output, "go env GOPATH returned an empty first path") ||
+		!strings.Contains(output, "replacement ledger: none; no destination was updated") {
+		t.Fatalf("install did not report the empty first GOPATH entry truthfully:\n%s", output)
+	}
+}
+
 func TestInstallerOnlyTargetHandlesSameResolvedDestinationOnce(t *testing.T) {
 	repo := repositoryRoot(t)
 	fixture := t.TempDir()
@@ -148,6 +196,37 @@ func TestInstallerOnlyTargetPropagatesHasherFailure(t *testing.T) {
 	assertNoStageArtifacts(t, localDir)
 }
 
+func TestInstallerOnlyTargetReportsNoReplacementOnFirstRenameFailure(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	localDir := filepath.Join(fixture, "local", "bin")
+	goDir := filepath.Join(fixture, "go", "bin")
+	localTarget := writeExistingBinary(t, localDir)
+	goTarget := writeExistingBinary(t, goDir)
+	binDir := filepath.Join(fixture, "fake-bin")
+	countFile := filepath.Join(fixture, "mv-count")
+	realMV := writeFailingMV(t, binDir)
+
+	output, err := runInstallerResult(repo, source, []string{
+		"PATH=" + binDir + ":" + os.Getenv("PATH"),
+		"REAL_MV=" + realMV,
+		"MV_COUNT_FILE=" + countFile,
+		"FAIL_MV_ON=1",
+	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
+	if err == nil {
+		t.Fatalf("install unexpectedly succeeded when the first rename fails:\n%s", output)
+	}
+	if !strings.Contains(output, "fixture rename failure") ||
+		!strings.Contains(output, "replacement ledger: none; no destination was updated") {
+		t.Fatalf("install did not report the first rename truthfully:\n%s", output)
+	}
+	assertExistingBinary(t, localTarget)
+	assertExistingBinary(t, goTarget)
+	assertNoStageArtifacts(t, localDir)
+	assertNoStageArtifacts(t, goDir)
+}
+
 func TestInstallerOnlyTargetReportsPartialReplacementLedger(t *testing.T) {
 	repo := repositoryRoot(t)
 	fixture := t.TempDir()
@@ -158,27 +237,60 @@ func TestInstallerOnlyTargetReportsPartialReplacementLedger(t *testing.T) {
 	goTarget := writeExistingBinary(t, goDir)
 	binDir := filepath.Join(fixture, "fake-bin")
 	countFile := filepath.Join(fixture, "mv-count")
-	realMV, err := exec.LookPath("mv")
-	if err != nil {
-		t.Fatalf("locate real mv: %v", err)
-	}
-	writeExecutable(t, filepath.Join(binDir, "mv"), "#!/bin/sh\ncount=$(cat \"$MV_COUNT_FILE\" 2>/dev/null || printf 0)\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$MV_COUNT_FILE\"\nif [ \"$count\" -eq 2 ]; then\n  printf '%s\\n' 'fixture second rename failure' >&2\n  exit 29\nfi\nexec \"$REAL_MV\" \"$@\"\n")
+	realMV := writeFailingMV(t, binDir)
 
 	output, err := runInstallerResult(repo, source, []string{
 		"PATH=" + binDir + ":" + os.Getenv("PATH"),
 		"REAL_MV=" + realMV,
 		"MV_COUNT_FILE=" + countFile,
+		"FAIL_MV_ON=2",
 	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
 	if err == nil {
 		t.Fatalf("install unexpectedly succeeded when the second rename fails:\n%s", output)
 	}
-	if !strings.Contains(output, "fixture second rename failure") ||
-		!strings.Contains(output, "replacement ledger:") ||
-		!strings.Contains(output, "local/bin/dva; a listed destination was updated") {
+	if !strings.Contains(output, "fixture rename failure") ||
+		!strings.Contains(output, "completed replacement ledger:") ||
+		!strings.Contains(output, "local/bin/dva") {
 		t.Fatalf("install did not report the partial replacement ledger:\n%s", output)
 	}
 	assertSameBinary(t, source, localTarget)
 	assertExistingBinary(t, goTarget)
+	assertNoStageArtifacts(t, localDir)
+	assertNoStageArtifacts(t, goDir)
+}
+
+func TestInstallerOnlyTargetReportsCompletedLedgerAfterVerificationFailure(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	localDir := filepath.Join(fixture, "local", "bin")
+	goDir := filepath.Join(fixture, "go", "bin")
+	localTarget := writeExistingBinary(t, localDir)
+	goTarget := writeExistingBinary(t, goDir)
+	binDir := filepath.Join(fixture, "fake-bin")
+	countFile := filepath.Join(fixture, "sha-count")
+	realShasum, err := exec.LookPath("shasum")
+	if err != nil {
+		t.Fatalf("locate shasum: %v", err)
+	}
+	writeExecutable(t, filepath.Join(binDir, "sha256sum"), "#!/bin/sh\ncount=$(cat \"$SHA_COUNT_FILE\" 2>/dev/null || printf 0)\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$SHA_COUNT_FILE\"\nif [ \"$count\" -eq 4 ]; then\n  printf '%s\\n' 'fixture post-replacement hash failure' >&2\n  exit 37\nfi\nexec \"$REAL_SHASUM\" -a 256 \"$1\"\n")
+
+	output, err := runInstallerResult(repo, source, []string{
+		"PATH=" + binDir + ":" + os.Getenv("PATH"),
+		"REAL_SHASUM=" + realShasum,
+		"SHA_COUNT_FILE=" + countFile,
+	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
+	if err == nil {
+		t.Fatalf("install unexpectedly succeeded when post-replacement verification fails:\n%s", output)
+	}
+	if !strings.Contains(output, "fixture post-replacement hash failure") ||
+		!strings.Contains(output, "cannot hash local destination after replacement") ||
+		!strings.Contains(output, "completed replacement ledger:") ||
+		!strings.Contains(output, "local/bin/dva, ") {
+		t.Fatalf("install did not report completed replacements after verification failure:\n%s", output)
+	}
+	assertSameBinary(t, source, localTarget)
+	assertSameBinary(t, source, goTarget)
 	assertNoStageArtifacts(t, localDir)
 	assertNoStageArtifacts(t, goDir)
 }
@@ -247,6 +359,16 @@ func writeExistingBinary(t *testing.T, directory string) string {
 	path := filepath.Join(directory, "dva")
 	writeExecutable(t, path, "keep the working binary")
 	return path
+}
+
+func writeFailingMV(t *testing.T, directory string) string {
+	t.Helper()
+	realMV, err := exec.LookPath("mv")
+	if err != nil {
+		t.Fatalf("locate real mv: %v", err)
+	}
+	writeExecutable(t, filepath.Join(directory, "mv"), "#!/bin/sh\ncount=$(cat \"$MV_COUNT_FILE\" 2>/dev/null || printf 0)\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$MV_COUNT_FILE\"\nif [ \"$count\" -eq \"$FAIL_MV_ON\" ]; then\n  printf '%s\\n' 'fixture rename failure' >&2\n  exit 29\nfi\nexec \"$REAL_MV\" \"$@\"\n")
+	return realMV
 }
 
 func runInstaller(t *testing.T, repository, source string, arguments ...string) string {

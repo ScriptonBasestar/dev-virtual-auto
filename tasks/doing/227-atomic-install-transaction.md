@@ -30,10 +30,14 @@ and it reported no evidence that the two replacements were the built executable.
   every registered staged candidate | verify: `go test ./tools/installcheck`
 - [x] A failed second rename reports which earlier destination was replaced and removes the
   remaining staged candidate | verify: `go test ./tools/installcheck`
+- [x] A failed first rename reports that no destination changed, and every post-replacement
+  verification failure reports the completed replacement ledger | verify: `go test ./tools/installcheck`
 - [x] Successful installation verifies both final files against the built binary and reports
   version/commit evidence | verify: `go test ./tools/installcheck`
 - [x] The installer-only target uses a disposable prebuilt executable and leaves tracked and
   generated checkout content unchanged; `make help` does not invoke Go-bin resolution | verify: `go test ./tools/installcheck`
+- [x] When Go falls back to a POSIX `GOPATH` path list, only its first entry supplies the bin
+  directory and an empty first entry fails | verify: `go test ./tools/installcheck`
 
 ## Decision
 
@@ -48,4 +52,10 @@ The public `install` target still builds the executable, then invokes the prereq
 `install-binary` target. The latter is intentionally narrow: it permits disposable fixtures to
 exercise the installer without generating or otherwise writing checkout source files. Go-bin
 lookup occurs only in that target's recipe when neither explicit destination override nor
-`GOBIN` is present.
+`GOBIN` is present. Its `GOPATH` fallback follows Go's POSIX path-list rule by taking only the
+first entry and rejecting an empty one rather than silently choosing a later path.
+
+Every failure reports a ledger whose claim matches the completed rename phase: `none` says no
+destination changed; later failures include every completed replacement. This includes final
+SHA and version verification, where the binaries have already been replaced and an error must
+not imply otherwise.
