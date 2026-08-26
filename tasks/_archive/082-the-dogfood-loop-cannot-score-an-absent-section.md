@@ -159,7 +159,7 @@ actionable scope.
 ## Completion Criteria
 
 - [x] A decision is recorded here with its rationale | verify: `human — this file names the chosen option (A, in the Resolution above)`
-- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
+- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–80
 - [x] If A or C: an absent **live** command-family section produces a scored case | verify: fixture `workflows/dva-dogfood/fixtures/absent-plans-one-reserved` (plans absent, stack present) derives `absent_section_route:plans` — see `EVIDENCE.md` / `case_ids.txt`; applications not invented
 - [x] If A: a case_manifest_hash delta is treated as promotion, not regression | verify: dogfood stage 40 run `20260807-193617-91531d` records frozen hash `2b72f5f5…` → post-edit `33561703…` as cross-run promotion for the next baseline (clause in `40-evaluate.md`)
 - [x] `not_applicable_surfaces` still records genuinely unevaluable surfaces | verify: gorisa dogfood stage 10 filed `absent_section_route` not_applicable with evidence (stack+plans present; applications not live on installed binary) — see `$RUN_DIR/state.yaml`

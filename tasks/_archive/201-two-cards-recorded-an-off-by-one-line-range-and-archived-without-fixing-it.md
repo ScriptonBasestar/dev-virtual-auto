@@ -7,7 +7,14 @@ effort: XS
 created-at: 2026-08-19T17:36:34+09:00
 source: "measured 2026-08-19 — 082:162 and 123:157 both cite lines 74–79 for a clause that runs 74–80; both cards flag the discrepancy in their own evidence (082:39, 123:46) and neither corrects the criterion"
 scope: "The AC suffix on tasks/_archive/082 and tasks/_archive/123. The clause in workflows/dva-dogfood/40-evaluate.md is correct and is not touched."
-status: todo
+status: done
+completed-at: 2026-08-26T10:46:21+0900
+verified-at: 2026-08-26T10:46:21+0900
+archived-at: 2026-08-26T10:46:21+0900
+verification-summary: |
+  Re-derived the stage-40 clause at lines 74–80 and corrected both archived criteria.
+  The old 74–79 text remains only in explicit first-read notes. `rg` finds the opening
+  and closing lines, and `make doc-check` passes.
 ---
 
 # Task 201: Two cards recorded an off-by-one line range as a finding and archived without fixing it
@@ -18,7 +25,7 @@ status: todo
 criterion:
 
 ```
-- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
+- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–80
 ```
 
 Measured 2026-08-19: the clause opens at `workflows/dva-dogfood/40-evaluate.md:74`
@@ -40,11 +47,21 @@ visible.
 
 ## Completion Criteria
 
-- [ ] Both criteria state the range the clause actually occupies | verify: `grep -c '74–80\|74-80' tasks/_archive/082-*.md tasks/_archive/123-*.md` returns ≥ 1 for each file in the criterion line, not only in the evidence block
-- [ ] No occurrence of the wrong range survives outside an explicit "first read" note | verify: `grep -rn '74–79\|74-79' tasks/_archive/*.md` — every remaining hit is inside a sentence recording what the line first said
-- [ ] The clause boundary is re-derived rather than copied from this card | verify: `rg -n 'Cross-run promotion|never replaces current-run gates' workflows/dva-dogfood/40-evaluate.md` prints the opening and closing lines, and the cited range matches them
-- [ ] The corrected criterion still passes its own binding | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` exits 0
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] Both criteria state the range the clause actually occupies | verify: `grep -c '74–80\|74-80' tasks/_archive/082-*.md tasks/_archive/123-*.md` returns ≥ 1 for each file in the criterion line, not only in the evidence block
+- [x] No occurrence of the wrong range survives outside an explicit "first read" note | verify: `grep -rn '74–79\|74-79' tasks/_archive/*.md` — every remaining hit is inside a sentence recording what the line first said
+- [x] The clause boundary is re-derived rather than copied from this card | verify: `rg -n 'Cross-run promotion|never replaces current-run gates' workflows/dva-dogfood/40-evaluate.md` prints the opening and closing lines, and the cited range matches them
+- [x] The corrected criterion still passes its own binding | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` exits 0
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+
+## Resolution (2026-08-26)
+
+Both archived criteria now cite the clause's actual span, `workflows/dva-dogfood/40-evaluate.md:74–80`.
+The earlier `74–79` wording remains only where the records explicitly preserve what the first
+review read, so the historical finding is still visible without leaving the live criteria wrong.
+
+The binding was re-derived from the opening line (`Cross-run promotion`, line 74) and the closing
+sentence (`never replaces current-run gates.`, line 80), and `rg` still finds the clause. The
+repository documentation gate passes with no broken links or oversized documents.
 
 ## References
 

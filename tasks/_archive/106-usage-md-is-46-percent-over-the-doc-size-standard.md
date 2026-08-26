@@ -21,7 +21,8 @@ verification-summary: |
   106 retracts is still false, confirming the retraction rather than the original claim.
   Defect found: the `verify:` binding at 106:67 names `tasks/done/090-…md`, which no longer exists
   (090 was archived); run verbatim it exits 2. The same file's markdown links already say `../_archive/`,
-  so only the backticked shell path is stale.
+  so only the backticked shell path is stale. This is retained as a historical binding: the current
+  target is `tasks/_archive/090-…md`, and the recorded supersession result is unchanged.
 ---
 
 # Task 106: the manual is the only document over the limit, and the limit is unenforced

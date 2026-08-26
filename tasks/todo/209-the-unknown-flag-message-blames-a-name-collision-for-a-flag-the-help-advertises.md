@@ -41,7 +41,7 @@ $ dva restart --var=FOO=bar
 ERROR: unknown flag "--var=FOO=bar" for "dva restart"
 ```
 
-`up` splits this at `internal/cli/compose.go:151` (`strings.HasPrefix(a,
+`up` splits this at `internal/cli/compose.go:192` (`strings.HasPrefix(a,
 "--var=")`); `restart` has no such case, so the value lands inside what the
 message calls the flag name. That also defeats `similarTo`, which measures edit
 distance against the advertised list (`internal/cli/selectors.go`) — `--var=FOO=bar`
@@ -86,7 +86,7 @@ is chosen; that half is independent.
 
 - `internal/cli/selectors.go` — `rejectUnknownFlags`, the single message shape, and `similarTo`
 - `internal/cli/flagtoken_test.go`, `internal/cli/manifest_static_commands_test.go` — where the helper is exercised today; there is no `selectors_test.go`, so pick one of these or add it
-- `internal/cli/compose.go:151` — `up`'s `--var=` split, the form `restart` lacks
+- `internal/cli/compose.go:192` — `up`'s `--var=` split, the form `restart` lacks
 - `internal/cli/compose.go` — `restartCmd`'s Long help, where TASK-198 added the `(plan only)` markers this message contradicts
 - `tasks/_archive/198-restart-reports-success-on-a-typo-d-flag-while-doing-nothing.md` — the card whose review found this
 

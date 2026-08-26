@@ -108,6 +108,6 @@ Whichever lands must also answer the product question this card does not:
 - `internal/cli/root.go:210` — the flags-first partition; a wrong answer here reorders and acts
 - `internal/cli/root.go:247` — `isFlag`, no length test
 - `internal/cli/root_test.go:20` — the `{"-", true}` row that pins today's answer
-- `internal/cli/flagtoken.go:89` — `isFlagToken`, the same predicate with the length test, and the doc comment carrying the measured rows above
+- `internal/cli/flagtoken.go:95` — `isFlagToken`, the same predicate with the length test, and the doc comment carrying the measured rows above
 - `internal/cli/dash_name_test.go` — `TestDashPredicatesDisagreeOnPurpose`, which fails on purpose when this card lands
 - TASK-218 — settled the plan-name and entry-name slots; its `### Correction` section is where this card came from

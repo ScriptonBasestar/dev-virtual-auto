@@ -16,7 +16,7 @@ archived-at: 2026-08-19T15:37:48+09:00
 quality-review-evidence: |
   - kind: automated
     command-or-step: "AC1 — ce task validate --all, re-run rather than read from the card"
-    result: "Summary: 4 valid, 0 invalid (total: 4)", exit 0
+    result: "Summary: 4 valid, 0 invalid (total: 4), while --all scans 0 of 197 archived cards", exit 0
   - kind: automated
     command-or-step: "AC2 first half — git ls-files tasks/decision, and git ls-tree -d --name-only HEAD tasks/"
     result: 0 tracked paths; the tree carries tasks/_archive and tasks/done only. The directory is not in the repo, as the card argues
@@ -61,6 +61,13 @@ verification-summary: |
   _archive/, done/ and todo/; that stopped being true at 2b774e7, because 194 was the last
   card in todo/ and its own close emptied the directory, making tasks/todo/ the same untracked
   ghost the paragraph describes. Left as written, since the reviewer does not edit the work.
+
+  Two verification records also retain paths from the disposition's then-current layout.
+  AC4's `ls tasks/done/082-* tasks/done/123-* tasks/done/164-*` passed before those cards
+  moved to `tasks/_archive/`; the filenames and the claim are unchanged, but the binding is
+  historical and must not be re-read as a current-tree probe. The current equivalents are
+  `tasks/_archive/082-*`, `123-*` and `164-*`. This disclosure leaves the original verdict and
+  timestamps intact, following TASK-063's treatment of the same residue.
 ---
 
 # Task 194: Three cards fail validation and the failure has become the baseline

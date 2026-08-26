@@ -28,11 +28,13 @@ and `len(args) > 0` reads that as a plan selection.
 Fixture: one directory, `dva.yml` declaring two plans, **no** `default_plan`, and
 two compose entries backed by a real `docker-compose.yml`.
 `DOCKER_HOST=unix:///nonexistent-dva-review.sock`. Binaries built from clean
-checkouts of `c51dd95` (before TASK-217's fix) and `36d3068` (HEAD), each with
-`git rev-parse HEAD` recorded and `git status --porcelain` empty at build time.
+checkouts of `c51dd95` (before TASK-217's fix) and `36d3068` (the then-current
+measurement commit), each with `git rev-parse HEAD` recorded and
+`git status --porcelain` empty at build time. `36d3068` remains the pinned
+measurement baseline; it is not a claim about the repository's current `HEAD`.
 
 ```
-                 c51dd95                            36d3068 (HEAD)
+                 c51dd95                            36d3068 (measurement baseline)
 build            rc 1 multiple plans configured     rc 1 multiple plans configured
 build --         rc 0 No services to build          rc 1 multiple plans configured   <- 217 fixed
 build -- --      rc 1 no such service: --           rc 1 no such service: --         <- open
@@ -98,7 +100,7 @@ at all.
 - [ ] The refusal is pinned by a test that fails without the fix | verify: `grep -c 'func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source, since `go test -run` naming a test that does not exist exits 0
 - [ ] `dva build -- web` and `dva build -- --no-cache` still reach docker with the argument spelled as typed | verify: human — paste both against a compose fixture; the errors must name `web` and `--no-cache`, not a plan
 - [ ] `dva build -- -- --` is decided deliberately, not left to fall out of the fix | verify: human — a sentence on this card saying what it does and why
-- [ ] TASK-217's correction section stops calling this argv a control | verify: `grep -c 'as controls that do not move' tasks/_archive/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` returns 0 (already done in the commit that filed this card; the binding stays so a revert is caught)
+- [x] TASK-217's correction section stops calling this argv a control | verify: `grep -c 'as controls that do not move' tasks/_archive/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` returns 0 — verified 2026-08-26 at 5649d70 (already done in the commit that filed this card; the binding stays so a revert is caught)
 - [ ] `make test` passes | verify: `make test`
 
 ## References

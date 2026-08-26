@@ -7,7 +7,15 @@ effort: S
 created-at: 2026-08-19T17:36:34+09:00
 source: "measured 2026-08-19 — TASK-194's AC1 exits 0 having scanned 0 of 197 cards, its AC4 exits 1 with `no matches found`; TASK-063 discloses the identical residue in its own record and TASK-194 does not"
 scope: "The record text of tasks/_archive/194 and the two sibling cards that bind a tasks/done/ path (106, 127). No verdict, acceptance criterion or timestamp changes."
-status: todo
+status: done
+completed-at: 2026-08-26T10:46:21+0900
+verified-at: 2026-08-26T10:46:21+0900
+archived-at: 2026-08-26T10:46:21+0900
+verification-summary: |
+  Re-read the three affected archive records and disclosed their moved `tasks/done/`
+  bindings without changing their historical verdicts or timestamps. The current
+  `_archive/` equivalents resolve, the sweep excludes this follow-up record, and
+  `make doc-check` passes.
 ---
 
 # Task 202: A disposition kept two AC bindings that no longer measure what they claim
@@ -65,12 +73,28 @@ here the command is right and no longer points at what it was written to point a
 
 ## Completion Criteria
 
-- [ ] `194`'s AC1 line states that the binding scans zero cards under the current layout, or is replaced by one that scans a non-zero denominator | verify: `grep -cE 'scans 0|0 of 197|_archive' tasks/_archive/194-*.md` returns ≥ 1 (today: 0)
-- [ ] `194`'s AC4 binding resolves against the current tree | verify: `ls tasks/_archive/082-* tasks/_archive/123-* tasks/_archive/164-*` exits 0 and prints 3 paths
-- [ ] The record says which of the two routes it took, in `063`'s self-disclosure form rather than by silent rewrite | verify: human — read `194`'s verification-summary and confirm a later reader learns the binding changed and why, without re-running it
-- [ ] The other two archived cards that bind a `tasks/done/` path are examined and either corrected or recorded as still-valid | verify: `grep -rlE '^- \[[ x~]\].*verify:.*tasks/done/' tasks/_archive/*.md` returns 3 files (106, 127, 194) — each must be dispositioned, not just counted
-- [ ] The sweep's axis and denominator are stated in the commit message | verify: human — the message names "3 cards bind a tasks/done/ path" rather than "swept for the pattern"
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] `194`'s AC1 line states that the binding scans zero cards under the current layout, or is replaced by one that scans a non-zero denominator | verify: `grep -cE 'scans 0|0 of 197|_archive' tasks/_archive/194-*.md` returns ≥ 1 (today: 1 after the disclosure)
+- [x] `194`'s AC4 binding resolves against the current tree | verify: `ls tasks/_archive/082-* tasks/_archive/123-* tasks/_archive/164-*` exits 0 and prints 3 paths
+- [x] The record says which of the two routes it took, in `063`'s self-disclosure form rather than by silent rewrite | verify: human — read `194`'s verification-summary and confirm a later reader learns the binding changed and why, without re-running it
+- [x] The other two archived cards that bind a `tasks/done/` path are examined and either corrected or recorded as still-valid | verify: `grep -rlE '^- \[[ x~]\].*verify:.*tasks/done/' tasks/_archive/*.md | grep -v '/202-'` returns 3 files (106, 127, 194) — excluding this record, each is dispositioned in its verification summary
+- [x] The sweep's axis and denominator are stated in the commit message | verify: human — the commit message names "3 cards bind a tasks/done/ path"
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+
+## Resolution (2026-08-26)
+
+The three archived records were re-read without changing their historical verdicts or
+timestamps. The result is disclosure, not a silent rewrite:
+
+| card | currentization | status of the original claim |
+| --- | --- | --- |
+| `194` | Its verification summary now says AC4's `tasks/done/082-*`, `123-*`, `164-*` binding was valid before the move and gives the current `_archive/` equivalents. | filenames and disposition result remain valid; the original path is historical |
+| `106` | Its verification summary already recorded the stale `tasks/done/090-*` shell path; it now names `_archive/090-*` as the current target. | supersession result remains valid |
+| `127` | Its verification summary now records that `tasks/done/126-*` was the path at verification time and that TASK-126 is now archived. | the referenced card remains the same; only the path moved |
+
+AC1's zero-card denominator is also now stated in the `194` verification record, so a reader can
+distinguish the successful command from the archive-skipping layout it actually measured. The
+current-tree path check for `194` resolves all three cards, and the three-card sweep explicitly
+excludes this follow-up record so it cannot certify itself. `make doc-check` passes.
 
 ## References
 

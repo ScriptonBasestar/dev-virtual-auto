@@ -23,7 +23,9 @@ verification-summary: |
   three 0 each and 0 combined), as do both mutation-table line numbers (exec.go:183,
   compose_error_test.go:38). `golangci-lint linters` still reports 107 disabled by
   configuration, matching the residual-gap count. writeNote's `w` is os.Stdout
-  (provision.go:152) or a bytes.Buffer (provision.go:271), as claimed.
+  (provision.go:152) or a bytes.Buffer (provision.go:271), as claimed. The criterion's
+  `tasks/done/126-*.md` binding is a preserved historical path; TASK-126 is now under
+  `tasks/_archive/`, so the claim remains valid but the original shell path no longer runs.
 ---
 
 # Task 127: the audit that TASK-126 asked for, applied to TASK-126

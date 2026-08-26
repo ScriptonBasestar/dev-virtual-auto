@@ -154,7 +154,7 @@ actionable scope.
 
 - [x] The decision is recorded as taken or deferred in this file's Resolution | verify: `human — the Resolution above records the decision as taken`
 - [x] If taken, `lifecycle_boundary`'s discover clause names the reserved command set as an owner | verify: `/usr/bin/grep -n 'reserved' workflows/dva-dogfood/ref-evaluation.md` — prints the widened discover clause
-- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–79
+- [x] The cross-run-promotion note reaches stage 40 (not deleted `60-evaluate.md`) | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` — prints the hash-delta-is-a-promotion clause at lines 74–80
 - [x] A reserved-name interaction instantiates at least one lifecycle_boundary case | verify: dogfood stage 10 on gorisa froze `lifecycle_boundary:up` and `lifecycle_boundary:build`; stage 30 FT confirmed dual ownership for both
 - [x] A fixture with **exactly one** reserved-name interaction instantiates **exactly one** case | verify: fixture `workflows/dva-dogfood/fixtures/absent-plans-one-reserved` has only `interaction.up` reserved → case_ids contain exactly `lifecycle_boundary:up` — see `EVIDENCE.md` / `case_ids.txt`
 
