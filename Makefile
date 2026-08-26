@@ -379,8 +379,8 @@ release-check: build
 	@set -eu; \
 		tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
 		commit=$$(git rev-parse HEAD); \
-		version=$$(go run ./tools/releasecheck version --tag "$$tag" | sed -n 's/.*Version=\([^ ]*\).*/\1/p'); \
-		[ -n "$$version" ] || version=$$(grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2); \
+		version=$$(grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2); \
+		snapshot_version=$$(go run ./tools/releasecheck snapshot-version --tag "$$tag" --commit "$$commit"); \
 		go run ./tools/releasecheck stamping; \
 		go run ./tools/releasecheck version --tag "$$tag"; \
 		go run ./tools/releasecheck binary --binary ./bin/dva --commit "$$commit" --version "$$version"; \
@@ -390,7 +390,7 @@ release-check: build
 		archive="dist/dva_$${host_os}_$${host_arch}.tar.gz"; \
 		tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
 		tar -xzf "$$archive" -C "$$tmp_dir"; \
-		go run ./tools/releasecheck binary --binary "$$tmp_dir/dva" --commit "$$commit" --version '0.0.0-SNAPSHOT-' --snapshot
+		go run ./tools/releasecheck binary --binary "$$tmp_dir/dva" --commit "$$commit" --version "$$snapshot_version" --snapshot
 
 ## help: Show this help
 help:

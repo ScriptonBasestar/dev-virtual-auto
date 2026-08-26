@@ -43,3 +43,7 @@ Verified locally with GoReleaser 2.12.7. `make release-check` created and checke
 `dva_{linux,darwin}_{amd64,arm64}.tar.gz`, `dva_windows_{amd64,arm64}.zip`, and
 `checksums.txt`; the darwin/arm64 binary reported snapshot Version, full Commit, and UTC
 BuildDate. The task remains `doing` until independent review and integration.
+
+The runnable-archive check is intentionally POSIX-host scoped: macOS and Linux use their native
+`tar.gz` archive; Windows cross-build output is compiled and checksum-verified but not executed
+from those hosts.

@@ -42,6 +42,8 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
+	case "snapshot-version":
+		err = printSnapshotVersion(os.Args[2:])
 	case "binary":
 		err = checkBinary(os.Args[2:])
 	case "stamping":
@@ -51,9 +53,39 @@ func main() {
 	case "artifacts":
 		err = checkArtifacts(os.Args[2:])
 	default:
-		err = fmt.Errorf("unknown command %q (want stamping, binary, version, or artifacts)", os.Args[1])
+		err = fmt.Errorf("unknown command %q (want snapshot-version, stamping, binary, version, or artifacts)", os.Args[1])
 	}
 	fail(err)
+}
+
+func printSnapshotVersion(args []string) error {
+	flags := flag.NewFlagSet("snapshot-version", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	tag := flags.String("tag", "", "exact Git tag, if any")
+	commit := flags.String("commit", "", "full Git commit")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	version, err := snapshotVersion(*tag, *commit)
+	if err != nil {
+		return err
+	}
+	fmt.Println(version)
+	return nil
+}
+
+func snapshotVersion(tag, commit string) (string, error) {
+	if !fullCommitRE.MatchString(commit) {
+		return "", fmt.Errorf("commit %q is not a full 40-hex SHA", commit)
+	}
+	base := "0.0.0"
+	if tag != "" {
+		if !strings.HasPrefix(tag, "v") || len(tag) == 1 {
+			return "", fmt.Errorf("tag %q must be v-prefixed", tag)
+		}
+		base = strings.TrimPrefix(tag, "v")
+	}
+	return base + "-SNAPSHOT-" + commit[:7], nil
 }
 
 var fullCommitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -83,12 +115,11 @@ func checkBinary(args []string) error {
 		return fmt.Errorf("unexpected version output from %s: %q", *binary, output)
 	}
 	gotVersion := strings.TrimPrefix(lines[0], "dva version ")
-	if *snapshot {
-		if !strings.HasPrefix(gotVersion, *version) {
-			return fmt.Errorf("snapshot version %q must start with %q", gotVersion, *version)
-		}
-	} else if gotVersion != *version {
+	if gotVersion != *version {
 		return fmt.Errorf("version = %q, want %q", gotVersion, *version)
+	}
+	if *snapshot && !strings.Contains(gotVersion, "-SNAPSHOT-") {
+		return fmt.Errorf("version %q is not a snapshot", gotVersion)
 	}
 	gotCommit := strings.TrimPrefix(lines[1], "commit: ")
 	if gotCommit != *commit || !fullCommitRE.MatchString(gotCommit) {

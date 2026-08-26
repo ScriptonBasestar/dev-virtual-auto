@@ -131,6 +131,10 @@ func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) error {
 		_ = os.Remove(pidFile)
 		return nil
 	}
+	if !signalableProcessGroupPID(pid) {
+		_ = os.Remove(pidFile)
+		return nil
+	}
 	if err := requireProcessGroupPID(pid); err != nil {
 		return fmt.Errorf("stop %s: %w", name, err)
 	}

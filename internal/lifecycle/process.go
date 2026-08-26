@@ -127,6 +127,10 @@ func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
 		return nil
 	}
 
+	if !signalableProcessGroupPID(pid) {
+		_ = os.Remove(pidFile)
+		return nil
+	}
 	if err := requireProcessGroupPID(pid); err != nil {
 		return fmt.Errorf("stop %s: %w", name, err)
 	}
@@ -158,7 +162,7 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 		return nil
 	}
 
-	if pid > 0 {
+	if signalableProcessGroupPID(pid) {
 		if err := requireProcessGroupPID(pid); err != nil {
 			return fmt.Errorf("remove %s: %w", name, err)
 		}
@@ -210,7 +214,9 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 
 	pidPath := filepath.Join(pidDir, name+".pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
-		_ = terminateProcessGroup(cmd.Process.Pid)
+		if signalableProcessGroupPID(cmd.Process.Pid) {
+			_ = terminateProcessGroup(cmd.Process.Pid)
+		}
 		_ = logFile.Close()
 		_ = os.Remove(filepath.Join(logDir, name+".log"))
 		return fmt.Errorf("save pid: %w", err)

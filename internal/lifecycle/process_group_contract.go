@@ -16,6 +16,8 @@ func requireProcessGroupPID(pid int) error {
 	return processGroupPIDError(pid, processGroupsSupported())
 }
 
+func signalableProcessGroupPID(pid int) bool { return pid > 0 }
+
 func managedProcessStatus(name string, pid int) ([]ServiceStatus, error) {
 	if err := requireProcessGroupPID(pid); err != nil {
 		return nil, errors.New("status " + name + ": " + err.Error())

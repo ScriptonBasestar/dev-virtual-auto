@@ -28,3 +28,14 @@ func TestProcessGroupPIDError(t *testing.T) {
 		})
 	}
 }
+
+func TestSignalableProcessGroupPID(t *testing.T) {
+	for _, pid := range []int{-1, 0} {
+		if signalableProcessGroupPID(pid) {
+			t.Fatalf("pid %d is signalable", pid)
+		}
+	}
+	if !signalableProcessGroupPID(1) {
+		t.Fatal("positive PID is not signalable")
+	}
+}
