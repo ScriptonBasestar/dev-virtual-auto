@@ -109,11 +109,7 @@ func (p *SAMPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceS
 	}
 
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid > 0 && IsProcessRunning(pid) {
-		return []ServiceStatus{{Name: name, State: "running"}}, nil
-	}
-
-	return []ServiceStatus{{Name: name, State: "stopped"}}, nil
+	return managedProcessStatus(name, pid)
 }
 
 func (p *SAMPlugin) stopProcess(pctx *PluginContext) error {
@@ -127,6 +123,9 @@ func (p *SAMPlugin) stopProcess(pctx *PluginContext) error {
 	if err != nil {
 		_ = os.Remove(pidFile)
 		return nil
+	}
+	if err := requireProcessGroupPID(pid); err != nil {
+		return fmt.Errorf("stop %s: %w", name, err)
 	}
 	if err := terminateProcessGroup(pid); err == nil {
 		fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)

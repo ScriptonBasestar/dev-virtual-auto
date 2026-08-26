@@ -19,6 +19,10 @@ TASK-063 remains in force: this task does not create a tag, push a tag, request
 the already-retained release configuration produces the six supported platform archives and their
 checksums locally and in CI.
 
+Snapshot versions intentionally use GoReleaser's `0.0.0-SNAPSHOT-<short-commit>` form. Only a
+real exact tag is required to equal `v` plus `internal/config.Version`; an untagged snapshot is
+not a public version claim.
+
 During the first actual snapshot, Windows compilation exposed direct Unix `syscall.Kill` and
 `SysProcAttr.Setpgid` use in local background lifecycle handling. The fix keeps Unix process-group
 semantics intact and rejects that unsupported lifecycle mode explicitly on Windows; it does not
@@ -29,6 +33,7 @@ pretend that killing one Windows PID safely tears down its child process tree.
 - [x] `make release-check` validates an exact `vX.Y.Z` tag against `internal/config.Version`, but permits an untagged snapshot | verify: `go run ./tools/releasecheck version --tag v0.1.44 && go run ./tools/releasecheck version`
 - [x] Snapshot builds inject Version, Commit, and BuildDate with the same meanings as `make build` | verify: `go run ./tools/releasecheck stamping`
 - [x] Snapshot output contains linux, darwin, and windows archives for amd64 and arm64, all covered by `checksums.txt` | verify: `go test ./tools/releasecheck`
+- [x] Both the local build and host-runnable snapshot archive report a full 40-hex commit and UTC RFC3339 `Z` BuildDate | verify: `mise exec -- make release-check`
 - [x] Windows builds compile and local background process groups fail explicitly rather than silently changing teardown scope | verify: `GOOS=windows GOARCH=amd64 go build ./cmd/dva`
 - [x] CI executes the snapshot gate using the pinned GoReleaser version | verify: `/usr/bin/grep -A8 '^  goreleaser-snapshot:' .github/workflows/ci.yml`
 

@@ -75,8 +75,59 @@ func TestCheckArtifactsRejectsChecksumMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	err := checkArtifacts([]string{"--dist", dist})
-	if err == nil || !strings.Contains(err.Error(), "read archive") {
-		t.Fatalf("checkArtifacts error = %v, want missing archive", err)
+	if err == nil || !strings.Contains(err.Error(), "want exactly") {
+		t.Fatalf("checkArtifacts error = %v, want exact-set failure", err)
+	}
+}
+
+func TestCheckArtifactsRejectsExtraArchiveOrChecksum(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T, dist string)
+	}{
+		{"extra archive", func(t *testing.T, dist string) {
+			writeArtifactFixture(t, dist)
+			if err := os.WriteFile(filepath.Join(dist, "dva_linux_386.tar.gz"), []byte("sabotage"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"extra checksum", func(t *testing.T, dist string) {
+			writeArtifactFixture(t, dist)
+			path := filepath.Join(dist, "checksums.txt")
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			data = append(data, []byte(strings.Repeat("0", 64)+"  dva_linux_386.tar.gz\n")...)
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dist := t.TempDir()
+			tc.setup(t, dist)
+			if err := checkArtifacts([]string{"--dist", dist}); err == nil || !strings.Contains(err.Error(), "want exactly") {
+				t.Fatalf("checkArtifacts error = %v, want exact-set failure", err)
+			}
+		})
+	}
+}
+
+func writeArtifactFixture(t *testing.T, dist string) {
+	t.Helper()
+	var lines []string
+	for _, target := range platforms {
+		name := fmt.Sprintf("dva_%s_%s%s", target.os, target.arch, target.ext)
+		data := []byte(name)
+		if err := os.WriteFile(filepath.Join(dist, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(data)
+		lines = append(lines, fmt.Sprintf("%x  %s", digest, name))
+	}
+	if err := os.WriteFile(filepath.Join(dist, "checksums.txt"), []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
 }
 

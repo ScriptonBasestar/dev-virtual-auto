@@ -12,8 +12,12 @@ import (
 	"go/token"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strings"
+	"time"
 )
 
 var platforms = []platform{
@@ -38,6 +42,8 @@ func main() {
 
 	var err error
 	switch os.Args[1] {
+	case "binary":
+		err = checkBinary(os.Args[2:])
 	case "stamping":
 		err = checkStamping(os.Args[2:])
 	case "version":
@@ -45,9 +51,56 @@ func main() {
 	case "artifacts":
 		err = checkArtifacts(os.Args[2:])
 	default:
-		err = fmt.Errorf("unknown command %q (want stamping, version, or artifacts)", os.Args[1])
+		err = fmt.Errorf("unknown command %q (want stamping, binary, version, or artifacts)", os.Args[1])
 	}
 	fail(err)
+}
+
+var fullCommitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+func checkBinary(args []string) error {
+	flags := flag.NewFlagSet("binary", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	binary := flags.String("binary", "", "path to executable")
+	commit := flags.String("commit", "", "expected full Git commit")
+	version := flags.String("version", "", "expected version, or snapshot prefix with --snapshot")
+	snapshot := flags.Bool("snapshot", false, "require a snapshot version prefix")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *binary == "" || *commit == "" || *version == "" {
+		return errors.New("--binary, --commit, and --version are required")
+	}
+	if !fullCommitRE.MatchString(*commit) {
+		return fmt.Errorf("expected commit %q is not a full 40-hex SHA", *commit)
+	}
+	output, err := exec.Command(*binary, "version").Output()
+	if err != nil {
+		return fmt.Errorf("run %s version: %w", *binary, err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) != 3 {
+		return fmt.Errorf("unexpected version output from %s: %q", *binary, output)
+	}
+	gotVersion := strings.TrimPrefix(lines[0], "dva version ")
+	if *snapshot {
+		if !strings.HasPrefix(gotVersion, *version) {
+			return fmt.Errorf("snapshot version %q must start with %q", gotVersion, *version)
+		}
+	} else if gotVersion != *version {
+		return fmt.Errorf("version = %q, want %q", gotVersion, *version)
+	}
+	gotCommit := strings.TrimPrefix(lines[1], "commit: ")
+	if gotCommit != *commit || !fullCommitRE.MatchString(gotCommit) {
+		return fmt.Errorf("commit = %q, want full SHA %q", gotCommit, *commit)
+	}
+	date := strings.TrimPrefix(lines[2], "build date: ")
+	parsed, err := time.Parse(time.RFC3339, date)
+	if err != nil || !strings.HasSuffix(date, "Z") || parsed.Location() != time.UTC {
+		return fmt.Errorf("build date %q must be UTC RFC3339 with Z", date)
+	}
+	fmt.Printf("releasecheck: %s has stamped version, full commit, and UTC build date\n", *binary)
+	return nil
 }
 
 func checkStamping(args []string) error {
@@ -161,8 +214,18 @@ func checkArtifacts(args []string) error {
 	if err != nil {
 		return err
 	}
-	for _, target := range platforms {
-		name := fmt.Sprintf("dva_%s_%s%s", target.os, target.arch, target.ext)
+	wantArchives := expectedArchiveNames()
+	if err := sameNameSet("checksums.txt", checksums, wantArchives); err != nil {
+		return err
+	}
+	actualArchives, err := topLevelArchives(*dist)
+	if err != nil {
+		return err
+	}
+	if err := sameNameSet("top-level archives", actualArchives, wantArchives); err != nil {
+		return err
+	}
+	for name := range wantArchives {
 		want, ok := checksums[name]
 		if !ok {
 			return fmt.Errorf("checksums.txt is missing %s", name)
@@ -177,6 +240,68 @@ func checkArtifacts(args []string) error {
 	}
 	fmt.Printf("releasecheck: verified %d platform archives and checksums in %s\n", len(platforms), *dist)
 	return nil
+}
+
+func expectedArchiveNames() map[string]struct{} {
+	names := make(map[string]struct{}, len(platforms))
+	for _, target := range platforms {
+		names[fmt.Sprintf("dva_%s_%s%s", target.os, target.arch, target.ext)] = struct{}{}
+	}
+	return names
+}
+
+func topLevelArchives(dist string) (map[string]struct{}, error) {
+	entries, err := os.ReadDir(dist)
+	if err != nil {
+		return nil, fmt.Errorf("read dist directory %s: %w", dist, err)
+	}
+	archives := make(map[string]struct{})
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue // GoReleaser's per-build directories are expected metadata inputs.
+		}
+		name := entry.Name()
+		if strings.HasSuffix(name, ".tar.gz") || strings.HasSuffix(name, ".zip") {
+			archives[name] = struct{}{}
+		}
+	}
+	return archives, nil
+}
+
+func sameNameSet(label string, actual any, want map[string]struct{}) error {
+	got := make(map[string]struct{})
+	switch values := actual.(type) {
+	case map[string]string:
+		for name := range values {
+			got[name] = struct{}{}
+		}
+	case map[string]struct{}:
+		got = values
+	default:
+		return fmt.Errorf("internal error: unsupported %s set", label)
+	}
+	if len(got) == len(want) {
+		identical := true
+		for name := range want {
+			if _, ok := got[name]; !ok {
+				identical = false
+				break
+			}
+		}
+		if identical {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s names = %s, want exactly %s", label, sortedNames(got), sortedNames(want))
+}
+
+func sortedNames(names map[string]struct{}) string {
+	values := make([]string, 0, len(names))
+	for name := range names {
+		values = append(values, name)
+	}
+	slices.Sort(values)
+	return strings.Join(values, ", ")
 }
 
 func readChecksums(path string) (map[string]string, error) {

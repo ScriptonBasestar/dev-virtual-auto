@@ -96,6 +96,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: v2.12.7
+          install-only: true
 
       - name: GoReleaser snapshot
         run: make release-check

@@ -375,13 +375,22 @@ commit-check:
 	go run ./tools/commitcheck
 
 ## release-check: Build and verify GoReleaser snapshot archives and checksums (CI)
-release-check:
+release-check: build
 	@set -eu; \
 		tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
+		commit=$$(git rev-parse HEAD); \
+		version=$$(go run ./tools/releasecheck version --tag "$$tag" | sed -n 's/.*Version=\([^ ]*\).*/\1/p'); \
+		[ -n "$$version" ] || version=$$(grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2); \
 		go run ./tools/releasecheck stamping; \
 		go run ./tools/releasecheck version --tag "$$tag"; \
+		go run ./tools/releasecheck binary --binary ./bin/dva --commit "$$commit" --version "$$version"; \
 		goreleaser release --snapshot --clean; \
-		go run ./tools/releasecheck artifacts --dist dist
+		go run ./tools/releasecheck artifacts --dist dist; \
+		host_os=$$(go env GOOS); host_arch=$$(go env GOARCH); \
+		archive="dist/dva_$${host_os}_$${host_arch}.tar.gz"; \
+		tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
+		tar -xzf "$$archive" -C "$$tmp_dir"; \
+		go run ./tools/releasecheck binary --binary "$$tmp_dir/dva" --commit "$$commit" --version '0.0.0-SNAPSHOT-' --snapshot
 
 ## help: Show this help
 help:

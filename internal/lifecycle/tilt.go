@@ -102,11 +102,7 @@ func (p *TiltPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Service
 	}
 
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid > 0 && IsProcessRunning(pid) {
-		return []ServiceStatus{{Name: name, State: "running"}}, nil
-	}
-
-	return []ServiceStatus{{Name: name, State: "stopped"}}, nil
+	return managedProcessStatus(name, pid)
 }
 
 // resolveDir resolves cfg.Dir relative to ConfigDir.
@@ -134,6 +130,9 @@ func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) error {
 	if err != nil {
 		_ = os.Remove(pidFile)
 		return nil
+	}
+	if err := requireProcessGroupPID(pid); err != nil {
+		return fmt.Errorf("stop %s: %w", name, err)
 	}
 	if err := terminateProcessGroup(pid); errors.Is(err, errProcessGroupsUnsupported) {
 		return fmt.Errorf("stop %s: %w", name, err)

@@ -649,6 +649,9 @@ func (o *Orchestrator) signalModeProcesses(mode string, removePID, dryRun bool) 
 		var pid int
 		_, _ = fmt.Sscanf(strings.TrimSpace(string(data)), "%d", &pid)
 		if pid > 0 {
+			if err := requireProcessGroupPID(pid); err != nil {
+				return fmt.Errorf("stop health check %s: %w", hcName, err)
+			}
 			if dryRun {
 				// The signal line is conditional on the process existing because the real
 				// path's is: it prints only when Kill returns nil. The delete line is not,

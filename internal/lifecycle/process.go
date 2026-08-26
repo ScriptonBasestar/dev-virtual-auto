@@ -108,11 +108,7 @@ func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 	}
 
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid > 0 && (IsProcessRunning(pid) || processGroupsUnsupported()) {
-		return []ServiceStatus{{Name: name, State: "running"}}, nil
-	}
-
-	return []ServiceStatus{{Name: name, State: "stopped"}}, nil
+	return managedProcessStatus(name, pid)
 }
 
 // haltProcess sends SIGTERM but preserves the PID file so the process
@@ -131,6 +127,9 @@ func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
 		return nil
 	}
 
+	if err := requireProcessGroupPID(pid); err != nil {
+		return fmt.Errorf("stop %s: %w", name, err)
+	}
 	if pid > 0 && IsProcessRunning(pid) {
 		if err := terminateProcessGroup(pid); err == nil {
 			fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
@@ -160,6 +159,9 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 	}
 
 	if pid > 0 {
+		if err := requireProcessGroupPID(pid); err != nil {
+			return fmt.Errorf("remove %s: %w", name, err)
+		}
 		if err := terminateProcessGroup(pid); err == nil {
 			fmt.Fprintf(os.Stderr, "[-] removed %s (pid %d)\n", name, pid)
 		} else if errors.Is(err, errProcessGroupsUnsupported) {
