@@ -206,9 +206,10 @@ dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 �
 ```
 
 AI 스킬의 정본은 `skills/` 하나입니다. `make generate`는 DVA 소스 checkout 안에서만
-Claude Code 플러그인(`claude-plugin/skills`), Antigravity·OpenCode용 symlink,
+Claude Code 플러그인 내부의 skills symlink, Antigravity·OpenCode용 symlink,
 Cursor rule, Codex 호환 `AGENTS.md` 섹션을 만듭니다. 사용자나 다른 프로젝트에 설치하는
-명령이 아닙니다.
+명령이 아닙니다. 정확한 checkout 산출물은 [skills target 표](skills/README.md#targets)를
+참조하세요.
 
 설치된 바이너리의 `dva skill install`은 내장된 `dva`와 `dva-config`를 선택한 runtime의
 user/project discovery path에 복사합니다. Claude Code, Codex, OpenCode, Grok,

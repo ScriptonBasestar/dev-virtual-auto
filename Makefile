@@ -28,7 +28,7 @@ build: generate
 	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
 	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
 
-## install: Atomically replace each verified dva destination in ~/.local/bin and Go bin
+## install: Atomically replace each dva destination with a verified binary
 install: build
 	@$(MAKE) --no-print-directory install-binary INSTALL_SOURCE="$(abspath $(BUILD_DIR)/$(BINARY))"
 
