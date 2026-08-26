@@ -3,11 +3,26 @@ id: TASK-231
 title: "Validate GoReleaser snapshot artifacts without publishing a release"
 type: chore
 priority: P1
-status: doing
+status: done
 effort: S
 created-at: 2026-08-26T00:00:00+09:00
 decision: "Keep TASK-063's no-public-release decision; make the retained GoReleaser configuration executable as a local and CI snapshot gate."
 scope: ".goreleaser.yml, Makefile, CI, pinned GoReleaser tool, tools/releasecheck, and the minimal lifecycle process-group portability boundary"
+completed-at: 2026-08-26T18:03:12+09:00
+completion-summary: "Exercise release configuration as a non-publishing six-platform snapshot gate and make process-group portability failures explicit."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test && GOOS=windows GOARCH=amd64 go build ./cmd/dva && mise exec -- make release-check && make doc-check && make commit-check"
+    result: "passed after rebasing on current master; repository tests, Windows cross-build, six snapshot archives/checksums, executable metadata, documentation, and commit gates exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T18:03:12+09:00
+quality-review-evidence:
+  - "independent ce-judge drove fixes for the CI action contract, Windows PID semantics, exact artifact sets, executable metadata, tagged snapshots, and Git abbreviation parity"
+  - "final review found no remaining actionable finding and confirmed core.abbrev=12 snapshot parity"
+archived-at: 2026-08-26T18:03:12+09:00
+verified-at: 2026-08-26T18:03:12+09:00
+verification-summary: "GoReleaser readiness is now tested without tags, write permissions, uploads, or a public release."
 ---
 
 # Task 231: Validate GoReleaser snapshot readiness
@@ -43,7 +58,8 @@ pretend that killing one Windows PID safely tears down its child process tree.
 Verified locally with GoReleaser 2.12.7. `make release-check` created and checked
 `dva_{linux,darwin}_{amd64,arm64}.tar.gz`, `dva_windows_{amd64,arm64}.zip`, and
 `checksums.txt`; the darwin/arm64 binary reported snapshot Version, full Commit, and UTC
-BuildDate. The task remains `doing` until independent review and integration.
+BuildDate. Independent review also verified the same short-commit contract with a 12-character
+Git abbreviation.
 
 The runnable-archive check is intentionally POSIX-host scoped: macOS and Linux use their native
 `tar.gz` archive; Windows cross-build output is compiled and checksum-verified but not executed
