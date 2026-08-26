@@ -269,6 +269,75 @@ func TestCorruptTakeoverBackupBlocksRestore(t *testing.T) {
 	}
 }
 
+func TestRestoreRejectsIncompleteBackupInventory(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(t *testing.T, options Options, target destination, record *receipt)
+	}{
+		{
+			name: "omitted receipt record",
+			mutate: func(t *testing.T, options Options, target destination, record *receipt) {
+				t.Helper()
+				record.Takeovers = append([]takeoverBackup(nil), record.Takeovers[:1]...)
+				if err := writeReceipt(receiptPath(options.StateRoot, target.path), *record); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "extra backup sibling",
+			mutate: func(t *testing.T, options Options, target destination, record *receipt) {
+				t.Helper()
+				path, err := takeoverBackupPath(options.StateRoot, record.Destination, record.Takeovers[0])
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(filepath.Join(filepath.Dir(path), "unlisted"), 0o700); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			options := testOptions(t, ScopeProject, RuntimeCodex)
+			_, targets, err := resolve(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target := targets[0]
+			for _, name := range []string{"dva", "dva-config"} {
+				root := filepath.Join(target.path, name)
+				if err := os.MkdirAll(root, 0o750); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(root, "original.txt"), []byte("foreign-"+name), 0o640); err != nil {
+					t.Fatal(err)
+				}
+			}
+			options.Takeover = true
+			if _, err := Install(options); err != nil {
+				t.Fatal(err)
+			}
+			record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
+			if err != nil || !found || len(record.Takeovers) != 2 {
+				t.Fatalf("takeover receipt = (%#v, %t, %v)", record, found, err)
+			}
+			backupRoot := filepath.Join(takeoverDestinationRoot(options.StateRoot, record.Destination), record.Takeovers[0].BackupID)
+			test.mutate(t, options, target, &record)
+			options.Takeover, options.RestoreTakeoverBackup = false, true
+			if _, err := Uninstall(options); err == nil {
+				t.Fatal("restore accepted incomplete backup inventory")
+			}
+			if _, err := os.Stat(filepath.Join(target.path, "dva", "SKILL.md")); err != nil {
+				t.Fatalf("failed restore changed installed DVA skill: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(backupRoot, "dva-config", "original.txt")); err != nil {
+				t.Fatalf("failed restore deleted unlisted original: %v", err)
+			}
+		})
+	}
+}
+
 func TestTakeoverBackupCapturesLiveEntryBeforeReplacement(t *testing.T) {
 	t.Parallel()
 	options := testOptions(t, ScopeProject, RuntimeCodex)

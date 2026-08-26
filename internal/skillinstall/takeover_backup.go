@@ -304,6 +304,9 @@ func verifyTakeoverBackups(stateRoot string, record receipt) (string, string) {
 	if len(record.Takeovers) == 0 {
 		return "", ""
 	}
+	if err := verifyTakeoverBackupInventory(stateRoot, record); err != nil {
+		return "corrupt", ""
+	}
 	first := ""
 	for _, takeover := range record.Takeovers {
 		path, err := takeoverBackupPath(stateRoot, record.Destination, takeover)
@@ -319,6 +322,30 @@ func verifyTakeoverBackups(stateRoot string, record receipt) (string, string) {
 		}
 	}
 	return "available", first
+}
+
+func verifyTakeoverBackupInventory(stateRoot string, record receipt) error {
+	expected := map[string][]string{}
+	for _, takeover := range record.Takeovers {
+		expected[takeover.BackupID] = append(expected[takeover.BackupID], takeover.Skill)
+	}
+	for backupID, want := range expected {
+		root := filepath.Join(takeoverDestinationRoot(stateRoot, record.Destination), backupID)
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			return err
+		}
+		got := make([]string, len(entries))
+		for index, entry := range entries {
+			got[index] = entry.Name()
+		}
+		sort.Strings(got)
+		sort.Strings(want)
+		if !slices.Equal(got, want) {
+			return fmt.Errorf("takeover backup %s inventory differs from receipt: got %v, want %v", root, got, want)
+		}
+	}
+	return nil
 }
 
 func inspectBackupTree(root string) (string, []backupEntry, error) {
@@ -377,6 +404,9 @@ func inspectBackupTree(root string) (string, []backupEntry, error) {
 }
 
 func replaceWithTakeoverBackups(stateRoot string, record receipt) (func() error, func() error, error) {
+	if err := verifyTakeoverBackupInventory(stateRoot, record); err != nil {
+		return nil, nil, err
+	}
 	stage, err := os.MkdirTemp(record.Destination, ".dva-takeover-restore-")
 	if err != nil {
 		return nil, nil, err
@@ -462,6 +492,28 @@ func replaceWithTakeoverBackups(stateRoot string, record receipt) (func() error,
 		if err := os.RemoveAll(stage); err != nil {
 			return err
 		}
+		for _, takeover := range record.Takeovers {
+			path, err := takeoverBackupPath(stateRoot, record.Destination, takeover)
+			if err != nil {
+				return err
+			}
+			kind, entries, err := inspectBackupTree(path)
+			if err != nil || kind != takeover.Kind || !equalBackupEntries(entries, takeover.Entries) {
+				if err == nil {
+					err = errors.New("takeover backup changed before cleanup")
+				}
+				return err
+			}
+		}
+		for _, takeover := range record.Takeovers {
+			path, err := takeoverBackupPath(stateRoot, record.Destination, takeover)
+			if err != nil {
+				return err
+			}
+			if err := os.RemoveAll(path); err != nil {
+				return err
+			}
+		}
 		seen := map[string]bool{}
 		for _, takeover := range record.Takeovers {
 			if seen[takeover.BackupID] {
@@ -469,7 +521,7 @@ func replaceWithTakeoverBackups(stateRoot string, record receipt) (func() error,
 			}
 			seen[takeover.BackupID] = true
 			root := filepath.Join(takeoverDestinationRoot(stateRoot, record.Destination), takeover.BackupID)
-			if err := os.RemoveAll(root); err != nil {
+			if err := os.Remove(root); err != nil {
 				return err
 			}
 		}
