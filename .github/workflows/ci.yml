@@ -25,6 +25,9 @@ jobs:
       - name: Build
         run: make build
 
+      - name: Skill Installer Dogfood
+        run: make test-skill-dogfood
+
       - name: Test
         run: make test
 

@@ -59,6 +59,9 @@ absolute destination, sorted runtime membership, a non-empty bundle version, the
 complete installed-file path/SHA-256 list, and the bundle SHA-256 derived from that
 list. The Codex/Antigravity shared destination must retain the remaining runtime's
 receipt after one runtime is unlinked, and final uninstall must remove its receipt.
+CI separately runs `make test-skill-dogfood`, which builds the current checkout and
+uses a temporary clean Git repository. That hermetic smoke covers behavior only;
+it does not replace the caller-supplied digest or real-flow evidence above.
 
 ## Stage order
 

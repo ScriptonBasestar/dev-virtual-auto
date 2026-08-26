@@ -158,6 +158,34 @@ func TestGitRootAcceptsStableDirtyRepository(t *testing.T) {
 	}
 }
 
+func TestBuiltExecutableDogfood(t *testing.T) {
+	binary := os.Getenv("DVA_DOGFOOD_BIN")
+	if binary == "" {
+		t.Skip("DVA_DOGFOOD_BIN is set only by the hermetic Make/CI gate")
+	}
+	sha, err := fileSHA256(binary)
+	if err != nil {
+		t.Fatalf("hash built executable: %v", err)
+	}
+	flowRoot := t.TempDir()
+	if _, err := commandOutput(nil, "git", "-C", flowRoot, "init"); err != nil {
+		t.Fatalf("initialize temporary flow repository: %v", err)
+	}
+	var out strings.Builder
+	if err := run(binary, sha, flowRoot, &out); err != nil {
+		t.Fatalf("built executable dogfood failed: %v\n%s", err, out.String())
+	}
+	for _, marker := range []string{
+		"real_target_dry_run: passed",
+		"fixture_round_trip: passed",
+		"shared_runtime_unlink: passed",
+	} {
+		if !strings.Contains(out.String(), marker) {
+			t.Errorf("dogfood output missing %q:\n%s", marker, out.String())
+		}
+	}
+}
+
 func TestSnapshotRuntimePathsRejectsAncestorSymlink(t *testing.T) {
 	root := t.TempDir()
 	external := t.TempDir()

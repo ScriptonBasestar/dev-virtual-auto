@@ -12,7 +12,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
+.PHONY: build install test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -42,6 +42,10 @@ dogfood-skill-install:
 ## test: Run all tests (CI)
 test:
 	go test -race -cover ./...
+
+## test-skill-dogfood: Run the built executable through a hermetic skill-installer round-trip (CI)
+test-skill-dogfood: build
+	DVA_DOGFOOD_BIN="$(abspath $(BUILD_DIR)/$(BINARY))" go test -run '^TestBuiltExecutableDogfood$$' ./tools/skilldogfood
 
 ## test-integration: Run integration tests (requires build tag) (CI)
 test-integration:
