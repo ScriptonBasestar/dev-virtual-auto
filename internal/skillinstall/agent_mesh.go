@@ -50,6 +50,7 @@ func renderAgentMeshSkill(name string) ([]byte, error) {
 	output.WriteString(name)
 	output.WriteString(". Relative reference documents are inlined below because Agent Mesh reference-bundle resolution is not assumed. -->\n\n")
 	output.WriteString(strings.TrimSpace(body))
+	output.WriteString(localResourceIndex(name))
 
 	for _, source := range []struct {
 		kind, directory string
@@ -120,20 +121,83 @@ func bundledTextPaths(skill, directory string) ([]string, error) {
 }
 
 func rewriteLocalSkillPaths(skill, source string) string {
+	resources := localResources(skill)
+	fenced := false
+	var output strings.Builder
+	for _, line := range strings.SplitAfter(source, "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			fenced = !fenced
+			output.WriteString(line)
+			continue
+		}
+		if fenced {
+			output.WriteString(line)
+			continue
+		}
+		parts := strings.Split(line, "`")
+		for index := 0; index < len(parts); index += 2 {
+			parts[index] = rewriteProsePaths(parts[index], resources)
+		}
+		output.WriteString(strings.Join(parts, "`"))
+	}
+	return output.String()
+}
+
+type localResource struct{ path, target string }
+
+func localResources(skill string) []localResource {
+	var resources []localResource
 	for _, directory := range []string{"references", "assets"} {
 		paths, err := bundledTextPaths(skill, directory)
 		if err != nil {
 			continue
 		}
 		for _, relative := range paths {
-			anchor := "#" + inlineAnchor(skill, relative)
-			canonical := "https://github.com/ScriptonBasestar/dva/blob/master/skills/" + skill + "/" + relative
-			source = strings.ReplaceAll(source, "]("+relative+")", "]("+anchor+")")
-			source = strings.ReplaceAll(source, "]("+relative+"#", "]("+canonical+"#")
-			source = strings.ReplaceAll(source, relative, "[inline "+relative+"]("+anchor+")")
+			resources = append(resources, localResource{relative, "#" + inlineAnchor(skill, relative)})
 		}
 	}
+	// Cross-skill references are not inlined into a different flat skill. Keep
+	// them as explicit canonical links rather than assuming a sibling bundle.
+	for _, other := range bundled.Names {
+		if other == skill {
+			continue
+		}
+		paths, err := bundledTextPaths(other, "references")
+		if err != nil {
+			continue
+		}
+		for _, relative := range paths {
+			resources = append(resources, localResource{"skills/" + other + "/" + relative, "https://github.com/ScriptonBasestar/dva/blob/master/skills/" + other + "/" + relative})
+		}
+	}
+	return resources
+}
+
+func rewriteProsePaths(source string, resources []localResource) string {
+	for _, resource := range resources {
+		source = strings.ReplaceAll(source, "]("+resource.path+")", "]("+resource.target+")")
+		source = strings.ReplaceAll(source, "]("+resource.path+"#", "]("+resource.target+"#")
+		source = strings.ReplaceAll(source, resource.path, "[inline "+resource.path+"]("+resource.target+")")
+	}
 	return source
+}
+
+func localResourceIndex(skill string) string {
+	resources := localResources(skill)
+	if len(resources) == 0 {
+		return ""
+	}
+	var output strings.Builder
+	output.WriteString("\n\n## Local resource index\n")
+	for _, resource := range resources {
+		output.WriteString("\n- [")
+		output.WriteString(resource.path)
+		output.WriteString("](")
+		output.WriteString(resource.target)
+		output.WriteString(")")
+	}
+	return output.String()
 }
 
 func inlineAnchor(skill, relative string) string {
@@ -143,8 +207,13 @@ func inlineAnchor(skill, relative string) string {
 
 func demoteHeadings(source string, levels int) string {
 	var output strings.Builder
+	fenced := false
 	for _, line := range strings.Split(source, "\n") {
-		if strings.HasPrefix(line, "#") {
+		trimmed := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			fenced = !fenced
+		}
+		if !fenced && strings.HasPrefix(line, "#") {
 			count := len(line) - len(strings.TrimLeft(line, "#"))
 			if count > 0 && count < 7 && len(line) > count && line[count] == ' ' {
 				line = strings.Repeat("#", levels) + line

@@ -120,8 +120,14 @@ func TestAgentMeshRendererInlinesAssetsAndDemotesReferenceHeadings(t *testing.T)
 	if strings.Contains(rendered, "\n# DVA Command Reference\n") {
 		t.Fatal("inlined reference retained an H1 above its Reference parent")
 	}
-	if !strings.Contains(rendered, "[inline assets/templates/root-devbox-plan.yml](#dva-dva-assets-templates-root-devbox-plan-yml)") {
-		t.Fatal("canonical body did not rewrite a local asset path to its inlined anchor")
+	if !strings.Contains(rendered, "[assets/templates/root-devbox-plan.yml](#dva-dva-assets-templates-root-devbox-plan-yml)") {
+		t.Fatal("local resource index did not expose the inlined asset anchor")
+	}
+	if strings.Contains(rendered, "`[inline ") {
+		t.Fatal("renderer produced an inert Markdown link inside inline code")
+	}
+	if !strings.Contains(rendered, "```yaml\n# dva.yml") {
+		t.Fatal("renderer changed a fenced YAML comment")
 	}
 }
 

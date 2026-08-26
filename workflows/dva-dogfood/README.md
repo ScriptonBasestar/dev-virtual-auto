@@ -49,20 +49,20 @@ the gate copies and executes the exact file only after its digest matches the
 caller-supplied `DVA_SHA256`. Do not replace that value with a digest computed by
 the same acceptance invocation: it is the independent artifact-selection boundary.
 The real flow repository may already be dirty, but its porcelain status, tracked
-worktree/index content, untracked content, and native skill runtime paths must remain
+worktree/index content, untracked content, and native plus Agent Mesh skill runtime paths must remain
 stable across the dry-run. The runtime snapshot covers the installer's known ignored
 write destinations; HOME/XDG roots are isolated and separately required to stay empty.
 All install, status, uninstall, HOME/XDG, and receipt writes occur in disposable
 roots. The helper requires a POSIX host with Go and Git available.
 
 Receipt checks deliberately decode the installer's external schema rather than
-calling its internal reader. Schema 1 acceptance requires the recorded scope and
-absolute destination, exact order-insensitive runtime membership, a non-empty bundle
-version, the complete installed-file path/SHA-256 list, and the bundle SHA-256
-derived from that list. The Codex/Antigravity shared destination must retain the
-same installed bytes and complete Schema 1 receipt after one runtime is unlinked;
-only its exact remaining-runtime membership may change. Final uninstall must remove
-the receipt.
+calling its internal reader. New Schema 2 receipts bind the recorded scope, absolute
+destination, runtime membership, complete installed-file path/SHA-256 list, bundle
+SHA-256, and format (`agent-skills-directory` or `agent-mesh-flat-markdown`). Legacy
+Schema 1 receipts remain readable only for native directory installations; they cannot
+authorize a flat Agent Mesh target. The Codex/Antigravity shared destination must retain
+the same installed bytes and complete receipt after one runtime is unlinked; only its
+exact remaining-runtime membership may change. Final uninstall must remove the receipt.
 CI separately runs `make test-skill-dogfood`, which builds the current checkout and
 uses a temporary isolated Git repository with stable pre-existing work. That
 hermetic smoke covers behavior only;
