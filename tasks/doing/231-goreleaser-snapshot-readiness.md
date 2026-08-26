@@ -19,9 +19,10 @@ TASK-063 remains in force: this task does not create a tag, push a tag, request
 the already-retained release configuration produces the six supported platform archives and their
 checksums locally and in CI.
 
-Snapshot versions intentionally use GoReleaser's `0.0.0-SNAPSHOT-<short-commit>` form. Only a
-real exact tag is required to equal `v` plus `internal/config.Version`; an untagged snapshot is
-not a public version claim.
+Snapshot versions intentionally use GoReleaser's `<base>-SNAPSHOT-<short-commit>` form: an
+untagged snapshot has base `0.0.0`, while an exact tag uses its tag version as base. Only a real
+exact tag is required to equal `v` plus `internal/config.Version`; an untagged snapshot is not a
+public version claim.
 
 During the first actual snapshot, Windows compilation exposed direct Unix `syscall.Kill` and
 `SysProcAttr.Setpgid` use in local background lifecycle handling. The fix keeps Unix process-group

@@ -51,11 +51,14 @@ func TestCheckVersionAllowsUntaggedSnapshot(t *testing.T) {
 
 func TestSnapshotVersion(t *testing.T) {
 	commit := strings.Repeat("a", 40)
-	for _, tc := range []struct{ tag, want string }{{"", "0.0.0-SNAPSHOT-aaaaaaa"}, {"v0.1.44", "0.1.44-SNAPSHOT-aaaaaaa"}} {
-		got, err := snapshotVersion(tc.tag, commit)
+	for _, tc := range []struct{ tag, short, want string }{{"", "aaaaaaa", "0.0.0-SNAPSHOT-aaaaaaa"}, {"v0.1.44", "aaaaaaaaaaaa", "0.1.44-SNAPSHOT-aaaaaaaaaaaa"}} {
+		got, err := snapshotVersion(tc.tag, commit, tc.short)
 		if err != nil || got != tc.want {
 			t.Fatalf("snapshotVersion(%q) = %q, %v; want %q", tc.tag, got, err, tc.want)
 		}
+	}
+	if _, err := snapshotVersion("", commit, "bbbbbbb"); err == nil {
+		t.Fatal("non-prefix short commit accepted")
 	}
 }
 

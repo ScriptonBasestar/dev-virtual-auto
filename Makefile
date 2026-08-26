@@ -379,8 +379,9 @@ release-check: build
 	@set -eu; \
 		tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
 		commit=$$(git rev-parse HEAD); \
+		short_commit=$$(git show --format=%h HEAD --quiet); \
 		version=$$(grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2); \
-		snapshot_version=$$(go run ./tools/releasecheck snapshot-version --tag "$$tag" --commit "$$commit"); \
+		snapshot_version=$$(go run ./tools/releasecheck snapshot-version --tag "$$tag" --commit "$$commit" --short-commit "$$short_commit"); \
 		go run ./tools/releasecheck stamping; \
 		go run ./tools/releasecheck version --tag "$$tag"; \
 		go run ./tools/releasecheck binary --binary ./bin/dva --commit "$$commit" --version "$$version"; \

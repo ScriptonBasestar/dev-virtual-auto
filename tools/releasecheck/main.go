@@ -63,10 +63,11 @@ func printSnapshotVersion(args []string) error {
 	flags.SetOutput(io.Discard)
 	tag := flags.String("tag", "", "exact Git tag, if any")
 	commit := flags.String("commit", "", "full Git commit")
+	shortCommit := flags.String("short-commit", "", "Git abbreviated commit")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	version, err := snapshotVersion(*tag, *commit)
+	version, err := snapshotVersion(*tag, *commit, *shortCommit)
 	if err != nil {
 		return err
 	}
@@ -74,9 +75,12 @@ func printSnapshotVersion(args []string) error {
 	return nil
 }
 
-func snapshotVersion(tag, commit string) (string, error) {
+func snapshotVersion(tag, commit, shortCommit string) (string, error) {
 	if !fullCommitRE.MatchString(commit) {
 		return "", fmt.Errorf("commit %q is not a full 40-hex SHA", commit)
+	}
+	if shortCommit == "" || !strings.HasPrefix(commit, shortCommit) || !regexp.MustCompile(`^[0-9a-f]+$`).MatchString(shortCommit) {
+		return "", fmt.Errorf("short commit %q must be a hexadecimal prefix of full commit %q", shortCommit, commit)
 	}
 	base := "0.0.0"
 	if tag != "" {
@@ -85,7 +89,7 @@ func snapshotVersion(tag, commit string) (string, error) {
 		}
 		base = strings.TrimPrefix(tag, "v")
 	}
-	return base + "-SNAPSHOT-" + commit[:7], nil
+	return base + "-SNAPSHOT-" + shortCommit, nil
 }
 
 var fullCommitRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
