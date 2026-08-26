@@ -167,7 +167,7 @@ func TestInstallerOnlyTargetRemovesRegisteredStageOnCopyFailure(t *testing.T) {
 	if err == nil {
 		t.Fatalf("install unexpectedly succeeded when cp fails:\n%s", output)
 	}
-	if !strings.Contains(output, "cannot copy candidate") {
+	if !strings.Contains(output, "fixture cp failure") {
 		t.Fatalf("install did not report copy failure:\n%s", output)
 	}
 	assertExistingBinary(t, localBinary)
@@ -227,13 +227,16 @@ func TestInstallerOnlyTargetReportsNoReplacementOnFirstRenameFailure(t *testing.
 	assertNoStageArtifacts(t, goDir)
 }
 
-func TestInstallerOnlyTargetReportsPartialReplacementLedger(t *testing.T) {
+func TestInstallerOnlyTargetRollsBackEarlierReplacementAfterLaterRenameFailure(t *testing.T) {
 	repo := repositoryRoot(t)
 	fixture := t.TempDir()
 	source := fixtureDVA(t, fixture)
 	localDir := filepath.Join(fixture, "local", "bin")
 	goDir := filepath.Join(fixture, "go", "bin")
-	localTarget := writeExistingBinary(t, localDir)
+	localTarget := filepath.Join(localDir, "dva")
+	writeExecutableMode(t, localTarget, "old local binary", 0o701)
+	localBefore := readFile(t, localTarget)
+	localMode := fileMode(t, localTarget)
 	goTarget := writeExistingBinary(t, goDir)
 	binDir := filepath.Join(fixture, "fake-bin")
 	countFile := filepath.Join(fixture, "mv-count")
@@ -249,14 +252,80 @@ func TestInstallerOnlyTargetReportsPartialReplacementLedger(t *testing.T) {
 		t.Fatalf("install unexpectedly succeeded when the second rename fails:\n%s", output)
 	}
 	if !strings.Contains(output, "fixture rename failure") ||
+		!strings.Contains(output, "rollback succeeded") ||
 		!strings.Contains(output, "completed replacement ledger:") ||
-		!strings.Contains(output, "local/bin/dva") {
-		t.Fatalf("install did not report the partial replacement ledger:\n%s", output)
+		!strings.Contains(output, "rollback ledger: restored local destination") {
+		t.Fatalf("install did not report a successful rollback truthfully:\n%s", output)
+	}
+	assertFileBytesAndMode(t, localTarget, localBefore, localMode)
+	assertExistingBinary(t, goTarget)
+	assertNoInstallerArtifacts(t, localDir)
+	assertNoInstallerArtifacts(t, goDir)
+}
+
+func TestInstallerOnlyTargetRemovesNewEarlierDestinationOnRollback(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	localDir := filepath.Join(fixture, "local", "bin")
+	goDir := filepath.Join(fixture, "go", "bin")
+	localTarget := filepath.Join(localDir, "dva")
+	goTarget := writeExistingBinary(t, goDir)
+	binDir := filepath.Join(fixture, "fake-bin")
+	countFile := filepath.Join(fixture, "mv-count")
+	realMV := writeFailingMV(t, binDir)
+
+	output, err := runInstallerResult(repo, source, []string{
+		"PATH=" + binDir + ":" + os.Getenv("PATH"),
+		"REAL_MV=" + realMV,
+		"MV_COUNT_FILE=" + countFile,
+		"FAIL_MV_ON=2",
+	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
+	if err == nil {
+		t.Fatalf("install unexpectedly succeeded when the second rename fails:\n%s", output)
+	}
+	if !strings.Contains(output, "rollback succeeded") ||
+		!strings.Contains(output, "rollback ledger: removed newly created local destination") {
+		t.Fatalf("install did not report removal of the newly created destination:\n%s", output)
+	}
+	if _, err := os.Stat(localTarget); !os.IsNotExist(err) {
+		t.Fatalf("rollback left a newly created local destination: %v", err)
+	}
+	assertExistingBinary(t, goTarget)
+	assertNoInstallerArtifacts(t, localDir)
+	assertNoInstallerArtifacts(t, goDir)
+}
+
+func TestInstallerOnlyTargetReportsRollbackFailureAndCleansBackup(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	localDir := filepath.Join(fixture, "local", "bin")
+	goDir := filepath.Join(fixture, "go", "bin")
+	localTarget := writeExistingBinary(t, localDir)
+	goTarget := writeExistingBinary(t, goDir)
+	binDir := filepath.Join(fixture, "fake-bin")
+	countFile := filepath.Join(fixture, "mv-count")
+	realMV := writeFailingMV(t, binDir)
+
+	output, err := runInstallerResult(repo, source, []string{
+		"PATH=" + binDir + ":" + os.Getenv("PATH"),
+		"REAL_MV=" + realMV,
+		"MV_COUNT_FILE=" + countFile,
+		"FAIL_MV_ON=2,3",
+	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
+	if err == nil {
+		t.Fatalf("install unexpectedly succeeded when rollback rename fails:\n%s", output)
+	}
+	if !strings.Contains(output, "atomic replacement failed") ||
+		!strings.Contains(output, "rollback failed") ||
+		!strings.Contains(output, "rollback failed: cannot restore local destination") {
+		t.Fatalf("install did not distinguish rollback failure:\n%s", output)
 	}
 	assertSameBinary(t, source, localTarget)
 	assertExistingBinary(t, goTarget)
-	assertNoStageArtifacts(t, localDir)
-	assertNoStageArtifacts(t, goDir)
+	assertNoInstallerArtifacts(t, localDir)
+	assertNoInstallerArtifacts(t, goDir)
 }
 
 func TestInstallerOnlyTargetReportsCompletedLedgerAfterVerificationFailure(t *testing.T) {
@@ -345,12 +414,19 @@ func fixtureDVA(t *testing.T, directory string) string {
 }
 
 func writeExecutable(t *testing.T, path, body string) {
+	writeExecutableMode(t, path, body, 0o755)
+}
+
+func writeExecutableMode(t *testing.T, path, body string, mode os.FileMode) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("create executable directory: %v", err)
 	}
-	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+	if err := os.WriteFile(path, []byte(body), mode); err != nil {
 		t.Fatalf("write executable %q: %v", path, err)
+	}
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatalf("chmod executable %q: %v", path, err)
 	}
 }
 
@@ -367,7 +443,7 @@ func writeFailingMV(t *testing.T, directory string) string {
 	if err != nil {
 		t.Fatalf("locate real mv: %v", err)
 	}
-	writeExecutable(t, filepath.Join(directory, "mv"), "#!/bin/sh\ncount=$(cat \"$MV_COUNT_FILE\" 2>/dev/null || printf 0)\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$MV_COUNT_FILE\"\nif [ \"$count\" -eq \"$FAIL_MV_ON\" ]; then\n  printf '%s\\n' 'fixture rename failure' >&2\n  exit 29\nfi\nexec \"$REAL_MV\" \"$@\"\n")
+	writeExecutable(t, filepath.Join(directory, "mv"), "#!/bin/sh\ncount=$(cat \"$MV_COUNT_FILE\" 2>/dev/null || printf 0)\ncount=$((count + 1))\nprintf '%s' \"$count\" > \"$MV_COUNT_FILE\"\ncase \",$FAIL_MV_ON,\" in *\",$count,\"*)\n  printf '%s\\n' 'fixture rename failure' >&2\n  exit 29\n  ;;\nesac\nexec \"$REAL_MV\" \"$@\"\n")
 	return realMV
 }
 
@@ -426,6 +502,10 @@ func assertExistingBinary(t *testing.T, path string) {
 }
 
 func assertNoStageArtifacts(t *testing.T, directory string) {
+	assertNoInstallerArtifacts(t, directory)
+}
+
+func assertNoInstallerArtifacts(t *testing.T, directory string) {
 	t.Helper()
 	entries, err := os.ReadDir(directory)
 	if os.IsNotExist(err) {
@@ -435,9 +515,37 @@ func assertNoStageArtifacts(t *testing.T, directory string) {
 		t.Fatalf("read stage directory: %v", err)
 	}
 	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), ".dva-install.") {
-			t.Fatalf("staged candidate remained after failure: %s", filepath.Join(directory, entry.Name()))
+		if strings.HasPrefix(entry.Name(), ".dva-install.") || strings.HasPrefix(entry.Name(), ".dva-install-backup.") {
+			t.Fatalf("installer artifact remained after failure: %s", filepath.Join(directory, entry.Name()))
 		}
+	}
+}
+
+func readFile(t *testing.T, path string) []byte {
+	t.Helper()
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %q: %v", path, err)
+	}
+	return contents
+}
+
+func fileMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %q: %v", path, err)
+	}
+	return info.Mode().Perm()
+}
+
+func assertFileBytesAndMode(t *testing.T, path string, want []byte, wantMode os.FileMode) {
+	t.Helper()
+	if got := readFile(t, path); string(got) != string(want) {
+		t.Fatalf("restored bytes differ: got %q want %q", got, want)
+	}
+	if gotMode := fileMode(t, path); gotMode != wantMode {
+		t.Fatalf("restored mode differs: got %04o want %04o", gotMode, wantMode)
 	}
 }
 

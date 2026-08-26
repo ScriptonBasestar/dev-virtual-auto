@@ -40,6 +40,12 @@
 `dva-config`는 AI 에이전트 없이 다음 명령으로 복사 설치합니다. 기본 scope는 `user`,
 기본 runtime은 지원 대상 전체입니다.
 
+바이너리 설치는 각 목적지에서 atomic rename을 사용하며, 두 번째 목적지 교체가 실패하면
+먼저 교체된 목적지를 가능한 한 이전 파일로 복원합니다. 이는 서로 다른 filesystem을
+하나의 atomic commit으로 묶는 보장은 아닙니다. 프로세스 crash·전원 손실·rollback 자체
+실패 사이에는 두 경로가 서로 다른 버전을 가질 수 있으므로, 명령의 실패 출력과 ledger를
+확인한 뒤 재실행하거나 수동 복구해야 합니다.
+
 ```bash
 dva skill install
 dva skill install --runtime claude-code,codex,opencode,grok,antigravity

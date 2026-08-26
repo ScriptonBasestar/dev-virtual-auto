@@ -38,10 +38,12 @@ install: build
 install-binary:
 	@set -eu; \
 		replacement_ledger='none'; \
+		rollback_ledger='none'; rollback_failed=0; \
 		fail() { \
 			printf '%s\n' "make install: ERROR: $$*" >&2; \
 			if [ "$$replacement_ledger" = none ]; then printf '%s\n' "make install: replacement ledger: none; no destination was updated" >&2; \
 			else printf '%s\n' "make install: completed replacement ledger: $$replacement_ledger" >&2; fi; \
+			if [ "$$rollback_ledger" != none ]; then printf '%s\n' "make install: rollback ledger: $$rollback_ledger" >&2; fi; \
 			exit 1; \
 		}; \
 		sha256() { \
@@ -77,6 +79,8 @@ install-binary:
 		preflight_target() { \
 			target="$$1"; label="$$2"; \
 			if [ -d "$$target" ]; then fail "refusing $$label destination directory: $$target"; fi; \
+			if [ -L "$$target" ]; then fail "refusing $$label destination symbolic link: $$target"; fi; \
+			if [ -e "$$target" ] && [ ! -f "$$target" ]; then fail "refusing non-regular $$label destination: $$target"; fi; \
 		}; \
 		source="$(INSTALL_SOURCE)"; \
 		[ -n "$$source" ] || fail "set INSTALL_SOURCE to the prebuilt dva executable"; \
@@ -91,10 +95,13 @@ install-binary:
 		preflight_target "$$go_target" Go; \
 		source_sha=$$(sha256 "$$source") || fail "cannot hash built binary $$source"; \
 		source_version=$$("$$source" version) || fail "built binary does not report its version"; \
-		stage_local=''; stage_go=''; \
+		stage_local=''; stage_go=''; backup_local=''; backup_go=''; \
+		local_existed=no; go_existed=no; local_replaced=no; go_replaced=no; \
 		cleanup() { \
 			[ -z "$$stage_local" ] || rm -f "$$stage_local"; \
 			[ -z "$$stage_go" ] || rm -f "$$stage_go"; \
+			[ -z "$$backup_local" ] || rm -f "$$backup_local"; \
+			[ -z "$$backup_go" ] || rm -f "$$backup_go"; \
 		}; \
 		trap cleanup EXIT HUP INT TERM; \
 		stage_candidate() { \
@@ -116,14 +123,57 @@ install-binary:
 		else \
 			stage_candidate "$$go_dir" go; \
 		fi; \
-		replace_candidate() { \
-			if ! mv -f "$$1" "$$2"; then \
-				fail "atomic replacement failed for $$2"; \
+		snapshot_target() { \
+			target="$$1"; target_dir="$$2"; target_slot="$$3"; \
+			if [ -e "$$target" ]; then \
+				backup_file=$$(mktemp "$$target_dir/.dva-install-backup.XXXXXX") || fail "cannot stage rollback backup in $$target_dir"; \
+				case "$$target_slot" in local) backup_local="$$backup_file"; local_existed=yes;; go) backup_go="$$backup_file"; go_existed=yes;; *) fail "unknown rollback ledger slot $$target_slot";; esac; \
+				cp -p "$$target" "$$backup_file" || fail "cannot snapshot existing $$target_slot destination $$target"; \
+				cmp -s "$$target" "$$backup_file" || fail "rollback backup bytes differ for $$target_slot destination $$target"; \
+				printf '%s\n' "make install: snapshotted existing $$target_slot destination for rollback" >&2; \
 			fi; \
-			if [ "$$replacement_ledger" = none ]; then replacement_ledger="$$2"; else replacement_ledger="$$replacement_ledger, $$2"; fi; \
 		}; \
-		replace_candidate "$$stage_local" "$$local_target"; stage_local=''; \
-		if [ -n "$$stage_go" ]; then replace_candidate "$$stage_go" "$$go_target"; stage_go=''; fi; \
+		snapshot_target "$$local_target" "$$local_dir" local; \
+		if [ -n "$$stage_go" ]; then snapshot_target "$$go_target" "$$go_dir" go; fi; \
+		append_ledger() { \
+			ledger_name="$$1"; ledger_value="$$2"; \
+			case "$$ledger_name" in \
+				replacement) if [ "$$replacement_ledger" = none ]; then replacement_ledger="$$ledger_value"; else replacement_ledger="$$replacement_ledger, $$ledger_value"; fi;; \
+				rollback) if [ "$$rollback_ledger" = none ]; then rollback_ledger="$$ledger_value"; else rollback_ledger="$$rollback_ledger, $$ledger_value"; fi;; \
+				*) fail "unknown ledger $$ledger_name";; \
+			esac; \
+		}; \
+		rollback_one() { \
+			backup_file="$$1"; existed="$$2"; target="$$3"; label="$$4"; \
+			if [ "$$existed" = yes ]; then \
+				if mv -f "$$backup_file" "$$target"; then \
+					case "$$label" in local) backup_local='';; Go) backup_go='';; esac; \
+					append_ledger rollback "restored $$label destination $$target"; \
+				else \
+					printf '%s\n' "make install: rollback failed: cannot restore $$label destination $$target" >&2; rollback_failed=1; \
+				fi; \
+			elif rm -f "$$target"; then \
+				append_ledger rollback "removed newly created $$label destination $$target"; \
+			else \
+				printf '%s\n' "make install: rollback failed: cannot remove newly created $$label destination $$target" >&2; rollback_failed=1; \
+			fi; \
+		}; \
+		rollback_replacements() { \
+			if [ "$$go_replaced" = yes ]; then rollback_one "$$backup_go" "$$go_existed" "$$go_target" Go; fi; \
+			if [ "$$local_replaced" = yes ]; then rollback_one "$$backup_local" "$$local_existed" "$$local_target" local; fi; \
+		}; \
+		replace_candidate() { \
+			stage_file="$$1"; target="$$2"; label="$$3"; \
+			if ! mv -f "$$stage_file" "$$target"; then \
+				rollback_replacements; \
+				if [ "$$rollback_failed" -eq 0 ]; then fail "atomic replacement failed for $$target; rollback succeeded"; \
+				else fail "atomic replacement failed for $$target; rollback failed"; fi; \
+			fi; \
+			case "$$label" in local) local_replaced=yes;; Go) go_replaced=yes;; *) fail "unknown replacement ledger slot $$label";; esac; \
+			append_ledger replacement "$$target"; \
+		}; \
+		replace_candidate "$$stage_local" "$$local_target" local; stage_local=''; \
+		if [ -n "$$stage_go" ]; then replace_candidate "$$stage_go" "$$go_target" Go; stage_go=''; fi; \
 		verify_target() { \
 			target="$$1"; label="$$2"; \
 			[ -f "$$target" ] || fail "$$label destination is missing after replacement: $$target"; \
