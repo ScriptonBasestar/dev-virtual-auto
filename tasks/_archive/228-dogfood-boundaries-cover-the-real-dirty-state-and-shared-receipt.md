@@ -7,7 +7,22 @@ effort: S
 created-at: 2026-08-26T16:20:00+09:00
 source: "post-TASK-225 review"
 scope: "tools/skilldogfood, its black-box test, and receipt-contract wording"
-status: doing
+status: done
+completed-at: 2026-08-26T16:49:03+09:00
+completion-summary: "Exercise a genuinely tracked-dirty real-target fixture and require shared unlink to preserve installed bytes and every non-membership Schema 1 receipt field."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./tools/skilldogfood && make test-skill-dogfood && make doc-check && make commit-check"
+    result: "passed; focused contract tests, built-binary hermetic round-trip, documentation gates, and commit gate all exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T16:49:03+09:00
+quality-review-evidence:
+  - "independent ce-judge required and verified pre/post receipt and installed-byte preservation rather than post-state self-consistency alone"
+  - "final review found no actionable findings and confirmed four mutation sabotage cases plus the valid built-binary path"
+archived-at: 2026-08-26T16:49:03+09:00
+verified-at: 2026-08-26T16:49:03+09:00
+verification-summary: "The hermetic gate now proves tracked dirty preservation and membership-only mutation of a shared receipt."
 ---
 
 # Task 228: make dogfood boundary coverage prove the real contract
