@@ -17,6 +17,19 @@ make build
 ./bin/dva version
 ```
 
+`make install`은 DVA 바이너리만 설치합니다. 내장된 `dva`, `dva-config` 스킬은
+AI 없이 별도 설치합니다:
+
+```bash
+dva skill install                         # 사용자 범위, 지원 런타임 전체
+dva skill install --runtime codex,claude-code
+dva skill install --scope project         # 현재 프로젝트에만 설치
+dva skill status --json
+```
+
+충돌 방지·삭제 소유권·런타임별 경로는 [USAGE.md의 스킬 설치](USAGE.md#ai-스킬-설치)를
+참조하세요.
+
 ## Quick Start
 
 프로젝트 루트에 `dva.yml` 생성:
@@ -192,13 +205,15 @@ dva manifest                 # 구조화된 커맨드 매니페스트
 dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 출력 (JSON도 지원)
 ```
 
-AI 스킬은 `skills/`에 단일 소스로 두고 `make generate`(→ `tools/skillgen`)로 각 플랫폼에 투영합니다.
+AI 스킬은 `skills/`에 단일 소스로 두고, 개발 checkout에는 `make generate`로 투영하며,
+설치된 바이너리에서는 `dva skill install`로 배포합니다.
 
 - **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)
 - **Antigravity**: `.agents/skills/dva/SKILL.md`
 - **OpenCode**: `.opencode/skills/dva/SKILL.md`
 - **Cursor**: `.cursor/rules/dva.mdc`
-- **Codex**: `AGENTS.md` (자동 생성 `skills:auto` 섹션)
+- **Codex**: 설치 시 `.agents/skills`; 이 저장소의 개발 projection은 `AGENTS.md` 호환 섹션도 유지
+- **Grok**: 설치 시 `.grok/skills`
 
 ## Documentation
 

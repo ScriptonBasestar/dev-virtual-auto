@@ -1,0 +1,719 @@
+// Package skillinstall installs the DVA-owned Agent Skills without requiring an AI runtime.
+package skillinstall
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os"
+	pathpkg "path"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+
+	bundled "github.com/ScriptonBasestar/dva/skills"
+)
+
+type Scope string
+
+const (
+	ScopeUser    Scope = "user"
+	ScopeProject Scope = "project"
+)
+
+type Runtime string
+
+const (
+	RuntimeClaudeCode  Runtime = "claude-code"
+	RuntimeCodex       Runtime = "codex"
+	RuntimeOpenCode    Runtime = "opencode"
+	RuntimeGrok        Runtime = "grok"
+	RuntimeAntigravity Runtime = "antigravity"
+)
+
+// Options supplies filesystem roots. Empty roots are resolved from the process environment.
+type Options struct {
+	Scope       Scope
+	Runtimes    []Runtime
+	HomeDir     string
+	ProjectRoot string
+	StateRoot   string
+	DryRun      bool
+	Version     string
+}
+
+type Result struct {
+	Scope        Scope               `json:"scope"`
+	Destinations []DestinationResult `json:"destinations"`
+}
+
+type DestinationResult struct {
+	Destination        string    `json:"destination"`
+	Runtimes           []Runtime `json:"runtimes"`
+	Skills             []string  `json:"skills"`
+	Status             string    `json:"status"`
+	Detail             string    `json:"detail,omitempty"`
+	SourceVersion      string    `json:"source_version,omitempty"`
+	SourceBundleSHA    string    `json:"source_bundle_sha256,omitempty"`
+	InstalledVersion   string    `json:"installed_version,omitempty"`
+	InstalledBundleSHA string    `json:"installed_bundle_sha256,omitempty"`
+}
+
+type receipt struct {
+	Schema      int        `json:"schema"`
+	Scope       Scope      `json:"scope"`
+	Destination string     `json:"destination"`
+	Runtimes    []Runtime  `json:"runtimes"`
+	Version     string     `json:"version"`
+	BundleSHA   string     `json:"bundle_sha256"`
+	Files       []fileHash `json:"files"`
+}
+
+type fileHash struct {
+	Path string `json:"path"`
+	SHA  string `json:"sha256"`
+}
+
+type destination struct {
+	path     string
+	runtimes []Runtime
+}
+
+// DefaultRuntimes returns every runtime with a native Agent Skills directory format.
+func DefaultRuntimes() []Runtime {
+	return []Runtime{RuntimeClaudeCode, RuntimeCodex, RuntimeOpenCode, RuntimeGrok, RuntimeAntigravity}
+}
+
+// Install copies the embedded skills into every selected native runtime directory.
+func Install(options Options) (Result, error) {
+	resolved, destinations, err := resolve(options)
+	if err != nil {
+		return Result{}, err
+	}
+	files, err := bundledFiles()
+	if err != nil {
+		return Result{}, err
+	}
+	bundleSHA := sourceBundleSHA(files)
+	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	for _, target := range destinations {
+		entry := resultEntry(target, resolved.Version, bundleSHA)
+		receiptPath := receiptPath(resolved.StateRoot, target.path)
+		existing, found, err := readReceipt(receiptPath)
+		if err != nil {
+			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
+		}
+		if found {
+			if err := validateReceipt(existing, resolved.Scope, target.path); err != nil {
+				return Result{}, err
+			}
+			if err := verifyInstalled(target.path, existing.Files); err != nil {
+				return Result{}, fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
+			}
+			if equalFiles(existing.Files, files) && containsRuntimes(existing.Runtimes, target.runtimes) {
+				entry.Status = "up-to-date"
+				result.Destinations = append(result.Destinations, entry)
+				continue
+			}
+		} else if err := ensureNoCollision(target.path); err != nil {
+			return Result{}, err
+		}
+
+		if resolved.DryRun {
+			entry.Status = "would-install"
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		if found && equalFiles(existing.Files, files) {
+			existing.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
+			if err := writeReceipt(receiptPath, existing); err != nil {
+				return Result{}, fmt.Errorf("update receipt: %w", err)
+			}
+			entry.Status = "installed"
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		if err := ensureDestination(target.path); err != nil {
+			return Result{}, err
+		}
+		undo, finalize, err := replaceSkillDirectories(target.path, files)
+		if err != nil {
+			return Result{}, err
+		}
+		newReceipt := receipt{Schema: 1, Scope: resolved.Scope, Destination: target.path, Runtimes: target.runtimes, Version: resolved.Version, BundleSHA: bundleSHA, Files: files}
+		if found {
+			newReceipt.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
+		}
+		if err := writeReceipt(receiptPath, newReceipt); err != nil {
+			if rollbackErr := undo(); rollbackErr != nil {
+				return Result{}, fmt.Errorf("write receipt: %w (rollback also failed: %v)", err, rollbackErr)
+			}
+			return Result{}, fmt.Errorf("write receipt: %w", err)
+		}
+		if err := finalize(); err != nil {
+			return Result{}, fmt.Errorf("clean up replaced DVA skill directories: %w", err)
+		}
+		entry.Status = "installed"
+		result.Destinations = append(result.Destinations, entry)
+	}
+	return result, nil
+}
+
+// Status reports whether every requested destination is installed and unmodified.
+func Status(options Options) (Result, error) {
+	resolved, destinations, err := resolve(options)
+	if err != nil {
+		return Result{}, err
+	}
+	files, err := bundledFiles()
+	if err != nil {
+		return Result{}, err
+	}
+	bundleSHA := sourceBundleSHA(files)
+	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	for _, target := range destinations {
+		entry := resultEntry(target, resolved.Version, bundleSHA)
+		record, found, err := readReceipt(receiptPath(resolved.StateRoot, target.path))
+		if err != nil {
+			entry.Status, entry.Detail = "invalid-receipt", err.Error()
+		} else if !found {
+			if hasForeignCollision(target.path) {
+				entry.Status = "foreign-conflict"
+			} else {
+				entry.Status = "absent"
+			}
+		} else if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
+			entry.Status, entry.Detail = "invalid-receipt", err.Error()
+		} else if !containsRuntimes(record.Runtimes, target.runtimes) {
+			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
+			entry.Status = "absent"
+		} else if err := verifyInstalled(target.path, record.Files); err != nil {
+			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
+			entry.Status, entry.Detail = "drifted", err.Error()
+		} else {
+			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
+			entry.Status = "installed"
+		}
+		result.Destinations = append(result.Destinations, entry)
+	}
+	return result, nil
+}
+
+// Uninstall removes only a verified DVA-owned installation.
+func Uninstall(options Options) (Result, error) {
+	resolved, destinations, err := resolve(options)
+	if err != nil {
+		return Result{}, err
+	}
+	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	for _, target := range destinations {
+		entry := resultEntry(target, "", "")
+		receiptFile := receiptPath(resolved.StateRoot, target.path)
+		record, found, err := readReceipt(receiptFile)
+		if err != nil {
+			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
+		}
+		if !found {
+			entry.Status = "not-installed"
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
+			return Result{}, err
+		}
+		if err := verifyInstalled(target.path, record.Files); err != nil {
+			return Result{}, fmt.Errorf("refusing to uninstall drifted DVA skill installation at %s: %w", target.path, err)
+		}
+		if resolved.DryRun {
+			entry.Status = "would-uninstall"
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		remaining := removeRuntimes(record.Runtimes, target.runtimes)
+		if len(remaining) > 0 {
+			record.Runtimes = remaining
+			if err := writeReceipt(receiptFile, record); err != nil {
+				return Result{}, fmt.Errorf("update receipt: %w", err)
+			}
+			entry.Status = "unlinked"
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		for _, name := range bundled.Names {
+			if err := os.RemoveAll(filepath.Join(target.path, name)); err != nil {
+				return Result{}, fmt.Errorf("remove DVA skill %s: %w", name, err)
+			}
+		}
+		if err := os.Remove(receiptFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return Result{}, fmt.Errorf("remove receipt: %w", err)
+		}
+		entry.Status = "uninstalled"
+		result.Destinations = append(result.Destinations, entry)
+	}
+	return result, nil
+}
+
+func resolve(options Options) (Options, []destination, error) {
+	if options.Scope != ScopeUser && options.Scope != ScopeProject {
+
+		return Options{}, nil, fmt.Errorf("skill install scope must be %q or %q", ScopeUser, ScopeProject)
+	}
+	if options.HomeDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return Options{}, nil, fmt.Errorf("resolve home directory: %w", err)
+		}
+		options.HomeDir = home
+	}
+	home, err := filepath.Abs(options.HomeDir)
+	if err != nil {
+		return Options{}, nil, err
+	}
+	options.HomeDir = home
+	if options.ProjectRoot == "" {
+		project, err := os.Getwd()
+		if err != nil {
+			return Options{}, nil, err
+		}
+		options.ProjectRoot = project
+	}
+	project, err := filepath.Abs(options.ProjectRoot)
+	if err != nil {
+		return Options{}, nil, err
+	}
+	options.ProjectRoot = project
+	if options.StateRoot == "" {
+		if xdg := os.Getenv("XDG_STATE_HOME"); xdg != "" {
+			options.StateRoot = filepath.Join(xdg, "dva")
+		} else {
+			options.StateRoot = filepath.Join(home, ".local", "state", "dva")
+		}
+	}
+	state, err := filepath.Abs(options.StateRoot)
+	if err != nil {
+		return Options{}, nil, err
+	}
+	options.StateRoot = state
+	if options.Version == "" {
+		options.Version = "unknown"
+	}
+	if len(options.Runtimes) == 0 {
+		options.Runtimes = DefaultRuntimes()
+	}
+	seen := map[Runtime]bool{}
+	groups := map[string][]Runtime{}
+	for _, runtime := range options.Runtimes {
+		if seen[runtime] {
+			continue
+		}
+		seen[runtime] = true
+		path, err := runtimePath(runtime, options.Scope, home, project)
+		if err != nil {
+			return Options{}, nil, err
+		}
+		groups[path] = append(groups[path], runtime)
+	}
+	paths := make([]string, 0, len(groups))
+	for path := range groups {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	destinations := make([]destination, 0, len(paths))
+	for _, path := range paths {
+		runtimes := groups[path]
+		slices.Sort(runtimes)
+		destinations = append(destinations, destination{path: path, runtimes: runtimes})
+	}
+	return options, destinations, nil
+}
+
+func runtimePath(runtime Runtime, scope Scope, home, project string) (string, error) {
+	var relative string
+	switch scope {
+	case ScopeUser:
+		switch runtime {
+		case RuntimeClaudeCode:
+			relative = ".claude/skills"
+		case RuntimeCodex:
+			relative = ".agents/skills"
+		case RuntimeOpenCode:
+			relative = ".config/opencode/skills"
+		case RuntimeGrok:
+			relative = ".grok/skills"
+		case RuntimeAntigravity:
+			relative = ".gemini/config/skills"
+		default:
+			return "", fmt.Errorf("unsupported skill runtime %q", runtime)
+		}
+		return filepath.Join(home, relative), nil
+	case ScopeProject:
+		switch runtime {
+		case RuntimeClaudeCode:
+			relative = ".claude/skills"
+		case RuntimeCodex, RuntimeAntigravity:
+			relative = ".agents/skills"
+		case RuntimeOpenCode:
+			relative = ".opencode/skills"
+		case RuntimeGrok:
+			relative = ".grok/skills"
+		default:
+			return "", fmt.Errorf("unsupported skill runtime %q", runtime)
+		}
+		return filepath.Join(project, relative), nil
+	default:
+		return "", fmt.Errorf("unsupported skill scope %q", scope)
+	}
+}
+
+func resultEntry(target destination, version, bundleSHA string) DestinationResult {
+	return DestinationResult{
+		Destination: target.path, Runtimes: append([]Runtime(nil), target.runtimes...),
+		Skills: append([]string(nil), bundled.Names...), SourceVersion: version, SourceBundleSHA: bundleSHA,
+	}
+}
+
+func bundledFiles() ([]fileHash, error) {
+	var files []fileHash
+	for _, name := range bundled.Names {
+		err := fs.WalkDir(bundled.Files, name, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			contents, err := bundled.Files.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			digest := sha256.Sum256(contents)
+			files = append(files, fileHash{Path: filepath.ToSlash(path), SHA: hex.EncodeToString(digest[:])})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+func ensureDestination(path string) error {
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlink skill destination %s", path)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return os.MkdirAll(path, 0o755)
+}
+
+func ensureNoCollision(destination string) error {
+	if info, err := os.Lstat(destination); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlink skill destination %s", destination)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	for _, name := range bundled.Names {
+		if _, err := os.Lstat(filepath.Join(destination, name)); err == nil {
+			return fmt.Errorf("refusing collision at %s; no DVA receipt exists", filepath.Join(destination, name))
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
+}
+
+func hasForeignCollision(destination string) bool {
+	for _, name := range bundled.Names {
+		if _, err := os.Lstat(filepath.Join(destination, name)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func verifyInstalled(destination string, expected []fileHash) error {
+	actual, err := installedFiles(destination)
+	if err != nil {
+		return err
+	}
+	if !equalFiles(expected, actual) {
+		return errors.New("installed files differ from DVA receipt")
+	}
+	return nil
+}
+
+func installedFiles(destination string) ([]fileHash, error) {
+	var files []fileHash
+	for _, name := range bundled.Names {
+		root := filepath.Join(destination, name)
+		info, err := os.Lstat(root)
+		if err != nil {
+			return nil, err
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%s is not a regular skill directory", root)
+		}
+		err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return fmt.Errorf("skill file %s is a symlink", path)
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			if !entry.Type().IsRegular() {
+				return fmt.Errorf("skill file %s is not regular", path)
+			}
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			relative, err := filepath.Rel(destination, path)
+			if err != nil {
+				return err
+			}
+			digest := sha256.Sum256(contents)
+			files = append(files, fileHash{Path: filepath.ToSlash(relative), SHA: hex.EncodeToString(digest[:])})
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+func equalFiles(left, right []fileHash) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+func sourceBundleSHA(files []fileHash) string {
+	hash := sha256.New()
+	for _, file := range files {
+		_, _ = hash.Write([]byte(file.Path))
+		_, _ = hash.Write([]byte{0})
+		_, _ = hash.Write([]byte(file.SHA))
+		_, _ = hash.Write([]byte{0})
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func containsRuntimes(have, wanted []Runtime) bool {
+	set := make(map[Runtime]bool, len(have))
+	for _, runtime := range have {
+		set[runtime] = true
+	}
+	for _, runtime := range wanted {
+		if !set[runtime] {
+			return false
+		}
+	}
+	return true
+}
+
+func unionRuntimes(left, right []Runtime) []Runtime {
+	set := make(map[Runtime]bool, len(left)+len(right))
+	for _, runtime := range append(append([]Runtime(nil), left...), right...) {
+		set[runtime] = true
+	}
+	result := make([]Runtime, 0, len(set))
+	for runtime := range set {
+		result = append(result, runtime)
+	}
+	slices.Sort(result)
+	return result
+}
+
+func removeRuntimes(have, removed []Runtime) []Runtime {
+	remove := make(map[Runtime]bool, len(removed))
+	for _, runtime := range removed {
+		remove[runtime] = true
+	}
+	var result []Runtime
+	for _, runtime := range have {
+		if !remove[runtime] {
+			result = append(result, runtime)
+		}
+	}
+	slices.Sort(result)
+	return result
+}
+
+func replaceSkillDirectories(destination string, files []fileHash) (func() error, func() error, error) {
+	stage, err := os.MkdirTemp(destination, ".dva-skill-stage-")
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, file := range files {
+		if err := writeEmbedded(filepath.Join(stage, filepath.FromSlash(file.Path)), file.Path); err != nil {
+			_ = os.RemoveAll(stage)
+			return nil, nil, err
+		}
+	}
+	type move struct{ final, backup string }
+	moves := make([]move, 0, len(bundled.Names))
+	for _, name := range bundled.Names {
+		final := filepath.Join(destination, name)
+		backup := filepath.Join(stage, name+".backup")
+		if _, err := os.Lstat(final); err == nil {
+			if err := os.Rename(final, backup); err != nil {
+				_ = os.RemoveAll(stage)
+				return nil, nil, err
+			}
+			moves = append(moves, move{final: final, backup: backup})
+		} else if !errors.Is(err, os.ErrNotExist) {
+			_ = os.RemoveAll(stage)
+			return nil, nil, err
+		} else {
+			moves = append(moves, move{final: final})
+		}
+		if err := os.Rename(filepath.Join(stage, name), final); err != nil {
+			for index := range slices.Backward(moves) {
+				_ = os.RemoveAll(moves[index].final)
+				if moves[index].backup != "" {
+					_ = os.Rename(moves[index].backup, moves[index].final)
+				}
+			}
+			_ = os.RemoveAll(stage)
+			return nil, nil, err
+		}
+	}
+	undo := func() error {
+		var rollback error
+		for index := range slices.Backward(moves) {
+			if err := os.RemoveAll(moves[index].final); err != nil && rollback == nil {
+				rollback = err
+			}
+			if moves[index].backup != "" {
+				if err := os.Rename(moves[index].backup, moves[index].final); err != nil && rollback == nil {
+					rollback = err
+				}
+			}
+		}
+		if err := os.RemoveAll(stage); err != nil && rollback == nil {
+			rollback = err
+		}
+		return rollback
+	}
+	finalize := func() error { return os.RemoveAll(stage) }
+	return undo, finalize, nil
+}
+
+func writeEmbedded(destination, embeddedPath string) error {
+	contents, err := bundled.Files.ReadFile(embeddedPath)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destination, contents, 0o644)
+}
+
+func receiptPath(stateRoot, destination string) string {
+	digest := sha256.Sum256([]byte(destination))
+	return filepath.Join(stateRoot, "skill-installs", hex.EncodeToString(digest[:])+".json")
+}
+
+func readReceipt(path string) (receipt, bool, error) {
+	contents, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return receipt{}, false, nil
+	}
+	if err != nil {
+		return receipt{}, false, err
+	}
+	var record receipt
+	if err := json.Unmarshal(contents, &record); err != nil {
+		return receipt{}, false, err
+	}
+	return record, true, nil
+}
+
+func validateReceipt(record receipt, scope Scope, destination string) error {
+	if record.Schema != 1 || record.Scope != scope || record.Destination != destination {
+		return fmt.Errorf("receipt does not belong to %s", destination)
+	}
+	if len(record.Files) == 0 || record.Version == "" || !validSHA(record.BundleSHA) {
+		return errors.New("receipt has invalid source metadata")
+	}
+	if !sort.SliceIsSorted(record.Files, func(i, j int) bool { return record.Files[i].Path < record.Files[j].Path }) {
+		return errors.New("receipt files are not sorted")
+	}
+	for _, file := range record.Files {
+		if !validReceiptPath(file.Path) || !validSHA(file.SHA) {
+			return errors.New("receipt contains an invalid file record")
+		}
+	}
+	return nil
+}
+
+func validReceiptPath(value string) bool {
+	if value == "" || strings.HasPrefix(value, "/") || strings.Contains(value, `\`) || pathpkg.Clean(value) != value {
+		return false
+	}
+	parts := strings.Split(value, "/")
+	if len(parts) < 2 || (parts[0] != "dva" && parts[0] != "dva-config") {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+func validSHA(value string) bool {
+	decoded, err := hex.DecodeString(value)
+	return err == nil && len(decoded) == sha256.Size
+}
+
+func writeReceipt(path string, record receipt) error {
+	contents, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return err
+	}
+	contents = append(contents, '\n')
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	temp, err := os.CreateTemp(filepath.Dir(path), ".receipt-")
+	if err != nil {
+		return err
+	}
+	tempName := temp.Name()
+	defer func() { _ = os.Remove(tempName) }()
+	if err := temp.Chmod(0o600); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if _, err := temp.Write(contents); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return err
+	}
+	if err := temp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tempName, path)
+}

@@ -338,12 +338,19 @@ func buildManifest(c *config.Config) *Manifest {
 				},
 			},
 			"console": {Type: "passthrough"},
-			"status":  {Type: "query"},
-			"show":    {Type: "query"},
-			"doctor":  {Type: "query"},
-			"config":  {Type: "config"},
-			"init":    {Type: "config"},
-			"help":    {Type: "meta"},
+			"skill": {
+				Type: "meta",
+				Options: map[string]string{
+					"scope":   "Installation scope: user or project",
+					"runtime": "Target runtime(s): claude-code, codex, opencode, grok, antigravity",
+				},
+			},
+			"status": {Type: "query"},
+			"show":   {Type: "query"},
+			"doctor": {Type: "query"},
+			"config": {Type: "config"},
+			"init":   {Type: "config"},
+			"help":   {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
 			// call, so a reader grepping for AddCommand finds 21 and this table lists 23.
 			"completion": {Type: "meta"},

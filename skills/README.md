@@ -44,7 +44,9 @@ regeneration:
   `.opencode/skills/<name>/SKILL.md`; unknown frontmatter ignored; `name` must match
   the dir). Ref: opencode.ai/docs/skills
 
-Only **Cursor** (`.mdc`) and **Codex** (`AGENTS.md`) require real conversion.
+Only **Cursor** (`.mdc`) and the repository's **Codex compatibility projection** (`AGENTS.md`)
+require real conversion. Current Codex can also consume Agent Skills natively; the binary
+installer uses `.agents/skills` instead of editing instruction files.
 
 ## Canonical frontmatter
 
@@ -72,7 +74,7 @@ symlink — no field mapping. Only the two converted targets remap fields:
 | Canonical            | Agent-Skills targets | Cursor `.mdc`      | Codex (`AGENTS.md`) |
 | -------------------- | -------------------- | ------------------ | ------------------- |
 | `name`               | as-is                | filename           | section heading     |
-| `description`        | as-is                | `description`      | prose "use when…" line |
+| `description`        | as-is                | `description`      | prose "use when…" line (compatibility projection) |
 | `x-targets.*.globs`  | ignored              | `globs`            | —                   |
 | `x-targets.*.alwaysApply` | ignored         | `alwaysApply`      | (always present)    |
 | `allowed-tools`      | as-is / ignored      | dropped            | dropped             |
@@ -103,7 +105,7 @@ Defined in [`_targets.yaml`](./_targets.yaml), all verified against current docs
 | Antigravity  | `.agents/skills`                | symlink (committed) |
 | OpenCode     | `.opencode/skills`              | symlink (gitignored → local) |
 | Cursor       | `.cursor/rules/*.mdc`           | generated (gitignored → local) |
-| Codex        | `AGENTS.md` marked section      | generated (committed) |
+| Codex compatibility | `AGENTS.md` marked section | generated (committed) |
 
 `make generate` reproduces every row (symlinks are ensured idempotently), so a
 fresh clone materializes the gitignored ones locally.
@@ -115,6 +117,24 @@ fresh clone materializes the gitignored ones locally.
 3. **Generate** platform artifacts (Phase 3 — `make generate`; until then Cursor
    is hand-converted per this spec).
 4. **Verify** generated outputs are fresh in CI (`generate` then `git diff --exit-code`).
+
+## Binary installation
+
+`make generate` projects skills only inside a DVA source checkout. It is not a user-level
+installer, and `make install` installs only the `dva` binary. Released binaries embed the two
+canonical skill directories and expose deterministic installation without an AI agent:
+
+```bash
+dva skill install
+dva skill status
+dva skill uninstall
+```
+
+The native installer copies `dva` and `dva-config` to the selected runtime discovery paths,
+records hashes under the user's XDG state directory, refuses unmanaged collisions, and removes
+only unchanged DVA-owned files. See [USAGE.md](../USAGE.md#ai-스킬-설치) for runtime paths and
+scope options. Agent Mesh and the Antigravity CLI flat formats require adapters and are not
+native installer targets.
 
 Do not edit generated artifacts (`.cursor/rules/*`, the `AGENTS.md` skills section,
 `claude-plugin/skills`). Edit the canonical skill and regenerate.

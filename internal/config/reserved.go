@@ -17,6 +17,7 @@ var reservedCommands = map[string]bool{
 	"ktl": true, "ssh": true, "console": true,
 	"completion": true, "init": true, "status": true, "config": true,
 	"logs": true, "restart": true, "show": true, "doctor": true,
+	"skill": true,
 }
 
 // hookableCommands is the subset of reserved commands that support

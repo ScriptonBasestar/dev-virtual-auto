@@ -49,8 +49,9 @@ targets:
     default_alwaysApply: false
 
   codex:
-    # The only true AGENTS.md target. Codex has no SKILL.md concept, so skills
-    # project to a non-destructive marked section (pointer-only: always-injected).
+    # Compatibility projection for source checkouts that consume repository AGENTS.md.
+    # Current Codex also reads .agents/skills natively; `dva skill install` uses that
+    # discovery path. Keep this pointer-only projection for existing checkout workflows.
     shape: agents-md
     output: AGENTS.md
     merge: section            # replace only the marked block

@@ -28,7 +28,7 @@ func TestIsFlag(t *testing.T) {
 
 func TestIsTopLevelCommand(t *testing.T) {
 	// Known built-in commands should return true
-	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", config.LogsDirName, "build", "restart", "validate", "manifest", "provision", "ssh", "console", "ls"}
+	builtins := []string{"run", "up", "down", "stop", "status", "show", "init", "version", "compose", config.LogsDirName, "build", "restart", "validate", "manifest", "provision", "ssh", "console", "skill", "ls"}
 	for _, cmd := range builtins {
 		if !isTopLevelCommand(cmd) {
 			t.Errorf("isTopLevelCommand(%q) = false, want true", cmd)

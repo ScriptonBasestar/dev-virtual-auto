@@ -29,9 +29,53 @@
 | `dva stop <NAME>` | named execution entry 중지 |
 | `dva status [NAME]` | 실행 상태 표시 |
 | `dva version` | 버전 표시 |
+| `dva skill install/status/uninstall` | 내장 AI 스킬 설치 상태 관리 |
 
 `dva run`은 생략 가능합니다. `dva shell`은 `dva run shell`과 동일합니다.
 `namespace:command` 문법도 지원합니다 (예: `dva engine:test`).
+
+### AI 스킬 설치
+
+`make install`은 바이너리만 설치합니다. 바이너리에 포함된 정본 스킬 `dva`와
+`dva-config`는 AI 에이전트 없이 다음 명령으로 복사 설치합니다. 기본 scope는 `user`,
+기본 runtime은 지원 대상 전체입니다.
+
+```bash
+dva skill install
+dva skill install --runtime claude-code,codex,opencode,grok,antigravity
+dva skill install --scope project --runtime codex,opencode
+dva skill status --json
+dva skill uninstall --runtime grok
+
+# 실제 파일과 receipt를 바꾸지 않고 충돌까지 미리 검사
+dva skill install --dry-run
+dva skill uninstall --dry-run --runtime claude-code
+```
+
+| Runtime | User scope | Project scope |
+|---------|------------|---------------|
+| Claude Code | `~/.claude/skills` | `.claude/skills` |
+| Codex | `~/.agents/skills` | `.agents/skills` |
+| OpenCode | `~/.config/opencode/skills` | `.opencode/skills` |
+| Grok | `~/.grok/skills` | `.grok/skills` |
+| Antigravity IDE | `~/.gemini/config/skills` | `.agents/skills` |
+
+프로젝트 scope에서 Codex와 Antigravity IDE는 같은 `.agents/skills`를 공유하므로 한 번만
+복사하고 receipt에서 두 runtime의 소유 관계를 함께 기록합니다. 설치 상태는
+`$XDG_STATE_HOME/dva/skill-installs/` 아래 receipt로 관리하며, `XDG_STATE_HOME`이 없으면
+`~/.local/state/dva/skill-installs/`를 사용합니다.
+
+안전 규칙:
+
+- receipt 없는 동명 스킬이나 symlink는 덮어쓰지 않습니다.
+- 설치 뒤 수정된 파일은 update/uninstall하지 않고 `drifted`로 보고합니다.
+- `uninstall`은 receipt와 현재 SHA-256이 모두 일치하는 DVA 소유 파일만 제거합니다.
+- 과거 이름 `config`는 이름만 보고 삭제하지 않습니다.
+
+Agent Mesh는 flat Markdown을 별도 compile/sync하는 형식이라 1차 native installer에서
+제외됩니다. Antigravity CLI(`agy`)의 flat skill 형식도 Antigravity IDE와 다르므로 이
+runtime 이름은 IDE만 뜻합니다. Agent Mesh 및 `agy` 지원은 변환 adapter가 추가된 뒤
+별도 계약으로 제공합니다.
 
 #### init (config init)
 
@@ -1034,4 +1078,3 @@ dva validate
 어느 스냅샷을 고를지, 스냅샷이 덮지 않는 변경, 보존 정리는
 [docs/50-improve-flow-backup-and-restore.md](docs/50-improve-flow-backup-and-restore.md)
 를 참조하세요.
-
