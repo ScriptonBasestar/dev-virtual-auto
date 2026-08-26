@@ -7,7 +7,30 @@ effort: S
 created-at: 2026-08-20T14:08:00+09:00
 source: "found by the TASK-198 corpus sweep, which was sized from these comments and expected a backlog of 5 unguarded call sites that does not exist"
 scope: "Comments only, five sites: internal/cli/compose.go:846-847, internal/cli/flagtoken.go:131-132, internal/cli/build_flag_leak_test.go:5, internal/cli/flagtoken_test.go:214. No behaviour change."
-status: todo
+status: done
+completed-at: 2026-08-26T12:28:07+09:00
+completion-summary: "Replace stale parseDvaFlags call-site totals with stable descriptions of each rejection path."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/cli/ -count=1 && dva test"
+    result: "passed; full race and coverage suite completed with internal/cli at 75.6%"
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: "passed all Markdown, CI label, and flow decision-path gates"
+  - kind: manual
+    command-or-step: "enumerate parseDvaFlags calls and trace leftover rejection"
+    result: "six calls: up, teardownCommon, restart own rejection; down and stop reparse after teardownCommon; build deliberately passes through"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:29:34+09:00
+quality-review-evidence:
+  - "independent reviewer re-derived all six parseDvaFlags calls and confirmed the rejection-path classification"
+  - "all stale 12/7/5 call-site assertions are gone and the diff changes comments only"
+  - "focused tests, doccheck, and diff validation passed with no findings"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-208-review-receipt.json
+archived-at: 2026-08-26T12:30:21+09:00
+verified-at: 2026-08-26T12:30:21+09:00
+verification-summary: "All stale parseDvaFlags call-site totals were removed and replaced by source-derived rejection-path descriptions without behavior changes."
 ---
 
 # Task 208: Five comments size the flag-fallthrough class at 12 call sites; the real count is 6
@@ -76,12 +99,20 @@ comment, or drop the count and describe the property instead.
 
 ## Completion Criteria
 
-- [ ] No comment in `internal/` states a 12-call-site figure for `parseDvaFlags` | verify: `grep -rc '12 call sites\|All 12 callers\|of the 12 call' internal/ | grep -v ':0' | wc -l` returns 0 (today: 4, the five sites live in four files)
-- [ ] Any surviving count names the command that produces it, so the next reader can re-measure | verify: human — read the five sites and confirm each number is either removed or accompanied by its extraction
-- [ ] The split is re-derived rather than halved | verify: human — the disposition states the new classification and the command used, not just the new totals
-- [ ] No behaviour change: the two test files still pass unchanged in intent | verify: `go test ./internal/cli/ -count=1`
-- [ ] `make test` passes | verify: `make test`
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] No comment in `internal/` states a 12-call-site figure for `parseDvaFlags` | verify: `grep -rc '12 call sites\|All 12 callers\|of the 12 call' internal/ | grep -v ':0' | wc -l` returns 0 (today: 4, the five sites live in four files)
+- [x] Any surviving count names the command that produces it, so the next reader can re-measure | verify: human — read the five sites and confirm each number is either removed or accompanied by its extraction
+- [x] The split is re-derived rather than halved | verify: human — the disposition states the new classification and the command used, not just the new totals
+- [x] No behaviour change: the two test files still pass unchanged in intent | verify: `go test ./internal/cli/ -count=1`
+- [x] `make test` passes | verify: `make test`
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+
+## Resolution
+
+Removed the obsolete 12/7/5 figures from all five comment sites. Re-running the card's
+`parseDvaFlags` extraction finds six calls: `up`, `teardownCommon`, and `restart` own a
+leftover rejection; `down` and `stop` perform a second parse only after `teardownCommon`
+has rejected leftovers; `build` deliberately forwards unknown arguments. The implementation
+and test intent are unchanged.
 
 ## References
 

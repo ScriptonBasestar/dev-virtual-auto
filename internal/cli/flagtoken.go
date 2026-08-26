@@ -117,8 +117,9 @@ func dvaFlagEnd(args []string) int {
 //	                                  that went with `dva infra`.)
 //
 // parseDvaFlags used to instead leave the token in filtered "for its caller's own
-// unknown-flag rejection to name". That held for 7 of its 12 call sites. The other 5 have no
-// rejection behind them, and on `dva build` the leftover *is* the external argv, so
+// unknown-flag rejection to name". That held only on command paths that explicitly reject
+// leftovers. Other paths have no rejection behind them, and on `dva build` the leftover *is*
+// the external argv, so
 // `--debug=notabool` was appended to docker's command line — the same leak TASK-145 closed,
 // in the one spelling it did not claim. The promise could not be kept there even in
 // principle: `dva build` must forward the flags it does not recognise, because `--no-cache`

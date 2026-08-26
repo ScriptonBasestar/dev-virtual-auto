@@ -2,8 +2,8 @@
 //
 // TASK-145 stopped DVA's own flags reaching docker, but left one spelling out of scope: a
 // *malformed* boolean. parseDvaFlags dropped it into `filtered` "for the caller's own
-// unknown-flag rejection to name", which 7 of its 12 call sites have. `dva build` is not one
-// of them — its leftovers are docker's argv. Measured 2026-08-03 on 53cdba2 with an
+// unknown-flag rejection to name". `dva build` has no such rejection — its leftovers are
+// docker's argv. Measured 2026-08-03 on 53cdba2 with an
 // argv-recording docker shim:
 //
 //	dva build --debug=notabool  -> compose -f <file> build --debug=notabool

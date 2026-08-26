@@ -212,8 +212,8 @@ func TestParseDvaFlagValueShapes(t *testing.T) {
 		},
 		{
 			// Not a boolean, so rejected here. It used to land in filtered "for the caller's
-			// own rejectUnknownFlags to name" — which 5 of the 12 call sites do not have, and
-			// on `dva build` filtered is docker's argv. TASK-172.
+			// own rejectUnknownFlags to name". Some paths have no such rejection, and on
+			// `dva build` filtered is docker's argv. TASK-172.
 			name:    "malformed bool is rejected, not passed down",
 			in:      []string{"--debug=notabool", "pg"},
 			wantErr: true,

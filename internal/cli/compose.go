@@ -847,9 +847,8 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// anything reads the values it keeps filling in. Every caller checks err before touching
 	// any other return value, so those values are never observed.
 	//
-	// Both sentences carried a count until TASK-213 — "7 of the 12 call sites" and "all 12
-	// callers" — and by then the real numbers were 2 and 6. Neither was ever reread, which is
-	// TASK-208's subject exactly. They are stated as properties now; the counts are one
+	// Both sentences carried stale call-site counts until TASK-213. Neither was ever reread,
+	// which is TASK-208's subject exactly. They are stated as properties now; the counts are one
 	// command away and belong in a commit message rather than in a comment that outlives it:
 	//   grep -n 'parseDvaFlags(args)' internal/cli/*.go | grep -v _test  # callers: 6 today
 	//   grep -n 'rejectUnknownFlags(' internal/cli/*.go | grep -v _test | grep -v 'func '  # call sites: 2, upCmd + restartCmd
