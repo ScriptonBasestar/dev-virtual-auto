@@ -32,6 +32,7 @@ func TestExecutableFileRequiresAbsoluteExecutableRegularFile(t *testing.T) {
 func TestRequireDestinationStatusSet(t *testing.T) {
 	project := "/fixture"
 	result := commandResult{Results: []destinationResult{
+		{Destination: "/fixture/.agent-mesh/skills/dva", Status: "installed", Runtimes: []string{"agent-mesh"}, RuntimeStatuses: []runtimeStatus{{Runtime: "agent-mesh", Status: "installed"}}},
 		{Destination: "/fixture/.agents/skills", Status: "installed", Runtimes: []string{"antigravity", "codex"}, RuntimeStatuses: []runtimeStatus{{Runtime: "antigravity", Status: "installed"}, {Runtime: "codex", Status: "installed"}}},
 		{Destination: "/fixture/.claude/skills", Status: "installed", Runtimes: []string{"claude-code"}, RuntimeStatuses: []runtimeStatus{{Runtime: "claude-code", Status: "installed"}}},
 		{Destination: "/fixture/.grok/skills", Status: "installed", Runtimes: []string{"grok"}, RuntimeStatuses: []runtimeStatus{{Runtime: "grok", Status: "installed"}}},

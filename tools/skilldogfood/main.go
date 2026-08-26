@@ -20,8 +20,16 @@ import (
 	"time"
 )
 
-const allNativeRuntimes = "claude-code,codex,opencode,grok,antigravity"
+const allSkillRuntimes = "claude-code,codex,opencode,grok,antigravity,agent-mesh"
 const commandStderrLimit = 8 * 1024
+
+var runtimeDestinations = map[string][]string{
+	".agent-mesh/skills/dva": {"agent-mesh"},
+	".agents/skills":         {"antigravity", "codex"},
+	".claude/skills":         {"claude-code"},
+	".grok/skills":           {"grok"},
+	".opencode/skills":       {"opencode"},
+}
 
 type commandResult struct {
 	Operation string              `json:"operation"`
@@ -43,6 +51,7 @@ type runtimeStatus struct {
 }
 type receiptRecord struct {
 	Schema      int        `json:"schema"`
+	Format      string     `json:"format"`
 	Scope       string     `json:"scope"`
 	Destination string     `json:"destination"`
 	Runtimes    []string   `json:"runtimes"`
@@ -309,7 +318,7 @@ func verifyFlowDryRun(inv invocation, flowRoot string) (err error) {
 		}
 	}
 	dryRun := invocation{binary: inv.binary, env: withEnvironment(inv.env, dryRoots)}
-	result, err := dryRun.json(flowRoot, "skill", "install", "--scope", "project", "--runtime", allNativeRuntimes, "--dry-run")
+	result, err := dryRun.json(flowRoot, "skill", "install", "--scope", "project", "--runtime", allSkillRuntimes, "--dry-run")
 	if err != nil {
 		return fmt.Errorf("run project-scope dry-run: %w", err)
 	}
@@ -345,7 +354,7 @@ func verifyFlowDryRun(inv invocation, flowRoot string) (err error) {
 }
 
 func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
-	installed, err := inv.json(project, "skill", "install", "--scope", "project", "--runtime", allNativeRuntimes)
+	installed, err := inv.json(project, "skill", "install", "--scope", "project", "--runtime", allSkillRuntimes)
 	if err != nil {
 		return fmt.Errorf("install isolated fixture: %w", err)
 	}
@@ -356,7 +365,7 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 		return fmt.Errorf("install result: %w", err)
 	}
 
-	status, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", allNativeRuntimes)
+	status, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", allSkillRuntimes)
 	if err != nil {
 		return fmt.Errorf("check installed fixture status: %w", err)
 	}
@@ -405,7 +414,7 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 		return fmt.Errorf("shared runtime unlink artifacts: %w", err)
 	}
 
-	removed, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", allNativeRuntimes)
+	removed, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", allSkillRuntimes)
 	if err != nil {
 		return fmt.Errorf("uninstall remaining fixture skills: %w", err)
 	}
@@ -413,12 +422,12 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 		return fmt.Errorf("remaining uninstall envelope: %w", err)
 	}
 	if err := requireDestinationStatusSet(project, removed, map[string]string{
-		".agents/skills": "uninstalled", ".claude/skills": "uninstalled", ".grok/skills": "uninstalled", ".opencode/skills": "uninstalled",
+		".agent-mesh/skills/dva": "uninstalled", ".agents/skills": "uninstalled", ".claude/skills": "uninstalled", ".grok/skills": "uninstalled", ".opencode/skills": "uninstalled",
 	}); err != nil {
 		return fmt.Errorf("remaining uninstall result: %w", err)
 	}
 
-	absent, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", allNativeRuntimes)
+	absent, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", allSkillRuntimes)
 	if err != nil {
 		return fmt.Errorf("check removed fixture status: %w", err)
 	}
@@ -435,9 +444,9 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 }
 
 func verifyOwnedArtifacts(project, stateRoot string) error {
-	for suffix, runtimes := range map[string][]string{".agents/skills": {"antigravity", "codex"}, ".claude/skills": {"claude-code"}, ".grok/skills": {"grok"}, ".opencode/skills": {"opencode"}} {
+	for suffix, runtimes := range runtimeDestinations {
 		destination := filepath.Join(project, filepath.FromSlash(suffix))
-		files, err := installedSkillFiles(destination)
+		files, err := installedFilesFor(destination, suffix == ".agent-mesh/skills/dva")
 		if err != nil {
 			return err
 		}
@@ -445,7 +454,7 @@ func verifyOwnedArtifacts(project, stateRoot string) error {
 		if err != nil {
 			return err
 		}
-		if err := requireReceiptContract(destination, record, runtimes, files); err != nil {
+		if err := requireReceiptContract(destination, record, runtimes, files, receiptFormatForSuffix(suffix)); err != nil {
 			return err
 		}
 	}
@@ -462,7 +471,7 @@ func sharedReceiptSnapshot(project, stateRoot string) (receiptRecord, []fileHash
 	if err != nil {
 		return receiptRecord{}, nil, err
 	}
-	if err := requireReceiptContract(destination, record, []string{"antigravity", "codex"}, files); err != nil {
+	if err := requireReceiptContract(destination, record, []string{"antigravity", "codex"}, files, "agent-skills-directory"); err != nil {
 		return receiptRecord{}, nil, err
 	}
 	return record, files, nil
@@ -478,7 +487,7 @@ func verifySharedUnlink(project, stateRoot string, before receiptRecord, beforeF
 	if err != nil {
 		return err
 	}
-	if err := requireReceiptContract(destination, record, []string{"antigravity"}, files); err != nil {
+	if err := requireReceiptContract(destination, record, []string{"antigravity"}, files, "agent-skills-directory"); err != nil {
 		return err
 	}
 	return requireSharedUnlinkPreservation(destination, before, record, beforeFiles, files)
@@ -486,13 +495,16 @@ func verifySharedUnlink(project, stateRoot string, before receiptRecord, beforeF
 
 // requireSharedUnlinkPreservation pins the uninstall contract: removing one
 // runtime from a shared destination changes membership only. Installed bytes and
-// every other Schema 1 receipt field must remain exactly as they were before it.
+// every other receipt field must remain exactly as they were before it.
 func requireSharedUnlinkPreservation(destination string, before, after receiptRecord, beforeFiles, afterFiles []fileHash) error {
 	if !sameFiles(afterFiles, beforeFiles) {
 		return fmt.Errorf("shared installed files changed after unlink for %s", destination)
 	}
 	if before.Schema != after.Schema {
 		return fmt.Errorf("shared receipt schema changed after unlink for %s", destination)
+	}
+	if before.Format != after.Format {
+		return fmt.Errorf("shared receipt format changed after unlink for %s", destination)
 	}
 	if before.Scope != after.Scope {
 		return fmt.Errorf("shared receipt scope changed after unlink for %s", destination)
@@ -512,12 +524,15 @@ func requireSharedUnlinkPreservation(destination string, before, after receiptRe
 	return nil
 }
 
-// requireReceiptContract independently checks the installer's external Schema 1
+// requireReceiptContract independently checks the installer's external receipt
 // receipt. The black-box gate must not call internal/skillinstall's reader because
 // that would make the producer and verifier share the same decoding assumptions.
-func requireReceiptContract(destination string, record receiptRecord, runtimes []string, files []fileHash) error {
-	if record.Schema != 1 {
-		return fmt.Errorf("receipt for %s has schema=%d, want 1", destination, record.Schema)
+func requireReceiptContract(destination string, record receiptRecord, runtimes []string, files []fileHash, format string) error {
+	if record.Schema != 2 {
+		return fmt.Errorf("receipt for %s has schema=%d, want 2", destination, record.Schema)
+	}
+	if record.Format != format {
+		return fmt.Errorf("receipt for %s has format=%q, want %q", destination, record.Format, format)
 	}
 	if record.Scope != "project" {
 		return fmt.Errorf("receipt for %s has scope=%q, want project", destination, record.Scope)
@@ -544,7 +559,15 @@ func requireReceiptContract(destination string, record receiptRecord, runtimes [
 }
 
 func verifyArtifactsAbsent(project, stateRoot string) error {
-	for _, suffix := range []string{".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
+	for suffix := range runtimeDestinations {
+		if suffix == ".agent-mesh/skills/dva" {
+			for _, file := range []string{"dva.md", "dva-config.md"} {
+				if _, err := os.Lstat(filepath.Join(project, filepath.FromSlash(suffix), file)); !errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf("flat skill artifact remains at %s", filepath.Join(suffix, file))
+				}
+			}
+			continue
+		}
 		for _, skill := range []string{"dva", "dva-config"} {
 			if _, err := os.Lstat(filepath.Join(project, filepath.FromSlash(suffix), skill)); !errors.Is(err, os.ErrNotExist) {
 				return fmt.Errorf("skill artifact remains at %s", filepath.Join(suffix, skill))
@@ -603,6 +626,30 @@ func installedSkillFiles(destination string) ([]fileHash, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
+	return files, nil
+}
+
+func installedFilesFor(destination string, flat bool) ([]fileHash, error) {
+	if !flat {
+		return installedSkillFiles(destination)
+	}
+	files := make([]fileHash, 0, 2)
+	for _, name := range []string{"dva.md", "dva-config.md"} {
+		path := filepath.Join(destination, name)
+		info, err := os.Lstat(path)
+		if err != nil {
+			return nil, err
+		}
+		if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("invalid flat skill file %s", path)
+		}
+		digest, err := fileSHA256(path)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, fileHash{Path: name, SHA: digest})
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, nil
@@ -738,7 +785,7 @@ func formatGitTreeState(state gitTreeState) string {
 func snapshotRuntimePaths(root string) ([]treeEntry, error) {
 	var snapshot []treeEntry
 	seen := make(map[string]bool)
-	for _, relative := range []string{".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
+	for _, relative := range []string{".agent-mesh/skills/dva", ".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
 		if err := rejectSymlinkComponents(root, relative); err != nil {
 			return nil, err
 		}
@@ -787,7 +834,7 @@ func snapshotRuntimePaths(root string) ([]treeEntry, error) {
 					return err
 				}
 				managed, _, _ := strings.Cut(filepath.ToSlash(relativeToRuntime), "/")
-				if managed == "dva" || managed == "dva-config" {
+				if managed == "dva" || managed == "dva-config" || managed == "dva.md" || managed == "dva-config.md" {
 					return fmt.Errorf("refusing symlink managed skill target %s", current)
 				}
 				target, err := os.Readlink(current)
@@ -950,7 +997,7 @@ func requireEnvelope(result commandResult, operation string, dryRun bool) error 
 
 func requireDestinations(project string, result commandResult, status string) error {
 	expected := map[string]string{
-		".agents/skills": "", ".claude/skills": "", ".grok/skills": "", ".opencode/skills": "",
+		".agent-mesh/skills/dva": "", ".agents/skills": "", ".claude/skills": "", ".grok/skills": "", ".opencode/skills": "",
 	}
 	for suffix := range expected {
 		expected[suffix] = status
@@ -982,7 +1029,7 @@ func requireDestinationStatusSet(project string, result commandResult, expected 
 		if entry.Status != want {
 			return fmt.Errorf("%s has status %q, want %q", suffix, entry.Status, want)
 		}
-		wantRuntimes := map[string][]string{".agents/skills": {"antigravity", "codex"}, ".claude/skills": {"claude-code"}, ".grok/skills": {"grok"}, ".opencode/skills": {"opencode"}}[suffix]
+		wantRuntimes := runtimeDestinations[suffix]
 		if !sameStrings(entry.Runtimes, wantRuntimes) {
 			return fmt.Errorf("%s has runtimes=%v statuses=%d, want runtimes=%v", suffix, entry.Runtimes, len(entry.RuntimeStatuses), wantRuntimes)
 		}
@@ -1029,12 +1076,19 @@ func requireOnlyDestination(project string, result commandResult, suffix, status
 }
 
 func destinationSuffix(path string) (string, bool) {
-	for _, suffix := range []string{".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
+	for _, suffix := range []string{".agent-mesh/skills/dva", ".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
 		if strings.HasSuffix(filepath.ToSlash(path), suffix) {
 			return suffix, true
 		}
 	}
 	return "", false
+}
+
+func receiptFormatForSuffix(suffix string) string {
+	if suffix == ".agent-mesh/skills/dva" {
+		return "agent-mesh-flat-markdown"
+	}
+	return "agent-skills-directory"
 }
 
 func requireRuntimeStatuses(entry destinationResult, expected map[string]string) error {

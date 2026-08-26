@@ -81,11 +81,11 @@ dva skill uninstall --dry-run --runtime claude-code
 - 과거 이름 `config`는 이름만 보고 삭제하지 않습니다.
 
 Agent Mesh는 DVA namespace 아래에 `dva.md`, `dva-config.md`만 설치합니다. 이 파일은
-frontmatter를 제거하고 canonical body와 `references/*.md`를 이름순으로 inline한 생성물입니다.
-Agent Mesh가 relative reference bundle을 해석한다고 가정하지 않으므로 relative Markdown
-reference 링크는 canonical GitHub URL로 바꿉니다. `am skill sync`는 자동 실행하지 않습니다.
-필요한 환경에서는 설치 후 사용자가 직접 실행하세요. Antigravity CLI(`agy`)의 flat skill
-형식도 Antigravity IDE와 다르므로 이 runtime 이름은 IDE만 뜻합니다.
+frontmatter를 제거하고 canonical body, `references/*`, text `assets/*`를 경로순으로 inline한 생성물입니다.
+Agent Mesh가 local bundle을 해석한다고 가정하지 않으므로 local path는 해당 inline anchor로 바꿉니다.
+DVA의 책임은 파일 설치와 receipt 검증까지이며,
+`am skill sync`의 필요성·결과·다른 native target과의 상호작용은 이 설치 계약의 범위 밖입니다.
+Antigravity CLI(`agy`)의 flat skill 형식도 Antigravity IDE와 다르므로 이 runtime 이름은 IDE만 뜻합니다.
 
 #### init (config init)
 

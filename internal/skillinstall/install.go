@@ -73,6 +73,7 @@ type RuntimeStatus struct {
 
 type receipt struct {
 	Schema      int        `json:"schema"`
+	Format      string     `json:"format,omitempty"`
 	Scope       Scope      `json:"scope"`
 	Destination string     `json:"destination"`
 	Runtimes    []Runtime  `json:"runtimes"`
@@ -80,6 +81,12 @@ type receipt struct {
 	BundleSHA   string     `json:"bundle_sha256"`
 	Files       []fileHash `json:"files"`
 }
+
+const (
+	receiptSchemaCurrent = 2
+	receiptFormatNative  = "agent-skills-directory"
+	receiptFormatFlat    = "agent-mesh-flat-markdown"
+)
 
 type fileHash struct {
 	Path string `json:"path"`
@@ -125,7 +132,7 @@ func Install(options Options) (Result, error) {
 			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
 		}
 		if found {
-			if err := validateReceipt(existing, resolved.Scope, target.path); err != nil {
+			if err := validateReceipt(existing, resolved.Scope, target); err != nil {
 				return Result{}, err
 			}
 			if err := verifyInstalled(target.path, existing.Files); err != nil {
@@ -185,7 +192,7 @@ func Install(options Options) (Result, error) {
 		if err != nil {
 			return Result{}, err
 		}
-		newReceipt := receipt{Schema: 1, Scope: resolved.Scope, Destination: target.path, Runtimes: target.runtimes, Version: resolved.Version, BundleSHA: sourceBundleSHA(bundle.files), Files: bundle.files}
+		newReceipt := receipt{Schema: receiptSchemaCurrent, Format: targetReceiptFormat(target), Scope: resolved.Scope, Destination: target.path, Runtimes: target.runtimes, Version: resolved.Version, BundleSHA: sourceBundleSHA(bundle.files), Files: bundle.files}
 		if found {
 			newReceipt.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
 		}
@@ -229,7 +236,7 @@ func Status(options Options) (Result, error) {
 				entry.Status = "absent"
 			}
 			setAllRuntimeStatuses(&entry, entry.Status)
-		} else if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
+		} else if err := validateReceipt(record, resolved.Scope, target); err != nil {
 			entry.Status, entry.Detail = "invalid-receipt", err.Error()
 			setAllRuntimeStatuses(&entry, "invalid-receipt")
 		} else if err := verifyInstalled(target.path, record.Files); err != nil {
@@ -259,7 +266,7 @@ func Uninstall(options Options) (Result, error) {
 			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
 		}
 		if found {
-			if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
+			if err := validateReceipt(record, resolved.Scope, target); err != nil {
 				return Result{}, err
 			}
 			if installedRequested := intersectRuntimes(record.Runtimes, target.runtimes); len(installedRequested) > 0 {
@@ -902,9 +909,9 @@ func readReceipt(path string) (receipt, bool, error) {
 	return record, true, nil
 }
 
-func validateReceipt(record receipt, scope Scope, destination string) error {
-	if record.Schema != 1 || record.Scope != scope || record.Destination != destination {
-		return fmt.Errorf("receipt does not belong to %s", destination)
+func validateReceipt(record receipt, scope Scope, target destination) error {
+	if (record.Schema != 1 && record.Schema != receiptSchemaCurrent) || record.Scope != scope || record.Destination != target.path {
+		return fmt.Errorf("receipt does not belong to %s", target.path)
 	}
 	if len(record.Files) == 0 || record.Version == "" || !validSHA(record.BundleSHA) {
 		return errors.New("receipt has invalid source metadata")
@@ -912,18 +919,57 @@ func validateReceipt(record receipt, scope Scope, destination string) error {
 	if !sort.SliceIsSorted(record.Files, func(i, j int) bool { return record.Files[i].Path < record.Files[j].Path }) {
 		return errors.New("receipt files are not sorted")
 	}
+	format := receiptFormatForFiles(record.Files)
+	if format == "" || format != targetReceiptFormat(target) {
+		return errors.New("receipt file format does not match destination runtime")
+	}
+	if record.Schema == 1 {
+		if format != receiptFormatNative {
+			return errors.New("legacy receipt cannot describe a flat skill installation")
+		}
+	} else if record.Format != format {
+		return errors.New("receipt format does not match its files")
+	}
 	for _, file := range record.Files {
-		if !validReceiptPath(file.Path) || !validSHA(file.SHA) {
+		if !validSHA(file.SHA) {
 			return errors.New("receipt contains an invalid file record")
 		}
 	}
 	return nil
 }
 
-func validReceiptPath(value string) bool {
-	if value == "dva.md" || value == "dva-config.md" {
-		return true
+func targetReceiptFormat(target destination) string {
+	if hasRuntime(target.runtimes, RuntimeAgentMesh) {
+		return receiptFormatFlat
 	}
+	return receiptFormatNative
+}
+
+func receiptFormatForFiles(files []fileHash) string {
+	if len(files) == 0 {
+		return ""
+	}
+	flat := true
+	native := true
+	for _, file := range files {
+		flat = flat && (file.Path == "dva.md" || file.Path == "dva-config.md")
+		native = native && validNativeReceiptPath(file.Path)
+	}
+	switch {
+	case flat && !native:
+		return receiptFormatFlat
+	case native && !flat:
+		return receiptFormatNative
+	default:
+		return ""
+	}
+}
+
+func validReceiptPath(value string) bool {
+	return (value == "dva.md" || value == "dva-config.md") || validNativeReceiptPath(value)
+}
+
+func validNativeReceiptPath(value string) bool {
 	if value == "" || strings.HasPrefix(value, "/") || strings.Contains(value, `\`) || pathpkg.Clean(value) != value {
 		return false
 	}
