@@ -257,6 +257,9 @@ func TestInstallerOnlyTargetRollsBackEarlierReplacementAfterLaterRenameFailure(t
 		!strings.Contains(output, "rollback ledger: restored local destination") {
 		t.Fatalf("install did not report a successful rollback truthfully:\n%s", output)
 	}
+	if !strings.Contains(output, "atomic replacement failed for "+resolvedPath(t, goTarget)) {
+		t.Fatalf("install did not retain the failed Go destination path across rollback:\n%s", output)
+	}
 	assertFileBytesAndMode(t, localTarget, localBefore, localMode)
 	assertExistingBinary(t, goTarget)
 	assertNoInstallerArtifacts(t, localDir)
@@ -303,6 +306,8 @@ func TestInstallerOnlyTargetReportsRollbackFailureAndCleansBackup(t *testing.T) 
 	localDir := filepath.Join(fixture, "local", "bin")
 	goDir := filepath.Join(fixture, "go", "bin")
 	localTarget := writeExistingBinary(t, localDir)
+	localBefore := readFile(t, localTarget)
+	localMode := fileMode(t, localTarget)
 	goTarget := writeExistingBinary(t, goDir)
 	binDir := filepath.Join(fixture, "fake-bin")
 	countFile := filepath.Join(fixture, "mv-count")
@@ -319,16 +324,22 @@ func TestInstallerOnlyTargetReportsRollbackFailureAndCleansBackup(t *testing.T) 
 	}
 	if !strings.Contains(output, "atomic replacement failed") ||
 		!strings.Contains(output, "rollback failed") ||
-		!strings.Contains(output, "rollback failed: cannot restore local destination") {
+		!strings.Contains(output, "rollback failed: cannot restore local destination") ||
+		!strings.Contains(output, "recovery backup retained for local destination:") {
 		t.Fatalf("install did not distinguish rollback failure:\n%s", output)
 	}
 	assertSameBinary(t, source, localTarget)
 	assertExistingBinary(t, goTarget)
-	assertNoInstallerArtifacts(t, localDir)
+	recoveryBackup := onlyRecoveryBackup(t, localDir)
+	if !strings.Contains(output, recoveryBackup) {
+		t.Fatalf("rollback failure did not report the retained recovery backup %q:\n%s", recoveryBackup, output)
+	}
+	assertFileBytesAndMode(t, recoveryBackup, localBefore, localMode)
+	assertNoInstallerArtifactsExcept(t, localDir, recoveryBackup)
 	assertNoInstallerArtifacts(t, goDir)
 }
 
-func TestInstallerOnlyTargetReportsCompletedLedgerAfterVerificationFailure(t *testing.T) {
+func TestInstallerOnlyTargetRollsBackAfterVerificationFailure(t *testing.T) {
 	repo := repositoryRoot(t)
 	fixture := t.TempDir()
 	source := fixtureDVA(t, fixture)
@@ -354,14 +365,42 @@ func TestInstallerOnlyTargetReportsCompletedLedgerAfterVerificationFailure(t *te
 	}
 	if !strings.Contains(output, "fixture post-replacement hash failure") ||
 		!strings.Contains(output, "cannot hash local destination after replacement") ||
+		!strings.Contains(output, "rollback succeeded") ||
 		!strings.Contains(output, "completed replacement ledger:") ||
-		!strings.Contains(output, "local/bin/dva, ") {
-		t.Fatalf("install did not report completed replacements after verification failure:\n%s", output)
+		!strings.Contains(output, "rollback ledger: restored Go destination") {
+		t.Fatalf("install did not compensate completed replacements after verification failure:\n%s", output)
 	}
-	assertSameBinary(t, source, localTarget)
-	assertSameBinary(t, source, goTarget)
-	assertNoStageArtifacts(t, localDir)
-	assertNoStageArtifacts(t, goDir)
+	assertExistingBinary(t, localTarget)
+	assertExistingBinary(t, goTarget)
+	assertNoInstallerArtifacts(t, localDir)
+	assertNoInstallerArtifacts(t, goDir)
+}
+
+func TestInstallerOnlyTargetRollsBackAfterVersionVerificationFailure(t *testing.T) {
+	repo := repositoryRoot(t)
+	fixture := t.TempDir()
+	source := fixtureDVA(t, fixture)
+	localDir := filepath.Join(fixture, "local", "bin")
+	goDir := filepath.Join(fixture, "go", "bin")
+	localTarget := writeExistingBinary(t, localDir)
+	goTarget := writeExistingBinary(t, goDir)
+	versionCount := filepath.Join(fixture, "version-count")
+
+	output, err := runInstallerResult(repo, source, []string{
+		"VERSION_COUNT_FILE=" + versionCount,
+	}, "LOCAL_BIN_DIR="+localDir, "GO_BIN_DIR="+goDir)
+	if err == nil {
+		t.Fatalf("install unexpectedly succeeded when post-replacement version verification changes:\n%s", output)
+	}
+	if !strings.Contains(output, "local destination version differs after replacement") ||
+		!strings.Contains(output, "rollback succeeded") ||
+		!strings.Contains(output, "rollback ledger: restored Go destination") {
+		t.Fatalf("install did not compensate completed replacements after version verification failure:\n%s", output)
+	}
+	assertExistingBinary(t, localTarget)
+	assertExistingBinary(t, goTarget)
+	assertNoInstallerArtifacts(t, localDir)
+	assertNoInstallerArtifacts(t, goDir)
 }
 
 func TestInstallerOnlyTargetDoesNotWriteCheckout(t *testing.T) {
@@ -409,7 +448,7 @@ func repositoryRoot(t *testing.T) string {
 func fixtureDVA(t *testing.T, directory string) string {
 	t.Helper()
 	path := filepath.Join(directory, "fixture-dva")
-	writeExecutable(t, path, "#!/bin/sh\nif [ \"${1:-}\" = version ]; then\n  printf '%s\\n' 'dva version fixture' 'commit: fixture' 'build date: fixture'\n  exit 0\nfi\nprintf '%s\\n' 'fixture supports only version' >&2\nexit 2\n")
+	writeExecutable(t, path, "#!/bin/sh\nif [ \"${1:-}\" = version ]; then\n  if [ -n \"${VERSION_COUNT_FILE:-}\" ]; then\n    count=$(cat \"$VERSION_COUNT_FILE\" 2>/dev/null || printf 0)\n    count=$((count + 1))\n    printf '%s' \"$count\" > \"$VERSION_COUNT_FILE\"\n    if [ \"$count\" -eq 4 ]; then\n      printf '%s\\n' 'dva version changed' 'commit: fixture' 'build date: fixture'\n      exit 0\n    fi\n  fi\n  printf '%s\\n' 'dva version fixture' 'commit: fixture' 'build date: fixture'\n  exit 0\nfi\nprintf '%s\\n' 'fixture supports only version' >&2\nexit 2\n")
 	return path
 }
 
@@ -506,6 +545,10 @@ func assertNoStageArtifacts(t *testing.T, directory string) {
 }
 
 func assertNoInstallerArtifacts(t *testing.T, directory string) {
+	assertNoInstallerArtifactsExcept(t, directory, "")
+}
+
+func assertNoInstallerArtifactsExcept(t *testing.T, directory, allowed string) {
 	t.Helper()
 	entries, err := os.ReadDir(directory)
 	if os.IsNotExist(err) {
@@ -516,9 +559,33 @@ func assertNoInstallerArtifacts(t *testing.T, directory string) {
 	}
 	for _, entry := range entries {
 		if strings.HasPrefix(entry.Name(), ".dva-install.") || strings.HasPrefix(entry.Name(), ".dva-install-backup.") {
-			t.Fatalf("installer artifact remained after failure: %s", filepath.Join(directory, entry.Name()))
+			path := filepath.Join(directory, entry.Name())
+			if path != allowed {
+				t.Fatalf("installer artifact remained after failure: %s", path)
+			}
 		}
 	}
+}
+
+func onlyRecoveryBackup(t *testing.T, directory string) string {
+	t.Helper()
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatalf("read recovery directory: %v", err)
+	}
+	var backup string
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".dva-install-backup.") {
+			if backup != "" {
+				t.Fatalf("multiple retained recovery backups in %q", directory)
+			}
+			backup = filepath.Join(directory, entry.Name())
+		}
+	}
+	if backup == "" {
+		t.Fatalf("rollback failure retained no recovery backup in %q", directory)
+	}
+	return backup
 }
 
 func readFile(t *testing.T, path string) []byte {
@@ -537,6 +604,15 @@ func fileMode(t *testing.T, path string) os.FileMode {
 		t.Fatalf("stat %q: %v", path, err)
 	}
 	return info.Mode().Perm()
+}
+
+func resolvedPath(t *testing.T, path string) string {
+	t.Helper()
+	resolvedDirectory, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		t.Fatalf("resolve directory for %q: %v", path, err)
+	}
+	return filepath.Join(resolvedDirectory, filepath.Base(path))
 }
 
 func assertFileBytesAndMode(t *testing.T, path string, want []byte, wantMode os.FileMode) {

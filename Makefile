@@ -96,12 +96,13 @@ install-binary:
 		source_sha=$$(sha256 "$$source") || fail "cannot hash built binary $$source"; \
 		source_version=$$("$$source" version) || fail "built binary does not report its version"; \
 		stage_local=''; stage_go=''; backup_local=''; backup_go=''; \
+		preserve_backup_local=no; preserve_backup_go=no; \
 		local_existed=no; go_existed=no; local_replaced=no; go_replaced=no; \
 		cleanup() { \
 			[ -z "$$stage_local" ] || rm -f "$$stage_local"; \
 			[ -z "$$stage_go" ] || rm -f "$$stage_go"; \
-			[ -z "$$backup_local" ] || rm -f "$$backup_local"; \
-			[ -z "$$backup_go" ] || rm -f "$$backup_go"; \
+			if [ "$$preserve_backup_local" = no ]; then [ -z "$$backup_local" ] || rm -f "$$backup_local"; fi; \
+			if [ "$$preserve_backup_go" = no ]; then [ -z "$$backup_go" ] || rm -f "$$backup_go"; fi; \
 		}; \
 		trap cleanup EXIT HUP INT TERM; \
 		stage_candidate() { \
@@ -150,7 +151,9 @@ install-binary:
 					case "$$label" in local) backup_local='';; Go) backup_go='';; esac; \
 					append_ledger rollback "restored $$label destination $$target"; \
 				else \
-					printf '%s\n' "make install: rollback failed: cannot restore $$label destination $$target" >&2; rollback_failed=1; \
+					case "$$label" in local) preserve_backup_local=yes;; Go) preserve_backup_go=yes;; esac; \
+					append_ledger rollback "recovery backup retained for $$label destination: $$backup_file"; \
+					printf '%s\n' "make install: rollback failed: cannot restore $$label destination $$target; recovery backup retained at $$backup_file" >&2; rollback_failed=1; \
 				fi; \
 			elif rm -f "$$target"; then \
 				append_ledger rollback "removed newly created $$label destination $$target"; \
@@ -162,12 +165,17 @@ install-binary:
 			if [ "$$go_replaced" = yes ]; then rollback_one "$$backup_go" "$$go_existed" "$$go_target" Go; fi; \
 			if [ "$$local_replaced" = yes ]; then rollback_one "$$backup_local" "$$local_existed" "$$local_target" local; fi; \
 		}; \
+		rollback_and_fail() { \
+			failure_message="$$1"; \
+			rollback_replacements; \
+			if [ "$$rollback_failed" -eq 0 ]; then fail "$$failure_message; rollback succeeded"; \
+			else fail "$$failure_message; rollback failed"; fi; \
+		}; \
 		replace_candidate() { \
 			stage_file="$$1"; target="$$2"; label="$$3"; \
+			failed_target="$$target"; \
 			if ! mv -f "$$stage_file" "$$target"; then \
-				rollback_replacements; \
-				if [ "$$rollback_failed" -eq 0 ]; then fail "atomic replacement failed for $$target; rollback succeeded"; \
-				else fail "atomic replacement failed for $$target; rollback failed"; fi; \
+				rollback_and_fail "atomic replacement failed for $$failed_target"; \
 			fi; \
 			case "$$label" in local) local_replaced=yes;; Go) go_replaced=yes;; *) fail "unknown replacement ledger slot $$label";; esac; \
 			append_ledger replacement "$$target"; \
@@ -176,12 +184,13 @@ install-binary:
 		if [ -n "$$stage_go" ]; then replace_candidate "$$stage_go" "$$go_target" Go; stage_go=''; fi; \
 		verify_target() { \
 			target="$$1"; label="$$2"; \
-			[ -f "$$target" ] || fail "$$label destination is missing after replacement: $$target"; \
-			[ -x "$$target" ] || fail "$$label destination is not executable after replacement: $$target"; \
-			installed_sha=$$(sha256 "$$target") || fail "cannot hash $$label destination after replacement"; \
-			[ "$$installed_sha" = "$$source_sha" ] || fail "$$label destination SHA-256 differs after replacement"; \
-			installed_version=$$("$$target" version) || fail "$$label destination does not report its version after replacement"; \
-			[ "$$installed_version" = "$$source_version" ] || fail "$$label destination version differs after replacement"; \
+			failed_target="$$target"; \
+			[ -f "$$target" ] || rollback_and_fail "$$label destination is missing after replacement: $$failed_target"; \
+			[ -x "$$target" ] || rollback_and_fail "$$label destination is not executable after replacement: $$failed_target"; \
+			installed_sha=$$(sha256 "$$target") || rollback_and_fail "cannot hash $$label destination after replacement: $$failed_target"; \
+			[ "$$installed_sha" = "$$source_sha" ] || rollback_and_fail "$$label destination SHA-256 differs after replacement: $$failed_target"; \
+			installed_version=$$("$$target" version) || rollback_and_fail "$$label destination does not report its version after replacement: $$failed_target"; \
+			[ "$$installed_version" = "$$source_version" ] || rollback_and_fail "$$label destination version differs after replacement: $$failed_target"; \
 			printf 'make install: verified %s destination: %s (sha256=%s)\n' "$$label" "$$target" "$$installed_sha"; \
 		}; \
 		verify_target "$$local_target" local; \

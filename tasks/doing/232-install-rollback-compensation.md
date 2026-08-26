@@ -24,9 +24,12 @@ state on a best-effort basis and report whether that restoration worked.
   restore its bytes and mode when a later replacement fails | verify: `go test ./tools/installcheck`
 - [x] If a prior destination did not exist, remove the newly created file during rollback | verify: `go test ./tools/installcheck`
 - [x] Failure output distinguishes a successful rollback from a failed rollback and preserves
-  the completed replacement and rollback ledgers | verify: `go test ./tools/installcheck`
-- [x] All staging and backup artifacts are removed after success, failed replacement, and failed
-  rollback | verify: `go test ./tools/installcheck`
+  the completed replacement and rollback ledgers; a failed restore retains and reports its exact
+  recovery-backup path | verify: `go test ./tools/installcheck`
+- [x] All staging and ordinary backup artifacts are removed after success and successful rollback;
+  a failed rollback retains only its reported recovery backup | verify: `go test ./tools/installcheck`
+- [x] Post-replacement SHA or version verification failure also rolls every replaced destination
+  back in reverse order | verify: `go test ./tools/installcheck`
 - [x] The guarantee excludes crashes, power loss, and cross-filesystem all-or-nothing commit | verify: human — review this task and USAGE.md
 
 ## Decision
@@ -35,5 +38,7 @@ The installer still does not claim a multi-filesystem atomic commit: it stages a
 renames each destination independently. Before the first replacement it also copies each existing
 regular destination into that destination's filesystem. If a later rename fails, it walks already
 replaced destinations in reverse order, renaming the backup back or removing a newly created
-destination. A rollback failure remains fail-fast and visible; cleanup removes retained staging
-and backup artifacts. A crash or power loss between operations can still leave mixed state.
+destination. SHA and version verification failures use that same compensation path. A rollback
+failure remains fail-fast and visible, retaining its only recovery backup and printing its exact
+path; cleanup removes all other staging and backup artifacts. A crash or power loss between
+operations can still leave mixed state.
