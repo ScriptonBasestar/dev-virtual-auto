@@ -63,6 +63,12 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 				first = err
 			}
 		}
+		if err := syncDirectory(captureStage); err != nil && first == nil {
+			first = err
+		}
+		if err := syncDirectory(target.path); err != nil && first == nil {
+			first = err
+		}
 		if first == nil {
 			if err := os.RemoveAll(captureStage); err != nil {
 				first = err
@@ -79,6 +85,10 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 			return nil, nil, nil, nil, captureStage, fmt.Errorf("capture takeover skill %s: %w (rollback: %v; recovery stage: %s)", name, err, rollbackErr, captureStage)
 		}
 		captured = append(captured, name)
+	}
+	if err := syncDirectory(captureStage); err != nil {
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("sync takeover capture stage: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	if err := syncDirectory(target.path); err != nil {
 		rollbackErr := rollbackOriginals()
@@ -97,7 +107,7 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 		return nil, nil, nil, nil, captureStage, fmt.Errorf("create takeover backup id: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	base := takeoverDestinationRoot(stateRoot, target.path)
-	if err := os.MkdirAll(base, 0o700); err != nil {
+	if err := mkdirAllSynced(base, 0o700); err != nil {
 		rollbackErr := rollbackOriginals()
 		return nil, nil, nil, nil, captureStage, fmt.Errorf("create takeover backup root: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
@@ -133,8 +143,14 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 	cleanupStage = false
 	if err := syncDirectory(base); err != nil {
 		rollbackErr := rollbackOriginals()
+		if rollbackErr != nil {
+			return nil, nil, nil, nil, final, fmt.Errorf("sync takeover backup: %w (original rollback: %v; recovery artifacts: %s, %s)", err, rollbackErr, captureStage, final)
+		}
 		cleanupErr := os.RemoveAll(final)
-		return nil, nil, nil, nil, final, fmt.Errorf("sync takeover backup: %w (rollback: %v; backup cleanup: %v; recovery artifact: %s)", err, rollbackErr, cleanupErr, final)
+		if cleanupErr == nil {
+			cleanupErr = syncDirectory(base)
+		}
+		return nil, nil, nil, nil, final, fmt.Errorf("sync takeover backup: %w (original rollback succeeded; backup cleanup: %v; recovery artifact if cleanup failed: %s)", err, cleanupErr, final)
 	}
 	cleanup := func() error {
 		if err := os.RemoveAll(final); err != nil {
@@ -485,4 +501,37 @@ func syncDirectory(path string) error {
 		return syncErr
 	}
 	return closeErr
+}
+
+func mkdirAllSynced(path string, mode fs.FileMode) error {
+	path = filepath.Clean(path)
+	var missing []string
+	current := path
+	for {
+		info, err := os.Lstat(current)
+		if err == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+				return fmt.Errorf("durable directory ancestor %s is not a regular directory", current)
+			}
+			break
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return err
+		}
+		missing = append(missing, current)
+		current = parent
+	}
+	for _, directory := range slices.Backward(missing) {
+		if err := os.Mkdir(directory, mode); err != nil {
+			return err
+		}
+		if err := syncDirectory(filepath.Dir(directory)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

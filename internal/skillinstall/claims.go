@@ -209,7 +209,8 @@ func activateReservedClaims(store *skillclaim.LockedStore, reserved []skillclaim
 		claim.State = skillclaim.StateActive
 		claim.Generation++
 		if err := store.CompareAndSwap(claim, claim.Generation-1, previous); err != nil {
-			return active, err
+			rollbackErr := rollbackClaimsToAbsent(store, reserved)
+			return active, fmt.Errorf("activate reserved claim: %w (claim rollback: %v)", err, rollbackErr)
 		}
 		active = append(active, claim)
 	}
@@ -233,10 +234,12 @@ func transitionActiveClaims(store *skillclaim.LockedStore, current, desired []sk
 		next.Generation++
 		previous, err := skillclaim.Digest(current[index])
 		if err != nil {
-			return transitioned, err
+			rollbackErr := rollbackClaimsToActive(store, current)
+			return transitioned, fmt.Errorf("digest active claim: %w (claim rollback: %v)", err, rollbackErr)
 		}
 		if err := store.CompareAndSwap(next, current[index].Generation, previous); err != nil {
-			return transitioned, err
+			rollbackErr := rollbackClaimsToActive(store, current)
+			return transitioned, fmt.Errorf("transition active claim: %w (claim rollback: %v)", err, rollbackErr)
 		}
 		transitioned = append(transitioned, next)
 	}

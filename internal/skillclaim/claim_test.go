@@ -28,6 +28,13 @@ func TestPortableClaimDigestVector(t *testing.T) {
 	if got != want {
 		t.Fatalf("claim digest = %s, want %s", got, want)
 	}
+	const claimFilename = "af6205cf18b7b9bfa30030b07282836fb8210d71628d1c0788e8ee5806aed14e.json"
+	if got := filepath.Base(Path("/neutral-state", claim.Destination)); got != claimFilename {
+		t.Fatalf("claim filename = %s, want %s", got, claimFilename)
+	}
+	if got := filepath.Base(Path("/neutral-state", claim.Destination) + ".lock"); got != claimFilename+".lock" {
+		t.Fatalf("lock filename = %s, want %s.lock", got, claimFilename)
+	}
 }
 
 func validClaim(t *testing.T, destination, producer string) Claim {

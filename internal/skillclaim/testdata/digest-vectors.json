@@ -1,5 +1,7 @@
 {
   "claim": "valid-file-claim.json",
+  "claim_filename": "af6205cf18b7b9bfa30030b07282836fb8210d71628d1c0788e8ee5806aed14e.json",
+  "lock_filename": "af6205cf18b7b9bfa30030b07282836fb8210d71628d1c0788e8ee5806aed14e.json.lock",
   "manifest_digest": "c830107caad8161b59bb5a2404e5300325cb971fc3b479e1e8cf093dbfb0abaa",
   "claim_digest": "e9d6ae74f9b56f32c974f3bcadcbc3548e8b77a197818ef0c1fe053ab916074c"
 }

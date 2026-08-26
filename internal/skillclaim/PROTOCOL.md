@@ -25,6 +25,8 @@ full lock paths by byte order, then acquire every directory in that order. If an
 the directory exists, release only locks acquired by this attempt and fail closed; v1 has no timeout
 or automatic stale-lock deletion. Hold all locks through claim and protected destination mutations,
 then remove them in reverse order. Create the claims directory with mode `0700` before acquisition.
+The single-claim convenience operations acquire and release only one such lock and must not be composed
+to approximate a multi-claim transaction.
 
 `source_digest` is `ManifestDigest(files)`: for sorted records, append UTF-8 `path`, NUL,
 lowercase SHA-256, NUL for each record, then SHA-256 the byte stream. `Validate` recomputes it.
@@ -41,3 +43,9 @@ restoring under a new operation, and updating/releasing/restoring→active under
 The latter releasing/restoring transitions are rollback-only and must retain the complete prior
 payload. Removal is allowed only from releasing/restoring with the exact producer, operation,
 generation, and framed predecessor digest.
+
+Create a new claim as a mode `0600` regular file with exclusive creation, then sync the file and claims
+directory. Replace an existing claim by writing and syncing a mode `0600` temporary regular file in the
+same claims directory, atomically renaming it over the claim, syncing the resulting file, and syncing the
+directory. Remove a claim and then sync the claims directory. Readers reject symlinks, non-regular files,
+and any claim with group/other permission bits.
