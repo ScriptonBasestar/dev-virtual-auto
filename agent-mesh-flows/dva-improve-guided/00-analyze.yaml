@@ -301,9 +301,9 @@ steps:
   # ══════════════════════════════════════════════
   # Stage 00 writes no dva.yml, so it looked like a stage that needed no guardrails.
   # But `candidate_environments`, `recommended_plans` and `changes[]` are carried
-  # verbatim into stage 30 and into `dva-improve` through `param.discovery_report`,
-  # and neither re-derives them — a candidate that breaks a rule here is already
-  # past the gate before any stage that loads the library sees it. Measured on a
+  # into the stage 10 proposal and then the approved artifact consumed by stages 20
+  # and 30. Those stages do not re-derive the candidates, so one that breaks a rule
+  # here is already past the gate before configuration. Measured on a
   # foreign project: the report proposed `development/staging/production` against the
   # dev/stg/prd preset, and 4 of 7 changes built a stg/prd deployment axis that
   # rule 41 forbids. Schema and examples stay out — they govern generation, and
@@ -326,8 +326,8 @@ steps:
       프로젝트를 분석하여 DVA 설정 계획과 선택 가능한 옵션을 JSON으로 생성하라.
 
       후보는 아래 라이브러리 규칙 안에서만 제안한다. 규칙과 충돌하는 후보는 리포트에
-      넣지 않는다 — 이 리포트는 stage 30 과 `dva-improve` 의 `discovery_report` 입력이고,
-      두 단계 모두 후보를 다시 도출하지 않으므로 여기서 통과한 것은 그대로 반영된다.
+      넣지 않는다 — 이 리포트에서 승인된 후보는 stage 20과 stage 30이 다시 도출하지
+      않고 소비하므로 여기서 통과한 것은 그대로 반영된다.
 
       ## 라이브러리 규칙 — 가드레일
       {{load_guardrails.output}}
@@ -466,9 +466,8 @@ steps:
       # json_mode: true is best-effort. The smart backend is a fallback chain, so the
       # provider that answers is not fixed, and some decorate the response outside the JSON
       # contract (measured: grok-4.5 prepends citation markers like [1][2][3]). Slice the
-      # outermost object out of whatever came back, then prove it parses — stages 10 and 30
-      # and dva-improve all jq this file, and a report that is not JSON would reach them
-      # as silent defaults rather than as an error.
+      # outermost object out of whatever came back, then prove it parses — stage 10
+      # reads and validates this file before producing the approved artifact.
       awk '
         { buf = buf $0 "\n" }
         END {

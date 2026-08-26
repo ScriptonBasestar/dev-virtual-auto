@@ -186,6 +186,7 @@ func TestGuidedFlowResolvesAndValidatesApprovedPlan(t *testing.T) {
 
 func TestAutomaticFlowAlwaysUsesFreshDiscovery(t *testing.T) {
 	automatic := readPlanFlowFile(t, "agent-mesh-flows/dva-improve.yaml")
+	analyze := readPlanFlowFile(t, "agent-mesh-flows/dva-improve-guided/00-analyze.yaml")
 	for _, stale := range []string{
 		"name: discovery_report",
 		"load_discovery_report",
@@ -194,6 +195,11 @@ func TestAutomaticFlowAlwaysUsesFreshDiscovery(t *testing.T) {
 	} {
 		if strings.Contains(automatic, stale) {
 			t.Errorf("automatic flow can still reuse stale discovery input %q", stale)
+		}
+	}
+	for _, stale := range []string{"param.discovery_report", "`discovery_report` 입력", "dva-improve all jq this file"} {
+		if strings.Contains(analyze, stale) {
+			t.Errorf("guided analysis still promises removed automatic report handoff %q", stale)
 		}
 	}
 }
