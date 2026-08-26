@@ -915,6 +915,12 @@ func parseDvaFlags(args []string) (mode, env string, includeTags, excludeTags []
 	// nothing-to-take branch, so advancing unconditionally is a no-op there and the fix costs
 	// one line per case.
 	takeValue := func(name, value string, hasValue bool, i int) (string, int, bool) {
+		if !hasValue && i+1 < end && isRecognizedDVAFlagToken(args[i+1]) {
+			if err == nil {
+				err = fmt.Errorf("%s requires a value, got the flag %s", name, args[i+1])
+			}
+			return "", 1, false
+		}
 		v, n, ok := flagValue(args, i, end, value, hasValue)
 		if !ok {
 			if err == nil {

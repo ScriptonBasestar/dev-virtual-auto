@@ -196,6 +196,7 @@ func TestParseDvaFlagValueShapes(t *testing.T) {
 		{name: "inline value", in: []string{"--mode=native", "pg"}, mode: "native", wantFiltered: "pg"},
 		{name: "short inline", in: []string{"-M=native", "-E=stg"}, mode: "native", env: "stg"},
 		{name: "list value splits", in: []string{"--tag=a,b"}, includeTags: []string{"a", "b"}},
+		{name: "unknown leading-dash value is preserved", in: []string{"--mode", "-weird-but-real"}, mode: "-weird-but-real"},
 		{name: "bare bool", in: []string{"--debug", "pg"}, wantDebug: true, wantFiltered: "pg"},
 		{name: "bool with value", in: []string{"--debug=true", "pg"}, wantDebug: true, wantFiltered: "pg"},
 		{name: "bool with false value", in: []string{"--debug=false", "pg"}, wantDebug: false, wantFiltered: "pg"},

@@ -80,6 +80,42 @@ func TestParseDvaFlagsRejectsAMissingValue(t *testing.T) {
 	})
 }
 
+// TestParseDvaFlagsRejectsAFlagAsValue covers a recognized DVA flag in the
+// next-token value slot. It must be diagnosed as the missing value, before the
+// tag reaches TASK-214's declared-tag validation or any lifecycle entry runs.
+func TestParseDvaFlagsRejectsAFlagAsValue(t *testing.T) {
+	cases := []struct {
+		what    string
+		args    []string
+		want    string
+		gotFlag string
+	}{
+		{"mode then env", []string{"--mode", "--env=dev"}, "--mode", "--env=dev"},
+		{"env then tag", []string{"--env", "--tag=web"}, "--env", "--tag=web"},
+		{"tag then excluded tag", []string{"--tag", "--exclude-tag=db"}, "--tag", "--exclude-tag=db"},
+		{"excluded tag then tag", []string{"--exclude-tag", "--tag=web"}, "--exclude-tag", "--tag=web"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.what, func(t *testing.T) {
+			dir := writeRestartProbeConfig(t)
+
+			err := restartCmd.RunE(restartCmd, tc.args)
+			if err == nil {
+				t.Errorf("restart %v: want an error, got nil", tc.args)
+			} else {
+				for _, want := range []string{"requires a value, got the flag", tc.want, tc.gotFlag} {
+					if !strings.Contains(err.Error(), want) {
+						t.Errorf("restart %v: error %q does not name %q", tc.args, err, want)
+					}
+				}
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Errorf("restart %v: nothing should have run, ran %v", tc.args, got)
+			}
+		})
+	}
+}
+
 // TestParseDvaFlagsRejectsAnEmptyValue covers the other way a value-taking flag ends up
 // with no usable value: one was supplied and it is empty. TASK-211 closed `--mode` and
 // `--mode --`; `--mode=` went on running the whole stack at rc=0, which is verbatim the

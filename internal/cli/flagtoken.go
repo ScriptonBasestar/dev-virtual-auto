@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -177,4 +178,13 @@ func flagValue(args []string, i, end int, value string, hasValue bool) (v string
 		return args[i+1], 1, true
 	}
 	return "", 0, false
+}
+
+// isRecognizedDVAFlagToken reports whether token names a selector that
+// parseDvaFlags consumes. It deliberately does not treat every leading dash as
+// a flag: values such as "-weird-but-real" remain values unless DVA owns their
+// name. Inline values still name their flag through splitFlagToken.
+func isRecognizedDVAFlagToken(token string) bool {
+	name, _, _ := splitFlagToken(token)
+	return slices.Contains(stackSelectorFlags, name)
 }
