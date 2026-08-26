@@ -207,7 +207,7 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		// silently gone. (The example read `--dev` until that flag was removed with
 		// `applications:` — it is an accepted flag that has to lead, and --force is the
 		// nearest surviving one.)
-		if err := rejectUnknownFlags("up", "", leftover, withSelectors([]string{"--force", "--no-wait", "--var"}, stackSelectorFlags)); err != nil {
+		if err := rejectUnknownFlags("up", "", leftover, withSelectors([]string{"--force", "--no-wait", "--var"}, stackSelectorFlags), nil); err != nil {
 			return err
 		}
 		if err := rejectUpPositionalArg(c, leftover); err != nil {
@@ -585,7 +585,7 @@ Stack flags:
 		if i := slices.Index(names, "--"); i >= 0 {
 			guarded = names[:i]
 		}
-		if err := rejectUnknownFlags("restart", "a stack entry name", guarded, stackSelectorFlags); err != nil {
+		if err := rejectUnknownFlags("restart", "a stack entry name", guarded, stackSelectorFlags, []string{"--no-wait", "--var"}); err != nil {
 			return err
 		}
 

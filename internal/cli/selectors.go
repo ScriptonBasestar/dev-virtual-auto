@@ -49,28 +49,49 @@ func withSelectors(own []string, selectors []string) []string {
 // token was not read as one. Pass an empty noun for a command that takes no positional names
 // at all — `dva up` — where that sentence would be a lie.
 //
-// known is the full list to advertise, supplied by the caller rather than assembled here, so
-// a command cannot advertise a flag it consumes and then ignores.
+// known is the full list accepted on this path. elsewhere lists flags the command accepts on
+// a named-plan path but this path must reject. Keeping the lists separate means "accepted
+// here" never advertises an ignored flag, while the error can still explain and suggest a
+// valid placement for a flag the command's help documents.
 //
 // NOTE: known is used only to build the message. The rejection itself fires on ANY
 // dash-prefixed argument, so callers must pass what is LEFT after the flags they recognise
 // have been consumed, never the raw args.
-func rejectUnknownFlags(path, noun string, args, known []string) error {
+func rejectUnknownFlags(path, noun string, args, known, elsewhere []string) error {
 	for _, a := range args {
 		if len(a) < 2 || !strings.HasPrefix(a, "-") {
 			continue
 		}
+		flag := a
+		if i := strings.IndexByte(flag, '='); i >= 0 {
+			flag = flag[:i]
+		}
+		pathScoped := slices.Contains(elsewhere, flag)
 		var msg strings.Builder
-		fmt.Fprintf(&msg, "unknown flag %q for \"dva %s\"", a, path)
-		if noun != "" {
+		fmt.Fprintf(&msg, "unknown flag %q for \"dva %s\"", flag, path)
+		if pathScoped {
+			fmt.Fprintf(&msg, "\n       → %s applies only after a plan name", flag)
+		} else if noun != "" {
 			fmt.Fprintf(&msg, "\n       → %s cannot start with \"-\", so this was read as one and matched nothing", noun)
 		}
 		msg.WriteString("\n       → accepted here: ")
 		msg.WriteString(strings.Join(known, ", "))
-		if s := similarTo(a, known); len(s) > 0 {
+		var acceptedSuggestions, elsewhereSuggestions []string
+		if pathScoped {
+			// An exact path-scoped match already identifies the intended flag. Do not add
+			// merely similar accepted flags beside the one valid placement.
+			elsewhereSuggestions = []string{flag}
+		} else {
+			acceptedSuggestions = similarTo(flag, known)
+			elsewhereSuggestions = similarTo(flag, elsewhere)
+		}
+		if len(acceptedSuggestions)+len(elsewhereSuggestions) > 0 {
 			msg.WriteString("\n\nDid you mean?")
-			for _, k := range s {
+			for _, k := range acceptedSuggestions {
 				fmt.Fprintf(&msg, "\n  dva %s %s", path, k)
+			}
+			for _, k := range elsewhereSuggestions {
+				fmt.Fprintf(&msg, "\n  dva %s <plan> %s", path, k)
 			}
 		}
 		return fmt.Errorf("%s", msg.String())

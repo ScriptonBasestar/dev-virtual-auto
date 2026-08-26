@@ -7,7 +7,30 @@ effort: S
 created-at: 2026-08-20T14:20:00+09:00
 source: "found by the adversarial review of TASK-198's guard — the rejection is right, the explanation is not"
 scope: "internal/cli/selectors.go rejectUnknownFlags message construction, and the restart caller that supplies its known list. Rejection behaviour unchanged; only what the error says."
-status: todo
+status: done
+completed-at: 2026-08-26T12:33:24+09:00
+completion-summary: "Explain restart's plan-only flags separately from unknown entry names and normalize inline values before suggestions."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/cli/ -count=1 && dva test"
+    result: "passed; full race and coverage suite completed with internal/cli at 75.7%"
+  - kind: automated
+    command-or-step: "dva lint && make doc-check && make build"
+    result: "passed formatting, vet, golangci, gopls, documentation, generation, and build gates"
+  - kind: runtime
+    command-or-step: "run rebuilt dva restart --no-wait and --var=FOO=bar"
+    result: "both rc=1; messages name plan-only placement, omit name-collision blame, and suggest dva restart <plan> with the split flag name"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:34:44+09:00
+quality-review-evidence:
+  - "independent reviewer confirmed accepted-here and plan-only metadata are separated at every rejectUnknownFlags call site"
+  - "inline values are normalized before display and similarity matching, with accurate named-plan suggestions"
+  - "tests pin both required wording and absence of the old collision explanation; all affected forms remain rc=1"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-209-review-receipt.json
+archived-at: 2026-08-26T12:35:10+09:00
+verified-at: 2026-08-26T12:35:10+09:00
+verification-summary: "Restart now explains and suggests valid named-plan placement for plan-only flags while preserving stack-path rejection."
 ---
 
 # Task 209: The unknown-flag message blames a name collision for a flag the help advertises
@@ -75,12 +98,20 @@ is chosen; that half is independent.
 
 ## Completion Criteria
 
-- [ ] A test pins the plan-only wording for `dva restart --no-wait`, so the message stops blaming a name collision | verify: `grep -rc 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
-- [ ] That test asserts what the message must NOT say, not only what it must | verify: `grep -A25 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/*_test.go | grep -c 'cannot start with'` returns ≥ 1 (today: 0 — a wording test that only checks for the new sentence passes while the wrong one is still printed beside it)
-- [ ] The `=` form is split before the message and before `similarTo` | verify: `grep -rc 'func TestRejectUnknownFlagsSplitsFlagValue' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
-- [ ] `dva restart --var=FOO=bar` offers `--var` as a suggestion | verify: human — run it and read the "Did you mean?" block
-- [ ] Nothing that was rejected is now accepted | verify: `go test ./internal/cli/ -count=1`
-- [ ] `make test` passes | verify: `make test`
+- [x] A test pins the plan-only wording for `dva restart --no-wait`, so the message stops blaming a name collision | verify: `grep -rc 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
+- [x] That test asserts what the message must NOT say, not only what it must | verify: `grep -A25 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/*_test.go | grep -c 'cannot start with'` returns ≥ 1 (today: 0 — a wording test that only checks for the new sentence passes while the wrong one is still printed beside it)
+- [x] The `=` form is split before the message and before `similarTo` | verify: `grep -rc 'func TestRejectUnknownFlagsSplitsFlagValue' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
+- [x] `dva restart --var=FOO=bar` offers `--var` as a suggestion | verify: human — run it and read the "Did you mean?" block
+- [x] Nothing that was rejected is now accepted | verify: `go test ./internal/cli/ -count=1`
+- [x] `make test` passes | verify: `make test`
+
+## Resolution
+
+`rejectUnknownFlags` now receives accepted-here and known-elsewhere lists separately. A
+restart stack-path use of `--no-wait` or `--var` therefore explains that the flag belongs
+after a plan name and suggests the valid command shape, without claiming it was parsed as an
+entry name. Inline `=value` text is removed before naming or comparing the flag. The guard
+still rejects every token it rejected before.
 
 ## References
 
