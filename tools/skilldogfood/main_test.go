@@ -251,22 +251,48 @@ func TestBuiltExecutableDogfood(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	keep := filepath.Join(flowRoot, ".keep")
-	if err := os.WriteFile(keep, []byte("fixture\n"), 0o644); err != nil {
+	tracked := filepath.Join(flowRoot, "tracked.txt")
+	if err := os.WriteFile(tracked, []byte("committed fixture\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := commandOutput(nil, "git", "-C", flowRoot, "add", ".keep"); err != nil {
+	if _, err := commandOutput(nil, "git", "-C", flowRoot, "add", "tracked.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := commandOutput(nil, "git", "-C", flowRoot, "commit", "-m", "fixture"); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(flowRoot, "pre-existing.txt"), []byte("stable user work\n"), 0o644); err != nil {
+	const dirtyContents = "pre-existing tracked user work\n"
+	if err := os.WriteFile(tracked, []byte(dirtyContents), 0o644); err != nil {
 		t.Fatal(err)
+	}
+	beforeStatus, err := gitStatus(flowRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeContents, err := os.ReadFile(tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(beforeContents) != dirtyContents {
+		t.Fatalf("tracked dirty fixture contents = %q, want %q", beforeContents, dirtyContents)
 	}
 	var out strings.Builder
 	if err := run(binary, sha, flowRoot, &out); err != nil {
 		t.Fatalf("built executable dogfood failed: %v\n%s", err, out.String())
+	}
+	afterStatus, err := gitStatus(flowRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	afterContents, err := os.ReadFile(tracked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterStatus != beforeStatus {
+		t.Fatalf("dogfood changed tracked dirty fixture status:\nbefore=%q\nafter=%q", beforeStatus, afterStatus)
+	}
+	if string(afterContents) != string(beforeContents) {
+		t.Fatalf("dogfood changed tracked dirty fixture contents:\nbefore=%q\nafter=%q", beforeContents, afterContents)
 	}
 	for _, marker := range []string{
 		"real_target_dry_run: passed",

@@ -60,8 +60,8 @@ calling its internal reader. Schema 1 acceptance requires the recorded scope and
 absolute destination, exact order-insensitive runtime membership, a non-empty bundle
 version, the complete installed-file path/SHA-256 list, and the bundle SHA-256
 derived from that list. The Codex/Antigravity shared destination must retain the
-remaining runtime's receipt after one runtime is unlinked, and final uninstall must
-remove its receipt.
+complete Schema 1 receipt with exact remaining-runtime membership after one runtime
+is unlinked, and final uninstall must remove its receipt.
 CI separately runs `make test-skill-dogfood`, which builds the current checkout and
 uses a temporary isolated Git repository with stable pre-existing work. That
 hermetic smoke covers behavior only;

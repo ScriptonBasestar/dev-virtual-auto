@@ -441,8 +441,8 @@ func verifyOwnedArtifacts(project, stateRoot string) error {
 		if err != nil {
 			return err
 		}
-		if record.Schema != 1 || record.Scope != "project" || record.Destination != destination || record.Version == "" || !sameStrings(record.Runtimes, runtimes) || !sameFiles(record.Files, files) || record.BundleSHA != bundleSHA(files) {
-			return fmt.Errorf("invalid receipt for %s", destination)
+		if err := requireReceiptContract(destination, record, runtimes, files); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -450,15 +450,47 @@ func verifyOwnedArtifacts(project, stateRoot string) error {
 
 func verifySharedUnlink(project, stateRoot string) error {
 	destination := filepath.Join(project, ".agents", "skills")
-	if _, err := installedSkillFiles(destination); err != nil {
+	files, err := installedSkillFiles(destination)
+	if err != nil {
 		return fmt.Errorf("shared skill files not retained: %w", err)
 	}
 	record, err := readReceipt(stateRoot, destination)
 	if err != nil {
 		return err
 	}
-	if !sameStrings(record.Runtimes, []string{"antigravity"}) {
-		return fmt.Errorf("shared receipt runtimes=%v, want [antigravity]", record.Runtimes)
+	if err := requireReceiptContract(destination, record, []string{"antigravity"}, files); err != nil {
+		return err
+	}
+	return nil
+}
+
+// requireReceiptContract independently checks the installer's external Schema 1
+// receipt. The black-box gate must not call internal/skillinstall's reader because
+// that would make the producer and verifier share the same decoding assumptions.
+func requireReceiptContract(destination string, record receiptRecord, runtimes []string, files []fileHash) error {
+	if record.Schema != 1 {
+		return fmt.Errorf("receipt for %s has schema=%d, want 1", destination, record.Schema)
+	}
+	if record.Scope != "project" {
+		return fmt.Errorf("receipt for %s has scope=%q, want project", destination, record.Scope)
+	}
+	if record.Destination != destination {
+		return fmt.Errorf("receipt destination=%q, want %q", record.Destination, destination)
+	}
+	if record.Version == "" {
+		return fmt.Errorf("receipt for %s has empty version", destination)
+	}
+	if !sameStrings(record.Runtimes, runtimes) {
+		return fmt.Errorf("receipt for %s has runtimes=%v, want %v", destination, record.Runtimes, runtimes)
+	}
+	if len(files) == 0 || len(record.Files) == 0 {
+		return fmt.Errorf("receipt for %s has no installed file records", destination)
+	}
+	if !sameFiles(record.Files, files) {
+		return fmt.Errorf("receipt for %s does not match installed files", destination)
+	}
+	if record.BundleSHA != bundleSHA(files) {
+		return fmt.Errorf("receipt for %s has bundle_sha256=%q that does not match installed files", destination, record.BundleSHA)
 	}
 	return nil
 }
