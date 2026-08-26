@@ -205,15 +205,15 @@ dva manifest                 # 구조화된 커맨드 매니페스트
 dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 출력 (JSON도 지원)
 ```
 
-AI 스킬은 `skills/`에 단일 소스로 두고, 개발 checkout에는 `make generate`로 투영하며,
-설치된 바이너리에서는 `dva skill install`로 배포합니다.
+AI 스킬의 정본은 `skills/` 하나입니다. `make generate`는 DVA 소스 checkout 안에서만
+Claude Code 플러그인(`claude-plugin/skills`), Antigravity·OpenCode용 symlink,
+Cursor rule, Codex 호환 `AGENTS.md` 섹션을 만듭니다. 사용자나 다른 프로젝트에 설치하는
+명령이 아닙니다.
 
-- **`claude-plugin/`**: Claude Code 플러그인 (`claude --plugin-dir ./claude-plugin`)
-- **Antigravity**: `.agents/skills/dva/SKILL.md`
-- **OpenCode**: `.opencode/skills/dva/SKILL.md`
-- **Cursor**: `.cursor/rules/dva.mdc`
-- **Codex**: 설치 시 `.agents/skills`; 이 저장소의 개발 projection은 `AGENTS.md` 호환 섹션도 유지
-- **Grok**: 설치 시 `.grok/skills`
+설치된 바이너리의 `dva skill install`은 내장된 `dva`와 `dva-config`를 선택한 runtime의
+user/project discovery path에 복사합니다. Claude Code, Codex, OpenCode, Grok,
+Antigravity의 정확한 설치 경로와 공유 경로 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를
+참조하세요.
 
 ## Documentation
 
