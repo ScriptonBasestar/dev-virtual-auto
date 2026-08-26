@@ -96,3 +96,49 @@ func TestBaselineIsReachable(t *testing.T) {
 		t.Fatalf("baseline %s is not a commit in this repository: %v", baseline, err)
 	}
 }
+
+func TestGrandfatheredCommitsAreTheExactHistoricalObjects(t *testing.T) {
+	want := []struct {
+		sha     string
+		subject string
+	}{
+		{"d7976538a9f68dad0c7873ce8c256fb7c60212a0", "feat: add deterministic skill installer"},
+		{"c6ed4eab2750ec4e6aca3e130dfcad61abc3fc6f", "fix: harden skill installation transactions"},
+	}
+	if len(grandfatheredCommits) != len(want) {
+		t.Fatalf("grandfathered commit count = %d, want %d", len(grandfatheredCommits), len(want))
+	}
+	for _, tc := range want {
+		if !isGrandfatheredCommit(tc.sha, tc.subject) {
+			t.Errorf("historical exception %s %q is missing", tc.sha[:8], tc.subject)
+		}
+		out, err := git("show", "-s", "--format=%s", tc.sha)
+		if err != nil {
+			t.Errorf("historical exception %s is not reachable: %v", tc.sha[:8], err)
+			continue
+		}
+		if got := strings.TrimSpace(out); got != tc.subject {
+			t.Errorf("historical exception %s subject = %q, want %q", tc.sha[:8], got, tc.subject)
+		}
+	}
+}
+
+func TestGrandfatheringCannotWaiveAChangedOrFutureViolation(t *testing.T) {
+	for _, tc := range grandfatheredCommits {
+		if isGrandfatheredCommit(tc.sha, tc.subject+" changed") {
+			t.Errorf("subject drift waived for %s", tc.sha[:8])
+		}
+		if isGrandfatheredCommit("0000000000000000000000000000000000000000", tc.subject) {
+			t.Errorf("future commit with historical subject was waived")
+		}
+	}
+
+	sha := "0000000000000000000000000000000000000000"
+	subject := "fix: a future scope-less violation"
+	if isGrandfatheredCommit(sha, subject) {
+		t.Fatal("future violation was waived")
+	}
+	if got := checkSubject(subject); len(got) != 1 || got[0].rule != "format" {
+		t.Fatalf("future violation must still fail format, got %#v", got)
+	}
+}

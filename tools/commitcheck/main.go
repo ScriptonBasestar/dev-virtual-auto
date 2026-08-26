@@ -62,6 +62,25 @@ import (
 // findings rather than fix them, so it moves only when history is rewritten under it.
 const baseline = "c100ba06de0e64ebe6079908b8681b993e674a58"
 
+// grandfatheredCommits are the two scope-less installer commits created before
+// commit-check was added to the integration workflow. The baseline must not move to
+// retire them: every other commit after it remains checked. A waiver matches both the
+// immutable object ID and its intended subject, so copying either half into a future
+// commit cannot bypass the gate.
+var grandfatheredCommits = []struct {
+	sha     string
+	subject string
+}{
+	{
+		sha:     "d7976538a9f68dad0c7873ce8c256fb7c60212a0",
+		subject: "feat: add deterministic skill installer",
+	},
+	{
+		sha:     "c6ed4eab2750ec4e6aca3e130dfcad61abc3fc6f",
+		subject: "fix: harden skill installation transactions",
+	},
+}
+
 // maxSubject is the enforced ceiling. See the package comment for why it is 72 and not
 // the SSOT's 50.
 const maxSubject = 72
@@ -120,6 +139,18 @@ func checkSubject(subject string) []violation {
 	return out
 }
 
+// isGrandfatheredCommit is intentionally exact. The fixed SHA keeps this narrow to the
+// historical object, while the fixed subject makes the policy readable and detects an
+// accidental change to the exception table in tests.
+func isGrandfatheredCommit(sha, subject string) bool {
+	for _, c := range grandfatheredCommits {
+		if sha == c.sha && subject == c.subject {
+			return true
+		}
+	}
+	return false
+}
+
 // git runs a git command and returns its stdout, failing loudly. Every caller here is
 // asking a question whose wrong answer is "zero commits", so nothing is tolerated.
 func git(args ...string) (string, error) {
@@ -159,7 +190,7 @@ func main() {
 	}
 
 	var violations []violation
-	checked, missingTrailer := 0, 0
+	checked, grandfathered, missingTrailer := 0, 0, 0
 	for rec := range strings.SplitSeq(logOut, "\x1e") {
 		rec = strings.TrimLeft(rec, "\n")
 		if rec == "" {
@@ -173,9 +204,13 @@ func main() {
 		sha, subject, body := f[0], f[1], f[2]
 		checked++
 
-		for _, v := range checkSubject(subject) {
-			v.sha, v.subject = sha, subject
-			violations = append(violations, v)
+		if isGrandfatheredCommit(sha, subject) {
+			grandfathered++
+		} else {
+			for _, v := range checkSubject(subject) {
+				v.sha, v.subject = sha, subject
+				violations = append(violations, v)
+			}
 		}
 		if !strings.Contains(strings.ToLower(body), "co-authored-by:") {
 			missingTrailer++
@@ -197,6 +232,9 @@ func main() {
 	}
 	fmt.Printf("commitcheck: checked %d commit(s) since %s (%d merge(s) skipped), limit %d chars\n",
 		checked, baseline[:8], merges, maxSubject)
+	if grandfathered > 0 {
+		fmt.Printf("commitcheck: %d exact historical exception(s) skipped; all other commits remain enforced\n", grandfathered)
+	}
 	if missingTrailer > 0 {
 		fmt.Printf("commitcheck: %d of %d lack a Co-Authored-By trailer (reported, not enforced -- see package comment)\n",
 			missingTrailer, checked)
