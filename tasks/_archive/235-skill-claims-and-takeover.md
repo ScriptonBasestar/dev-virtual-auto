@@ -7,7 +7,7 @@ effort: L
 created-at: 2026-08-26T19:00:00+09:00
 source: "multi-installer ownership review"
 scope: "skill claim protocol, DVA installer takeover/restore, status, CLI, tests, and user documentation"
-status: doing
+status: done
 ---
 
 # Task 235: producer-neutral skill claims and explicit takeover
@@ -20,24 +20,24 @@ producer. Receipt-less DVA-name collisions remain foreign until the user explici
 
 ## Completion Criteria
 
-- [ ] A versioned producer-neutral XDG claim records one canonical top-level skill destination,
+- [x] A versioned producer-neutral XDG claim records one canonical top-level skill destination,
   arbitrary producer ID, format, scope, consumers, source digest, and installed file hashes; malformed,
   symlinked, or another-producer claims fail closed | verify: `go test ./internal/skillclaim`
-- [ ] DVA publishes/removes only its `dva` and `dva-config` claims and coexists with unrelated claims
+- [x] DVA publishes/removes only its `dva` and `dva-config` claims and coexists with unrelated claims
   in the same runtime root | verify: `go test ./internal/skillinstall -run 'Claim|Coexist'`
-- [ ] Default install still rejects receipt-less collisions, while `skill install --takeover` affects
+- [x] Default install still rejects receipt-less collisions, while `skill install --takeover` affects
   only requested DVA names, rejects symlinks/special files/other producer claims, and preserves exact
   originals in durable state before replacement | verify: `go test ./internal/skillinstall -run Takeover`
-- [ ] Takeover dry-run is mutation-free and reports backup intent; status reports takeover backup
+- [x] Takeover dry-run is mutation-free and reports backup intent; status reports takeover backup
   availability or corruption | verify: `go test ./internal/skillinstall -run 'Takeover|Status'`
-- [ ] Ordinary uninstall removes only verified DVA files and keeps the backup; explicit
+- [x] Ordinary uninstall removes only verified DVA files and keeps the backup; explicit
   `skill uninstall --restore-takeover-backup` verifies both sides and restores the original | verify:
   `go test ./internal/skillinstall -run RestoreTakeover`
-- [ ] Receipt schema 1/2 compatibility remains, schema 3 strictly binds takeover metadata, and
+- [x] Receipt schema 1/2 compatibility remains, schema 3 strictly binds takeover metadata, and
   transaction failures roll back or retain a reported recovery artifact | verify: `go test ./internal/skillinstall`
-- [ ] CLI help/manifest and canonical usage docs describe option boundaries, non-automatic restore,
+- [x] CLI help/manifest and canonical usage docs describe option boundaries, non-automatic restore,
   claim interoperability, and crash/cross-filesystem limitations | verify: `go test ./internal/cli && make doc-check`
-- [ ] Repository test, generation, dogfood, and commit gates pass | verify: `make test && make check-generate && make test-skill-dogfood && make commit-check`
+- [x] Repository test, generation, dogfood, and commit gates pass | verify: `make test && make check-generate && make test-skill-dogfood && make commit-check`
 
 ## Decision
 
