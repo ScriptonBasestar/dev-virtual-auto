@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ScriptonBasestar/dva/internal/skillclaim"
 	bundled "github.com/ScriptonBasestar/dva/skills"
 )
 
@@ -86,6 +87,15 @@ func TestAgentMeshInstallsFlatRenderedSkills(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(result.Destinations[0].Destination, "dva", "SKILL.md")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Agent Mesh install created native skill directory: %v", err)
 	}
+	for _, name := range []string{"dva", "dva-config"} {
+		claim, found, err := skillclaim.Read(filepath.Dir(options.StateRoot), filepath.Join(result.Destinations[0].Destination, name+".md"))
+		if err != nil || !found {
+			t.Fatalf("Agent Mesh claim %s = (%#v, %t, %v)", name, claim, found, err)
+		}
+		if claim.Name != name || claim.Kind != skillclaim.KindFile || len(claim.Files) != 1 || claim.Files[0].Path != "." {
+			t.Fatalf("Agent Mesh claim %s has native semantics: %#v", name, claim)
+		}
+	}
 
 	status, err := Status(options)
 	if err != nil {
@@ -99,6 +109,163 @@ func TestAgentMeshInstallsFlatRenderedSkills(t *testing.T) {
 	}
 	if _, err := os.Stat(result.Destinations[0].Destination); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Agent Mesh DVA namespace remains after uninstall: %v", err)
+	}
+}
+
+func TestRestoreTakeoverBacksUpAndExplicitRestoreReturnsExactTree(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeUser, RuntimeCodex)
+	_, destinations, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(destinations[0].path, "dva")
+	empty := filepath.Join(foreign, "nested", "empty")
+	if err := os.MkdirAll(empty, 0o711); err != nil {
+		t.Fatal(err)
+	}
+	original := filepath.Join(foreign, "nested", "original.txt")
+	if err := os.WriteFile(original, []byte("exact original"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Install(options); err == nil {
+		t.Fatal("receipt-less collision installed without takeover")
+	}
+	options.Takeover = true
+	installed, err := Install(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installed.Destinations[0].BackupStatus != "available" {
+		t.Fatalf("backup status = %q", installed.Destinations[0].BackupStatus)
+	}
+	if _, err := os.Stat(original); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("foreign tree remains after takeover: %v", err)
+	}
+	options.Takeover = false
+	if _, err := Uninstall(options); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(original); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ordinary uninstall restored the original automatically: %v", err)
+	}
+	status, err := Status(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Destinations[0].Status != "backup-only" || status.Destinations[0].BackupStatus != "available" {
+		t.Fatalf("backup-only status = %#v", status.Destinations[0])
+	}
+	options.RestoreTakeoverBackup = true
+	if _, err := Uninstall(options); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(contents) != "exact original" {
+		t.Fatalf("restored contents = %q", contents)
+	}
+	info, err := os.Stat(original)
+	if err != nil || info.Mode().Perm() != 0o640 {
+		t.Fatalf("restored file mode = %v, err=%v", info, err)
+	}
+	info, err = os.Stat(empty)
+	if err != nil || !info.IsDir() || info.Mode().Perm() != 0o711 {
+		t.Fatalf("empty directory was not restored exactly: %v, err=%v", info, err)
+	}
+}
+
+func TestTakeoverRefusesOtherProducerClaim(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeUser, RuntimeCodex)
+	_, destinations, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(destinations[0].path, "dva")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "SKILL.md"), []byte("foreign"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A well-formed foreign claim is the authoritative refusal signal.
+	claimRoot := filepath.Dir(options.StateRoot)
+	canonical, err := skillclaim.CanonicalDestination(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := []skillclaim.FileHash{{Path: "SKILL.md", SHA: strings.Repeat("0", sha256.Size*2)}}
+	sourceDigest, err := skillclaim.ManifestDigest(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := skillclaim.Claim{Schema: skillclaim.Schema, Name: "dva", Kind: skillclaim.KindDirectory, State: skillclaim.StateReserved, OperationID: "foreign-test", Generation: 1, Destination: canonical, Producer: "other", Format: "agent-skills-directory", Scope: "user", Consumers: []string{"codex"}, SourceDigest: sourceDigest, Files: files}
+	store, err := skillclaim.Begin(claimRoot, []string{canonical})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Reserve(claim); err != nil {
+		t.Fatal(err)
+	}
+	previous, err := skillclaim.Digest(claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim.State, claim.Generation = skillclaim.StateActive, 2
+	if err := store.CompareAndSwap(claim, 1, previous); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	options.Takeover = true
+	if _, err := Install(options); err == nil {
+		t.Fatal("takeover accepted other producer claim")
+	}
+}
+
+func TestCorruptTakeoverBackupBlocksRestore(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeUser, RuntimeCodex)
+	_, destinations, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(destinations[0].path, "dva")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "marker"), []byte("foreign"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options.Takeover = true
+	if _, err := Install(options); err != nil {
+		t.Fatal(err)
+	}
+	record, found, err := readReceipt(receiptPath(options.StateRoot, destinations[0].path))
+	if err != nil || !found || len(record.Takeovers) == 0 {
+		t.Fatalf("takeover receipt = (%#v, %t, %v)", record, found, err)
+	}
+	backup, err := takeoverBackupPath(options.StateRoot, record.Destination, record.Takeovers[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(backup, "marker"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	status, err := Status(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Destinations[0].BackupStatus != "corrupt" {
+		t.Fatalf("corrupt backup status = %#v", status.Destinations[0])
+	}
+	options.Takeover, options.RestoreTakeoverBackup = false, true
+	if _, err := Uninstall(options); err == nil {
+		t.Fatal("restore accepted corrupt takeover backup")
 	}
 }
 
@@ -186,13 +353,30 @@ func TestLegacyNativeReceiptRemainsReadable(t *testing.T) {
 	if err := writeReceipt(receiptFile, record); err != nil {
 		t.Fatal(err)
 	}
+	claims, err := projectedClaims(target, options.Scope, record.Runtimes, skillBundle{files: record.Files}, skillclaim.StateActive, "legacy-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, claim := range claims {
+		if err := os.Remove(skillclaim.Path(filepath.Dir(options.StateRoot), claim.Destination)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	status, err := Status(options)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Destinations[0].Status != "installed" {
+	if status.Destinations[0].Status != "legacy-unclaimed" {
 		t.Fatalf("legacy native receipt status = %s", status.Destinations[0].Status)
 	}
+	if _, err := Install(options); err != nil {
+		t.Fatalf("migrate legacy receipt during install: %v", err)
+	}
+	migrated, found, err := readReceipt(receiptFile)
+	if err != nil || !found || migrated.Schema != receiptSchemaCurrent || migrated.Installation != "active" {
+		t.Fatalf("migrated receipt = (%#v, %t, %v)", migrated, found, err)
+	}
+	assertClaimConsumers(t, options, target.path, []string{"grok"})
 }
 
 func TestAgentMeshKeepsForeignNamespaceFilesAndDetectsDVAFileCollision(t *testing.T) {
@@ -260,6 +444,53 @@ func TestProjectDeduplicatesSharedAgentsDestination(t *testing.T) {
 	}
 	if got, want := destinations[0].runtimes, []Runtime{RuntimeAntigravity, RuntimeCodex}; !sameRuntimes(got, want) {
 		t.Fatalf("runtimes = %v, want %v", got, want)
+	}
+}
+
+func TestRiskySkillOperationsRequireExplicitRuntime(t *testing.T) {
+	t.Parallel()
+	for _, options := range []Options{
+		{Scope: ScopeUser, HomeDir: t.TempDir(), ProjectRoot: t.TempDir(), StateRoot: filepath.Join(t.TempDir(), "dva"), Takeover: true},
+		{Scope: ScopeUser, HomeDir: t.TempDir(), ProjectRoot: t.TempDir(), StateRoot: filepath.Join(t.TempDir(), "dva"), RestoreTakeoverBackup: true},
+	} {
+		if _, _, err := resolve(options); err == nil {
+			t.Fatal("risky skill operation accepted implicit all-runtime selection")
+		}
+	}
+}
+
+func TestTakeoverDryRunDoesNotCreateClaimReceiptOrBackup(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeUser, RuntimeCodex)
+	_, destinations, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(destinations[0].path, "dva")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(foreign, "marker")
+	if err := os.WriteFile(marker, []byte("foreign"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	options.Takeover, options.DryRun = true, true
+	result, err := Install(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Destinations[0].BackupStatus != "would-backup" {
+		t.Fatalf("dry-run backup status = %q", result.Destinations[0].BackupStatus)
+	}
+	contents, err := os.ReadFile(marker)
+	if err != nil || string(contents) != "foreign" {
+		t.Fatalf("dry-run changed foreign marker: %q, %v", contents, err)
+	}
+	if _, err := os.Stat(options.StateRoot); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry-run created DVA state: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(options.StateRoot), "agent-skills")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("dry-run created neutral claims: %v", err)
 	}
 }
 
@@ -345,6 +576,7 @@ func TestInstallStatusAndUninstallSharedDestination(t *testing.T) {
 	if result.Destinations[0].Status != "installed" {
 		t.Fatalf("status = %s", result.Destinations[0].Status)
 	}
+	assertClaimConsumers(t, options, destination, []string{"antigravity", "codex"})
 
 	codexOnly := options
 	codexOnly.Runtimes = []Runtime{RuntimeCodex}
@@ -358,6 +590,7 @@ func TestInstallStatusAndUninstallSharedDestination(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(destination, "dva")); err != nil {
 		t.Fatalf("shared skill was removed: %v", err)
 	}
+	assertClaimConsumers(t, options, destination, []string{"antigravity"})
 	antigravityOnly := options
 	antigravityOnly.Runtimes = []Runtime{RuntimeAntigravity}
 	result, err = Uninstall(antigravityOnly)
@@ -751,6 +984,22 @@ func sameStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func assertClaimConsumers(t *testing.T, options Options, destination string, want []string) {
+	t.Helper()
+	for _, name := range bundled.Names {
+		claim, found, err := skillclaim.Read(filepath.Dir(options.StateRoot), filepath.Join(destination, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !found {
+			t.Fatalf("claim for %s is missing", name)
+		}
+		if !sameStrings(claim.Consumers, want) {
+			t.Fatalf("claim %s consumers = %v, want %v", name, claim.Consumers, want)
+		}
+	}
 }
 
 func assertRuntimeStatuses(t *testing.T, got []RuntimeStatus, want map[Runtime]string) {

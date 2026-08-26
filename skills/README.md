@@ -140,5 +140,13 @@ verification only; `am skill sync` and its interaction with other targets are ou
 contract. See [USAGE.md](../USAGE.md#ai-스킬-설치) for runtime paths and scope options. The
 Antigravity CLI flat format remains outside this contract.
 
+Shared runtime roots are producer-neutral. DVA writes a versioned XDG claim for each installed
+top-level `dva` skill, never for the root itself; a different producer's claim is a hard conflict.
+Receipt-less DVA-name trees remain foreign unless `dva skill install --takeover` is explicit. That
+option first writes a durable, manifest-verified backup of regular bytes, paths, empty directories,
+and permission bits; it rejects symlinks and special files. Ordinary uninstall preserves that backup
+as a backup-only receipt tombstone; restoration is the separate explicit
+`dva skill uninstall --restore-takeover-backup` operation.
+
 Do not edit generated artifacts (`.cursor/rules/*`, the `AGENTS.md` skills section,
 `claude-plugin/skills`). Edit the canonical skill and regenerate.

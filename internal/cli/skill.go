@@ -18,12 +18,14 @@ var skillCmd = &cobra.Command{
 }
 
 var (
-	skillInstallScope    string
-	skillInstallRuntimes []string
-	skillStatusScope     string
-	skillStatusRuntimes  []string
-	skillRemoveScope     string
-	skillRemoveRuntimes  []string
+	skillInstallScope                string
+	skillInstallRuntimes             []string
+	skillInstallTakeover             bool
+	skillStatusScope                 string
+	skillStatusRuntimes              []string
+	skillRemoveScope                 string
+	skillRemoveRuntimes              []string
+	skillRemoveRestoreTakeoverBackup bool
 )
 
 var skillInstallCmd = &cobra.Command{
@@ -35,6 +37,7 @@ var skillInstallCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		options.Takeover = skillInstallTakeover
 		result, err := skillinstall.Install(options)
 		if err != nil {
 			return err
@@ -69,6 +72,7 @@ var skillUninstallCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		options.RestoreTakeoverBackup = skillRemoveRestoreTakeoverBackup
 		result, err := skillinstall.Uninstall(options)
 		if err != nil {
 			return err
@@ -90,10 +94,12 @@ func init() {
 
 	skillInstallCmd.Flags().StringVar(&skillInstallScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
 	skillInstallCmd.Flags().StringSliceVar(&skillInstallRuntimes, "runtime", nil, runtimeUsage)
+	skillInstallCmd.Flags().BoolVar(&skillInstallTakeover, "takeover", false, "Back up and replace only receipt-less DVA-name collisions")
 	skillStatusCmd.Flags().StringVar(&skillStatusScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
 	skillStatusCmd.Flags().StringSliceVar(&skillStatusRuntimes, "runtime", nil, runtimeUsage)
 	skillUninstallCmd.Flags().StringVar(&skillRemoveScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
 	skillUninstallCmd.Flags().StringSliceVar(&skillRemoveRuntimes, "runtime", nil, runtimeUsage)
+	skillUninstallCmd.Flags().BoolVar(&skillRemoveRestoreTakeoverBackup, "restore-takeover-backup", false, "Restore a verified backup created by --takeover; never automatic")
 	skillCmd.AddCommand(skillInstallCmd, skillStatusCmd, skillUninstallCmd)
 }
 

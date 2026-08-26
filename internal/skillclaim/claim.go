@@ -12,7 +12,9 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
+	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -76,8 +78,8 @@ func CanonicalDestination(destination string) (string, error) {
 			if resolved, err := filepath.EvalSymlinks(current); err == nil {
 				current = resolved
 			}
-			for i := len(tail) - 1; i >= 0; i-- {
-				current = filepath.Join(current, tail[i])
+			for _, part := range slices.Backward(tail) {
+				current = filepath.Join(current, part)
 			}
 			return filepath.Clean(current), nil
 		}
@@ -198,6 +200,9 @@ func Validate(c Claim, destination string) error {
 	if c.Schema != Schema || c.Destination != destination {
 		return errors.New("claim does not bind canonical destination")
 	}
+	if strings.ContainsFunc(c.Destination, unicode.IsControl) {
+		return errors.New("claim destination contains a control character")
+	}
 	if !token(c.Name) || !token(c.Producer) || !token(c.Format) || !token(c.Scope) || !token(c.OperationID) {
 		return errors.New("claim has invalid identity metadata")
 	}
@@ -222,6 +227,14 @@ func Validate(c Claim, destination string) error {
 		if !pathRecord(file.Path, c.Kind) || !digest(file.SHA) {
 			return errors.New("claim has invalid file record")
 		}
+	}
+	manifestDigest, err := ManifestDigest(c.Files)
+	if err != nil || manifestDigest != c.SourceDigest {
+		return errors.New("claim source digest does not bind its files")
+	}
+	basename := filepath.Base(c.Destination)
+	if (c.Kind == KindDirectory && basename != c.Name) || (c.Kind == KindFile && basename != c.Name+".md") {
+		return errors.New("claim name does not match its destination")
 	}
 	return nil
 }
@@ -314,8 +327,8 @@ func (locks *LockSet) Release() error {
 	}
 	locks.released = true
 	var first error
-	for i := len(locks.paths) - 1; i >= 0; i-- {
-		if err := os.Remove(locks.paths[i]); err != nil && !errors.Is(err, os.ErrNotExist) && first == nil {
+	for _, path := range slices.Backward(locks.paths) {
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) && first == nil {
 			first = err
 		}
 	}
@@ -323,12 +336,39 @@ func (locks *LockSet) Release() error {
 }
 
 func Digest(claim Claim) (string, error) {
-	data, err := json.Marshal(claim)
-	if err != nil {
+	if err := Validate(claim, claim.Destination); err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), nil
+	hash := sha256.New()
+	writeDigestFrame(hash, "protocol", "agent-skills-claim-v1")
+	writeDigestFrame(hash, "schema", strconv.Itoa(claim.Schema))
+	writeDigestFrame(hash, "name", claim.Name)
+	writeDigestFrame(hash, "kind", claim.Kind)
+	writeDigestFrame(hash, "state", claim.State)
+	writeDigestFrame(hash, "operation_id", claim.OperationID)
+	writeDigestFrame(hash, "generation", strconv.FormatUint(claim.Generation, 10))
+	writeDigestFrame(hash, "destination", claim.Destination)
+	writeDigestFrame(hash, "producer", claim.Producer)
+	writeDigestFrame(hash, "format", claim.Format)
+	writeDigestFrame(hash, "scope", claim.Scope)
+	writeDigestFrame(hash, "consumer_count", strconv.Itoa(len(claim.Consumers)))
+	for _, consumer := range claim.Consumers {
+		writeDigestFrame(hash, "consumer", consumer)
+	}
+	writeDigestFrame(hash, "source_digest", claim.SourceDigest)
+	writeDigestFrame(hash, "file_count", strconv.Itoa(len(claim.Files)))
+	for _, file := range claim.Files {
+		writeDigestFrame(hash, "file_path", file.Path)
+		writeDigestFrame(hash, "file_sha256", file.SHA)
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+func writeDigestFrame(hash io.Writer, key, value string) {
+	_, _ = io.WriteString(hash, key)
+	_, _ = hash.Write([]byte{0})
+	_, _ = io.WriteString(hash, value)
+	_, _ = hash.Write([]byte{0})
 }
 
 // Transition is the single-claim convenience around a LockedStore transaction.
@@ -345,7 +385,7 @@ func Transition(root string, next Claim, expectedGeneration uint64, previousDige
 	if err != nil {
 		return err
 	}
-	defer locks.Release()
+	defer func() { _ = locks.Release() }()
 	store := &LockedStore{root: root, locks: locks, destinations: map[string]bool{canonical: true}}
 	return store.CompareAndSwap(next, expectedGeneration, previousDigest)
 }
@@ -375,14 +415,12 @@ func Begin(root string, destinations []string) (*LockedStore, error) {
 		return nil, errors.New("claim transaction has no destinations")
 	}
 	authorized := map[string]bool{}
-	canonical := make([]string, 0, len(destinations))
 	for _, destination := range destinations {
 		value, err := CanonicalDestination(destination)
 		if err != nil {
 			return nil, err
 		}
 		authorized[value] = true
-		canonical = append(canonical, value)
 	}
 	locks, err := AcquireLocks(root, destinations)
 	if err != nil {
@@ -553,13 +591,13 @@ func write(root string, claim Claim, replace bool) error {
 		return err
 	}
 	name := temp.Name()
-	defer os.Remove(name)
+	defer func() { _ = os.Remove(name) }()
 	if _, err = temp.Write(data); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return err
 	}
 	if err = temp.Sync(); err != nil {
-		temp.Close()
+		_ = temp.Close()
 		return err
 	}
 	if err = temp.Close(); err != nil {

@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ScriptonBasestar/dva/internal/skillclaim"
 	bundled "github.com/ScriptonBasestar/dva/skills"
 )
 
@@ -39,13 +40,16 @@ const (
 
 // Options supplies filesystem roots. Empty roots are resolved from the process environment.
 type Options struct {
-	Scope       Scope
-	Runtimes    []Runtime
-	HomeDir     string
-	ProjectRoot string
-	StateRoot   string
-	DryRun      bool
-	Version     string
+	Scope                 Scope
+	Runtimes              []Runtime
+	HomeDir               string
+	ProjectRoot           string
+	StateRoot             string
+	ClaimRoot             string
+	DryRun                bool
+	Takeover              bool
+	RestoreTakeoverBackup bool
+	Version               string
 }
 
 type Result struct {
@@ -64,6 +68,8 @@ type DestinationResult struct {
 	InstalledVersion   string          `json:"installed_version,omitempty"`
 	InstalledBundleSHA string          `json:"installed_bundle_sha256,omitempty"`
 	RuntimeStatuses    []RuntimeStatus `json:"runtime_statuses"`
+	TakeoverBackup     string          `json:"takeover_backup,omitempty"`
+	BackupStatus       string          `json:"backup_status,omitempty"`
 }
 
 type RuntimeStatus struct {
@@ -72,21 +78,38 @@ type RuntimeStatus struct {
 }
 
 type receipt struct {
-	Schema      int        `json:"schema"`
-	Format      string     `json:"format,omitempty"`
-	Scope       Scope      `json:"scope"`
-	Destination string     `json:"destination"`
-	Runtimes    []Runtime  `json:"runtimes"`
-	Version     string     `json:"version"`
-	BundleSHA   string     `json:"bundle_sha256"`
-	Files       []fileHash `json:"files"`
+	Schema       int              `json:"schema"`
+	Installation string           `json:"installation,omitempty"`
+	Format       string           `json:"format,omitempty"`
+	Scope        Scope            `json:"scope"`
+	Destination  string           `json:"destination"`
+	Runtimes     []Runtime        `json:"runtimes"`
+	Version      string           `json:"version"`
+	BundleSHA    string           `json:"bundle_sha256"`
+	Files        []fileHash       `json:"files"`
+	Takeovers    []takeoverBackup `json:"takeovers,omitempty"`
 }
 
 const (
-	receiptSchemaCurrent = 2
+	receiptSchemaCurrent = 3
 	receiptFormatNative  = "agent-skills-directory"
 	receiptFormatFlat    = "agent-mesh-flat-markdown"
 )
+
+type takeoverBackup struct {
+	Skill          string        `json:"skill"`
+	BackupID       string        `json:"backup_id"`
+	Kind           string        `json:"kind"`
+	ManifestDigest string        `json:"manifest_digest"`
+	Entries        []backupEntry `json:"entries"`
+}
+
+type backupEntry struct {
+	Path string `json:"path"`
+	Kind string `json:"kind"`
+	Mode uint32 `json:"mode"`
+	SHA  string `json:"sha256,omitempty"`
+}
 
 type fileHash struct {
 	Path string `json:"path"`
@@ -96,12 +119,6 @@ type fileHash struct {
 type destination struct {
 	path     string
 	runtimes []Runtime
-}
-
-type destinationState struct {
-	target destination
-	record receipt
-	found  bool
 }
 
 type skillBundle struct {
@@ -120,96 +137,289 @@ func Install(options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	states := make([]destinationState, 0, len(destinations))
+	// Inspect every destination before the first mutation. Claim locks repeat these
+	// checks at the mutation boundary, but this pass avoids predictable partial work.
 	for _, target := range destinations {
-		bundle, err := bundleFor(target)
-		if err != nil {
+		if err := preflightInstall(resolved, target); err != nil {
 			return Result{}, err
 		}
-		receiptFile := receiptPath(resolved.StateRoot, target.path)
-		existing, found, err := readReceipt(receiptFile)
-		if err != nil {
-			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
-		}
-		if found {
-			if err := validateReceipt(existing, resolved.Scope, target); err != nil {
-				return Result{}, err
-			}
-			if err := verifyInstalled(target.path, existing.Files); err != nil {
-				return Result{}, fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
-			}
-		} else if err := ensureNoCollision(target.path, bundle.files); err != nil {
-			return Result{}, err
-		}
-		states = append(states, destinationState{target: target, record: existing, found: found})
 	}
 	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
-	for _, state := range states {
-		target, existing, found := state.target, state.record, state.found
-		bundle, err := bundleFor(target)
+	for _, target := range destinations {
+		entry, err := installDestination(resolved, target)
 		if err != nil {
 			return Result{}, err
 		}
-		entry := resultEntry(target, resolved.Version, sourceBundleSHA(bundle.files))
-		receiptFile := receiptPath(resolved.StateRoot, target.path)
-		if found && equalFiles(existing.Files, bundle.files) && containsRuntimes(existing.Runtimes, target.runtimes) {
-			entry.Status = "up-to-date"
-			setAllRuntimeStatuses(&entry, "up-to-date")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-
-		if resolved.DryRun {
-			entry.Status = "would-install"
-			setAllRuntimeStatuses(&entry, "would-install")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-		if found && equalFiles(existing.Files, bundle.files) {
-			existing.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
-			if err := writeReceipt(receiptFile, existing); err != nil {
-				return Result{}, fmt.Errorf("update receipt: %w", err)
-			}
-			entry.Status = "installed"
-			setAllRuntimeStatuses(&entry, "installed")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-		if err := ensureDestination(target.path); err != nil {
-			return Result{}, err
-		}
-		// Revalidate at the mutation boundary. The all-destination preflight prevents
-		// predictable partial installs; this second check refuses changes made while
-		// the preflight was examining later destinations.
-		if found {
-			if err := verifyInstalled(target.path, existing.Files); err != nil {
-				return Result{}, fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
-			}
-		} else if err := ensureNoCollision(target.path, bundle.files); err != nil {
-			return Result{}, err
-		}
-		undo, finalize, err := replaceBundle(target.path, bundle, found)
-		if err != nil {
-			return Result{}, err
-		}
-		newReceipt := receipt{Schema: receiptSchemaCurrent, Format: targetReceiptFormat(target), Scope: resolved.Scope, Destination: target.path, Runtimes: target.runtimes, Version: resolved.Version, BundleSHA: sourceBundleSHA(bundle.files), Files: bundle.files}
-		if found {
-			newReceipt.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
-		}
-		if err := writeReceipt(receiptFile, newReceipt); err != nil {
-			if rollbackErr := undo(); rollbackErr != nil {
-				return Result{}, fmt.Errorf("write receipt: %w (rollback also failed: %v)", err, rollbackErr)
-			}
-			return Result{}, fmt.Errorf("write receipt: %w", err)
-		}
-		if err := finalize(); err != nil {
-			return Result{}, fmt.Errorf("clean up replaced DVA skill directories: %w", err)
-		}
-		entry.Status = "installed"
-		setAllRuntimeStatuses(&entry, "installed")
 		result.Destinations = append(result.Destinations, entry)
 	}
 	return result, nil
+}
+
+func preflightInstall(options Options, target destination) error {
+	bundle, err := bundleFor(target)
+	if err != nil {
+		return err
+	}
+	record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
+	if err != nil {
+		return fmt.Errorf("read receipt for %s: %w", target.path, err)
+	}
+	operationID := "preflight"
+	projection, err := projectedClaims(target, options.Scope, target.runtimes, bundle, skillclaim.StateActive, operationID)
+	if err != nil {
+		return err
+	}
+	if !found || (record.Schema == receiptSchemaCurrent && record.Installation == "absent") {
+		if err := ensureClaimsAbsentUnlocked(options.ClaimRoot, projection); err != nil {
+			return err
+		}
+		if found && hasForeignCollision(target.path, bundle.files) {
+			return fmt.Errorf("refusing collision at %s while a takeover backup is retained", target.path)
+		}
+		if !found {
+			if err := ensureNoCollision(target.path, bundle.files); err != nil && !options.Takeover {
+				return err
+			}
+			if options.Takeover {
+				return validateTakeover(target, bundle)
+			}
+		}
+		return nil
+	}
+	if err := validateReceipt(record, options.Scope, target); err != nil {
+		return err
+	}
+	if err := verifyInstalled(target.path, record.Files); err != nil {
+		return fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
+	}
+	oldProjection, err := projectedClaims(target, options.Scope, record.Runtimes, skillBundle{files: record.Files}, skillclaim.StateActive, operationID)
+	if err != nil {
+		return err
+	}
+	if record.Schema < receiptSchemaCurrent {
+		return ensureClaimsAbsentUnlocked(options.ClaimRoot, oldProjection)
+	}
+	return verifyClaimsUnlocked(options.ClaimRoot, oldProjection)
+}
+
+func installDestination(options Options, target destination) (DestinationResult, error) {
+	bundle, err := bundleFor(target)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	entry := resultEntry(target, options.Version, sourceBundleSHA(bundle.files))
+	record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if found && record.Schema == receiptSchemaCurrent && record.Installation == "active" && equalFiles(record.Files, bundle.files) && containsRuntimes(record.Runtimes, target.runtimes) {
+		entry.Status = "up-to-date"
+		setAllRuntimeStatuses(&entry, "up-to-date")
+		if len(record.Takeovers) > 0 {
+			entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, record)
+		}
+		return entry, nil
+	}
+	if options.DryRun {
+		entry.Status = "would-install"
+		setAllRuntimeStatuses(&entry, "would-install")
+		if !found && options.Takeover && hasForeignCollision(target.path, bundle.files) {
+			entry.Detail = "would back up foreign DVA-name skill before takeover"
+			entry.BackupStatus = "would-backup"
+		}
+		return entry, nil
+	}
+	if err := ensureDestination(target.path); err != nil {
+		return DestinationResult{}, err
+	}
+	destinations, err := claimDestinations(target, bundle)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	store, err := skillclaim.Begin(options.ClaimRoot, destinations)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	defer func() { _ = store.Close() }()
+
+	// Repeat receipt and file checks while the per-skill claim locks are held.
+	record, found, err = readReceipt(receiptPath(options.StateRoot, target.path))
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if !found || record.Schema < receiptSchemaCurrent || record.Installation == "absent" {
+		return installWithReservations(options, target, bundle, store, record, found, entry)
+	}
+	return updateClaimedInstall(options, target, bundle, store, record, entry)
+}
+
+func installWithReservations(options Options, target destination, bundle skillBundle, store *skillclaim.LockedStore, previousReceipt receipt, receiptFound bool, entry DestinationResult) (DestinationResult, error) {
+	if receiptFound {
+		if err := validateReceipt(previousReceipt, options.Scope, target); err != nil {
+			return DestinationResult{}, err
+		}
+		if previousReceipt.Schema < receiptSchemaCurrent {
+			if err := verifyInstalled(target.path, previousReceipt.Files); err != nil {
+				return DestinationResult{}, err
+			}
+		} else if hasForeignCollision(target.path, bundle.files) {
+			return DestinationResult{}, errors.New("refusing reinstall because a backup-only destination is no longer empty")
+		}
+	}
+	operationID, err := newClaimOperationID()
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	runtimes := append([]Runtime(nil), target.runtimes...)
+	if receiptFound && previousReceipt.Installation != "absent" {
+		runtimes = unionRuntimes(previousReceipt.Runtimes, runtimes)
+	}
+	claims, err := projectedClaims(target, options.Scope, runtimes, bundle, skillclaim.StateReserved, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if err := ensureClaimsAbsent(store, claims); err != nil {
+		return DestinationResult{}, err
+	}
+	if !receiptFound {
+		if err := ensureNoCollision(target.path, bundle.files); err != nil && !options.Takeover {
+			return DestinationResult{}, err
+		}
+		if options.Takeover {
+			if err := validateTakeover(target, bundle); err != nil {
+				return DestinationResult{}, err
+			}
+		}
+	}
+	reserved, err := reserveClaims(store, claims)
+	if err != nil {
+		_ = rollbackClaimsToAbsent(store, reserved)
+		return DestinationResult{}, err
+	}
+	takeovers := append([]takeoverBackup(nil), previousReceipt.Takeovers...)
+	cleanupTakeover := func() error { return nil }
+	if !receiptFound && options.Takeover {
+		takeovers, cleanupTakeover, err = createTakeoverBackups(options.StateRoot, target, bundle)
+		if err != nil {
+			_ = rollbackClaimsToAbsent(store, reserved)
+			return DestinationResult{}, err
+		}
+	}
+	replaceExisting := (receiptFound && previousReceipt.Installation != "absent") || len(takeovers) > 0
+	undo, finalize, err := replaceBundle(target.path, bundle, replaceExisting)
+	if err != nil {
+		_ = cleanupTakeover()
+		_ = rollbackClaimsToAbsent(store, reserved)
+		return DestinationResult{}, err
+	}
+	newReceipt := receipt{
+		Schema: receiptSchemaCurrent, Installation: "active", Format: targetReceiptFormat(target),
+		Scope: options.Scope, Destination: target.path, Runtimes: runtimes, Version: options.Version,
+		BundleSHA: sourceBundleSHA(bundle.files), Files: bundle.files, Takeovers: takeovers,
+	}
+	receiptFile := receiptPath(options.StateRoot, target.path)
+	if err := writeReceipt(receiptFile, newReceipt); err != nil {
+		rollbackErr := undo()
+		_ = cleanupTakeover()
+		_ = rollbackClaimsToAbsent(store, reserved)
+		if rollbackErr != nil {
+			return DestinationResult{}, fmt.Errorf("write receipt: %w (rollback also failed: %v)", err, rollbackErr)
+		}
+		return DestinationResult{}, err
+	}
+	if _, err := activateReservedClaims(store, reserved); err != nil {
+		rollbackErr := undo()
+		_ = restoreReceipt(receiptFile, previousReceipt, receiptFound)
+		_ = cleanupTakeover()
+		claimErr := rollbackClaimsToAbsent(store, claims)
+		return DestinationResult{}, fmt.Errorf("activate DVA claims: %w (file rollback: %v; claim rollback: %v)", err, rollbackErr, claimErr)
+	}
+	if err := finalize(); err != nil {
+		return DestinationResult{}, fmt.Errorf("clean up replaced DVA skill directories: %w", err)
+	}
+	entry.Status = "installed"
+	setAllRuntimeStatuses(&entry, "installed")
+	if len(takeovers) > 0 {
+		entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, newReceipt)
+	}
+	return entry, nil
+}
+
+func updateClaimedInstall(options Options, target destination, bundle skillBundle, store *skillclaim.LockedStore, record receipt, entry DestinationResult) (DestinationResult, error) {
+	if err := validateReceipt(record, options.Scope, target); err != nil {
+		return DestinationResult{}, err
+	}
+	if record.Installation != "active" {
+		return DestinationResult{}, errors.New("recovery-required: claimed receipt is not active")
+	}
+	if err := verifyInstalled(target.path, record.Files); err != nil {
+		return DestinationResult{}, err
+	}
+	operationID, err := newClaimOperationID()
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	oldProjection, err := projectedClaims(target, options.Scope, record.Runtimes, skillBundle{files: record.Files}, skillclaim.StateActive, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	current, err := readLockedClaims(store, oldProjection)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if err := verifyActiveClaims(current, oldProjection); err != nil {
+		return DestinationResult{}, err
+	}
+	runtimes := unionRuntimes(record.Runtimes, target.runtimes)
+	desired, err := projectedClaims(target, options.Scope, runtimes, bundle, skillclaim.StateActive, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	updating, err := transitionActiveClaims(store, current, desired, skillclaim.StateUpdating, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	undo, finalize := func() error { return nil }, func() error { return nil }
+	if !equalFiles(record.Files, bundle.files) {
+		undo, finalize, err = replaceBundle(target.path, bundle, true)
+		if err != nil {
+			return DestinationResult{}, fmt.Errorf("replace managed skills after claim reservation: %w; recovery-required", err)
+		}
+	}
+	updated := receipt{
+		Schema: receiptSchemaCurrent, Installation: "active", Format: targetReceiptFormat(target),
+		Scope: options.Scope, Destination: target.path, Runtimes: runtimes, Version: options.Version,
+		BundleSHA: sourceBundleSHA(bundle.files), Files: bundle.files, Takeovers: record.Takeovers,
+	}
+	receiptFile := receiptPath(options.StateRoot, target.path)
+	if err := writeReceipt(receiptFile, updated); err != nil {
+		_ = undo()
+		return DestinationResult{}, fmt.Errorf("update receipt: %w; claims remain recovery-required", err)
+	}
+	if err := activateUpdatedClaims(store, updating); err != nil {
+		_ = undo()
+		_ = writeReceipt(receiptFile, record)
+		return DestinationResult{}, fmt.Errorf("activate updated claims: %w; recovery-required", err)
+	}
+	if err := finalize(); err != nil {
+		return DestinationResult{}, err
+	}
+	entry.Status = "installed"
+	setAllRuntimeStatuses(&entry, "installed")
+	if len(updated.Takeovers) > 0 {
+		entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, updated)
+	}
+	return entry, nil
+}
+
+func restoreReceipt(path string, previous receipt, found bool) error {
+	if found {
+		return writeReceipt(path, previous)
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 // Status reports whether every requested destination is installed and unmodified.
@@ -229,8 +439,37 @@ func Status(options Options) (Result, error) {
 		if err != nil {
 			entry.Status, entry.Detail = "invalid-receipt", err.Error()
 			setAllRuntimeStatuses(&entry, "invalid-receipt")
-		} else if !found {
-			if hasForeignCollision(target.path, bundle.files) {
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		if found {
+			if err := validateReceipt(record, resolved.Scope, target); err != nil {
+				entry.Status, entry.Detail = "invalid-receipt", err.Error()
+				setAllRuntimeStatuses(&entry, "invalid-receipt")
+				result.Destinations = append(result.Destinations, entry)
+				continue
+			}
+		}
+		projectionRuntimes := target.runtimes
+		projectionFiles := bundle.files
+		if found {
+			projectionRuntimes = record.Runtimes
+			projectionFiles = record.Files
+			if record.Schema == receiptSchemaCurrent && record.Installation == "absent" {
+				projectionRuntimes = target.runtimes
+			}
+		}
+		projection, projectionErr := projectedClaims(target, resolved.Scope, projectionRuntimes, skillBundle{files: projectionFiles}, skillclaim.StateActive, "status")
+		if projectionErr != nil {
+			entry.Status, entry.Detail = "recovery-required", projectionErr.Error()
+			setAllRuntimeStatuses(&entry, entry.Status)
+			result.Destinations = append(result.Destinations, entry)
+			continue
+		}
+		if !found {
+			if err := ensureClaimsAbsentUnlocked(resolved.ClaimRoot, projection); err != nil {
+				entry.Status, entry.Detail = "recovery-required", err.Error()
+			} else if hasForeignCollision(target.path, bundle.files) {
 				entry.Status = "foreign-conflict"
 			} else {
 				entry.Status = "absent"
@@ -239,13 +478,46 @@ func Status(options Options) (Result, error) {
 		} else if err := validateReceipt(record, resolved.Scope, target); err != nil {
 			entry.Status, entry.Detail = "invalid-receipt", err.Error()
 			setAllRuntimeStatuses(&entry, "invalid-receipt")
+		} else if record.Schema < receiptSchemaCurrent {
+			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
+			if err := verifyInstalled(target.path, record.Files); err != nil {
+				entry.Status, entry.Detail = "drifted", err.Error()
+			} else if err := ensureClaimsAbsentUnlocked(resolved.ClaimRoot, projection); err != nil {
+				entry.Status, entry.Detail = "recovery-required", err.Error()
+			} else {
+				entry.Status = "legacy-unclaimed"
+			}
+			setAllRuntimeStatuses(&entry, entry.Status)
+		} else if record.Installation == "absent" {
+			entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(resolved.StateRoot, record)
+			if err := ensureClaimsAbsentUnlocked(resolved.ClaimRoot, projection); err != nil {
+				entry.Status, entry.Detail = "recovery-required", err.Error()
+			} else if hasForeignCollision(target.path, record.Files) {
+				entry.Status, entry.Detail = "recovery-required", "backup-only destination contains a DVA-name collision"
+			} else {
+				entry.Status = "backup-only"
+			}
+			if entry.BackupStatus == "corrupt" {
+				entry.Detail = "takeover backup is missing or differs from its receipt"
+			}
+			setAllRuntimeStatuses(&entry, "absent")
 		} else if err := verifyInstalled(target.path, record.Files); err != nil {
 			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
 			entry.Status, entry.Detail = "drifted", err.Error()
 			setAllRuntimeStatuses(&entry, "drifted")
+		} else if err := verifyClaimsUnlocked(resolved.ClaimRoot, projection); err != nil {
+			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
+			entry.Status, entry.Detail = "recovery-required", err.Error()
+			setAllRuntimeStatuses(&entry, entry.Status)
 		} else {
 			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
 			entry.Status = setMembershipStatuses(&entry, record.Runtimes, "installed", "absent")
+			if len(record.Takeovers) > 0 {
+				entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(resolved.StateRoot, record)
+				if entry.BackupStatus == "corrupt" {
+					entry.Detail = "takeover backup is missing or differs from its receipt"
+				}
+			}
 		}
 		result.Destinations = append(result.Destinations, entry)
 	}
@@ -258,89 +530,326 @@ func Uninstall(options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	states := make([]destinationState, 0, len(destinations))
 	for _, target := range destinations {
-		receiptFile := receiptPath(resolved.StateRoot, target.path)
-		record, found, err := readReceipt(receiptFile)
-		if err != nil {
-			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
+		if err := preflightUninstall(resolved, target); err != nil {
+			return Result{}, err
 		}
-		if found {
-			if err := validateReceipt(record, resolved.Scope, target); err != nil {
-				return Result{}, err
-			}
-			if installedRequested := intersectRuntimes(record.Runtimes, target.runtimes); len(installedRequested) > 0 {
-				if err := verifyInstalled(target.path, record.Files); err != nil {
-					return Result{}, fmt.Errorf("refusing to uninstall drifted DVA skill installation at %s: %w", target.path, err)
-				}
-			}
-		}
-		states = append(states, destinationState{target: target, record: record, found: found})
 	}
 	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
-	for _, state := range states {
-		target, record, found := state.target, state.record, state.found
-		entry := resultEntry(target, "", "")
-		receiptFile := receiptPath(resolved.StateRoot, target.path)
-		if !found {
-			entry.Status = "not-installed"
-			setAllRuntimeStatuses(&entry, "not-installed")
-			result.Destinations = append(result.Destinations, entry)
-			continue
+	for _, target := range destinations {
+		entry, err := uninstallDestination(resolved, target)
+		if err != nil {
+			return Result{}, err
 		}
-		installedRequested := intersectRuntimes(record.Runtimes, target.runtimes)
-		if len(installedRequested) == 0 {
-			entry.Status = "not-installed"
-			setAllRuntimeStatuses(&entry, "not-installed")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-		if resolved.DryRun {
-			entry.Status = setMembershipStatuses(&entry, record.Runtimes, "would-uninstall", "not-installed")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-		remaining := removeRuntimes(record.Runtimes, target.runtimes)
-		if len(remaining) > 0 {
-			record.Runtimes = remaining
-			if err := writeReceipt(receiptFile, record); err != nil {
-				return Result{}, fmt.Errorf("update receipt: %w", err)
-			}
-			entry.Status = "unlinked"
-			setMembershipStatuses(&entry, installedRequested, "unlinked", "not-installed")
-			result.Destinations = append(result.Destinations, entry)
-			continue
-		}
-		if hasRuntime(target.runtimes, RuntimeAgentMesh) {
-			for _, file := range record.Files {
-				if err := os.Remove(filepath.Join(target.path, filepath.FromSlash(file.Path))); err != nil && !errors.Is(err, os.ErrNotExist) {
-					return Result{}, fmt.Errorf("remove DVA skill %s: %w", file.Path, err)
-				}
-			}
-			if err := os.Remove(target.path); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
-				return Result{}, fmt.Errorf("remove empty Agent Mesh DVA namespace: %w", err)
-			}
-		} else {
-			for _, name := range bundled.Names {
-				if err := os.RemoveAll(filepath.Join(target.path, name)); err != nil {
-					return Result{}, fmt.Errorf("remove DVA skill %s: %w", name, err)
-				}
-			}
-		}
-		if err := os.Remove(receiptFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return Result{}, fmt.Errorf("remove receipt: %w", err)
-		}
-		entry.Status = "uninstalled"
-		setMembershipStatuses(&entry, installedRequested, "uninstalled", "not-installed")
 		result.Destinations = append(result.Destinations, entry)
 	}
 	return result, nil
+}
+
+func preflightUninstall(options Options, target destination) error {
+	record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
+	if err != nil || !found {
+		return err
+	}
+	if err := validateReceipt(record, options.Scope, target); err != nil {
+		return err
+	}
+	if options.RestoreTakeoverBackup {
+		if len(record.Takeovers) == 0 {
+			return fmt.Errorf("no takeover backup exists for %s", target.path)
+		}
+		if status, _ := verifyTakeoverBackups(options.StateRoot, record); status != "available" {
+			return fmt.Errorf("takeover backup for %s is %s", target.path, status)
+		}
+		if record.Installation == "active" && len(removeRuntimes(record.Runtimes, target.runtimes)) > 0 {
+			return errors.New("restore requires selecting every consumer of the shared skill destination")
+		}
+	}
+	if record.Schema == receiptSchemaCurrent && record.Installation == "absent" {
+		bundle := skillBundle{files: record.Files}
+		projection, err := projectedClaims(target, options.Scope, target.runtimes, bundle, skillclaim.StateActive, "preflight")
+		if err != nil {
+			return err
+		}
+		if err := ensureClaimsAbsentUnlocked(options.ClaimRoot, projection); err != nil {
+			return err
+		}
+		if hasForeignCollision(target.path, record.Files) {
+			return errors.New("backup-only destination contains a DVA-name collision")
+		}
+		return nil
+	}
+	if err := verifyInstalled(target.path, record.Files); err != nil {
+		return fmt.Errorf("refusing to uninstall drifted DVA skill installation at %s: %w", target.path, err)
+	}
+	projection, err := projectedClaims(target, options.Scope, record.Runtimes, skillBundle{files: record.Files}, skillclaim.StateActive, "preflight")
+	if err != nil {
+		return err
+	}
+	if record.Schema < receiptSchemaCurrent {
+		return ensureClaimsAbsentUnlocked(options.ClaimRoot, projection)
+	}
+	return verifyClaimsUnlocked(options.ClaimRoot, projection)
+}
+
+func uninstallDestination(options Options, target destination) (DestinationResult, error) {
+	entry := resultEntry(target, "", "")
+	receiptFile := receiptPath(options.StateRoot, target.path)
+	record, found, err := readReceipt(receiptFile)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if !found {
+		entry.Status = "not-installed"
+		setAllRuntimeStatuses(&entry, entry.Status)
+		return entry, nil
+	}
+	if err := validateReceipt(record, options.Scope, target); err != nil {
+		return DestinationResult{}, err
+	}
+	if options.DryRun {
+		if options.RestoreTakeoverBackup {
+			entry.Status, entry.BackupStatus = "would-restore-takeover", "would-restore"
+		} else if record.Installation == "absent" {
+			entry.Status = "not-installed"
+		} else {
+			entry.Status = "would-uninstall"
+		}
+		setAllRuntimeStatuses(&entry, entry.Status)
+		return entry, nil
+	}
+	if err := ensureDestination(target.path); err != nil {
+		return DestinationResult{}, err
+	}
+	bundle := skillBundle{files: record.Files}
+	destinations, err := claimDestinations(target, bundle)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	store, err := skillclaim.Begin(options.ClaimRoot, destinations)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	defer func() { _ = store.Close() }()
+	record, found, err = readReceipt(receiptFile)
+	if err != nil || !found {
+		return DestinationResult{}, fmt.Errorf("receipt changed before uninstall: %w", err)
+	}
+	if record.Installation == "absent" {
+		if !options.RestoreTakeoverBackup {
+			entry.Status = "not-installed"
+			setAllRuntimeStatuses(&entry, entry.Status)
+			return entry, nil
+		}
+		return restoreBackupOnly(options, target, record, store, entry)
+	}
+	if err := verifyInstalled(target.path, record.Files); err != nil {
+		return DestinationResult{}, err
+	}
+	operationID, err := newClaimOperationID()
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	projection, err := projectedClaims(target, options.Scope, record.Runtimes, bundle, skillclaim.StateActive, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	var current []skillclaim.Claim
+	if record.Schema < receiptSchemaCurrent {
+		if err := ensureClaimsAbsent(store, projection); err != nil {
+			return DestinationResult{}, err
+		}
+		reserved, err := reserveClaims(store, projection)
+		if err != nil {
+			_ = rollbackClaimsToAbsent(store, reserved)
+			return DestinationResult{}, err
+		}
+		current, err = activateReservedClaims(store, reserved)
+		if err != nil {
+			return DestinationResult{}, fmt.Errorf("migrate legacy receipt claims: %w; recovery-required", err)
+		}
+	} else {
+		current, err = readLockedClaims(store, projection)
+		if err != nil {
+			return DestinationResult{}, err
+		}
+		if err := verifyActiveClaims(current, projection); err != nil {
+			return DestinationResult{}, err
+		}
+	}
+	installedRequested := intersectRuntimes(record.Runtimes, target.runtimes)
+	if len(installedRequested) == 0 {
+		entry.Status = "not-installed"
+		setAllRuntimeStatuses(&entry, entry.Status)
+		return entry, nil
+	}
+	remaining := removeRuntimes(record.Runtimes, target.runtimes)
+	if options.RestoreTakeoverBackup && len(remaining) > 0 {
+		return DestinationResult{}, errors.New("restore requires selecting every consumer")
+	}
+	if len(remaining) > 0 {
+		return unlinkConsumers(options, target, record, store, current, remaining, operationID, entry)
+	}
+	if options.RestoreTakeoverBackup {
+		return restoreActiveTakeover(options, target, record, store, current, operationID, entry)
+	}
+	return removeLastConsumer(options, target, record, store, current, operationID, entry)
+}
+
+func unlinkConsumers(options Options, target destination, record receipt, store *skillclaim.LockedStore, current []skillclaim.Claim, remaining []Runtime, operationID string, entry DestinationResult) (DestinationResult, error) {
+	desired, err := projectedClaims(target, options.Scope, remaining, skillBundle{files: record.Files}, skillclaim.StateActive, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	updating, err := transitionActiveClaims(store, current, desired, skillclaim.StateUpdating, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	updated := record
+	updated.Schema = receiptSchemaCurrent
+	updated.Installation = "active"
+	updated.Format = targetReceiptFormat(target)
+	updated.Runtimes = remaining
+	if err := writeReceipt(receiptPath(options.StateRoot, target.path), updated); err != nil {
+		return DestinationResult{}, fmt.Errorf("update receipt: %w; claims remain recovery-required", err)
+	}
+	if err := activateUpdatedClaims(store, updating); err != nil {
+		return DestinationResult{}, fmt.Errorf("activate consumer update: %w; recovery-required", err)
+	}
+	entry.Status = "unlinked"
+	setMembershipStatuses(&entry, intersectRuntimes(record.Runtimes, target.runtimes), "unlinked", "not-installed")
+	return entry, nil
+}
+
+func removeLastConsumer(options Options, target destination, record receipt, store *skillclaim.LockedStore, current []skillclaim.Claim, operationID string, entry DestinationResult) (DestinationResult, error) {
+	releasing, err := transitionActiveClaims(store, current, current, skillclaim.StateReleasing, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	rollbackFiles, finalizeFiles, recoveryStage, err := stageManagedRemoval(target.path, record.Files)
+	if err != nil {
+		return DestinationResult{}, fmt.Errorf("stage DVA skill removal: %w; claims remain recovery-required", err)
+	}
+	if err := removeTransitionedClaims(store, releasing); err != nil {
+		if rollbackErr := rollbackFiles(); rollbackErr != nil {
+			return DestinationResult{}, fmt.Errorf("remove DVA claim: %w (file rollback failed: %v; recovery stage: %s)", err, rollbackErr, recoveryStage)
+		}
+		return DestinationResult{}, fmt.Errorf("remove DVA claim: %w; recovery-required", err)
+	}
+	receiptFile := receiptPath(options.StateRoot, target.path)
+	if len(record.Takeovers) > 0 {
+		tombstone := record
+		tombstone.Schema = receiptSchemaCurrent
+		tombstone.Installation = "absent"
+		tombstone.Runtimes = nil
+		if err := writeReceipt(receiptFile, tombstone); err != nil {
+			return DestinationResult{}, fmt.Errorf("write backup-only receipt: %w; recovery stage: %s", err, recoveryStage)
+		}
+	} else if err := os.Remove(receiptFile); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return DestinationResult{}, fmt.Errorf("remove receipt: %w; recovery stage: %s", err, recoveryStage)
+	}
+	if err := finalizeFiles(); err != nil {
+		return DestinationResult{}, fmt.Errorf("finalize skill removal: %w; recovery stage: %s", err, recoveryStage)
+	}
+	if hasRuntime(target.runtimes, RuntimeAgentMesh) {
+		if err := os.Remove(target.path); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
+			return DestinationResult{}, err
+		}
+	}
+	entry.Status = "uninstalled"
+	setMembershipStatuses(&entry, intersectRuntimes(record.Runtimes, target.runtimes), "uninstalled", "not-installed")
+	if len(record.Takeovers) > 0 {
+		entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, receipt{Destination: record.Destination, Takeovers: record.Takeovers})
+	}
+	return entry, nil
+}
+
+func restoreActiveTakeover(options Options, target destination, record receipt, store *skillclaim.LockedStore, current []skillclaim.Claim, operationID string, entry DestinationResult) (DestinationResult, error) {
+	if status, _ := verifyTakeoverBackups(options.StateRoot, record); status != "available" {
+		return DestinationResult{}, fmt.Errorf("takeover backup is %s", status)
+	}
+	restoring, err := transitionActiveClaims(store, current, current, skillclaim.StateRestoring, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	rollbackRestore, finalizeRestore, err := replaceWithTakeoverBackups(options.StateRoot, record)
+	if err != nil {
+		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w; claims remain recovery-required", err)
+	}
+	if err := removeTransitionedClaims(store, restoring); err != nil {
+		_ = rollbackRestore()
+		return DestinationResult{}, fmt.Errorf("release restored claims: %w; recovery-required", err)
+	}
+	if err := os.Remove(receiptPath(options.StateRoot, target.path)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		_ = rollbackRestore()
+		return DestinationResult{}, fmt.Errorf("remove restored receipt: %w; recovery-required", err)
+	}
+	if err := finalizeRestore(); err != nil {
+		return DestinationResult{}, fmt.Errorf("finalize restored takeover: %w", err)
+	}
+	entry.Status, entry.BackupStatus = "restored-takeover", "restored"
+	setAllRuntimeStatuses(&entry, "restored-takeover")
+	return entry, nil
+}
+
+func restoreBackupOnly(options Options, target destination, record receipt, store *skillclaim.LockedStore, entry DestinationResult) (DestinationResult, error) {
+	if status, _ := verifyTakeoverBackups(options.StateRoot, record); status != "available" {
+		return DestinationResult{}, fmt.Errorf("takeover backup is %s", status)
+	}
+	if hasForeignCollision(target.path, record.Files) {
+		return DestinationResult{}, errors.New("refusing restore because a DVA-name destination reappeared")
+	}
+	operationID, err := newClaimOperationID()
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	projection, err := projectedClaims(target, options.Scope, target.runtimes, skillBundle{files: record.Files}, skillclaim.StateReserved, operationID)
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	if err := ensureClaimsAbsent(store, projection); err != nil {
+		return DestinationResult{}, err
+	}
+	reserved, err := reserveClaims(store, projection)
+	if err != nil {
+		_ = rollbackClaimsToAbsent(store, reserved)
+		return DestinationResult{}, err
+	}
+	active, err := activateReservedClaims(store, reserved)
+	if err != nil {
+		return DestinationResult{}, fmt.Errorf("reserve restore claims: %w; recovery-required", err)
+	}
+	restoring, err := transitionActiveClaims(store, active, active, skillclaim.StateRestoring, operationID+"-restore")
+	if err != nil {
+		return DestinationResult{}, err
+	}
+	rollbackRestore, finalizeRestore, err := replaceWithTakeoverBackups(options.StateRoot, record)
+	if err != nil {
+		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w; recovery-required", err)
+	}
+	if err := removeTransitionedClaims(store, restoring); err != nil {
+		_ = rollbackRestore()
+		return DestinationResult{}, fmt.Errorf("release restore claims: %w; recovery-required", err)
+	}
+	if err := os.Remove(receiptPath(options.StateRoot, target.path)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		_ = rollbackRestore()
+		return DestinationResult{}, err
+	}
+	if err := finalizeRestore(); err != nil {
+		return DestinationResult{}, err
+	}
+	entry.Status, entry.BackupStatus = "restored-takeover", "restored"
+	setAllRuntimeStatuses(&entry, "restored-takeover")
+	return entry, nil
 }
 
 func resolve(options Options) (Options, []destination, error) {
 	if options.Scope != ScopeUser && options.Scope != ScopeProject {
 
 		return Options{}, nil, fmt.Errorf("skill install scope must be %q or %q", ScopeUser, ScopeProject)
+	}
+	if (options.Takeover || options.RestoreTakeoverBackup) && len(options.Runtimes) == 0 {
+		return Options{}, nil, errors.New("--takeover and --restore-takeover-backup require at least one explicit --runtime")
 	}
 	if options.HomeDir == "" {
 		home, err := os.UserHomeDir()
@@ -378,6 +887,14 @@ func resolve(options Options) (Options, []destination, error) {
 		return Options{}, nil, err
 	}
 	options.StateRoot = state
+	if options.ClaimRoot == "" {
+		options.ClaimRoot = filepath.Dir(state)
+	}
+	claimRoot, err := filepath.Abs(options.ClaimRoot)
+	if err != nil {
+		return Options{}, nil, err
+	}
+	options.ClaimRoot = claimRoot
 	if options.Version == "" {
 		options.Version = "unknown"
 	}
@@ -570,6 +1087,48 @@ func hasForeignCollision(destination string, files []fileHash) bool {
 		}
 	}
 	return false
+}
+
+func skillNames(bundle skillBundle) []string {
+	if len(bundle.files) > 0 && !strings.Contains(bundle.files[0].Path, "/") {
+		return []string{"dva.md", "dva-config.md"}
+	}
+	return append([]string(nil), bundled.Names...)
+}
+
+func claimDestination(target destination, name string) string {
+	return filepath.Join(target.path, name)
+}
+
+func validateTakeover(target destination, bundle skillBundle) error {
+	for _, name := range skillNames(bundle) {
+		path := claimDestination(target, name)
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || (!info.Mode().IsRegular() && !info.IsDir()) {
+			return fmt.Errorf("refusing takeover of symlink or special skill %s", path)
+		}
+		if info.IsDir() {
+			err := filepath.WalkDir(path, func(p string, entry fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if entry.Type()&os.ModeSymlink != 0 || (!entry.IsDir() && !entry.Type().IsRegular()) {
+					return fmt.Errorf("refusing takeover of symlink or special skill %s", p)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func collisionPaths(destination string, files []fileHash) []string {
@@ -910,7 +1469,7 @@ func readReceipt(path string) (receipt, bool, error) {
 }
 
 func validateReceipt(record receipt, scope Scope, target destination) error {
-	if (record.Schema != 1 && record.Schema != receiptSchemaCurrent) || record.Scope != scope || record.Destination != target.path {
+	if (record.Schema != 1 && record.Schema != 2 && record.Schema != receiptSchemaCurrent) || record.Scope != scope || record.Destination != target.path {
 		return fmt.Errorf("receipt does not belong to %s", target.path)
 	}
 	if len(record.Files) == 0 || record.Version == "" || !validSHA(record.BundleSHA) {
@@ -934,6 +1493,32 @@ func validateReceipt(record receipt, scope Scope, target destination) error {
 		if !validSHA(file.SHA) {
 			return errors.New("receipt contains an invalid file record")
 		}
+	}
+	if record.Schema == 3 {
+		if record.Installation != "active" && record.Installation != "absent" {
+			return errors.New("receipt has invalid installation state")
+		}
+		if record.Installation == "active" && len(record.Runtimes) == 0 {
+			return errors.New("active receipt has no runtime consumers")
+		}
+		if record.Installation == "absent" && (len(record.Runtimes) != 0 || len(record.Takeovers) == 0) {
+			return errors.New("backup-only receipt has invalid runtime state")
+		}
+		for _, takeover := range record.Takeovers {
+			if !validTakeoverSkill(takeover.Skill) || !validBackupID(takeover.BackupID) || (takeover.Kind != backupKindFile && takeover.Kind != backupKindDirectory) || !validSHA(takeover.ManifestDigest) || len(takeover.Entries) == 0 || !sort.SliceIsSorted(takeover.Entries, func(i, j int) bool { return takeover.Entries[i].Path < takeover.Entries[j].Path }) {
+				return errors.New("receipt has invalid takeover metadata")
+			}
+			for _, entry := range takeover.Entries {
+				if entry.Path == "" || (entry.Kind != backupKindFile && entry.Kind != backupKindDirectory) || entry.Mode > 0o777 || (entry.Kind == backupKindFile) != validSHA(entry.SHA) {
+					return errors.New("receipt takeover has invalid file record")
+				}
+			}
+			if backupManifestDigest(takeover.Entries) != takeover.ManifestDigest {
+				return errors.New("receipt takeover manifest digest differs from its entries")
+			}
+		}
+	} else if len(record.Takeovers) > 0 {
+		return errors.New("legacy receipt has takeover metadata")
 	}
 	return nil
 }

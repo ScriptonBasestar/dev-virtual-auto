@@ -215,6 +215,11 @@ Cursor rule, Codex 호환 `AGENTS.md` 섹션을 만듭니다. 사용자나 다�
 user/project discovery path에 복사합니다. Claude Code, Codex, OpenCode, Grok,
 Antigravity, Agent Mesh의 정확한 설치 경로와 공유 경로 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를
 참조하세요. Agent Mesh에는 같은 스킬을 flat Markdown으로 변환해 설치합니다.
+공유 skill root는 어느 installer의 소유도 아니며, DVA는 per-skill XDG claim으로 `dva`와
+`dva-config`만 표시합니다. receipt 없는 동명 충돌은 기본적으로 거부하고, 필요한 경우에만
+`dva skill install --takeover`가 검증 가능한 백업을 만든 뒤 인수합니다. 복원은 자동이 아니라
+`dva skill uninstall --restore-takeover-backup`로 명시합니다. 두 옵션 모두 변경 범위를 제한하도록
+명시적 `--runtime`을 요구합니다.
 
 ## Documentation
 

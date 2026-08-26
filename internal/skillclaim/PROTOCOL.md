@@ -12,9 +12,14 @@ the same operation continues under the ordered claim lock. Creation is O_EXCL; u
 previous generation and canonical-JSON digest. Writers sync the claim and its parent directory.
 
 `source_digest` is `ManifestDigest(files)`: for sorted records, append UTF-8 `path`, NUL,
-lowercase SHA-256, NUL for each record, then SHA-256 the byte stream. Claim `Digest` is the
-SHA-256 of Go's compact JSON serialization of the complete protocol object; consumers that need
-cross-language CAS should use the documented field framing above as the portable source identity.
+lowercase SHA-256, NUL for each record, then SHA-256 the byte stream. `Validate` recomputes it.
+
+The CAS claim digest is language-neutral field framing. Start an empty SHA-256 and append each
+UTF-8 key, NUL, UTF-8 value, NUL in this exact order: `protocol=agent-skills-claim-v1`, `schema`,
+`name`, `kind`, `state`, `operation_id`, decimal `generation`, `destination`, `producer`, `format`,
+`scope`, decimal `consumer_count`, one `consumer` per sorted value, `source_digest`, decimal
+`file_count`, then `file_path` and `file_sha256` for every sorted record. The golden manifest and
+claim digests are in [`testdata/digest-vectors.json`](testdata/digest-vectors.json).
 Directory record paths are POSIX clean relative paths (no `.`, `..`, slash suffix, backslash, or
 control byte). State transitions are reserved→active under one operation, active→updating/releasing/
 restoring under a new operation, and updating/restoring→active under that operation.

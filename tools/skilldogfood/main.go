@@ -50,18 +50,34 @@ type runtimeStatus struct {
 	Status  string `json:"status"`
 }
 type receiptRecord struct {
-	Schema      int        `json:"schema"`
-	Format      string     `json:"format"`
-	Scope       string     `json:"scope"`
-	Destination string     `json:"destination"`
-	Runtimes    []string   `json:"runtimes"`
-	Version     string     `json:"version"`
-	BundleSHA   string     `json:"bundle_sha256"`
-	Files       []fileHash `json:"files"`
+	Schema       int        `json:"schema"`
+	Installation string     `json:"installation"`
+	Format       string     `json:"format"`
+	Scope        string     `json:"scope"`
+	Destination  string     `json:"destination"`
+	Runtimes     []string   `json:"runtimes"`
+	Version      string     `json:"version"`
+	BundleSHA    string     `json:"bundle_sha256"`
+	Files        []fileHash `json:"files"`
 }
 type fileHash struct {
 	Path string `json:"path"`
 	SHA  string `json:"sha256"`
+}
+type claimRecord struct {
+	Schema       int        `json:"schema"`
+	Name         string     `json:"name"`
+	Kind         string     `json:"kind"`
+	State        string     `json:"state"`
+	OperationID  string     `json:"operation_id"`
+	Generation   uint64     `json:"generation"`
+	Destination  string     `json:"destination"`
+	Producer     string     `json:"producer"`
+	Format       string     `json:"format"`
+	Scope        string     `json:"scope"`
+	Consumers    []string   `json:"consumers"`
+	SourceDigest string     `json:"source_digest"`
+	Files        []fileHash `json:"files"`
 }
 
 // treeEntry records the runtime-path facts that a dry-run must preserve.
@@ -457,6 +473,9 @@ func verifyOwnedArtifacts(project, stateRoot string) error {
 		if err := requireReceiptContract(destination, record, runtimes, files, receiptFormatForSuffix(suffix)); err != nil {
 			return err
 		}
+		if err := requireClaimContract(filepath.Dir(stateRoot), destination, runtimes, files, receiptFormatForSuffix(suffix)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -490,7 +509,10 @@ func verifySharedUnlink(project, stateRoot string, before receiptRecord, beforeF
 	if err := requireReceiptContract(destination, record, []string{"antigravity"}, files, "agent-skills-directory"); err != nil {
 		return err
 	}
-	return requireSharedUnlinkPreservation(destination, before, record, beforeFiles, files)
+	if err := requireSharedUnlinkPreservation(destination, before, record, beforeFiles, files); err != nil {
+		return err
+	}
+	return requireClaimContract(filepath.Dir(stateRoot), destination, []string{"antigravity"}, files, "agent-skills-directory")
 }
 
 // requireSharedUnlinkPreservation pins the uninstall contract: removing one
@@ -502,6 +524,9 @@ func requireSharedUnlinkPreservation(destination string, before, after receiptRe
 	}
 	if before.Schema != after.Schema {
 		return fmt.Errorf("shared receipt schema changed after unlink for %s", destination)
+	}
+	if before.Installation != after.Installation {
+		return fmt.Errorf("shared receipt installation state changed after unlink for %s", destination)
 	}
 	if before.Format != after.Format {
 		return fmt.Errorf("shared receipt format changed after unlink for %s", destination)
@@ -528,8 +553,11 @@ func requireSharedUnlinkPreservation(destination string, before, after receiptRe
 // receipt. The black-box gate must not call internal/skillinstall's reader because
 // that would make the producer and verifier share the same decoding assumptions.
 func requireReceiptContract(destination string, record receiptRecord, runtimes []string, files []fileHash, format string) error {
-	if record.Schema != 2 {
-		return fmt.Errorf("receipt for %s has schema=%d, want 2", destination, record.Schema)
+	if record.Schema != 3 {
+		return fmt.Errorf("receipt for %s has schema=%d, want 3", destination, record.Schema)
+	}
+	if record.Installation != "active" {
+		return fmt.Errorf("receipt for %s has installation=%q, want active", destination, record.Installation)
 	}
 	if record.Format != format {
 		return fmt.Errorf("receipt for %s has format=%q, want %q", destination, record.Format, format)
@@ -558,6 +586,51 @@ func requireReceiptContract(destination string, record receiptRecord, runtimes [
 	return nil
 }
 
+func requireClaimContract(neutralRoot, destination string, runtimes []string, installed []fileHash, format string) error {
+	flat := format == "agent-mesh-flat-markdown"
+	for _, name := range []string{"dva", "dva-config"} {
+		installedName := name
+		kind := "directory"
+		var files []fileHash
+		if flat {
+			installedName, kind = name+".md", "file"
+			for _, file := range installed {
+				if file.Path == installedName {
+					files = append(files, fileHash{Path: ".", SHA: file.SHA})
+				}
+			}
+		} else {
+			prefix := name + "/"
+			for _, file := range installed {
+				if relative, found := strings.CutPrefix(file.Path, prefix); found {
+					files = append(files, fileHash{Path: relative, SHA: file.SHA})
+				}
+			}
+		}
+		claimDestination := filepath.Join(destination, installedName)
+		digest := sha256.Sum256([]byte(claimDestination))
+		claimPath := filepath.Join(neutralRoot, "agent-skills", "claims", "v1", hex.EncodeToString(digest[:])+".json")
+		contents, err := os.ReadFile(claimPath)
+		if err != nil {
+			return fmt.Errorf("read claim for %s: %w", claimDestination, err)
+		}
+		var claim claimRecord
+		if err := json.Unmarshal(contents, &claim); err != nil {
+			return err
+		}
+		if claim.Schema != 1 || claim.Name != name || claim.Kind != kind || claim.State != "active" || claim.OperationID == "" || claim.Generation == 0 || claim.Destination != claimDestination || claim.Producer != "dva" || claim.Format != format || claim.Scope != "project" {
+			return fmt.Errorf("claim identity for %s is invalid: %#v", claimDestination, claim)
+		}
+		if !sameStrings(claim.Consumers, runtimes) || !sameFiles(claim.Files, files) {
+			return fmt.Errorf("claim membership/files for %s differ", claimDestination)
+		}
+		if claim.SourceDigest != bundleSHA(files) {
+			return fmt.Errorf("claim source digest for %s differs from its files", claimDestination)
+		}
+	}
+	return nil
+}
+
 func verifyArtifactsAbsent(project, stateRoot string) error {
 	for suffix := range runtimeDestinations {
 		if suffix == ".agent-mesh/skills/dva" {
@@ -574,7 +647,10 @@ func verifyArtifactsAbsent(project, stateRoot string) error {
 			}
 		}
 	}
-	return requireEmptyOrMissingDirectory(filepath.Join(stateRoot, "skill-installs"))
+	if err := requireEmptyOrMissingDirectory(filepath.Join(stateRoot, "skill-installs")); err != nil {
+		return err
+	}
+	return requireEmptyOrMissingDirectory(filepath.Join(filepath.Dir(stateRoot), "agent-skills", "claims", "v1"))
 }
 
 func readReceipt(stateRoot, destination string) (receiptRecord, error) {

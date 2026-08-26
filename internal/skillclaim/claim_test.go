@@ -8,6 +8,28 @@ import (
 	"testing"
 )
 
+func TestPortableClaimDigestVector(t *testing.T) {
+	contents, err := os.ReadFile("testdata/valid-file-claim.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim, err := Decode(contents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(claim, claim.Destination); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Digest(claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const want = "e9d6ae74f9b56f32c974f3bcadcbc3548e8b77a197818ef0c1fe053ab916074c"
+	if got != want {
+		t.Fatalf("claim digest = %s, want %s", got, want)
+	}
+}
+
 func validClaim(t *testing.T, destination, producer string) Claim {
 	t.Helper()
 	canonical, err := CanonicalDestination(destination)
@@ -91,6 +113,7 @@ func TestFileClaimRequiresDotRecord(t *testing.T) {
 		t.Fatal("file claim accepted non-dot record")
 	}
 	claim.Files[0].Path = "."
+	claim.SourceDigest, _ = ManifestDigest(claim.Files)
 	if err := Validate(claim, claim.Destination); err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +141,9 @@ func TestLockedStoreReservesTwoClaimsAndRefusesDoubleClose(t *testing.T) {
 	if err := store.Reserve(validClaim(t, first, "producer")); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Reserve(validClaim(t, second, "producer")); err != nil {
+	secondClaim := validClaim(t, second, "producer")
+	secondClaim.Name = "dva-config"
+	if err := store.Reserve(secondClaim); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Close(); err != nil {

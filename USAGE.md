@@ -54,6 +54,11 @@ dva skill install --scope project --runtime codex,opencode
 dva skill status --json
 dva skill uninstall --runtime grok
 
+# receipt 없는 기존 dva 이름만 백업 후 명시적으로 인수
+dva skill install --runtime codex --takeover
+# 일반 uninstall은 백업을 복원하지 않음; 명시할 때만 검증 후 복원
+dva skill uninstall --runtime codex --restore-takeover-backup
+
 # 실제 파일과 receipt를 바꾸지 않고 충돌까지 미리 검사
 dva skill install --dry-run
 dva skill uninstall --dry-run --runtime claude-code
@@ -72,6 +77,29 @@ dva skill uninstall --dry-run --runtime claude-code
 복사하고 receipt에서 두 runtime의 소유 관계를 함께 기록합니다. 설치 상태는
 `$XDG_STATE_HOME/dva/skill-installs/` 아래 receipt로 관리하며, `XDG_STATE_HOME`이 없으면
 `~/.local/state/dva/skill-installs/`를 사용합니다.
+
+공유 runtime root 자체의 소유자는 없습니다. 설치기는 각 최상위 스킬마다
+`$XDG_STATE_HOME/agent-skills/claims/v1/`에 producer-neutral claim을 기록하며, DVA는
+`dva` producer로 자신의 두 이름만 claim합니다. 다른 producer claim, symlink, 특수 파일은
+`--takeover`로도 거부합니다. 인수 백업은 DVA state에 남아 있으며 status에서 available/corrupt를
+확인할 수 있습니다. 일반 uninstall은 백업을 보존하고 자동 복원하지 않습니다.
+두 위험 옵션은 지원 runtime 전체를 암묵적으로 선택하지 않으며 `--runtime`을 반드시 지정해야
+합니다. 공유 목적지에 다른 consumer가 남아 있으면 복원을 거부합니다.
+
+takeover 백업은 `$XDG_STATE_HOME/dva/skill-takeovers/` 아래의 검증된 ID로 계산하며 receipt의
+임의 절대경로를 신뢰하지 않습니다. 일반 uninstall로 마지막 consumer를 제거하면 DVA 파일과
+claim만 없애고 `backup-only` receipt tombstone을 남깁니다. 이후 명시적 restore가 원본과
+manifest를 검증해 성공한 뒤에만 backup과 tombstone을 제거합니다. 보존 범위는 regular
+file/directory의 bytes, 상대 경로, 빈 directory, permission bits입니다. symlink와 특수 파일은
+거부하며 uid/gid, ACL, xattr, birthtime, sparse/hardlink identity는 보존 계약 밖입니다.
+
+Claim 생성·갱신·삭제는 두 DVA 이름을 정렬해 잠근 뒤 reservation/generation CAS로 수행합니다.
+중간에 남은 non-active claim, claim/receipt 불일치, malformed claim은 자동 추론하지 않고
+`recovery-required`로 중단합니다. 포맷과 digest vector는
+[Agent Skills claim protocol](internal/skillclaim/PROTOCOL.md)에 고정되어 다른 producer도 같은
+계약을 독립 구현할 수 있습니다. 프로세스 crash나 전원 손실을 여러 filesystem에 걸친 하나의
+atomic commit으로 보장하지는 않으며, 실패 시 보존된 stage/claim을 오류에 표시해 복구 근거로
+남깁니다.
 
 안전 규칙:
 
