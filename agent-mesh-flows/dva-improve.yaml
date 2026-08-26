@@ -36,6 +36,9 @@ parameters:
   - name: discovery_report
     description: "Path to a precomputed discovery report JSON"
     default: "tmp/improve-guided/00-analysis-report.json"
+  - name: capability_bindings
+    description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
+    default: "[]"
   - name: shared_dir
     description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
     default: ""
@@ -598,6 +601,17 @@ steps:
       ```json
       {{load_discovery_report.discovery_report}}
       ```
+
+      # Injected Platform Capability Bindings
+
+      ```json
+      {{param.capability_bindings}}
+      ```
+
+      이 binding은 생성 입력일 뿐이다. provider/consumer/ownership/evidence가 현재
+      프로젝트 또는 workspace 사실과 맞는지 검증하고, 승인된 binding만 지원되는
+      stack/plan/health 필드로 materialize하라. `capability_bindings` 자체를 dva.yml
+      key로 생성하지 말고, 충돌하거나 미검증인 provider를 추측하지 마라.
 
       ---
 

@@ -278,7 +278,7 @@ steps:
       1. 기존 dva.yml 로드 (있으면)
       2. 안티패턴 변환 (echo 래퍼 → 실제 명령, 프리픽스 커맨드 → replace 훅)
       3. 누락 필수 섹션 추가
-      4. 사용자에게 제시된 후보 중 선택된 applications 섹션 생성
+      4. 승인된 native/Compose 후보를 stack entry로 생성하고 완전한 named plans에서 선택
       5. interaction 매핑 (Makefile/package.json → dva commands)
       6. endpoints 완비
 
@@ -286,6 +286,13 @@ steps:
       1. compose.yml 생성 (인프라 서비스)
       2. dva.yml 신규 생성 (전체 구조)
       3. 위 adopt 규칙 동일 적용
+
+      ### capability bindings:
+      1. 승인된 binding만 사용하고 provider/consumer/ownership/evidence를 다시 확인
+      2. parent-owned provider는 stack entry와 plan dependency로 materialize
+      3. external/separate-plan provider는 검증된 선행 명령 또는 health contract로 분리
+      4. binding 메타데이터 자체는 dva.yml에 쓰지 않음
+      5. unresolved/conflict 상태에서는 provider를 추측하거나 기존 owner를 삭제하지 않음
 
       ## Post-configure
       1. `dva config validate` 실행 → ERROR 0까지 수정

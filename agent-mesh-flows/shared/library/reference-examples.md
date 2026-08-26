@@ -54,6 +54,58 @@
 
 ---
 
+## Capability-driven named plans
+
+Generate plans from verified capabilities, not from a fixed list of popular containers.
+Every plan repeats its complete entry/service closure because DVA plans do not inherit.
+
+```yaml
+plans:
+  local-infra:
+    description: Core providers required by native development
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [database, cache, identity]
+  local-dev:
+    description: Core providers plus native applications
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [database, cache, identity]
+      - name: api
+        runner: native
+        depends_on: [core-compose]
+  full-stack:
+    description: Verified Compose-hosted runtime
+    entries:
+      - name: core-compose
+        runner: compose
+        services: [database, cache, identity, api]
+default_plan: local-infra
+```
+
+Map `database`, `cache`, and `identity` to exact discovered service names. Omit any
+capability that the normal workflow does not require. Monitoring and tools get separate
+self-contained opt-in plans; they are not silently added to `full-stack`.
+
+An injected platform binding can close an `identity → database` dependency with a
+preferred provider. There are three valid shapes:
+
+- Separate parent-owned provider and consumer stack entries share one plan; only then does
+  the consumer entry name the provider entry in `depends_on`.
+- Provider and consumer services in one Compose entry use Compose `depends_on`; plan
+  `depends_on` orders entries, not services.
+- A shared/external provider is represented by its verified health contract and
+  prerequisite command. A separately imported provider or consumer plan remains a separate
+  named command. Do not place a plan name in `plans.*.entries[].name`; entries reference
+  stack declarations, not plans.
+
+If only an existing embedded database owner is verified, preserve it and report the policy
+gap. Never guess a sibling path, fabricate a provider command, or add a second database.
+
+---
+
 ## Rust — Hybrid Pattern (devbox)
 
 > archetype: service-daemon | microservices

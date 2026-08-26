@@ -26,6 +26,9 @@ parameters:
   - name: shared_dir
     description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
     default: ""
+  - name: capability_bindings
+    description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
+    default: "[]"
 
 steps:
   # Same guard as `dva-improve.yaml`, which carries the full reasoning. Short version:
@@ -297,7 +300,7 @@ steps:
   # Library rules this stage's own output is judged against
   # ══════════════════════════════════════════════
   # Stage 00 writes no dva.yml, so it looked like a stage that needed no guardrails.
-  # But `candidate_environments`, `recommended_modes` and `changes[]` are carried
+  # But `candidate_environments`, `recommended_plans` and `changes[]` are carried
   # verbatim into stage 30 and into `dva-improve` through `param.discovery_report`,
   # and neither re-derives them — a candidate that breaks a rule here is already
   # past the gate before any stage that loads the library sees it. Measured on a
@@ -335,6 +338,15 @@ steps:
       ## DVA CLI 정보
       - DVA 버전: {{check_dva.dva_version}}
       - Docker: {{check_dva.docker_available | trim}}
+
+      ## Platform capability bindings (generation input only)
+      {{param.capability_bindings}}
+
+      - Treat a binding as authoritative only when provider, consumer, ownership, and
+        concrete evidence are present and match discovered project/workspace facts.
+      - Report unverifiable or conflicting bindings; do not invent their target.
+      - Materialize accepted bindings through supported stack/plan/health fields.
+        Never emit `capability_bindings` as a dva.yml key.
 
       ## 탐지 결과
       - 기존 dva.yml: {{detect_basics.has_dva_yml | trim}}
@@ -395,14 +407,17 @@ steps:
         "stack": ["detected technologies"],
         "package_names": {"lang": "name"},
         "service_groups": [{"name": "svc", "tags": ["infra"]}],
-        "recommended_modes": ["local-infra", "full-stack"],
+        "recommended_plans": ["local-infra", "full-stack"],
         "candidate_environments": ["dev", "test"],
-        "detected_applications": [{"name": "api", "port": 8080, "framework": "..."}],
+        "detected_stack_entries": [{"name": "api", "runner": "native", "port": 8080, "framework": "..."}],
+        "capability_bindings": [
+          {"capability": "database", "provider": "...", "consumer": "...", "ownership": "parent-stack|external|separate-plan|project-local", "evidence": ["..."], "status": "accepted|conflict|unverified"}
+        ],
         "candidate_options": {
-          "applications": [{"name": "api", "native_run": ["..."], "docker_services": ["api"]}],
+          "stack_entries": [{"name": "api", "native_run": ["..."], "docker_services": ["api"]}],
           "interactions": [{"name": "test", "source": "package.json", "command": "npm test"}]
         },
-        "selection_hints": ["추천 기본 mode는 hybrid"],
+        "selection_hints": ["안전한 기본 plan은 local-infra"],
         "compose_issues": ["issues"],
         "port_discrepancies": [],
         "naming_compliance": {"issues": []},
@@ -413,7 +428,7 @@ steps:
       }
       ```
 
-      `recommended_modes` 는 plan 프리셋 이름(local-infra / local-dev / full-stack /
+      `recommended_plans` 는 plan 프리셋 이름(local-infra / local-dev / full-stack /
       observability 또는 프로젝트 어휘), `candidate_environments` 는 environment 프리셋
       이름(dev / test / stg / prd)만 사용한다 — 규칙 23.
 

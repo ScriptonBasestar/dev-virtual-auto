@@ -103,11 +103,12 @@ steps:
       - Setup track (fresh/adopt/upgrade)
       - Development pattern (hybrid/container-first/devbox)
       - 발견된 앱/인프라/커맨드 옵션
-      - 추천 기본 mode / environment 조합
+      - 추천 기본 plan / environment 조합
       - 생성/수정할 파일 목록 (체크박스)
       - 서비스 그룹과 태그 매핑
-      - 추천 modes
-      - Applications 섹션 계획
+      - 추천 named plans와 각 plan의 완전한 capability closure
+      - native/Compose stack entry 계획
+      - platform capability binding의 근거, 충돌, 미검증 항목
       - 리스크 평가
 
       ## 마지막에 반드시 포함

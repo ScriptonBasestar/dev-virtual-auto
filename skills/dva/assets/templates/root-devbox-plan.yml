@@ -88,6 +88,8 @@ plans:
         order: 10
         services: [postgres, redis, api, web]
 
+default_plan: local-infra
+
 environments:
   dev:
     environment:

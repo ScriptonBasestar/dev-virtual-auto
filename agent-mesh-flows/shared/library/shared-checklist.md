@@ -58,6 +58,11 @@
 ### Plans & runner strategy
 - [ ] Plans select only declared runners
 - [ ] Compose service subsets use `plans.entries[].services`
+- [ ] Each plan explicitly contains the full capability closure; it does not assume another plan is an overlay
+- [ ] `local-infra` contains only verified core providers; `local-dev` adds verified native apps; `full-stack`, `observability`, and `tools` are opt-in
+- [ ] Every required capability has exactly one lifecycle provider
+- [ ] Injected `capability_bindings` have provider/consumer evidence, are materialized through supported DVA fields, and are not emitted as new config keys
+- [ ] `default_plan` is safe, local, and non-destructive; it is never generated as `full-stack`
 - [ ] Environments distinguish dev/stg/prd variables
 - [ ] Sites distinguish local/remote host differences
 

@@ -6,7 +6,7 @@ contract:
   expected_results:
     - "프로젝트 분석 리포트가 생성된다"
     - "감지된 앱, 인프라, 커맨드 후보가 정리된다"
-    - "추천 mode 와 environment 후보가 제시된다"
+    - "추천 named plan과 environment 후보가 제시된다"
   success_criteria:
     - "analyze stage가 성공해야 한다"
     - "tmp/improve-guided/00-analysis-report.json 파일이 생성되어야 한다"
@@ -20,6 +20,9 @@ parameters:
   - name: shared_dir
     description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
     default: ""
+  - name: capability_bindings
+    description: "JSON array of portfolio/provider bindings used during discovery"
+    default: "[]"
 
 steps:
   - id: analyze
@@ -28,3 +31,4 @@ steps:
     pipeline_params:
       target: "{{param.target}}"
       shared_dir: "{{param.shared_dir}}"
+      capability_bindings: "{{param.capability_bindings}}"

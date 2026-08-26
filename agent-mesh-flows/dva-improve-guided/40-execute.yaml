@@ -21,8 +21,8 @@ parameters:
   - name: target
     description: "Target directory"
     default: "."
-  - name: mode
-    description: "DVA mode to use (e.g., infra)"
+  - name: plan
+    description: "Exact named DVA plan to execute (e.g., local-infra)"
     default: ""
 
 steps:
@@ -78,13 +78,20 @@ steps:
     depends_on: [doctor_check]
     action: |
       cd '{{param.target}}'
-      MODE_FLAG=""
-      if [ -n "{{param.mode}}" ]; then
-        MODE_FLAG="--mode {{param.mode}}"
+      PLAN="{{param.plan}}"
+      if [ -z "$PLAN" ]; then
+        echo "ERROR: an explicit named plan is required; discover one with 'dva show'." >&2
+        exit 1
       fi
 
-      echo "=== dva up $MODE_FLAG ==="
-      dva up $MODE_FLAG 2>&1 | tail -30
+      echo "=== dva up $PLAN ==="
+      if OUTPUT=$(dva up "$PLAN" 2>&1); then
+        printf '%s\n' "$OUTPUT" | tail -30
+      else
+        STATUS=$?
+        printf '%s\n' "$OUTPUT" | tail -30
+        exit "$STATUS"
+      fi
 
   - id: verify_status
     type: context

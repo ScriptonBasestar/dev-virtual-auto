@@ -20,6 +20,27 @@ func TestDetectDocsDir_DocsExists(t *testing.T) {
 	}
 }
 
+func TestDVAGuideUsesNamedPlanLifecycle(t *testing.T) {
+	required := []string{
+		"dva up PLAN",
+		"dva stop PLAN",
+		"dva down PLAN",
+		"dva config validate",
+		"dva up *",
+	}
+	for _, fragment := range required {
+		if !strings.Contains(dvaGuideTemplate, fragment) {
+			t.Errorf("guide is missing named-plan guidance %q", fragment)
+		}
+	}
+
+	for _, stale := range []string{"dva init --ai", "dva init --prompt", "dva up -M"} {
+		if strings.Contains(dvaGuideTemplate, stale) {
+			t.Errorf("guide still teaches removed or migration-only command %q", stale)
+		}
+	}
+}
+
 func TestDetectDocsDir_DocExists(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldDir, _ := os.Getwd()

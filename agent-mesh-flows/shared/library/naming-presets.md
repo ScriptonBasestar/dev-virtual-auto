@@ -1,153 +1,156 @@
-# DVA Naming Presets
+# DVA Naming and Plan Presets
 
-> improve 워크플로우가 dva.yml을 생성할 때 참조하는 네이밍 규약 — 현재 `plans` +
-> `environments` + `sites` 모델 기준. 새/rewrite 설정에 **절대 legacy `modes:` /
-> `compose_services` / `default_mode`를 생성하지 않는다**(shared-guardrails 규칙 2,
-> skills/dva-config 참조). `modes`는 explicit migration(preserve) 시에만 유지.
+> `dva.yml` 생성기가 사용하는 결정 규약. 새/rewrite 설정은 현재 `stack` + named
+> `plans` 모델만 생성하며 legacy `modes`, `compose_services`, `default_mode`를 만들지 않는다.
+> 이 문서의 분류는 생성 규칙이며 DVA validator가 대신 판단해 주지 않는다.
 
 ## Service Tags
 
-서비스를 분류하는 기본 단위. 하나의 서비스에 여러 태그 가능. `stack.<entry>.runners.compose`
-의 `services`와 interaction에 모두 적용. 프로젝트에 해당 역할이 없으면 해당 태그 생략.
-
-| Tag | Description | Examples |
-|-----|-------------|----------|
-| `infra` | Infrastructure dependencies | postgres, redis, rabbitmq, kafka, zookeeper |
-| `api` | HTTP/gRPC request handlers | web, api-server, gateway, graphql |
-| `worker` | Background job processors | sidekiq, celery, consumer, scheduler |
-| `ui` | Frontend dev servers | next, vite, webpack-dev-server, storybook |
-| `data` | Search/storage beyond DB | elasticsearch, meilisearch, minio, s3 |
-| `monitoring` | Observability | grafana, prometheus, jaeger, loki |
+| Tag | Meaning | Examples |
+|-----|---------|----------|
+| `infra` | Runtime infrastructure | postgres, redis, rabbitmq, oidc-provider |
+| `api` | HTTP/gRPC handlers | api-server, gateway, graphql |
+| `worker` | Background processing | sidekiq, consumer, scheduler |
+| `ui` | User-facing dev servers | next, vite, storybook |
+| `data` | Database/search/object storage | postgres, meilisearch, minio |
+| `monitoring` | Observability | prometheus, grafana, jaeger |
 | `build` | Build-time only | builder, compiler, asset-pipeline |
 
-**Rules:**
-- `infra` is the base tag — DB/cache/queue는 항상 `infra`
-- subproject에서 `exclude_tags: [infra]`로 부모 infra 중복 방지(규칙 26)
-- compose runner의 주 entry는 `tags: [infra]` 필수(규칙 16)
+Use every tag supported by project evidence. The primary Compose runner has `tags: [infra]`.
+Subprojects exclude parent-owned infrastructure with `exclude_tags: [infra]`.
 
-## Service Tier (default_plan 선택 기준)
+## Capability Closure
 
-`default_plan`과 각 plan에 어떤 서비스를 포함할지 결정. Tier 1만 기본 plan에 포함 권장.
-Tier는 생성 시점의 판단 기준일 뿐 DVA가 검사하지 않는다 — default plan에 Tier 4 서비스를
-넣어도 `dva validate`는 통과한다(2026-08-03 측정). 그래서 이 선택은 여기서 옳아야 한다.
+Classify discovered services before writing plans. A plan is complete only when every selected
+capability's required capabilities have a single lifecycle provider.
 
-| Tier | Classification | Tags | Examples | 기본 plan 포함? |
-|------|---------------|------|----------|----------------|
-| **Tier 1: Core Data** | 앱 실행에 필수 — 없으면 시작 불가 | `infra` | postgres, mysql, redis, memcached | **포함** (local-infra/local-dev) |
-| **Tier 2: Event/Queue** | 비동기 — API는 없어도 동작 | `infra` | kafka, rabbitmq, nats, pulsar | local-dev / full-stack |
-| **Tier 3: Observability** | 모니터링/추적 — 기능과 무관 | `monitoring` | prometheus, grafana, jaeger, loki | observability / full-stack |
-| **Tier 4: Storage** | 백업/파일 저장 — 대부분 불필요 | `data` | minio, elasticsearch | full-stack |
+| Capability | Typical evidence | Requires | Plan class |
+|------------|------------------|----------|------------|
+| `database` | DATABASE_URL, migrations, SQL driver | — | core |
+| `cache` | REDIS_URL, cache client | — | core when startup requires it |
+| `identity` | OIDC issuer/client settings, identity-provider service | `database` unless explicitly external/self-contained | core when normal development authenticates |
+| `queue` | broker URL, producer/consumer | — | core only when startup requires it; otherwise extended |
+| `object-storage` / `search` | S3, MinIO, Elasticsearch settings | — | core only when startup requires it; otherwise extended |
+| `app-native` | verified local run command | its runtime dependencies | local-dev |
+| `app-compose` | app service in a verified Compose model | its runtime dependencies | full-stack |
+| `observability` | metrics/tracing Compose files | observed targets | opt-in |
+| `tools` | admin UI, mail viewer, debug utility | its declared dependencies | opt-in |
 
-**판단 기준:**
-1. 이 서비스 없이 `cargo run` / `go run` / `npm start`로 앱이 시작되는가? → 아니오면 Tier 1
-2. API 코드에서 `Option<T>` / behind-feature로 선언되어 있는가? → Tier 2+
-3. 앱 코드와 직접 통신하지 않는가? → Tier 3-4
+Do not infer capability requirements from a service name alone. Verify Compose `depends_on`,
+environment variables, manifests, README/Makefile targets, and existing DVA declarations. Do not
+select two database providers, or both native and Compose ownership for the same app.
 
-## Plan Presets
+## Provider Resolution
 
-`dva up <plan>` / `down <plan>` 용(named lifecycle, 규칙 33). **하나의 stack entry +
-plans로 운영 변형을 모델링**(dva-schema 15 — multi-stack split 금지). `plans.*.entries[].services`
-로 서비스 선택. 새/rewrite 설정에는 실행 가능한 `plans:` 섹션 필수(규칙 2).
+Resolve each required capability deterministically:
 
-| Plan | Includes | Use Case |
-|------|----------|----------|
-| `local-infra` | Tier 1(infra-tagged) only | **기본값 후보.** DB/cache만 Docker, 앱은 native 실행 |
-| `local-dev` | Tier 1 + dev apps(native) | 일반 개발. infra는 Docker, 앱은 로컬 직접 실행 |
-| `full-stack` | 모든 서비스 Docker | CI, 데모, 또는 native 셋업이 복잡할 때 |
-| `observability` | monitoring tier 추가 | 성능/메트릭 — 보통 `full-stack` 위 overlay |
+1. An explicit project provider contract or documented platform-policy opt-out wins.
+2. Preserve mode keeps a working existing lifecycle owner and reports a conflicting binding.
+3. Fresh/rewrite mode applies an accepted portfolio/platform binding before generic inference.
+4. Otherwise use a verified local service already present in the project's Compose model.
+5. If none resolves, report the capability; never invent a service, path, or command.
 
-**Rules:**
-- `default_plan`은 보통 `local-dev`(앱이 Docker 필수면 `full-stack`)
-- 워크스페이스 실행 순서는 `plans.entries[].depends_on` + `order`(규칙 30)
-- Compose 서비스는 반드시 compose stack entry + plan이 기동(단일 lifecycle owner, 규칙 28)
-- 프로젝트 특화 plan은 서비스 그룹에 따라 추가 가능 — 이름은 프로젝트 어휘(README, Makefile 참조)
+Rewrite/new generation applies a platform binding only when its target and lifecycle command or
+imported plan are verified. A remote/shared provider is represented as an external dependency or
+imported plan, not by generating a second local database.
 
-**단일 stack + plans 패턴(권장):**
+### Injected platform bindings
+
+Portfolio-specific relationships enter discovery as `capability_bindings`; product names and
+provider choices do not belong in generic DVA defaults. Each binding supplies `capability`,
+`provider`, `consumer`, `ownership`, and concrete `evidence`. Apply this deterministic table:
+
+| Evidence | Result |
+|----------|--------|
+| Provider and consumer are separate parent-owned stack entries | Include both in one plan and make the consumer entry depend on the provider entry |
+| Provider and consumer are services of one Compose entry | Select both services; ordering remains in Compose `depends_on`, not plan `depends_on` |
+| Either side is an external/shared runtime or separately imported plan | Emit verified prerequisite commands or health contracts separately; do not pretend two plans are one atomic plan |
+| Existing config already owns a local/embedded DB | Preserve it in preserve mode and report the provider-policy mismatch; migrate only in rewrite mode after the orchestrator target is verified |
+| Project explicitly opts out of the platform provider | Use the project's verified provider and record the exception in the generated summary |
+| No verified provider target exists | Report the unresolved capability; do not guess a service or sibling path |
+
+Bindings are generation inputs and are never emitted as new `dva.yml` keys. Without an injected
+binding, use the generic provider-resolution order above.
+
+## Deterministic Plan Matrix
+
+Each plan is a self-contained list. DVA does not compose or inherit plans, so repeat the resolved
+entry/service closure explicitly and keep matching `up`, `stop`, and `down` names symmetric.
+
+| Plan | Exact inclusion rule | Default policy |
+|------|----------------------|----------------|
+| `local-infra` | Verified core providers needed by the normal native workflow; no app, monitoring, or tool entries | Preferred `default_plan` when all providers are local and non-destructive |
+| `local-dev` | Complete `local-infra` closure plus every verified native app entry and its dependencies | Generate when native run commands exist; not the default merely because it is convenient |
+| `full-stack` | Runtime capability closure plus verified Compose-hosted app services | Explicit opt-in; never the generated default |
+| `observability` | The complete base closure needed by observed targets plus monitoring entries/services | Explicit opt-in; not an overlay at runtime |
+| `tools` | Only verified tool services plus their capability closure | Explicit opt-in |
+
+Omit a plan whose execution path has no evidence. Add project-specific plans only for a distinct,
+documented workflow and use project vocabulary. If several plans exist but no safe local default can
+be proven, omit `default_plan` so bare `dva up` fails and forces a name.
+
+### Command policy
+
+| Level | Rule |
+|-------|------|
+| Required | Discover names with `dva ls`, `dva show`, or `dva manifest -f json`; run lifecycle as `dva up <plan>`, `dva stop <plan>`, and `dva down <plan>` |
+| Recommended | Use `dva up local-infra` for dependencies only and `dva up local-dev` for the verified native workflow |
+| Discouraged | Bare `dva up`; it hides which `default_plan` was selected and is suitable only for a documented human shortcut |
+| Forbidden | `dva up *`, guessed plan names, raw Compose/Kubernetes lifecycle duplicates, and making `full-stack` the generated default |
+
+## Canonical Hybrid Example
+
 ```yaml
 stack:
-  compose:
+  core-compose:
     default_runner: compose
     runners:
       compose:
         files: [compose.yml]
         tags: [infra]
-        services:        # tag metadata only — 포트는 endpoints에서
+        services:
           postgres: { tags: [infra, data] }
-          redis: { tags: [infra] }
+          redis: { tags: [infra, data] }
+          api: { tags: [api] }
+  api:
+    default_runner: native
+    runners:
+      native: { run: make run }
 
 plans:
   local-infra:
-    description: "Infra only (DB, Redis)"
     entries:
-      - services: [data]        # tag filter → postgres
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis]
   local-dev:
-    description: "Infra + native app"
     entries:
-      - services: [infra]
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis]
+      - name: api
+        runner: native
+        depends_on: [core-compose]
   full-stack:
-    description: "All services in Docker"
     entries:
-      - services: [infra, api, worker, ui]
-default_plan: local-dev
+      - name: core-compose
+        runner: compose
+        services: [postgres, redis, api]
+default_plan: local-infra
 ```
 
-**멀티 백엔드(compose + kubectl) — 다른 인프라 백엔드일 때만 별도 entry(dva-schema 15 예외):**
-```yaml
-stack:
-  compose:
-    runners: { compose: { files: [compose.yml], tags: [infra] } }
-  kubectl:
-    namespace: myapp-dev
+The service lists contain concrete Compose service names, not tags. Native entries are separate
+stack entries. Replace every example value with names and commands verified in the target project.
 
-plans:
-  local:    { entries: [ { services: [infra] } ] }       # compose only
-  cluster:  { entries: [ { services: [kubectl] } ] }     # kubectl only
-  full:     { entries: [ { services: [infra] }, { services: [kubectl] } ] }
-default_plan: local
-```
+## Environment and Site Presets
 
-## Environment Presets
+| Environment | Meaning |
+|-------------|---------|
+| `dev` | Local development variables |
+| `test` | Test-specific database/logging variables |
+| `stg` | Staging-shaped variables used for local validation |
+| `prd` | Production-shaped variables used for local validation |
 
-`environments:` 섹션용(dev/stg/prd 변수 오버라이드). host/loc 차이는 `sites:`(규칙 35).
-plan은 `environment:`/`site:`로 environment·site를 선택한다(dva-schema 212-213).
-
-| Name | Description | Typical Variables |
-|------|-------------|-------------------|
-| `dev` | Development | `LOG_LEVEL=debug`, `ENABLE_HOT_RELOAD=true`, `DEBUG=true` |
-| `test` | Testing | `DATABASE_URL=*_test`, `LOG_LEVEL=warn`, `DISABLE_CACHE=true` |
-| `stg` | Staging config (local) | Staging API endpoints, `LOG_LEVEL=info` |
-| `prd` | Production config (local validation) | Production-like config for local validation |
-
-**Rules:**
-- `dev`가 기본 — 별도 지정 없으면 dev
-- DVA는 로컬 개발·유지보수 도구다(규칙 41) — stg/prd는 "로컬에서 해당 설정으로 실행"을
-  뜻하며, 그 환경을 조작할 권한이 아니다
-- 프로젝트에 stg/prd 구분이 불필요하면 `dev`, `test`만으로 충분
-- env 이름은 프로젝트 기존 `.env` 네이밍에 맞춤(`.env.staging` → `stg`)
-
-## Combination Examples
-
-CLI(named plan — 규칙 33):
-```bash
-dva up local-dev       # 기본: infra Docker + 앱 native
-dva up full-stack      # 전체 Docker
-dva up local-infra     # 인프라만
-```
-
-```yaml
-plans:
-  local-infra:
-    description: "Infra only"
-    entries: [{ services: [data] }]
-  local-dev:
-    description: "Infra + native app"
-    entries: [{ services: [infra] }]
-  full-stack:
-    description: "All in Docker"
-    entries: [{ services: [infra, api, worker, ui] }]
-default_plan: local-dev
-
-environments:
-  dev:  { environment: { LOG_LEVEL: debug } }
-  test: { environment: { LOG_LEVEL: warn, DATABASE_SUFFIX: _test } }
-```
+Use `environments` for variable sets and `sites` for host/location differences. DVA is a local
+development and maintenance tool: a remote site does not grant deployment or incident authority.
+Match existing project vocabulary such as `.env.staging` when evidence is stronger than this preset.

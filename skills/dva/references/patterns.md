@@ -15,14 +15,16 @@ Use this reference when creating, reviewing, or migrating `dva.yml` files. Keep 
 1. Discover current surface: `dva config show`, `dva ls`, `dva show`, existing compose files, Makefile/package scripts, and subproject directories.
 2. Classify responsibilities:
    - `stack`: compose bundles, native apps, docker images, kubectl/helm targets.
-   - `plans`: executable names such as `local-infra`, `local-dev`, `local-full`, `docker-full`.
+   - `plans`: executable names such as `local-infra`, `local-dev`, `full-stack`, `observability`, `tools`.
    - `environments`: `dev`, `stg`, `prd` variable differences.
    - `sites`: host/runtime differences such as `local`, `office`, `remote`, `cloud`.
    - `interaction`: `db shell`, `test`, `lint`, `fmt`, `seed`, `env` helpers.
    - `provision`: initial setup, reset, secret/env bootstrap, migrations.
-3. Render from the smallest matching template. Delete unused sections instead of leaving placeholders.
-4. Validate: `dva config validate`, then `dva config validate --strict`.
-5. Drive the user surface: `dva ls`, `dva show <plan>` when supported, and `dva --dry-run up <plan>` or `dva up <plan> --dry-run` depending on the CLI version.
+3. Resolve capability closure before rendering plans. Use one verified provider for each
+   required database, cache, identity, queue, storage, and search capability.
+4. Render from the smallest matching template. Delete unused sections instead of leaving placeholders.
+5. Validate: `dva config validate`, then `dva config validate --strict`.
+6. Drive the user surface: `dva ls`, `dva show`, and `dva up <plan> --dry-run`.
 
 ## Canonical Section Order
 
@@ -44,11 +46,33 @@ For current `0.1.44` validation, use `environments.<name>.environment` for envir
 | API app | `api`, `backend`, `<domain>-api` |
 | Worker app | `worker`, `<domain>-worker` |
 | Frontend app | `web`, `frontend`, `admin-ui`, `portal-ui` |
-| Plans | `local-infra`, `local-dev`, `local-full`, `docker-full`, `observability`, `tracing` |
+| Plans | `local-infra`, `local-dev`, `full-stack`, `observability`, `tools` |
 | Environments | `dev`, `stg`, `prd`, `ci` |
 | Sites | `local`, `office`, `remote`, `cloud`, `docker-host` |
 
 Plan names should describe executable intent. Avoid exposing implementation terms like `stack-compose-main`.
+
+## Plan Selection Contract
+
+Plans are self-contained; they do not inherit from one another.
+
+| Plan | Contents |
+|---|---|
+| `local-infra` | Core providers required by the normal native workflow |
+| `local-dev` | The same explicit provider closure plus verified native app entries |
+| `full-stack` | The same explicit provider closure plus verified Compose app services |
+| `observability` | Monitoring services plus every provider/target they require |
+| `tools` | Verified development tools plus their dependencies |
+
+Use `default_plan: local-infra` only when it is local and non-destructive. Never make
+`full-stack` the generated default. If no safe default is proven, omit `default_plan`
+and require a named command. `dva up *` is never a valid selection strategy.
+
+When an injected platform binding selects a provider, apply it after explicit project
+ownership and before a generic local fallback. Use it only through a verified parent-owned
+stack entry, separately imported plan, or documented external lifecycle target. Preserve
+an existing local provider during a preserve audit; do not invent a sibling path, command,
+or second database service. Binding metadata is generation context, not a `dva.yml` key.
 
 ## Migration Map
 
