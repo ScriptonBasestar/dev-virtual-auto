@@ -7,7 +7,22 @@ effort: M
 created-at: 2026-08-26T16:10:00+09:00
 source: "post-dogfood follow-up review of a033987"
 scope: "Makefile install target and its isolated destination fixture"
-status: doing
+status: done
+completed-at: 2026-08-26T16:55:18+09:00
+completion-summary: "Stage and verify both install candidates before per-destination atomic replacement, with truthful phase-aware failure evidence and checkout-isolated fixtures."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test && dva lint && make doc-check && dva test integration && make test-skill-dogfood && make check-generate && make commit-check && go test -race -count=1 ./tools/installcheck"
+    result: "passed on the branch rebased over current master; all repository and installer failure-injection gates exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T16:55:18+09:00
+quality-review-evidence:
+  - "independent ce-judge reproduced and drove fixes for hidden hasher failure, directory-target partial replacement, checkout-writing tests, stage leaks, parse-time Go lookup, GOPATH lists, and false replacement ledgers"
+  - "final review approved with no actionable findings after race tests and actual-Go isolated fixtures"
+archived-at: 2026-08-26T16:55:18+09:00
+verified-at: 2026-08-26T16:55:18+09:00
+verification-summary: "Installer success and every injected failure preserve or truthfully report destination state without touching global paths during tests."
 ---
 
 # Task 227: install the DVA binary atomically per destination
