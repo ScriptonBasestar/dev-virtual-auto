@@ -123,7 +123,7 @@ func TestImmutableExecutableCopyRejectsWrongHash(t *testing.T) {
 	}
 }
 
-func TestCleanGitRootRejectsNestedDirectory(t *testing.T) {
+func TestGitRootRejectsNestedDirectory(t *testing.T) {
 	root := t.TempDir()
 	if _, err := commandOutput(nil, "git", "-C", root, "init"); err != nil {
 		t.Skipf("git unavailable: %v", err)
@@ -132,8 +132,29 @@ func TestCleanGitRootRejectsNestedDirectory(t *testing.T) {
 	if err := os.Mkdir(nested, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cleanGitRoot(nested); err == nil {
+	if _, err := gitRoot(nested); err == nil {
 		t.Fatal("nested Git directory unexpectedly accepted as FLOW_ROOT")
+	}
+}
+
+func TestGitRootAcceptsStableDirtyRepository(t *testing.T) {
+	root := t.TempDir()
+	if _, err := commandOutput(nil, "git", "-C", root, "init"); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "pre-existing.txt"), []byte("user work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := gitRoot(root)
+	if err != nil {
+		t.Fatalf("stable dirty Git root rejected: %v", err)
+	}
+	want, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("gitRoot() = %q, want %q", got, want)
 	}
 }
 

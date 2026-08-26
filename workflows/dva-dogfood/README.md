@@ -32,6 +32,34 @@ which keeps each stage inside one context window. `MODE=continuous` follows
 `next_prompt` until a stop condition. Neither mode overrides a fresh-session,
 approval, failure, or safety boundary.
 
+### Maintainer skill-installer acceptance
+
+After selecting an executable, record its full SHA-256 independently and run the
+black-box acceptance against a real flow repository:
+
+```sh
+make dogfood-skill-install \
+  DVA_BIN=/absolute/path/to/selected/dva \
+  DVA_SHA256=<64-hex-digest-recorded-when-the-artifact-was-selected> \
+  FLOW_ROOT=/absolute/path/to/flow-repository
+```
+
+`DVA_BIN` may be a globally installed executable or a stage-20 candidate archive;
+the gate copies and executes the exact file only after its digest matches the
+caller-supplied `DVA_SHA256`. Do not replace that value with a digest computed by
+the same acceptance invocation: it is the independent artifact-selection boundary.
+The real flow repository may already be dirty, but its complete porcelain status
+and native skill runtime paths must remain byte-for-byte stable across the dry-run.
+All install, status, uninstall, HOME/XDG, and receipt writes occur in disposable
+roots. The helper requires a POSIX host with Go and Git available.
+
+Receipt checks deliberately decode the installer's external schema rather than
+calling its internal reader. Schema 1 acceptance requires the recorded scope and
+absolute destination, sorted runtime membership, a non-empty bundle version, the
+complete installed-file path/SHA-256 list, and the bundle SHA-256 derived from that
+list. The Codex/Antigravity shared destination must retain the remaining runtime's
+receipt after one runtime is unlinked, and final uninstall must remove its receipt.
+
 ## Stage order
 
 ```text

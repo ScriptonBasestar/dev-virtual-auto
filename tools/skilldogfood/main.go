@@ -1,4 +1,5 @@
-// Command skilldogfood verifies an installed DVA binary's skill installer without AI runtimes.
+// Command skilldogfood verifies a selected SHA-pinned DVA executable's skill
+// installer without AI runtimes.
 package main
 
 import (
@@ -71,9 +72,9 @@ type invocation struct {
 func main() {
 	var binary, expectedSHA, flowRoot string
 	flags := flag.NewFlagSet("skilldogfood", flag.ExitOnError)
-	flags.StringVar(&binary, "dva-bin", "", "absolute path to the installed dva binary")
-	flags.StringVar(&expectedSHA, "expected-sha256", os.Getenv("DVA_SHA256"), "required SHA-256 of the installed dva binary")
-	flags.StringVar(&flowRoot, "flow-root", "", "absolute path to a clean flow Git repository")
+	flags.StringVar(&binary, "dva-bin", "", "absolute path to the selected dva executable")
+	flags.StringVar(&expectedSHA, "expected-sha256", os.Getenv("DVA_SHA256"), "independently recorded SHA-256 of the selected dva executable")
+	flags.StringVar(&flowRoot, "flow-root", "", "absolute path to a flow Git repository root whose state will remain stable")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -89,7 +90,7 @@ func run(binaryArg, expectedSHA, flowArg string, out io.Writer) (err error) {
 	if err != nil {
 		return fmt.Errorf("DVA_BIN: %w", err)
 	}
-	flowRoot, err := cleanGitRoot(flowArg)
+	flowRoot, err := gitRoot(flowArg)
 	if err != nil {
 		return fmt.Errorf("FLOW_ROOT: %w", err)
 	}
@@ -224,9 +225,9 @@ func executableFile(path string) (string, error) {
 	return filepath.EvalSymlinks(path)
 }
 
-func cleanGitRoot(path string) (string, error) {
+func gitRoot(path string) (string, error) {
 	if path == "" {
-		return "", errors.New("must be set to an absolute clean Git repository path")
+		return "", errors.New("must be set to an absolute Git repository root path")
 	}
 	if !filepath.IsAbs(path) {
 		return "", fmt.Errorf("must be absolute, got %q", path)
@@ -252,13 +253,6 @@ func cleanGitRoot(path string) (string, error) {
 	}
 	if root != resolved {
 		return "", fmt.Errorf("must name the repository root, not %s", resolved)
-	}
-	status, err := gitStatus(root)
-	if err != nil {
-		return "", err
-	}
-	if status != "" {
-		return "", fmt.Errorf("repository is not clean:\n%s", status)
 	}
 	return root, nil
 }

@@ -43,7 +43,7 @@ accepted.</input>
    frozen precisely so they could not be reworded after the baseline was seen. Do
    not re-derive cases here.
 7. If `evaluation.skill_install.required` is true, run the repository's
-   `dogfood-skill-install` target with `DVA_BIN` set to the exact absolute
+   `dogfood-skill-install` target with `DVA_BIN` set to the exact absolute selected
    `DVA_COMMAND`, `DVA_SHA256` set to its recorded full digest, and `FLOW_ROOT` set
    to `TARGET_PROJECT`. The target may only dry-run against the real project; every
    HOME/XDG write and receipt belongs to its disposable roots. Record the immutable
