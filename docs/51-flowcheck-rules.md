@@ -1,8 +1,8 @@
-# flowcheck 규칙 — 조용히 지나가는 16가지 결정 경로
+# flowcheck 규칙 — 조용히 틀리거나 늦게 막히는 16가지 결정 경로
 
 `tools/flowcheck`는 `agent-mesh-flows/`의 모든 플로우를 읽고 16개 규칙 중 하나라도 위반하면
-빌드를 세운다. 여기 있는 규칙은 전부 **am이 exit 0으로 끝내면서 틀린 답을 내는** 경우다.
-런타임이 소리 내어 실패하는 문제였다면 규칙은 필요 없었다.
+빌드를 세운다. 대부분은 **am이 exit 0으로 끝내면서 틀린 답을 내는** 경우다. 셸 허용목록
+규칙은 batch run을 실패시키고, 대화형 실행에서는 계속할지 물은 뒤 기본값으로 진행한다.
 
 ```bash
 go run ./tools/flowcheck
@@ -10,8 +10,10 @@ go run ./tools/flowcheck
 
 ## 검사 대상과 비목표
 
-- **본다**: 런타임이 `/bin/sh`에 넘기는 필드 + `when:` 피연산자.
-- **보지 않는다**: YAML 스키마(그건 `am validate`), 프롬프트 본문(dva 설명 산문이라 노이즈만 나온다).
+- **본다**: 런타임이 `/bin/sh`에 넘기는 필드, `when:` 피연산자, `parameters:` 타입
+  (`param-type`), `exit_if_empty:` 구조(`exit-if-empty`).
+- **보지 않는다**: 위 두 구조 검사를 제외한 YAML 스키마(그건 `am validate`), 프롬프트 본문
+  (dva 설명 산문이라 노이즈만 나온다).
 
 규칙 id의 정본은 소스의 문자열 리터럴이다. 아래 목록이 소스와 어긋나면 소스가 맞다:
 
@@ -30,7 +32,7 @@ am의 `when:`은 `{{ref}} OP '따옴표'` 하나만 평가한다. 이 형태를 
 | `gate-filter` | 참조 안의 필터가 비교 자체를 무력화한다. 값과 연산자에 무관하게 스텝이 돈다 | `{{c.ok \| trim}} == 'true'` → `{{c.ok}} == 'true'` |
 | `gate-producer-newline` | `echo`는 개행을 붙이고 am은 트림하지 않는다. `"true\n"`은 `'true'`와 같지 않다 | `echo true` → `printf true` |
 | `gate-skip-leak` | 건너뛴 스텝의 키는 빈 값이 아니라 리터럴 `{{step.key}}`로 렌더된다. 읽는 쪽은 그걸 쥐고 실행된다 | `depends_on` 없이 `{{G.k}}` 읽기 → 소비자에 `depends_on: [G]` **와** 자신의 `when:` |
-| `gate-skip-prompt` | 같은 리터럴이 `instruction`·`prompt`·`file.*`·`src`로 가면 모델이 그것을 두고 그럴듯한 답을 만들거나 디스크에 남는다 | `instruction: "... {{G.k}}"` (G는 게이트됨) → 위와 같은 보호. 리터럴이 런보다 오래 살아서 id를 나눴다 |
+| `gate-skip-prompt` | 같은 리터럴이 `instruction`·`prompt`·`file.path`·`file.content`·`file.from`·`file.to`·`src`로 가면 모델이 그럴듯한 답을 만들거나 디스크에 남긴다 | `instruction: "... {{G.k}}"` (G는 게이트됨) → 위와 같은 보호. 리터럴이 런보다 오래 살아서 id를 나눴다 |
 
 안전 조건은 "소비자에게 `when:`이 있으면 된다"가 **아니다**. 측정된 규칙은 이렇다:
 `{{G.key}}`를 읽는 소비자는 `G → … → 소비자` `depends_on` 경로가 있고 그 경로의 G 이후 모든
@@ -48,9 +50,9 @@ am은 셸 필드를 정적 분석해 명령 이름을 뽑고 허용목록에 없
 | `local-function` | 필드가 정의한 함수도 호출 지점에서 막힌다. 허용목록은 명령을 알지 함수를 모른다 | `f() { ...; }` … `f` → 함수를 지우고 본문을 호출 자리에 편다 |
 | `heredoc-delimiter` | 따옴표 없는 구분자는 본문을 셸로 읽어 제목 줄 첫 단어에서 막는다 | `<<EOF` → `<<'EOF'` |
 
-`echo hello`, `ls hello`, `grep hello file`, `cp a b`는 막히지 않는다. 위 네 명령만 인자를 명령
-이름으로 읽는다. `eval`·`exec`은 일부러 뺐다 — 거기서는 첫 인자가 실제로 명령 이름이라 허용목록이
-제 일을 하는 것이다.
+`echo hello`, `ls hello`, `grep hello file`, `cp a b`는 막히지 않는다. 위 네 명령은 이 규칙이
+검사하는 오판 트리거다. `eval`·`exec`도 막히지만 일부러 뺐다 — 거기서는 첫 인자가 실제로 명령
+이름이라 허용목록이 제 일을 하는 것이다.
 
 `true`/`false`가 통과하는 것은 **허용목록에 있는 명령이기 때문**이지 이 자리가 안전해서가 아니다.
 게이트 생산자 형태인 `printf true || printf false`가 합법인 것도 그 우연 덕이고, 다음 사람이
@@ -71,7 +73,7 @@ am은 셸 필드를 정적 분석해 명령 이름을 뽑고 허용목록에 없
 | 규칙 | am이 조용한 이유 | 잘못 → 올바름 |
 |---|---|---|
 | `dead-gate` | jq `//`는 `null`뿐 아니라 `false`도 대체한다. 명시적 `false`가 `true`로 읽혀 정지 분기가 도달 불가가 된다 | `.dva_needed // true` → `has("dva_needed")`로 부재와 거짓을 분리 |
-| `unguarded-report` | `jq -e .`는 **스트림**을 받는다. `[1][2]{...}`도 exit 0이고 뒤쪽 객체에서 그럴듯한 값이 나온다 | `jq -e -s`로 객체가 정확히 하나인지 확인한다 |
+| `unguarded-report` | `tmp/` 경로를 읽는 `jq` 필드가 `jq -e -s` guard를 쓰지 않으면 발동한다. `jq -e .`는 **스트림**을 받아 `[1][2]{...}`도 exit 0이고 뒤쪽 객체에서 그럴듯한 값이 나온다 | `jq -e -s`로 객체가 정확히 하나인지 확인한다 |
 | `phantom-command` | 없는 `dva` 하위 명령의 오류 텍스트가 리포트에 **발견 사항처럼** 렌더된다 | `dva app ls` → `dva ls` (예약 23개 중 하나) |
 | `exit-if-empty` | `exit_if_empty`는 파이프라인을 **성공으로** 끝낸다. 전제 조건 누락과 "할 일 없음"이 구분되지 않는다 | `exit_if_empty: true` → `[ -n "$x" ] \|\| exit 1` |
 
@@ -110,9 +112,7 @@ am은 셸 필드를 정적 분석해 명령 이름을 뽑고 허용목록에 없
 flowcheck는 판정과 함께 스캔한 개수를 찍는다:
 
 ```
-flowcheck: 10 flow file(s), 103 shell field(s), 14 when-gate(s), 40 dva invocation(s),
-           3 report-reading field(s), 3 skippable reference(s),
-           4 config-presence probe(s), 23 built-in command(s)
+flowcheck: 10 flow file(s), 103 shell field(s), 14 when-gate(s), 40 dva invocation(s), 3 report-reading field(s), 3 skippable reference(s), 4 config-presence probe(s), 23 built-in command(s)
 flowcheck: OK — no decision-path defects
 ```
 

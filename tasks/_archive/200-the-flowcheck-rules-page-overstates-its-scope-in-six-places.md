@@ -7,7 +7,30 @@ effort: S
 created-at: 2026-08-19T17:36:34+09:00
 source: "measured 2026-08-19 against tools/flowcheck source — a stated non-goal the page itself contradicts 69 lines later, an exit-0 claim the source denies, an exact-match map written as a wildcard, a closed set the next sentence reopens, one rule with no stated trigger, and a sample output reflowed away from what the tool prints"
 scope: "docs/51-flowcheck-rules.md prose only. No rule is added, removed or renamed; tools/flowcheck is not touched."
-status: todo
+status: done
+completed-at: 2026-08-26T12:23:20+09:00
+completion-summary: "Correct six scope, trigger, and output claims in the canonical flowcheck rule reference without changing rule behavior."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: "passed; 279 Markdown files, 552 links, 16 flowcheck rules and all decision-path gates valid"
+  - kind: automated
+    command-or-step: "compare go run ./tools/flowcheck first line with the documented sample"
+    result: "byte-for-byte identical"
+  - kind: manual
+    command-or-step: "cross-check corrected prose against tools/flowcheck gate.go, shell.go, and rules.go"
+    result: "scope, seven exact field names, bare-word trigger set, jq/tmp guard, and batch behavior match source"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:24:39+09:00
+quality-review-evidence:
+  - "independent reviewer confirmed all six prose corrections match the canonical flowcheck implementation without changing rule behavior"
+  - "make doc-check and go test ./tools/flowcheck -count=1 passed; all sixteen source rule ids remain documented"
+  - "the documented summary line matches flowcheck byte-for-byte and the page remains within the enforced size caps"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-200-review-receipt.json
+archived-at: 2026-08-26T12:26:18+09:00
+verified-at: 2026-08-26T12:26:18+09:00
+verification-summary: "The canonical flowcheck reference now states each rule's actual scope, trigger, and literal output while retaining all sixteen rule ids."
 ---
 
 # Task 200: The flowcheck rules page overstates its scope in six places
@@ -61,14 +84,22 @@ of headroom, so corrections must be made without growing it much.
 
 ## Completion Criteria
 
-- [ ] The scope section names the two structural YAML checks it currently disclaims | verify: `grep -n 'param-type' docs/51-flowcheck-rules.md` returns a hit in the `## 검사 대상과 비목표` section (lines 11-20), not only in the schema section
-- [ ] The opening no longer claims all sixteen rules are exit-0 cases | verify: human — read `:4` and confirm it distinguishes the silently-wrong rules from the ones that block a batch run, citing `tools/flowcheck/shell.go:43`
-- [ ] `gate-skip-prompt`'s row lists the seven exact field names instead of a wildcard | verify: `grep -c 'file\.path' docs/51-flowcheck-rules.md` returns ≥ 1 (today: 0), and the row's key count matches `sed -n '/skipPromptFields = map/,/^}/p' tools/flowcheck/gate.go | grep -c '":'` (today: 7)
-- [ ] The bare-word section states that the four are triggers, not the closed set | verify: human — read `:51` and confirm it and the `eval`/`exec` sentence no longer disagree
-- [ ] `unguarded-report`'s row states its trigger | verify: `grep -c 'jq -e -s' docs/51-flowcheck-rules.md` returns ≥ 1 and the row names both the `jq` and `tmp/` conditions
-- [ ] The sample output block matches the tool byte-for-byte on the summary line | verify: `go run ./tools/flowcheck | head -1` and the corresponding line in the document are identical when compared with `diff`
-- [ ] The page stays inside the enforced caps | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` exits 0, and `wc -lc docs/51-flowcheck-rules.md` is under 500 lines / 10240 bytes
-- [ ] The sixteen ids still match source after the edit | verify: `grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u | wc -l` returns 16 and each appears in the document
+- [x] The scope section names the two structural YAML checks it currently disclaims | verify: `grep -n 'param-type' docs/51-flowcheck-rules.md` returns a hit in the `## 검사 대상과 비목표` section (lines 11-20), not only in the schema section
+- [x] The opening no longer claims all sixteen rules are exit-0 cases | verify: human — read `:4` and confirm it distinguishes the silently-wrong rules from the ones that block a batch run, citing `tools/flowcheck/shell.go:43`
+- [x] `gate-skip-prompt`'s row lists the seven exact field names instead of a wildcard | verify: `grep -c 'file\.path' docs/51-flowcheck-rules.md` returns ≥ 1 (today: 0), and the row's key count matches `sed -n '/skipPromptFields = map/,/^}/p' tools/flowcheck/gate.go | grep -c '":'` (today: 7)
+- [x] The bare-word section states that the four are triggers, not the closed set | verify: human — read `:51` and confirm it and the `eval`/`exec` sentence no longer disagree
+- [x] `unguarded-report`'s row states its trigger | verify: `grep -c 'jq -e -s' docs/51-flowcheck-rules.md` returns ≥ 1 and the row names both the `jq` and `tmp/` conditions
+- [x] The sample output block matches the tool byte-for-byte on the summary line | verify: `go run ./tools/flowcheck | head -1` and the corresponding line in the document are identical when compared with `diff`
+- [x] The page stays inside the enforced caps | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` exits 0, and `wc -lc docs/51-flowcheck-rules.md` is under 500 lines / 10240 bytes
+- [x] The sixteen ids still match source after the edit | verify: `grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u | wc -l` returns 16 and each appears in the document
+
+## Resolution
+
+The opening keeps silent-wrong answers as the main defect class but qualifies the shell-policy
+rules that stop a batch run or prompt interactively. The scope now names the two structural YAML
+checks rather than disclaiming all schema inspection. The remaining four edits use the exact
+source trigger sets and the tool's literal one-line summary. No rule id or implementation changed;
+the page remains 120 lines and 9,027 bytes.
 
 ## References
 
