@@ -33,9 +33,6 @@ parameters:
   - name: target
     description: "Target directory"
     default: "."
-  - name: discovery_report
-    description: "Explicit path to a precomputed discovery report JSON; empty performs a fresh scan"
-    default: ""
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
     default: "[]"
@@ -463,26 +460,6 @@ steps:
       validation_strict: |
         cd '{{param.target}}' && dva config validate --strict 2>&1 || true
 
-  - id: load_discovery_report
-    type: context
-    depends_on: [scaffold]
-    context:
-      discovery_report: |
-        REPORT=$(printf '%s' '{{param.discovery_report | b64encode}}' | base64 -d)
-        if [ -z "$REPORT" ]; then
-          echo '{}'
-          exit 0
-        fi
-        if [ ! -f "$REPORT" ]; then
-          echo "ERROR: explicit discovery report does not exist: $REPORT" >&2
-          exit 1
-        fi
-        if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$REPORT" >/dev/null 2>&1; then
-          echo "ERROR: explicit discovery report is not one JSON object: $REPORT" >&2
-          exit 1
-        fi
-        cat "$REPORT"
-
   # ══════════════════════════════════════════════
   # Phase 3: Load Library Reference (static knowledge)
   # ══════════════════════════════════════════════
@@ -566,7 +543,6 @@ steps:
       - scan_env
       - scan_subprojects
       - dva_state
-      - load_discovery_report
       - load_guardrails
       - load_checklist
       - load_schema
@@ -601,17 +577,6 @@ steps:
       `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`
 
       ---
-
-      # Precomputed Discovery Report
-
-      아래 JSON은 `dva config discover` 또는 `dva-discover` flow가 생성한 분석 결과입니다.
-      호출자가 경로를 명시했고 보고서가 비어 있지 않다면, 아래 결과를 현재 프로젝트
-      스캔과 대조할 구조화 입력으로 사용하세요. target이나 현재 binding과 충돌하는 값은
-      우선하지 말고 충돌을 보고하세요.
-
-      ```json
-      {{load_discovery_report.discovery_report}}
-      ```
 
       # Injected Platform Capability Bindings
 

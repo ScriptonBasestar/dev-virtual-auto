@@ -110,10 +110,28 @@ func TestGuidedFlowPreservesReviewedProposal(t *testing.T) {
 		"auto_decide: [present_proposal]",
 		"json_mode: true",
 		`"selected_plan"`,
-		"{{present_proposal.output | b64encode}}",
+		"rm -f \"tmp/improve-guided/10-proposal-approved.json\"",
+		`[ -n "$REVIEWED" ] && printf true || printf false`,
+		`when: "{{proposal_handoff.accepted}} == 'true'"`,
+		"{{proposal_handoff.reviewed | b64encode}}",
+		"{{param.approval_nonce | b64encode}}",
+		". + {approval_nonce: $nonce}",
 	} {
 		if !strings.Contains(verify, required) {
 			t.Errorf("guided approval handoff is missing %q", required)
+		}
+	}
+	for _, required := range []string{
+		"- id: approval_gate",
+		"- id: approval_context",
+		"approval_nonce: \"{{approval_context.nonce}}\"",
+		".[0].approval_nonce == $nonce",
+		"printf false",
+		"depends_on: [approval_gate]",
+		`when: "{{approval_gate.approved}} == 'true'"`,
+	} {
+		if !strings.Contains(top, required) {
+			t.Errorf("guided parent does not hard-block rejected approval: missing %q", required)
 		}
 	}
 	for _, stale := range []string{
@@ -166,27 +184,16 @@ func TestGuidedFlowResolvesAndValidatesApprovedPlan(t *testing.T) {
 	}
 }
 
-func TestAutomaticFlowRequiresExplicitDiscoveryReport(t *testing.T) {
+func TestAutomaticFlowAlwaysUsesFreshDiscovery(t *testing.T) {
 	automatic := readPlanFlowFile(t, "agent-mesh-flows/dva-improve.yaml")
-	parameter := `  - name: discovery_report
-    description: "Explicit path to a precomputed discovery report JSON; empty performs a fresh scan"
-    default: ""`
-	if !strings.Contains(automatic, parameter) {
-		t.Error("automatic flow does not require an explicitly supplied discovery report")
-	}
-	if strings.Contains(automatic, `default: "tmp/improve-guided/00-analysis-report.json"`) {
-		t.Error("automatic flow still defaults to a potentially stale discovery report")
-	}
-	if !strings.Contains(automatic, `{{param.discovery_report | b64encode}}`) {
-		t.Error("automatic flow does not safely interpolate the explicit report path")
-	}
-	for _, required := range []string{
-		"explicit discovery report does not exist",
-		"explicit discovery report is not one JSON object",
-		`length == 1 and (.[0] | type) == "object"`,
+	for _, stale := range []string{
+		"name: discovery_report",
+		"load_discovery_report",
+		"param.discovery_report",
+		"Precomputed Discovery Report",
 	} {
-		if !strings.Contains(automatic, required) {
-			t.Errorf("automatic flow does not fail closed for explicit report errors: missing %q", required)
+		if strings.Contains(automatic, stale) {
+			t.Errorf("automatic flow can still reuse stale discovery input %q", stale)
 		}
 	}
 }

@@ -47,18 +47,51 @@ steps:
       shared_dir: "{{param.shared_dir}}"
       capability_bindings: "{{param.capability_bindings}}"
 
+  - id: approval_context
+    type: context
+    depends_on: [analyze]
+    context:
+      # Bind the approval artifact to this run. An old valid-looking file must not
+      # authorize mutation after an interactive error is continued.
+      nonce: |
+        printf '%s-%s' "$(date +%s)" "$$"
+
   # ── Stage 10: Select (USER GATE) ──
   - id: verify
     type: pipeline
-    depends_on: [analyze]
+    depends_on: [approval_context]
     run_pipeline: dva-improve-guided/10-verify
     pipeline_params:
       target: "{{param.target}}"
+      approval_nonce: "{{approval_context.nonce}}"
+
+  # Re-check the durable approval artifact at the parent layer. Every downstream
+  # mutation carries this gate because Agent Mesh does not propagate a skipped step
+  # into an ungated dependent.
+  - id: approval_gate
+    type: context
+    depends_on: [verify]
+    context:
+      approved: |
+        PROPOSAL="tmp/improve-guided/10-proposal-approved.json"
+        EXPECTED=$(printf '%s' '{{approval_context.nonce | b64encode}}' | base64 -d)
+        if jq -e -s '
+          length == 1 and
+          (.[0] | type) == "object" and
+          (.[0].selected_plan | type) == "string" and
+          (.[0].selected_plan | length) > 0 and
+          .[0].approval_nonce == $nonce
+        ' --arg nonce "$EXPECTED" "$PROPOSAL" >/dev/null 2>&1; then
+          printf true
+        else
+          printf false
+        fi
 
   # ── Stage 20: Transform ──
   - id: transform
     type: pipeline
-    depends_on: [verify]
+    depends_on: [approval_gate]
+    when: "{{approval_gate.approved}} == 'true'"
     run_pipeline: dva-improve-guided/20-transform
     pipeline_params:
       target: "{{param.target}}"
@@ -68,6 +101,7 @@ steps:
   - id: configure
     type: pipeline
     depends_on: [transform]
+    when: "{{approval_gate.approved}} == 'true'"
     run_pipeline: dva-improve-guided/30-configure
     pipeline_params:
       target: "{{param.target}}"
@@ -77,7 +111,7 @@ steps:
   - id: execute
     type: pipeline
     depends_on: [configure]
-    when: "{{param.skip_execute}} != 'true'"
+    when: "{{approval_gate.approved}} == 'true' && {{param.skip_execute}} != 'true'"
     run_pipeline: dva-improve-guided/40-execute
     pipeline_params:
       target: "{{param.target}}"

@@ -23,6 +23,8 @@ fixed default path exists.
 
 - [ ] Stage 10 produces structured proposal JSON, uses the runtime's output-review gate, and persists
   the reviewed output rather than copying Stage 00 | verify: `go test ./internal/config -run TestGuidedFlowPreservesReviewedProposal`
+- [ ] Rejecting interactive output removes stale approval and gates every child and parent mutation
+  branch | verify: `go test ./internal/config -run TestGuidedFlowPreservesReviewedProposal`
 - [ ] Stage 40 resolves an absent explicit override from the approved proposal and verifies that the
   exact plan exists in the generated config before lifecycle execution | verify: `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
 - [ ] An explicit plan remains an override, while an empty or undeclared selected plan fails before
@@ -31,10 +33,8 @@ fixed default path exists.
   `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
 - [ ] The lifecycle mutation step repeats strict validation and declared-plan checks so Agent Mesh's
   interactive "continue after error" choice cannot bypass them | verify: `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
-- [ ] The automatic flow consumes a discovery report only when the caller explicitly supplies its
-  path | verify: `go test ./internal/config -run TestAutomaticFlowRequiresExplicitDiscoveryReport`
-- [ ] An explicitly supplied discovery report that is absent or not one JSON object fails visibly
-  instead of silently falling back to a fresh scan | verify: `go test ./internal/config -run TestAutomaticFlowRequiresExplicitDiscoveryReport`
+- [ ] The automatic flow always uses its current scan and has no implicit or explicit stale discovery
+  report input | verify: `go test ./internal/config -run TestAutomaticFlowAlwaysUsesFreshDiscovery`
 - [ ] Flow, generation, repository, and commit gates pass | verify: `make doc-check && make check-generate && make test && make commit-check`
 
 ## Decision
