@@ -43,14 +43,16 @@ accepted.</input>
    frozen precisely so they could not be reworded after the baseline was seen. Do
    not re-derive cases here.
 7. If `evaluation.skill_install.required` is true, run the repository's
-   `dogfood-skill-install` target with the exact absolute `DVA_COMMAND` and
-   `TARGET_PROJECT`. The target may only dry-run against the real project; every
-   write and receipt belongs to its disposable fixture and isolated
-   `XDG_STATE_HOME`. Record the selected binary's full SHA-256 and the real-target
-   non-mutation, fixture round-trip, and Codex/Antigravity shared-runtime unlink
-   outcomes under `evaluation.skill_install`. BLOCK on a missing target, hash
-   mismatch, write outside the fixture/state root, or any failed outcome. Native
-   Agent Skills evidence does not prove Agent Mesh or Antigravity CLI compatibility.
+   `dogfood-skill-install` target with `DVA_BIN` set to the exact absolute
+   `DVA_COMMAND`, `DVA_SHA256` set to its recorded full digest, and `FLOW_ROOT` set
+   to `TARGET_PROJECT`. The target may only dry-run against the real project; every
+   HOME/XDG write and receipt belongs to its disposable roots. Record the immutable
+   executable copy's verified digest and its named `real_target_dry_run`,
+   `fixture_round_trip`, and `shared_runtime_unlink` outcomes under
+   `evaluation.skill_install`. BLOCK on a missing target, hash mismatch, symlinked
+   runtime root, write outside the fixture/state roots, or any failed outcome.
+   Native Agent Skills evidence does not prove Agent Mesh or Antigravity CLI
+   compatibility.
 8. Act as the forward-test controller. For every ordered frozen request, launch one
    independent history-free child session against a cycle-owned disposable fixture
    or a read-only real target. Give the child only its raw request, the

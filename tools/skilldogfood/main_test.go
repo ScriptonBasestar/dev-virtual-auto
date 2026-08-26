@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -29,17 +30,18 @@ func TestExecutableFileRequiresAbsoluteExecutableRegularFile(t *testing.T) {
 }
 
 func TestRequireDestinationStatusSet(t *testing.T) {
+	project := "/fixture"
 	result := commandResult{Results: []destinationResult{
-		{Destination: "/fixture/.agents/skills", Status: "installed"},
-		{Destination: "/fixture/.claude/skills", Status: "installed"},
-		{Destination: "/fixture/.grok/skills", Status: "installed"},
-		{Destination: "/fixture/.opencode/skills", Status: "installed"},
+		{Destination: "/fixture/.agents/skills", Status: "installed", Runtimes: []string{"antigravity", "codex"}, RuntimeStatuses: []runtimeStatus{{Runtime: "antigravity"}, {Runtime: "codex"}}},
+		{Destination: "/fixture/.claude/skills", Status: "installed", Runtimes: []string{"claude-code"}, RuntimeStatuses: []runtimeStatus{{Runtime: "claude-code"}}},
+		{Destination: "/fixture/.grok/skills", Status: "installed", Runtimes: []string{"grok"}, RuntimeStatuses: []runtimeStatus{{Runtime: "grok"}}},
+		{Destination: "/fixture/.opencode/skills", Status: "installed", Runtimes: []string{"opencode"}, RuntimeStatuses: []runtimeStatus{{Runtime: "opencode"}}},
 	}}
-	if err := requireDestinations(result, "installed", nil); err != nil {
+	if err := requireDestinations(project, result, "installed"); err != nil {
 		t.Fatalf("valid destination set rejected: %v", err)
 	}
 	result.Results[0].Status = "absent"
-	if err := requireDestinations(result, "installed", nil); err == nil {
+	if err := requireDestinations(project, result, "installed"); err == nil {
 		t.Fatal("wrong destination status unexpectedly accepted")
 	}
 }
@@ -92,5 +94,40 @@ func TestRequireEmptyDirectory(t *testing.T) {
 	}
 	if err := requireEmptyDirectory(directory); err == nil {
 		t.Fatal("non-empty directory unexpectedly accepted")
+	}
+}
+
+func TestRequireEnvelopeRejectsFakeOutput(t *testing.T) {
+	result := commandResult{Operation: "status", DryRun: false, Scope: "project"}
+	if err := requireEnvelope(result, "install", false); err == nil {
+		t.Fatal("fake operation unexpectedly accepted")
+	}
+}
+
+func TestImmutableExecutableCopyRejectsWrongHash(t *testing.T) {
+	file := filepath.Join(t.TempDir(), "dva")
+	if err := os.WriteFile(file, []byte("fake executable"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, _, cleanup, err := immutableExecutableCopy(file, strings.Repeat("0", 64))
+	if cleanup != nil {
+		t.Fatal("failed immutable copy unexpectedly returned cleanup")
+	}
+	if err == nil {
+		t.Fatal("wrong binary hash unexpectedly accepted")
+	}
+}
+
+func TestCleanGitRootRejectsNestedDirectory(t *testing.T) {
+	root := t.TempDir()
+	if _, err := commandOutput(nil, "git", "-C", root, "init"); err != nil {
+		t.Skipf("git unavailable: %v", err)
+	}
+	nested := filepath.Join(root, "nested")
+	if err := os.Mkdir(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cleanGitRoot(nested); err == nil {
+		t.Fatal("nested Git directory unexpectedly accepted as FLOW_ROOT")
 	}
 }
