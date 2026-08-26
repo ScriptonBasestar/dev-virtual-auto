@@ -3,6 +3,14 @@ MODULE     := github.com/ScriptonBasestar/dva
 BUILD_DIR  := ./bin
 GOFLAGS     := -trimpath
 
+# Both destinations remain configurable for an isolated install fixture.  The defaults are the
+# public installation paths; callers may set LOCAL_BIN_DIR and GO_BIN_DIR without changing their
+# real HOME or Go toolchain configuration.
+LOCAL_BIN_DIR ?= $(HOME)/.local/bin
+GO_BIN_DIR ?= $(GOBIN)
+GO_BIN_DIR := $(if $(strip $(GO_BIN_DIR)),$(GO_BIN_DIR),$(shell go env GOBIN))
+GO_BIN_DIR := $(if $(strip $(GO_BIN_DIR)),$(GO_BIN_DIR),$(shell go env GOPATH)/bin)
+
 # Workflow source directories (single source of truth)
 WF_LIBRARY  := agent-mesh-flows/shared/library
 
@@ -21,16 +29,74 @@ build: generate
 	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
 	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
 
-## install: Install dva to ~/.local/bin
+## install: Atomically install verified dva binaries to ~/.local/bin and Go bin
 install: build
-	@mkdir -p $(HOME)/.local/bin
-	rm -f $(HOME)/.local/bin/$(BINARY)
-	cp $(BUILD_DIR)/$(BINARY) $(HOME)/.local/bin/$(BINARY)
-	@GO_BIN_DIR=$$(go env GOBIN); \
-		[ -n "$$GO_BIN_DIR" ] || GO_BIN_DIR="$$(go env GOPATH)/bin"; \
-		mkdir -p "$$GO_BIN_DIR"; \
-		rm -f "$$GO_BIN_DIR/$(BINARY)"; \
-		cp $(BUILD_DIR)/$(BINARY) "$$GO_BIN_DIR/$(BINARY)"
+	@set -eu; \
+		fail() { printf '%s\n' "make install: ERROR: $$*" >&2; exit 1; }; \
+		sha256() { \
+			if command -v sha256sum >/dev/null 2>&1; then sha256sum "$$1" | awk '{print $$1}'; \
+			elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$$1" | awk '{print $$1}'; \
+			elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$$1" | awk '{print $$NF}'; \
+			else fail "need sha256sum, shasum, or openssl to verify the install"; fi; \
+		}; \
+		resolve_dir() { \
+			mkdir -p "$$1" || fail "cannot create destination directory $$1"; \
+			(cd "$$1" && pwd -P) || fail "cannot resolve destination directory $$1"; \
+		}; \
+		source="$(abspath $(BUILD_DIR)/$(BINARY))"; \
+		[ -f "$$source" ] || fail "built binary is missing: $$source"; \
+		[ -x "$$source" ] || fail "built binary is not executable: $$source"; \
+		local_dir=$$(resolve_dir "$(LOCAL_BIN_DIR)"); \
+		go_dir=$$(resolve_dir "$(GO_BIN_DIR)"); \
+		local_target="$$local_dir/$(BINARY)"; \
+		go_target="$$go_dir/$(BINARY)"; \
+		source_sha=$$(sha256 "$$source") || fail "cannot hash built binary $$source"; \
+		source_version=$$("$$source" version) || fail "built binary does not report its version"; \
+		stage_local=''; stage_go=''; \
+		cleanup() { \
+			[ -z "$$stage_local" ] || rm -f "$$stage_local"; \
+			[ -z "$$stage_go" ] || rm -f "$$stage_go"; \
+		}; \
+		trap cleanup EXIT HUP INT TERM; \
+		stage_candidate() { \
+			stage_dir="$$1"; \
+			stage_file=$$(mktemp "$$stage_dir/.dva-install.XXXXXX") || fail "cannot stage candidate in $$stage_dir"; \
+			cp "$$source" "$$stage_file" || fail "cannot copy candidate into $$stage_dir"; \
+			chmod 755 "$$stage_file" || fail "cannot make staged candidate executable in $$stage_dir"; \
+			[ -x "$$stage_file" ] || fail "staged candidate is not executable in $$stage_dir"; \
+			candidate_sha=$$(sha256 "$$stage_file") || fail "cannot hash staged candidate in $$stage_dir"; \
+			[ "$$candidate_sha" = "$$source_sha" ] || fail "staged candidate SHA-256 differs in $$stage_dir"; \
+			candidate_version=$$("$$stage_file" version) || fail "staged candidate does not report its version in $$stage_dir"; \
+			[ "$$candidate_version" = "$$source_version" ] || fail "staged candidate version differs in $$stage_dir"; \
+			printf '%s\n' "make install: staged and verified $$stage_file" >&2; \
+		}; \
+		stage_candidate "$$local_dir"; stage_local="$$stage_file"; \
+		if [ "$$go_target" = "$$local_target" ]; then \
+			printf '%s\n' "make install: local and Go destinations are the same path; installing once" >&2; \
+		else \
+			stage_candidate "$$go_dir"; stage_go="$$stage_file"; \
+		fi; \
+		replace_candidate() { \
+			if ! mv -f "$$1" "$$2"; then \
+				fail "atomic replacement failed for $$2; an earlier destination may already be updated"; \
+			fi; \
+		}; \
+		replace_candidate "$$stage_local" "$$local_target"; stage_local=''; \
+		if [ -n "$$stage_go" ]; then replace_candidate "$$stage_go" "$$go_target"; stage_go=''; fi; \
+		verify_target() { \
+			target="$$1"; label="$$2"; \
+			[ -f "$$target" ] || fail "$$label destination is missing after replacement: $$target"; \
+			[ -x "$$target" ] || fail "$$label destination is not executable after replacement: $$target"; \
+			installed_sha=$$(sha256 "$$target") || fail "cannot hash $$label destination after replacement"; \
+			[ "$$installed_sha" = "$$source_sha" ] || fail "$$label destination SHA-256 differs after replacement"; \
+			installed_version=$$("$$target" version) || fail "$$label destination does not report its version after replacement"; \
+			[ "$$installed_version" = "$$source_version" ] || fail "$$label destination version differs after replacement"; \
+			printf 'make install: verified %s destination: %s (sha256=%s)\n' "$$label" "$$target" "$$installed_sha"; \
+		}; \
+		verify_target "$$local_target" local; \
+		if [ "$$go_target" != "$$local_target" ]; then verify_target "$$go_target" Go; fi; \
+		printf '%s\n' "make install: installed version evidence:"; \
+		printf '%s\n' "$$source_version"
 
 ## dogfood-skill-install: Black-box test a selected SHA-pinned DVA executable against a stable flow repository
 dogfood-skill-install:
