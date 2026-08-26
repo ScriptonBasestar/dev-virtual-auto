@@ -142,3 +142,10 @@ func TestGrandfatheringCannotWaiveAChangedOrFutureViolation(t *testing.T) {
 		t.Fatalf("future violation must still fail format, got %#v", got)
 	}
 }
+
+func TestSuccessMessageNamesTheExceptionBoundary(t *testing.T) {
+	const want = "commitcheck: OK -- every non-exempt subject since the baseline matches the format SSOT"
+	if successMessage != want {
+		t.Errorf("success message = %q, want %q", successMessage, want)
+	}
+}

@@ -38,4 +38,3 @@ exception table fail its tests.
 ## References
 
 - `tools/commitcheck/main.go` — subject gate and immutable baseline
-- `tasks/_archive/225-skill-dogfood-contract-and-hermetic-ci-smoke.md` — installer work that introduced the two historical commits

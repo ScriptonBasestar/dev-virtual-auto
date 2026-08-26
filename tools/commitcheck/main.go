@@ -62,11 +62,10 @@ import (
 // findings rather than fix them, so it moves only when history is rewritten under it.
 const baseline = "c100ba06de0e64ebe6079908b8681b993e674a58"
 
-// grandfatheredCommits are the two scope-less installer commits created before
-// commit-check was added to the integration workflow. The baseline must not move to
-// retire them: every other commit after it remains checked. A waiver matches both the
-// immutable object ID and its intended subject, so copying either half into a future
-// commit cannot bypass the gate.
+// grandfatheredCommits are the two post-baseline scope-less installer commits explicitly
+// grandfathered by this gate. The baseline must not move to retire them: every other
+// commit after it remains checked. A waiver matches both the immutable object ID and its
+// intended subject, so copying either half into a future commit cannot bypass the gate.
 var grandfatheredCommits = []struct {
 	sha     string
 	subject string
@@ -84,6 +83,8 @@ var grandfatheredCommits = []struct {
 // maxSubject is the enforced ceiling. See the package comment for why it is 72 and not
 // the SSOT's 50.
 const maxSubject = 72
+
+const successMessage = "commitcheck: OK -- every non-exempt subject since the baseline matches the format SSOT"
 
 // ssotTypes is the type list from ce-agent-kit skills/git/SKILL.md <commit-format>. It is
 // copied rather than widened on purpose: this repository has used `style` twice, and
@@ -244,5 +245,5 @@ func main() {
 		fmt.Fprintf(os.Stderr, "commitcheck: %d violation(s)\n", len(violations))
 		os.Exit(1)
 	}
-	fmt.Println("commitcheck: OK -- every subject since the baseline matches the format SSOT")
+	fmt.Println(successMessage)
 }
