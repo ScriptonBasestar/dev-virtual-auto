@@ -151,6 +151,11 @@ func printSkillResult(operation string, isDryRun bool, result skillinstall.Resul
 	}
 	for _, entry := range document.Results {
 		fmt.Printf("%-16s %-15s %s\n", entry.Status, joinSkillRuntimes(entry.Runtimes), entry.Destination)
+		if entry.Status == "partial" {
+			for _, runtimeStatus := range entry.RuntimeStatuses {
+				fmt.Printf("  %-14s %s\n", runtimeStatus.Runtime, runtimeStatus.Status)
+			}
+		}
 		if entry.Detail != "" {
 			fmt.Printf("  %s\n", entry.Detail)
 		}

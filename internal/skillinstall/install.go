@@ -52,15 +52,21 @@ type Result struct {
 }
 
 type DestinationResult struct {
-	Destination        string    `json:"destination"`
-	Runtimes           []Runtime `json:"runtimes"`
-	Skills             []string  `json:"skills"`
-	Status             string    `json:"status"`
-	Detail             string    `json:"detail,omitempty"`
-	SourceVersion      string    `json:"source_version,omitempty"`
-	SourceBundleSHA    string    `json:"source_bundle_sha256,omitempty"`
-	InstalledVersion   string    `json:"installed_version,omitempty"`
-	InstalledBundleSHA string    `json:"installed_bundle_sha256,omitempty"`
+	Destination        string          `json:"destination"`
+	Runtimes           []Runtime       `json:"runtimes"`
+	Skills             []string        `json:"skills"`
+	Status             string          `json:"status"`
+	Detail             string          `json:"detail,omitempty"`
+	SourceVersion      string          `json:"source_version,omitempty"`
+	SourceBundleSHA    string          `json:"source_bundle_sha256,omitempty"`
+	InstalledVersion   string          `json:"installed_version,omitempty"`
+	InstalledBundleSHA string          `json:"installed_bundle_sha256,omitempty"`
+	RuntimeStatuses    []RuntimeStatus `json:"runtime_statuses"`
+}
+
+type RuntimeStatus struct {
+	Runtime Runtime `json:"runtime"`
+	Status  string  `json:"status"`
 }
 
 type receipt struct {
@@ -83,6 +89,12 @@ type destination struct {
 	runtimes []Runtime
 }
 
+type destinationState struct {
+	target destination
+	record receipt
+	found  bool
+}
+
 // DefaultRuntimes returns every runtime with a native Agent Skills directory format.
 func DefaultRuntimes() []Runtime {
 	return []Runtime{RuntimeClaudeCode, RuntimeCodex, RuntimeOpenCode, RuntimeGrok, RuntimeAntigravity}
@@ -99,11 +111,10 @@ func Install(options Options) (Result, error) {
 		return Result{}, err
 	}
 	bundleSHA := sourceBundleSHA(files)
-	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	states := make([]destinationState, 0, len(destinations))
 	for _, target := range destinations {
-		entry := resultEntry(target, resolved.Version, bundleSHA)
-		receiptPath := receiptPath(resolved.StateRoot, target.path)
-		existing, found, err := readReceipt(receiptPath)
+		receiptFile := receiptPath(resolved.StateRoot, target.path)
+		existing, found, err := readReceipt(receiptFile)
 		if err != nil {
 			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
 		}
@@ -114,33 +125,53 @@ func Install(options Options) (Result, error) {
 			if err := verifyInstalled(target.path, existing.Files); err != nil {
 				return Result{}, fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
 			}
-			if equalFiles(existing.Files, files) && containsRuntimes(existing.Runtimes, target.runtimes) {
-				entry.Status = "up-to-date"
-				result.Destinations = append(result.Destinations, entry)
-				continue
-			}
 		} else if err := ensureNoCollision(target.path); err != nil {
 			return Result{}, err
+		}
+		states = append(states, destinationState{target: target, record: existing, found: found})
+	}
+	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	for _, state := range states {
+		target, existing, found := state.target, state.record, state.found
+		entry := resultEntry(target, resolved.Version, bundleSHA)
+		receiptFile := receiptPath(resolved.StateRoot, target.path)
+		if found && equalFiles(existing.Files, files) && containsRuntimes(existing.Runtimes, target.runtimes) {
+			entry.Status = "up-to-date"
+			setAllRuntimeStatuses(&entry, "up-to-date")
+			result.Destinations = append(result.Destinations, entry)
+			continue
 		}
 
 		if resolved.DryRun {
 			entry.Status = "would-install"
+			setAllRuntimeStatuses(&entry, "would-install")
 			result.Destinations = append(result.Destinations, entry)
 			continue
 		}
 		if found && equalFiles(existing.Files, files) {
 			existing.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
-			if err := writeReceipt(receiptPath, existing); err != nil {
+			if err := writeReceipt(receiptFile, existing); err != nil {
 				return Result{}, fmt.Errorf("update receipt: %w", err)
 			}
 			entry.Status = "installed"
+			setAllRuntimeStatuses(&entry, "installed")
 			result.Destinations = append(result.Destinations, entry)
 			continue
 		}
 		if err := ensureDestination(target.path); err != nil {
 			return Result{}, err
 		}
-		undo, finalize, err := replaceSkillDirectories(target.path, files)
+		// Revalidate at the mutation boundary. The all-destination preflight prevents
+		// predictable partial installs; this second check refuses changes made while
+		// the preflight was examining later destinations.
+		if found {
+			if err := verifyInstalled(target.path, existing.Files); err != nil {
+				return Result{}, fmt.Errorf("refusing to update drifted DVA skill installation at %s: %w", target.path, err)
+			}
+		} else if err := ensureNoCollision(target.path); err != nil {
+			return Result{}, err
+		}
+		undo, finalize, err := replaceSkillDirectories(target.path, files, found)
 		if err != nil {
 			return Result{}, err
 		}
@@ -148,7 +179,7 @@ func Install(options Options) (Result, error) {
 		if found {
 			newReceipt.Runtimes = unionRuntimes(existing.Runtimes, target.runtimes)
 		}
-		if err := writeReceipt(receiptPath, newReceipt); err != nil {
+		if err := writeReceipt(receiptFile, newReceipt); err != nil {
 			if rollbackErr := undo(); rollbackErr != nil {
 				return Result{}, fmt.Errorf("write receipt: %w (rollback also failed: %v)", err, rollbackErr)
 			}
@@ -158,6 +189,7 @@ func Install(options Options) (Result, error) {
 			return Result{}, fmt.Errorf("clean up replaced DVA skill directories: %w", err)
 		}
 		entry.Status = "installed"
+		setAllRuntimeStatuses(&entry, "installed")
 		result.Destinations = append(result.Destinations, entry)
 	}
 	return result, nil
@@ -180,23 +212,24 @@ func Status(options Options) (Result, error) {
 		record, found, err := readReceipt(receiptPath(resolved.StateRoot, target.path))
 		if err != nil {
 			entry.Status, entry.Detail = "invalid-receipt", err.Error()
+			setAllRuntimeStatuses(&entry, "invalid-receipt")
 		} else if !found {
 			if hasForeignCollision(target.path) {
 				entry.Status = "foreign-conflict"
 			} else {
 				entry.Status = "absent"
 			}
+			setAllRuntimeStatuses(&entry, entry.Status)
 		} else if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
 			entry.Status, entry.Detail = "invalid-receipt", err.Error()
-		} else if !containsRuntimes(record.Runtimes, target.runtimes) {
-			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
-			entry.Status = "absent"
+			setAllRuntimeStatuses(&entry, "invalid-receipt")
 		} else if err := verifyInstalled(target.path, record.Files); err != nil {
 			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
 			entry.Status, entry.Detail = "drifted", err.Error()
+			setAllRuntimeStatuses(&entry, "drifted")
 		} else {
 			entry.InstalledVersion, entry.InstalledBundleSHA = record.Version, record.BundleSHA
-			entry.Status = "installed"
+			entry.Status = setMembershipStatuses(&entry, record.Runtimes, "installed", "absent")
 		}
 		result.Destinations = append(result.Destinations, entry)
 	}
@@ -209,27 +242,45 @@ func Uninstall(options Options) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	states := make([]destinationState, 0, len(destinations))
 	for _, target := range destinations {
-		entry := resultEntry(target, "", "")
 		receiptFile := receiptPath(resolved.StateRoot, target.path)
 		record, found, err := readReceipt(receiptFile)
 		if err != nil {
 			return Result{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
 		}
+		if found {
+			if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
+				return Result{}, err
+			}
+			if installedRequested := intersectRuntimes(record.Runtimes, target.runtimes); len(installedRequested) > 0 {
+				if err := verifyInstalled(target.path, record.Files); err != nil {
+					return Result{}, fmt.Errorf("refusing to uninstall drifted DVA skill installation at %s: %w", target.path, err)
+				}
+			}
+		}
+		states = append(states, destinationState{target: target, record: record, found: found})
+	}
+	result := Result{Scope: resolved.Scope, Destinations: make([]DestinationResult, 0, len(destinations))}
+	for _, state := range states {
+		target, record, found := state.target, state.record, state.found
+		entry := resultEntry(target, "", "")
+		receiptFile := receiptPath(resolved.StateRoot, target.path)
 		if !found {
 			entry.Status = "not-installed"
+			setAllRuntimeStatuses(&entry, "not-installed")
 			result.Destinations = append(result.Destinations, entry)
 			continue
 		}
-		if err := validateReceipt(record, resolved.Scope, target.path); err != nil {
-			return Result{}, err
-		}
-		if err := verifyInstalled(target.path, record.Files); err != nil {
-			return Result{}, fmt.Errorf("refusing to uninstall drifted DVA skill installation at %s: %w", target.path, err)
+		installedRequested := intersectRuntimes(record.Runtimes, target.runtimes)
+		if len(installedRequested) == 0 {
+			entry.Status = "not-installed"
+			setAllRuntimeStatuses(&entry, "not-installed")
+			result.Destinations = append(result.Destinations, entry)
+			continue
 		}
 		if resolved.DryRun {
-			entry.Status = "would-uninstall"
+			entry.Status = setMembershipStatuses(&entry, record.Runtimes, "would-uninstall", "not-installed")
 			result.Destinations = append(result.Destinations, entry)
 			continue
 		}
@@ -240,6 +291,7 @@ func Uninstall(options Options) (Result, error) {
 				return Result{}, fmt.Errorf("update receipt: %w", err)
 			}
 			entry.Status = "unlinked"
+			setMembershipStatuses(&entry, installedRequested, "unlinked", "not-installed")
 			result.Destinations = append(result.Destinations, entry)
 			continue
 		}
@@ -252,6 +304,7 @@ func Uninstall(options Options) (Result, error) {
 			return Result{}, fmt.Errorf("remove receipt: %w", err)
 		}
 		entry.Status = "uninstalled"
+		setMembershipStatuses(&entry, installedRequested, "uninstalled", "not-installed")
 		result.Destinations = append(result.Destinations, entry)
 	}
 	return result, nil
@@ -373,7 +426,41 @@ func resultEntry(target destination, version, bundleSHA string) DestinationResul
 	return DestinationResult{
 		Destination: target.path, Runtimes: append([]Runtime(nil), target.runtimes...),
 		Skills: append([]string(nil), bundled.Names...), SourceVersion: version, SourceBundleSHA: bundleSHA,
+		RuntimeStatuses: make([]RuntimeStatus, 0, len(target.runtimes)),
 	}
+}
+
+func setAllRuntimeStatuses(entry *DestinationResult, status string) {
+	entry.RuntimeStatuses = entry.RuntimeStatuses[:0]
+	for _, runtime := range entry.Runtimes {
+		entry.RuntimeStatuses = append(entry.RuntimeStatuses, RuntimeStatus{Runtime: runtime, Status: status})
+	}
+}
+
+func setMembershipStatuses(entry *DestinationResult, present []Runtime, presentStatus, absentStatus string) string {
+	set := make(map[Runtime]bool, len(present))
+	for _, runtime := range present {
+		set[runtime] = true
+	}
+	entry.RuntimeStatuses = entry.RuntimeStatuses[:0]
+	allPresent, allAbsent := true, true
+	for _, runtime := range entry.Runtimes {
+		status := absentStatus
+		if set[runtime] {
+			status = presentStatus
+			allAbsent = false
+		} else {
+			allPresent = false
+		}
+		entry.RuntimeStatuses = append(entry.RuntimeStatuses, RuntimeStatus{Runtime: runtime, Status: status})
+	}
+	if allPresent {
+		return presentStatus
+	}
+	if allAbsent {
+		return absentStatus
+	}
+	return "partial"
 }
 
 func bundledFiles() ([]fileHash, error) {
@@ -555,7 +642,26 @@ func removeRuntimes(have, removed []Runtime) []Runtime {
 	return result
 }
 
-func replaceSkillDirectories(destination string, files []fileHash) (func() error, func() error, error) {
+func intersectRuntimes(left, right []Runtime) []Runtime {
+	wanted := make(map[Runtime]bool, len(right))
+	for _, runtime := range right {
+		wanted[runtime] = true
+	}
+	var result []Runtime
+	for _, runtime := range left {
+		if wanted[runtime] {
+			result = append(result, runtime)
+		}
+	}
+	slices.Sort(result)
+	return result
+}
+
+func replaceSkillDirectories(destination string, files []fileHash, replaceExisting bool) (func() error, func() error, error) {
+	return replaceSkillDirectoriesWithRename(destination, files, replaceExisting, os.Rename)
+}
+
+func replaceSkillDirectoriesWithRename(destination string, files []fileHash, replaceExisting bool, rename func(string, string) error) (func() error, func() error, error) {
 	stage, err := os.MkdirTemp(destination, ".dva-skill-stage-")
 	if err != nil {
 		return nil, nil, err
@@ -568,51 +674,51 @@ func replaceSkillDirectories(destination string, files []fileHash) (func() error
 	}
 	type move struct{ final, backup string }
 	moves := make([]move, 0, len(bundled.Names))
+	rollback := func() error {
+		var rollbackErr error
+		for index := range slices.Backward(moves) {
+			if err := os.RemoveAll(moves[index].final); err != nil && rollbackErr == nil {
+				rollbackErr = err
+			}
+			if moves[index].backup != "" {
+				if err := os.Rename(moves[index].backup, moves[index].final); err != nil && rollbackErr == nil {
+					rollbackErr = err
+				}
+			}
+		}
+		if err := os.RemoveAll(stage); err != nil && rollbackErr == nil {
+			rollbackErr = err
+		}
+		return rollbackErr
+	}
+	fail := func(cause error) (func() error, func() error, error) {
+		if rollbackErr := rollback(); rollbackErr != nil {
+			return nil, nil, fmt.Errorf("%w (rollback also failed: %v)", cause, rollbackErr)
+		}
+		return nil, nil, cause
+	}
 	for _, name := range bundled.Names {
 		final := filepath.Join(destination, name)
 		backup := filepath.Join(stage, name+".backup")
 		if _, err := os.Lstat(final); err == nil {
-			if err := os.Rename(final, backup); err != nil {
-				_ = os.RemoveAll(stage)
-				return nil, nil, err
+			if !replaceExisting {
+				return fail(fmt.Errorf("refusing collision at %s; no DVA receipt exists", final))
+			}
+			if err := rename(final, backup); err != nil {
+				return fail(err)
 			}
 			moves = append(moves, move{final: final, backup: backup})
 		} else if !errors.Is(err, os.ErrNotExist) {
-			_ = os.RemoveAll(stage)
-			return nil, nil, err
+			return fail(err)
 		} else {
 			moves = append(moves, move{final: final})
 		}
-		if err := os.Rename(filepath.Join(stage, name), final); err != nil {
-			for index := range slices.Backward(moves) {
-				_ = os.RemoveAll(moves[index].final)
-				if moves[index].backup != "" {
-					_ = os.Rename(moves[index].backup, moves[index].final)
-				}
-			}
-			_ = os.RemoveAll(stage)
-			return nil, nil, err
+		if err := rename(filepath.Join(stage, name), final); err != nil {
+			return fail(err)
 		}
-	}
-	undo := func() error {
-		var rollback error
-		for index := range slices.Backward(moves) {
-			if err := os.RemoveAll(moves[index].final); err != nil && rollback == nil {
-				rollback = err
-			}
-			if moves[index].backup != "" {
-				if err := os.Rename(moves[index].backup, moves[index].final); err != nil && rollback == nil {
-					rollback = err
-				}
-			}
-		}
-		if err := os.RemoveAll(stage); err != nil && rollback == nil {
-			rollback = err
-		}
-		return rollback
 	}
 	finalize := func() error { return os.RemoveAll(stage) }
-	return undo, finalize, nil
+	return rollback, finalize, nil
 }
 
 func writeEmbedded(destination, embeddedPath string) error {

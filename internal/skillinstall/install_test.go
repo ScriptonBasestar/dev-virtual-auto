@@ -174,6 +174,45 @@ func TestInstallStatusAndUninstallSharedDestination(t *testing.T) {
 	}
 }
 
+func TestSharedDestinationReportsEachRuntimeState(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	if _, err := Install(options); err != nil {
+		t.Fatal(err)
+	}
+
+	both := options
+	both.Runtimes = []Runtime{RuntimeCodex, RuntimeAntigravity}
+	status, err := Status(both)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := status.Destinations[0]
+	if entry.Status != "partial" {
+		t.Fatalf("aggregate status = %s, want partial", entry.Status)
+	}
+	assertRuntimeStatuses(t, entry.RuntimeStatuses, map[Runtime]string{
+		RuntimeCodex: "installed", RuntimeAntigravity: "absent",
+	})
+
+	antigravityOnly := options
+	antigravityOnly.Runtimes = []Runtime{RuntimeAntigravity}
+	result, err := Uninstall(antigravityOnly)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Destinations[0].Status != "not-installed" {
+		t.Fatalf("absent runtime uninstall = %s", result.Destinations[0].Status)
+	}
+	status, err = Status(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Destinations[0].Status != "installed" {
+		t.Fatalf("codex changed by absent runtime uninstall: %s", status.Destinations[0].Status)
+	}
+}
+
 func TestDryRunDoesNotMutate(t *testing.T) {
 	t.Parallel()
 	options := testOptions(t, ScopeUser, RuntimeClaudeCode)
@@ -266,6 +305,47 @@ func TestCollisionAndDriftAreRefused(t *testing.T) {
 	if status.Destinations[0].Status != "drifted" {
 		t.Fatalf("status = %s", status.Destinations[0].Status)
 	}
+}
+
+func TestMultiDestinationOperationsPreflightBeforeMutation(t *testing.T) {
+	t.Parallel()
+	t.Run("install collision", func(t *testing.T) {
+		options := testOptions(t, ScopeProject, RuntimeClaudeCode, RuntimeGrok)
+		_, destinations, err := resolve(options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(destinations) != 2 {
+			t.Fatalf("destinations = %v", destinations)
+		}
+		laterCollision := filepath.Join(destinations[1].path, "dva")
+		if err := os.MkdirAll(laterCollision, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Install(options); err == nil {
+			t.Fatal("multi-destination install ignored later collision")
+		}
+		if _, err := os.Stat(filepath.Join(destinations[0].path, "dva")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("earlier destination mutated before collision: %v", err)
+		}
+	})
+
+	t.Run("uninstall drift", func(t *testing.T) {
+		options := testOptions(t, ScopeProject, RuntimeClaudeCode, RuntimeGrok)
+		installed, err := Install(options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(installed.Destinations[1].Destination, "dva", "SKILL.md"), []byte("drift"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Uninstall(options); err == nil {
+			t.Fatal("multi-destination uninstall ignored later drift")
+		}
+		if _, err := os.Stat(filepath.Join(installed.Destinations[0].Destination, "dva", "SKILL.md")); err != nil {
+			t.Fatalf("earlier destination removed before drift was found: %v", err)
+		}
+	})
 }
 
 func TestInvalidReceiptReportedAndRefused(t *testing.T) {
@@ -367,6 +447,78 @@ func TestSymlinkCollisionAndLegacyConfigAreNeverReplaced(t *testing.T) {
 	}
 }
 
+func TestReplaceSkillDirectoriesRollsBackEarlierMove(t *testing.T) {
+	t.Parallel()
+	destination := t.TempDir()
+	for _, name := range bundled.Names {
+		root := filepath.Join(destination, name)
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "old-marker"), []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files, err := bundledFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	renameCalls := 0
+	failingRename := func(oldPath, newPath string) error {
+		renameCalls++
+		if renameCalls == 3 {
+			return errors.New("injected second-skill backup failure")
+		}
+		return os.Rename(oldPath, newPath)
+	}
+	if _, _, err := replaceSkillDirectoriesWithRename(destination, files, true, failingRename); err == nil {
+		t.Fatal("replacement succeeded despite injected failure")
+	}
+	for _, name := range bundled.Names {
+		contents, err := os.ReadFile(filepath.Join(destination, name, "old-marker"))
+		if err != nil {
+			t.Fatalf("%s old directory was not restored: %v", name, err)
+		}
+		if string(contents) != name {
+			t.Fatalf("%s marker = %q", name, contents)
+		}
+	}
+	stages, err := filepath.Glob(filepath.Join(destination, ".dva-skill-stage-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stages) != 0 {
+		t.Fatalf("staging directories remain: %v", stages)
+	}
+}
+
+func TestNewInstallReplacementRefusesLateCollision(t *testing.T) {
+	t.Parallel()
+	destination := t.TempDir()
+	collision := filepath.Join(destination, "dva")
+	if err := os.MkdirAll(collision, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(collision, "foreign-marker")
+	if err := os.WriteFile(marker, []byte("foreign"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	files, err := bundledFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := replaceSkillDirectories(destination, files, false); err == nil {
+		t.Fatal("new install replaced a collision created after preflight")
+	}
+	contents, err := os.ReadFile(marker)
+	if err != nil {
+		t.Fatalf("foreign collision was removed: %v", err)
+	}
+	if string(contents) != "foreign" {
+		t.Fatalf("foreign marker changed: %q", contents)
+	}
+}
+
 func testOptions(t *testing.T, scope Scope, runtimes ...Runtime) Options {
 	t.Helper()
 	root := t.TempDir()
@@ -401,4 +553,20 @@ func sameStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func assertRuntimeStatuses(t *testing.T, got []RuntimeStatus, want map[Runtime]string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("runtime statuses = %v, want %v", got, want)
+	}
+	for _, status := range got {
+		if wantStatus, ok := want[status.Runtime]; !ok || wantStatus != status.Status {
+			t.Fatalf("runtime status %s = %s, want %s", status.Runtime, status.Status, wantStatus)
+		}
+		delete(want, status.Runtime)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing runtime statuses: %v", want)
+	}
 }

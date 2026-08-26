@@ -97,9 +97,10 @@ type ManifestSubproject struct {
 }
 
 type ManifestCmd struct {
-	Description string            `json:"description" yaml:"description"`
-	Type        string            `json:"type" yaml:"type"`
-	Options     map[string]string `json:"options,omitempty" yaml:"options,omitempty"`
+	Description string                 `json:"description" yaml:"description"`
+	Type        string                 `json:"type" yaml:"type"`
+	Options     map[string]string      `json:"options,omitempty" yaml:"options,omitempty"`
+	Subcommands map[string]ManifestCmd `json:"subcommands,omitempty" yaml:"subcommands,omitempty"`
 }
 
 type ManifestDynCmd struct {
@@ -205,17 +206,28 @@ func fillStaticCommandOptions(static map[string]ManifestCmd) {
 		if !ok {
 			continue
 		}
-		c.Flags().VisitAll(func(f *pflag.Flag) {
-			if f.Name == "help" || persistent.Lookup(f.Name) != nil {
-				return
-			}
-			if entry.Options == nil {
-				entry.Options = map[string]string{}
-			}
-			entry.Options[f.Name] = f.Usage
-		})
-		static[c.Name()] = entry
+		static[c.Name()] = fillCommandOptions(c, entry, persistent)
 	}
+}
+
+func fillCommandOptions(command *cobra.Command, entry ManifestCmd, persistent *pflag.FlagSet) ManifestCmd {
+	command.Flags().VisitAll(func(f *pflag.Flag) {
+		if f.Name == "help" || persistent.Lookup(f.Name) != nil {
+			return
+		}
+		if entry.Options == nil {
+			entry.Options = map[string]string{}
+		}
+		entry.Options[f.Name] = f.Usage
+	})
+	for _, child := range command.Commands() {
+		subcommand, ok := entry.Subcommands[child.Name()]
+		if !ok {
+			continue
+		}
+		entry.Subcommands[child.Name()] = fillCommandOptions(child, subcommand, persistent)
+	}
+	return entry
 }
 
 // fillStaticCommandDescriptions copies each command's cobra Short into its manifest entry.
@@ -247,15 +259,26 @@ func fillStaticCommandDescriptions(static map[string]ManifestCmd) {
 		if !ok {
 			continue
 		}
-		entry.Description = c.Short
-		static[c.Name()] = entry
+		static[c.Name()] = fillCommandDescriptions(c, entry)
 	}
+}
+
+func fillCommandDescriptions(command *cobra.Command, entry ManifestCmd) ManifestCmd {
+	entry.Description = command.Short
+	for _, child := range command.Commands() {
+		subcommand, ok := entry.Subcommands[child.Name()]
+		if !ok {
+			continue
+		}
+		entry.Subcommands[child.Name()] = fillCommandDescriptions(child, subcommand)
+	}
+	return entry
 }
 
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
 		DvaVersion:    config.Version,
-		SchemaVersion: "1.2",
+		SchemaVersion: "1.3",
 		GeneratedAt:   time.Now().Format(time.RFC3339),
 		ConfigFile:    c.FilePath(),
 		ProjectDir:    c.FileDir(),
@@ -340,9 +363,10 @@ func buildManifest(c *config.Config) *Manifest {
 			"console": {Type: "passthrough"},
 			"skill": {
 				Type: "meta",
-				Options: map[string]string{
-					"scope":   "Installation scope: user or project",
-					"runtime": "Target runtime(s): claude-code, codex, opencode, grok, antigravity",
+				Subcommands: map[string]ManifestCmd{
+					"install":   {Type: "mutation"},
+					"status":    {Type: "query"},
+					"uninstall": {Type: "mutation"},
 				},
 			},
 			"status": {Type: "query"},
