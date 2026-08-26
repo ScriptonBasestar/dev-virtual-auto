@@ -839,6 +839,7 @@ func TestRestartStackFlagsDoNotNeedAPlanName(t *testing.T) {
 		ran  []string
 	}{
 		{"a tag selector", []string{"--tag", "web"}, []string{"s1_stop", "s1_up"}},
+		{"the db tag selector", []string{"--tag=db"}, []string{"s2_stop", "s2_up"}},
 		{"its short form", []string{"-T", "web"}, []string{"s1_stop", "s1_up"}},
 		{"an attached value", []string{"--tag=web"}, []string{"s1_stop", "s1_up"}},
 		{"an exclusion", []string{"--exclude-tag", "db"}, []string{"s1_stop", "s1_up"}},
@@ -874,4 +875,32 @@ func TestRestartStackFlagsDoNotNeedAPlanName(t *testing.T) {
 			t.Errorf("restart --: refused with %v but ran %v; a refusal must not act first", err, ran)
 		}
 	})
+}
+
+// TestRestartRejectsUnknownTagsBeforeRunning covers both narrowing directions:
+// an unknown include used to select nothing while an unknown exclusion used to run
+// everything. Both must name the undeclared tag and leave the fixture untouched.
+func TestRestartRejectsUnknownTagsBeforeRunning(t *testing.T) {
+	cases := []struct {
+		what string
+		args []string
+	}{
+		{"include", []string{"--tag", "typo"}},
+		{"exclude", []string{"--exclude-tag", "typo"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.what, func(t *testing.T) {
+			dir := writeRestartTaggedPlanProbeConfig(t)
+
+			err := restartCmd.RunE(restartCmd, tc.args)
+			if err == nil {
+				t.Errorf("restart %v: want an error for undeclared tag", tc.args)
+			} else if !strings.Contains(err.Error(), `no entry declares tag "typo"`) {
+				t.Errorf("restart %v: error %q does not name the undeclared tag", tc.args, err)
+			}
+			if got := ranMarkers(t, dir); len(got) != 0 {
+				t.Errorf("unknown tag: nothing should have run, ran %v", got)
+			}
+		})
+	}
 }

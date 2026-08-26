@@ -254,22 +254,17 @@ func TestParseDvaFlagsRejectsADegenerateValue(t *testing.T) {
 		})
 	}
 
-	// The control, and it has to be a comma list: every row above is satisfied by a build
-	// that refuses commas outright, which would delete the documented `--tag=a,b` syntax.
-	// --exclude-tag with tags no entry carries is the spelling that proves the value was
-	// parsed AND that the run proceeded — the include side would run nothing here and be
-	// indistinguishable from a build that refused the flag.
+	// The control has to be a comma list: every row above is satisfied by a build that
+	// refuses commas outright. Use declared tags so TASK-214's unknown-tag rejection
+	// cannot satisfy this control; excluding both entries proves both comma values parsed.
 	t.Run("but a real comma list is still taken", func(t *testing.T) {
-		dir := writeRestartProbeConfig(t)
+		dir := writeRestartTaggedPlanProbeConfig(t)
 
-		if err := restartCmd.RunE(restartCmd, []string{"--exclude-tag=a,b"}); err != nil {
-			t.Fatalf("restart --exclude-tag=a,b: %v", err)
+		if err := restartCmd.RunE(restartCmd, []string{"--exclude-tag=web,db"}); err != nil {
+			t.Fatalf("restart --exclude-tag=web,db: %v", err)
 		}
-		got := ranMarkers(t, dir)
-		for _, m := range []string{"s1_up", "s1_stop", "s2_up", "s2_stop"} {
-			if !got[m] {
-				t.Errorf("restart --exclude-tag=a,b: %s missing, ran %v", m, got)
-			}
+		if got := ranMarkers(t, dir); len(got) != 0 {
+			t.Errorf("restart --exclude-tag=web,db: both declared tags must exclude their entries, ran %v", got)
 		}
 	})
 }

@@ -7,7 +7,29 @@ effort: M
 created-at: 2026-08-20T19:20:00+09:00
 source: "carved out of TASK-213, which refused the degenerate tag values (empty, blank, `,`) and measured that the non-degenerate ones fail the same way for a different reason"
 scope: "`--tag`/`--tags`/`-T` and `--exclude-tag`/`--exclude-tags` against `filterByTags` in internal/lifecycle/orchestrator.go. Mode and env are out of scope — they already validate against the config and are the model this card asks tags to follow."
-status: todo
+status: done
+completed-at: 2026-08-26T11:25:51+09:00
+completion-summary: "Reject unknown include and exclude tags before lifecycle side effects while preserving declared tag narrowing."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test"
+    result: "passed; internal/cli 75.3% coverage, internal/lifecycle 64.1% coverage"
+  - kind: automated
+    command-or-step: "dva lint"
+    result: "passed; 292 Go files formatted, 0 issues"
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: "passed; 279 Markdown files, 552 links, 1,146 test functions"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T11:27:27+09:00
+quality-review-evidence:
+  - "targeted CLI and lifecycle tests passed on the reviewed diff"
+  - "full dva test, dva lint, and make doc-check gates passed"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-214-review-receipt.json
+archived-at: 2026-08-26T11:28:09+09:00
+verified-at: 2026-08-26T11:28:09+09:00
+verification-summary: "Unknown include and exclude tags are rejected before side effects; declared selector controls and all repository gates passed."
 ---
 
 # Task 214: An unknown tag narrows the run to nothing and exits zero
@@ -84,11 +106,19 @@ only an error on some paths.
 
 ## Completion Criteria
 
-- [ ] An unknown tag is refused by name rather than silently narrowing | verify: `grep -rn 'no entry declares' internal/lifecycle/*.go internal/cli/*.go | grep -v _test` returns at least one line — **today 0, measured**
-- [ ] A test asserts nothing ran *and* an error was returned for an unknown tag, against a fixture that declares real tags | verify: `grep -c 'unknown tag: nothing should have run' internal/cli/*_test.go` ≥ 1 — **today 0, measured.** The first draft of this criterion bound on `grep -c 'tags: \[db\]'`, which already returned 1 and so could not fail: `writeRestartTaggedPlanProbeConfig` (`restart_names_test.go`) has declared `web`/`db` tags since TASK-033. **Reuse it — do not write a third fixture**, and note that the default `writeRestartProbeConfig` declares no tags at all, so a test written against *that* one passes for the wrong reason
-- [ ] The `--exclude-tag` side is settled explicitly, not by default | verify: human — record in this card whether an unknown excluded tag is an error, with the measurement that decided it
-- [ ] The control still passes: a tag that does match still narrows the run to the matching entries | verify: a test runs `--tag=db` against `writeRestartTaggedPlanProbeConfig` and asserts **`s2` ran and `s1` did not** — measured: `--tag=db` → `[s2_stop s2_up]`, `--tag=web` → `[s1_stop s1_up]`. **Without this row every criterion above is satisfied by a build that refuses every tag.** This said "`s1` ran and `s2` did not" until a review measured it: that mapping is the ad-hoc fixture in the summary table above, where `s1` carries `db`, and the criterion carried it over to the mandated fixture, which is the other way round. An implementer following it literally writes a test that fails on a correct build
-- [ ] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK
+- [x] An unknown tag is refused by name rather than silently narrowing | verify: `grep -rn 'no entry declares' internal/lifecycle/*.go internal/cli/*.go | grep -v _test` returns at least one line — **today 0, measured**
+- [x] A test asserts nothing ran *and* an error was returned for an unknown tag, against a fixture that declares real tags | verify: `grep -c 'unknown tag: nothing should have run' internal/cli/*_test.go` ≥ 1 — **today 0, measured.** The first draft of this criterion bound on `grep -c 'tags: \[db\]'`, which already returned 1 and so could not fail: `writeRestartTaggedPlanProbeConfig` (`restart_names_test.go`) has declared `web`/`db` tags since TASK-033. **Reuse it — do not write a third fixture**, and note that the default `writeRestartProbeConfig` declares no tags at all, so a test written against *that* one passes for the wrong reason
+- [x] The `--exclude-tag` side is settled explicitly, not by default | verify: human — record in this card whether an unknown excluded tag is an error, with the measurement that decided it
+- [x] The control still passes: a tag that does match still narrows the run to the matching entries | verify: a test runs `--tag=db` against `writeRestartTaggedPlanProbeConfig` and asserts **`s2` ran and `s1` did not** — measured: `--tag=db` → `[s2_stop s2_up]`, `--tag=web` → `[s1_stop s1_up]`. **Without this row every criterion above is satisfied by a build that refuses every tag.** This said "`s1` ran and `s2` did not" until a review measured it: that mapping is the ad-hoc fixture in the summary table above, where `s1` carries `db`, and the criterion carried it over to the mandated fixture, which is the other way round. An implementer following it literally writes a test that fails on a correct build
+- [x] `make test`, `make lint`, `make doc-check` pass | verify: run them and record the denominators, not just OK
+
+## Resolution
+
+Unknown excluded tags are errors, matching unknown included tags. Before this change,
+`--exclude-tag=typo` against the tagged restart fixture exited 0 and ran the whole
+stack. After the change it returns `no entry declares tag "typo"` and leaves zero
+markers. A declared comma list remains valid: `--exclude-tag=web,db` exits 0 and
+leaves zero markers because it explicitly excludes both declared entries.
 
 ## References
 

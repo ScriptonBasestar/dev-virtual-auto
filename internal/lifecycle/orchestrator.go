@@ -169,12 +169,11 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 // Down stops all matching lifecycle entries in reverse order.
 func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
-	o.stopModeProcesses(opts.Mode, opts.DryRun)
-
 	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if err != nil {
 		return err
 	}
+	o.stopModeProcesses(opts.Mode, opts.DryRun)
 
 	// Reverse order for teardown
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -224,12 +223,11 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
 func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
-	o.haltModeProcesses(opts.Mode, opts.DryRun)
-
 	filtered, err := o.filterEntries(opts.Names, opts.IncludeTags, opts.ExcludeTags, opts.Mode, opts.Env)
 	if err != nil {
 		return err
 	}
+	o.haltModeProcesses(opts.Mode, opts.DryRun)
 
 	// Reverse order
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -395,6 +393,13 @@ func serviceLooksRunning(state string) bool {
 // filterEntries returns lifecycle entries matching the given name, tag, mode, and env filters.
 // It also applies StackOverrides for the given environment if configured.
 func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, mode, env string) ([]config.LifecycleEntry, error) {
+	if err := validateDeclaredTags(o.entries, includeTags); err != nil {
+		return nil, err
+	}
+	if err := validateDeclaredTags(o.entries, excludeTags); err != nil {
+		return nil, err
+	}
+
 	entries := o.entries
 
 	// Filter by explicit entry names
@@ -442,6 +447,25 @@ func (o *Orchestrator) filterEntries(names, includeTags, excludeTags []string, m
 	}
 
 	return entries, nil
+}
+
+// validateDeclaredTags rejects a selector whose name no stack entry declares.
+// It checks the full declaration set, before name, environment, or mode filters
+// narrow the run, so a valid tag remains valid even when another selector removes
+// its entry from this invocation.
+func validateDeclaredTags(entries []config.LifecycleEntry, tags []string) error {
+	declared := make(map[string]struct{})
+	for _, entry := range entries {
+		for _, tag := range entry.Tags {
+			declared[tag] = struct{}{}
+		}
+	}
+	for _, tag := range tags {
+		if _, ok := declared[tag]; !ok {
+			return fmt.Errorf("no entry declares tag %q", tag)
+		}
+	}
+	return nil
 }
 
 // filterByNames retains only the entries whose names exist in targetNames.
