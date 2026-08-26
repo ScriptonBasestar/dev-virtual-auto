@@ -18,7 +18,13 @@ var configMigrateWrite bool
 var configMigrateCmd = &cobra.Command{
 	Use:   "migrate [path]",
 	Short: "Convert legacy declarations into the stack/plan shape",
-	Long: `Convert the declarations DVA has moved on from:
+	Long: `Convert the declarations DVA has moved on from.
+
+This opt-in compatibility command is tracked by TASK-197 and will be removed in
+a future release once the corpus-based removal predicate in
+docs/42-migration-and-compatibility.md is satisfied.
+
+It converts:
 
   compose entries   ->  stack.<name>.runners.compose
   applications:     ->  stack.<name>.runners.native

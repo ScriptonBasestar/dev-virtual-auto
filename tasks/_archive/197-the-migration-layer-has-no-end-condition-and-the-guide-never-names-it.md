@@ -7,7 +7,29 @@ effort: M
 created-at: 2026-08-19T17:25:35+09:00
 source: "measured 2026-08-19 — 1057 non-test lines behind one opt-in call site, 0 removal notices against an infra: control of 1, and 0 mentions of 'config migrate' in the 212-line docs/42 the warnings link to"
 scope: "docs/42 gains the compatibility-layer section for the converter, and internal/cli/config_migrate.go gains the version-stamped notice the infra: fold already carries. No change to what the converter converts."
-status: todo
+status: done
+completed-at: 2026-08-26T11:13:55+09:00
+completion-summary: "Documented the config migration compatibility layer, its corpus-based removal predicate, and its CLI deprecation horizon."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/cli && make doc-check && git diff --check"
+    result: "passed"
+  - kind: automated
+    command-or-step: "preview config migration across repository examples"
+    result: "16 configs; 0 converted; 1 with Left for you; 1 planless-order config with 3 items; 0 failures"
+  - kind: automated
+    command-or-step: "preview config migration across /Users/archmagece/mydevbox"
+    result: "25 configs; 4 converted; 14 with Left for you; 13 planless-order configs with 27 items; 0 failures"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T11:16:39+09:00
+quality-review-evidence:
+  - "go test ./internal/cli -count=1, make doc-check, and git diff --check passed"
+  - "corpus sweep totals and planless-order exception counts were independently reviewed"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-197-review-receipt.json
+archived-at: 2026-08-26T11:18:04+09:00
+verified-at: 2026-08-26T11:18:04+09:00
+verification-summary: "Migration compatibility documentation and CLI horizon verified by targeted tests, documentation gates, and repository plus devbox preview sweeps."
 ---
 
 # Task 197: The migration layer has no end condition and the guide it points to never names it
@@ -60,14 +82,14 @@ warnings already point.
 
 ## Completion Criteria
 
-- [ ] `docs/42-migration-and-compatibility.md` gains a `### 12-5.` subsection for the converter, covering what it converts, what it reports under `Left for you`, and the removal predicate | verify: `grep -c 'config migrate' docs/42-migration-and-compatibility.md` returns ≥ 3 (today: 0)
-- [ ] The removal condition is written as a testable predicate over the config corpus, not as a date or a version alone | verify: human — read 12-5 and confirm a reader could run the predicate and get a yes/no without asking the author
-- [ ] `dva config migrate` states its own deprecation horizon the way the `infra:` fold does | verify: `grep -cE 'future release|will be removed' internal/cli/config_migrate.go` returns ≥ 1 (today: 0; control `internal/config/config.go` returns 1)
-- [ ] TASK-007's unfulfilled deliverable is either satisfied by 12-5 or explicitly declared out of scope in it | verify: human — 12-5 names TASK-007 and says which
-- [ ] The post-converter corpus sweep exists, run against the real config corpus rather than only the repository | verify: `human — for f in $(find ~/mydevbox -maxdepth 2 -name dva.yml); do (cd $(dirname $f) && dva config migrate); done` — preview only, never `--write`; record total / converts / has-"Left for you", as TASK-069 did
-- [ ] The in-repository corpus is swept and recorded in the same units | verify: `for f in examples/*.yml; do mkdir -p tmp/sw && cp "$f" tmp/sw/dva.yml && (cd tmp/sw && ../../bin/dva config migrate); done` — today: total=16 converts=0 has-"Left for you"=1
-- [ ] The `examples/stack-source.yml` loop is closed — either the example declares a plan, or 12-5 states that a plans-less config is expected to be edited by hand and says so in the `Left for you` text | verify: `cd tmp/sw && ../../bin/dva validate` on a copy of `examples/stack-source.yml` reports 0 warnings, OR 12-5 contains the accepted-limitation statement
-- [ ] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
+- [x] `docs/42-migration-and-compatibility.md` gains a `### 12-5.` subsection for the converter, covering what it converts, what it reports under `Left for you`, and the removal predicate | verify: `grep -c 'config migrate' docs/42-migration-and-compatibility.md` returns ≥ 3 (today: 0)
+- [x] The removal condition is written as a testable predicate over the config corpus, not as a date or a version alone | verify: human — read 12-5 and confirm a reader could run the predicate and get a yes/no without asking the author
+- [x] `dva config migrate` states its own deprecation horizon the way the `infra:` fold does | verify: `grep -cE 'future release|will be removed' internal/cli/config_migrate.go` returns ≥ 1 (today: 0; control `internal/config/config.go` returns 1)
+- [x] TASK-007's unfulfilled deliverable is either satisfied by 12-5 or explicitly declared out of scope in it | verify: human — 12-5 names TASK-007 and says which
+- [x] The post-converter corpus sweep exists, run against the real config corpus rather than only the repository | verify: `human — for f in $(find ~/mydevbox -maxdepth 2 -name dva.yml); do (cd $(dirname $f) && dva config migrate); done` — preview only, never `--write`; record total / converts / has-"Left for you", as TASK-069 did
+- [x] The in-repository corpus is swept and recorded in the same units | verify: `for f in examples/*.yml; do mkdir -p tmp/sw && cp "$f" tmp/sw/dva.yml && (cd tmp/sw && ../../bin/dva config migrate); done` — today: total=16 converts=0 has-"Left for you"=1
+- [x] The `examples/stack-source.yml` loop is closed — either the example declares a plan, or 12-5 states that a plans-less config is expected to be edited by hand and says so in the `Left for you` text | verify: `cd tmp/sw && ../../bin/dva validate` on a copy of `examples/stack-source.yml` reports 0 warnings, OR 12-5 contains the accepted-limitation statement
+- [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 
 ## References
 

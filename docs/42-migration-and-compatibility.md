@@ -196,6 +196,37 @@ interactions:
 - `interactions`: 단발성 편의 명령
 - `provision`: 환경 준비/초기화 절차
 
+### 12-5. 설정 변환기
+
+`dva config migrate`는 이전 선언을 `stack`/`plans` 형태로 옮기는 opt-in
+호환 레이어다.
+`dva config migrate`는 다음의 기계적으로 판단 가능한 변환만 수행한다.
+
+- legacy compose 선언을 `stack.<name>.runners.compose`로 이동
+- `applications` 선언을 native runner를 가진 `stack` 선언으로 이동
+- `stack.*.order`를 해당 선언을 참조하는 `plans.*.entries[].order`로 이동
+
+불가능한 선언은 `Left for you` 아래에 남긴다. mode가
+어떤 plan 이름이 될지는 도출할 수 없으므로 `modes`는 대상 위치와 함께 보고만 한다.
+`stack.*.order`는 참조 plan entry가 없으면 삭제하지 않는다. plan 없는 설정에서는 이
+값이 기존 stack 실행 순서를 결정하므로, 사람이 named plan과 해당 entries를 선언한 뒤
+다시 `dva config migrate`를 실행해야 한다. 이는 수동 한계다. 이 경우
+`Left for you`는 변환 실패나 자동 수정 대상이 아니다.
+
+이 설명은 TASK-007의 legacy command/section deprecation 정책 중 변환기 부분을
+충족한다. 변환기는 영구 호환 약속이 아니며, 다음을 모두 만족하면 제거 후보가 된다.
+
+1. 각 릴리스 후보에서 repository와 유지보수자가 관리하는 실제 설정 코퍼스의 모든
+   설정에 `dva config migrate` preview를 실행한다(`--write` 금지).
+2. 두 연속 릴리스 후보의 sweep에서 `Converted:` 항목 수가 모두 0이다.
+3. 같은 두 sweep에서 `Left for you` 항목은 위의 plan 없는 `stack.*.order` 수동 전환
+   한계로 분류되어 기록된 것뿐이며, `modes`, `applications` 또는 plan이 있는 설정의
+   order처럼 변환기가 안내할 다른 legacy 선언은 0이다.
+
+각 sweep의 총 설정 수, `Converted:` 수, `Left for you` 수, plan 없는 order 예외 수를
+release 기록에 남긴다. 이 yes/no predicate가 두 번 연속 참이면 다음 릴리스에서
+`dva config migrate`를 제거할 수 있다. 그 전에는 경고의 탈출 경로로 유지한다.
+
 ## 13. 결정 사항 요약
 
 - `stack`은 유지한다.
