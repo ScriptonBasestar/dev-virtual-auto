@@ -1,6 +1,9 @@
 package runner
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,6 +21,59 @@ func composeConfig(binary string) *config.Config {
 		Stack: map[string]*config.LifecycleEntry{
 			"infra": {Compose: &config.ComposePluginConfig{Command: binary}},
 		},
+	}
+}
+
+// TestComposeStepQuoting compares the argv a compose step actually executes with the sibling
+// run: path when shell is false. The stub emits one argv slot per line, so this deliberately
+// compares slices rather than a joined display string: joining would conceal whether `echo a b`
+// was one argument or three.
+func TestComposeStepQuoting(t *testing.T) {
+	stub := filepath.Join(t.TempDir(), "argv-stub")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\nfor arg do\n  printf '%s\\n' \"$arg\"\ndone\n"), 0755); err != nil {
+		t.Fatalf("write argv stub: %v", err)
+	}
+
+	env := &config.Environment{}
+	cfg := composeConfig(stub)
+	payload := "sh -c 'echo a b'"
+	siblingRun := (&DockerComposeRunner{
+		Cmd:  &ResolvedCommand{Service: "web", Shell: false},
+		Opts: RunOptions{Config: cfg},
+	}).buildStepArgs(env, payload)
+
+	for _, tc := range []struct {
+		name string
+		step config.ProvisionItem
+		want []string
+	}{
+		{
+			name: "compose_exec matches shell false run argv",
+			step: config.ProvisionItem{ComposeExec: "web " + payload},
+			want: siblingRun,
+		},
+		{
+			name: "compose_run preserves the same service and payload argv",
+			step: config.ProvisionItem{ComposeRun: "web sh -c 'echo a b'"},
+			// compose_run intentionally selects the Compose `run` subcommand; the service and
+			// command slots still must be exactly those built for the sibling run: path.
+			want: append([]string{"run"}, siblingRun[1:]...),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var runErr error
+			out := captureStdout(t, func() {
+				_, runErr = runComposeStepKeys(env, cfg, tc.step)
+			})
+			if runErr != nil {
+				t.Fatalf("runComposeStepKeys: %v", runErr)
+			}
+
+			got := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("argv = %#v, want %#v", got, tc.want)
+			}
+		})
 	}
 }
 

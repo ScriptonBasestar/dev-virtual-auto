@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 )
 
 // forceSubprocess, when true, makes execComposePassthrough delegate to
@@ -141,7 +142,7 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		}
 
 		if step.ComposeExec != "" {
-			composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
+			composeArgs := append([]string{"exec"}, dvaexec.SplitCommand(step.ComposeExec)...)
 			if dryRun {
 				cmd, args, err := buildComposeArgs(e, c, composeArgs)
 				if err != nil {
@@ -157,7 +158,7 @@ func runHookSteps(e *config.Environment, c *config.Config, phase, cmdName string
 		}
 
 		if step.ComposeRun != "" {
-			composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
+			composeArgs := append([]string{"run"}, dvaexec.SplitCommand(step.ComposeRun)...)
 			if dryRun {
 				cmd, args, err := buildComposeArgs(e, c, composeArgs)
 				if err != nil {

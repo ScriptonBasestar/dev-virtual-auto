@@ -59,6 +59,8 @@ provision:
         - dva rails db:create
         - dva rails db:migrate
         - dva rails db:seed
+    - step: Checking a quoted compose command
+      compose_exec: "web sh -c 'echo a b'"
     - step: Setup complete
       note: Development environment ready
   reset:

@@ -7,7 +7,33 @@ effort: M
 created-at: 2026-08-20T21:30:00+09:00
 source: "found while fixing TASK-199's bindings, from TASK-115's note that all four compose argv builders shared the same splitting bug. TASK-115 fixed the four `command:` builders and left the two provision-step fields, which no card has named"
 scope: "the ten `strings.Fields((s|step).Compose{Exec,Run})` sites in internal/runner/step_keys.go, internal/cli/hooks.go and internal/cli/provision.go — six written `step.`, four written `s.` — plus the one prose claim in skills/dva-config/references/schema-reference.md. No change to `command:` or `run:`, which do not leak quote characters into argv"
-status: todo
+status: done
+completed-at: 2026-08-26T11:57:49+09:00
+completion-summary: "Use quote-aware command splitting for all compose_exec and compose_run execution paths, with argv-level regression coverage and corrected guidance."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test"
+    result: "passed with race and coverage across all packages"
+  - kind: automated
+    command-or-step: "dva lint"
+    result: "passed; 294 Go files formatted, 0 issues"
+  - kind: automated
+    command-or-step: "dva check-generate && make doc-check"
+    result: "passed; generated reference is current and all documentation gates passed"
+  - kind: runtime
+    command-or-step: "rebuilt bin/dva against an argv-printing compose stub for quoted and newline compose_exec/run probes"
+    result: "binary sha256 562e3bd00d92a82d5c014e980586c94368e3ad2677725bccc0b8b768a10bda2f; quoted paths both ARGC=7 with payload <sh> <-c> <echo a b>; newline paths both ARGC=6 with the newline retained in one token"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:00:11+09:00
+quality-review-evidence:
+  - "independent reviewer found all ten ComposeExec/ComposeRun sites use dvaexec.SplitCommand"
+  - "argv-slice test correctly compares compose_exec to shell:false sibling run and covers compose_run"
+  - "schema source/generated copy, quoted example, targeted tests, full gates, doccheck, and diff check passed"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-222-review-receipt.json
+archived-at: 2026-08-26T12:00:50+09:00
+verified-at: 2026-08-26T12:00:50+09:00
+verification-summary: "All ten compose step argv builders are quote-aware, argv-level regression coverage and a reachable example exist, and generated guidance is current."
 ---
 
 # Task 222: `compose_exec` splits its command by a rule `run:` does not use
@@ -173,15 +199,35 @@ feature request, not this bug.
 
 ## Completion Criteria
 
-- [ ] Both fields split by the same rule as their sibling `run:` | verify: `f=$(/usr/bin/grep -rn --include='*.go' -E 'strings\.Fields\((s|step)\.Compose(Exec|Run)\)' . | /usr/bin/grep -vc _test.go || true); tot=$(/usr/bin/grep -rn --include='*.go' -E '(strings\.Fields|SplitCommand)\((s|step)\.Compose(Exec|Run)\)' . | /usr/bin/grep -vc _test.go || true); echo "Fields=$f of $tot split sites"; [ "$tot" -ge 10 ] || { echo "fewer than the 10 recorded split sites — nothing was measured"; exit 2; }; [ "$f" -eq 0 ]` — prints `Fields=10 of 10 split sites` and exits 1 today. Proven in three states against a copy of `internal/` outside the module: untouched `Fields=10 of 10` exit 1, four sites converted `Fields=6 of 10` exit 1, all ten converted `Fields=0 of 10` exit 0. The denominator is the same 10 in all three, so a rewrite that deleted the call sites rather than fixing them trips the `exit 2` guard instead of passing
-- [ ] A test asserts the argv for a quoted value, not the joined output | verify: `n=$(/usr/bin/grep -rho 'func TestComposeStepQuoting[A-Za-z]*' internal/ | sort -u | wc -l | tr -d ' '); echo "test funcs=$n"; [ "$n" -ge 1 ]` — prints `test funcs=0` and exits 1 today. Bound on the test source rather than a `go test -run` invocation, which exits 0 when it selects nothing and which `doccheck`'s TASK-136 guard rejects for that reason
-- [ ] The test pins `compose_exec:` against its sibling `run:`, not against a remembered constant | verify: human — the assertion compares the argv produced for `compose_exec: "web sh -c 'echo a b'"` against the argv produced for the same payload under `run:` with `shell: false`, and fails if they differ. `shell: false` is required: the default `run:` path never splits at all, so comparing against it would pin `compose_exec:` to a three-token `sh -c` wrap and pass for the wrong reason. A test that hard-codes the expected token list instead passes for ten converted sites and one converted site alike; a test that compares the two paths cannot pass while any of the ten is unconverted, and stays correct if `SplitCommand`'s own rule ever changes
-- [ ] The test covers `compose_run` as well as `compose_exec` | verify: `n=$(/usr/bin/grep -rl "ComposeRun:.*'" internal/runner/*_test.go internal/cli/*_test.go 2>/dev/null | wc -l | tr -d ' '); tot=$(ls internal/runner/*_test.go internal/cli/*_test.go | wc -l | tr -d ' '); echo "tests setting ComposeRun to a quoted value=$n over $tot test files"; [ "$n" -ge 1 ]` — prints `0 over 87 test files` and exits 1 today. Bound on a *quoted* value, not on `ComposeRun` alone: 13 of those 87 files already mention the field (16 repo-wide), so the obvious binding passes before any work is done. This criterion also closes the measurement gap named in **Where** — `ComposeRun` is unreachable through `runComposeStepKeys` while `ComposeExec` is set, so only a test can exercise it
-- [ ] The false runtime claim is gone from its single source and from the generated copy | verify: `src=skills/dva-config/references/schema-reference.md; [ -f "$src" ] || { echo "$src missing — nothing was measured"; exit 2; }; n=$(/usr/bin/grep -ic 'both forms work at runtime' "$src" || true); g=$(/usr/bin/grep -ic 'both forms work at runtime' internal/cli/library_reference.txt || true); echo "source=$n generated=$g over $(wc -l < "$src" | tr -d ' ') source lines"; [ "$n" -eq 0 ] && [ "$g" -eq 0 ]` — prints `source=1 generated=1 over 765 source lines` and exits 1 today
-- [ ] The generated artifact is not left stale | verify: **(writes tracked files)** `export PATH="$HOME/.local/share/mise/shims:$PATH" && make check-generate` — `Makefile:177-182` runs `make generate` at `:180`, so this binding is not read-only and a reviewer re-running the card's criteria mutates the tree. Recorded here rather than silently, because every other binding on this card can be re-run safely and a reader has no way to tell which is which
-- [ ] The corpus can reach the defect | verify: `tot=$(ls examples/*.yml | wc -l | tr -d ' '); [ "$tot" -gt 0 ] || { echo "no examples — nothing was measured"; exit 2; }; q=$(/usr/bin/grep -lE "compose_(exec|run): *(\"[^\"]*('|\\\\\")|'[^\"]*\")" examples/*.yml 2>/dev/null | wc -l | tr -d ' '); echo "examples=$tot carrying a compose step with an inner quote=$q"; [ "$q" -ge 1 ]` — prints `examples=16 carrying a compose step with an inner quote=0` and exits 1 today. The regex requires a quote **inside** a quoted value. An earlier draft bound on `['\"][^'\"]* `, which matches any double-quoted value containing a space — including the benign `compose_exec: "web pg_isready -U app"` — so it would have passed the day anyone added an ordinary example, with the defect still unreachable. Proven over six constructed lines: the three defect shapes (`"… 'x y'"`, `"… \"x y\""`, `'… "x y"'`) match, the three benign ones (`"web pg_isready -U app"`, unquoted, `'web pg_isready -U app'`) do not
-- [ ] The fix is re-measured against the real binary the same way the bug was | verify: human — rebuild `dva`, point `runners.compose.command:` at a script that prints its argv one entry per line, and re-run the two probes recorded in this card: the quoted payload `sh -c 'echo a b'`, and the newline payload. Confirm row A's payload becomes the three tokens `<sh> <-c> <echo a b>`, matching row C. Record the full argv with slot indices *and* ARGC — the Summary table was first drafted with a five-token payload and a three-token payload both annotated `ARGC=9`, which cannot be true of two argv sharing a five-slot prefix, and the arithmetic error was invisible while only the payload column was read. Record the binary's sha256 beside the output; a concurrent `make build` replaces it without warning
-- [ ] Full gate suite green | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make test && make lint && make doc-check`
+- [x] Both fields split by the same rule as their sibling `run:` | verify: `f=$(/usr/bin/grep -rn --include='*.go' -E 'strings\.Fields\((s|step)\.Compose(Exec|Run)\)' . | /usr/bin/grep -vc _test.go || true); tot=$(/usr/bin/grep -rn --include='*.go' -E '(strings\.Fields|SplitCommand)\((s|step)\.Compose(Exec|Run)\)' . | /usr/bin/grep -vc _test.go || true); echo "Fields=$f of $tot split sites"; [ "$tot" -ge 10 ] || { echo "fewer than the 10 recorded split sites — nothing was measured"; exit 2; }; [ "$f" -eq 0 ]` — prints `Fields=10 of 10 split sites` and exits 1 today. Proven in three states against a copy of `internal/` outside the module: untouched `Fields=10 of 10` exit 1, four sites converted `Fields=6 of 10` exit 1, all ten converted `Fields=0 of 10` exit 0. The denominator is the same 10 in all three, so a rewrite that deleted the call sites rather than fixing them trips the `exit 2` guard instead of passing
+- [x] A test asserts the argv for a quoted value, not the joined output | verify: `n=$(/usr/bin/grep -rho 'func TestComposeStepQuoting[A-Za-z]*' internal/ | sort -u | wc -l | tr -d ' '); echo "test funcs=$n"; [ "$n" -ge 1 ]` — prints `test funcs=0` and exits 1 today. Bound on the test source rather than a `go test -run` invocation, which exits 0 when it selects nothing and which `doccheck`'s TASK-136 guard rejects for that reason
+- [x] The test pins `compose_exec:` against its sibling `run:`, not against a remembered constant | verify: human — the assertion compares the argv produced for `compose_exec: "web sh -c 'echo a b'"` against the argv produced for the same payload under `run:` with `shell: false`, and fails if they differ. `shell: false` is required: the default `run:` path never splits at all, so comparing against it would pin `compose_exec:` to a three-token `sh -c` wrap and pass for the wrong reason. A test that hard-codes the expected token list instead passes for ten converted sites and one converted site alike; a test that compares the two paths cannot pass while any of the ten is unconverted, and stays correct if `SplitCommand`'s own rule ever changes
+- [x] The test covers `compose_run` as well as `compose_exec` | verify: `n=$(/usr/bin/grep -rl "ComposeRun:.*'" internal/runner/*_test.go internal/cli/*_test.go 2>/dev/null | wc -l | tr -d ' '); tot=$(ls internal/runner/*_test.go internal/cli/*_test.go | wc -l | tr -d ' '); echo "tests setting ComposeRun to a quoted value=$n over $tot test files"; [ "$n" -ge 1 ]` — prints `0 over 87 test files` and exits 1 today. Bound on a *quoted* value, not on `ComposeRun` alone: 13 of those 87 files already mention the field (16 repo-wide), so the obvious binding passes before any work is done. This criterion also closes the measurement gap named in **Where** — `ComposeRun` is unreachable through `runComposeStepKeys` while `ComposeExec` is set, so only a test can exercise it
+- [x] The false runtime claim is gone from its single source and from the generated copy | verify: `src=skills/dva-config/references/schema-reference.md; [ -f "$src" ] || { echo "$src missing — nothing was measured"; exit 2; }; n=$(/usr/bin/grep -ic 'both forms work at runtime' "$src" || true); g=$(/usr/bin/grep -ic 'both forms work at runtime' internal/cli/library_reference.txt || true); echo "source=$n generated=$g over $(wc -l < "$src" | tr -d ' ') source lines"; [ "$n" -eq 0 ] && [ "$g" -eq 0 ]` — prints `source=1 generated=1 over 765 source lines` and exits 1 today
+- [x] The generated artifact is not left stale | verify: **(writes tracked files)** `export PATH="$HOME/.local/share/mise/shims:$PATH" && make check-generate` — `Makefile:177-182` runs `make generate` at `:180`, so this binding is not read-only and a reviewer re-running the card's criteria mutates the tree. Recorded here rather than silently, because every other binding on this card can be re-run safely and a reader has no way to tell which is which
+- [x] The corpus can reach the defect | verify: `tot=$(ls examples/*.yml | wc -l | tr -d ' '); [ "$tot" -gt 0 ] || { echo "no examples — nothing was measured"; exit 2; }; q=$(/usr/bin/grep -lE "compose_(exec|run): *(\"[^\"]*('|\\\\\")|'[^\"]*\")" examples/*.yml 2>/dev/null | wc -l | tr -d ' '); echo "examples=$tot carrying a compose step with an inner quote=$q"; [ "$q" -ge 1 ]` — prints `examples=16 carrying a compose step with an inner quote=0` and exits 1 today. The regex requires a quote **inside** a quoted value. An earlier draft bound on `['\"][^'\"]* `, which matches any double-quoted value containing a space — including the benign `compose_exec: "web pg_isready -U app"` — so it would have passed the day anyone added an ordinary example, with the defect still unreachable. Proven over six constructed lines: the three defect shapes (`"… 'x y'"`, `"… \"x y\""`, `'… "x y"'`) match, the three benign ones (`"web pg_isready -U app"`, unquoted, `'web pg_isready -U app'`) do not
+- [x] The fix is re-measured against the real binary the same way the bug was | verify: human — rebuild `dva`, point `runners.compose.command:` at a script that prints its argv one entry per line, and re-run the two probes recorded in this card: the quoted payload `sh -c 'echo a b'`, and the newline payload. Confirm row A's payload becomes the three tokens `<sh> <-c> <echo a b>`, matching row C. Record the full argv with slot indices *and* ARGC — the Summary table was first drafted with a five-token payload and a three-token payload both annotated `ARGC=9`, which cannot be true of two argv sharing a five-slot prefix, and the arithmetic error was invisible while only the payload column was read. Record the binary's sha256 beside the output; a concurrent `make build` replaces it without warning
+- [x] Full gate suite green | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make test && make lint && make doc-check`
+
+## Resolution
+
+All ten `compose_exec:` and `compose_run:` argv builders now use
+`dvaexec.SplitCommand`. The change deliberately preserves `exec` versus `run` as the
+Compose subcommand; only tokenization is unified with the sibling `run:` path when
+`shell: false`.
+
+`TestComposeStepQuoting` drives an argv-printing executable and compares slices, so joined
+display output cannot hide retained quote characters. It compares the complete
+`compose_exec` argv with the sibling path and checks `compose_run` after accounting for its
+intentional subcommand difference. The canonical schema reference now describes these as
+distinct execution paths, its generated CLI copy is current, and the example corpus includes
+an inner-quoted compose command.
+
+The rebuilt binary had SHA-256
+`562e3bd00d92a82d5c014e980586c94368e3ad2677725bccc0b8b768a10bda2f`. Against the
+recorded stub, both the compose key and sibling path produced `ARGC=7` for the quoted probe
+with slots `4=<sh>`, `5=<-c>`, `6=<echo a b>`. Both produced `ARGC=6` for the newline probe,
+with the newline retained inside slot 5 rather than treated as a separator.
 
 ## Open Questions
 

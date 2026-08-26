@@ -837,14 +837,14 @@ Imported or directly executed subproject dva.yml files MUST follow the same rule
 
 ### Provision Step Fields
 
-`compose_up:` and `compose_exec:` ARE valid in the schema as provision step fields. However, `run:` is preferred for clarity and portability:
+`compose_up:`, `compose_exec:`, and `compose_run:` are valid provision step fields for direct
+Compose subcommands. The command portions of `compose_exec:` and `compose_run:` are tokenized
+with the same quote-aware rule as `run:` with `shell: false`; for example,
+`compose_exec: "web sh -c 'echo a b'"` passes `echo a b` as one argument.
 
-| Schema-Valid Field | Preferred `run:` Equivalent |
-|-------------------|-----------------------------|
-| `compose_up: [svc1, svc2]` | `run: "docker compose up -d --wait svc1 svc2"` |
-| `compose_exec: "svc cmd"` | `run: "docker compose exec svc cmd"` |
-
-Always use `run:` format. While both forms work at runtime, `run:` is the standard.
+These fields and `run:` are not interchangeable: compose fields select a Compose subcommand,
+while `run:` follows the configured runner. Use the field that expresses the intended execution
+path rather than translating one form into the other.
 
 ### env_file Format
 

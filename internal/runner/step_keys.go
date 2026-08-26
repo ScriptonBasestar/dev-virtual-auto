@@ -2,7 +2,6 @@ package runner
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
@@ -45,9 +44,9 @@ func runComposeStepKeys(env *config.Environment, cfg *config.Config, step config
 	case len(step.ComposeUp) > 0:
 		args = append([]string{"up", "-d"}, step.ComposeUp...)
 	case step.ComposeExec != "":
-		args = append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
+		args = append([]string{"exec"}, dvaexec.SplitCommand(step.ComposeExec)...)
 	case step.ComposeRun != "":
-		args = append([]string{"run"}, strings.Fields(step.ComposeRun)...)
+		args = append([]string{"run"}, dvaexec.SplitCommand(step.ComposeRun)...)
 	default:
 		return false, nil
 	}

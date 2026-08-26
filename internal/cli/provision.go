@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
 	"github.com/ScriptonBasestar/dva/internal/output"
 )
 
@@ -178,7 +179,7 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 	}
 
 	if step.ComposeExec != "" {
-		composeArgs := append([]string{"exec"}, strings.Fields(step.ComposeExec)...)
+		composeArgs := append([]string{"exec"}, dvaexec.SplitCommand(step.ComposeExec)...)
 		if dryRun {
 			composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
 			if err != nil {
@@ -194,7 +195,7 @@ func executeProvisionStep(e *config.Environment, c *config.Config, step config.P
 	}
 
 	if step.ComposeRun != "" {
-		composeArgs := append([]string{"run"}, strings.Fields(step.ComposeRun)...)
+		composeArgs := append([]string{"run"}, dvaexec.SplitCommand(step.ComposeRun)...)
 		if dryRun {
 			composeCmd, args, err := buildComposeArgs(e, c, composeArgs)
 			if err != nil {
@@ -331,9 +332,9 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 				if len(s.ComposeUp) > 0 {
 					dryErr = dryCompose(append([]string{"up", "-d"}, s.ComposeUp...))
 				} else if s.ComposeExec != "" {
-					dryErr = dryCompose(append([]string{"exec"}, strings.Fields(s.ComposeExec)...))
+					dryErr = dryCompose(append([]string{"exec"}, dvaexec.SplitCommand(s.ComposeExec)...))
 				} else if s.ComposeRun != "" {
-					dryErr = dryCompose(append([]string{"run"}, strings.Fields(s.ComposeRun)...))
+					dryErr = dryCompose(append([]string{"run"}, dvaexec.SplitCommand(s.ComposeRun)...))
 				} else {
 					for _, cmdStr := range s.RunCommands() {
 						_, _ = fmt.Fprintf(w, "    [dry-run] $ %s\n", cmdStr)
@@ -356,9 +357,9 @@ func executeParallelBatch(e *config.Environment, c *config.Config, batch []confi
 			if len(s.ComposeUp) > 0 {
 				err = runProvisionComposeTo(e, c, s.Step, append([]string{"up", "-d"}, s.ComposeUp...), w, w, w)
 			} else if s.ComposeExec != "" {
-				err = runProvisionComposeTo(e, c, s.Step, append([]string{"exec"}, strings.Fields(s.ComposeExec)...), w, w, w)
+				err = runProvisionComposeTo(e, c, s.Step, append([]string{"exec"}, dvaexec.SplitCommand(s.ComposeExec)...), w, w, w)
 			} else if s.ComposeRun != "" {
-				err = runProvisionComposeTo(e, c, s.Step, append([]string{"run"}, strings.Fields(s.ComposeRun)...), w, w, w)
+				err = runProvisionComposeTo(e, c, s.Step, append([]string{"run"}, dvaexec.SplitCommand(s.ComposeRun)...), w, w, w)
 			} else {
 				for _, cmdStr := range s.RunCommands() {
 					_, _ = fmt.Fprintf(w, "    $ %s\n", cmdStr)
