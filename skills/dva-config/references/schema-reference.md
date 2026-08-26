@@ -717,8 +717,11 @@ There is one lifecycle surface, and a plan name is how you aim it. `dva stack`, 
 `dva infra`, and `dva clean` were removed in docs/43 — the same verb no longer means three
 different things depending on which noun preceded it.
 
+Bare `dva up` uses `default_plan`, or the only plan as an implicit default. With no `plans:`
+it starts every declared stack entry; with several plans and no `default_plan` it refuses.
+
 ```bash
-dva up                    # Start the default plan (or every declared entry if none)
+dva up                    # Start the no-name selection described above
 dva up web                # Start the plan named `web`
 dva up web --no-wait      # Skip readiness waiting
 dva up web --force        # Proceed past a failing precondition
