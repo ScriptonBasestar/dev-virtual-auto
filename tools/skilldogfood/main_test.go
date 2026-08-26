@@ -32,10 +32,10 @@ func TestExecutableFileRequiresAbsoluteExecutableRegularFile(t *testing.T) {
 func TestRequireDestinationStatusSet(t *testing.T) {
 	project := "/fixture"
 	result := commandResult{Results: []destinationResult{
-		{Destination: "/fixture/.agents/skills", Status: "installed", Runtimes: []string{"antigravity", "codex"}, RuntimeStatuses: []runtimeStatus{{Runtime: "antigravity"}, {Runtime: "codex"}}},
-		{Destination: "/fixture/.claude/skills", Status: "installed", Runtimes: []string{"claude-code"}, RuntimeStatuses: []runtimeStatus{{Runtime: "claude-code"}}},
-		{Destination: "/fixture/.grok/skills", Status: "installed", Runtimes: []string{"grok"}, RuntimeStatuses: []runtimeStatus{{Runtime: "grok"}}},
-		{Destination: "/fixture/.opencode/skills", Status: "installed", Runtimes: []string{"opencode"}, RuntimeStatuses: []runtimeStatus{{Runtime: "opencode"}}},
+		{Destination: "/fixture/.agents/skills", Status: "installed", Runtimes: []string{"antigravity", "codex"}, RuntimeStatuses: []runtimeStatus{{Runtime: "antigravity", Status: "installed"}, {Runtime: "codex", Status: "installed"}}},
+		{Destination: "/fixture/.claude/skills", Status: "installed", Runtimes: []string{"claude-code"}, RuntimeStatuses: []runtimeStatus{{Runtime: "claude-code", Status: "installed"}}},
+		{Destination: "/fixture/.grok/skills", Status: "installed", Runtimes: []string{"grok"}, RuntimeStatuses: []runtimeStatus{{Runtime: "grok", Status: "installed"}}},
+		{Destination: "/fixture/.opencode/skills", Status: "installed", Runtimes: []string{"opencode"}, RuntimeStatuses: []runtimeStatus{{Runtime: "opencode", Status: "installed"}}},
 	}}
 	if err := requireDestinations(project, result, "installed"); err != nil {
 		t.Fatalf("valid destination set rejected: %v", err)
@@ -43,6 +43,11 @@ func TestRequireDestinationStatusSet(t *testing.T) {
 	result.Results[0].Status = "absent"
 	if err := requireDestinations(project, result, "installed"); err == nil {
 		t.Fatal("wrong destination status unexpectedly accepted")
+	}
+	result.Results[0].Status = "installed"
+	result.Results[0].RuntimeStatuses[0].Status = "absent"
+	if err := requireDestinations(project, result, "installed"); err == nil {
+		t.Fatal("wrong runtime status unexpectedly accepted")
 	}
 }
 
@@ -129,5 +134,19 @@ func TestCleanGitRootRejectsNestedDirectory(t *testing.T) {
 	}
 	if _, err := cleanGitRoot(nested); err == nil {
 		t.Fatal("nested Git directory unexpectedly accepted as FLOW_ROOT")
+	}
+}
+
+func TestSnapshotRuntimePathsRejectsAncestorSymlink(t *testing.T) {
+	root := t.TempDir()
+	external := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(external, "skills"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, filepath.Join(root, ".agents")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := snapshotRuntimePaths(root); err == nil {
+		t.Fatal("ancestor symlink unexpectedly accepted")
 	}
 }

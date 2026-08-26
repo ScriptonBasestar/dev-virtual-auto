@@ -556,6 +556,9 @@ func gitStatus(root string) (string, error) {
 func snapshotRuntimePaths(root string) ([]treeEntry, error) {
 	var snapshot []treeEntry
 	for _, relative := range []string{".agents/skills", ".claude/skills", ".grok/skills", ".opencode/skills"} {
+		if err := rejectSymlinkComponents(root, relative); err != nil {
+			return nil, err
+		}
 		path := filepath.Join(root, relative)
 		info, err := os.Lstat(path)
 		if errors.Is(err, os.ErrNotExist) {
@@ -616,6 +619,24 @@ func snapshotRuntimePaths(root string) ([]treeEntry, error) {
 	}
 	sort.Slice(snapshot, func(i, j int) bool { return snapshot[i].Path < snapshot[j].Path })
 	return snapshot, nil
+}
+
+func rejectSymlinkComponents(root, relative string) error {
+	current := root
+	for component := range strings.SplitSeq(filepath.FromSlash(relative), string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("refusing symlink runtime path component %s", current)
+		}
+	}
+	return nil
 }
 
 func formatSnapshot(snapshot []treeEntry) string {
@@ -735,8 +756,18 @@ func requireDestinationStatusSet(project string, result commandResult, expected 
 			return fmt.Errorf("%s has status %q, want %q", suffix, entry.Status, want)
 		}
 		wantRuntimes := map[string][]string{".agents/skills": {"antigravity", "codex"}, ".claude/skills": {"claude-code"}, ".grok/skills": {"grok"}, ".opencode/skills": {"opencode"}}[suffix]
-		if !sameStrings(entry.Runtimes, wantRuntimes) || !sameRuntimeNames(entry.RuntimeStatuses, wantRuntimes) {
+		if !sameStrings(entry.Runtimes, wantRuntimes) {
 			return fmt.Errorf("%s has runtimes=%v statuses=%d, want runtimes=%v", suffix, entry.Runtimes, len(entry.RuntimeStatuses), wantRuntimes)
+		}
+		wantStatuses := make(map[string]string, len(wantRuntimes))
+		for _, runtime := range wantRuntimes {
+			wantStatuses[runtime] = entry.Status
+		}
+		if result.Operation == "uninstall" && suffix == ".agents/skills" && entry.Status == "uninstalled" {
+			wantStatuses["codex"] = "not-installed"
+		}
+		if err := requireRuntimeStatuses(entry, wantStatuses); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -796,12 +827,4 @@ func requireRuntimeStatuses(entry destinationResult, expected map[string]string)
 		}
 	}
 	return nil
-}
-
-func sameRuntimeNames(statuses []runtimeStatus, expected []string) bool {
-	actual := make([]string, 0, len(statuses))
-	for _, status := range statuses {
-		actual = append(actual, status.Runtime)
-	}
-	return sameStrings(actual, expected)
 }
