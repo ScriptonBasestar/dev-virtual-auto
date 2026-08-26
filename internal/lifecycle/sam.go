@@ -2,12 +2,12 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -128,8 +128,10 @@ func (p *SAMPlugin) stopProcess(pctx *PluginContext) error {
 		_ = os.Remove(pidFile)
 		return nil
 	}
-	if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+	if err := terminateProcessGroup(pid); err == nil {
 		fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
+	} else if errors.Is(err, errProcessGroupsUnsupported) {
+		return fmt.Errorf("stop %s: %w", name, err)
 	}
 	_ = os.Remove(pidFile)
 	return nil

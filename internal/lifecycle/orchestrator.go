@@ -2,13 +2,13 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
@@ -173,7 +173,9 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 	if err != nil {
 		return err
 	}
-	o.stopModeProcesses(opts.Mode, opts.DryRun)
+	if err := o.stopModeProcesses(opts.Mode, opts.DryRun); err != nil {
+		return err
+	}
 
 	// Reverse order for teardown
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -227,7 +229,9 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 	if err != nil {
 		return err
 	}
-	o.haltModeProcesses(opts.Mode, opts.DryRun)
+	if err := o.haltModeProcesses(opts.Mode, opts.DryRun); err != nil {
+		return err
+	}
 
 	// Reverse order
 	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
@@ -601,14 +605,14 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 
 // haltModeProcesses sends SIGTERM to mode health_check processes but preserves
 // PID files so they can be restarted by the next `up` call (halt semantics).
-func (o *Orchestrator) haltModeProcesses(mode string, dryRun bool) {
-	o.signalModeProcesses(mode, false, dryRun)
+func (o *Orchestrator) haltModeProcesses(mode string, dryRun bool) error {
+	return o.signalModeProcesses(mode, false, dryRun)
 }
 
 // stopModeProcesses sends SIGTERM to mode health_check processes and removes
 // PID files (destroy semantics).
-func (o *Orchestrator) stopModeProcesses(mode string, dryRun bool) {
-	o.signalModeProcesses(mode, true, dryRun)
+func (o *Orchestrator) stopModeProcesses(mode string, dryRun bool) error {
+	return o.signalModeProcesses(mode, true, dryRun)
 }
 
 // signalModeProcesses terminates health_check native processes. When removePID
@@ -621,13 +625,13 @@ func (o *Orchestrator) stopModeProcesses(mode string, dryRun bool) {
 // branch); this half never did, so `dva stop --mode dev --dry-run` sent a real SIGTERM
 // and printed "stopped worker" — output indistinguishable from the run without the flag.
 // Measured, then fixed under TASK-166.
-func (o *Orchestrator) signalModeProcesses(mode string, removePID, dryRun bool) {
+func (o *Orchestrator) signalModeProcesses(mode string, removePID, dryRun bool) error {
 	if mode == "" {
-		return
+		return nil
 	}
 	m, ok := o.cfg.Modes[mode]
 	if !ok || len(m.HealthChecks) == 0 {
-		return
+		return nil
 	}
 
 	for _, hcName := range m.HealthChecks {
@@ -658,14 +662,17 @@ func (o *Orchestrator) signalModeProcesses(mode string, removePID, dryRun bool) 
 				}
 				continue
 			}
-			if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+			if err := terminateProcessGroup(pid); err == nil {
 				fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", hcName, pid)
+			} else if errors.Is(err, errProcessGroupsUnsupported) {
+				return fmt.Errorf("stop health check %s: %w", hcName, err)
 			}
 			if removePID {
 				_ = os.Remove(pidFile)
 			}
 		}
 	}
+	return nil
 }
 
 // hasAnyTag returns true if any of the entry's tags exist in the tag set.

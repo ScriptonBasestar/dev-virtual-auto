@@ -1,12 +1,6 @@
-# This pipeline has never run. See tasks/done/063-documented-release-download-has-no-release.md.
-#
-# goreleaser releases from a tag and this repository has none, so no asset has ever been
-# published and `releases/latest/download/...` 404s. TASK-063 chose to stop documenting the
-# download rather than to publish, so nothing here is expected to execute.
-#
-# The file is kept rather than deleted so that publishing later needs a tag, not a rewrite. CI's
-# `goreleaser-check` job validates this file's syntax and says nothing about whether it ever runs
-# — the same shape of false assurance TASK-112 removed from the Makefile.
+# No public release has been published. TASK-063 deliberately removed the release-download
+# documentation; this configuration is exercised only as a local/CI snapshot build until a human
+# decides to create and publish a version tag. Snapshot validation produces no GitHub release.
 version: 2
 
 project_name: dva
@@ -27,15 +21,17 @@ builds:
     ldflags:
       - -s -w
       - -X github.com/ScriptonBasestar/dva/internal/config.Version={{.Version}}
+      - -X github.com/ScriptonBasestar/dva/internal/config.Commit={{.Commit}}
+      - -X github.com/ScriptonBasestar/dva/internal/config.BuildDate={{.Date}}
 
 archives:
   - id: dva
-    builds:
+    ids:
       - dva
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: checksums.txt

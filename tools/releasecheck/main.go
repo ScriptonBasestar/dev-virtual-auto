@@ -1,0 +1,215 @@
+// releasecheck validates the local GoReleaser snapshot contract without publishing anything.
+package main
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"flag"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+var platforms = []platform{
+	{os: "linux", arch: "amd64", ext: ".tar.gz"},
+	{os: "linux", arch: "arm64", ext: ".tar.gz"},
+	{os: "darwin", arch: "amd64", ext: ".tar.gz"},
+	{os: "darwin", arch: "arm64", ext: ".tar.gz"},
+	{os: "windows", arch: "amd64", ext: ".zip"},
+	{os: "windows", arch: "arm64", ext: ".zip"},
+}
+
+type platform struct {
+	os   string
+	arch string
+	ext  string
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fail(errors.New("usage: releasecheck <version|artifacts> [flags]"))
+	}
+
+	var err error
+	switch os.Args[1] {
+	case "stamping":
+		err = checkStamping(os.Args[2:])
+	case "version":
+		err = checkVersion(os.Args[2:])
+	case "artifacts":
+		err = checkArtifacts(os.Args[2:])
+	default:
+		err = fmt.Errorf("unknown command %q (want stamping, version, or artifacts)", os.Args[1])
+	}
+	fail(err)
+}
+
+func checkStamping(args []string) error {
+	flags := flag.NewFlagSet("stamping", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	makefile := flags.String("makefile", "Makefile", "path to Makefile")
+	config := flags.String("config", ".goreleaser.yml", "path to GoReleaser config")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	makeData, err := os.ReadFile(*makefile)
+	if err != nil {
+		return fmt.Errorf("read Makefile %s: %w", *makefile, err)
+	}
+	configData, err := os.ReadFile(*config)
+	if err != nil {
+		return fmt.Errorf("read GoReleaser config %s: %w", *config, err)
+	}
+	for _, field := range []string{"Version", "Commit", "BuildDate"} {
+		makeFlag := fmt.Sprintf("-X $(MODULE)/internal/config.%s=$(%s)", field, strings.ToUpper(field))
+		if field == "BuildDate" {
+			makeFlag = "-X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)"
+		}
+		if !strings.Contains(string(makeData), makeFlag) {
+			return fmt.Errorf("Makefile is missing build stamp %q", makeFlag)
+		}
+		goreleaserValue := fmt.Sprintf("{{.%s}}", field)
+		if field == "BuildDate" {
+			goreleaserValue = "{{.Date}}"
+		}
+		goreleaserFlag := fmt.Sprintf("-X github.com/ScriptonBasestar/dva/internal/config.%s=%s", field, goreleaserValue)
+		if !strings.Contains(string(configData), goreleaserFlag) {
+			return fmt.Errorf("GoReleaser config is missing release stamp %q", goreleaserFlag)
+		}
+	}
+	fmt.Println("releasecheck: Makefile and GoReleaser stamp Version, Commit, and BuildDate")
+	return nil
+}
+
+func fail(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "releasecheck: ERROR: %v\n", err)
+	os.Exit(1)
+}
+
+func checkVersion(args []string) error {
+	flags := flag.NewFlagSet("version", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	versionFile := flags.String("version-file", "internal/config/version.go", "path to version.go")
+	tag := flags.String("tag", "", "exact Git tag, if this is a tagged release")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	version, err := versionFromFile(*versionFile)
+	if err != nil {
+		return err
+	}
+	if *tag == "" {
+		fmt.Printf("releasecheck: snapshot mode; internal/config.Version=%s (no exact tag)\n", version)
+		return nil
+	}
+	want := "v" + version
+	if *tag != want {
+		return fmt.Errorf("tag %q must match internal/config.Version as %q", *tag, want)
+	}
+	fmt.Printf("releasecheck: tag %s matches internal/config.Version\n", *tag)
+	return nil
+}
+
+func versionFromFile(path string) (string, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return "", fmt.Errorf("parse version source %s: %w", path, err)
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || len(value.Names) != 1 || value.Names[0].Name != "Version" || len(value.Values) != 1 {
+				continue
+			}
+			literal, ok := value.Values[0].(*ast.BasicLit)
+			if !ok || literal.Kind != token.STRING {
+				return "", fmt.Errorf("Version in %s must be a string literal", path)
+			}
+			version := strings.Trim(literal.Value, "\"")
+			if version == "" {
+				return "", fmt.Errorf("Version in %s is empty", path)
+			}
+			return version, nil
+		}
+	}
+	return "", fmt.Errorf("Version variable not found in %s", path)
+}
+
+func checkArtifacts(args []string) error {
+	flags := flag.NewFlagSet("artifacts", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	dist := flags.String("dist", "dist", "GoReleaser dist directory")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	checksums, err := readChecksums(filepath.Join(*dist, "checksums.txt"))
+	if err != nil {
+		return err
+	}
+	for _, target := range platforms {
+		name := fmt.Sprintf("dva_%s_%s%s", target.os, target.arch, target.ext)
+		want, ok := checksums[name]
+		if !ok {
+			return fmt.Errorf("checksums.txt is missing %s", name)
+		}
+		got, err := fileSHA256(filepath.Join(*dist, name))
+		if err != nil {
+			return err
+		}
+		if got != want {
+			return fmt.Errorf("checksum mismatch for %s: got %s, want %s", name, got, want)
+		}
+	}
+	fmt.Printf("releasecheck: verified %d platform archives and checksums in %s\n", len(platforms), *dist)
+	return nil
+}
+
+func readChecksums(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read checksums %s: %w", path, err)
+	}
+	checksums := make(map[string]string)
+	for lineNo, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || len(fields[0]) != sha256.Size*2 {
+			return nil, fmt.Errorf("invalid checksum line %d in %s", lineNo+1, path)
+		}
+		if _, err := hex.DecodeString(fields[0]); err != nil {
+			return nil, fmt.Errorf("invalid checksum line %d in %s: %w", lineNo+1, path, err)
+		}
+		if _, exists := checksums[fields[1]]; exists {
+			return nil, fmt.Errorf("duplicate checksum for %s", fields[1])
+		}
+		checksums[fields[1]] = fields[0]
+	}
+	return checksums, nil
+}
+
+func fileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("read archive %s: %w", path, err)
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", fmt.Errorf("hash archive %s: %w", path, err)
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
+}

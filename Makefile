@@ -19,13 +19,13 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
+.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
 	$(eval VERSION := $(shell grep -E '^[[:space:]]+Version = ' internal/config/version.go | cut -d'"' -f2))
-	$(eval COMMIT  := $(shell git rev-parse --short HEAD 2>/dev/null || echo "none"))
-	$(eval BUILD_DATE := $(shell date +%Y-%m-%dT%H:%M:%S))
+	$(eval COMMIT  := $(shell git rev-parse HEAD 2>/dev/null || echo "none"))
+	$(eval BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ))
 	go build $(GOFLAGS) -ldflags '-s -w -X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)' -o $(BUILD_DIR)/$(BINARY) ./cmd/dva
 
 ## install: Atomically replace each dva destination with a verified binary
@@ -373,6 +373,15 @@ commit-check:
 	@# case, so wiring it into CI would trade a real local gate for a red build that says
 	@# nothing about the commits. Run it locally and before integrating.
 	go run ./tools/commitcheck
+
+## release-check: Build and verify GoReleaser snapshot archives and checksums (CI)
+release-check:
+	@set -eu; \
+		tag=$$(git describe --tags --exact-match 2>/dev/null || true); \
+		go run ./tools/releasecheck stamping; \
+		go run ./tools/releasecheck version --tag "$$tag"; \
+		goreleaser release --snapshot --clean; \
+		go run ./tools/releasecheck artifacts --dist dist
 
 ## help: Show this help
 help:

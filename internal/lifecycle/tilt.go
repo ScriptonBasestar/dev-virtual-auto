@@ -2,13 +2,13 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -85,8 +85,7 @@ func (p *TiltPlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	_ = cmd.Run()
 
 	// Stop the background process
-	p.stopBackgroundProcess(pctx)
-	return nil
+	return p.stopBackgroundProcess(pctx)
 }
 
 func (p *TiltPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
@@ -124,18 +123,21 @@ func (p *TiltPlugin) resolveDir(pctx *PluginContext) string {
 }
 
 // stopBackgroundProcess reads the PID file and kills the process group.
-func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) {
+func (p *TiltPlugin) stopBackgroundProcess(pctx *PluginContext) error {
 	name := pctx.Entry.Name
 	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
-		return
+		return nil
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
 		_ = os.Remove(pidFile)
-		return
+		return nil
 	}
-	_ = syscall.Kill(-pid, syscall.SIGTERM)
+	if err := terminateProcessGroup(pid); errors.Is(err, errProcessGroupsUnsupported) {
+		return fmt.Errorf("stop %s: %w", name, err)
+	}
 	_ = os.Remove(pidFile)
+	return nil
 }

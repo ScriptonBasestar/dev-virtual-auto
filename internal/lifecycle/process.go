@@ -2,13 +2,13 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -108,7 +108,7 @@ func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 	}
 
 	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid > 0 && IsProcessRunning(pid) {
+	if pid > 0 && (IsProcessRunning(pid) || processGroupsUnsupported()) {
 		return []ServiceStatus{{Name: name, State: "running"}}, nil
 	}
 
@@ -132,8 +132,10 @@ func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
 	}
 
 	if pid > 0 && IsProcessRunning(pid) {
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+		if err := terminateProcessGroup(pid); err == nil {
 			fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
+		} else if errors.Is(err, errProcessGroupsUnsupported) {
+			return fmt.Errorf("stop %s: %w", name, err)
 		}
 	}
 	// PID file preserved — process can be restarted by up
@@ -158,8 +160,10 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 	}
 
 	if pid > 0 {
-		if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+		if err := terminateProcessGroup(pid); err == nil {
 			fmt.Fprintf(os.Stderr, "[-] removed %s (pid %d)\n", name, pid)
+		} else if errors.Is(err, errProcessGroupsUnsupported) {
+			return fmt.Errorf("remove %s: %w", name, err)
 		}
 	}
 
@@ -170,6 +174,11 @@ func (p *ProcessPlugin) removeProcess(pctx *PluginContext) error {
 
 // startLocalProcess starts a command in background, saves PID and redirects output to log.
 func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
+	cmd := exec.Command("sh", "-c", command)
+	if err := configureProcessGroup(cmd); err != nil {
+		return fmt.Errorf("local background process %q: %w", name, err)
+	}
+
 	pidDir := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName)
 	logDir := filepath.Join(pctx.ConfigDir, config.DotDirName, config.LogsDirName)
 
@@ -185,15 +194,12 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 		return fmt.Errorf("create log file: %w", err)
 	}
 
-	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = dir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
 
 	// Pass accumulated environment variables to the process
 	cmd.Env = pctx.Env.EnvSlice()
-
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()
@@ -202,7 +208,7 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 
 	pidPath := filepath.Join(pidDir, name+".pid")
 	if err := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		_ = terminateProcessGroup(cmd.Process.Pid)
 		_ = logFile.Close()
 		_ = os.Remove(filepath.Join(logDir, name+".log"))
 		return fmt.Errorf("save pid: %w", err)
@@ -218,9 +224,5 @@ func startLocalProcess(name, command, dir string, pctx *PluginContext) error {
 
 // IsProcessRunning checks if a process with the given PID is still alive.
 func IsProcessRunning(pid int) bool {
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return process.Signal(syscall.Signal(0)) == nil
+	return isProcessRunning(pid)
 }
