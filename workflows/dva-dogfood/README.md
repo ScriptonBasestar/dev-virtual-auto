@@ -45,6 +45,9 @@ approval, failure, or safety boundary.
 Stage 20 is skipped when the selected owner is `target_project`, `environment`, or
 `no_change`; it is marked `not_applicable` with no attempt report. Stage 40 may
 route a correction back to stage 20 within the same owner instead of closing.
+When a bundled skill or its installer changes, stage 30 additionally runs the
+installed-binary black-box acceptance: the real target is dry-run only, while all
+writes and receipts are isolated in disposable roots.
 
 ## Owner model
 

@@ -35,7 +35,7 @@ interaction:
     runner: local
 
   install:
-    description: "Install dva to ~/.local/bin (auto version bump)"
+    description: "Install dva binary to ~/.local/bin and Go bin"
     command: "make install"
     runner: local
 

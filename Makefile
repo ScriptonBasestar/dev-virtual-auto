@@ -12,7 +12,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check commit-check
+.PHONY: build install test test-integration lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -31,6 +31,12 @@ install: build
 		mkdir -p "$$GO_BIN_DIR"; \
 		rm -f "$$GO_BIN_DIR/$(BINARY)"; \
 		cp $(BUILD_DIR)/$(BINARY) "$$GO_BIN_DIR/$(BINARY)"
+
+## dogfood-skill-install: Black-box test an installed DVA binary's skill installer against a clean flow repository
+dogfood-skill-install:
+	@test -n "$(DVA_BIN)" || { echo "ERROR: set DVA_BIN to an absolute installed dva binary path" >&2; exit 2; }
+	@test -n "$(FLOW_ROOT)" || { echo "ERROR: set FLOW_ROOT to an absolute clean flow repository root" >&2; exit 2; }
+	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
 test:

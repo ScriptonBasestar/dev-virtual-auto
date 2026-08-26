@@ -40,8 +40,8 @@ accepted.</input>
 8. **Route, do not fix.** If a cycle-owned regression stays within this run's owner,
    keep the run active, mark stage 20 pending, invalidate the downstream accepted
    pointers the change affects while retaining their reports, clear candidate DVA
-   provenance, and route back to `20-improve.md`. Do not close until the changed
-   state is evaluated again.
+   provenance and skill-install outcomes, and route back to `20-improve.md`. Do not
+   close until the changed state is evaluated again.
 9. Otherwise close the run:
    - group unresolved findings by owner; route `dva_tool` findings to `DVA_ROOT`,
      never to a target workaround;
@@ -61,7 +61,10 @@ Cycle PASS requires all of:
 - comparable before/after evidence;
 - every derived case has a recorded outcome, and every finding exactly one owner;
 - no unresolved critical or high regression introduced by this cycle;
-- skill installation and fresh-session behavior checked when a skill changed;
+- when a bundled skill or its installer changed, the exact selected binary passed
+  real-target non-mutating dry-run, isolated install/status/uninstall round-trip,
+  and Codex/Antigravity shared-runtime unlink checks;
+- fresh-session behavior checked when a skill changed;
 - every Compose service, native process, check, and provision action has exactly one
   lifecycle owner;
 - Safety, Validation, and Ownership all scored 2.

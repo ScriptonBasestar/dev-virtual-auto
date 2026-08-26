@@ -47,8 +47,13 @@ Only when `owner: skill`.
 4. Run `make generate` from `DVA_ROOT`, then verify every target form declared by
    `skills/_targets.yaml` against the canonical source using the relation its shape
    supports, per ARTIFACTS Evidence rules.
-5. If installed metadata or body changed, set `fresh_session_required: true`. Stage
-   30 will not launch case sessions until it clears.
+5. If installed metadata or body changed, set `fresh_session_required: true` and
+   `evaluation.skill_install.required: true`, recording the changed skill in the report.
+   Build DVA without installing it, copy the executable into this attempt's
+   `artifacts/`, and record its path, build commit, and full SHA-256 in the candidate
+   DVA fields. The candidate is the only binary whose embedded bundle contains this
+   skill change. Stage 30 will not launch case sessions until the fresh-session gate
+   clears and will exercise this archived candidate in the installer acceptance.
 6. One primary skill hypothesis per run.
 </owner-skill>
 
@@ -88,8 +93,11 @@ Only when `owner: dva_tool`.
    the **full** SHA-256 of both the archived copy and the installed executable in
    `candidate_dva_sha256` and `dva_sha256`. Never truncate a digest. Keep installed,
    source, and candidate provenance distinct — never overwrite installed provenance.
-6. Install or replace a global DVA binary only with recorded user authority.
-7. Do not change target config to compensate for a DVA source defect, and do not
+6. If the change touches `internal/skillinstall/`, `internal/cli/skill.go`,
+   `skills/embed.go`, or another bundled-skill installation boundary, set
+   `evaluation.skill_install.required: true` and record those paths in the report.
+7. Install or replace a global DVA binary only with recorded user authority.
+8. Do not change target config to compensate for a DVA source defect, and do not
    run lifecycle commands against the target as a preview test.
 </owner-dva-tool>
 

@@ -31,18 +31,27 @@ accepted.</input>
    keep the flag set and BLOCK with owner `environment`.
 4. Recheck target Git HEAD, dirty hash, and protected paths against state. Stop on
    incompatible external changes; otherwise update revision evidence.
-5. Select `DVA_COMMAND`: the stage-20 candidate when DVA changed, otherwise the
-   installed command recorded at baseline. BLOCK if a changed DVA has no executable
-   candidate. Prove the selected path is executable and that its **SHA-256** matches
-   state; a matching version and build commit do not identify a binary, because two
-   different builds can stamp the same commit. On a mismatch, use
-   `candidate_dva_archive` and record why the build path was not used. Record the
-   selection without installing globally.
+5. Select `DVA_COMMAND`: the stage-20 candidate when DVA or its bundled skills
+   changed, otherwise the installed command recorded at baseline. BLOCK if a change
+   requiring a candidate has no executable candidate. Prove the selected path is
+   executable and that its **SHA-256** matches state; a matching version and build
+   commit do not identify a binary, because two different builds can stamp the same
+   commit. On a mismatch, use `candidate_dva_archive` and record why the build path
+   was not used. Record the selection without installing globally.
 6. Recompute the SHA-256 of `<RUN_DIR>/forward-requests.md` and compare it with
    `evaluation.forward_requests_hash`. On any difference, BLOCK: the requests were
    frozen precisely so they could not be reworded after the baseline was seen. Do
    not re-derive cases here.
-7. Act as the forward-test controller. For every ordered frozen request, launch one
+7. If `evaluation.skill_install.required` is true, run the repository's
+   `dogfood-skill-install` target with the exact absolute `DVA_COMMAND` and
+   `TARGET_PROJECT`. The target may only dry-run against the real project; every
+   write and receipt belongs to its disposable fixture and isolated
+   `XDG_STATE_HOME`. Record the selected binary's full SHA-256 and the real-target
+   non-mutation, fixture round-trip, and Codex/Antigravity shared-runtime unlink
+   outcomes under `evaluation.skill_install`. BLOCK on a missing target, hash
+   mismatch, write outside the fixture/state root, or any failed outcome. Native
+   Agent Skills evidence does not prove Agent Mesh or Antigravity CLI compatibility.
+8. Act as the forward-test controller. For every ordered frozen request, launch one
    independent history-free child session against a cycle-owned disposable fixture
    or a read-only real target. Give the child only its raw request, the
    fixture/read-only scope, and the safety constraints — never its case label,
@@ -51,9 +60,9 @@ accepted.</input>
    outcome}`. Every child identity must be non-empty, unique across cases, and
    distinct from the controller's. Mark stage 30 `complete` only after all ordered
    results are recorded.
-8. Reconfirm DVA need independently for the root and active subprojects. If none
+9. Reconfirm DVA need independently for the root and active subprojects. If none
    needs it, record that with evidence and do not create a config.
-9. **Target application** — only when `state.run.owner` is `target_project`:
+10. **Target application** — only when `state.run.owner` is `target_project`:
    - default to preserve, and map every proposed edit to a baseline finding;
    - if the operation requires canonical `config` invocation, require an active
      projection and invoke it explicitly to classify new setup, preserve, migration,
@@ -67,14 +76,15 @@ accepted.</input>
      `stop`, and `restart` behavior preserves each entry's runner, services, order,
      and dependencies without mutating process-backed state in preview;
    - defer tool and environment defects instead of masking them in project config.
-10. Write the unique attempt report, update state, and set the next prompt to
+11. Write the unique attempt report, update state, and set the next prompt to
     `40-evaluate.md`.
 </steps>
 
 <gate>PASS when every ordered case has a recorded result from a distinct
 history-free session, any required fresh-session check succeeded, and the
 hypothesis effect is observed — or no target change was justified — without a
-cycle-introduced high regression.</gate>
+cycle-introduced high regression. When skill-install acceptance is required, all
+three recorded outcomes must be `passed` for the selected binary SHA-256.</gate>
 
 <constraints>
 - Numbered-stage lifecycle execution stays forbidden even with post-cycle authority.

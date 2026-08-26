@@ -56,6 +56,7 @@ evaluation:
   forward_test:
     controller_session_id: null
     cases: [] # {id, child_session_id, request_hash, outcome} per ordered case
+  skill_install: {required: false, binary_sha256: null, outcomes: []}
 
 revisions:
   target_head: null
@@ -85,9 +86,10 @@ sources:
   dva_sha256: null # full 64-hex digest; a truncated digest verifies nothing, not even a recovered copy
   dva_version: null
   dva_build_commit: null # stamps the source, never identifies the file — two builds can stamp one commit
-  candidate_dva_executable: null # stage 20 build; never overwrites installed provenance
-  candidate_dva_archive: null # durable copy under the stage-20 attempt's `artifacts/`
-  candidate_dva_sha256: null # full 64-hex digest of the archived copy
+  # candidate_* records the stage-20 build and its durable archived copy.
+  candidate_dva_executable: null
+  candidate_dva_archive: null
+  candidate_dva_sha256: null # full 64-hex digest
   candidate_dva_build_commit: null
   skill_source: null
   skill_installed: null
