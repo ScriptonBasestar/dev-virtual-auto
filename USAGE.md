@@ -49,7 +49,7 @@
 
 ```bash
 dva skill install
-dva skill install --runtime claude-code,codex,opencode,grok,antigravity
+dva skill install --runtime claude-code,codex,opencode,grok,antigravity,agent-mesh
 dva skill install --scope project --runtime codex,opencode
 dva skill status --json
 dva skill uninstall --runtime grok
@@ -66,6 +66,7 @@ dva skill uninstall --dry-run --runtime claude-code
 | OpenCode | `~/.config/opencode/skills` | `.opencode/skills` |
 | Grok | `~/.grok/skills` | `.grok/skills` |
 | Antigravity IDE | `~/.gemini/config/skills` | `.agents/skills` |
+| Agent Mesh | `~/.config/agent-mesh/skills/dva` | `.agent-mesh/skills/dva` |
 
 프로젝트 scope에서 Codex와 Antigravity IDE는 같은 `.agents/skills`를 공유하므로 한 번만
 복사하고 receipt에서 두 runtime의 소유 관계를 함께 기록합니다. 설치 상태는
@@ -79,10 +80,12 @@ dva skill uninstall --dry-run --runtime claude-code
 - `uninstall`은 receipt와 현재 SHA-256이 모두 일치하는 DVA 소유 파일만 제거합니다.
 - 과거 이름 `config`는 이름만 보고 삭제하지 않습니다.
 
-Agent Mesh는 flat Markdown을 별도 compile/sync하는 형식이라 1차 native installer에서
-제외됩니다. Antigravity CLI(`agy`)의 flat skill 형식도 Antigravity IDE와 다르므로 이
-runtime 이름은 IDE만 뜻합니다. Agent Mesh 및 `agy` 지원은 변환 adapter가 추가된 뒤
-별도 계약으로 제공합니다.
+Agent Mesh는 DVA namespace 아래에 `dva.md`, `dva-config.md`만 설치합니다. 이 파일은
+frontmatter를 제거하고 canonical body와 `references/*.md`를 이름순으로 inline한 생성물입니다.
+Agent Mesh가 relative reference bundle을 해석한다고 가정하지 않으므로 relative Markdown
+reference 링크는 canonical GitHub URL로 바꿉니다. `am skill sync`는 자동 실행하지 않습니다.
+필요한 환경에서는 설치 후 사용자가 직접 실행하세요. Antigravity CLI(`agy`)의 flat skill
+형식도 Antigravity IDE와 다르므로 이 runtime 이름은 IDE만 뜻합니다.
 
 #### init (config init)
 

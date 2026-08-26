@@ -86,7 +86,7 @@ type skillCommandResult struct {
 
 func init() {
 	const scopeUsage = "Installation scope: user or project"
-	const runtimeUsage = "Target runtime(s): claude-code, codex, opencode, grok, antigravity"
+	const runtimeUsage = "Target runtime(s): claude-code, codex, opencode, grok, antigravity, agent-mesh"
 
 	skillInstallCmd.Flags().StringVar(&skillInstallScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
 	skillInstallCmd.Flags().StringSliceVar(&skillInstallRuntimes, "runtime", nil, runtimeUsage)

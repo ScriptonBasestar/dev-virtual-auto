@@ -21,11 +21,11 @@ func TestSkillOptions(t *testing.T) {
 	})
 
 	t.Run("normalizes repeated comma lists", func(t *testing.T) {
-		options, err := skillOptions("project", []string{"opencode,codex", "codex"}, false)
+		options, err := skillOptions("project", []string{"opencode,agent-mesh,codex", "codex"}, false)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []skillinstall.Runtime{skillinstall.RuntimeCodex, skillinstall.RuntimeOpenCode}
+		want := []skillinstall.Runtime{skillinstall.RuntimeAgentMesh, skillinstall.RuntimeCodex, skillinstall.RuntimeOpenCode}
 		if !reflect.DeepEqual(options.Runtimes, want) {
 			t.Fatalf("runtimes = %v, want %v", options.Runtimes, want)
 		}
@@ -38,7 +38,7 @@ func TestSkillOptions(t *testing.T) {
 		contains string
 	}{
 		{name: "scope", scope: "machine", contains: "supported scopes"},
-		{name: "runtime", scope: "user", runtimes: []string{"agent-mesh"}, contains: "supported runtimes"},
+		{name: "runtime", scope: "user", runtimes: []string{"unknown-runtime"}, contains: "supported runtimes"},
 		{name: "empty runtime", scope: "user", runtimes: []string{"codex,"}, contains: "empty name"},
 	} {
 		t.Run("rejects "+test.name, func(t *testing.T) {

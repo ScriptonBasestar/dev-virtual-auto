@@ -213,8 +213,8 @@ Cursor rule, Codex 호환 `AGENTS.md` 섹션을 만듭니다. 사용자나 다�
 
 설치된 바이너리의 `dva skill install`은 내장된 `dva`와 `dva-config`를 선택한 runtime의
 user/project discovery path에 복사합니다. Claude Code, Codex, OpenCode, Grok,
-Antigravity의 정확한 설치 경로와 공유 경로 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를
-참조하세요.
+Antigravity, Agent Mesh의 정확한 설치 경로와 공유 경로 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를
+참조하세요. Agent Mesh에는 같은 스킬을 flat Markdown으로 변환해 설치합니다.
 
 ## Documentation
 

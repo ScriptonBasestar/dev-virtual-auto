@@ -130,11 +130,14 @@ dva skill status
 dva skill uninstall
 ```
 
-The native installer copies `dva` and `dva-config` to the selected runtime discovery paths,
-records hashes under the user's XDG state directory, refuses unmanaged collisions, and removes
-only unchanged DVA-owned files. See [USAGE.md](../USAGE.md#ai-스킬-설치) for runtime paths and
-scope options. Agent Mesh and the Antigravity CLI flat formats require adapters and are not
-native installer targets.
+The installer copies `dva` and `dva-config` to native runtime discovery paths, records hashes
+under the user's XDG state directory, refuses unmanaged collisions, and removes only unchanged
+DVA-owned files. Agent Mesh is supported by the same `dva skill install` command: it renders
+`dva.md` and `dva-config.md` into its dedicated `skills/dva` namespace, strips frontmatter, and
+inlines Markdown references in deterministic order. Relative reference-bundle support is not
+assumed, so links are rewritten to canonical GitHub URLs. `am skill sync` is never run by DVA;
+run it manually if your Agent Mesh setup requires it. See [USAGE.md](../USAGE.md#ai-스킬-설치) for
+runtime paths and scope options. The Antigravity CLI flat format remains outside this contract.
 
 Do not edit generated artifacts (`.cursor/rules/*`, the `AGENTS.md` skills section,
 `claude-plugin/skills`). Edit the canonical skill and regenerate.
