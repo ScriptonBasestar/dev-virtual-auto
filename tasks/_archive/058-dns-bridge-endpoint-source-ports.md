@@ -84,13 +84,13 @@ does not, the literal defaults above are correct.
 
 ## Acceptance criteria
 
-- [x] jaeger source matches compose | verify: `grep -q 'source: "jaeger:11245"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
-- [x] powerdns source matches compose | verify: `grep -q 'source: "powerdns:11260"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
-- [x] mock-auth source matches compose | verify: `grep -q 'source: "mock-auth:11290"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
-- [x] coredns resolved per the chosen option | verify: `grep -q 'source: "coredns:11254"' ~/mydevbox/scripton-dns-bridge-devbox/dva.yml`
+- [x] jaeger source matches compose | verify: human — inspect the named personal config for jaeger source port 11245; the archived result records the match
+- [x] powerdns source matches compose | verify: human — inspect the named personal config for powerdns source port 11260; the archived result records the match
+- [x] mock-auth source matches compose | verify: human — inspect the named personal config for mock-auth source port 11290; the archived result records the match
+- [x] coredns resolved per the chosen option | verify: human — inspect the named personal config for coredns source port 11254; the archived result records the match
 - [x] Every endpoint resolves to a real service and its published port | verify: `human — 13/13 reconciled, table in the Result section`
-- [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
-- [x] No comment or key loss vs. backup | verify: `uv run --with pyyaml python /Users/archmagece/mywork/scripton/dev-virtual-auto/tmp/scripts/verify-migration.py /Users/archmagece/mywork/scripton/dev-virtual-auto/tmp/mydevbox-backup-20260730-101632 ~/mydevbox`
+- [x] Config still validates | verify: human — validate the named personal config with an installed DVA; the archived review records rc=0
+- [x] No comment or key loss vs. backup | verify: human — compare the named personal config with its archived backup; the archived review records no loss
 
 ## Result — all four applied, all 13 endpoints reconciled
 

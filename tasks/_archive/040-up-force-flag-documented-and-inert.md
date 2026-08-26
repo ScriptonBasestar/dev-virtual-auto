@@ -156,9 +156,9 @@ much as the code here.
 - [ ] If HONOR: the help text says which plugins honor it, if not all | verify: `human — read 'dva up --help'; a generic promise that only compose keeps is not acceptable`
 - [ ] If HONOR: a regression test asserts Force reaches the plugin, proven to fail without the fix | verify: `human — revert the plugin read, confirm the new test FAILS, restore, confirm it passes`
 - [ ] `restart`'s hardcoded `Force: true` (`compose.go:362`) is resolved consistently with the decision | verify: `human — assert it is either meaningful or removed, not left as decoration`
-- [ ] `--no-wait` still works — the control must not regress | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
-- [ ] `dva clean --force` is untouched | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/cli/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `--no-wait` still works — the control must not regress | verify: `go test ./internal/lifecycle/`
+- [ ] `dva clean --force` is untouched | verify: `go test ./internal/cli/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

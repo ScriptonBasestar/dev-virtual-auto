@@ -71,7 +71,7 @@ because it ignored protocol; do not "fix" them.
 
 ## Acceptance criteria
 
-- [x] All four ports registered | verify: `/usr/bin/grep -cE 'POWERDNS_DNS_PORT|COREDNS_DNS_PORT|POWERDNS_API_PORT|ETCD_PORT' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml` — expect 4
+- [x] All four ports registered | verify: human — inspect the named personal port registry for the four nameserver variables; the archived review records all four
 - [x] Registry agrees with the compose defaults | verify: `human — three-way reconciliation below; VALUE MISMATCH empty on both axes`
 - [x] Registry still parses | verify: `python3 -c "import yaml; yaml.safe_load(open('$HOME/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml'))"`
 - [x] No published port remains unregistered | verify: `human — reconciliation below; UNREGISTERED is empty over 23 compose vars`

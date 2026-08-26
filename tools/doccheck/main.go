@@ -57,6 +57,9 @@ func printReport(res Result) {
 	fmt.Printf("test_funcs_found:    %d (from %d _test.go files)\n", res.TestFuncsFound, res.TestFilesSwept)
 	fmt.Printf("run_patterns:        %d\n", res.RunPatternsChecked)
 	fmt.Printf("unmatched_run:       %d\n", res.UnmatchedRunFlags)
+	fmt.Printf("escaped_pipe_bindings: %d\n", res.EscapedPipeBindings)
+	fmt.Printf("abs_checkout_bindings: %d\n", res.AbsCheckoutBindings)
+	fmt.Printf("external_corpus_bindings: %d\n", res.ExternalCorpusBindings)
 	fmt.Printf("archive_cards:       %d (from %d file(s) under %s)\n", res.ArchiveCards, res.ArchiveFilesSeen, archivePrefix)
 	fmt.Printf("archive_missing:     %d\n", res.ArchiveMissing)
 	for _, d := range res.OversizedDetail {
@@ -67,6 +70,9 @@ func printReport(res Result) {
 	}
 	for _, d := range res.UnmatchedRunDetail {
 		fmt.Printf("  NO-TESTS %s\n", d)
+	}
+	for _, d := range res.PortabilityDetail {
+		fmt.Printf("  PORTABLE %s\n", d)
 	}
 	for _, d := range res.ArchiveDetail {
 		fmt.Printf("  ARCHIVE  %s\n", d)

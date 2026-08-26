@@ -132,8 +132,8 @@ That judgment is not the implementer's to make.
 - [ ] If honored: `interpolate: false` demonstrably leaves `$`-bearing values unexpanded, with a control showing the default still expands | verify: `human — probe with printenv (NOT echo: values are double-expanded through dva then sh, so echo cannot distinguish)`
 - [ ] If honored: `priority` demonstrably reorders precedence, proven against the OS-env case | verify: `human — probe both values against an OS-set variable; assert they differ`
 - [ ] If removed: configs using the keys now fail validation with a message saying so, rather than silently ignoring them | verify: `human — assert dva validate exits non-zero and names the removed key`
-- [ ] `required` still works from the same map branch (the control must not regress) | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/config/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `required` still works from the same map branch (the control must not regress) | verify: `go test ./internal/config/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

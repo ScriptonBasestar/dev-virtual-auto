@@ -84,12 +84,12 @@ Keep the existing suppression semantics established in `b20fee8`:
 
 ## Acceptance criteria
 
-- [x] Order warning is silent when the order-group is mode-isolated | verify: `cd /Users/archmagece/mydevbox/primeno1-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 | grep -qv 'have order 0'`
+- [x] Order warning is silent when the order-group is mode-isolated | verify: human — validate the named personal config and confirm the order-0 warning remains absent; the archived result records 0 occurrences
 - [x] Order warning still fires when entries can co-occur | verify: `go test ./internal/config/ -run TestWarnDuplicateStackOrder`
 - [x] Compose-split suppression from b20fee8 still holds | verify: `go test ./internal/config/ -run TestWarnMultiStackComposeSplit`
 - [x] Full suite green | verify: `make test`
 - [x] No regression across the real corpus: 83 configs in ~/mydevbox, only the 9 deliberate negative fixtures fail | verify: `human — re-run the documented validate sweep and compare counts`
-- [x] Suppression fires only on genuinely isolated groups | verify: `uv run --with pyyaml python tmp/scripts/audit-stack-order-groups.py ~/mydevbox`
+- [x] Suppression fires only on genuinely isolated groups | verify: human — re-run the recorded personal-corpus audit; the archived result measured 83 configs and 9 deliberate negative fixtures
 
 ## Result
 

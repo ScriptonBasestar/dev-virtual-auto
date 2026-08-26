@@ -156,10 +156,10 @@ the fixture.
 
 ## Completion Criteria
 
-- [x] `dva status <unknown-name>` exits non-zero and names the unknown argument when plans exist | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\nplans:\n  p1:\n    entries:\n      - name: s1\n' > dva.yml && ! /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva status p1-typo`
-- [x] `dva status p1` still reports the real plan | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\nplans:\n  p1:\n    entries:\n      - name: s1\n' > dva.yml && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva status p1`
-- [x] `dva status` with no config still succeeds (tolerance preserved) | verify: `cd $(mktemp -d) && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva status`
-- [x] `dva status` with a config but no plans still reports the workspace | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\n' > dva.yml && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva status`
+- [x] `dva status <unknown-name>` exits non-zero and names the unknown argument when plans exist | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\nplans:\n  p1:\n    entries:\n      - name: s1\n' > dva.yml && ! $OLDPWD/bin/dva status p1-typo`
+- [x] `dva status p1` still reports the real plan | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\nplans:\n  p1:\n    entries:\n      - name: s1\n' > dva.yml && $OLDPWD/bin/dva status p1`
+- [x] `dva status` with no config still succeeds (tolerance preserved) | verify: `cd $(mktemp -d) && $OLDPWD/bin/dva status`
+- [x] `dva status` with a config but no plans still reports the workspace | verify: `cd $(mktemp -d) && printf 'version: "0.1.0"\nstack:\n  s1:\n    default_runner: script\n    runners:\n      script:\n        up: echo S1\n' > dva.yml && $OLDPWD/bin/dva status`
 - [x] A regression test covers `status <unknown>` failing, with the no-plans and no-args cases held | verify: `make test`
 - [x] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 

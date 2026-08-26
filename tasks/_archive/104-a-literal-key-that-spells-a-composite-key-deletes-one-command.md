@@ -160,7 +160,7 @@ callable`), so the channel exists and only the check is missing.
 - [x] Execution is deterministic | verify: `dva run a b c --explain` 20× on the intra-entry fixture; print the count of distinct `Command:` lines — must be 1
 - [x] Listing is deterministic | verify: `dva manifest --format json` 30× on both fixtures; print the count of distinct `.dynamic_commands` — must be 1 each
 - [x] The collision is not silent | verify: `dva validate` must name both colliding declarations and the key they share; print the message
-- [x] No command disappears without a word | verify: `dva manifest --format json \| jq '.dynamic_commands \| length'` — print it next to the number of declared commands, for both fixtures
+- [x] No command disappears without a word | verify: `dva manifest --format json | jq '.dynamic_commands \| length'` — print it next to the number of declared commands, for both fixtures
 - [x] Collision-free configs are untouched | verify: compare `dva manifest` across all `examples/*.yml` before and after; print the number of files compared and the number differing (must be 0)
 - [x] Not vacuous | verify: human — revert each part separately and confirm the determinism assertion and the report assertion fail independently
 - [x] Full suite passes | verify: `make test`

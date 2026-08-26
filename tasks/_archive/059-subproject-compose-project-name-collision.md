@@ -153,7 +153,7 @@ config-graph link — parent↔subproject is the only pair this check considers.
 - [x] Silent when both point at the same compose files | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
 - [x] One unloadable subproject does not suppress the others | verify: `go test ./internal/cli/ -run TestCheckSubprojectComposeProjectNames`
 - [x] Existing per-config name alignment check unaffected | verify: `go test ./internal/config/ -run TestValidateComposeProjectNames`
-- [x] Reproduces on the real config | verify: `cd ~/mydevbox/scripton-nd-stack-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva doctor 2>&1 \| /usr/bin/grep -q 'nd-stack-dev'`
+- [x] Reproduces on the real config | verify: human — run doctor in the named personal config; the archived corpus evidence records 31 configs swept and one collision hit
 - [x] Full suite green | verify: `make test`
 - [x] No new doctor failures across the real corpus beyond this one | verify: `human — re-run the doctor sweep and compare counts`
 

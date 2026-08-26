@@ -119,9 +119,9 @@ own proposal if the user wants it; recorded here so the connection is not lost.
 ## Acceptance criteria
 
 - [x] Direction chosen for 11220 and for the sentinel range | verify: `human — decision recorded in Resolution`
-- [x] No host port is published by two services | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && docker compose --profile kafka --profile monitoring --profile redis-cluster --profile redis-sentinel --profile nameserver --profile dev config | /usr/bin/awk '/published:/{p=$2;gsub(/"/,"",p)} /protocol:/{if(p!=""){print p"/"$2;p=""}}' | sort | /usr/bin/uniq -d` — expect no output
-- [x] Alternative topologies registered | verify: `/usr/bin/grep -qE 'redis-(master|node|sentinel)' ~/mydevbox/scripton-dns-bridge-devbox/PORT_MAPPINGS.yaml`
-- [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
+- [x] No host port is published by two services | verify: human — render the named personal Compose profiles and confirm the duplicate published-port set is empty, as recorded in the archived result
+- [x] Alternative topologies registered | verify: human — inspect the named personal port registry for redis master, node, and sentinel entries; the archived result records all eight ports
+- [x] Config still validates | verify: human — validate the named personal config with an installed DVA; the archived review records success
 
 ## Evidence
 

@@ -156,8 +156,8 @@ exists to close — a green surface that certifies nothing.
 - [ ] If NON-ZERO: the choice is applied consistently across all seven orch.Status() callers, or the exceptions are recorded with reasons | verify: `human — dedicated: stack.go:225, plan_lifecycle.go:228, status.go:43 (JSON), status.go:87; summary: compose.go:169, stack.go:104, plan_lifecycle.go:165`
 - [ ] The `dva status` JSON path is considered explicitly — it already exposes the new Error field, so it may need no exit-code change at all | verify: `human — run 'dva status' JSON output on the Probe A config from TASK-038; confirm .stack[].Error is present and decide whether that suffices for machine consumers`
 - [ ] If NON-ZERO: a regression test asserts the exit code, proven to fail without the change | verify: `human — revert the change, confirm the new test FAILS for the right reason, restore, confirm it passes`
-- [ ] TASK-038's surfacing behavior does not regress — the entry and its reason are still printed | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] TASK-038's surfacing behavior does not regress — the entry and its reason are still printed | verify: `go test ./internal/lifecycle/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

@@ -162,8 +162,8 @@ scope. Do not fix it here.
 - [x] DECISION raised (not assumed): does a broken entry make `dva stack status` exit non-zero? | verify: `human — implementer proposes, maintainer confirms; record the choice and why`
       → RAISED, not confirmed. Proposal recorded below; carried to TASK-041 so it stays in the queue rather than being buried in `_archive`.
 - [x] A regression test asserts a non-constructible entry is surfaced by Status, and is proven to fail without the fix | verify: `human — restore the bare 'continue' at orchestrator.go:261, confirm the new test FAILS, restore the fix, confirm it passes`
-- [x] `Up`/`Down`/`Stop` behavior is unchanged — they still fail fast and name the entry | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
-- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `Up`/`Down`/`Stop` behavior is unchanged — they still fail fast and name the entry | verify: `go test ./internal/lifecycle/`
+- [x] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## Outcome
 

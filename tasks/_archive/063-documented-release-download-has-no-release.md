@@ -159,7 +159,7 @@ other tracked file repeats the claim — `.goreleaser.yml:4` already debunks it.
 - [x] Option chosen and recorded here | verify: `grep -c '^decision:' tasks/blocked/063-documented-release-download-has-no-release.md` — 1, B
 - [x] The unrunnable pipeline is marked | verify: `grep -c 'has never run' .goreleaser.yml` — 1
 - [x] no doc instructs a release download | verify: `/usr/bin/grep -c 'releases/latest/download' README.md ; test $? -ne 0` — 0 matches; user authorized the README edit overriding ai=deny; N/A criteria preserved
-- [~] N/A under B: a tag exists matching `internal/config.Version` | verify: `git tag \| /usr/bin/grep -qx "v$(./bin/dva version \| /usr/bin/awk '{print $NF}')"` — A-only; `git tag | wc -l` is still 0 by decision
+- [~] N/A under B: a tag exists matching `internal/config.Version` | verify: `git tag | /usr/bin/grep -qx "v$(./bin/dva version | /usr/bin/awk '{print $NF}')"` — A-only; `git tag | wc -l` is still 0 by decision
 - [~] N/A under B: the documented asset resolves | verify: `human — A-only; under B the URL is removed rather than made to resolve`
 
 ## Related

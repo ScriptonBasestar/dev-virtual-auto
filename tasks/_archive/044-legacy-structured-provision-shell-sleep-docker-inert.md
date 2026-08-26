@@ -224,9 +224,9 @@ change: honored, it should demonstrate the settled type; removed, it must go.
 - [ ] If HONOR: a probe shows each honored key changing observable behavior, with the raw-string form as the control | verify: `human — reproduce the pair: '- sleep 4' (raw, 4s) vs '- sleep: 4' (structured); assert both wait`
 - [ ] If HONOR: a regression test asserts each honored key reaches execution, proven to fail without the fix | verify: `human — revert the read, confirm the test FAILS for the right reason, restore, confirm it passes`
 - [ ] If REMOVE: the back-compat break is acknowledged — configs that validate today will fail | verify: `human — additionalProperties:false means removing the keys makes them hard errors; confirm intended, and note they are no-ops today so no working behavior is lost`
-- [ ] `echo` and `cmd` still work — the in-band controls must not regress | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/cli/`
-- [ ] The raw-string form still works | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/config/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `echo` and `cmd` still work — the in-band controls must not regress | verify: `go test ./internal/cli/`
+- [ ] The raw-string form still works | verify: `go test ./internal/config/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

@@ -189,11 +189,11 @@ question about what a plan *is*, and it should be answered before any code is wr
 - [ ] If HONOR: Probe 1 runs the process runner, not the script runner | verify: `human — build Probe 1's config; assert RAN_PROCESS_RUNNER is emitted and RAN_SCRIPT_RUNNER is NOT`
 - [ ] If HONOR: Probe 3 succeeds instead of failing on `unknown lifecycle plugin ""` | verify: `human — build Probe 3's config; assert dva up p1 exits 0 and runs the script runner`
 - [ ] If HONOR: `down`/`stop` on the plan path honor it too — not just `up` | verify: `human — the seam is in runPlanDown/runPlanStop as well; assert both, or record explicitly why not`
-- [ ] If HONOR: a config where plan runner == the only declared runner still behaves identically (the 18 coincidental cases must not regress) | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
+- [ ] If HONOR: a config where plan runner == the only declared runner still behaves identically (the 18 coincidental cases must not regress) | verify: `go test ./internal/lifecycle/`
 - [ ] If REMOVE: `runner:` is gone from the plan-entry schema, a config using it fails validation naming the key, and the migration hint that advertises `runner: <runner-name>` is updated to match | verify: `human — probe a config with entries[].runner; assert non-zero exit naming it; then run dva validate on a plan-less config and confirm the printed example no longer advertises the key`
 - [ ] Probe 2's control still holds — an undeclared runner is still rejected | verify: `human — assert 'runner: helm' on an entry not declaring helm still errors`
 - [ ] A regression test asserts the chosen behavior and is proven to fail without the fix | verify: `human — revert the fix, confirm the new test FAILS for the right reason, restore, confirm it passes`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

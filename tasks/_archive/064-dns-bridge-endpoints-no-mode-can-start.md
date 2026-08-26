@@ -97,9 +97,9 @@ partial guard — worth noting, not worth claiming as a fix.
 ## Acceptance criteria
 
 - [x] Direction chosen for the six unreachable endpoints | verify: `human — decision recorded in Resolution`
-- [x] The `dev` name collision is resolved or explicitly accepted | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva up --mode dev --dry-run 2>&1 | /usr/bin/grep -q -- '--profile dev'`
+- [x] The `dev` name collision is resolved or explicitly accepted | verify: human — dry-run the named personal config's dev mode and confirm the dev profile appears; the archived result records that outcome
 - [x] Every remaining endpoint is startable by some mode | verify: `human — re-run the mapping in Evidence; expect 0 "NO" rows`
-- [x] Config still validates | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate`
+- [x] Config still validates | verify: human — validate the named personal config with an installed DVA; the archived review records success
 
 ## Evidence
 

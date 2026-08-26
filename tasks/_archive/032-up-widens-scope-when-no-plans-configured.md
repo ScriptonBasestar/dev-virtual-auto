@@ -103,9 +103,9 @@ than TASK-033, which stops running infrastructure.
 - [x] `dva up <real-entry-name>` with no `plans:` section also exits non-zero (an entry name is not a plan name) | verify: `human — run the Evidence probe with 'dva up s1'; assert EXIT!=0`
 - [x] The error names the problem and does not print an empty "Available:" list when no plans exist | verify: `human — confirm the message reads sensibly with zero plans configured`
 - [x] `dva up` with no args and no plans still starts the whole stack (the legitimate path is untouched) | verify: `human — assert EXIT=0 and both S1_UP and S2_UP are emitted`
-- [x] TASK-027's behavior with plans configured is unchanged | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/cli/ -run 'TestUp'`
+- [x] TASK-027's behavior with plans configured is unchanged | verify: `go test ./internal/cli/ -run 'TestUp'`
 - [x] A regression test covers the no-plans case, and is proven to fail without the fix | verify: `human — disable the guard (if false), confirm the new test FAILS, restore, confirm it passes`
-- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## Outcome
 

@@ -189,7 +189,7 @@ must not regress.
 - [x] `dva down --dry-run`'s recommended command actually works | verify: `human — the error text points at 'dva stack down --dry-run'; assert that command previews rather than silently no-opping`
 - [x] A regression test asserts --dry-run reaches UpOptions.DryRun on the bare route, proven to fail without the fix | verify: `human — revert the parse, confirm the test FAILS for the right reason (side effect occurs), restore, confirm it passes`
 - [x] The other 17 DisableFlagParsing commands are audited for the same drop | verify: `human — --debug and --json are the other root persistent flags; either fix centrally or document per-command which are unaffected and why`
-- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [x] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## Verification Record (2026-07-16)
 

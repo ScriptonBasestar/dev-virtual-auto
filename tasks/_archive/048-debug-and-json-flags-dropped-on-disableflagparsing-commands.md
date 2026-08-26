@@ -101,9 +101,9 @@ That is precisely why TASK-047 chose the narrower seam.
 - [ ] `dva up --debug` emits debug-level logs | verify: `human — assert 'dva up --debug' produces level=DEBUG lines, matching the 'dva validate --debug' control`
 - [ ] `dva up --json` emits JSON, or is rejected as unsupported on that command | verify: `human — assert output parses as JSON, OR that the flag errors loudly. Silently ignoring it is the bug`
 - [ ] A regression test proves the flags reach their consumers, failing without the fix | verify: `human — revert the pre-parse, confirm the test FAILS for the right reason, restore, confirm it passes`
-- [ ] TASK-047 does not regress | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/cli/ -run TestParseDvaFlags`
+- [ ] TASK-047 does not regress | verify: `go test ./internal/cli/ -run TestParseDvaFlags`
 - [ ] `docker compose --dry-run` passthrough still works via `dva compose` | verify: `human — assert composeCmd still forwards --dry-run to docker rather than consuming it`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

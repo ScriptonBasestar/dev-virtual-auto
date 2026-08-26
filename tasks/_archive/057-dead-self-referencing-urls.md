@@ -116,7 +116,7 @@ migration-guide paths returned **200**; root `schema.json` 404'd; `ScriptonBases
 - [x] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dva/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
 - [x] Corpus URL guard exists and fails on a planted bad URL | verify: `go test ./internal/config/ -run TestGeneratorCorpusURLs`
 - [x] Full suite green | verify: `make test`
-- [x] 56 user configs rewritten, or the sweep explicitly declined | verify: `/usr/bin/find ~/mydevbox -name dva.yml -not -path '*/node_modules/*' -print0 \| xargs -0 /usr/bin/grep -l 'master/schema.json' \| /usr/bin/grep -vE '/tmp/\|/\.omo/evidence/' ; test $? -ne 0`
+- [x] 56 user configs rewritten, or the sweep explicitly declined | verify: human — re-run the personal-corpus URL sweep; the archived evidence records 56 of 83 configs rewritten and 0 live-config remnants
 - [x] README.md URLs name a repo that exists | verify: `human — via TASK-060's rename; the download URL still 404s, see TASK-063`
 
 (Criterion 3 prunes `tasks`: this file quotes the dead URL as evidence, and a guard that

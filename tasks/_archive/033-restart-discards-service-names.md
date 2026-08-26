@@ -124,8 +124,8 @@ on every config shape. The blast radius is the whole stack.
 - [x] `dva restart <unknown>` no longer touches any entry, and says so | verify: `human — assert no S*_STOP / S*_UP markers are emitted and the 'no lifecycle entries matched filters' warning appears, matching 'dva stack up bogus-name'`
 - [x] Flags still work alongside names, i.e. names are not confused with flag values | verify: `human — run 'dva restart s1 -E <env>' and confirm the env applies AND scoping to s1 still holds`
 - [x] A regression test asserts restart passes Names through, and is proven to fail without the fix | verify: `human — revert compose.go:337 to '_', confirm the new test FAILS, restore, confirm it passes`
-- [x] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
-- [x] `filterEntries` / `stack up` unknown-name behavior is left unchanged | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
+- [x] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
+- [x] `filterEntries` / `stack up` unknown-name behavior is left unchanged | verify: `go test ./internal/lifecycle/`
 
 ## Outcome
 

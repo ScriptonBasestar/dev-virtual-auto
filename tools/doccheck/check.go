@@ -17,25 +17,29 @@ type CheckInput struct {
 
 // Result is the structured outcome of a documentation gate run.
 type Result struct {
-	OK                 bool
-	MarkdownCandidates int
-	MarkdownChecked    int
-	LinksChecked       int
-	SymlinksSkipped    int
-	BrokenLinks        int
-	OversizedDocs      int
-	TestFilesSwept     int
-	TestFuncsFound     int
-	RunPatternsChecked int
-	UnmatchedRunFlags  int
-	ArchiveFilesSeen   int
-	ArchiveCards       int
-	ArchiveMissing     int
-	Errors             []string
-	BrokenDetail       []string
-	OversizedDetail    []string
-	UnmatchedRunDetail []string
-	ArchiveDetail      []string
+	OK                     bool
+	MarkdownCandidates     int
+	MarkdownChecked        int
+	LinksChecked           int
+	SymlinksSkipped        int
+	BrokenLinks            int
+	OversizedDocs          int
+	TestFilesSwept         int
+	TestFuncsFound         int
+	RunPatternsChecked     int
+	UnmatchedRunFlags      int
+	EscapedPipeBindings    int
+	AbsCheckoutBindings    int
+	ExternalCorpusBindings int
+	ArchiveFilesSeen       int
+	ArchiveCards           int
+	ArchiveMissing         int
+	Errors                 []string
+	BrokenDetail           []string
+	OversizedDetail        []string
+	UnmatchedRunDetail     []string
+	PortabilityDetail      []string
+	ArchiveDetail          []string
 }
 
 // Check validates repository-wide relative markdown links against the git
@@ -163,6 +167,19 @@ func Check(in CheckInput) Result {
 		}
 	}
 
+	for _, e := range scanFiles {
+		if !strings.HasPrefix(e.Path, "tasks/") {
+			continue
+		}
+		if body, ok := bodies[e.Path]; ok {
+			pipes, checkout, corpus, msgs := checkBindingPortability(e.Path, body)
+			res.EscapedPipeBindings += pipes
+			res.AbsCheckoutBindings += checkout
+			res.ExternalCorpusBindings += corpus
+			res.PortabilityDetail = append(res.PortabilityDetail, msgs...)
+		}
+	}
+
 	seen, cards, archiveMsgs, archiveErrs := checkArchiveFrontmatter(in.Root, in.Inventory)
 	res.ArchiveFilesSeen = seen
 	res.ArchiveCards = cards
@@ -181,6 +198,15 @@ func Check(in CheckInput) Result {
 	}
 	if res.UnmatchedRunFlags > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d -run pattern(s) selecting no test", res.UnmatchedRunFlags))
+	}
+	if res.EscapedPipeBindings > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d verify binding(s) have an escaped shell pipe", res.EscapedPipeBindings))
+	}
+	if res.AbsCheckoutBindings > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d verify binding(s) name this checkout", res.AbsCheckoutBindings))
+	}
+	if res.ExternalCorpusBindings > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d verify binding(s) depend on ~/mydevbox", res.ExternalCorpusBindings))
 	}
 	if res.BrokenLinks > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d broken link(s)", res.BrokenLinks))

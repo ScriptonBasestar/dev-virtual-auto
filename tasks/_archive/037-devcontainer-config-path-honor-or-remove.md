@@ -103,7 +103,7 @@ Recorded as a recommendation because this run's rule is that decisions are surfa
 - [ ] If HONOR: the generated file lands at the configured path, proven with a control showing the default still lands at `.devcontainer/` | verify: `human — probe both; assert the configured path is created and the default is unchanged`
 - [ ] If HONOR: `validate.go:55`, `doctor.go:100-105`, and `init.go:57` all agree on the location — no path left hardcoded | verify: `human — assert dva doctor reports green against a custom config_path, which it cannot do today`
 - [ ] If HONOR: `toDevcontainerRelative`'s `../` prefix is computed from the real output directory, not assumed | verify: `human — set config_path two directories deep with a relative compose file; assert the emitted dockerComposeFile path resolves correctly`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

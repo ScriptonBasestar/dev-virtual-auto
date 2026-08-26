@@ -7,7 +7,33 @@ effort: L
 created-at: 2026-08-20T22:40:00+09:00
 source: "found while fixing TASK-199's five named bindings. 199 measured its class on one axis (`| wc -l`, 3 cards) and explicitly did not sweep; this is the sweep, on three axes it did not name"
 scope: "verify: bindings in tasks/**/*.md, and a new portability check in tools/doccheck. No Go source outside tools/doccheck, no behaviour change to dva"
-status: todo
+status: done
+completed-at: 2026-08-26T11:46:05+09:00
+completion-summary: "Gate non-portable verify bindings in doccheck and repair or reclassify every live instance across the task archive."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./tools/doccheck -count=1"
+    result: "passed"
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: "passed; all three portability counters are zero"
+  - kind: automated
+    command-or-step: "dva lint"
+    result: "passed; 294 Go files formatted, 0 issues"
+  - kind: manual
+    command-or-step: "plant one instance of each portability axis in a scratch task card"
+    result: "doccheck failed with escaped_pipe_bindings=1, abs_checkout_bindings=1, external_corpus_bindings=1 and named each file:line; scratch card removed"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T11:48:20+09:00
+quality-review-evidence:
+  - "independent reviewer found no correctness, scope, regression, or portability findings"
+  - "go test ./tools/doccheck -count=1, go run ./tools/doccheck, git diff --check, dva lint, and make doc-check passed"
+  - "scratch fail-closed probe reported all three planted bindings with counters 1/1/1"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-220-review-receipt.json
+archived-at: 2026-08-26T11:49:15+09:00
+verified-at: 2026-08-26T11:49:15+09:00
+verification-summary: "Doccheck rejects all three non-portable verify-binding classes, the archive has zero live findings, and the gate is proven fail-closed."
 ---
 
 # Task 220: A verify binding that only runs on this machine is not a binding
@@ -128,15 +154,30 @@ running, so fixing the escape may expose a second defect underneath. Expect that
 
 ## Completion Criteria
 
-- [ ] `doccheck` gains a portability check for verify bindings | verify: `n=$(/usr/bin/grep -rl 'func checkBindingPortability' tools/doccheck/ | wc -l | tr -d ' '); echo "declarations=$n"; [ "$n" -eq 1 ]` — prints `declarations=0` and exits 1 today, so this criterion can fail
-- [ ] The check is tested against a planted instance of each axis | verify: `n=$(/usr/bin/grep -rho 'func TestBindingPortability[A-Za-z]*' tools/doccheck/ | sort -u | wc -l | tr -d ' '); echo "test funcs=$n"; [ "$n" -ge 3 ]` — prints `test funcs=0` and exits 1 today. Bound on the test *source* rather than on a `go test` run, because a run naming a test that does not exist yet prints "no tests to run" and exits 0 — and because `doccheck`'s own TASK-136 guard rejects such a binding, which is how this line got written twice
-- [ ] The check reads the binding span, not the line | verify: human — a `doccheck` test case whose criterion line carries an escaped pipe in the *annotation* after a correct binding must yield 0 findings. Written as prose deliberately: an earlier draft put the two-character defect in the binding span itself, which made this card's own criterion the seventh member of the axis it was counting, and handed `task-validator` a command that exits 127
-- [ ] The check does not flag BRE alternation | verify: human — a test case holding a quoted `grep` alternation must yield 0 findings, and one holding the same two characters inside `$( )` *within* double quotes must yield 1. `063:162` is the live instance of the second, and the first extractor written for this card misclassified it, so a check that only asks "inside quotes?" reproduces the bug it is meant to catch
-- [ ] Axis 1 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^escaped_pipe_bindings: *0$'); echo "escaped_pipe_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, because `doc-check` reports no such counter. The count is bound to the checker's own output rather than to a `grep` over `tasks/`, so the number a reader sees is the one the gate enforces
-- [ ] Axis 2 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^abs_checkout_bindings: *0$'); echo "abs_checkout_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, down from the 55 recorded above once the check exists
-- [ ] Axis 3 is dispositioned per card, not swept | verify: human — each of the 8 remaining cards either carries the `exit 2` guard `060:164` uses, or is reclassified to a `human —` binding with the count in its prose. A mechanical rewrite of all 18 satisfies the letter and loses the intent. The guard has to cover the **tool** as well as the corpus: `066:89` was rewritten with a corpus probe and still printed its recorded `configs=25 warnings=0` and exited 0 with `dva` absent from `PATH`, because the tool's error was swallowed by the `2>&1 |` it was piped into
-- [ ] The gate can fail | verify: human — plant one instance of each axis in a scratch card, confirm `make doc-check` goes red naming the file and line, and remove it line-scoped
-- [ ] `make doc-check` and `make lint` pass | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check && make lint`
+- [x] `doccheck` gains a portability check for verify bindings | verify: `n=$(/usr/bin/grep -rl 'func checkBindingPortability' tools/doccheck/ | wc -l | tr -d ' '); echo "declarations=$n"; [ "$n" -eq 1 ]` — prints `declarations=0` and exits 1 today, so this criterion can fail
+- [x] The check is tested against a planted instance of each axis | verify: `n=$(/usr/bin/grep -rho 'func TestBindingPortability[A-Za-z]*' tools/doccheck/ | sort -u | wc -l | tr -d ' '); echo "test funcs=$n"; [ "$n" -ge 3 ]` — prints `test funcs=0` and exits 1 today. Bound on the test *source* rather than on a `go test` run, because a run naming a test that does not exist yet prints "no tests to run" and exits 0 — and because `doccheck`'s own TASK-136 guard rejects such a binding, which is how this line got written twice
+- [x] The check reads the binding span, not the line | verify: human — a `doccheck` test case whose criterion line carries an escaped pipe in the *annotation* after a correct binding must yield 0 findings. Written as prose deliberately: an earlier draft put the two-character defect in the binding span itself, which made this card's own criterion the seventh member of the axis it was counting, and handed `task-validator` a command that exits 127
+- [x] The check does not flag BRE alternation | verify: human — a test case holding a quoted `grep` alternation must yield 0 findings, and one holding the same two characters inside `$( )` *within* double quotes must yield 1. `063:162` is the live instance of the second, and the first extractor written for this card misclassified it, so a check that only asks "inside quotes?" reproduces the bug it is meant to catch
+- [x] Axis 1 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^escaped_pipe_bindings: *0$'); echo "escaped_pipe_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, because `doc-check` reports no such counter. The count is bound to the checker's own output rather than to a `grep` over `tasks/`, so the number a reader sees is the one the gate enforces
+- [x] Axis 2 is closed | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && n=$(make doc-check 2>/dev/null | /usr/bin/grep -c '^abs_checkout_bindings: *0$'); echo "abs_checkout_bindings=0 lines in doc-check output: $n"; [ "$n" -eq 1 ]` — prints `0` and exits 1 today, down from the 55 recorded above once the check exists
+- [x] Axis 3 is dispositioned per card, not swept | verify: human — each of the 8 remaining cards either carries the `exit 2` guard `060:164` uses, or is reclassified to a `human —` binding with the count in its prose. A mechanical rewrite of all 18 satisfies the letter and loses the intent. The guard has to cover the **tool** as well as the corpus: `066:89` was rewritten with a corpus probe and still printed its recorded `configs=25 warnings=0` and exited 0 with `dva` absent from `PATH`, because the tool's error was swallowed by the `2>&1 |` it was piped into
+- [x] The gate can fail | verify: human — plant one instance of each axis in a scratch card, confirm `make doc-check` goes red naming the file and line, and remove it line-scoped
+- [x] `make doc-check` and `make lint` pass | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check && make lint`
+
+## Resolution
+
+`tools/doccheck` now inspects only the first mechanical binding span on task criterion
+lines, ignores fenced examples and later annotation spans, and reports all three portability
+classes with the exact task file and line. Four test functions cover the three positive
+classes plus annotation, quoted-BRE, nested-command-substitution, human, table, and fenced
+controls.
+
+The live archive is clean: shell-level escaped pipes were repaired, checkout-specific
+prefixes were removed or made repository-relative, and the eight actionable personal-corpus
+cards were reclassified as human evidence while preserving their measured counts in prose.
+The two already guarded corpus bindings in TASK-060 and TASK-066 remain mechanical. A
+temporary scratch card proved that one instance of each class makes the gate fail with
+counter values `1/1/1`; it was removed before the passing run.
 
 ## Open Questions
 

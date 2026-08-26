@@ -95,9 +95,9 @@ surfaced, the test must assert the surfacing; if removed, the test goes with the
 - [ ] DECISION — surface `related`/`hint`, or remove them from `schema.json`? | verify: `human — decide; if surfacing, name the exact command and output location`
 - [ ] No config key remains that validates green and does nothing | verify: `human — either a probe shows the key affecting real output, or the key is gone from schema.json`
 - [ ] If surfaced: a test asserts the value reaches user-visible output, not merely that it parses | verify: `human — delete the surfacing code, confirm the new test FAILS; config_test.go:316 must NOT be what covers this`
-- [ ] If removed: `config_test.go:316`'s parse-only assertions go too, rather than being left to certify a deleted field | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/config/`
-- [ ] The sibling `Tags` field still works (the control must not regress) | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/lifecycle/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] If removed: `config_test.go:316`'s parse-only assertions go too, rather than being left to certify a deleted field | verify: `go test ./internal/config/`
+- [ ] The sibling `Tags` field still works (the control must not regress) | verify: `go test ./internal/lifecycle/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 

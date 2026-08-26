@@ -107,7 +107,7 @@ reporting green throughout.
 - [ ] `config_path` never appears in the generated `devcontainer.json` | verify: `human — run the Evidence probe; assert the generated file contains no "config_path" key`
 - [ ] `enabled` is still stripped and every genuine spec key (`name`, `image`, `features`, …) still passes through unchanged | verify: `human — assert name/image survive and enabled does not; this is the control that the fix did not over-filter`
 - [ ] A regression test covers the exclusion and is proven to fail without the fix | verify: `human — restore the leak, confirm the new test FAILS, restore the fix, confirm it passes`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 - [x] DECISION — honor `config_path` or delete it from `schema.json`? Not to be resolved by the implementer | verify: `human — decide; if honored, doctor.go:100-105 and init.go hardcode the same path and must follow` — **deferred, not resolved**: split out to TASK-037 so it stays visible in the queue rather than being buried in an archived file. The leak fix does not commit the project to either answer.
 
 ## Outcome

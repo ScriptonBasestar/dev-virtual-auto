@@ -98,8 +98,8 @@ rather than approximate.
 ## Acceptance criteria
 
 - [x] A parent-directory rule counts as ignored | verify: `go test ./internal/cli/ -run TestIsDvaIgnored`
-- [x] The false positive is gone where git already ignores the path | verify: `cd ~/mydevbox/gorisa-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 \| /usr/bin/grep -c 'not in your .gitignore' ; test $? -ne 0`
-- [x] A repo with no rule at all still warns | verify: `cd ~/mydevbox/scripton-dns-bridge-devbox && /Users/archmagece/mywork/scripton/dev-virtual-auto/bin/dva validate 2>&1 \| /usr/bin/grep -q 'not in your .gitignore'`
+- [x] The false positive is gone where git already ignores the path | verify: human — validate the named personal repo with an ancestor ignore rule; the archived evidence records 0 matching warnings
+- [x] A repo with no rule at all still warns | verify: human — validate the named personal repo without an ignore rule; the archived evidence records the warning
 - [x] Full suite green | verify: `make test`
 
 ## Evidence

@@ -195,8 +195,8 @@ answer about what the non-root load paths enforce plausibly settles both.
 - [ ] If SUPPORT: cycle detection exists (a -> b -> a must not hang or overflow) | verify: `human — neither path has any cycle detection today; a probe with a two-module cycle must terminate with a clear error`
 - [ ] If SUPPORT: merge order is documented and tested | verify: `human — nested merge order is unspecified today; depth-first vs breadth-first changes which value wins`
 - [ ] Either way, a test covers the subproject nested-module path, proven to fail without the change | verify: `human — revert, confirm the new test FAILS for the right reason, restore, confirm it passes`
-- [ ] The root path's rejection does not regress | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && go test ./internal/config/`
-- [ ] `make test` and `go vet ./...` pass | verify: `cd /Users/archmagece/mywork/scripton/dev-virtual-auto && make test && go vet ./...`
+- [ ] The root path's rejection does not regress | verify: `go test ./internal/config/`
+- [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 
 ## References
 
