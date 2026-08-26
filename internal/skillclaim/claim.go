@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -105,7 +106,7 @@ func Read(root, destination string) (Claim, bool, error) {
 	if err != nil {
 		return Claim{}, false, err
 	}
-	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm()&0o077 != 0 {
 		return Claim{}, false, fmt.Errorf("claim %s is not a regular file", path)
 	}
 	data, err := os.ReadFile(path)
@@ -231,7 +232,7 @@ func pathRecord(value, kind string) bool {
 	if kind == KindFile {
 		return value == "."
 	}
-	return value != "" && !filepath.IsAbs(value) && filepath.Clean(value) == value && value != ".." && !strings.HasPrefix(value, ".."+string(filepath.Separator)) && !strings.ContainsFunc(value, unicode.IsControl)
+	return value != "" && value != "." && !strings.HasSuffix(value, "/") && !strings.Contains(value, `\`) && !strings.HasPrefix(value, "/") && pathpkg.Clean(value) == value && value != ".." && !strings.HasPrefix(value, "../") && !strings.ContainsFunc(value, unicode.IsControl)
 }
 func digest(value string) bool {
 	raw, err := hex.DecodeString(value)
@@ -247,6 +248,26 @@ func sortedUnique(values []string) bool {
 		}
 	}
 	return true
+}
+
+// ManifestDigest is the portable framing: sorted path UTF-8, NUL, lowercase SHA-256, NUL, repeated.
+func ManifestDigest(files []FileHash) (string, error) {
+	if len(files) == 0 || !sort.SliceIsSorted(files, func(i, j int) bool { return files[i].Path < files[j].Path }) {
+		return "", errors.New("files must be sorted")
+	}
+	h := sha256.New()
+	previous := ""
+	for _, file := range files {
+		if file.Path == previous || !digest(file.SHA) {
+			return "", errors.New("files must be unique with lowercase hashes")
+		}
+		previous = file.Path
+		_, _ = h.Write([]byte(file.Path))
+		_, _ = h.Write([]byte{0})
+		_, _ = h.Write([]byte(file.SHA))
+		_, _ = h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 type LockSet struct {
@@ -325,7 +346,7 @@ func Transition(root string, next Claim, expectedGeneration uint64, previousDige
 		return err
 	}
 	defer locks.Release()
-	store := &LockedStore{root: root, locks: locks}
+	store := &LockedStore{root: root, locks: locks, destinations: map[string]bool{canonical: true}}
 	return store.CompareAndSwap(next, expectedGeneration, previousDigest)
 }
 
@@ -344,26 +365,55 @@ func Activate(root string, claim Claim, expectedGeneration uint64, previousDiges
 
 // LockedStore is a multi-claim transaction boundary. Its locks must be acquired once, in canonical order.
 type LockedStore struct {
-	root  string
-	locks *LockSet
+	root         string
+	locks        *LockSet
+	destinations map[string]bool
 }
 
 func Begin(root string, destinations []string) (*LockedStore, error) {
+	if len(destinations) == 0 {
+		return nil, errors.New("claim transaction has no destinations")
+	}
+	authorized := map[string]bool{}
+	canonical := make([]string, 0, len(destinations))
+	for _, destination := range destinations {
+		value, err := CanonicalDestination(destination)
+		if err != nil {
+			return nil, err
+		}
+		authorized[value] = true
+		canonical = append(canonical, value)
+	}
 	locks, err := AcquireLocks(root, destinations)
 	if err != nil {
 		return nil, err
 	}
-	return &LockedStore{root: root, locks: locks}, nil
+	return &LockedStore{root: root, locks: locks, destinations: authorized}, nil
 }
 func (store *LockedStore) Close() error { return store.locks.Release() }
 func (store *LockedStore) Read(destination string) (Claim, bool, error) {
-	return Read(store.root, destination)
+	canonical, err := store.authorize(destination)
+	if err != nil {
+		return Claim{}, false, err
+	}
+	return Read(store.root, canonical)
+}
+func (store *LockedStore) authorize(destination string) (string, error) {
+	if store == nil || store.locks == nil || store.locks.released {
+		return "", errors.New("claim transaction is closed")
+	}
+	canonical, err := CanonicalDestination(destination)
+	if err != nil {
+		return "", err
+	}
+	if !store.destinations[canonical] {
+		return "", fmt.Errorf("destination %s is outside locked transaction", canonical)
+	}
+	return canonical, nil
 }
 func (store *LockedStore) Reserve(claim Claim) error {
 	claim.State = StateReserved
-	if claim.Generation == 0 {
-		claim.Generation = 1
-	}
+	claim.Generation = 1
 	return store.CompareAndSwap(claim, 0, "")
 }
 func (store *LockedStore) CompareAndSwap(next Claim, generation uint64, previous string) error {
@@ -372,15 +422,18 @@ func (store *LockedStore) CompareAndSwap(next Claim, generation uint64, previous
 		return err
 	}
 	next.Destination = canonical
+	if _, err := store.authorize(canonical); err != nil {
+		return err
+	}
 	if err := Validate(next, canonical); err != nil {
 		return err
 	}
-	current, found, err := Read(store.root, canonical)
+	current, found, err := store.Read(canonical)
 	if err != nil {
 		return err
 	}
 	if !found {
-		if generation != 0 || previous != "" || next.State != StateReserved {
+		if generation != 0 || previous != "" || next.State != StateReserved || next.Generation != 1 {
 			return errors.New("new claim must be reserved with empty predecessor")
 		}
 		return write(store.root, next, false)
@@ -392,13 +445,20 @@ func (store *LockedStore) CompareAndSwap(next Claim, generation uint64, previous
 	if current.Generation != generation || digest != previous || current.Producer != next.Producer {
 		return errors.New("claim reservation changed")
 	}
+	if current.Generation == ^uint64(0) || next.Generation != current.Generation+1 {
+		return errors.New("claim generation must advance exactly one")
+	}
 	if !allowedTransition(current, next) {
 		return errors.New("claim state or operation transition is invalid")
 	}
 	return write(store.root, next, true)
 }
-func (store *LockedStore) Remove(destination string, producer string, generation uint64, previous string) error {
-	current, found, err := Read(store.root, destination)
+func (store *LockedStore) Remove(destination, producer, operationID string, generation uint64, previous string) error {
+	canonical, err := store.authorize(destination)
+	if err != nil {
+		return err
+	}
+	current, found, err := store.Read(canonical)
 	if err != nil {
 		return err
 	}
@@ -409,7 +469,7 @@ func (store *LockedStore) Remove(destination string, producer string, generation
 	if err != nil {
 		return err
 	}
-	if current.Producer != producer || current.Generation != generation || digest != previous || current.State != StateReleasing {
+	if current.Producer != producer || current.OperationID != operationID || current.Generation != generation || digest != previous || (current.State != StateReleasing && current.State != StateRestoring) {
 		return errors.New("claim removal precondition failed")
 	}
 	if err := os.Remove(Path(store.root, current.Destination)); err != nil {
@@ -419,15 +479,40 @@ func (store *LockedStore) Remove(destination string, producer string, generation
 }
 func allowedTransition(from, to Claim) bool {
 	if from.State == StateReserved {
-		return to.State == StateActive && to.OperationID == from.OperationID
+		return to.State == StateActive && to.OperationID == from.OperationID && samePayload(from, to)
 	}
 	if from.State == StateActive {
-		return (to.State == StateUpdating || to.State == StateReleasing || to.State == StateRestoring)
+		return (to.State == StateUpdating || to.State == StateReleasing || to.State == StateRestoring) && to.OperationID != from.OperationID && ((to.State == StateUpdating) || samePayload(from, to))
 	}
 	if from.OperationID != to.OperationID {
 		return false
 	}
-	return (from.State == StateUpdating || from.State == StateRestoring) && to.State == StateActive
+	return (from.State == StateUpdating || from.State == StateRestoring) && to.State == StateActive && ((from.State == StateUpdating) || samePayload(from, to))
+}
+func samePayload(left, right Claim) bool {
+	return left.Name == right.Name && left.Kind == right.Kind && left.Destination == right.Destination && left.Producer == right.Producer && left.Format == right.Format && left.Scope == right.Scope && sameStrings(left.Consumers, right.Consumers) && sameFiles(left.Files, right.Files) && left.SourceDigest == right.SourceDigest
+}
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
+}
+func sameFiles(left, right []FileHash) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 func Write(root string, next Claim) error {
 	current, found, err := Read(root, next.Destination)

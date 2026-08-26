@@ -15,7 +15,12 @@ func validClaim(t *testing.T, destination, producer string) Claim {
 		t.Fatal(err)
 	}
 	digest := sha256.Sum256([]byte("skill"))
-	return Claim{Schema: Schema, Name: "dva", Kind: KindDirectory, State: StateActive, OperationID: "test-operation", Generation: 1, Destination: canonical, Producer: producer, Format: "agent-skills-directory", Scope: "user", Consumers: []string{"codex"}, SourceDigest: hex.EncodeToString(digest[:]), Files: []FileHash{{Path: "SKILL.md", SHA: hex.EncodeToString(digest[:])}}}
+	files := []FileHash{{Path: "SKILL.md", SHA: hex.EncodeToString(digest[:])}}
+	manifest, err := ManifestDigest(files)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return Claim{Schema: Schema, Name: "dva", Kind: KindDirectory, State: StateActive, OperationID: "test-operation", Generation: 1, Destination: canonical, Producer: producer, Format: "agent-skills-directory", Scope: "user", Consumers: []string{"codex"}, SourceDigest: manifest, Files: files}
 }
 
 func TestPathUsesNeutralXDGRoot(t *testing.T) {
@@ -66,6 +71,7 @@ func TestTransitionUsesGenerationAndTombstoneFailClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 	claim.State, claim.Generation = StateUpdating, 3
+	claim.OperationID = "update-operation"
 	previous, _ = Digest(Claim{Schema: Schema, Name: "dva", Kind: KindDirectory, State: StateActive, OperationID: "test-operation", Generation: 2, Destination: claim.Destination, Producer: "producer", Format: "agent-skills-directory", Scope: "user", Consumers: []string{"codex"}, SourceDigest: claim.SourceDigest, Files: claim.Files})
 	if err := Transition(root, claim, 2, previous); err != nil {
 		t.Fatal(err)
@@ -119,5 +125,35 @@ func TestLockedStoreReservesTwoClaimsAndRefusesDoubleClose(t *testing.T) {
 	}
 	if err := store.Close(); err == nil {
 		t.Fatal("double Close succeeded")
+	}
+}
+
+func TestLockedStoreRejectsUnauthorizedAndBadGeneration(t *testing.T) {
+	root, parent := t.TempDir(), t.TempDir()
+	allowed, outside := filepath.Join(parent, "dva"), filepath.Join(parent, "other")
+	store, err := Begin(root, []string{allowed})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, _, err := store.Read(outside); err == nil {
+		t.Fatal("read outside locked destinations")
+	}
+	claim := validClaim(t, allowed, "producer")
+	claim.Generation = 9
+	if err := store.Reserve(claim); err != nil {
+		t.Fatal(err)
+	}
+	stored, _, err := store.Read(allowed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.Generation != 1 || stored.State != StateReserved {
+		t.Fatalf("reserved = %#v", stored)
+	}
+	previous, _ := Digest(stored)
+	stored.State, stored.Generation = StateActive, 3
+	if err := store.CompareAndSwap(stored, 1, previous); err == nil {
+		t.Fatal("CAS accepted generation jump")
 	}
 }
