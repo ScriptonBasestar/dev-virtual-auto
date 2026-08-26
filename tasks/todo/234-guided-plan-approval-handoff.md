@@ -29,6 +29,8 @@ fixed default path exists.
   `dva up` | verify: `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
 - [ ] Configuration validation failures stop execution instead of being printed and ignored | verify:
   `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
+- [ ] The lifecycle mutation step repeats strict validation and declared-plan checks so Agent Mesh's
+  interactive "continue after error" choice cannot bypass them | verify: `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
 - [ ] The automatic flow consumes a discovery report only when the caller explicitly supplies its
   path | verify: `go test ./internal/config -run TestAutomaticFlowRequiresExplicitDiscoveryReport`
 - [ ] Flow, generation, repository, and commit gates pass | verify: `make doc-check && make check-generate && make test && make commit-check`
@@ -36,7 +38,9 @@ fixed default path exists.
 ## Decision
 
 Use `interactive.auto_decide` for the proposal-producing LLM step and save its reviewed structured
-JSON output. Keep `plan` as an explicit override, but otherwise resolve `selected_plan` from that
-approved artifact after configuration and prove it appears in `dva show --json` before starting it.
+JSON output. Agent Mesh deliberately disables interactive gates under explicit batch mode, so `-y`
+is documented here as caller auto-approval rather than being mistaken for an interactive review.
+Keep `plan` as an explicit override, but otherwise resolve `selected_plan` from that approved
+artifact after configuration and prove it appears in `dva show --json` before starting it.
 Remove the fixed default discovery-report path; callers that intentionally reuse a report must pass
 it explicitly.

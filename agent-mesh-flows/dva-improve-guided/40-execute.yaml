@@ -111,6 +111,28 @@ steps:
     action: |
       cd '{{param.target}}'
       PLAN=$(printf '%s' '{{resolve_plan.plan | b64encode}}' | base64 -d)
+      if [ -z "$PLAN" ]; then
+        echo "ERROR: resolved plan is empty; lifecycle execution is blocked." >&2
+        exit 1
+      fi
+
+      # Agent Mesh interactive mode can let a user continue after an earlier failed
+      # step. Repeat both safety checks in the same shell that owns the mutation so
+      # continuing past validate_config or resolve_plan can never reach lifecycle start.
+      if ! VALIDATION=$(dva config validate --strict 2>&1); then
+        printf '%s\n' "$VALIDATION" >&2
+        echo "ERROR: strict validation failed; lifecycle execution is blocked." >&2
+        exit 1
+      fi
+      SHOW=$(dva show --json) || {
+        echo "ERROR: cannot inspect generated plans with 'dva show --json'." >&2
+        exit 1
+      }
+      if ! printf '%s' "$SHOW" | jq -e --arg plan "$PLAN" \
+        '((.plans | type) == "object") and (.plans | has($plan))' >/dev/null 2>&1; then
+        echo "ERROR: resolved plan '$PLAN' is not declared; lifecycle execution is blocked." >&2
+        exit 1
+      fi
 
       echo "=== dva up $PLAN ==="
       if OUTPUT=$(dva up "$PLAN" 2>&1); then

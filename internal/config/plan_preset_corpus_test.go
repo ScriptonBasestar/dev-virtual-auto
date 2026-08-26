@@ -99,7 +99,13 @@ func TestGuidedFlowUsesPlanAndCapabilityContract(t *testing.T) {
 }
 
 func TestGuidedFlowPreservesReviewedProposal(t *testing.T) {
+	top := readPlanFlowFile(t, "agent-mesh-flows/dva-improve-guided.yaml")
 	verify := readPlanFlowFile(t, "agent-mesh-flows/dva-improve-guided/10-verify.yaml")
+	for _, contract := range []string{"명시적 batch(-y)", "-y는 caller의 명시적 auto-approval"} {
+		if !strings.Contains(top, contract) {
+			t.Errorf("guided flow does not state Agent Mesh batch approval semantics %q", contract)
+		}
+	}
 	for _, required := range []string{
 		"auto_decide: [present_proposal]",
 		"json_mode: true",
@@ -132,6 +138,22 @@ func TestGuidedFlowResolvesAndValidatesApprovedPlan(t *testing.T) {
 	} {
 		if !strings.Contains(execute, required) {
 			t.Errorf("guided execution handoff is missing %q", required)
+		}
+	}
+	startAt := strings.Index(execute, "  - id: start_services")
+	if startAt < 0 {
+		t.Fatal("guided execution has no start_services mutation step")
+	}
+	start := execute[startAt:]
+	upAt := strings.Index(start, `dva up "$PLAN"`)
+	for _, gate := range []string{
+		`dva config validate --strict`,
+		`(.plans | has($plan))`,
+		`lifecycle execution is blocked`,
+	} {
+		gateAt := strings.Index(start, gate)
+		if gateAt < 0 || gateAt > upAt {
+			t.Errorf("start_services does not enforce %q before dva up", gate)
 		}
 	}
 	for _, swallowed := range []string{

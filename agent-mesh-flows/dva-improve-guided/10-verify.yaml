@@ -25,6 +25,8 @@ parameters:
 interactive:
   # auto_decide reviews the LLM output itself. confirm_before would ask before the
   # proposal exists and could not approve or reject the data consumed downstream.
+  # Agent Mesh deliberately ignores interactive gates under explicit batch (-y);
+  # for this guided flow, choosing -y is the caller's auto-approval of generated output.
   auto_decide: [present_proposal]
 
 steps:
