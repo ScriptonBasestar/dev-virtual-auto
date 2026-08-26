@@ -3,13 +3,12 @@ MODULE     := github.com/ScriptonBasestar/dva
 BUILD_DIR  := ./bin
 GOFLAGS     := -trimpath
 
-# Both destinations remain configurable for an isolated install fixture.  The defaults are the
+# Both destinations remain configurable for an isolated install fixture. The defaults are the
 # public installation paths; callers may set LOCAL_BIN_DIR and GO_BIN_DIR without changing their
-# real HOME or Go toolchain configuration.
+# real HOME or Go toolchain configuration. GO_BIN_DIR resolution is intentionally delayed until
+# the installer runs: `make help` must not need a working Go command.
 LOCAL_BIN_DIR ?= $(HOME)/.local/bin
-GO_BIN_DIR ?= $(GOBIN)
-GO_BIN_DIR := $(if $(strip $(GO_BIN_DIR)),$(GO_BIN_DIR),$(shell go env GOBIN))
-GO_BIN_DIR := $(if $(strip $(GO_BIN_DIR)),$(GO_BIN_DIR),$(shell go env GOPATH)/bin)
+GO_BIN_DIR ?=
 
 # Workflow source directories (single source of truth)
 WF_LIBRARY  := agent-mesh-flows/shared/library
@@ -20,7 +19,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
+.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -31,25 +30,54 @@ build: generate
 
 ## install: Atomically install verified dva binaries to ~/.local/bin and Go bin
 install: build
+	@$(MAKE) --no-print-directory install-binary INSTALL_SOURCE="$(abspath $(BUILD_DIR)/$(BINARY))"
+
+# install-binary deliberately has no build/generate prerequisites. `install` is the public
+# entrypoint; this narrow target lets tests exercise only installation against a disposable,
+# prebuilt executable without writing generated source files in the checkout.
+install-binary:
 	@set -eu; \
 		fail() { printf '%s\n' "make install: ERROR: $$*" >&2; exit 1; }; \
 		sha256() { \
-			if command -v sha256sum >/dev/null 2>&1; then sha256sum "$$1" | awk '{print $$1}'; \
-			elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$$1" | awk '{print $$1}'; \
-			elif command -v openssl >/dev/null 2>&1; then openssl dgst -sha256 "$$1" | awk '{print $$NF}'; \
-			else fail "need sha256sum, shasum, or openssl to verify the install"; fi; \
+			if command -v sha256sum >/dev/null 2>&1; then \
+				hash_output=$$(sha256sum "$$1") || return $$?; digest=$${hash_output%% *}; \
+			elif command -v shasum >/dev/null 2>&1; then \
+				hash_output=$$(shasum -a 256 "$$1") || return $$?; digest=$${hash_output%% *}; \
+			elif command -v openssl >/dev/null 2>&1; then \
+				hash_output=$$(openssl dgst -sha256 "$$1") || return $$?; digest=$${hash_output##* }; \
+			else return 127; fi; \
+			[ $${#digest} -eq 64 ] || return 1; \
+			case "$$digest" in *[!0123456789abcdef]*) return 1;; esac; \
+			printf '%s\n' "$$digest"; \
 		}; \
 		resolve_dir() { \
 			mkdir -p "$$1" || fail "cannot create destination directory $$1"; \
 			(cd "$$1" && pwd -P) || fail "cannot resolve destination directory $$1"; \
 		}; \
-		source="$(abspath $(BUILD_DIR)/$(BINARY))"; \
+		resolve_go_bin_dir() { \
+			if [ -n "$(GO_BIN_DIR)" ]; then printf '%s\n' "$(GO_BIN_DIR)"; \
+			elif [ -n "$${GOBIN:-}" ]; then printf '%s\n' "$$GOBIN"; \
+			else \
+				configured_gobin=$$(go env GOBIN) || fail "cannot resolve Go bin directory with go env GOBIN"; \
+				if [ -n "$$configured_gobin" ]; then printf '%s\n' "$$configured_gobin"; \
+				else configured_gopath=$$(go env GOPATH) || fail "cannot resolve Go bin directory with go env GOPATH"; [ -n "$$configured_gopath" ] || fail "go env GOPATH returned an empty path"; printf '%s/bin\n' "$$configured_gopath"; fi; \
+			fi; \
+		}; \
+		preflight_target() { \
+			target="$$1"; label="$$2"; \
+			if [ -d "$$target" ]; then fail "refusing $$label destination directory: $$target"; fi; \
+		}; \
+		source="$(INSTALL_SOURCE)"; \
+		[ -n "$$source" ] || fail "set INSTALL_SOURCE to the prebuilt dva executable"; \
 		[ -f "$$source" ] || fail "built binary is missing: $$source"; \
 		[ -x "$$source" ] || fail "built binary is not executable: $$source"; \
 		local_dir=$$(resolve_dir "$(LOCAL_BIN_DIR)"); \
-		go_dir=$$(resolve_dir "$(GO_BIN_DIR)"); \
+		requested_go_dir=$$(resolve_go_bin_dir); \
+		go_dir=$$(resolve_dir "$$requested_go_dir"); \
 		local_target="$$local_dir/$(BINARY)"; \
 		go_target="$$go_dir/$(BINARY)"; \
+		preflight_target "$$local_target" local; \
+		preflight_target "$$go_target" Go; \
 		source_sha=$$(sha256 "$$source") || fail "cannot hash built binary $$source"; \
 		source_version=$$("$$source" version) || fail "built binary does not report its version"; \
 		stage_local=''; stage_go=''; \
@@ -59,8 +87,9 @@ install: build
 		}; \
 		trap cleanup EXIT HUP INT TERM; \
 		stage_candidate() { \
-			stage_dir="$$1"; \
+			stage_dir="$$1"; stage_slot="$$2"; \
 			stage_file=$$(mktemp "$$stage_dir/.dva-install.XXXXXX") || fail "cannot stage candidate in $$stage_dir"; \
+			case "$$stage_slot" in local) stage_local="$$stage_file";; go) stage_go="$$stage_file";; *) fail "unknown staging ledger slot $$stage_slot";; esac; \
 			cp "$$source" "$$stage_file" || fail "cannot copy candidate into $$stage_dir"; \
 			chmod 755 "$$stage_file" || fail "cannot make staged candidate executable in $$stage_dir"; \
 			[ -x "$$stage_file" ] || fail "staged candidate is not executable in $$stage_dir"; \
@@ -70,16 +99,18 @@ install: build
 			[ "$$candidate_version" = "$$source_version" ] || fail "staged candidate version differs in $$stage_dir"; \
 			printf '%s\n' "make install: staged and verified $$stage_file" >&2; \
 		}; \
-		stage_candidate "$$local_dir"; stage_local="$$stage_file"; \
+		stage_candidate "$$local_dir" local; \
 		if [ "$$go_target" = "$$local_target" ]; then \
 			printf '%s\n' "make install: local and Go destinations are the same path; installing once" >&2; \
 		else \
-			stage_candidate "$$go_dir"; stage_go="$$stage_file"; \
+			stage_candidate "$$go_dir" go; \
 		fi; \
+		replacement_ledger='none'; \
 		replace_candidate() { \
 			if ! mv -f "$$1" "$$2"; then \
-				fail "atomic replacement failed for $$2; an earlier destination may already be updated"; \
+				fail "atomic replacement failed for $$2; replacement ledger: $$replacement_ledger; a listed destination was updated before this failure"; \
 			fi; \
+			if [ "$$replacement_ledger" = none ]; then replacement_ledger="$$2"; else replacement_ledger="$$replacement_ledger, $$2"; fi; \
 		}; \
 		replace_candidate "$$stage_local" "$$local_target"; stage_local=''; \
 		if [ -n "$$stage_go" ]; then replace_candidate "$$stage_go" "$$go_target"; stage_go=''; fi; \
