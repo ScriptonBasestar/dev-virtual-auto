@@ -34,8 +34,8 @@ parameters:
     description: "Target directory"
     default: "."
   - name: discovery_report
-    description: "Path to a precomputed discovery report JSON"
-    default: "tmp/improve-guided/00-analysis-report.json"
+    description: "Explicit path to a precomputed discovery report JSON; empty performs a fresh scan"
+    default: ""
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
     default: "[]"
@@ -468,8 +468,9 @@ steps:
     depends_on: [scaffold]
     context:
       discovery_report: |
-        if [ -f '{{param.discovery_report}}' ]; then
-          cat '{{param.discovery_report}}'
+        REPORT=$(printf '%s' '{{param.discovery_report | b64encode}}' | base64 -d)
+        if [ -n "$REPORT" ] && [ -f "$REPORT" ]; then
+          cat "$REPORT"
         else
           echo '{}'
         fi
@@ -596,7 +597,9 @@ steps:
       # Precomputed Discovery Report
 
       아래 JSON은 `dva config discover` 또는 `dva-discover` flow가 생성한 분석 결과입니다.
-      이 보고서가 비어 있지 않다면, 아래 결과를 현재 프로젝트 스캔보다 우선적인 구조화 입력으로 사용하세요.
+      호출자가 경로를 명시했고 보고서가 비어 있지 않다면, 아래 결과를 현재 프로젝트
+      스캔과 대조할 구조화 입력으로 사용하세요. target이나 현재 binding과 충돌하는 값은
+      우선하지 말고 충돌을 보고하세요.
 
       ```json
       {{load_discovery_report.discovery_report}}

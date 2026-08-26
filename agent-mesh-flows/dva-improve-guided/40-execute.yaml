@@ -22,7 +22,7 @@ parameters:
     description: "Target directory"
     default: "."
   - name: plan
-    description: "Exact named DVA plan to execute (e.g., local-infra)"
+    description: "Optional exact plan override; empty reads the approved Stage 10 proposal"
     default: ""
 
 steps:
@@ -59,11 +59,11 @@ steps:
     action: |
       cd '{{param.target}}'
       echo "=== dva config validate ==="
-      dva config validate 2>&1 || true
+      dva config validate 2>&1
 
       echo ""
       echo "=== dva config validate --strict ==="
-      dva config validate --strict 2>&1 || true
+      dva config validate --strict 2>&1
 
   - id: doctor_check
     type: shell
@@ -73,16 +73,44 @@ steps:
       echo "=== dva doctor ==="
       dva doctor 2>&1 || echo "doctor check skipped"
 
+  - id: resolve_plan
+    type: context
+    depends_on: [doctor_check]
+    context:
+      plan: |
+        cd '{{param.target}}' || exit 1
+        OVERRIDE=$(printf '%s' '{{param.plan | b64encode}}' | base64 -d)
+        if [ -n "$OVERRIDE" ]; then
+          PLAN="$OVERRIDE"
+        else
+          PROPOSAL="tmp/improve-guided/10-proposal-approved.json"
+          if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$PROPOSAL" >/dev/null 2>&1; then
+            echo "ERROR: $PROPOSAL is not one approved JSON object; pass plan explicitly or re-run stage 10." >&2
+            exit 1
+          fi
+          PLAN=$(jq -r '.selected_plan // empty' "$PROPOSAL")
+        fi
+        if [ -z "$PLAN" ]; then
+          echo "ERROR: no approved named plan; pass plan explicitly or re-run stage 10." >&2
+          exit 1
+        fi
+        SHOW=$(dva show --json) || {
+          echo "ERROR: cannot inspect generated plans with 'dva show --json'." >&2
+          exit 1
+        }
+        if ! printf '%s' "$SHOW" | jq -e --arg plan "$PLAN" \
+          '((.plans | type) == "object") and (.plans | has($plan))' >/dev/null 2>&1; then
+          echo "ERROR: approved plan '$PLAN' is not declared by the generated dva.yml." >&2
+          exit 1
+        fi
+        printf '%s' "$PLAN"
+
   - id: start_services
     type: shell
-    depends_on: [doctor_check]
+    depends_on: [resolve_plan]
     action: |
       cd '{{param.target}}'
-      PLAN="{{param.plan}}"
-      if [ -z "$PLAN" ]; then
-        echo "ERROR: an explicit named plan is required; discover one with 'dva show'." >&2
-        exit 1
-      fi
+      PLAN=$(printf '%s' '{{resolve_plan.plan | b64encode}}' | base64 -d)
 
       echo "=== dva up $PLAN ==="
       if OUTPUT=$(dva up "$PLAN" 2>&1); then

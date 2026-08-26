@@ -25,7 +25,7 @@ parameters:
     default: "false"
     enum: ["true", "false"]
   - name: plan
-    description: "Exact named DVA plan to use for execution (e.g., local-infra)"
+    description: "Optional exact plan override; empty executes the approved selected_plan"
     default: ""
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings used during discovery"
