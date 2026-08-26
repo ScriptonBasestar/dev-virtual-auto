@@ -123,7 +123,7 @@ func Read(root, destination string) (Claim, bool, error) {
 }
 
 func Decode(data []byte) (Claim, error) {
-	if err := noDuplicateKeys(data); err != nil {
+	if err := RejectDuplicateKeys(data); err != nil {
 		return Claim{}, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
@@ -141,7 +141,9 @@ func Decode(data []byte) (Claim, error) {
 	}
 	return claim, nil
 }
-func noDuplicateKeys(data []byte) error {
+
+// RejectDuplicateKeys rejects ambiguous JSON objects at every nesting depth.
+func RejectDuplicateKeys(data []byte) error {
 	d := json.NewDecoder(bytes.NewReader(data))
 	var parse func() error
 	parse = func() error {
@@ -531,7 +533,7 @@ func allowedTransition(from, to Claim) bool {
 	if to.State != StateActive || !sameIdentity(from, to) {
 		return false
 	}
-	return from.State == StateUpdating || (from.State == StateRestoring && samePayload(from, to))
+	return from.State == StateUpdating || ((from.State == StateReleasing || from.State == StateRestoring) && samePayload(from, to))
 }
 func sameIdentity(left, right Claim) bool {
 	return left.Name == right.Name && left.Kind == right.Kind && left.Destination == right.Destination && left.Producer == right.Producer && left.Format == right.Format && left.Scope == right.Scope

@@ -92,6 +92,10 @@ claim만 없애고 `backup-only` receipt tombstone을 남깁니다. 이후 명�
 manifest를 검증해 성공한 뒤에만 backup과 tombstone을 제거합니다. 보존 범위는 regular
 file/directory의 bytes, 상대 경로, 빈 directory, permission bits입니다. symlink와 특수 파일은
 거부하며 uid/gid, ACL, xattr, birthtime, sparse/hardlink identity는 보존 계약 밖입니다.
+인수 시에는 live 항목을 같은 runtime root의 capture stage로 먼저 atomic rename한 뒤 그 고정된
+snapshot에서 durable backup을 만듭니다. 따라서 복사 도중 바뀌는 live tree를 나중에 덮어쓰지
+않습니다. 실패 복원 여부가 불확실하면 capture stage와 durable backup을 삭제하지 않고 오류에
+recovery artifact 경로를 남깁니다.
 
 Claim 생성·갱신·삭제는 두 DVA 이름을 정렬해 잠근 뒤 reservation/generation CAS로 수행합니다.
 중간에 남은 non-active claim, claim/receipt 불일치, malformed claim은 자동 추론하지 않고
@@ -99,7 +103,9 @@ Claim 생성·갱신·삭제는 두 DVA 이름을 정렬해 잠근 뒤 reservati
 [Agent Skills claim protocol](internal/skillclaim/PROTOCOL.md)에 고정되어 다른 producer도 같은
 계약을 독립 구현할 수 있습니다. 프로세스 crash나 전원 손실을 여러 filesystem에 걸친 하나의
 atomic commit으로 보장하지는 않으며, 실패 시 보존된 stage/claim을 오류에 표시해 복구 근거로
-남깁니다.
+남깁니다. 여러 runtime destination은 모두 mutation 전에 preflight하지만, 첫 destination 완료 뒤
+두 번째 destination에서 예측 불가능한 I/O 오류가 발생한 경우 전체 destination을 하나의 transaction으로
+되돌리지는 않습니다. 원인을 해결한 뒤 같은 명령을 재실행해 수렴시키는 것이 운영 복구 절차입니다.
 
 안전 규칙:
 

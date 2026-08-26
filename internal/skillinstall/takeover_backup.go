@@ -20,30 +20,91 @@ const (
 	backupKindFile      = "file"
 )
 
-func createTakeoverBackups(stateRoot string, target destination, bundle skillBundle) ([]takeoverBackup, func() error, error) {
+func createTakeoverBackups(stateRoot string, target destination, bundle skillBundle) ([]takeoverBackup, func() error, func() error, func() error, string, error) {
 	var names []string
 	for _, name := range skillNames(bundle) {
 		if _, err := os.Lstat(claimDestination(target, name)); err == nil {
 			names = append(names, name)
 		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, nil, err
+			return nil, nil, nil, nil, "", err
 		}
 	}
 	if len(names) == 0 {
-		return nil, func() error { return nil }, nil
+		noop := func() error { return nil }
+		return nil, noop, noop, noop, "", nil
+	}
+
+	// Rename each live foreign entry out of the destination before copying it. A
+	// rename is the mutation boundary: the durable backup is therefore made from
+	// the exact object removed from the runtime, not from a concurrently changing
+	// live tree that would later be overwritten.
+	captureStage, err := os.MkdirTemp(target.path, ".dva-takeover-capture-")
+	if err != nil {
+		return nil, nil, nil, nil, "", err
+	}
+	var captured []string
+	rollbackOriginals := func() error {
+		var first error
+		for _, name := range slices.Backward(captured) {
+			source := filepath.Join(captureStage, name)
+			destination := claimDestination(target, name)
+			if _, err := os.Lstat(destination); err == nil {
+				if first == nil {
+					first = fmt.Errorf("cannot restore captured takeover entry because %s now exists", destination)
+				}
+				continue
+			} else if !errors.Is(err, os.ErrNotExist) {
+				if first == nil {
+					first = err
+				}
+				continue
+			}
+			if err := os.Rename(source, destination); err != nil && first == nil {
+				first = err
+			}
+		}
+		if first == nil {
+			if err := os.RemoveAll(captureStage); err != nil {
+				first = err
+			}
+		}
+		if err := syncDirectory(target.path); err != nil && first == nil {
+			first = err
+		}
+		return first
+	}
+	for _, name := range names {
+		if err := os.Rename(claimDestination(target, name), filepath.Join(captureStage, name)); err != nil {
+			rollbackErr := rollbackOriginals()
+			return nil, nil, nil, nil, captureStage, fmt.Errorf("capture takeover skill %s: %w (rollback: %v; recovery stage: %s)", name, err, rollbackErr, captureStage)
+		}
+		captured = append(captured, name)
+	}
+	if err := syncDirectory(target.path); err != nil {
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("sync captured takeover skills: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
+	}
+	finalizeOriginals := func() error {
+		if err := os.RemoveAll(captureStage); err != nil {
+			return err
+		}
+		return syncDirectory(target.path)
 	}
 
 	backupID, err := newBackupID()
 	if err != nil {
-		return nil, nil, err
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("create takeover backup id: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	base := takeoverDestinationRoot(stateRoot, target.path)
 	if err := os.MkdirAll(base, 0o700); err != nil {
-		return nil, nil, err
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("create takeover backup root: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	stage, err := os.MkdirTemp(base, ".stage-")
 	if err != nil {
-		return nil, nil, err
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("create takeover backup stage: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	cleanupStage := true
 	defer func() {
@@ -54,9 +115,10 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 
 	records := make([]takeoverBackup, 0, len(names))
 	for _, name := range names {
-		kind, entries, err := copyBackupTree(claimDestination(target, name), filepath.Join(stage, name))
+		kind, entries, err := copyBackupTree(filepath.Join(captureStage, name), filepath.Join(stage, name))
 		if err != nil {
-			return nil, nil, fmt.Errorf("back up takeover skill %s: %w", name, err)
+			rollbackErr := rollbackOriginals()
+			return nil, nil, nil, nil, captureStage, fmt.Errorf("back up captured takeover skill %s: %w (rollback: %v; recovery stage: %s)", name, err, rollbackErr, captureStage)
 		}
 		records = append(records, takeoverBackup{
 			Skill: name, BackupID: backupID, Kind: kind,
@@ -65,11 +127,14 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 	}
 	final := filepath.Join(base, backupID)
 	if err := os.Rename(stage, final); err != nil {
-		return nil, nil, err
+		rollbackErr := rollbackOriginals()
+		return nil, nil, nil, nil, captureStage, fmt.Errorf("publish takeover backup: %w (rollback: %v; recovery stage: %s)", err, rollbackErr, captureStage)
 	}
 	cleanupStage = false
 	if err := syncDirectory(base); err != nil {
-		return nil, nil, err
+		rollbackErr := rollbackOriginals()
+		cleanupErr := os.RemoveAll(final)
+		return nil, nil, nil, nil, final, fmt.Errorf("sync takeover backup: %w (rollback: %v; backup cleanup: %v; recovery artifact: %s)", err, rollbackErr, cleanupErr, final)
 	}
 	cleanup := func() error {
 		if err := os.RemoveAll(final); err != nil {
@@ -77,7 +142,7 @@ func createTakeoverBackups(stateRoot string, target destination, bundle skillBun
 		}
 		return syncDirectory(base)
 	}
-	return records, cleanup, nil
+	return records, rollbackOriginals, finalizeOriginals, cleanup, final, nil
 }
 
 func newBackupID() (string, error) {
@@ -338,7 +403,12 @@ func replaceWithTakeoverBackups(stateRoot string, record receipt) (func() error,
 				}
 			}
 		}
-		if err := os.RemoveAll(stage); err != nil && first == nil {
+		if first == nil {
+			if err := os.RemoveAll(stage); err != nil {
+				first = err
+			}
+		}
+		if err := syncDirectory(record.Destination); err != nil && first == nil {
 			first = err
 		}
 		return first
@@ -368,6 +438,9 @@ func replaceWithTakeoverBackups(stateRoot string, record receipt) (func() error,
 			}
 			moves[len(moves)-1].restored = true
 		}
+	}
+	if err := syncDirectory(record.Destination); err != nil {
+		return fail(err)
 	}
 	finalize := func() error {
 		if err := os.RemoveAll(stage); err != nil {

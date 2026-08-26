@@ -43,6 +43,8 @@ type destinationResult struct {
 	Runtimes        []string        `json:"runtimes"`
 	Status          string          `json:"status"`
 	RuntimeStatuses []runtimeStatus `json:"runtime_statuses"`
+	TakeoverBackup  string          `json:"takeover_backup"`
+	BackupStatus    string          `json:"backup_status"`
 }
 
 type runtimeStatus struct {
@@ -204,6 +206,9 @@ func run(binaryArg, expectedSHA, flowArg string, out io.Writer) (err error) {
 	if err := verifyFixtureRoundTrip(isolated, project, filepath.Join(fixture, "state", "dva")); err != nil {
 		return err
 	}
+	if err := verifyTakeoverLifecycle(isolated, filepath.Join(project, "takeover")); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintln(out, "real_target_dry_run: passed"); err != nil {
 		return err
 	}
@@ -211,6 +216,9 @@ func run(binaryArg, expectedSHA, flowArg string, out io.Writer) (err error) {
 		return err
 	}
 	if _, err := fmt.Fprintln(out, "shared_runtime_unlink: passed"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(out, "takeover_lifecycle: passed"); err != nil {
 		return err
 	}
 	return nil
@@ -455,6 +463,103 @@ func verifyFixtureRoundTrip(inv invocation, project, stateRoot string) error {
 	}
 	if err := verifyArtifactsAbsent(project, stateRoot); err != nil {
 		return fmt.Errorf("final artifacts: %w", err)
+	}
+	return nil
+}
+
+func verifyTakeoverLifecycle(inv invocation, project string) error {
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		return err
+	}
+	if _, err := inv.json(project, "skill", "install", "--scope", "project", "--takeover"); err == nil {
+		return errors.New("takeover without an explicit runtime unexpectedly succeeded")
+	}
+	writeForeign := func() error {
+		for _, name := range []string{"dva", "dva-config"} {
+			root := filepath.Join(project, ".grok", "skills", name)
+			if err := os.MkdirAll(filepath.Join(root, "empty"), 0o750); err != nil {
+				return err
+			}
+			if err := os.WriteFile(filepath.Join(root, "original.txt"), []byte("foreign-"+name), 0o640); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	verifyForeign := func() error {
+		for _, name := range []string{"dva", "dva-config"} {
+			root := filepath.Join(project, ".grok", "skills", name)
+			contents, err := os.ReadFile(filepath.Join(root, "original.txt"))
+			if err != nil || string(contents) != "foreign-"+name {
+				return fmt.Errorf("restored %s bytes = %q: %w", name, contents, err)
+			}
+			info, err := os.Stat(filepath.Join(root, "empty"))
+			if err != nil || !info.IsDir() {
+				return fmt.Errorf("restored %s empty directory: %w", name, err)
+			}
+		}
+		return nil
+	}
+	installTakeover := func() (destinationResult, error) {
+		result, err := inv.json(project, "skill", "install", "--scope", "project", "--runtime", "grok", "--takeover")
+		if err != nil {
+			return destinationResult{}, err
+		}
+		if err := requireOnlyDestination(project, result, ".grok/skills", "installed"); err != nil {
+			return destinationResult{}, err
+		}
+		if result.Results[0].BackupStatus != "available" || result.Results[0].TakeoverBackup == "" {
+			return destinationResult{}, fmt.Errorf("takeover did not report an available backup: %#v", result.Results[0])
+		}
+		return result.Results[0], nil
+	}
+
+	if err := writeForeign(); err != nil {
+		return err
+	}
+	if _, err := installTakeover(); err != nil {
+		return fmt.Errorf("takeover for tombstone restore: %w", err)
+	}
+	removed, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", "grok")
+	if err != nil || len(removed.Results) != 1 || removed.Results[0].Status != "uninstalled" || removed.Results[0].BackupStatus != "available" {
+		return fmt.Errorf("ordinary takeover uninstall = %#v: %w", removed, err)
+	}
+	tombstone, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", "grok")
+	if err != nil || len(tombstone.Results) != 1 || tombstone.Results[0].Status != "backup-only" {
+		return fmt.Errorf("backup-only status = %#v: %w", tombstone, err)
+	}
+	restored, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", "grok", "--restore-takeover-backup")
+	if err != nil || len(restored.Results) != 1 || restored.Results[0].Status != "restored-takeover" {
+		return fmt.Errorf("tombstone restore = %#v: %w", restored, err)
+	}
+	if err := verifyForeign(); err != nil {
+		return err
+	}
+
+	if _, err := installTakeover(); err != nil {
+		return fmt.Errorf("takeover for active restore: %w", err)
+	}
+	restored, err = inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", "grok", "--restore-takeover-backup")
+	if err != nil || len(restored.Results) != 1 || restored.Results[0].Status != "restored-takeover" {
+		return fmt.Errorf("active restore = %#v: %w", restored, err)
+	}
+	if err := verifyForeign(); err != nil {
+		return err
+	}
+
+	installed, err := installTakeover()
+	if err != nil {
+		return fmt.Errorf("takeover for corrupt-backup refusal: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(installed.TakeoverBackup, "original.txt"), []byte("corrupt"), 0o640); err != nil {
+		return err
+	}
+	if _, err := inv.json(project, "skill", "uninstall", "--scope", "project", "--runtime", "grok", "--restore-takeover-backup"); err == nil {
+		return errors.New("corrupt takeover backup unexpectedly restored")
+	}
+	status, err := inv.json(project, "skill", "status", "--scope", "project", "--runtime", "grok")
+	if err != nil || len(status.Results) != 1 || status.Results[0].Status != "installed" || status.Results[0].BackupStatus != "corrupt" {
+		return fmt.Errorf("corrupt takeover status = %#v: %w", status, err)
 	}
 	return nil
 }

@@ -296,6 +296,28 @@ func rollbackClaimsToAbsent(store *skillclaim.LockedStore, expected []skillclaim
 			}
 			current = active
 		}
+		if current.State == skillclaim.StateReleasing || current.State == skillclaim.StateRestoring {
+			previous, err := skillclaim.Digest(current)
+			if err != nil {
+				return err
+			}
+			if err := store.Remove(current.Destination, current.Producer, current.OperationID, current.Generation, previous); err != nil {
+				return err
+			}
+			continue
+		}
+		if current.State == skillclaim.StateUpdating {
+			previous, err := skillclaim.Digest(current)
+			if err != nil {
+				return err
+			}
+			active := current
+			active.State, active.Generation = skillclaim.StateActive, current.Generation+1
+			if err := store.CompareAndSwap(active, current.Generation, previous); err != nil {
+				return err
+			}
+			current = active
+		}
 		if current.State != skillclaim.StateActive {
 			return fmt.Errorf("recovery-required: cannot roll back claim %s in state %s", current.Destination, current.State)
 		}
@@ -319,6 +341,76 @@ func rollbackClaimsToAbsent(store *skillclaim.LockedStore, expected []skillclaim
 			return err
 		}
 		if err := store.Remove(releasing.Destination, releasing.Producer, releasing.OperationID, releasing.Generation, previous); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rollbackClaimsToActive(store *skillclaim.LockedStore, originals []skillclaim.Claim) error {
+	for _, original := range originals {
+		current, found, err := store.Read(original.Destination)
+		if err != nil {
+			return err
+		}
+		if !found {
+			operationID, err := newClaimOperationID()
+			if err != nil {
+				return err
+			}
+			reserved := original
+			reserved.State, reserved.OperationID, reserved.Generation = skillclaim.StateReserved, operationID, 1
+			if err := store.Reserve(reserved); err != nil {
+				return err
+			}
+			previous, err := skillclaim.Digest(reserved)
+			if err != nil {
+				return err
+			}
+			reserved.State, reserved.Generation = skillclaim.StateActive, 2
+			if err := store.CompareAndSwap(reserved, 1, previous); err != nil {
+				return err
+			}
+			continue
+		}
+		if current.Producer != dvaClaimProducer {
+			return fmt.Errorf("cannot restore foreign claim at %s", current.Destination)
+		}
+		if current.State == skillclaim.StateActive {
+			if equalClaimStrings(current.Consumers, original.Consumers) && equalClaimFiles(current.Files, original.Files) && current.SourceDigest == original.SourceDigest {
+				continue
+			}
+			operationID, err := newClaimOperationID()
+			if err != nil {
+				return err
+			}
+			previous, err := skillclaim.Digest(current)
+			if err != nil {
+				return err
+			}
+			updating := current
+			updating.State, updating.OperationID, updating.Generation = skillclaim.StateUpdating, operationID, current.Generation+1
+			updating.Consumers = append([]string(nil), original.Consumers...)
+			updating.Files = append([]skillclaim.FileHash(nil), original.Files...)
+			updating.SourceDigest = original.SourceDigest
+			if err := store.CompareAndSwap(updating, current.Generation, previous); err != nil {
+				return err
+			}
+			current = updating
+		}
+		if current.State != skillclaim.StateUpdating && current.State != skillclaim.StateReleasing && current.State != skillclaim.StateRestoring {
+			return fmt.Errorf("cannot restore claim %s from state %s", current.Destination, current.State)
+		}
+		previous, err := skillclaim.Digest(current)
+		if err != nil {
+			return err
+		}
+		active := current
+		active.State, active.Generation = skillclaim.StateActive, current.Generation+1
+		active.Consumers = append([]string(nil), original.Consumers...)
+		active.Files = append([]skillclaim.FileHash(nil), original.Files...)
+		active.SourceDigest = original.SourceDigest
+		if err := store.CompareAndSwap(active, current.Generation, previous); err != nil {
 			return err
 		}
 	}

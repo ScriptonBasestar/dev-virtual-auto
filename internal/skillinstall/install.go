@@ -2,11 +2,13 @@
 package skillinstall
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	pathpkg "path"
@@ -212,14 +214,6 @@ func installDestination(options Options, target destination) (DestinationResult,
 	if err != nil {
 		return DestinationResult{}, err
 	}
-	if found && record.Schema == receiptSchemaCurrent && record.Installation == "active" && equalFiles(record.Files, bundle.files) && containsRuntimes(record.Runtimes, target.runtimes) {
-		entry.Status = "up-to-date"
-		setAllRuntimeStatuses(&entry, "up-to-date")
-		if len(record.Takeovers) > 0 {
-			entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, record)
-		}
-		return entry, nil
-	}
 	if options.DryRun {
 		entry.Status = "would-install"
 		setAllRuntimeStatuses(&entry, "would-install")
@@ -246,6 +240,28 @@ func installDestination(options Options, target destination) (DestinationResult,
 	record, found, err = readReceipt(receiptPath(options.StateRoot, target.path))
 	if err != nil {
 		return DestinationResult{}, err
+	}
+	if found && record.Schema == receiptSchemaCurrent && record.Installation == "active" && equalFiles(record.Files, bundle.files) && containsRuntimes(record.Runtimes, target.runtimes) {
+		if err := verifyInstalled(target.path, record.Files); err != nil {
+			return DestinationResult{}, err
+		}
+		projection, err := projectedClaims(target, options.Scope, record.Runtimes, bundle, skillclaim.StateActive, "up-to-date-check")
+		if err != nil {
+			return DestinationResult{}, err
+		}
+		current, err := readLockedClaims(store, projection)
+		if err != nil {
+			return DestinationResult{}, err
+		}
+		if err := verifyActiveClaims(current, projection); err != nil {
+			return DestinationResult{}, err
+		}
+		entry.Status = "up-to-date"
+		setAllRuntimeStatuses(&entry, "up-to-date")
+		if len(record.Takeovers) > 0 {
+			entry.BackupStatus, entry.TakeoverBackup = verifyTakeoverBackups(options.StateRoot, record)
+		}
+		return entry, nil
 	}
 	if !found || record.Schema < receiptSchemaCurrent || record.Installation == "absent" {
 		return installWithReservations(options, target, bundle, store, record, found, entry)
@@ -297,20 +313,27 @@ func installWithReservations(options Options, target destination, bundle skillBu
 		return DestinationResult{}, err
 	}
 	takeovers := append([]takeoverBackup(nil), previousReceipt.Takeovers...)
+	rollbackTakeover := func() error { return nil }
+	finalizeTakeover := func() error { return nil }
 	cleanupTakeover := func() error { return nil }
+	takeoverRecovery := ""
 	if !receiptFound && options.Takeover {
-		takeovers, cleanupTakeover, err = createTakeoverBackups(options.StateRoot, target, bundle)
+		takeovers, rollbackTakeover, finalizeTakeover, cleanupTakeover, takeoverRecovery, err = createTakeoverBackups(options.StateRoot, target, bundle)
 		if err != nil {
 			_ = rollbackClaimsToAbsent(store, reserved)
 			return DestinationResult{}, err
 		}
 	}
-	replaceExisting := (receiptFound && previousReceipt.Installation != "absent") || len(takeovers) > 0
+	replaceExisting := receiptFound && previousReceipt.Installation != "absent"
 	undo, finalize, err := replaceBundle(target.path, bundle, replaceExisting)
 	if err != nil {
-		_ = cleanupTakeover()
-		_ = rollbackClaimsToAbsent(store, reserved)
-		return DestinationResult{}, err
+		originalErr := rollbackTakeover()
+		cleanupErr := error(nil)
+		if originalErr == nil {
+			cleanupErr = cleanupTakeover()
+		}
+		claimErr := rollbackClaimsToAbsent(store, reserved)
+		return DestinationResult{}, fmt.Errorf("install captured takeover: %w (original rollback: %v; backup cleanup: %v; claim rollback: %v; recovery artifact: %s)", err, originalErr, cleanupErr, claimErr, takeoverRecovery)
 	}
 	newReceipt := receipt{
 		Schema: receiptSchemaCurrent, Installation: "active", Format: targetReceiptFormat(target),
@@ -320,22 +343,36 @@ func installWithReservations(options Options, target destination, bundle skillBu
 	receiptFile := receiptPath(options.StateRoot, target.path)
 	if err := writeReceipt(receiptFile, newReceipt); err != nil {
 		rollbackErr := undo()
-		_ = cleanupTakeover()
-		_ = rollbackClaimsToAbsent(store, reserved)
-		if rollbackErr != nil {
-			return DestinationResult{}, fmt.Errorf("write receipt: %w (rollback also failed: %v)", err, rollbackErr)
+		originalErr := error(nil)
+		cleanupErr := error(nil)
+		if rollbackErr == nil {
+			originalErr = rollbackTakeover()
 		}
-		return DestinationResult{}, err
+		if rollbackErr == nil && originalErr == nil {
+			cleanupErr = cleanupTakeover()
+		}
+		claimErr := rollbackClaimsToAbsent(store, reserved)
+		return DestinationResult{}, fmt.Errorf("write receipt: %w (file rollback: %v; original rollback: %v; backup cleanup: %v; claim rollback: %v; recovery artifact: %s)", err, rollbackErr, originalErr, cleanupErr, claimErr, takeoverRecovery)
 	}
 	if _, err := activateReservedClaims(store, reserved); err != nil {
 		rollbackErr := undo()
-		_ = restoreReceipt(receiptFile, previousReceipt, receiptFound)
-		_ = cleanupTakeover()
+		originalErr := error(nil)
+		cleanupErr := error(nil)
+		if rollbackErr == nil {
+			originalErr = rollbackTakeover()
+		}
+		if rollbackErr == nil && originalErr == nil {
+			cleanupErr = cleanupTakeover()
+		}
+		receiptErr := restoreReceipt(receiptFile, previousReceipt, receiptFound)
 		claimErr := rollbackClaimsToAbsent(store, claims)
-		return DestinationResult{}, fmt.Errorf("activate DVA claims: %w (file rollback: %v; claim rollback: %v)", err, rollbackErr, claimErr)
+		return DestinationResult{}, fmt.Errorf("activate DVA claims: %w (file rollback: %v; original rollback: %v; receipt rollback: %v; backup cleanup: %v; claim rollback: %v; recovery artifact: %s)", err, rollbackErr, originalErr, receiptErr, cleanupErr, claimErr, takeoverRecovery)
 	}
 	if err := finalize(); err != nil {
-		return DestinationResult{}, fmt.Errorf("clean up replaced DVA skill directories: %w", err)
+		entry.Detail = fmt.Sprintf("installed; cleanup retained a temporary artifact: %v", err)
+	}
+	if err := finalizeTakeover(); err != nil {
+		entry.Detail = fmt.Sprintf("installed; cleanup retained captured originals at %s: %v", takeoverRecovery, err)
 	}
 	entry.Status = "installed"
 	setAllRuntimeStatuses(&entry, "installed")
@@ -383,7 +420,8 @@ func updateClaimedInstall(options Options, target destination, bundle skillBundl
 	if !equalFiles(record.Files, bundle.files) {
 		undo, finalize, err = replaceBundle(target.path, bundle, true)
 		if err != nil {
-			return DestinationResult{}, fmt.Errorf("replace managed skills after claim reservation: %w; recovery-required", err)
+			claimErr := rollbackClaimsToActive(store, current)
+			return DestinationResult{}, fmt.Errorf("replace managed skills after claim reservation: %w (claim rollback: %v)", err, claimErr)
 		}
 	}
 	updated := receipt{
@@ -393,13 +431,15 @@ func updateClaimedInstall(options Options, target destination, bundle skillBundl
 	}
 	receiptFile := receiptPath(options.StateRoot, target.path)
 	if err := writeReceipt(receiptFile, updated); err != nil {
-		_ = undo()
-		return DestinationResult{}, fmt.Errorf("update receipt: %w; claims remain recovery-required", err)
+		fileErr := undo()
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("update receipt: %w (file rollback: %v; claim rollback: %v)", err, fileErr, claimErr)
 	}
 	if err := activateUpdatedClaims(store, updating); err != nil {
-		_ = undo()
-		_ = writeReceipt(receiptFile, record)
-		return DestinationResult{}, fmt.Errorf("activate updated claims: %w; recovery-required", err)
+		fileErr := undo()
+		receiptErr := writeReceipt(receiptFile, record)
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("activate updated claims: %w (file rollback: %v; receipt rollback: %v; claim rollback: %v)", err, fileErr, receiptErr, claimErr)
 	}
 	if err := finalize(); err != nil {
 		return DestinationResult{}, err
@@ -548,8 +588,19 @@ func Uninstall(options Options) (Result, error) {
 
 func preflightUninstall(options Options, target destination) error {
 	record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
-	if err != nil || !found {
+	if err != nil {
 		return err
+	}
+	if !found {
+		bundle, err := bundleFor(target)
+		if err != nil {
+			return err
+		}
+		projection, err := projectedClaims(target, options.Scope, target.runtimes, bundle, skillclaim.StateActive, "preflight")
+		if err != nil {
+			return err
+		}
+		return ensureClaimsAbsentUnlocked(options.ClaimRoot, projection)
 	}
 	if err := validateReceipt(record, options.Scope, target); err != nil {
 		return err
@@ -600,6 +651,26 @@ func uninstallDestination(options Options, target destination) (DestinationResul
 		return DestinationResult{}, err
 	}
 	if !found {
+		bundle, bundleErr := bundleFor(target)
+		if bundleErr != nil {
+			return DestinationResult{}, bundleErr
+		}
+		claimPaths, claimErr := claimDestinations(target, bundle)
+		if claimErr != nil {
+			return DestinationResult{}, claimErr
+		}
+		store, claimErr := skillclaim.Begin(options.ClaimRoot, claimPaths)
+		if claimErr != nil {
+			return DestinationResult{}, claimErr
+		}
+		defer func() { _ = store.Close() }()
+		projection, claimErr := projectedClaims(target, options.Scope, target.runtimes, bundle, skillclaim.StateActive, "uninstall-check")
+		if claimErr != nil {
+			return DestinationResult{}, claimErr
+		}
+		if claimErr := ensureClaimsAbsent(store, projection); claimErr != nil {
+			return DestinationResult{}, claimErr
+		}
 		entry.Status = "not-installed"
 		setAllRuntimeStatuses(&entry, entry.Status)
 		return entry, nil
@@ -654,6 +725,12 @@ func uninstallDestination(options Options, target destination) (DestinationResul
 	if err != nil {
 		return DestinationResult{}, err
 	}
+	installedRequested := intersectRuntimes(record.Runtimes, target.runtimes)
+	if len(installedRequested) == 0 && record.Schema < receiptSchemaCurrent {
+		entry.Status = "not-installed"
+		setAllRuntimeStatuses(&entry, entry.Status)
+		return entry, nil
+	}
 	var current []skillclaim.Claim
 	if record.Schema < receiptSchemaCurrent {
 		if err := ensureClaimsAbsent(store, projection); err != nil {
@@ -677,7 +754,6 @@ func uninstallDestination(options Options, target destination) (DestinationResul
 			return DestinationResult{}, err
 		}
 	}
-	installedRequested := intersectRuntimes(record.Runtimes, target.runtimes)
 	if len(installedRequested) == 0 {
 		entry.Status = "not-installed"
 		setAllRuntimeStatuses(&entry, entry.Status)
@@ -711,10 +787,13 @@ func unlinkConsumers(options Options, target destination, record receipt, store 
 	updated.Format = targetReceiptFormat(target)
 	updated.Runtimes = remaining
 	if err := writeReceipt(receiptPath(options.StateRoot, target.path), updated); err != nil {
-		return DestinationResult{}, fmt.Errorf("update receipt: %w; claims remain recovery-required", err)
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("update receipt: %w (claim rollback: %v)", err, claimErr)
 	}
 	if err := activateUpdatedClaims(store, updating); err != nil {
-		return DestinationResult{}, fmt.Errorf("activate consumer update: %w; recovery-required", err)
+		receiptErr := writeReceipt(receiptPath(options.StateRoot, target.path), record)
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("activate consumer update: %w (receipt rollback: %v; claim rollback: %v)", err, receiptErr, claimErr)
 	}
 	entry.Status = "unlinked"
 	setMembershipStatuses(&entry, intersectRuntimes(record.Runtimes, target.runtimes), "unlinked", "not-installed")
@@ -728,13 +807,16 @@ func removeLastConsumer(options Options, target destination, record receipt, sto
 	}
 	rollbackFiles, finalizeFiles, recoveryStage, err := stageManagedRemoval(target.path, record.Files)
 	if err != nil {
-		return DestinationResult{}, fmt.Errorf("stage DVA skill removal: %w; claims remain recovery-required", err)
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("stage DVA skill removal: %w (claim rollback: %v)", err, claimErr)
 	}
 	if err := removeTransitionedClaims(store, releasing); err != nil {
-		if rollbackErr := rollbackFiles(); rollbackErr != nil {
-			return DestinationResult{}, fmt.Errorf("remove DVA claim: %w (file rollback failed: %v; recovery stage: %s)", err, rollbackErr, recoveryStage)
+		fileErr := rollbackFiles()
+		claimErr := rollbackClaimsToActive(store, current)
+		if fileErr != nil || claimErr != nil {
+			return DestinationResult{}, fmt.Errorf("remove DVA claim: %w (file rollback: %v; claim rollback: %v; recovery stage: %s)", err, fileErr, claimErr, recoveryStage)
 		}
-		return DestinationResult{}, fmt.Errorf("remove DVA claim: %w; recovery-required", err)
+		return DestinationResult{}, fmt.Errorf("remove DVA claim: %w", err)
 	}
 	receiptFile := receiptPath(options.StateRoot, target.path)
 	if len(record.Takeovers) > 0 {
@@ -743,13 +825,17 @@ func removeLastConsumer(options Options, target destination, record receipt, sto
 		tombstone.Installation = "absent"
 		tombstone.Runtimes = nil
 		if err := writeReceipt(receiptFile, tombstone); err != nil {
-			return DestinationResult{}, fmt.Errorf("write backup-only receipt: %w; recovery stage: %s", err, recoveryStage)
+			fileErr := rollbackFiles()
+			claimErr := rollbackClaimsToActive(store, current)
+			return DestinationResult{}, fmt.Errorf("write backup-only receipt: %w (file rollback: %v; claim rollback: %v; recovery stage: %s)", err, fileErr, claimErr, recoveryStage)
 		}
 	} else if err := os.Remove(receiptFile); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return DestinationResult{}, fmt.Errorf("remove receipt: %w; recovery stage: %s", err, recoveryStage)
+		fileErr := rollbackFiles()
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("remove receipt: %w (file rollback: %v; claim rollback: %v; recovery stage: %s)", err, fileErr, claimErr, recoveryStage)
 	}
 	if err := finalizeFiles(); err != nil {
-		return DestinationResult{}, fmt.Errorf("finalize skill removal: %w; recovery stage: %s", err, recoveryStage)
+		entry.Detail = fmt.Sprintf("uninstalled; cleanup retained a recovery artifact at %s: %v", recoveryStage, err)
 	}
 	if hasRuntime(target.runtimes, RuntimeAgentMesh) {
 		if err := os.Remove(target.path); err != nil && !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ENOTEMPTY) {
@@ -774,18 +860,21 @@ func restoreActiveTakeover(options Options, target destination, record receipt, 
 	}
 	rollbackRestore, finalizeRestore, err := replaceWithTakeoverBackups(options.StateRoot, record)
 	if err != nil {
-		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w; claims remain recovery-required", err)
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w (claim rollback: %v)", err, claimErr)
 	}
 	if err := removeTransitionedClaims(store, restoring); err != nil {
-		_ = rollbackRestore()
-		return DestinationResult{}, fmt.Errorf("release restored claims: %w; recovery-required", err)
+		fileErr := rollbackRestore()
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("release restored claims: %w (file rollback: %v; claim rollback: %v)", err, fileErr, claimErr)
 	}
 	if err := os.Remove(receiptPath(options.StateRoot, target.path)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		_ = rollbackRestore()
-		return DestinationResult{}, fmt.Errorf("remove restored receipt: %w; recovery-required", err)
+		fileErr := rollbackRestore()
+		claimErr := rollbackClaimsToActive(store, current)
+		return DestinationResult{}, fmt.Errorf("remove restored receipt: %w (file rollback: %v; claim rollback: %v)", err, fileErr, claimErr)
 	}
 	if err := finalizeRestore(); err != nil {
-		return DestinationResult{}, fmt.Errorf("finalize restored takeover: %w", err)
+		entry.Detail = fmt.Sprintf("restored; cleanup retained a recovery artifact: %v", err)
 	}
 	entry.Status, entry.BackupStatus = "restored-takeover", "restored"
 	setAllRuntimeStatuses(&entry, "restored-takeover")
@@ -825,18 +914,21 @@ func restoreBackupOnly(options Options, target destination, record receipt, stor
 	}
 	rollbackRestore, finalizeRestore, err := replaceWithTakeoverBackups(options.StateRoot, record)
 	if err != nil {
-		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w; recovery-required", err)
+		claimErr := rollbackClaimsToAbsent(store, restoring)
+		return DestinationResult{}, fmt.Errorf("restore takeover backup: %w (claim rollback: %v)", err, claimErr)
 	}
 	if err := removeTransitionedClaims(store, restoring); err != nil {
-		_ = rollbackRestore()
-		return DestinationResult{}, fmt.Errorf("release restore claims: %w; recovery-required", err)
+		fileErr := rollbackRestore()
+		claimErr := rollbackClaimsToAbsent(store, restoring)
+		return DestinationResult{}, fmt.Errorf("release restore claims: %w (file rollback: %v; claim rollback: %v)", err, fileErr, claimErr)
 	}
 	if err := os.Remove(receiptPath(options.StateRoot, target.path)); err != nil && !errors.Is(err, os.ErrNotExist) {
-		_ = rollbackRestore()
-		return DestinationResult{}, err
+		fileErr := rollbackRestore()
+		claimErr := rollbackClaimsToAbsent(store, restoring)
+		return DestinationResult{}, fmt.Errorf("remove backup-only receipt: %w (file rollback: %v; claim rollback: %v)", err, fileErr, claimErr)
 	}
 	if err := finalizeRestore(); err != nil {
-		return DestinationResult{}, err
+		entry.Detail = fmt.Sprintf("restored; cleanup retained a recovery artifact: %v", err)
 	}
 	entry.Status, entry.BackupStatus = "restored-takeover", "restored"
 	setAllRuntimeStatuses(&entry, "restored-takeover")
@@ -1324,7 +1416,7 @@ func replaceFlatFiles(destination string, bundle skillBundle, replaceExisting bo
 	}
 	for _, file := range bundle.files {
 		contents := bundle.contents[file.Path]
-		if err := os.WriteFile(filepath.Join(stage, filepath.FromSlash(file.Path)), contents, 0o644); err != nil {
+		if err := writeBytesSynced(filepath.Join(stage, filepath.FromSlash(file.Path)), contents, 0o644); err != nil {
 			_ = os.RemoveAll(stage)
 			return nil, nil, err
 		}
@@ -1343,14 +1435,19 @@ func replaceFlatFiles(destination string, bundle skillBundle, replaceExisting bo
 				}
 			}
 		}
-		if err := os.RemoveAll(stage); err != nil && rollbackErr == nil {
+		if rollbackErr == nil {
+			if err := os.RemoveAll(stage); err != nil {
+				rollbackErr = err
+			}
+		}
+		if err := syncDirectory(destination); err != nil && rollbackErr == nil {
 			rollbackErr = err
 		}
 		return rollbackErr
 	}
 	fail := func(cause error) (func() error, func() error, error) {
 		if rollbackErr := rollback(); rollbackErr != nil {
-			return nil, nil, fmt.Errorf("%w (rollback also failed: %v)", cause, rollbackErr)
+			return nil, nil, fmt.Errorf("%w (rollback also failed: %v; recovery stage: %s)", cause, rollbackErr, stage)
 		}
 		return nil, nil, cause
 	}
@@ -1373,6 +1470,9 @@ func replaceFlatFiles(destination string, bundle skillBundle, replaceExisting bo
 		if err := os.Rename(filepath.Join(stage, filepath.FromSlash(file.Path)), final); err != nil {
 			return fail(err)
 		}
+	}
+	if err := syncDirectory(destination); err != nil {
+		return fail(err)
 	}
 	return rollback, func() error { return os.RemoveAll(stage) }, nil
 }
@@ -1402,14 +1502,19 @@ func replaceSkillDirectoriesWithRename(destination string, files []fileHash, rep
 				}
 			}
 		}
-		if err := os.RemoveAll(stage); err != nil && rollbackErr == nil {
+		if rollbackErr == nil {
+			if err := os.RemoveAll(stage); err != nil {
+				rollbackErr = err
+			}
+		}
+		if err := syncDirectory(destination); err != nil && rollbackErr == nil {
 			rollbackErr = err
 		}
 		return rollbackErr
 	}
 	fail := func(cause error) (func() error, func() error, error) {
 		if rollbackErr := rollback(); rollbackErr != nil {
-			return nil, nil, fmt.Errorf("%w (rollback also failed: %v)", cause, rollbackErr)
+			return nil, nil, fmt.Errorf("%w (rollback also failed: %v; recovery stage: %s)", cause, rollbackErr, stage)
 		}
 		return nil, nil, cause
 	}
@@ -1433,6 +1538,9 @@ func replaceSkillDirectoriesWithRename(destination string, files []fileHash, rep
 			return fail(err)
 		}
 	}
+	if err := syncDirectory(destination); err != nil {
+		return fail(err)
+	}
 	finalize := func() error { return os.RemoveAll(stage) }
 	return rollback, finalize, nil
 }
@@ -1445,7 +1553,23 @@ func writeEmbedded(destination, embeddedPath string) error {
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(destination, contents, 0o644)
+	return writeBytesSynced(destination, contents, 0o644)
+}
+
+func writeBytesSynced(destination string, contents []byte, mode fs.FileMode) error {
+	file, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.Write(contents)
+	syncErr := file.Sync()
+	closeErr := file.Close()
+	for _, candidate := range []error{writeErr, syncErr, closeErr} {
+		if candidate != nil {
+			return candidate
+		}
+	}
+	return nil
 }
 
 func receiptPath(stateRoot, destination string) string {
@@ -1454,15 +1578,34 @@ func receiptPath(stateRoot, destination string) string {
 }
 
 func readReceipt(path string) (receipt, bool, error) {
-	contents, err := os.ReadFile(path)
+	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return receipt{}, false, nil
 	}
 	if err != nil {
 		return receipt{}, false, err
 	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm()&0o077 != 0 {
+		return receipt{}, false, fmt.Errorf("receipt %s is not a regular file", path)
+	}
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		return receipt{}, false, err
+	}
+	if err := skillclaim.RejectDuplicateKeys(contents); err != nil {
+		return receipt{}, false, err
+	}
 	var record receipt
-	if err := json.Unmarshal(contents, &record); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(contents))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&record); err != nil {
+		return receipt{}, false, err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return receipt{}, false, errors.New("receipt has trailing JSON value")
+		}
 		return receipt{}, false, err
 	}
 	return record, true, nil
@@ -1478,6 +1621,14 @@ func validateReceipt(record receipt, scope Scope, target destination) error {
 	if !sort.SliceIsSorted(record.Files, func(i, j int) bool { return record.Files[i].Path < record.Files[j].Path }) {
 		return errors.New("receipt files are not sorted")
 	}
+	if !slices.IsSorted(record.Runtimes) {
+		return errors.New("receipt runtimes are not sorted")
+	}
+	for index := range record.Runtimes {
+		if !validReceiptRuntime(record.Runtimes[index]) || (index > 0 && record.Runtimes[index-1] == record.Runtimes[index]) {
+			return errors.New("receipt runtimes are invalid or not unique")
+		}
+	}
 	format := receiptFormatForFiles(record.Files)
 	if format == "" || format != targetReceiptFormat(target) {
 		return errors.New("receipt file format does not match destination runtime")
@@ -1489,10 +1640,13 @@ func validateReceipt(record receipt, scope Scope, target destination) error {
 	} else if record.Format != format {
 		return errors.New("receipt format does not match its files")
 	}
-	for _, file := range record.Files {
-		if !validSHA(file.SHA) {
+	for index, file := range record.Files {
+		if !validReceiptPath(file.Path) || !validSHA(file.SHA) || (index > 0 && record.Files[index-1].Path == file.Path) {
 			return errors.New("receipt contains an invalid file record")
 		}
+	}
+	if sourceBundleSHA(record.Files) != record.BundleSHA {
+		return errors.New("receipt bundle digest differs from its files")
 	}
 	if record.Schema == 3 {
 		if record.Installation != "active" && record.Installation != "absent" {
@@ -1504,12 +1658,21 @@ func validateReceipt(record receipt, scope Scope, target destination) error {
 		if record.Installation == "absent" && (len(record.Runtimes) != 0 || len(record.Takeovers) == 0) {
 			return errors.New("backup-only receipt has invalid runtime state")
 		}
-		for _, takeover := range record.Takeovers {
+		if !sort.SliceIsSorted(record.Takeovers, func(i, j int) bool { return record.Takeovers[i].Skill < record.Takeovers[j].Skill }) {
+			return errors.New("receipt takeover records are not sorted")
+		}
+		for takeoverIndex, takeover := range record.Takeovers {
 			if !validTakeoverSkill(takeover.Skill) || !validBackupID(takeover.BackupID) || (takeover.Kind != backupKindFile && takeover.Kind != backupKindDirectory) || !validSHA(takeover.ManifestDigest) || len(takeover.Entries) == 0 || !sort.SliceIsSorted(takeover.Entries, func(i, j int) bool { return takeover.Entries[i].Path < takeover.Entries[j].Path }) {
 				return errors.New("receipt has invalid takeover metadata")
 			}
-			for _, entry := range takeover.Entries {
-				if entry.Path == "" || (entry.Kind != backupKindFile && entry.Kind != backupKindDirectory) || entry.Mode > 0o777 || (entry.Kind == backupKindFile) != validSHA(entry.SHA) {
+			if takeoverIndex > 0 && record.Takeovers[takeoverIndex-1].Skill == takeover.Skill {
+				return errors.New("receipt takeover records are not unique")
+			}
+			if (format == receiptFormatFlat) != strings.HasSuffix(takeover.Skill, ".md") || (takeover.Kind == backupKindFile && len(takeover.Entries) != 1) {
+				return errors.New("receipt takeover kind does not match its destination")
+			}
+			for entryIndex, entry := range takeover.Entries {
+				if !validBackupEntry(entry, takeover.Kind) || (entryIndex > 0 && takeover.Entries[entryIndex-1].Path == entry.Path) {
 					return errors.New("receipt takeover has invalid file record")
 				}
 			}
@@ -1521,6 +1684,15 @@ func validateReceipt(record receipt, scope Scope, target destination) error {
 		return errors.New("legacy receipt has takeover metadata")
 	}
 	return nil
+}
+
+func validReceiptRuntime(runtime Runtime) bool {
+	switch runtime {
+	case RuntimeClaudeCode, RuntimeCodex, RuntimeOpenCode, RuntimeGrok, RuntimeAntigravity, RuntimeAgentMesh:
+		return true
+	default:
+		return false
+	}
 }
 
 func targetReceiptFormat(target destination) string {
@@ -1572,7 +1744,23 @@ func validNativeReceiptPath(value string) bool {
 
 func validSHA(value string) bool {
 	decoded, err := hex.DecodeString(value)
-	return err == nil && len(decoded) == sha256.Size
+	return err == nil && len(decoded) == sha256.Size && value == strings.ToLower(value)
+}
+
+func validBackupEntry(entry backupEntry, rootKind string) bool {
+	if entry.Kind != backupKindFile && entry.Kind != backupKindDirectory || entry.Mode > 0o777 {
+		return false
+	}
+	if rootKind == backupKindFile {
+		return entry.Path == "." && entry.Kind == backupKindFile && validSHA(entry.SHA)
+	}
+	if entry.Path == "." {
+		return entry.Kind == backupKindDirectory && entry.SHA == ""
+	}
+	if strings.HasPrefix(entry.Path, "/") || strings.Contains(entry.Path, `\`) || strings.HasSuffix(entry.Path, "/") || pathpkg.Clean(entry.Path) != entry.Path || strings.HasPrefix(entry.Path, "../") || entry.Path == ".." {
+		return false
+	}
+	return (entry.Kind == backupKindFile && validSHA(entry.SHA)) || (entry.Kind == backupKindDirectory && entry.SHA == "")
 }
 
 func writeReceipt(path string, record receipt) error {
@@ -1605,5 +1793,8 @@ func writeReceipt(path string, record receipt) error {
 	if err := temp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tempName, path)
+	if err := os.Rename(tempName, path); err != nil {
+		return err
+	}
+	return syncDirectory(filepath.Dir(path))
 }

@@ -23,7 +23,12 @@ func stageManagedRemoval(destination string, files []fileHash) (func() error, fu
 				first = err
 			}
 		}
-		if err := os.RemoveAll(stage); err != nil && first == nil {
+		if first == nil {
+			if err := os.RemoveAll(stage); err != nil {
+				first = err
+			}
+		}
+		if err := syncDirectory(destination); err != nil && first == nil {
 			first = err
 		}
 		return first
@@ -42,6 +47,17 @@ func stageManagedRemoval(destination string, files []fileHash) (func() error, fu
 		}
 		moves = append(moves, move{source: source, staged: staged})
 	}
-	finalize := func() error { return os.RemoveAll(stage) }
+	if err := syncDirectory(destination); err != nil {
+		if rollbackErr := rollback(); rollbackErr != nil {
+			return nil, nil, stage, fmt.Errorf("sync staged removal: %w (rollback failed: %v; recovery stage: %s)", err, rollbackErr, stage)
+		}
+		return nil, nil, "", err
+	}
+	finalize := func() error {
+		if err := os.RemoveAll(stage); err != nil {
+			return err
+		}
+		return syncDirectory(destination)
+	}
 	return rollback, finalize, stage, nil
 }

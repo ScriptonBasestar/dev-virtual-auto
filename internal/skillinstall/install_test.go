@@ -269,6 +269,200 @@ func TestCorruptTakeoverBackupBlocksRestore(t *testing.T) {
 	}
 }
 
+func TestTakeoverBackupCapturesLiveEntryBeforeReplacement(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	_, targets, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := targets[0]
+	if err := ensureDestination(target.path); err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(target.path, "dva")
+	if err := os.MkdirAll(foreign, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "original"), []byte("exact foreign bytes"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := bundleFor(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	records, rollback, _, cleanup, recovery, err := createTakeoverBackups(options.StateRoot, target, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Skill != "dva" {
+		t.Fatalf("captured takeover records = %#v", records)
+	}
+	if _, err := os.Lstat(foreign); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("foreign entry was not atomically captured: %v", err)
+	}
+	backup, err := os.ReadFile(filepath.Join(recovery, "dva", "original"))
+	if err != nil || string(backup) != "exact foreign bytes" {
+		t.Fatalf("durable snapshot = %q, %v", backup, err)
+	}
+	if err := rollback(); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := os.ReadFile(filepath.Join(foreign, "original"))
+	if err != nil || string(restored) != "exact foreign bytes" {
+		t.Fatalf("restored original = %q, %v", restored, err)
+	}
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTakeoverRollbackCollisionRetainsDurableRecoveryArtifact(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	_, targets, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := targets[0]
+	if err := ensureDestination(target.path); err != nil {
+		t.Fatal(err)
+	}
+	foreign := filepath.Join(target.path, "dva")
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(foreign, "original"), []byte("recover me"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := bundleFor(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, rollback, _, _, recovery, err := createTakeoverBackups(options.StateRoot, target, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(foreign, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := rollback(); err == nil {
+		t.Fatal("rollback accepted a late collision")
+	}
+	contents, err := os.ReadFile(filepath.Join(recovery, "dva", "original"))
+	if err != nil || string(contents) != "recover me" {
+		t.Fatalf("recovery artifact = %q, %v", contents, err)
+	}
+}
+
+func TestClaimRollbackRestoresActiveSetAfterPartialRelease(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	installed, err := Install(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := destination{path: installed.Destinations[0].Destination, runtimes: options.Runtimes}
+	record, found, err := readReceipt(receiptPath(options.StateRoot, target.path))
+	if err != nil || !found {
+		t.Fatal(err)
+	}
+	bundle := skillBundle{files: record.Files}
+	paths, err := claimDestinations(target, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := skillclaim.Begin(filepath.Dir(options.StateRoot), paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	projection, err := projectedClaims(target, options.Scope, record.Runtimes, bundle, skillclaim.StateActive, "rollback-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	current, err := readLockedClaims(store, projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	releasing, err := transitionActiveClaims(store, current, current, skillclaim.StateReleasing, "partial-release")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, err := skillclaim.Digest(releasing[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Remove(releasing[0].Destination, releasing[0].Producer, releasing[0].OperationID, releasing[0].Generation, previous); err != nil {
+		t.Fatal(err)
+	}
+	if err := rollbackClaimsToActive(store, current); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := readLockedClaims(store, projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyActiveClaims(restored, projection); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestClaimRollbackRemovesPartialTemporaryRestoreSet(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	_, targets, err := resolve(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := targets[0]
+	if err := ensureDestination(target.path); err != nil {
+		t.Fatal(err)
+	}
+	bundle, err := bundleFor(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := claimDestinations(target, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := skillclaim.Begin(filepath.Dir(options.StateRoot), paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = store.Close() }()
+	reserved, err := projectedClaims(target, options.Scope, options.Runtimes, bundle, skillclaim.StateReserved, "temporary-restore")
+	if err != nil {
+		t.Fatal(err)
+	}
+	reserved, err = reserveClaims(store, reserved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	active, err := activateReservedClaims(store, reserved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoring, err := transitionActiveClaims(store, active, active, skillclaim.StateRestoring, "temporary-restore-mutation")
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, err := skillclaim.Digest(restoring[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Remove(restoring[0].Destination, restoring[0].Producer, restoring[0].OperationID, restoring[0].Generation, previous); err != nil {
+		t.Fatal(err)
+	}
+	if err := rollbackClaimsToAbsent(store, restoring); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureClaimsAbsent(store, reserved); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAgentMeshRendererInlinesAssetsAndDemotesReferenceHeadings(t *testing.T) {
 	t.Parallel()
 	contents, err := renderAgentMeshSkill("dva")
@@ -336,6 +530,75 @@ func TestReceiptRejectsCrossFormatFilesBeforeStatusOrUninstall(t *testing.T) {
 	}
 }
 
+func TestReceiptDecoderFailsClosedOnAmbiguousOrUnsafeFiles(t *testing.T) {
+	mutations := map[string]func(t *testing.T, path string, contents []byte){
+		"duplicate-key": func(t *testing.T, path string, contents []byte) {
+			t.Helper()
+			contents = bytes.Replace(contents, []byte(`"schema": 3,`), []byte(`"schema": 3, "schema": 3,`), 1)
+			if err := os.WriteFile(path, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"unknown-field": func(t *testing.T, path string, contents []byte) {
+			t.Helper()
+			contents = bytes.Replace(contents, []byte("{\n"), []byte("{\n  \"unknown\": true,\n"), 1)
+			if err := os.WriteFile(path, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"trailing-json": func(t *testing.T, path string, contents []byte) {
+			t.Helper()
+			if err := os.WriteFile(path, append(contents, []byte("{}\n")...), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"loose-mode": func(t *testing.T, path string, _ []byte) {
+			t.Helper()
+			if err := os.Chmod(path, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		},
+		"symlink": func(t *testing.T, path string, contents []byte) {
+			t.Helper()
+			target := path + ".foreign"
+			if err := os.WriteFile(target, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(target, path); err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	for name, mutate := range mutations {
+		t.Run(name, func(t *testing.T) {
+			options := testOptions(t, ScopeProject, RuntimeCodex)
+			installed, err := Install(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := receiptPath(options.StateRoot, installed.Destinations[0].Destination)
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mutate(t, path, contents)
+			status, err := Status(options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if status.Destinations[0].Status != "invalid-receipt" {
+				t.Fatalf("unsafe receipt status = %s", status.Destinations[0].Status)
+			}
+			if _, err := Uninstall(options); err == nil {
+				t.Fatal("unsafe receipt was accepted for uninstall")
+			}
+		})
+	}
+}
+
 func TestLegacyNativeReceiptRemainsReadable(t *testing.T) {
 	t.Parallel()
 	options := testOptions(t, ScopeUser, RuntimeGrok)
@@ -377,6 +640,78 @@ func TestLegacyNativeReceiptRemainsReadable(t *testing.T) {
 		t.Fatalf("migrated receipt = (%#v, %t, %v)", migrated, found, err)
 	}
 	assertClaimConsumers(t, options, target.path, []string{"grok"})
+}
+
+func TestLegacyAbsentRuntimeUninstallDoesNotCreateClaims(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	installed, err := Install(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := destination{path: installed.Destinations[0].Destination, runtimes: options.Runtimes}
+	receiptFile := receiptPath(options.StateRoot, target.path)
+	record, found, err := readReceipt(receiptFile)
+	if err != nil || !found {
+		t.Fatalf("read current receipt = (%v, %t, %v)", record, found, err)
+	}
+	record.Schema, record.Format = 1, ""
+	if err := writeReceipt(receiptFile, record); err != nil {
+		t.Fatal(err)
+	}
+	claims, err := projectedClaims(target, options.Scope, record.Runtimes, skillBundle{files: record.Files}, skillclaim.StateActive, "legacy-absent")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, claim := range claims {
+		if err := os.Remove(skillclaim.Path(filepath.Dir(options.StateRoot), claim.Destination)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	absent := options
+	absent.Runtimes = []Runtime{RuntimeAntigravity}
+	result, err := Uninstall(absent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Destinations[0].Status != "not-installed" {
+		t.Fatalf("absent runtime uninstall = %s", result.Destinations[0].Status)
+	}
+	for _, claim := range claims {
+		if _, found, err := skillclaim.Read(filepath.Dir(options.StateRoot), claim.Destination); err != nil || found {
+			t.Fatalf("absent runtime created claim = (%t, %v)", found, err)
+		}
+	}
+	status, err := Status(options)
+	if err != nil || status.Destinations[0].Status != "legacy-unclaimed" {
+		t.Fatalf("legacy owner status = %#v, %v", status, err)
+	}
+}
+
+func TestUpToDateInstallStillAcquiresClaimLocks(t *testing.T) {
+	t.Parallel()
+	options := testOptions(t, ScopeProject, RuntimeCodex)
+	installed, err := Install(options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := destination{path: installed.Destinations[0].Destination, runtimes: options.Runtimes}
+	bundle, err := bundleFor(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths, err := claimDestinations(target, bundle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	locks, err := skillclaim.AcquireLocks(filepath.Dir(options.StateRoot), paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = locks.Release() }()
+	if _, err := Install(options); err == nil || !strings.Contains(err.Error(), "claim mutation lock exists") {
+		t.Fatalf("up-to-date install bypassed claim locks: %v", err)
+	}
 }
 
 func TestAgentMeshKeepsForeignNamespaceFilesAndDetectsDVAFileCollision(t *testing.T) {

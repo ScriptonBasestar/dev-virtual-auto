@@ -47,3 +47,7 @@ destination. DVA uses producer `dva` and keeps its existing destination receipt 
 record. `--takeover` never infers ownership from content, names, or permissions: an existing foreign
 claim is refused, while an unclaimed regular DVA-name tree/file is durably backed up and then replaced.
 Restore is explicit, never an automatic side effect of ordinary uninstall.
+Takeover first atomically renames each live foreign entry into a same-filesystem capture stage, then
+creates the durable backup from that immutable snapshot. A failed or uncertain rollback retains both
+available recovery artifacts. Preflight spans requested destinations, but late operational failures do
+not provide a cross-destination atomic commit; rerunning the command is the convergence mechanism.
