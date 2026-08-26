@@ -7,7 +7,22 @@ effort: M
 created-at: 2026-08-26T17:30:00+09:00
 source: "post-TASK-229 installation contract review"
 scope: "Makefile install-binary compensation transaction and isolated installer fixture"
-status: doing
+status: done
+completed-at: 2026-08-26T17:44:07+09:00
+completion-summary: "Compensate controlled multi-destination install failures, preserve recovery evidence when compensation itself fails, and keep crash atomicity explicitly out of scope."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./tools/installcheck && go test -race -cover ./... && make doc-check && make commit-check"
+    result: "passed; focused rollback injection, repository tests, documentation gates, and commit gate exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T17:44:07+09:00
+quality-review-evidence:
+  - "independent ce-judge found and verified fixes for lost recovery backups and the wrong failed-target path"
+  - "final review confirmed rename and post-replacement verification failures restore in reverse order without regressing same-path or preflight behavior"
+archived-at: 2026-08-26T17:44:07+09:00
+verified-at: 2026-08-26T17:44:07+09:00
+verification-summary: "Ordinary controlled install failures now compensate previous replacements; crash and multi-filesystem atomicity remain explicit non-goals."
 ---
 
 # Task 232: compensate a partially replaced binary installation
