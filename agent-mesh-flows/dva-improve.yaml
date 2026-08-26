@@ -469,11 +469,19 @@ steps:
     context:
       discovery_report: |
         REPORT=$(printf '%s' '{{param.discovery_report | b64encode}}' | base64 -d)
-        if [ -n "$REPORT" ] && [ -f "$REPORT" ]; then
-          cat "$REPORT"
-        else
+        if [ -z "$REPORT" ]; then
           echo '{}'
+          exit 0
         fi
+        if [ ! -f "$REPORT" ]; then
+          echo "ERROR: explicit discovery report does not exist: $REPORT" >&2
+          exit 1
+        fi
+        if ! jq -e -s 'length == 1 and (.[0] | type) == "object"' "$REPORT" >/dev/null 2>&1; then
+          echo "ERROR: explicit discovery report is not one JSON object: $REPORT" >&2
+          exit 1
+        fi
+        cat "$REPORT"
 
   # ══════════════════════════════════════════════
   # Phase 3: Load Library Reference (static knowledge)

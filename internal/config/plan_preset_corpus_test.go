@@ -180,4 +180,13 @@ func TestAutomaticFlowRequiresExplicitDiscoveryReport(t *testing.T) {
 	if !strings.Contains(automatic, `{{param.discovery_report | b64encode}}`) {
 		t.Error("automatic flow does not safely interpolate the explicit report path")
 	}
+	for _, required := range []string{
+		"explicit discovery report does not exist",
+		"explicit discovery report is not one JSON object",
+		`length == 1 and (.[0] | type) == "object"`,
+	} {
+		if !strings.Contains(automatic, required) {
+			t.Errorf("automatic flow does not fail closed for explicit report errors: missing %q", required)
+		}
+	}
 }

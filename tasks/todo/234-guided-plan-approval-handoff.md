@@ -33,6 +33,8 @@ fixed default path exists.
   interactive "continue after error" choice cannot bypass them | verify: `go test ./internal/config -run TestGuidedFlowResolvesAndValidatesApprovedPlan`
 - [ ] The automatic flow consumes a discovery report only when the caller explicitly supplies its
   path | verify: `go test ./internal/config -run TestAutomaticFlowRequiresExplicitDiscoveryReport`
+- [ ] An explicitly supplied discovery report that is absent or not one JSON object fails visibly
+  instead of silently falling back to a fresh scan | verify: `go test ./internal/config -run TestAutomaticFlowRequiresExplicitDiscoveryReport`
 - [ ] Flow, generation, repository, and commit gates pass | verify: `make doc-check && make check-generate && make test && make commit-check`
 
 ## Decision
