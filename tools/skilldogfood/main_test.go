@@ -158,6 +158,77 @@ func TestGitRootAcceptsStableDirtyRepository(t *testing.T) {
 	}
 }
 
+func TestGitTreeStateDetectsContentChangeInAlreadyDirtyTrackedFile(t *testing.T) {
+	root := t.TempDir()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "skilldogfood@example.invalid"},
+		{"config", "user.name", "skilldogfood test"},
+	} {
+		gitArgs := append([]string{"-C", root}, args...)
+		if _, err := commandOutput(nil, "git", gitArgs...); err != nil {
+			t.Skipf("git unavailable: %v", err)
+		}
+	}
+	tracked := filepath.Join(root, "tracked.txt")
+	if err := os.WriteFile(tracked, []byte("base\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := commandOutput(nil, "git", "-C", root, "add", "tracked.txt"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := commandOutput(nil, "git", "-C", root, "commit", "-m", "base"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tracked, []byte("first dirty content\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before, err := snapshotGitTreeState(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(tracked, []byte("second dirty text\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after, err := snapshotGitTreeState(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before.Status != after.Status {
+		t.Fatalf("fixture must preserve porcelain status, before=%q after=%q", before.Status, after.Status)
+	}
+	if reflect.DeepEqual(before, after) {
+		t.Fatal("content change inside an already dirty tracked file was not detected")
+	}
+}
+
+func TestCommandOutputSHA256DoesNotExposeStdoutOnFailure(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "fail.sh")
+	if err := os.WriteFile(script, []byte("printf private-diff\nprintf bounded-error >&2\nexit 1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := commandOutputSHA256("", "sh", script)
+	if err == nil {
+		t.Fatal("failing digest command unexpectedly succeeded")
+	}
+	if strings.Contains(err.Error(), "private-diff") {
+		t.Fatalf("digest command exposed stdout in its error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "bounded-error") {
+		t.Fatalf("digest command omitted stderr diagnosis: %v", err)
+	}
+}
+
+func TestLimitedBufferCapsDiagnosticSize(t *testing.T) {
+	buffer := limitedBuffer{limit: 4}
+	if n, err := buffer.Write([]byte("123456")); err != nil || n != 6 {
+		t.Fatalf("Write() = (%d, %v), want (6, nil)", n, err)
+	}
+	if got := buffer.String(); got != "1234" {
+		t.Fatalf("String() = %q, want %q", got, "1234")
+	}
+}
+
 func TestBuiltExecutableDogfood(t *testing.T) {
 	binary := os.Getenv("DVA_DOGFOOD_BIN")
 	if binary == "" {
@@ -170,6 +241,28 @@ func TestBuiltExecutableDogfood(t *testing.T) {
 	flowRoot := t.TempDir()
 	if _, err := commandOutput(nil, "git", "-C", flowRoot, "init"); err != nil {
 		t.Fatalf("initialize temporary flow repository: %v", err)
+	}
+	for _, args := range [][]string{
+		{"config", "user.email", "skilldogfood@example.invalid"},
+		{"config", "user.name", "skilldogfood test"},
+	} {
+		gitArgs := append([]string{"-C", flowRoot}, args...)
+		if _, err := commandOutput(nil, "git", gitArgs...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keep := filepath.Join(flowRoot, ".keep")
+	if err := os.WriteFile(keep, []byte("fixture\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := commandOutput(nil, "git", "-C", flowRoot, "add", ".keep"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := commandOutput(nil, "git", "-C", flowRoot, "commit", "-m", "fixture"); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(flowRoot, "pre-existing.txt"), []byte("stable user work\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 	var out strings.Builder
 	if err := run(binary, sha, flowRoot, &out); err != nil {
@@ -197,5 +290,23 @@ func TestSnapshotRuntimePathsRejectsAncestorSymlink(t *testing.T) {
 	}
 	if _, err := snapshotRuntimePaths(root); err == nil {
 		t.Fatal("ancestor symlink unexpectedly accepted")
+	}
+}
+
+func TestSnapshotRuntimePathsDetectsEmptyAncestorCreation(t *testing.T) {
+	root := t.TempDir()
+	before, err := snapshotRuntimePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(root, ".agents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	after, err := snapshotRuntimePaths(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reflect.DeepEqual(before, after) {
+		t.Fatal("empty runtime ancestor creation was not detected")
 	}
 }

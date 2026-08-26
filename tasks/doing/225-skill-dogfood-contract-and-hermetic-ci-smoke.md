@@ -21,7 +21,7 @@ although stage 30 may deliberately select a SHA-pinned candidate archive.
 
 The black-box gate is available to maintainers but is not exercised by CI. Add one
 hermetic smoke that builds the current source executable and runs the same installer
-round-trip against a temporary clean Git repository. It must not depend on any
+round-trip against a temporary isolated Git repository. It must not depend on any
 developer's `~/mydevbox` checkout or derive evidence from globally installed state.
 
 ## Completion Criteria
@@ -39,4 +39,3 @@ inside the helper would only prove that a file equals itself and would erase the
 stage's independent artifact selection boundary. The hermetic CI smoke may compute
 the digest of the binary it just built because its purpose is behavior coverage, not
 release or installed-artifact provenance.
-

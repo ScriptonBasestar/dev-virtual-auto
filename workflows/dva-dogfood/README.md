@@ -48,19 +48,23 @@ make dogfood-skill-install \
 the gate copies and executes the exact file only after its digest matches the
 caller-supplied `DVA_SHA256`. Do not replace that value with a digest computed by
 the same acceptance invocation: it is the independent artifact-selection boundary.
-The real flow repository may already be dirty, but its complete porcelain status
-and native skill runtime paths must remain byte-for-byte stable across the dry-run.
+The real flow repository may already be dirty, but its porcelain status, tracked
+worktree/index content, untracked content, and native skill runtime paths must remain
+stable across the dry-run. The runtime snapshot covers the installer's known ignored
+write destinations; HOME/XDG roots are isolated and separately required to stay empty.
 All install, status, uninstall, HOME/XDG, and receipt writes occur in disposable
 roots. The helper requires a POSIX host with Go and Git available.
 
 Receipt checks deliberately decode the installer's external schema rather than
 calling its internal reader. Schema 1 acceptance requires the recorded scope and
-absolute destination, sorted runtime membership, a non-empty bundle version, the
-complete installed-file path/SHA-256 list, and the bundle SHA-256 derived from that
-list. The Codex/Antigravity shared destination must retain the remaining runtime's
-receipt after one runtime is unlinked, and final uninstall must remove its receipt.
+absolute destination, exact order-insensitive runtime membership, a non-empty bundle
+version, the complete installed-file path/SHA-256 list, and the bundle SHA-256
+derived from that list. The Codex/Antigravity shared destination must retain the
+remaining runtime's receipt after one runtime is unlinked, and final uninstall must
+remove its receipt.
 CI separately runs `make test-skill-dogfood`, which builds the current checkout and
-uses a temporary clean Git repository. That hermetic smoke covers behavior only;
+uses a temporary isolated Git repository with stable pre-existing work. That
+hermetic smoke covers behavior only;
 it does not replace the caller-supplied digest or real-flow evidence above.
 
 ## Stage order
