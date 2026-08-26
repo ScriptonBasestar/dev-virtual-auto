@@ -81,7 +81,7 @@ but only if it also writes to stderr. Check rather than assume.
 
 ## Acceptance criteria
 
-- [x] No production `[warn]` reaches stdout | verify: `grep -rn '\[warn\]' internal/ --include="*.go" | grep -v _test | grep -c 'fmt.Printf'` — must be 0, and print the total number of `[warn]` sites alongside it so a zero from an empty search is distinguishable — **0 on stdout, 24 print/format sites total (23 stderr + 1 collected Sprintf)**
+- [x] No production `[warn]` reaches stdout | verify: `/usr/bin/grep -rn '\[warn\]' internal/ --include="*.go" | /usr/bin/grep -v _test | /usr/bin/grep -c 'fmt.Printf'` — must be 0, and print the total number of `[warn]` sites alongside it so a zero from an empty search is distinguishable — **0 on stdout, 24 print/format sites total (23 stderr + 1 collected Sprintf)**
 - [x] The warning still appears | verify: `human — run dva against a fixture with a malformed stack_override; confirm the line is on stderr and still readable` — **measured, not delegated; see Resolution**
 - [x] stdout stays parseable | verify: `human — same fixture with --json; confirm 'dva … --json | jq .' succeeds` — **measured: jq OK while the warning fires**
 - [x] Full suite passes | verify: `make test` — exit 0, FAIL count 0, 5 packages ok

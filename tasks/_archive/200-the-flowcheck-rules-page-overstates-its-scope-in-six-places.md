@@ -84,14 +84,14 @@ of headroom, so corrections must be made without growing it much.
 
 ## Completion Criteria
 
-- [x] The scope section names the two structural YAML checks it currently disclaims | verify: `grep -n 'param-type' docs/51-flowcheck-rules.md` returns a hit in the `## 검사 대상과 비목표` section (lines 11-20), not only in the schema section
+- [x] The scope section names the two structural YAML checks it currently disclaims | verify: `/usr/bin/grep -n 'param-type' docs/51-flowcheck-rules.md` returns a hit in the `## 검사 대상과 비목표` section (lines 11-20), not only in the schema section
 - [x] The opening no longer claims all sixteen rules are exit-0 cases | verify: human — read `:4` and confirm it distinguishes the silently-wrong rules from the ones that block a batch run, citing `tools/flowcheck/shell.go:43`
-- [x] `gate-skip-prompt`'s row lists the seven exact field names instead of a wildcard | verify: `grep -c 'file\.path' docs/51-flowcheck-rules.md` returns ≥ 1 (today: 0), and the row's key count matches `sed -n '/skipPromptFields = map/,/^}/p' tools/flowcheck/gate.go | grep -c '":'` (today: 7)
+- [x] `gate-skip-prompt`'s row lists the seven exact field names instead of a wildcard | verify: `/usr/bin/grep -c 'file\.path' docs/51-flowcheck-rules.md` returns ≥ 1 (today: 0), and the row's key count matches `sed -n '/skipPromptFields = map/,/^}/p' tools/flowcheck/gate.go | grep -c '":'` (today: 7)
 - [x] The bare-word section states that the four are triggers, not the closed set | verify: human — read `:51` and confirm it and the `eval`/`exec` sentence no longer disagree
-- [x] `unguarded-report`'s row states its trigger | verify: `grep -c 'jq -e -s' docs/51-flowcheck-rules.md` returns ≥ 1 and the row names both the `jq` and `tmp/` conditions
+- [x] `unguarded-report`'s row states its trigger | verify: `/usr/bin/grep -c 'jq -e -s' docs/51-flowcheck-rules.md` returns ≥ 1 and the row names both the `jq` and `tmp/` conditions
 - [x] The sample output block matches the tool byte-for-byte on the summary line | verify: `go run ./tools/flowcheck | head -1` and the corresponding line in the document are identical when compared with `diff`
 - [x] The page stays inside the enforced caps | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check` exits 0, and `wc -lc docs/51-flowcheck-rules.md` is under 500 lines / 10240 bytes
-- [x] The sixteen ids still match source after the edit | verify: `grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u | wc -l` returns 16 and each appears in the document
+- [x] The sixteen ids still match source after the edit | verify: `/usr/bin/grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u | wc -l` returns 16 and each appears in the document
 
 ## Resolution
 

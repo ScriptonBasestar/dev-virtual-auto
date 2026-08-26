@@ -98,9 +98,9 @@ is chosen; that half is independent.
 
 ## Completion Criteria
 
-- [x] A test pins the plan-only wording for `dva restart --no-wait`, so the message stops blaming a name collision | verify: `grep -rc 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
-- [x] That test asserts what the message must NOT say, not only what it must | verify: `grep -A25 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/*_test.go | grep -c 'cannot start with'` returns ≥ 1 (today: 0 — a wording test that only checks for the new sentence passes while the wrong one is still printed beside it)
-- [x] The `=` form is split before the message and before `similarTo` | verify: `grep -rc 'func TestRejectUnknownFlagsSplitsFlagValue' internal/cli/ | grep -v ':0'` names one file (today: no file matches)
+- [x] A test pins the plan-only wording for `dva restart --no-wait`, so the message stops blaming a name collision | verify: `/usr/bin/grep -rc 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/ | /usr/bin/grep -v ':0'` names one file (today: no file matches)
+- [x] That test asserts what the message must NOT say, not only what it must | verify: `/usr/bin/grep -A25 'func TestRejectUnknownFlagsExplainsPathScopedFlags' internal/cli/*_test.go | /usr/bin/grep -c 'cannot start with'` returns ≥ 1 (today: 0 — a wording test that only checks for the new sentence passes while the wrong one is still printed beside it)
+- [x] The `=` form is split before the message and before `similarTo` | verify: `/usr/bin/grep -rc 'func TestRejectUnknownFlagsSplitsFlagValue' internal/cli/ | /usr/bin/grep -v ':0'` names one file (today: no file matches)
 - [x] `dva restart --var=FOO=bar` offers `--var` as a suggestion | verify: human — run it and read the "Did you mean?" block
 - [x] Nothing that was rejected is now accepted | verify: `go test ./internal/cli/ -count=1`
 - [x] `make test` passes | verify: `make test`

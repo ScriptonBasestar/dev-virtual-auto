@@ -90,7 +90,7 @@ Not a recommendation between B and C without knowing whether anything runs `dva 
 
 ## Acceptance criteria
 
-- [x] The grouping is confirmed against the current check list | verify: `grep -n 'results = append(results' internal/cli/doctor.go` — enumerate every built-in and say which are diagnoses and which are advice
+- [x] The grouping is confirmed against the current check list | verify: `/usr/bin/grep -n 'results = append(results' internal/cli/doctor.go` — enumerate every built-in and say which are diagnoses and which are advice
 - [x] A direction is chosen | verify: `human — C chosen; see rationale below`
 - [N/A] If A, the trap is documented where a reader meets it | verify: `N/A — direction C chosen; A criterion does not apply`
 - [x] If B or C, the advisory test is preserved | verify: `go test ./internal/cli/ -run 'DoctorExitError' -v` — B would rewrite/add severity behavior; C preserves advisory default and adds strict-side tests (test kept as-is)

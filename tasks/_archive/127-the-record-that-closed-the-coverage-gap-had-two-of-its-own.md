@@ -116,7 +116,7 @@ mechanism to do.
   [TASK-161](../todo/161-two-of-the-six-relocated-exclusions-are-still-unnamed.md).
 - [x] Each preset's real effect was measured, not assumed | verify: `golangci-lint run -c <probe>` per preset — **`std-error-handling` alone → 6; `comments`+`common-false-positives`+`legacy` together → 0**
 - [x] The gate is unchanged for everything else | verify: `make lint` — **`0 issues.`, 235 files gofmt-clean**
-- [x] The live hint-severity finding is fixed | verify: `gopls check -severity=hint $(find cmd internal tools -name '*.go')` — **0; was 1 (`stringscut`, `internal/lifecycle/compose_error_test.go:38`)**
+- [x] The live hint-severity finding is fixed | verify: `gopls check -severity=hint $(/usr/bin/find cmd internal tools -name '*.go')` — **0; was 1 (`stringscut`, `internal/lifecycle/compose_error_test.go:38`)**
 - [x] The residual-gap command can actually see the gap | verify: `human — revert strings.Cut to strings.SplitN, run all three commands` — **`make lint` → `0 issues.`, `gopls check` → 0, `gopls check -severity=hint` → 1. Only the third sees it.**
 - [x] TASK-126's two overstated criteria are marked, not silently rewritten | verify: `tasks/done/126-*.md` — **both criteria marked `[~]` with ⚠️ and the correction stated inline**
 - [x] Full suite passes | verify: `make test` — exit 0

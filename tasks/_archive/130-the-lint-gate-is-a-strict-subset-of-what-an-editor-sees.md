@@ -133,7 +133,7 @@ invariant does not depend on a platform default that can change.
 ## Acceptance criteria
 
 - [x] gopls pinned and resolvable | verify: `mise which gopls && mise exec -- gopls version` — **`v0.22.0`, resolved from the mise install path**
-- [x] Local and CI pins cannot drift apart silently | verify: `grep gopls .mise.toml .github/workflows/ci.yml` — **`"go:golang.org/x/tools/gopls" = "0.22.0"` and `gopls@v0.22.0` — same version, and the CI comment states why they must match**
+- [x] Local and CI pins cannot drift apart silently | verify: `/usr/bin/grep gopls .mise.toml .github/workflows/ci.yml` — **`"go:golang.org/x/tools/gopls" = "0.22.0"` and `gopls@v0.22.0` — same version, and the CI comment states why they must match**
 - [x] **The gate catches what golangci-lint misses** — the criterion the whole change exists for | verify: `human — restore the strings.SplitN form at compose_error_test.go:38, run both gates` — **golangci-lint: `0 issues.`; `make lint`: `ERROR: gopls check found issues: ...:38:13-27: strings.SplitN call can be simplified using strings.Cut`, `make: *** [lint] Error 1`. Re-measured by the supervisor, not taken from a report; reverted byte-identical afterward (`git diff` empty)**
 - [x] The gate does not pass silently when gopls cannot run | verify: `human — run the recipe's tail with gopls_cmd pointed at a stub that exits 2 with empty stdout` — **before the rc check: `GATE PASSED SILENTLY`, exit 0. After: `ERROR: gopls check could not run (exit 2)`, exit 1**
 - [x] Missing gopls hard-fails rather than skipping | verify: `human — read the else branch` — **`echo "Install gopls ..."; exit 1`, same shape as the golangci-lint block; no skip-when-absent path exists**

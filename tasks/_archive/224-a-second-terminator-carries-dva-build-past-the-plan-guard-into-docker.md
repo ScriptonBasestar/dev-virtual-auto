@@ -139,10 +139,10 @@ errors, while a backend argv test pins `build web`, `build --no-cache`, and the 
 ## Completion Criteria
 
 - [x] `dva build -- --` is refused in a two-plan no-`default_plan` config, with the same message a bare `dva build` gets | verify: human — paste both with rc, on a fixture whose `dva.yml` declares two plans and no `default_plan`; the two messages must be identical
-- [x] The refusal is pinned by a test that fails without the fix | verify: `grep -c 'func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source, since `go test -run` naming a test that does not exist exits 0
+- [x] The refusal is pinned by a test that fails without the fix | verify: `/usr/bin/grep -c 'func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source, since `go test -run` naming a test that does not exist exits 0
 - [x] `dva build -- web` and `dva build -- --no-cache` still reach docker with the argument spelled as typed | verify: human — paste both against a compose fixture; the errors must name `web` and `--no-cache`, not a plan
 - [x] `dva build -- -- --` is decided deliberately, not left to fall out of the fix | verify: human — a sentence on this card saying what it does and why
-- [x] TASK-217's correction section stops calling this argv a control | verify: `grep -c 'as controls that do not move' tasks/_archive/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` returns 0 — verified 2026-08-26 at 5649d70 (already done in the commit that filed this card; the binding stays so a revert is caught)
+- [x] TASK-217's correction section stops calling this argv a control | verify: `/usr/bin/grep -c 'as controls that do not move' tasks/_archive/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` returns 0 — verified 2026-08-26 at 5649d70 (already done in the commit that filed this card; the binding stays so a revert is caught)
 - [x] `make test` passes | verify: `make test`
 
 ## References

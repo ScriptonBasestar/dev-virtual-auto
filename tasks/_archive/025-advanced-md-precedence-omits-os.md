@@ -61,8 +61,8 @@ silently overrides it with no warning. That is the same falsehood TASK-012 was r
 
 ## Completion Criteria
 
-- [x] `advanced.md`'s precedence list names OS environment variables as the highest layer | verify: `grep -A9 'precedence order' claude-plugin/skills/dva/references/advanced.md | grep -qi 'OS'` — PASS
-- [x] No precedence list anywhere in the repo terminates at CLI flags as highest | verify: `grep -rn --include='*.md' -A9 'precedence order' . | grep -v '^\./tasks/' | grep -iE '[0-9]+\. *(Explicit )?CLI flags *$'` — PASS (no match; 12 live doc lines swept, >0 confirms the sweep is live)
+- [x] `advanced.md`'s precedence list names OS environment variables as the highest layer | verify: `/usr/bin/grep -A9 'precedence order' claude-plugin/skills/dva/references/advanced.md | /usr/bin/grep -qi 'OS'` — PASS
+- [x] No precedence list anywhere in the repo terminates at CLI flags as highest | verify: `swept=$(git grep -n 'precedence order' -- '*.md' ':!tasks/**' | wc -l | tr -d ' '); offenders=$(git grep -n -A9 'precedence order' -- '*.md' ':!tasks/**' | /usr/bin/grep -icE '[0-9]+[-:] *(Explicit )?CLI flags *$' || true); echo "offenders=$offenders over $swept swept lines"; [ "$swept" -gt 0 ] && [ "$offenders" -eq 0 ]` — PASS (`offenders=0 over 1 swept lines`; the old 12-line record included a corpus the binding did not print, so the tracked non-task denominator is now explicit)
 - [x] Items 3-6 are verified against the binary or removed if they name layers that do not exist — **resolved by evidence, not by human judgment**: every named layer was proven to exist (table below)
 - [x] `make test` passes | verify: `make test` — exit 0; `go vet ./...` exit 0
 

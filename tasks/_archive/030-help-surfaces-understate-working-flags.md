@@ -117,9 +117,9 @@ proceed freely.
 
 ## Completion Criteria
 
-- [ ] `dva stack up --help` lists the flags it accepts (`-M`/`--mode`, `-E`/`--env`, `-T`/`--tag`, `--exclude-tag`) | verify: `./bin/dva stack up --help 2>&1 | grep -q -- "--mode" && ./bin/dva stack up --help 2>&1 | grep -q -- "--env" && ./bin/dva stack up --help 2>&1 | grep -q -- "--tag"`
-- [ ] `dva stack down` and `dva stack stop` help likewise document their accepted flags | verify: `./bin/dva stack down --help 2>&1 | grep -q -- "--mode" && ./bin/dva stack stop --help 2>&1 | grep -q -- "--mode"`
-- [ ] `--var` is documented on the plan-capable help surface, stated as plan-path-only | verify: `./bin/dva up --help 2>&1 | grep -q -- "--var"`
+- [ ] `dva stack up --help` lists the flags it accepts (`-M`/`--mode`, `-E`/`--env`, `-T`/`--tag`, `--exclude-tag`) | verify: `./bin/dva stack up --help 2>&1 | /usr/bin/grep -q -- "--mode" && ./bin/dva stack up --help 2>&1 | /usr/bin/grep -q -- "--env" && ./bin/dva stack up --help 2>&1 | /usr/bin/grep -q -- "--tag"`
+- [ ] `dva stack down` and `dva stack stop` help likewise document their accepted flags | verify: `./bin/dva stack down --help 2>&1 | /usr/bin/grep -q -- "--mode" && ./bin/dva stack stop --help 2>&1 | /usr/bin/grep -q -- "--mode"`
+- [ ] `--var` is documented on the plan-capable help surface, stated as plan-path-only | verify: `./bin/dva up --help 2>&1 | /usr/bin/grep -q -- "--var"`
 - [ ] Every flag newly claimed in help text is verified to actually work, not just written down | verify: `human — re-run this task's Evidence probes; help must not overstate the binary any more than it understated it`
 - [ ] `make test` and `go vet ./...` pass | verify: `make test && go vet ./...`
 

@@ -107,7 +107,7 @@ four times independently.
 
 ## Acceptance criteria
 
-- [x] One code path handles `interaction.build.replace` | verify: `grep -c 'ic.Replace' internal/cli/compose.go internal/cli/hooks.go` — print both counts; under A compose.go must be 0
+- [x] One code path handles `interaction.build.replace` | verify: `/usr/bin/grep -c 'ic.Replace' internal/cli/compose.go internal/cli/hooks.go` — print both counts; under A compose.go must be 0
 - [x] The normal invocation is unchanged | verify: `dva build --mode nativemode` on the fixture — `BUILD-CONTROL-RAN` count must stay 2 and the note must still appear on some stream
 - [x] The nested invocation agrees with it | verify: `DVA_HOOK_DEPTH=1 dva build --mode nativemode` — the note must land on the same stream with the same indent as the line above, diff the two captures
 - [x] Covered by a test | verify: `go test ./internal/cli/ -run 'TestNativeBuildLoopPrintsNote|TestHook'`

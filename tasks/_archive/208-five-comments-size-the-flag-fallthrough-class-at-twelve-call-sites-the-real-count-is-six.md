@@ -99,7 +99,7 @@ comment, or drop the count and describe the property instead.
 
 ## Completion Criteria
 
-- [x] No comment in `internal/` states a 12-call-site figure for `parseDvaFlags` | verify: `grep -rc '12 call sites\|All 12 callers\|of the 12 call' internal/ | grep -v ':0' | wc -l` returns 0 (today: 4, the five sites live in four files)
+- [x] No comment in `internal/` states a 12-call-site figure for `parseDvaFlags` | verify: `/usr/bin/grep -rc '12 call sites\|All 12 callers\|of the 12 call' internal/ | /usr/bin/grep -v ':0' | wc -l` returns 0 (today: 4, the five sites live in four files)
 - [x] Any surviving count names the command that produces it, so the next reader can re-measure | verify: human — read the five sites and confirm each number is either removed or accompanied by its extraction
 - [x] The split is re-derived rather than halved | verify: human — the disposition states the new classification and the command used, not just the new totals
 - [x] No behaviour change: the two test files still pass unchanged in intent | verify: `go test ./internal/cli/ -count=1`

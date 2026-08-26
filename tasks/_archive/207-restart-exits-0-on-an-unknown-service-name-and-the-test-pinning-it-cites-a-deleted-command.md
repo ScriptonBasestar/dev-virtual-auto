@@ -110,9 +110,9 @@ different case and is not in scope.
 ## Completion Criteria
 
 - [x] The ruling is stated in the card's disposition, naming which of the three outcomes was chosen and why | verify: human — read the disposition
-- [x] `TestRestart_UnknownNameTouchesNothing` no longer justifies itself by `dva stack up` | verify: `grep -c 'dva stack up' internal/cli/restart_names_test.go` returns 0 (today: 1)
-- [x] The ruling is pinned by a test named for it, so the behaviour stops being inherited from the flag guard | verify: `grep -c 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go` returns 1 (today: 0)
-- [x] That test exercises a plans-present config too, since the stack path is reachable with plans configured | verify: `grep -A30 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go | grep -c 'writeRestartPlanProbeConfig'` returns ≥ 1 (today: 0, the function does not exist)
+- [x] `TestRestart_UnknownNameTouchesNothing` no longer justifies itself by `dva stack up` | verify: `/usr/bin/grep -c 'dva stack up' internal/cli/restart_names_test.go` returns 0 (today: 1)
+- [x] The ruling is pinned by a test named for it, so the behaviour stops being inherited from the flag guard | verify: `/usr/bin/grep -c 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go` returns 1 (today: 0)
+- [x] That test exercises a plans-present config too, since the stack path is reachable with plans configured | verify: `/usr/bin/grep -A30 'func TestRestartUnknownNameRuling' internal/cli/restart_names_test.go | /usr/bin/grep -c 'writeRestartPlanProbeConfig'` returns ≥ 1 (today: 0, the function does not exist)
 - [x] All four tokens from "The four tokens this covers" are ruled on together, not just the typo | verify: human — the disposition states the outcome for `zzznosuchservice`, `--`, `-`, and a flag after `--`; a ruling that leaves any of the four unnamed is incomplete
 - [x] `TestRestartBareTerminatorChangesNothing` is updated rather than left asserting a behaviour this card overturned | verify: human — read the test and confirm it asserts the chosen ruling for `--`; a presence grep would pass unchanged and prove nothing
 - [x] The whole cli package passes | verify: `go test ./internal/cli/ -count=1`

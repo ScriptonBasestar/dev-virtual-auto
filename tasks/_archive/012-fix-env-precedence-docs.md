@@ -81,8 +81,8 @@ overrides a production OS variable. It does not.
 
 ## Completion Criteria
 
-- [x] `USAGE.md:376`, `docs/30-config-merge-semantics.md:327-330`, and `internal/config/schema.json:369` state OS environment as the highest-priority layer, consistent with `CLAUDE.md:66` | verify: `! grep -rnE 'OS *<' USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json`
-- [x] No current doc still places OS at the bottom of the chain | verify: `grep -rn "환경 변수 우선순위\|Priority:" USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json CLAUDE.md`
+- [x] `USAGE.md:376`, `docs/30-config-merge-semantics.md:327-330`, and `internal/config/schema.json:369` state OS environment as the highest-priority layer, consistent with `CLAUDE.md:66` | verify: `! /usr/bin/grep -rnE 'OS *<' USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json`
+- [x] No current doc still places OS at the bottom of the chain | verify: `/usr/bin/grep -rn "환경 변수 우선순위\|Priority:" USAGE.md docs/30-config-merge-semantics.md internal/config/schema.json CLAUDE.md`
 - [x] `schema.json` remains valid JSON and all examples still validate | verify: `python3 -c "import json;json.load(open('internal/config/schema.json'));print('schema.json parses')" && go test ./internal/config/ -run 'Schema|Example'`
 - [x] Full suite stays green | verify: `make test`
 

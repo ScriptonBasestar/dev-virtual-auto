@@ -170,7 +170,7 @@ called `.cursor/rules` an uncovered gap was wrong — `.gitignore:30` excludes i
 
 ## Acceptance criteria
 
-- [x] The label matches reality | verify: `grep -c '(CI)' Makefile` — 1, on `fmt-check`, which `ci.yml:46` runs
+- [x] The label matches reality | verify: `/usr/bin/grep -c '(CI)' Makefile` — 1, on `fmt-check`, which `ci.yml:46` runs
 - [x] Nothing regenerates dirty | verify: `make check-generate && git status --porcelain` — measured: exit 0, empty
 - [x] Full suite passes | verify: `make test` — cli 63.6%, config 66.6%, exec 63.3%, lifecycle 56.1%, runner 53.6%, all ok
 - [ ] The gate is proven able to fail | verify: `human — A/B criterion, not met by C: no CI gate was added, so there is no enforced failure mode to prove`

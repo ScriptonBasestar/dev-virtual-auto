@@ -73,10 +73,10 @@ here the command is right and no longer points at what it was written to point a
 
 ## Completion Criteria
 
-- [x] `194`'s AC1 line states that the binding scans zero cards under the current layout, or is replaced by one that scans a non-zero denominator | verify: `grep -cE 'scans 0|0 of 197|_archive' tasks/_archive/194-*.md` returns ≥ 1 (today: 1 after the disclosure)
+- [x] `194`'s AC1 line states that the binding scans zero cards under the current layout, or is replaced by one that scans a non-zero denominator | verify: `/usr/bin/grep -cE 'scans 0|0 of 197|_archive' tasks/_archive/194-*.md` returns ≥ 1 (today: 1 after the disclosure)
 - [x] `194`'s AC4 binding resolves against the current tree | verify: `ls tasks/_archive/082-* tasks/_archive/123-* tasks/_archive/164-*` exits 0 and prints 3 paths
 - [x] The record says which of the two routes it took, in `063`'s self-disclosure form rather than by silent rewrite | verify: human — read `194`'s verification-summary and confirm a later reader learns the binding changed and why, without re-running it
-- [x] The other two archived cards that bind a `tasks/done/` path are examined and either corrected or recorded as still-valid | verify: `grep -rlE '^- \[[ x~]\].*verify:.*tasks/done/' tasks/_archive/*.md | grep -v '/202-'` returns 3 files (106, 127, 194) — excluding this record, each is dispositioned in its verification summary
+- [x] The other two archived cards that bind a `tasks/done/` path are examined and either corrected or recorded as still-valid | verify: `/usr/bin/grep -rlE '^- \[[ x~]\].*verify:.*tasks/done/' tasks/_archive/*.md | /usr/bin/grep -v '/202-'` returns 3 files (106, 127, 194) — excluding this record, each is dispositioned in its verification summary
 - [x] The sweep's axis and denominator are stated in the commit message | verify: human — the commit message names "3 cards bind a tasks/done/ path"
 - [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 

@@ -53,9 +53,9 @@ example YAMLs use `version: "0.1.44"`.
 
 ## Completion Criteria
 
-- [x] `docs/40` §9 uses a quoted semver string consistent with the rest of the docs | verify: `! grep -nE '^version: *[0-9]+ *$' docs/40-declarative-stack-and-plans.md`
+- [x] `docs/40` §9 uses a quoted semver string consistent with the rest of the docs | verify: `! /usr/bin/grep -nE '^version: *[0-9]+ *$' docs/40-declarative-stack-and-plans.md`
 - [x] The §9 example's version value loads against the shipped binary | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\n' > dva.yml && "$OLDPWD/bin/dva" validate`
-- [x] No doc example uses an unquoted integer version | verify: `! grep -rnE '^\s*version: *[0-9]+ *$' docs/ USAGE.md README.md examples/`
+- [x] No doc example uses an unquoted integer version | verify: `! /usr/bin/grep -rnE '^\s*version: *[0-9]+ *$' docs/ USAGE.md README.md examples/`
 
 ## Dependencies
 

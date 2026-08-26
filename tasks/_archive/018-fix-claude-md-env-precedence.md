@@ -67,8 +67,8 @@ statements must be true for their own path; only the `CLAUDE.md` one is currentl
 
 ## Completion Criteria
 
-- [x] `CLAUDE.md` states that `env_file` overrides top-level `environment:`, with OS highest | verify: `! grep -n 'env_file` < `environment:' CLAUDE.md`
-- [x] The corrected claim matches observed behavior | verify: `cd "$(mktemp -d)" && printf 'P_T=from-env-file\n' > .env && printf 'version: "0.1.44"\nenv_file:\n  - .env\nenvironment:\n  P_T: from-top-environment\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P_T]"'"'"'\n' > dva.yml && "$OLDPWD/bin/dva" run s 2>&1 | grep -q 'R=\[from-env-file\]'`
+- [x] `CLAUDE.md` states that `env_file` overrides top-level `environment:`, with OS highest | verify: `! /usr/bin/grep -n 'env_file` < `environment:' CLAUDE.md`
+- [x] The corrected claim matches observed behavior | verify: `cd "$(mktemp -d)" && printf 'P_T=from-env-file\n' > .env && printf 'version: "0.1.44"\nenv_file:\n  - .env\nenvironment:\n  P_T: from-top-environment\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P_T]"'"'"'\n' > dva.yml && "$OLDPWD/bin/dva" run s 2>&1 | /usr/bin/grep -q 'R=\[from-env-file\]'`
 
 ## References
 

@@ -60,8 +60,8 @@ func TestBindingPortabilityExternalCorpus(t *testing.T) {
 func TestBindingPortability_ignoresNonBindingAndQuotedBRE(t *testing.T) {
 	body := strings.Join([]string{
 		"- [ ] first span only | verify: `echo ok` — annotation `find . \\| wc -l`",
-		"- [ ] quoted BRE | verify: `grep 'a\\|b' file`",
-		"- [ ] human binding | verify: `human — inspect ~/mydevbox`",
+		"- [ ] quoted BRE | verify: `/usr/bin/grep 'a\\|b' file`",
+		"- [ ] human binding | verify: human — inspect `~/mydevbox`",
 		"| criterion | verify: `find . \\| wc -l` |",
 		"```sh",
 		"- [ ] fenced | verify: `find . \\| wc -l`",

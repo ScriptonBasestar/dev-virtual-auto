@@ -74,7 +74,7 @@ insufficient for rules 1, 2 and 5 — each was written down before it was violat
 - [x] A rule reports an `llm` or `file` field interpolating a key whose producer can be skipped | verify: `go test ./tools/flowcheck/...`
 - [x] Each new rule has a positive and a negative test case | verify: `go test ./tools/flowcheck/...`
 - [x] The existing corpus passes unchanged | verify: `go run ./tools/flowcheck`
-- [x] The contract comment marks all five rules as mechanically enforced | verify: `grep -q 'enforces rules 1, 2, 3, 4 and 5' agent-mesh-flows/dva-improve-guided.yaml`
+- [x] The contract comment marks all five rules as mechanically enforced | verify: `/usr/bin/grep -q 'enforces rules 1, 2, 3, 4 and 5' agent-mesh-flows/dva-improve-guided.yaml`
 
 ## What the runtime actually does
 

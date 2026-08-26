@@ -146,7 +146,7 @@ selection, and the `-- -M dev` child-argument form.
 ## Completion Criteria
 
 - [x] `dva greet -` and `dva run greet -` run the same interaction, in a config that also declares an interaction named `-` | verify: human — paste both, with rc and the marker line; the two must name the same interaction
-- [x] The agreement is pinned by a differential test comparing the two spellings, not by an expected string | verify: `grep -c 'func TestSugarFormAgreesWithExplicitRun' internal/cli/root_test.go` returns 1 (today: 0). Bound on the test's source, not on `go test -run`, which exits 0 when it matches nothing
+- [x] The agreement is pinned by a differential test comparing the two spellings, not by an expected string | verify: `/usr/bin/grep -c 'func TestSugarFormAgreesWithExplicitRun' internal/cli/root_test.go` returns 1 (today: 0). Bound on the test's source, not on `go test -run`, which exits 0 when it matches nothing
 - [x] `root_test.go`'s `{"-", true}` row and `TestDashPredicatesDisagreeOnPurpose` are updated with the argument replaced, not just the value | verify: human — both tests changed in the same commit as `root.go`, and neither is deleted
 - [x] The product ruling on names like `-` is written on this card before the code changes | verify: human — a `## Resolution` section stating it
 - [x] `dva greet --debug` and `dva greet -e` still reach the interaction with the flag applied, so preserving order did not break real root/run flags | verify: human — paste both; `--debug` executes the marker with debug logging and `-e` resolves the interaction in explain mode

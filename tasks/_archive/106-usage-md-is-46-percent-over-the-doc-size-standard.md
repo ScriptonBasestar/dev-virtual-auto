@@ -78,7 +78,7 @@ because no reader routinely holds the whole file at once.
 
 ## Acceptance criteria
 
-- [x] Superseded before any criterion applied | verify: `grep -c 'USAGE.md' tasks/done/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md` — non-zero, i.e. 090 already covers this file
+- [x] Superseded before any criterion applied | verify: `/usr/bin/grep -c 'USAGE.md' tasks/done/090-seven-documents-exceed-the-doc-standard-nothing-enforces-it.md` — non-zero, i.e. 090 already covers this file
 
 ## Resolution — withdrawn as a duplicate of TASK-090
 

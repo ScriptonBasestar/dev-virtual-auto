@@ -8,6 +8,8 @@
 //   - verify bindings: every `go test … -run …` written in inline code selects at
 //     least one test declared in the tree, so a binding cannot name a test that
 //     does not exist and still exit 0 (TASK-136)
+//   - binding tools: grep and find use absolute paths so agent shell wrappers
+//     cannot change a criterion's corpus or output (TASK-221)
 //   - archive frontmatter: every card under tasks/_archive/ carries `id:` or
 //     `type:`. Older ce tested those fields before testing whether the file was
 //     archived, so a card missing both was audited against a format that
@@ -60,6 +62,8 @@ func printReport(res Result) {
 	fmt.Printf("escaped_pipe_bindings: %d\n", res.EscapedPipeBindings)
 	fmt.Printf("abs_checkout_bindings: %d\n", res.AbsCheckoutBindings)
 	fmt.Printf("external_corpus_bindings: %d\n", res.ExternalCorpusBindings)
+	fmt.Printf("wrapped_tool_bindings: %d\n", res.WrappedToolBindings)
+	fmt.Printf("bare_tool_bindings: %d\n", res.BareToolBindings)
 	fmt.Printf("archive_cards:       %d (from %d file(s) under %s)\n", res.ArchiveCards, res.ArchiveFilesSeen, archivePrefix)
 	fmt.Printf("archive_missing:     %d\n", res.ArchiveMissing)
 	for _, d := range res.OversizedDetail {

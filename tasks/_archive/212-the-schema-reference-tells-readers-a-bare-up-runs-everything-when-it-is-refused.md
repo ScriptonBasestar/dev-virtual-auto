@@ -99,9 +99,9 @@ second wording to maintain.
 
 ## Completion Criteria
 
-- [x] The claim that a bare `dva up` runs every declared entry is gone from the skill page | verify: `grep -c 'every declared entry if none' skills/dva-config/references/schema-reference.md` returns 0 (today: 1)
-- [x] The generated copy agrees, i.e. `make generate` was run rather than the file hand-edited | verify: `grep -c 'every declared entry if none' internal/cli/library_reference.txt` returns 0 (today: 1)
-- [x] The replacement states the several-plans-no-default refusal | verify: `grep -c 'default_plan' skills/dva-config/references/schema-reference.md` returns ≥ 2 (today: 1 — the single occurrence is the `default_plan:` key in the schema table, not a statement about the gate, so a rewrite that mentions the gate must add one)
+- [x] The claim that a bare `dva up` runs every declared entry is gone from the skill page | verify: `/usr/bin/grep -c 'every declared entry if none' skills/dva-config/references/schema-reference.md` returns 0 (today: 1)
+- [x] The generated copy agrees, i.e. `make generate` was run rather than the file hand-edited | verify: `/usr/bin/grep -c 'every declared entry if none' internal/cli/library_reference.txt` returns 0 (today: 1)
+- [x] The replacement states the several-plans-no-default refusal | verify: `/usr/bin/grep -c 'default_plan' skills/dva-config/references/schema-reference.md` returns ≥ 2 (today: 1 — the single occurrence is the `default_plan:` key in the schema table, not a statement about the gate, so a rewrite that mentions the gate must add one)
 - [x] The replacement does not contradict the lone-plan implicit default | verify: human — read the new sentence against the three-row table above and say which row it covers
 - [x] `make generate` leaves no other diff | verify: `git status --porcelain internal/cli/library_reference.txt` names only the expected file
 

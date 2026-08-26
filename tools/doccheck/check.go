@@ -31,6 +31,8 @@ type Result struct {
 	EscapedPipeBindings    int
 	AbsCheckoutBindings    int
 	ExternalCorpusBindings int
+	WrappedToolBindings    int
+	BareToolBindings       int
 	ArchiveFilesSeen       int
 	ArchiveCards           int
 	ArchiveMissing         int
@@ -177,6 +179,10 @@ func Check(in CheckInput) Result {
 			res.AbsCheckoutBindings += checkout
 			res.ExternalCorpusBindings += corpus
 			res.PortabilityDetail = append(res.PortabilityDetail, msgs...)
+			wrappedTools, bareTools, toolMsgs := checkBindingTool(e.Path, body)
+			res.WrappedToolBindings += wrappedTools
+			res.BareToolBindings += bareTools
+			res.PortabilityDetail = append(res.PortabilityDetail, toolMsgs...)
 		}
 	}
 
@@ -207,6 +213,9 @@ func Check(in CheckInput) Result {
 	}
 	if res.ExternalCorpusBindings > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d verify binding(s) depend on ~/mydevbox", res.ExternalCorpusBindings))
+	}
+	if res.BareToolBindings > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d verify binding(s) invoke bare wrapped tools", res.BareToolBindings))
 	}
 	if res.BrokenLinks > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d broken link(s)", res.BrokenLinks))

@@ -69,8 +69,8 @@ nothing to contradict — a pure omission.
 
 ## Completion Criteria
 
-- [x] All six subcommands appear in `README.md` or `USAGE.md` | verify: `for c in "app build" "app log" "app restart" "app stop" "stack log" "stack stop"; do grep -rqF "dva $c" README.md USAGE.md || { echo "MISSING: dva $c"; exit 1; }; done; echo OK`
-- [x] `default_mode` is documented as a config key | verify: `grep -rn "default_mode" USAGE.md docs/ README.md`
+- [x] All six subcommands appear in `README.md` or `USAGE.md` | verify: `for c in "app build" "app log" "app restart" "app stop" "stack log" "stack stop"; do /usr/bin/grep -rqF "dva $c" README.md USAGE.md || { echo "MISSING: dva $c"; exit 1; }; done; echo OK`
+- [x] `default_mode` is documented as a config key | verify: `/usr/bin/grep -rn "default_mode" USAGE.md docs/ README.md`
 - [x] No documented command is absent from the binary (no new doc-only drift) | verify: `./bin/dva app build --help && ./bin/dva stack log --help`
 
 ## Dependencies

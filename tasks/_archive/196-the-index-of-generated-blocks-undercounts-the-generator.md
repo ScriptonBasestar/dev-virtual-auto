@@ -70,8 +70,8 @@ why that particular paragraph refused to stay edited.
 
 ## Completion Criteria
 
-- [x] The README names all three regenerated blocks, including `version_rule` / Rule 4 | verify: `grep -c 'version_rule\|Rule 4' agent-mesh-flows/shared/library/README.md`
-- [x] The README's count matches both the markers in the corpus and the generator's writes | verify: `grep -rho 'AUTOGEN:[a-z_]*:start' agent-mesh-flows/shared/library/*.md | sort -u | wc -l; grep -c 'replaceBlock(out,' tools/libgen/main.go`
+- [x] The README names all three regenerated blocks, including `version_rule` / Rule 4 | verify: `/usr/bin/grep -c 'version_rule\|Rule 4' agent-mesh-flows/shared/library/README.md`
+- [x] The README's count matches both the markers in the corpus and the generator's writes | verify: `/usr/bin/grep -rho 'AUTOGEN:[a-z_]*:start' agent-mesh-flows/shared/library/*.md | sort -u | wc -l; /usr/bin/grep -c 'replaceBlock(out,' tools/libgen/main.go`
 - [x] `make check-generate` still exits 0 | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make check-generate; echo "exit: $?"`
 
 ## Resolution

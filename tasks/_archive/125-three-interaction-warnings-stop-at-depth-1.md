@@ -96,11 +96,11 @@ because the recursion is what makes it bite — shipping the recursion alone wou
 
 ## Acceptance criteria
 
-- [x] Nested mistakes are reported | verify: `go test ./internal/config/ -run InteractionWarningsRecurseIntoNestedSubcommands -v | grep -c '^--- PASS'` — **1, covering all three checks**
+- [x] Nested mistakes are reported | verify: `go test ./internal/config/ -run InteractionWarningsRecurseIntoNestedSubcommands -v | /usr/bin/grep -c '^--- PASS'` — **1, covering all three checks**
 - [x] Warnings name the full YAML path | verify: `human — nested fixture prints interaction.rails.subcommands.db.subcommands.migrate, not just interaction.rails` — **measured; a top-level-only path is unactionable**
-- [x] Depth-1 wording is byte-identical | verify: `go test ./internal/config/ -run 'InteractionWarningsDepth1WordingIsUnchanged' -v | grep -c '^--- PASS'` — **1, asserting all three full strings by equality**
-- [x] Pre-existing depth-1 tests still pass unmodified | verify: `go test ./internal/config/ -run 'WarnDuplicateParentSubcommand|WarnChildOverridesParentCritical|WarnUnreachableCommands' -v | grep -c '^--- PASS'` — **3, source untouched**
-- [x] Output order is stable | verify: `go test ./internal/config/ -run InteractionWarningsAreOrderStable -v | grep -c '^--- PASS'` — **1; 50 in-process repeats plus 20 real binary runs, 1 distinct ordering**
+- [x] Depth-1 wording is byte-identical | verify: `go test ./internal/config/ -run 'InteractionWarningsDepth1WordingIsUnchanged' -v | /usr/bin/grep -c '^--- PASS'` — **1, asserting all three full strings by equality**
+- [x] Pre-existing depth-1 tests still pass unmodified | verify: `go test ./internal/config/ -run 'WarnDuplicateParentSubcommand|WarnChildOverridesParentCritical|WarnUnreachableCommands' -v | /usr/bin/grep -c '^--- PASS'` — **3, source untouched**
+- [x] Output order is stable | verify: `go test ./internal/config/ -run InteractionWarningsAreOrderStable -v | /usr/bin/grep -c '^--- PASS'` — **1; 50 in-process repeats plus 20 real binary runs, 1 distinct ordering**
 - [ ] No new warnings on shipped content | verify: `human — run config validate over examples/*.yml and dva.yml, count warnings matching 'subcommands\..*\.subcommands\.'` — **17 files swept, 20 semantic warnings emitted, 0 of them nested-path, including the depth-3 full-stack.yml. The 20 is quoted so the 0 reads as a measurement rather than a sweep that never ran.**
   - ⚠️ **This criterion failed and reported a pass.** The pattern requires *two* `subcommands.`
     segments, but the regression this commit actually shipped was

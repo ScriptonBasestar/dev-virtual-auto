@@ -151,7 +151,7 @@ to fix (three YAML files), high leverage.
 - [ ] The three fixtures validate | verify: `go test -tags=integration ./internal/integration/... -run 'TestValidate'`
 - [ ] The currently-passing Load tests still pass, still asserting the same resolved values | verify: `go test -tags=integration ./internal/integration/... -run 'TestLoad|TestProvision'`
 - [ ] `make test` and `go vet ./...` still pass | verify: `make test && go vet ./...`
-- [ ] CI runs the integration suite, so it cannot silently rot again | verify: `grep -q "test-integration" .github/workflows/ci.yml`
+- [ ] CI runs the integration suite, so it cannot silently rot again | verify: `/usr/bin/grep -q "test-integration" .github/workflows/ci.yml`
 - [ ] Legacy-shape loading keeps explicit coverage (the loader still supports it; migrating every fixture must not silently drop the only test of that back-compat path) | verify: `human — confirm a test still exercises the legacy stack.<entry>.compose loading path, or that dropping it is intended`
 
 ## Outcome

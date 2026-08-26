@@ -60,7 +60,7 @@ editing the project's `.gitignore`, and the flow never restores on its own.
 
 ## Completion Criteria
 
-- [x] The backup path appears in user-facing docs | verify: `grep -rq 'backups/dva' docs/`
+- [x] The backup path appears in user-facing docs | verify: `/usr/bin/grep -rq 'backups/dva' docs/`
 - [x] The doc says the snapshot captures uncommitted working-tree state, not HEAD | verify: human — read the section
 - [x] The doc says the directory ignores itself and the project's own `.gitignore` is untouched | verify: human — read the section
 - [x] The doc is reachable from where improve is described, not filed on its own | verify: human — the improve/guided documentation links to it

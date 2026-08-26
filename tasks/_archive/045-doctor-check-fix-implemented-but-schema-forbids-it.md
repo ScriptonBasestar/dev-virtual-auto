@@ -189,7 +189,7 @@ validator — is not a defensible resting point.
 - [ ] DECISION recorded: expose `checks[].fix` in the schema, or remove it from the code | verify: `human — maintainer picks one and records why; the arbitrary-shell-execution question is the crux, see Scope note`
 - [ ] If EXPOSE: `fix` is in schema.json's checks properties and a config using it validates | verify: `human — reproduce the decisive pair: the sentinel config with 'fix:' must give VALIDATE_EXIT=0 and 'dva doctor --fix' must still create .sentinel`
 - [ ] If EXPOSE: `fix` is documented, including that it executes arbitrary shell on --fix | verify: `human — assert the doc states the execution semantics, not just the syntax`
-- [ ] If REMOVE: no reader of `DoctorCheck.Fix` remains | verify: `! grep -rn "\.Fix\b" --include="*.go" . | grep -v FixHint`
+- [ ] If REMOVE: no reader of `DoctorCheck.Fix` remains | verify: `! /usr/bin/grep -rn "\.Fix\b" --include="*.go" . | /usr/bin/grep -v FixHint`
 - [ ] If REMOVE: `dva doctor --fix` still performs built-in fixes, or the flag's help stops promising more than it does | verify: `human — the built-in .gitignore fix is independent of checks[].fix; confirm it survives or the flag help is corrected`
 - [ ] A regression test pins whichever contract is chosen, proven to fail without the change | verify: `human — for EXPOSE, revert the schema line and confirm the test FAILS on 'Additional property fix is not allowed'; restore and confirm it passes`
 - [ ] The schema-legal control still validates — no collateral damage to checks without `fix:` | verify: `go test ./internal/config/`

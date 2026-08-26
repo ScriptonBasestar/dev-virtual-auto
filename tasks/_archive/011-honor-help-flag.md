@@ -92,7 +92,7 @@ passthrough contract is preserved while help stays safe.
 ## Completion Criteria
 
 - [x] `dva up --help` prints usage and does not execute the lifecycle | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nstack:\n  web:\n    script:\n      up: "touch ./started.txt"\n' > dva.yml && "$OLDPWD/bin/dva" up --help && test ! -f ./started.txt`
-- [x] All 16 affected commands print their own usage for `--help` | verify: `for c in "up" "down" "stop" "restart" "stack up" "stack stop" "stack down" "app up" "app restart" "compose up" "compose down" "compose stop" "compose restart" "infra up" "infra down" "ktl"; do ./bin/dva ${=c} --help 2>&1 | grep -q "Usage:" || { echo "FAIL: $c"; exit 1; }; done; echo OK`
+- [x] All 16 affected commands print their own usage for `--help` | verify: `for c in "up" "down" "stop" "restart" "stack up" "stack stop" "stack down" "app up" "app restart" "compose up" "compose down" "compose stop" "compose restart" "infra up" "infra down" "ktl"; do ./bin/dva ${=c} --help 2>&1 | /usr/bin/grep -q "Usage:" || { echo "FAIL: $c"; exit 1; }; done; echo OK`
 - [x] Flag passthrough to compose/kubectl still works | verify: `go test ./internal/cli/ -v`
 - [x] Full suite and vet stay green | verify: `make test && go vet ./...`
 

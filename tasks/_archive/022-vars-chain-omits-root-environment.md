@@ -60,9 +60,9 @@ terms. This is a docs-clarity gap, not a behavioral defect — no code change is
 
 ## Completion Criteria
 
-- [x] The chain states which path it describes, and that "environment vars" means `environments.<name>.environment`, not the root `environment:` block | verify: `grep -n "environments.<name>.environment\|environments\.<name>" USAGE.md docs/30-config-merge-semantics.md`
-- [x] The root `environment:` vs `env_file` order is stated or cross-referenced where the chain appears | verify: `grep -rn "env_file" USAGE.md docs/30-config-merge-semantics.md | head`
-- [x] No claim contradicts CLAUDE.md's `environment:` < `env_file` < OS | verify: `grep -n "environment:` < `env_file" CLAUDE.md`
+- [x] The chain states which path it describes, and that "environment vars" means `environments.<name>.environment`, not the root `environment:` block | verify: `/usr/bin/grep -n "environments.<name>.environment\|environments\.<name>" USAGE.md docs/30-config-merge-semantics.md`
+- [x] The root `environment:` vs `env_file` order is stated or cross-referenced where the chain appears | verify: `/usr/bin/grep -rn "env_file" USAGE.md docs/30-config-merge-semantics.md | head`
+- [x] No claim contradicts CLAUDE.md's `environment:` < `env_file` < OS | verify: `/usr/bin/grep -n "environment:` < `env_file" CLAUDE.md`
 
 ## References
 

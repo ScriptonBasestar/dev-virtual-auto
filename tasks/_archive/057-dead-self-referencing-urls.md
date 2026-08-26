@@ -110,10 +110,10 @@ migration-guide paths returned **200**; root `schema.json` 404'd; `ScriptonBases
 
 ## Acceptance criteria
 
-- [x] Authored corpus teaches a resolving `$schema` URL | verify: `grep -q 'internal/config/schema.json' agent-mesh-flows/shared/library/reference-examples.md`
+- [x] Authored corpus teaches a resolving `$schema` URL | verify: `/usr/bin/grep -q 'internal/config/schema.json' agent-mesh-flows/shared/library/reference-examples.md`
 - [x] Generated embed matches the source | verify: `make generate && git diff --exit-code internal/cli/library_reference.txt`
 - [x] No source file references the nonexistent root schema path | verify: `/usr/bin/find . -path ./.git -prune -o -path ./tmp -prune -o -path ./bin -prune -o -path ./.opencode -prune -o -path ./tasks -prune -o -type f -print0 | xargs -0 /usr/bin/grep -l 'master/schema.json' ; test $? -ne 0`
-- [x] Migration guide URL names the real repo and an existing branch | verify: `grep -q 'dva/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
+- [x] Migration guide URL names the real repo and an existing branch | verify: `/usr/bin/grep -q 'dva/blob/master/docs/40-declarative-stack-and-plans.md' internal/config/validate_warnings.go`
 - [x] Corpus URL guard exists and fails on a planted bad URL | verify: `go test ./internal/config/ -run TestGeneratorCorpusURLs`
 - [x] Full suite green | verify: `make test`
 - [x] 56 user configs rewritten, or the sweep explicitly declined | verify: human — re-run the personal-corpus URL sweep; the archived evidence records 56 of 83 configs rewritten and 0 live-config remnants

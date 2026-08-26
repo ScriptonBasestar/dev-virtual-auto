@@ -117,9 +117,9 @@ genuinely use it.
 
 - [x] Running any improve flow with a run directory other than the target fails before the first write, with a message naming both directories | verify: human — run the flow from a directory that is not the target and read the first line of output
 - [x] A target that does not exist stops the flow too, rather than failing later in a confusing place | verify: human — run with `target=/nonexistent` and confirm exit 1 at the guard
-- [x] The guard exists in the flow, not only in a comment | verify: `grep -q 'id: check_run_dir' agent-mesh-flows/dva-improve.yaml`
-- [x] The guided pipeline carries the same guard | verify: `grep -rq 'id: check_run_dir' agent-mesh-flows/dva-improve-guided/`
-- [x] The CWD-equals-target requirement is stated where a user reads it, not only in YAML comments | verify: `grep -q '실행 디렉토리 요구사항' USAGE.md`
+- [x] The guard exists in the flow, not only in a comment | verify: `/usr/bin/grep -q 'id: check_run_dir' agent-mesh-flows/dva-improve.yaml`
+- [x] The guided pipeline carries the same guard | verify: `/usr/bin/grep -rq 'id: check_run_dir' agent-mesh-flows/dva-improve-guided/`
+- [x] The CWD-equals-target requirement is stated where a user reads it, not only in YAML comments | verify: `/usr/bin/grep -q '실행 디렉토리 요구사항' USAGE.md`
 - [x] Flows still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
 - [x] Corpus stays clean | verify: `go run ./tools/flowcheck`
 

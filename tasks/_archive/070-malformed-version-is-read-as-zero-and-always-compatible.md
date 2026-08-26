@@ -123,7 +123,7 @@ Re-measured at implementation time rather than trusted; the corpus is the user's
 - [x] An absent or empty `version:` still loads | verify: `go test ./internal/config/ -run TestCheckConfigVersion`
 - [x] A two-segment version still parses | verify: `go test ./internal/config/ -run TestParseVersionRejectsMalformed`
 - [x] Full suite green | verify: `make test`
-- [x] No real corpus config regresses | verify: `human — every distinct version: value in ~/mydevbox accepted by the new pattern; see Resolution`
+- [x] No real corpus config regresses | verify: human — every distinct version: value in ~/mydevbox accepted by the new pattern; see Resolution
 
 ## Resolution
 

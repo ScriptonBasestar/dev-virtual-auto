@@ -180,6 +180,14 @@ The checker inventories **tracked files that still exist in the worktree + non-i
 
 **Task links survive state transitions (TASK-143).** A task's identity is its number (`NNN-slug.md`); its directory is its state (`todo`/`done`/`_archive`/…), which changes when it is worked or archived. The checker resolves a `tasks/<state>/NNN-…` markdown link — and the same path written inside inline code (where `verify:` bindings live, invisible to the link scan) — to whichever state directory actually holds `NNN-…`. One match resolves the reference; zero is a genuine broken link; more than one is an ambiguity the gate refuses to guess. So archiving a task no longer breaks inbound links: `make doc-check` stays green across a move without a repoint pass.
 
+**Verify bindings must not depend on agent shell wrappers (TASK-221).** On a task criterion
+line, doccheck reads the first inline-code span after `verify:` after removing fenced examples;
+later spans are annotations. Human-only checks use unquoted `verify: human — …`; a backticked
+`human —` span is mechanical like any other inline binding. Mechanical bindings invoke `grep` and `find` by absolute path
+(`/usr/bin/grep`, `/usr/bin/find`) so the recorded corpus and ordering are reproducible in an
+ordinary shell. `wrapped_tool_bindings` reports the declared population and
+`bare_tool_bindings` must remain zero.
+
 ## Flow decision-path gate (flowcheck)
 
 `make doc-check` also runs `go run ./tools/flowcheck`, which reads every flow under

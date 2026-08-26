@@ -150,11 +150,11 @@ before, 1 after.
 
 - [x] The false positive is gone | verify: `human — sweep the 17 shipped configs, count 'directly callable'` — **2 → 1; the remaining one is `examples/applications.yml` `interaction.db`, confirmed true by `dva run db --dry-run` printing an empty `Command:`**
 - [x] It is gone because the node is callable, not because the check got quieter | verify: `human — dva run rails db --dry-run on examples/full-stack.yml` — **`Command: bundle exec rails`, `Runner: DockerCompose`, `Service: web` — all inherited**
-- [x] Inherited runners are compared | verify: `go test ./internal/config/ -run ChildOverrideComparesInheritedRunner -v | grep -c '^    --- PASS'` — **2 subtests: implicit inheritance and redundant restatement now produce the same warning**
+- [x] Inherited runners are compared | verify: `go test ./internal/config/ -run ChildOverrideComparesInheritedRunner -v | /usr/bin/grep -c '^    --- PASS'` — **2 subtests: implicit inheritance and redundant restatement now produce the same warning**
 - [x] A/B fixture proves the two shapes are runtime-identical | verify: `human — dva run acase db migrate --dry-run vs bcase` — **identical execution plans; both warn after, only bcase before**
 - [x] No shipped config gains a warning | verify: `human — same 17-config sweep, total semantic warnings` — **20 → 19, a net −1 accounted for entirely by the removed false positive; 0 nested-path warnings, matching what TASK-125's criterion meant to measure**
 - [x] Inert-step paths are pasteable | verify: `human — d/ fixture` — **`interaction.db.subcommands.migrate.before[0]`, was `interaction.db.migrate.before[0]`; 0 doc references to the old form**
-- [x] Flat-map warnings are order-stable | verify: `go test ./internal/config/ -run FlatMapWarningsAreOrderStable -v | grep -c '^    --- PASS'` — **2; plus 15 real binary runs on the `d` fixture, 1 distinct ordering (was 4)**
+- [x] Flat-map warnings are order-stable | verify: `go test ./internal/config/ -run FlatMapWarningsAreOrderStable -v | /usr/bin/grep -c '^    --- PASS'` — **2; plus 15 real binary runs on the `d` fixture, 1 distinct ordering (was 4)**
 - [x] Every fix fails when reverted | verify: `human — 5 mutations` — **all 5 caught; see below**
 - [x] Full suite passes | verify: `make test` — exit 0
 - [x] Lint clean | verify: `make lint` — `0 issues.`

@@ -146,10 +146,10 @@ never ran the reclaim.
 
 ## Completion Criteria
 
-- [x] The `lint` target scopes the golangci-lint cache to the checkout | verify: `grep -c 'GOLANGCI_LINT_CACHE' Makefile` returns ≥ 1 (today: 0)
+- [x] The `lint` target scopes the golangci-lint cache to the checkout | verify: `/usr/bin/grep -c 'GOLANGCI_LINT_CACHE' Makefile` returns ≥ 1 (today: 0)
 - [x] The cache directory it points at is gitignored and untracked | verify: human — read the path the `lint` target assigns, then confirm `git check-ignore -q <path>` exits 0 and `git ls-files -- <path>` prints nothing. Bound to a human because the path is an Open Question below; do not hardcode a guess here.
 - [x] Lint still passes on a clean tree | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make lint`
-- [x] The suppression that escaped is still present and still justified, i.e. the fix did not "resolve" this by rewriting the string | verify: `grep -c 'nolint:staticcheck' internal/runner/interaction_tree.go` returns 1
+- [x] The suppression that escaped is still present and still justified, i.e. the fix did not "resolve" this by rewriting the string | verify: `/usr/bin/grep -c 'nolint:staticcheck' internal/runner/interaction_tree.go` returns 1
 - [x] The 4-step reproduction no longer reds at step 3 | verify: human — create a worktree, `make lint` in it, remove it, then `make lint` in the primary checkout; step 3 must report `0 issues.` without a prior cache clean
 - [x] `make test` passes | verify: `make test`
 - [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`

@@ -118,15 +118,15 @@ the files itself. Writing "applied" here would have reintroduced the same defect
 
 ## Acceptance criteria
 
-- [x] No trace line claims `env_file` is skipped | verify: `grep -c 'skipped (TODO)' internal/lifecycle/resolver.go` — must be 0 with a non-zero total trace-site count printed beside it via `grep -cE 'resolved\.trace|resolved\.traceLayer|p\.trace\(' internal/lifecycle/resolver.go` — **0 skip claims, 18 trace sites**
-- [x] Trace has a reader | verify: `grep -rn 'ResolutionTrace' internal/ --include="*.go" | grep -v _test` — **5 sites: 3 in resolver (field/alloc/append), 2 readers in `plan_lifecycle.go:200,204`**
-- [x] All 7 documented layers appear, in merge order | verify: `go test ./internal/lifecycle/ -run 'ResolutionTraceReportsEveryPrecedenceLayer|ResolutionTraceOrderMatchesMergeOrder' -v | grep -c '^--- PASS'` — **2**
-- [x] Absent layers stated, not omitted | verify: `go test ./internal/lifecycle/ -run ResolutionTraceReportsAbsentLayers -v | grep -c '^--- PASS'` — **1**
-- [x] Reaches every plan verb that takes `--dry-run` | verify: `go test ./internal/cli/ -run 'Plan(Up|Down|Stop|Restart)DryRunPrintsResolution' -v | grep -c '^--- PASS'` — **4, one per verb**
-- [x] `--json` stdout stays parseable | verify: `go test ./internal/cli/ -run PlanResolutionGoesToStderr -v | grep -c '^--- PASS'` — **1; asserts stdout begins `{`**
-- [x] Silent off the dry-run path | verify: `go test ./internal/cli/ -run PlanUpWithoutDryRunStaysQuiet -v | grep -c '^--- PASS'` — **1**
+- [x] No trace line claims `env_file` is skipped | verify: `/usr/bin/grep -c 'skipped (TODO)' internal/lifecycle/resolver.go` — must be 0 with a non-zero total trace-site count printed beside it via `grep -cE 'resolved\.trace|resolved\.traceLayer|p\.trace\(' internal/lifecycle/resolver.go` — **0 skip claims, 18 trace sites**
+- [x] Trace has a reader | verify: `/usr/bin/grep -rn 'ResolutionTrace' internal/ --include="*.go" | /usr/bin/grep -v _test` — **5 sites: 3 in resolver (field/alloc/append), 2 readers in `plan_lifecycle.go:200,204`**
+- [x] All 7 documented layers appear, in merge order | verify: `go test ./internal/lifecycle/ -run 'ResolutionTraceReportsEveryPrecedenceLayer|ResolutionTraceOrderMatchesMergeOrder' -v | /usr/bin/grep -c '^--- PASS'` — **2**
+- [x] Absent layers stated, not omitted | verify: `go test ./internal/lifecycle/ -run ResolutionTraceReportsAbsentLayers -v | /usr/bin/grep -c '^--- PASS'` — **1**
+- [x] Reaches every plan verb that takes `--dry-run` | verify: `go test ./internal/cli/ -run 'Plan(Up|Down|Stop|Restart)DryRunPrintsResolution' -v | /usr/bin/grep -c '^--- PASS'` — **4, one per verb**
+- [x] `--json` stdout stays parseable | verify: `go test ./internal/cli/ -run PlanResolutionGoesToStderr -v | /usr/bin/grep -c '^--- PASS'` — **1; asserts stdout begins `{`**
+- [x] Silent off the dry-run path | verify: `go test ./internal/cli/ -run PlanUpWithoutDryRunStaysQuiet -v | /usr/bin/grep -c '^--- PASS'` — **1**
 - [x] Tests fail when the fix is reverted | verify: `human — restore the TODO string, drop the print call, then make it unconditional` — **3 mutations, all caught; counts in Resolution**
-- [x] `--dry-run` documented where it is accepted | verify: `grep -c 'Print the variable resolution and the actions, without executing' internal/cli/compose.go` — **4 plan-usage blocks (`compose.go:83,306,364,426` = up/down/stop/restart); `up` accepted the flag with no help line at all before this**
+- [x] `--dry-run` documented where it is accepted | verify: `/usr/bin/grep -c 'Print the variable resolution and the actions, without executing' internal/cli/compose.go` — **4 plan-usage blocks (`compose.go:83,306,364,426` = up/down/stop/restart); `up` accepted the flag with no help line at all before this**
 - [x] Full suite passes | verify: `make test` — exit 0, 5 packages ok, cli 64.8%→65.4%, lifecycle 61.6%→61.9%
 - [x] Lint clean | verify: `make lint` — `0 issues.`, gofmt 235 files 0 unformatted
 - [x] Docs consistent | verify: `make doc-check` — `links_checked: 428, broken_links: 0, oversized_docs: 0`

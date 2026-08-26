@@ -99,7 +99,7 @@ directly. Two safe routes:
 
 - [x] Steps run under the kubectl runner | verify: `go test ./internal/runner/ -run Steps` — the runners table must have 3 entries, not 2; print the count
 - [x] Each step is a separate exec | verify: PATH-shadowed shim log must show one invocation per step, and print the number of lines
-- [x] Not a loop over `syscall.Exec` | verify: `grep -c ExecReplace internal/runner/kubectl.go` inside any steps loop must be 0
+- [x] Not a loop over `syscall.Exec` | verify: `/usr/bin/grep -c ExecReplace internal/runner/kubectl.go` inside any steps loop must be 0
 - [x] The empty-command exec is gone | verify: human — a `pod:` + `steps:` config must never produce argv ending in a bare `--`
 - [x] Existing kubectl dispatch is unchanged | verify: `go test ./internal/runner/ -run TestNewRunnerSelection`
 - [x] Not vacuous | verify: human — revert the runner hunk alone and confirm the new test fails

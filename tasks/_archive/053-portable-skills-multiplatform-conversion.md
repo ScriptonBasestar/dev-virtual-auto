@@ -81,7 +81,7 @@ always-injected context budgets). Full spec: `skills/README.md`.
 - [x] Cursor rules generated | verify: `test -f .cursor/rules/dva.mdc`
 - [x] Antigravity skill resolves at documented path | verify: `test -f .agents/skills/dva/SKILL.md`
 - [x] OpenCode skill resolves | verify: `test -f .opencode/skills/dva/SKILL.md`
-- [x] Codex section present in AGENTS.md | verify: `grep -q 'skills:auto:start' AGENTS.md`
+- [x] Codex section present in AGENTS.md | verify: `/usr/bin/grep -q 'skills:auto:start' AGENTS.md`
 - [x] Generator compiles + module vets | verify: `go vet ./tools/skillgen/`
 - [x] `make generate` is idempotent | verify: `make generate >/dev/null && git diff --exit-code AGENTS.md`
-- [x] README Antigravity path corrected + OpenCode/Codex added | verify: `grep -q '.agents/skills/dva/SKILL.md' README.md`
+- [x] README Antigravity path corrected + OpenCode/Codex added | verify: `/usr/bin/grep -q '.agents/skills/dva/SKILL.md' README.md`

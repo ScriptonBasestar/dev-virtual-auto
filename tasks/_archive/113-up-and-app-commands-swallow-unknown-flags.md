@@ -165,7 +165,7 @@ silence. That is the same defect reachable without any flag at all.
 - [x] An unknown flag is an error on the `app` family | verify: `dva app up --dev=true` — must exit non-zero, and must not report success — exit=1, 216 bytes; same for `app restart --dev=true` (exit=1) and `app build --dokcer` (exit=1)
 - [x] A named app that does not exist is an error | verify: `dva app up nosuchapp` — must exit non-zero naming the app; print the exit code — exit=1, 72 bytes: `no such application: nosuchapp / → declared in dva.yml: web`
 - [x] The protected commands are unchanged | verify: `go test ./internal/cli/ -run 'Flag|Unknown|Reject'` — print the number of tests selected — 125 tests+subtests selected, `ok … 2.802s`
-- [x] Regression tests exist for both loops | verify: `grep -rc 'forse\|--dev=true' internal/cli/*_test.go` — non-zero — `app_args_test.go:7`, `stack_args_test.go:2`
+- [x] Regression tests exist for both loops | verify: `/usr/bin/grep -rc 'forse\|--dev=true' internal/cli/*_test.go` — non-zero — `app_args_test.go:7`, `stack_args_test.go:2`
 - [x] Full suite passes | verify: `make test` — exit=0, 0 FAIL lines, 5 `ok` lines; `make lint` exit=0
 
 ## Resolution

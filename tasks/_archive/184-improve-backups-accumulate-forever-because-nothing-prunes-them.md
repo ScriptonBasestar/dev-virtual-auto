@@ -82,10 +82,10 @@ fixed width, so a text sort of it is chronological.
 
 ## Completion Criteria
 
-- [x] A retention policy is applied where the snapshot is written | verify: `grep -q 'id: prune_backups' agent-mesh-flows/dva-improve.yaml`
+- [x] A retention policy is applied where the snapshot is written | verify: `/usr/bin/grep -q 'id: prune_backups' agent-mesh-flows/dva-improve.yaml`
 - [x] Running the flow past the retention bound removes the oldest snapshot | verify: human — run against a fixture N+1 times, observe the count stop growing and the oldest file gone
 - [x] Pruning never touches anything outside the backup directory | verify: human — the delete is scoped to `backups/dva/` and matches only `*.bak`
-- [x] Both write paths are covered, not just `dva-improve.yaml` | verify: `grep -q 'id: prune_backups' agent-mesh-flows/dva-improve-guided/30-configure.yaml`
+- [x] Both write paths are covered, not just `dva-improve.yaml` | verify: `/usr/bin/grep -q 'id: prune_backups' agent-mesh-flows/dva-improve-guided/30-configure.yaml`
 - [x] Flows still validate | verify: `am validate agent-mesh-flows/dva-improve.yaml`
 
 ## Evidence

@@ -68,8 +68,8 @@ cover USAGE.md, which is what would have caught this.
 
 ## Acceptance criteria
 
-- [x] The claim is corrected | verify: `grep -c '조용히 무시' USAGE.md` must be 0; print the count
-- [x] It does not simply move | verify: `grep -n '무시' USAGE.md` — print every remaining hit and confirm each is accurate
+- [x] The claim is corrected | verify: `/usr/bin/grep -c '조용히 무시' USAGE.md` must be 0; print the count
+- [x] It does not simply move | verify: `/usr/bin/grep -n '무시' USAGE.md` — print every remaining hit and confirm each is accurate
 - [x] The two paragraphs agree | verify: human — read 610-650 as one passage
 - [x] The guard is extended, or the decision recorded | verify: `go test ./internal/config/ -run Conflict` — print the tests selected
 - [x] Doc size limits hold | verify: USAGE.md stays within the 500-line / 10KB per-document standard, or is already an accepted exception — print the current size

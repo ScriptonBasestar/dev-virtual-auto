@@ -47,8 +47,8 @@ visible.
 
 ## Completion Criteria
 
-- [x] Both criteria state the range the clause actually occupies | verify: `grep -c '74–80\|74-80' tasks/_archive/082-*.md tasks/_archive/123-*.md` returns ≥ 1 for each file in the criterion line, not only in the evidence block
-- [x] No occurrence of the wrong range survives outside an explicit "first read" note | verify: `grep -rn '74–79\|74-79' tasks/_archive/*.md` — every remaining hit is inside a sentence recording what the line first said
+- [x] Both criteria state the range the clause actually occupies | verify: `/usr/bin/grep -c '74–80\|74-80' tasks/_archive/082-*.md tasks/_archive/123-*.md` returns ≥ 1 for each file in the criterion line, not only in the evidence block
+- [x] No occurrence of the wrong range survives outside an explicit "first read" note | verify: `/usr/bin/grep -rn '74–79\|74-79' tasks/_archive/*.md` — every remaining hit is inside a sentence recording what the line first said
 - [x] The clause boundary is re-derived rather than copied from this card | verify: `rg -n 'Cross-run promotion|never replaces current-run gates' workflows/dva-dogfood/40-evaluate.md` prints the opening and closing lines, and the cited range matches them
 - [x] The corrected criterion still passes its own binding | verify: `rg -n 'Cross-run promotion|case_manifest_hash' workflows/dva-dogfood/40-evaluate.md` exits 0
 - [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`

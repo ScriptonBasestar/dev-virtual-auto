@@ -56,7 +56,7 @@ listing and choosing by timestamp is genuinely awkward by hand.
 
 ## Completion Criteria
 
-- [x] A restore procedure is documented and names the backup directory | verify: `grep -rq 'backups/dva' docs/`
+- [x] A restore procedure is documented and names the backup directory | verify: `/usr/bin/grep -rq 'backups/dva' docs/`
 - [x] The procedure states which snapshot to pick when several exist | verify: human — read the section; timestamp ordering is explicit
 - [x] Restoring a snapshot over an edited config yields a config DVA accepts | verify: human — copy a `.bak` over `dva.yml`, run `dva validate`, expect exit 0
 

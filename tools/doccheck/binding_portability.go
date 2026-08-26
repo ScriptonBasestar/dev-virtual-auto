@@ -20,41 +20,20 @@ var (
 // task criterion lines. Fenced examples are not bindings, later inline spans on
 // the same line are annotations, and table rows are not criterion lines.
 func checkBindingPortability(from, body string) (escapedPipes, absCheckout, externalCorpus int, msgs []string) {
-	body = stripFencedRegions(body)
-	offset := 0
-	for _, line := range splitKeepEnds(body) {
-		match := verifyCriterionRe.FindStringIndex(line)
-		if match == nil {
-			offset += len(line)
-			continue
-		}
-		rest := line[match[1]:]
-		spanLoc := inlineCodeSpanRe.FindStringIndex(rest)
-		if spanLoc == nil {
-			offset += len(line)
-			continue
-		}
-		span := rest[spanLoc[0]+1 : spanLoc[1]-1]
-		if strings.HasPrefix(span, "human —") {
-			offset += len(line)
-			continue
-		}
-		lineNo := lineAt(body, offset)
-		spanOffset := offset + match[1] + spanLoc[0]
-
-		if !inTableRow(body, spanOffset) && hasEscapedShellPipe(span) {
+	for _, binding := range extractVerifyBindings(body) {
+		span := binding.Span
+		if hasEscapedShellPipe(span) {
 			escapedPipes++
-			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding has escaped shell pipe \\|", from, lineNo))
+			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding has escaped shell pipe \\|", from, binding.Line))
 		}
 		if strings.Contains(span, legacyCheckoutPath) {
 			absCheckout++
-			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding names checkout path %q", from, lineNo, legacyCheckoutPath))
+			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding names checkout path %q", from, binding.Line, legacyCheckoutPath))
 		}
 		if strings.Contains(span, "~/mydevbox") && !hasPortableExternalCorpusGuard(span) {
 			externalCorpus++
-			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding depends on external corpus ~/mydevbox", from, lineNo))
+			msgs = append(msgs, fmt.Sprintf("%s:%d: verify binding depends on external corpus ~/mydevbox", from, binding.Line))
 		}
-		offset += len(line)
 	}
 	return escapedPipes, absCheckout, externalCorpus, msgs
 }

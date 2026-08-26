@@ -70,10 +70,10 @@ find cannot detect the ones it missed. The criteria below grep the whole docs tr
 
 ## Completion Criteria
 
-- [x] No stale chain anywhere in the repo, not just in named files | verify: `! grep -rn 'OS < env_file' docs/ USAGE.md README.md CLAUDE.md internal/config/schema.json`
-- [x] No numbered list places OS at the bottom | verify: `! grep -rn -A1 '^1\. OS 환경 변수' docs/`
-- [x] Both files state OS highest, consistent with the other sources | verify: `grep -c 'CLI vars < OS' docs/31-execution-plan-resolution.md docs/40-declarative-stack-and-plans.md`
-- [x] Runtime still agrees | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nvars:\n  P: from-config\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P]"'"'"'\n' > dva.yml && P=from-os "$OLDPWD/bin/dva" run s 2>&1 | grep -q 'R=\[from-os\]'`
+- [x] No stale chain anywhere in the repo, not just in named files | verify: `! /usr/bin/grep -rn 'OS < env_file' docs/ USAGE.md README.md CLAUDE.md internal/config/schema.json`
+- [x] No numbered list places OS at the bottom | verify: `! /usr/bin/grep -rn -A1 '^1\. OS 환경 변수' docs/`
+- [x] Both files state OS highest, consistent with the other sources | verify: `/usr/bin/grep -c 'CLI vars < OS' docs/31-execution-plan-resolution.md docs/40-declarative-stack-and-plans.md`
+- [x] Runtime still agrees | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nvars:\n  P: from-config\ninteraction:\n  s:\n    description: p\n    script: '"'"'echo "R=[$P]"'"'"'\n' > dva.yml && P=from-os "$OLDPWD/bin/dva" run s 2>&1 | /usr/bin/grep -q 'R=\[from-os\]'`
 
 ## References
 

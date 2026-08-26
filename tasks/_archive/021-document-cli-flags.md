@@ -92,11 +92,11 @@ per-flag.
 
 ## Completion Criteria
 
-- [x] `USAGE.md:194`'s heading no longer names `--site` as a flag | verify: `! grep -nE '^#+ .*--site' USAGE.md`
-- [x] `--site` is still absent from the binary (heading fixed, not flag added) | verify: `! ./bin/dva run --site foo test 2>&1 | grep -q 'unknown flag' && exit 1 || exit 0`
-- [x] `--no-wait`, `--exclude-tag`, `--force` are documented | verify: `for f in -- --no-wait --exclude-tag --force; do grep -rqF -- "$f" USAGE.md README.md || { echo "MISSING $f"; exit 1; }; done; echo OK`
-- [x] `ssh up` flags and `init --template` documented | verify: `grep -qF -- "--template" USAGE.md && grep -qF -- "--key" USAGE.md`
-- [x] Docs match the binary (no newly-invented flag) | verify: `./bin/dva up --help | grep -q 'no-wait'`
+- [x] `USAGE.md:194`'s heading no longer names `--site` as a flag | verify: `! /usr/bin/grep -nE '^#+ .*--site' USAGE.md`
+- [x] `--site` is still absent from the binary (heading fixed, not flag added) | verify: `! ./bin/dva run --site foo test 2>&1 | /usr/bin/grep -q 'unknown flag' && exit 1 || exit 0`
+- [x] `--no-wait`, `--exclude-tag`, `--force` are documented | verify: `for f in -- --no-wait --exclude-tag --force; do /usr/bin/grep -rqF -- "$f" USAGE.md README.md || { echo "MISSING $f"; exit 1; }; done; echo OK`
+- [x] `ssh up` flags and `init --template` documented | verify: `/usr/bin/grep -qF -- "--template" USAGE.md && /usr/bin/grep -qF -- "--key" USAGE.md`
+- [x] Docs match the binary (no newly-invented flag) | verify: `./bin/dva up --help | /usr/bin/grep -q 'no-wait'`
 
 ## References
 

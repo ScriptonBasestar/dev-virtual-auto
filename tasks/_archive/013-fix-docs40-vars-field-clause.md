@@ -79,8 +79,8 @@ either drop it or mark it explicitly as a rejected alternative rather than an in
 
 ## Completion Criteria
 
-- [x] `docs/40` §3-5 no longer instructs using `vars` in place of `environment` for `environments` | verify: `! grep -n '환경 변수 블록의 공통 필드명은' docs/40-declarative-stack-and-plans.md`
-- [x] §3-5 prose matches its own example and the schema | verify: `grep -n -A18 '### 3-5' docs/40-declarative-stack-and-plans.md`
+- [x] `docs/40` §3-5 no longer instructs using `vars` in place of `environment` for `environments` | verify: `! /usr/bin/grep -n '환경 변수 블록의 공통 필드명은' docs/40-declarative-stack-and-plans.md`
+- [x] §3-5 prose matches its own example and the schema | verify: `/usr/bin/grep -n -A18 '### 3-5' docs/40-declarative-stack-and-plans.md`
 - [x] A config written from the corrected §3-5 validates | verify: `cd "$(mktemp -d)" && printf 'version: "0.1.44"\nenvironments:\n  dev:\n    environment:\n      APP_ENV: dev\n' > dva.yml && "$OLDPWD/bin/dva" validate`
 
 ## Dependencies

@@ -73,8 +73,8 @@ correct, the place to read about it did not exist.
 ## Completion Criteria
 
 - [x] A page under `docs/` documents all 16 rules; each entry gives the rule id, the am behaviour that makes the mistake silent, and a wrong/right example | verify: human — read the page and confirm each rule has all three
-- [x] Every rule id the binary can emit appears in that page | verify: `for id in $(grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u); do grep -q -- "$id" docs/*flowcheck*.md || echo "MISSING $id"; done` (no output = pass; the id list must come out to 16 today)
-- [x] flowcheck is documented where a contributor looks, not only in `tasks/` | verify: `grep -rln --include='*.md' flowcheck docs/ AGENTS.md`
+- [x] Every rule id the binary can emit appears in that page | verify: `for id in $(/usr/bin/grep -rhoE '(s\.add\(|rule :?= |rule: *)"[a-z-]+"' tools/flowcheck/*.go | sed 's/.*"\(.*\)"/\1/' | sort -u); do /usr/bin/grep -q -- "$id" docs/*flowcheck*.md || echo "MISSING $id"; done` (no output = pass; the id list must come out to 16 today)
+- [x] flowcheck is documented where a contributor looks, not only in `tasks/` | verify: `/usr/bin/grep -rln --include='*.md' flowcheck docs/ AGENTS.md`
 - [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`
 
 ## References

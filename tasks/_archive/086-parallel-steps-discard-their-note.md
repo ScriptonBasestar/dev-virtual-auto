@@ -121,7 +121,7 @@ see Left open.
 - [x] A note on the parallel path is printed | verify: `dva provision parallelbatch` on the fixture — grep the note marker, print the count, expect >=1 — **`PAR-NOTE-VISIBLE` 0 → 1; also 1 under `--dry-run`, which is a separate branch of the same function**
 - [x] The sequential path is byte-identical to before | verify: `human — same fixture, diff the sequential profile's output against the pre-change capture` — **captured before the edit, `diff` empty, 130 bytes / 8 lines both times**
 - [x] The parallel batch still executes | verify: same run — the sibling `run:` marker count must stay 2, so a note fix cannot be confused with a broken batch — **`PAR-CONTROL-RAN` 2 before, 2 after**
-- [x] `compose.go`'s loop prints it too | verify: `grep -c '\.Note' internal/cli/compose.go` — currently 0, must be non-zero — **1 — but the grep alone would have been vacuous; see Resolution, the runtime evidence needed `DVA_HOOK_DEPTH=1`**
+- [x] `compose.go`'s loop prints it too | verify: `/usr/bin/grep -c '\.Note' internal/cli/compose.go` — currently 0, must be non-zero — **1 — but the grep alone would have been vacuous; see Resolution, the runtime evidence needed `DVA_HOOK_DEPTH=1`**
 - [x] Covered by a test that fails without the fix | verify: `go test ./internal/cli/ -run TestParallelBatchPrintsNote` — **2 subtests (executing, dry-run), plus 3 sibling tests in `provision_note_test.go`**
 - [x] Not vacuous | verify: `human — revert the executeParallelBatch hunk alone and confirm only that subtest fails` — **3 probes, one per hunk; each failed exactly its own test and nothing else (see table below)**
 - [x] Full suite passes | verify: `make test` — **all packages ok under `-race`; `internal/cli` coverage 60.9% → 61.4%**

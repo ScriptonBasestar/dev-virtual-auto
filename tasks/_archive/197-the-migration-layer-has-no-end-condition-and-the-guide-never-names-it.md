@@ -82,11 +82,11 @@ warnings already point.
 
 ## Completion Criteria
 
-- [x] `docs/42-migration-and-compatibility.md` gains a `### 12-5.` subsection for the converter, covering what it converts, what it reports under `Left for you`, and the removal predicate | verify: `grep -c 'config migrate' docs/42-migration-and-compatibility.md` returns ≥ 3 (today: 0)
+- [x] `docs/42-migration-and-compatibility.md` gains a `### 12-5.` subsection for the converter, covering what it converts, what it reports under `Left for you`, and the removal predicate | verify: `/usr/bin/grep -c 'config migrate' docs/42-migration-and-compatibility.md` returns ≥ 3 (today: 0)
 - [x] The removal condition is written as a testable predicate over the config corpus, not as a date or a version alone | verify: human — read 12-5 and confirm a reader could run the predicate and get a yes/no without asking the author
-- [x] `dva config migrate` states its own deprecation horizon the way the `infra:` fold does | verify: `grep -cE 'future release|will be removed' internal/cli/config_migrate.go` returns ≥ 1 (today: 0; control `internal/config/config.go` returns 1)
+- [x] `dva config migrate` states its own deprecation horizon the way the `infra:` fold does | verify: `/usr/bin/grep -cE 'future release|will be removed' internal/cli/config_migrate.go` returns ≥ 1 (today: 0; control `internal/config/config.go` returns 1)
 - [x] TASK-007's unfulfilled deliverable is either satisfied by 12-5 or explicitly declared out of scope in it | verify: human — 12-5 names TASK-007 and says which
-- [x] The post-converter corpus sweep exists, run against the real config corpus rather than only the repository | verify: `human — for f in $(find ~/mydevbox -maxdepth 2 -name dva.yml); do (cd $(dirname $f) && dva config migrate); done` — preview only, never `--write`; record total / converts / has-"Left for you", as TASK-069 did
+- [x] The post-converter corpus sweep exists, run against the real config corpus rather than only the repository | verify: human — for f in $(find ~/mydevbox -maxdepth 2 -name dva.yml); do (cd $(dirname $f) && dva config migrate); done — preview only, never `--write`; record total / converts / has-"Left for you", as TASK-069 did
 - [x] The in-repository corpus is swept and recorded in the same units | verify: `for f in examples/*.yml; do mkdir -p tmp/sw && cp "$f" tmp/sw/dva.yml && (cd tmp/sw && ../../bin/dva config migrate); done` — today: total=16 converts=0 has-"Left for you"=1
 - [x] The `examples/stack-source.yml` loop is closed — either the example declares a plan, or 12-5 states that a plans-less config is expected to be edited by hand and says so in the `Left for you` text | verify: `cd tmp/sw && ../../bin/dva validate` on a copy of `examples/stack-source.yml` reports 0 warnings, OR 12-5 contains the accepted-limitation statement
 - [x] `make doc-check` passes | verify: `export PATH="$HOME/.local/share/mise/shims:$PATH" && make doc-check`

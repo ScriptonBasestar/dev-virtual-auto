@@ -70,8 +70,8 @@ calls with the same exposure, and fixing the JSON branch alone leaves `--explain
 
 - [x] The silent path is reproduced first | verify: `human — a full filesystem under stdout (a 1 MB disk image works; see TASK-114's resolution), then 'dva run <name> --explain --json > /Volumes/tiny/out'; record exit code and bytes delivered`
 - [x] Explain propagates the write error | verify: `go test ./internal/runner/ -run 'Explain' -v`
-- [x] Both callers propagate it | verify: `grep -n 'runner.Explain' internal/cli/run.go` — neither line may discard the result
-- [x] No caller reports success on a failed write | verify: `grep -rn '_ = output.Print' --include="*.go" internal/` — every remaining hit must carry a comment saying why it cannot mask a failure
+- [x] Both callers propagate it | verify: `/usr/bin/grep -n 'runner.Explain' internal/cli/run.go` — neither line may discard the result
+- [x] No caller reports success on a failed write | verify: `/usr/bin/grep -rn '_ = output.Print' --include="*.go" internal/` — every remaining hit must carry a comment saying why it cannot mask a failure
 - [x] Full suite passes | verify: `make test`
 
 ## Related
