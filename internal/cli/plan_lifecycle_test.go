@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -558,6 +559,92 @@ func TestSecondTerminatorMeetsThePlanGuardNotTheFlagGuard(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSecondTerminatorDoesNotDisarmBuildsPlanGuard is TASK-224's differential. Build consumes
+// one separator at its own call site; requirePlanSelection consumes its own plan-name-slot
+// separator. Therefore `build -- --` reaches the same empty selection and same refusal as a
+// bare build, rather than passing a literal service name to Compose.
+func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard(t *testing.T) {
+	buildTwoPlanComposeProbe(t)
+	bareErr := buildCmd.RunE(buildCmd, nil)
+
+	buildTwoPlanComposeProbe(t)
+	secondTerminatorErr := buildCmd.RunE(buildCmd, []string{"--", "--"})
+
+	if bareErr == nil {
+		t.Fatal("build: exited 0 in a two-plan config with no default_plan; the differential has no guard to compare")
+	}
+	if secondTerminatorErr == nil {
+		t.Fatalf("build -- --: exited 0, but bare build is refused with %v", bareErr)
+	}
+	if secondTerminatorErr.Error() != bareErr.Error() {
+		t.Fatalf("build -- --: %q; bare build says %q", secondTerminatorErr, bareErr)
+	}
+	if !strings.Contains(secondTerminatorErr.Error(), "multiple plans configured") {
+		t.Fatalf("build -- --: %q; both forms agree but not at the plan guard", secondTerminatorErr)
+	}
+}
+
+// TestBuildTerminatorPassthroughAndTriplePolicy holds the two controls that keep TASK-224
+// narrow. A single separator still exposes the next token to Compose, while a triple leaves two
+// tokens for Compose after build consumes exactly one of its own.
+func TestBuildTerminatorPassthroughAndTriplePolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{"service name", []string{"--", "web"}, []string{"build", "web"}},
+		{"compose flag", []string{"--", "--no-cache"}, []string{"build", "--no-cache"}},
+		{"triple terminator", []string{"--", "--", "--"}, []string{"build", "--", "--"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var argv func() []string
+			if tc.name == "triple terminator" {
+				argv = buildTwoPlanComposeProbe(t)
+			} else {
+				argv = composePassthroughFixtureWith(t, buildFixtureYAML)
+			}
+
+			if err := buildCmd.RunE(buildCmd, tc.args); err != nil {
+				t.Fatalf("build %v: %v", tc.args, err)
+			}
+			got := argv()
+			if len(got) != 1 {
+				t.Fatalf("docker invocations = %v, want one argv", got)
+			}
+			tokens := strings.Fields(got[0])
+			buildAt := slices.Index(tokens, "build")
+			if buildAt < 0 || !slices.Equal(tokens[buildAt:], tc.want) {
+				t.Errorf("docker argv = %q, want build tail %q", tokens, tc.want)
+			}
+		})
+	}
+}
+
+func buildTwoPlanComposeProbe(t *testing.T) func() []string {
+	t.Helper()
+	return composePassthroughFixtureWith(t, `version: "0.1.44"
+stack:
+  s1:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml]
+  s2:
+    default_runner: compose
+    runners:
+      compose:
+        files: [docker-compose.yml]
+plans:
+  p1:
+    entries:
+      - name: s1
+  p2:
+    entries:
+      - name: s2
+`)
 }
 
 // TestUpLoneDashAgreesWithABareUp is TASK-218's differential, in the shape the card

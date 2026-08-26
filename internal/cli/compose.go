@@ -720,6 +720,10 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 		if err != nil {
 			return err
 		}
+		// Consume build's own leading separator before plan detection. The shared helper below
+		// deliberately consumes only the plan-name slot; a second terminator remains backend
+		// argv, so `build -- -- --` still reaches compose as `build -- --`.
+		remaining = dropLeadingTerminator(remaining)
 
 		// Plan routing reads what parseDvaFlags left, so --dry-run and --mode are already
 		// claimed and the plan-name slot holds a name or a tool's flag. logsCmd calls

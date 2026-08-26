@@ -7,7 +7,30 @@ effort: S
 created-at: 2026-08-21T15:55:00+09:00
 source: "found by an adversarial audit of 3e949f7; TASK-217 listed this argv as a control that does not move, and it does not move because it is broken on both sides"
 scope: "internal/cli/plan_lifecycle.go — requirePlanSelection's dropLeadingTerminator, and whichever of build's call sites is chosen to drop the second. Not up/down/stop/logs: TASK-217 closed those. Not the entry-name or plan-name slots: TASK-218 settled those."
-status: todo
+status: done
+completed-at: 2026-08-26T12:19:54+09:00
+completion-summary: "Consume build's leading separator before plan routing so a second terminator cannot bypass required plan selection."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test"
+    result: "passed with race and coverage across all packages; internal/cli coverage 75.6%"
+  - kind: automated
+    command-or-step: "dva lint && make doc-check"
+    result: "passed; 294 Go files formatted, 0 issues, all documentation gates passed"
+  - kind: runtime
+    command-or-step: "rebuilt binary against a two-plan no-default compose-stub fixture"
+    result: "bare and double terminator both rc=1 with identical plan-guard message; web and --no-cache preserved; triple reached backend as build -- --"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T12:21:01+09:00
+quality-review-evidence:
+  - "independent reviewer confirmed build consumes exactly one call-site terminator while the shared helper and other verbs remain unchanged"
+  - "double form matches the bare plan guard, single separator passthrough is preserved, and triple retains backend build -- --"
+  - "focused/package/full tests, lint, build, doccheck, runtime probe, and diff check passed"
+quality-review-receipt: tmp/task-management/direct/queue-run/task-224-review-receipt.json
+archived-at: 2026-08-26T12:21:35+09:00
+verified-at: 2026-08-26T12:21:35+09:00
+verification-summary: "Build's second terminator now meets the required plan guard while single-separator passthrough and deliberate triple semantics remain intact."
 ---
 
 # Task 224: a second terminator disarms build's plan guard
@@ -94,14 +117,33 @@ reach docker spelled exactly as they are now. Those are the rows TASK-217
 measured as unchanged and they are the reason the terminator survives the guard
 at all.
 
+## Resolution
+
+`dva build -- --` has no legitimate passthrough meaning. The first `--` separates DVA's
+arguments; the second occupies the plan-name slot, and Compose cannot use it as a service name.
+Build will therefore drop one leading terminator at its call site before plan detection and the
+selection guard, matching up/down/stop without changing `dropLeadingTerminator`'s one-slot
+contract. `build -- web` and `build -- --no-cache` retain their current backend argv.
+
+`dva build -- -- --` is deliberately not collapsed to a bare build. After build consumes its
+separator, one `--` remains as the backend separator and the final `--` remains a literal backend
+argument. In the recorded Compose fixture it reaches Docker and is refused as the nonexistent
+service `--`. Looping in the shared helper would erase that distinction in every plan-aware verb
+and is outside this card.
+
+The implementation is one call-site assignment immediately after `parseDvaFlags`. The shared
+one-slot helper remains unchanged. A differential test compares the exact bare and double-form
+errors, while a backend argv test pins `build web`, `build --no-cache`, and the triple-form
+`build -- --` tails.
+
 ## Completion Criteria
 
-- [ ] `dva build -- --` is refused in a two-plan no-`default_plan` config, with the same message a bare `dva build` gets | verify: human — paste both with rc, on a fixture whose `dva.yml` declares two plans and no `default_plan`; the two messages must be identical
-- [ ] The refusal is pinned by a test that fails without the fix | verify: `grep -c 'func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source, since `go test -run` naming a test that does not exist exits 0
-- [ ] `dva build -- web` and `dva build -- --no-cache` still reach docker with the argument spelled as typed | verify: human — paste both against a compose fixture; the errors must name `web` and `--no-cache`, not a plan
-- [ ] `dva build -- -- --` is decided deliberately, not left to fall out of the fix | verify: human — a sentence on this card saying what it does and why
+- [x] `dva build -- --` is refused in a two-plan no-`default_plan` config, with the same message a bare `dva build` gets | verify: human — paste both with rc, on a fixture whose `dva.yml` declares two plans and no `default_plan`; the two messages must be identical
+- [x] The refusal is pinned by a test that fails without the fix | verify: `grep -c 'func TestSecondTerminatorDoesNotDisarmBuildsPlanGuard' internal/cli/plan_lifecycle_test.go` returns 1 (today: 0). Bound on the test's source, since `go test -run` naming a test that does not exist exits 0
+- [x] `dva build -- web` and `dva build -- --no-cache` still reach docker with the argument spelled as typed | verify: human — paste both against a compose fixture; the errors must name `web` and `--no-cache`, not a plan
+- [x] `dva build -- -- --` is decided deliberately, not left to fall out of the fix | verify: human — a sentence on this card saying what it does and why
 - [x] TASK-217's correction section stops calling this argv a control | verify: `grep -c 'as controls that do not move' tasks/_archive/217-a-lone-terminator-disarms-build-s-plan-selection-guard-and-builds-the-whole-stack.md` returns 0 — verified 2026-08-26 at 5649d70 (already done in the commit that filed this card; the binding stays so a revert is caught)
-- [ ] `make test` passes | verify: `make test`
+- [x] `make test` passes | verify: `make test`
 
 ## References
 
