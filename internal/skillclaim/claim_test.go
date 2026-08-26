@@ -37,8 +37,8 @@ func TestWriteRefusesOtherProducer(t *testing.T) {
 	if err := Reserve(root, validClaim(t, destination, "other")); err != nil {
 		t.Fatal(err)
 	}
-	if err := Write(root, validClaim(t, destination, "dva")); err == nil {
-		t.Fatal("Write replaced another producer's claim")
+	if err := Reserve(root, validClaim(t, destination, "dva")); err == nil {
+		t.Fatal("Reserve replaced another producer's claim")
 	}
 }
 
@@ -78,8 +78,9 @@ func TestTransitionUsesGenerationAndTombstoneFailClosed(t *testing.T) {
 	}
 	claim.State, claim.Generation = StateActive, 4
 	claim.OperationID = "other-operation"
-	if err := Write(root, claim); err == nil {
-		t.Fatal("Write advanced non-active operation")
+	previous, _ = Digest(Claim{Schema: Schema, Name: "dva", Kind: KindDirectory, State: StateUpdating, OperationID: "update-operation", Generation: 3, Destination: claim.Destination, Producer: "producer", Format: "agent-skills-directory", Scope: "user", Consumers: []string{"codex"}, SourceDigest: claim.SourceDigest, Files: claim.Files})
+	if err := Transition(root, claim, 3, previous); err == nil {
+		t.Fatal("Transition advanced non-active foreign operation")
 	}
 }
 

@@ -1,0 +1,1 @@
+{"schema":1,"name":"dva","kind":"directory","state":"active","operation_id":"op","generation":1,"destination":"/example/skills/dva","producer":"p","format":"f","scope":"s","consumers":["c"],"source_digest":"c830107caad8161b59bb5a2404e5300325cb971fc3b479e1e8cf093dbfb0abaa","files":[{"path":"../escape","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}

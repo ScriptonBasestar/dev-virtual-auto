@@ -482,15 +482,24 @@ func allowedTransition(from, to Claim) bool {
 		return to.State == StateActive && to.OperationID == from.OperationID && samePayload(from, to)
 	}
 	if from.State == StateActive {
-		return (to.State == StateUpdating || to.State == StateReleasing || to.State == StateRestoring) && to.OperationID != from.OperationID && ((to.State == StateUpdating) || samePayload(from, to))
+		if to.OperationID == from.OperationID || !sameIdentity(from, to) {
+			return false
+		}
+		return (to.State == StateUpdating) || ((to.State == StateReleasing || to.State == StateRestoring) && samePayload(from, to))
 	}
 	if from.OperationID != to.OperationID {
 		return false
 	}
-	return (from.State == StateUpdating || from.State == StateRestoring) && to.State == StateActive && ((from.State == StateUpdating) || samePayload(from, to))
+	if to.State != StateActive || !sameIdentity(from, to) {
+		return false
+	}
+	return from.State == StateUpdating || (from.State == StateRestoring && samePayload(from, to))
+}
+func sameIdentity(left, right Claim) bool {
+	return left.Name == right.Name && left.Kind == right.Kind && left.Destination == right.Destination && left.Producer == right.Producer && left.Format == right.Format && left.Scope == right.Scope
 }
 func samePayload(left, right Claim) bool {
-	return left.Name == right.Name && left.Kind == right.Kind && left.Destination == right.Destination && left.Producer == right.Producer && left.Format == right.Format && left.Scope == right.Scope && sameStrings(left.Consumers, right.Consumers) && sameFiles(left.Files, right.Files) && left.SourceDigest == right.SourceDigest
+	return sameIdentity(left, right) && sameStrings(left.Consumers, right.Consumers) && sameFiles(left.Files, right.Files) && left.SourceDigest == right.SourceDigest
 }
 func sameStrings(left, right []string) bool {
 	if len(left) != len(right) {
@@ -513,38 +522,6 @@ func sameFiles(left, right []FileHash) bool {
 		}
 	}
 	return true
-}
-func Write(root string, next Claim) error {
-	current, found, err := Read(root, next.Destination)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return Transition(root, next, 0, "")
-	}
-	if current.Producer != next.Producer {
-		return fmt.Errorf("claim for %s belongs to producer %q", next.Destination, current.Producer)
-	}
-	previous, err := Digest(current)
-	if err != nil {
-		return err
-	}
-	return Transition(root, next, current.Generation, previous)
-}
-func Remove(root, destination, producer string) error {
-	current, found, err := Read(root, destination)
-	if err != nil || !found {
-		return err
-	}
-	if current.Producer != producer {
-		return fmt.Errorf("claim for %s belongs to producer %q", destination, current.Producer)
-	}
-	locks, err := AcquireLocks(root, []string{current.Destination})
-	if err != nil {
-		return err
-	}
-	defer locks.Release()
-	return os.Remove(Path(root, current.Destination))
 }
 func write(root string, claim Claim, replace bool) error {
 	path := Path(root, claim.Destination)

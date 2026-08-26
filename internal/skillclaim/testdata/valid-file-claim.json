@@ -10,6 +10,6 @@
   "format": "flat-markdown",
   "scope": "user",
   "consumers": ["example"],
-  "source_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_digest": "c830107caad8161b59bb5a2404e5300325cb971fc3b479e1e8cf093dbfb0abaa",
   "files": [{"path": ".", "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
 }
