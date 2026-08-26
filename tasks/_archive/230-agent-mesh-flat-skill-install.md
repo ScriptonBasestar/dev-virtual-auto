@@ -7,7 +7,22 @@ effort: M
 created-at: 2026-08-26T18:00:00+09:00
 source: "runtime installer follow-up"
 scope: "dva skill install/status/uninstall Agent Mesh adapter"
-status: doing
+status: done
+completed-at: 2026-08-26T18:00:41+09:00
+completion-summary: "Add a format-bound Agent Mesh adapter to the existing skill lifecycle with self-contained flat Markdown and black-box coverage."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "dva test && make test-skill-dogfood && make doc-check && make commit-check"
+    result: "passed after rebasing on current master; repository tests, built-binary Agent Mesh round-trip, documentation, and commit gates exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-08-26T18:00:41+09:00
+quality-review-evidence:
+  - "independent ce-judge verified real am skill list discovery in isolated user and project scopes"
+  - "review-driven improvements made assets and references self-contained, bound Schema 2 receipts to their format, preserved Markdown code regions, and extended black-box dogfood"
+archived-at: 2026-08-26T18:00:41+09:00
+verified-at: 2026-08-26T18:00:41+09:00
+verification-summary: "Agent Mesh now shares the normal install/status/uninstall surface without exposing a separate export command or mutating am-managed projections."
 ---
 
 # Task 230: Agent Mesh flat skill installation
@@ -29,5 +44,5 @@ its interactions with other targets are outside this contract.
 - [x] `agent-mesh` resolves to the documented user and project namespace paths | verify: `go test ./internal/skillinstall -run TestRuntimePaths`
 - [x] Install renders deterministic flat `dva.md` and `dva-config.md` without YAML frontmatter | verify: `go test ./internal/skillinstall -run TestAgentMeshInstallsFlatRenderedSkills`
 - [x] Collision, format-bound receipt, drift, dry-run, uninstall, and mixed-runtime preflight retain the existing safety contract | verify: `go test ./internal/skillinstall`
-- [x] Agent Mesh documentation states the renderer degradation policy and manual `am skill sync` boundary | verify: `make doc-check`
+- [x] Agent Mesh documentation states the renderer degradation policy and keeps `am skill sync` outside DVA ownership | verify: `make doc-check`
 - [x] Focused and repository mechanical checks pass | verify: `make test-skill-dogfood && make doc-check && make commit-check`
