@@ -29,7 +29,7 @@ func TestPathUsesNeutralXDGRoot(t *testing.T) {
 
 func TestWriteRefusesOtherProducer(t *testing.T) {
 	root, destination := t.TempDir(), filepath.Join(t.TempDir(), "dva")
-	if err := Write(root, validClaim(t, destination, "other")); err != nil {
+	if err := Reserve(root, validClaim(t, destination, "other")); err != nil {
 		t.Fatal(err)
 	}
 	if err := Write(root, validClaim(t, destination, "dva")); err == nil {
@@ -50,7 +50,7 @@ func TestDecodeRejectsDuplicateUnknownAndTrailingJSON(t *testing.T) {
 func TestTransitionUsesGenerationAndTombstoneFailClosed(t *testing.T) {
 	root, destination := t.TempDir(), filepath.Join(t.TempDir(), "dva")
 	claim := validClaim(t, destination, "producer")
-	if err := Transition(root, claim, 0, ""); err != nil {
+	if err := Reserve(root, claim); err != nil {
 		t.Fatal(err)
 	}
 	claim, _, err := Read(root, destination)
@@ -61,8 +61,8 @@ func TestTransitionUsesGenerationAndTombstoneFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	claim.Generation = 2
-	if err := Transition(root, claim, 1, previous); err != nil {
+	claim.Generation, claim.State = 2, StateActive
+	if err := Activate(root, claim, 1, previous); err != nil {
 		t.Fatal(err)
 	}
 	claim.State, claim.Generation = StateUpdating, 3
@@ -97,5 +97,27 @@ func TestCanonicalDestinationRejectsFinalSymlink(t *testing.T) {
 	}
 	if _, err := CanonicalDestination(link); err == nil {
 		t.Fatal("final destination symlink accepted")
+	}
+}
+
+func TestLockedStoreReservesTwoClaimsAndRefusesDoubleClose(t *testing.T) {
+	root, parent := t.TempDir(), t.TempDir()
+	first, second := filepath.Join(parent, "dva"), filepath.Join(parent, "dva-config")
+	store, err := Begin(root, []string{second, first, first})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if err := store.Reserve(validClaim(t, first, "producer")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Reserve(validClaim(t, second, "producer")); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err == nil {
+		t.Fatal("double Close succeeded")
 	}
 }

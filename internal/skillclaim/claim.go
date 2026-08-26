@@ -249,16 +249,24 @@ func sortedUnique(values []string) bool {
 	return true
 }
 
-type LockSet struct{ paths []string }
+type LockSet struct {
+	paths    []string
+	released bool
+}
 
 func AcquireLocks(root string, destinations []string) (*LockSet, error) {
+	unique := map[string]bool{}
 	paths := make([]string, 0, len(destinations))
 	for _, destination := range destinations {
 		canonical, err := CanonicalDestination(destination)
 		if err != nil {
 			return nil, err
 		}
-		paths = append(paths, Path(root, canonical)+".lock")
+		path := Path(root, canonical) + ".lock"
+		if !unique[path] {
+			unique[path] = true
+			paths = append(paths, path)
+		}
 	}
 	sort.Strings(paths)
 	if len(paths) > 0 {
@@ -277,9 +285,13 @@ func AcquireLocks(root string, destinations []string) (*LockSet, error) {
 			return nil, err
 		}
 	}
-	return &LockSet{paths}, nil
+	return &LockSet{paths: paths}, nil
 }
 func (locks *LockSet) Release() error {
+	if locks == nil || locks.released {
+		return errors.New("claim locks already released")
+	}
+	locks.released = true
 	var first error
 	for i := len(locks.paths) - 1; i >= 0; i-- {
 		if err := os.Remove(locks.paths[i]); err != nil && !errors.Is(err, os.ErrNotExist) && first == nil {
@@ -298,7 +310,7 @@ func Digest(claim Claim) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// Transition uses O_EXCL for an absent reservation. Existing active claims require both prior digest and generation; tombstones are fail-closed.
+// Transition is the single-claim convenience around a LockedStore transaction.
 func Transition(root string, next Claim, expectedGeneration uint64, previousDigest string) error {
 	canonical, err := CanonicalDestination(next.Destination)
 	if err != nil {
@@ -313,27 +325,8 @@ func Transition(root string, next Claim, expectedGeneration uint64, previousDige
 		return err
 	}
 	defer locks.Release()
-	current, found, err := Read(root, canonical)
-	if err != nil {
-		return err
-	}
-	if !found {
-		if expectedGeneration != 0 || previousDigest != "" {
-			return errors.New("claim reservation is absent")
-		}
-	} else {
-		actual, err := Digest(current)
-		if err != nil {
-			return err
-		}
-		if current.State != StateActive && current.OperationID != next.OperationID {
-			return errors.New("claim reservation is non-active")
-		}
-		if current.Producer != next.Producer || current.Generation != expectedGeneration || actual != previousDigest {
-			return errors.New("claim reservation changed")
-		}
-	}
-	return write(root, next, found)
+	store := &LockedStore{root: root, locks: locks}
+	return store.CompareAndSwap(next, expectedGeneration, previousDigest)
 }
 
 // Reserve persists a new reserved claim with O_EXCL. Call Activate with the same operation ID.
@@ -366,36 +359,82 @@ func (store *LockedStore) Close() error { return store.locks.Release() }
 func (store *LockedStore) Read(destination string) (Claim, bool, error) {
 	return Read(store.root, destination)
 }
-func Write(root string, next Claim) error {
-	// Compatibility for pre-protocol producers: persisted claims are still strict,
-	// but this helper supplies the mandatory protocol envelope before transition.
-	if next.Name == "" {
-		next.Name = strings.TrimSuffix(filepath.Base(next.Destination), filepath.Ext(next.Destination))
+func (store *LockedStore) Reserve(claim Claim) error {
+	claim.State = StateReserved
+	if claim.Generation == 0 {
+		claim.Generation = 1
 	}
-	if next.Kind == "" {
-		if filepath.Ext(next.Destination) != "" {
-			next.Kind = KindFile
-		} else {
-			next.Kind = KindDirectory
+	return store.CompareAndSwap(claim, 0, "")
+}
+func (store *LockedStore) CompareAndSwap(next Claim, generation uint64, previous string) error {
+	canonical, err := CanonicalDestination(next.Destination)
+	if err != nil {
+		return err
+	}
+	next.Destination = canonical
+	if err := Validate(next, canonical); err != nil {
+		return err
+	}
+	current, found, err := Read(store.root, canonical)
+	if err != nil {
+		return err
+	}
+	if !found {
+		if generation != 0 || previous != "" || next.State != StateReserved {
+			return errors.New("new claim must be reserved with empty predecessor")
 		}
+		return write(store.root, next, false)
 	}
-	if next.Kind == KindFile && len(next.Files) == 1 {
-		next.Files[0].Path = "."
+	digest, err := Digest(current)
+	if err != nil {
+		return err
 	}
-	if next.State == "" {
-		next.State = StateActive
+	if current.Generation != generation || digest != previous || current.Producer != next.Producer {
+		return errors.New("claim reservation changed")
 	}
-	if next.OperationID == "" {
-		next.OperationID = "legacy-write"
+	if !allowedTransition(current, next) {
+		return errors.New("claim state or operation transition is invalid")
 	}
+	return write(store.root, next, true)
+}
+func (store *LockedStore) Remove(destination string, producer string, generation uint64, previous string) error {
+	current, found, err := Read(store.root, destination)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return errors.New("claim reservation is absent")
+	}
+	digest, err := Digest(current)
+	if err != nil {
+		return err
+	}
+	if current.Producer != producer || current.Generation != generation || digest != previous || current.State != StateReleasing {
+		return errors.New("claim removal precondition failed")
+	}
+	if err := os.Remove(Path(store.root, current.Destination)); err != nil {
+		return err
+	}
+	return syncDir(filepath.Dir(Path(store.root, current.Destination)))
+}
+func allowedTransition(from, to Claim) bool {
+	if from.State == StateReserved {
+		return to.State == StateActive && to.OperationID == from.OperationID
+	}
+	if from.State == StateActive {
+		return (to.State == StateUpdating || to.State == StateReleasing || to.State == StateRestoring)
+	}
+	if from.OperationID != to.OperationID {
+		return false
+	}
+	return (from.State == StateUpdating || from.State == StateRestoring) && to.State == StateActive
+}
+func Write(root string, next Claim) error {
 	current, found, err := Read(root, next.Destination)
 	if err != nil {
 		return err
 	}
 	if !found {
-		if next.Generation == 0 {
-			next.Generation = 1
-		}
 		return Transition(root, next, 0, "")
 	}
 	if current.Producer != next.Producer {
@@ -404,9 +443,6 @@ func Write(root string, next Claim) error {
 	previous, err := Digest(current)
 	if err != nil {
 		return err
-	}
-	if next.Generation <= current.Generation {
-		next.Generation = current.Generation + 1
 	}
 	return Transition(root, next, current.Generation, previous)
 }
@@ -485,12 +521,15 @@ func syncPath(path string) error {
 	if closeErr != nil {
 		return closeErr
 	}
-	dir, err := os.Open(filepath.Dir(path))
+	return syncDir(filepath.Dir(path))
+}
+func syncDir(path string) error {
+	dir, err := os.Open(path)
 	if err != nil {
 		return err
 	}
 	err = dir.Sync()
-	closeErr = dir.Close()
+	closeErr := dir.Close()
 	if err != nil {
 		return err
 	}
