@@ -304,20 +304,18 @@ func verifyTakeoverBackups(stateRoot string, record receipt) (string, string) {
 	if len(record.Takeovers) == 0 {
 		return "", ""
 	}
-	if err := verifyTakeoverBackupInventory(stateRoot, record); err != nil {
-		return "corrupt", ""
-	}
 	first := ""
-	for _, takeover := range record.Takeovers {
-		path, err := takeoverBackupPath(stateRoot, record.Destination, takeover)
-		if err != nil {
-			return "corrupt", ""
-		}
+	groups := takeoverBackupGroups(record)
+	ids := make([]string, 0, len(groups))
+	for backupID := range groups {
+		ids = append(ids, backupID)
+	}
+	sort.Strings(ids)
+	for _, backupID := range ids {
 		if first == "" {
-			first = path
+			first = filepath.Join(takeoverDestinationRoot(stateRoot, record.Destination), backupID, groups[backupID][0])
 		}
-		kind, entries, err := inspectBackupTree(path)
-		if err != nil || kind != takeover.Kind || backupManifestDigest(entries) != takeover.ManifestDigest || !equalBackupEntries(entries, takeover.Entries) {
+		if err := verifyTakeoverBackupGroup(stateRoot, record, backupID, groups[backupID]); err != nil {
 			return "corrupt", first
 		}
 	}
@@ -325,25 +323,80 @@ func verifyTakeoverBackups(stateRoot string, record receipt) (string, string) {
 }
 
 func verifyTakeoverBackupInventory(stateRoot string, record receipt) error {
-	expected := map[string][]string{}
-	for _, takeover := range record.Takeovers {
-		expected[takeover.BackupID] = append(expected[takeover.BackupID], takeover.Skill)
+	for backupID, skills := range takeoverBackupGroups(record) {
+		if err := verifyTakeoverBackupGroup(stateRoot, record, backupID, skills); err != nil {
+			return err
+		}
 	}
-	for backupID, want := range expected {
-		root := filepath.Join(takeoverDestinationRoot(stateRoot, record.Destination), backupID)
-		entries, err := os.ReadDir(root)
+	return nil
+}
+
+func takeoverBackupGroups(record receipt) map[string][]string {
+	groups := map[string][]string{}
+	for _, takeover := range record.Takeovers {
+		groups[takeover.BackupID] = append(groups[takeover.BackupID], takeover.Skill)
+	}
+	for _, skills := range groups {
+		sort.Strings(skills)
+	}
+	return groups
+}
+
+// verifyTakeoverBackupGroup validates exactly one backup ID. The receipt may
+// legally retain multiple IDs, so a corrupt group must not make a distinct,
+// verified group unsafe to list.
+func verifyTakeoverBackupGroup(stateRoot string, record receipt, backupID string, skills []string) error {
+	if !validBackupID(backupID) {
+		return errors.New("takeover receipt contains an invalid backup identity")
+	}
+	base := takeoverDestinationRoot(stateRoot, record.Destination)
+	if err := requireRegularDirectory(base); err != nil {
+		return fmt.Errorf("takeover backup destination %s: %w", base, err)
+	}
+	root := filepath.Join(base, backupID)
+	if err := requireRegularDirectory(root); err != nil {
+		return fmt.Errorf("takeover backup %s: %w", root, err)
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	got := make([]string, len(entries))
+	for index, entry := range entries {
+		got[index] = entry.Name()
+	}
+	sort.Strings(got)
+	want := append([]string(nil), skills...)
+	sort.Strings(want)
+	if !slices.Equal(got, want) {
+		return fmt.Errorf("takeover backup %s inventory differs from receipt: got %v, want %v", root, got, want)
+	}
+	for _, takeover := range record.Takeovers {
+		if takeover.BackupID != backupID {
+			continue
+		}
+		path, err := takeoverBackupPath(stateRoot, record.Destination, takeover)
 		if err != nil {
 			return err
 		}
-		got := make([]string, len(entries))
-		for index, entry := range entries {
-			got[index] = entry.Name()
+		kind, entries, err := inspectBackupTree(path)
+		if err != nil || kind != takeover.Kind || backupManifestDigest(entries) != takeover.ManifestDigest || !equalBackupEntries(entries, takeover.Entries) {
+			if err == nil {
+				err = errors.New("backup differs from receipt")
+			}
+			return err
 		}
-		sort.Strings(got)
-		sort.Strings(want)
-		if !slices.Equal(got, want) {
-			return fmt.Errorf("takeover backup %s inventory differs from receipt: got %v, want %v", root, got, want)
-		}
+	}
+	return nil
+}
+
+func requireRegularDirectory(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return errors.New("is not a regular directory")
 	}
 	return nil
 }

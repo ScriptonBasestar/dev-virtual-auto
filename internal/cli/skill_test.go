@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -140,6 +141,52 @@ func TestSkillBackupListHumanOutputIsDeterministic(t *testing.T) {
 		if !strings.Contains(first, want) {
 			t.Errorf("human output omits %q:\n%s", want, first)
 		}
+	}
+}
+
+func TestSkillBackupListJSONHasStableKeysOrderAndEmptyArray(t *testing.T) {
+	oldJSON := jsonOutput
+	jsonOutput = true
+	t.Cleanup(func() { jsonOutput = oldJSON })
+	result := skillinstall.BackupListResult{Scope: skillinstall.ScopeProject, Backups: []skillinstall.TakeoverBackupResult{
+		{BackupID: "11111111111111111111111111111111", Destination: "/project/.agents/skills", Runtimes: []skillinstall.Runtime{skillinstall.RuntimeCodex}, Skills: []string{"dva"}, Status: "available"},
+		{BackupID: "22222222222222222222222222222222", Destination: "/project/.agents/skills", Runtimes: []skillinstall.Runtime{skillinstall.RuntimeCodex}, Skills: []string{"dva-config"}, Status: "corrupt"},
+	}}
+	first := captureOutput(t, func() {
+		if err := printSkillBackupList(result); err != nil {
+			t.Fatal(err)
+		}
+	})
+	second := captureOutput(t, func() {
+		if err := printSkillBackupList(result); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if first != second {
+		t.Fatalf("JSON output is nondeterministic:\nfirst: %q\nsecond: %q", first, second)
+	}
+	var document struct {
+		Scope   string                              `json:"scope"`
+		Backups []skillinstall.TakeoverBackupResult `json:"backups"`
+	}
+	if err := json.Unmarshal([]byte(first), &document); err != nil {
+		t.Fatal(err)
+	}
+	if document.Scope != "project" || len(document.Backups) != 2 || document.Backups[0].BackupID != "11111111111111111111111111111111" || document.Backups[1].BackupID != "22222222222222222222222222222222" {
+		t.Fatalf("JSON document = %#v", document)
+	}
+
+	empty := captureOutput(t, func() {
+		if err := printSkillBackupList(skillinstall.BackupListResult{Scope: skillinstall.ScopeUser, Backups: []skillinstall.TakeoverBackupResult{}}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(empty), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 2 || string(raw["backups"]) != "[]" || string(raw["scope"]) != `"user"` {
+		t.Fatalf("empty JSON = %s", empty)
 	}
 }
 

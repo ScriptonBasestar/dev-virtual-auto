@@ -36,14 +36,16 @@ func ListTakeoverBackups(options Options) (BackupListResult, error) {
 		if err != nil {
 			return BackupListResult{}, fmt.Errorf("read receipt for %s: %w", target.path, err)
 		}
-		if !found || len(record.Takeovers) == 0 {
+		if !found {
 			continue
 		}
 		if err := validateReceipt(record, resolved.Scope, target); err != nil {
 			return BackupListResult{}, fmt.Errorf("validate receipt for %s: %w", target.path, err)
 		}
+		if len(record.Takeovers) == 0 {
+			continue
+		}
 
-		status, _ := verifyTakeoverBackups(resolved.StateRoot, record)
 		byID := make(map[string][]string)
 		for _, takeover := range record.Takeovers {
 			byID[takeover.BackupID] = append(byID[takeover.BackupID], takeover.Skill)
@@ -56,6 +58,10 @@ func ListTakeoverBackups(options Options) (BackupListResult, error) {
 		for _, backupID := range ids {
 			skills := byID[backupID]
 			sort.Strings(skills)
+			status := "available"
+			if err := verifyTakeoverBackupGroup(resolved.StateRoot, record, backupID, skills); err != nil {
+				status = "corrupt"
+			}
 			result.Backups = append(result.Backups, TakeoverBackupResult{
 				BackupID: backupID, Destination: target.path,
 				Runtimes: append([]Runtime(nil), target.runtimes...),
