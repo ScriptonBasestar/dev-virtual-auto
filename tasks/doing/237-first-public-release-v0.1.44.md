@@ -25,19 +25,16 @@ the installed binary passed live skill discovery in Codex, Claude Code, Agent Me
 Grok. TASK-063 remains immutable history of the earlier option-B decision; this task records the
 later product decision that supersedes it.
 
-Do not create or push the tag while GitHub release authorization is unavailable. Tag creation,
-draft creation, asset uploads, and publication are separate external operations; no procedure can
-make them atomic. Minimize and make that partial state recoverable rather than claiming it cannot
-happen. The current README and `.goreleaser.yml` snapshot-only note remain truthful until the
-blocker is removed.
+Tag creation, draft creation, asset uploads, and publication are separate external operations; no
+procedure can make them atomic. Minimize and make that partial state recoverable rather than
+claiming it cannot happen. The README remains source-install-only until public assets exist.
 
-## Unblock condition
+## Authorization history and current preflight
 
-Replace the active token with one whose expiration satisfies the organization policy. A human must
-confirm in the GitHub token settings that it grants Contents read/write for
-`ScriptonBasestar/dva`; the read-only probes below do not prove write access. Do not record the
-token or credential details in this card. These commands must succeed immediately before the
-first external mutation:
+The original fine-grained token exceeded the organization's 366-day lifetime limit. It was
+replaced without recording credential details here; `gh repo view` now reports `ADMIN`, and the
+task-branch push proves repository write access. The read-only probes below must still succeed
+immediately before the first public tag or release mutation:
 
 ```sh
 set -eu
@@ -57,10 +54,12 @@ still creates a GitHub draft while uploading and publishes it only after the upl
 These settings let the pinned GoReleaser 2.12.7 create the remote tag at the exact release commit
 and resume an interrupted draft without deleting or moving the tag.
 
-After committing and verifying that tree, record `release_commit="$(git rev-parse HEAD)"` before
-creating the tag. Treat that value as the publication identity; later documentation commits may
-move `HEAD`. Every local and remote tag comparison must resolve `v0.1.44` back to that recorded
-commit rather than comparing it with whichever commit happens to be checked out later.
+After committing and verifying that tree, integrate the release-preparation commits into
+`master`, push `origin/master`, and start publication from a clean worktree at that exact source
+tip. Only then record `release_commit="$(git rev-parse HEAD)"` before creating the tag. Treat that
+value as the publication identity; later documentation commits may move `HEAD`. Every local and
+remote tag comparison must resolve `v0.1.44` back to that recorded commit rather than comparing it
+with whichever commit happens to be checked out later.
 
 Create a **local lightweight** `v0.1.44` tag at the clean release commit; do not push it separately.
 An annotated local tag would not match the commit ref GitHub creates from `target_commitish`.
@@ -108,9 +107,11 @@ intended release commit.
 - Antigravity user projection: receipt, 12-file manifest, neutral claim, and bundle digest passed
   independent review; native IDE discovery remains unverified because no Antigravity host is
   installed, so this is not evidence of a live runtime pass
-- GitHub API preflight: blocked before tag creation by the organization token-lifetime policy
+- Initial GitHub API preflight: blocked before tag creation by the organization token-lifetime
+  policy; replacement authentication later passed with `ADMIN`, an empty release list, and no
+  local or remote `v0.1.44` tag
 
 These hashes identify the reviewed pre-release state, not the future release commit. If `master`
-advances before unblocking, repeat all gates and record the actual tagged revision instead of
+advances before publication, repeat all gates and record the actual tagged revision instead of
 treating these hashes as release pins. `GOPROXY=direct` is intentional for the immediate module
 probe; the public proxy is the normal user path but may lag the new tag and can be checked later.
