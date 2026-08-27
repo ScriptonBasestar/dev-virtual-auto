@@ -7,15 +7,18 @@ effort: S
 created-at: 2026-08-27T00:00:00+09:00
 source: "explicit user approval after TASK-231 snapshot readiness and multi-runtime dogfood"
 scope: "release decision record, v0.1.44 tag, GoReleaser publication, artifact verification, and installation documentation"
-status: doing
+status: blocked
 started-at: 2026-08-27T17:12:10+09:00
 unblocked-at: 2026-08-27T17:12:10+09:00
+blocked-at: 2026-08-27T17:22:34+09:00
+blocked-on: "The replacement fine-grained GITHUB_TOKEN can read the repository but GitHub rejects POST /repos/ScriptonBasestar/dva/releases with 403; grant Contents read/write and restart the session."
 ---
 
 # Task 237: publish the first public v0.1.44 release
 
-GitHub authorization was restored with repository `ADMIN` access. The fail-closed preflight found
-no local or remote `v0.1.44` tag and an empty release list before this task entered `doing`.
+GitHub read authorization was restored and the fail-closed preflight found no local or remote
+`v0.1.44` tag and an empty release list before this task entered `doing`. The later publish attempt
+proved that the replacement token still lacks release-write authority.
 
 ## Decision
 
@@ -32,9 +35,11 @@ claiming it cannot happen. The README remains source-install-only until public a
 ## Authorization history and current preflight
 
 The original fine-grained token exceeded the organization's 366-day lifetime limit. It was
-replaced without recording credential details here; `gh repo view` now reports `ADMIN`, and the
-task-branch push proves repository write access. The read-only probes below must still succeed
-immediately before the first public tag or release mutation:
+replaced without recording credential details here, and `gh repo view` now reports `ADMIN`.
+Neither that account-level view nor a Git push through a separate credential path proves that
+`GITHUB_TOKEN` has release-write scope. A human must confirm **Contents: read/write** on the token,
+and the read-only probes below must still succeed immediately before another public release
+attempt:
 
 ```sh
 set -eu
@@ -97,6 +102,20 @@ intended release commit.
 - [ ] Verify immediate tagged-module installation directly from GitHub and execute the installed binary | verify: `tmp_bin="$(mktemp -d)"; trap 'rm -rf "$tmp_bin"' EXIT; GOPROXY=direct GOBIN="$tmp_bin" go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44 && "$tmp_bin/dva" version | /usr/bin/grep -q '^dva version 0.1.44$'`
 - [ ] Add pinned-version, checksum-verifying binary installation documentation only after the assets exist | verify: `/usr/bin/grep -Fq 'github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44' README.md && /usr/bin/grep -Fq '/releases/download/v0.1.44/checksums.txt' README.md && /usr/bin/grep -Eq 'sha256sum|shasum -a 256' README.md && make doc-check`
 - [ ] Record release URL, artifact names/checksums, checks, push state, and final external probes; then remove the local `dist/` build output before archiving this card | verify: `test ! -e dist`
+
+## Publication attempt
+
+The release-preparation commit `49d444cc8f4fb128c61b00f6789b577545bc7a21` was integrated
+into `master` and passed lint, race/coverage tests, integration tests, six-runtime installer
+dogfood, documentation and commit gates, and the six-platform snapshot gate. A local lightweight
+`v0.1.44` tag and `goreleaser release --skip=publish --clean` then produced the exact six archives,
+valid `checksums.txt`, and a host binary stamped with that commit and version.
+
+The public `goreleaser release --clean` attempt rebuilt the artifacts but GitHub rejected release
+creation with `403 Resource not accessible by personal access token`. Post-failure probes found no
+remote tag, draft, or published release, so no partial external state needs repair. Keep the local
+tag at the recorded release commit and retry the same publication command only after the token has
+fine-grained **Contents: read/write** permission and the refreshed environment passes preflight.
 
 ## Preserved evidence
 
