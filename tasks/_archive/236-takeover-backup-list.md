@@ -25,8 +25,9 @@ a stable backup ID inventory without inspecting DVA state directly.
 - [x] `dva skill backup list` reports each receipt-backed backup by deterministic ID, destination,
   selected runtimes, skill names, and independently verified available/corrupt state | verify:
   `go test ./internal/skillinstall -run ListTakeoverBackups`
-- [x] Scope/runtime filtering reuses installer destination resolution and lists a shared project
-  destination once | verify: `go test ./internal/skillinstall -run ListTakeoverBackups`
+- [x] Scope/runtime filtering reuses installer destination resolution, deduplicates the same shared
+  destination/backup-ID row, and preserves distinct backup IDs | verify:
+  `go test ./internal/skillinstall -run ListTakeoverBackups`
 - [x] Listing performs no state mutation across destination, neutral claim, and DVA state roots; every
   found receipt is validated even when it has no takeover metadata | verify:
   `go test ./internal/skillinstall -run ListTakeoverBackups`
@@ -44,4 +45,5 @@ Keep backup deletion and retention policy out of this task. The list command val
 receipt and backup tree that restore uses, returns only the calculated backup ID plus its destination,
 and never trusts a receipt-provided arbitrary state path. Each backup ID is verified independently so
 one corrupt retained group does not conceal another valid group. Runtime filters select destinations;
-when multiple runtimes share a project destination, resolver grouping deliberately produces one row.
+when multiple runtimes share a project destination, resolver grouping deduplicates only an identical
+destination/backup-ID row and leaves distinct retained IDs visible.

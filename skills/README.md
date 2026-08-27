@@ -149,7 +149,8 @@ and permission bits; it rejects symlinks and special files. Ordinary uninstall p
 as a backup-only receipt tombstone; restoration is the separate explicit
 `dva skill uninstall --restore-takeover-backup` operation.
 `dva skill backup list` is a read-only, scope/runtime-filtered view of retained verified backup IDs;
-shared project destinations are listed once.
+shared runtimes do not duplicate the same destination/backup-ID row, while distinct backup IDs remain
+separate rows.
 
 Do not edit generated artifacts (`.cursor/rules/*`, the `AGENTS.md` skills section,
 `claude-plugin/skills`). Edit the canonical skill and regenerate.

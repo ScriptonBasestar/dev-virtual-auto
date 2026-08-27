@@ -86,8 +86,9 @@ dva skill uninstall --dry-run --runtime claude-code
 `dva` producer로 자신의 두 이름만 claim합니다. 다른 producer claim, symlink, 특수 파일은
 `--takeover`로도 거부합니다. 인수 백업은 DVA state에 남아 있으며 status에서 available/corrupt를
 확인할 수 있습니다. `dva skill backup list`는 scope/runtime으로 필터한 receipt-backed backup ID,
-대상, 스킬과 무결성 상태를 조회하며 state를 바꾸지 않습니다. 프로젝트 scope의 공유 목적지는
-한 행으로 합쳐집니다. 일반 uninstall은 백업을 보존하고 자동 복원하지 않습니다.
+대상, 스킬과 무결성 상태를 조회하며 state를 바꾸지 않습니다. 프로젝트 scope에서 runtime들이
+공유하는 같은 `(destination, backup_id)`는 중복하지 않고, 서로 다른 backup ID는 별도 행으로
+유지합니다. 일반 uninstall은 백업을 보존하고 자동 복원하지 않습니다.
 두 위험 옵션은 지원 runtime 전체를 암묵적으로 선택하지 않으며 `--runtime`을 반드시 지정해야
 합니다. 공유 목적지에 다른 consumer가 남아 있으면 복원을 거부합니다.
 
