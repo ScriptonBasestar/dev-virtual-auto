@@ -25,6 +25,7 @@ dva skill install                         # 사용자 범위, 지원 런타임 �
 dva skill install --runtime codex,claude-code
 dva skill install --scope project         # 현재 프로젝트에만 설치
 dva skill status --json
+dva skill backup list --runtime codex     # 보존된 takeover backup ID 조회
 ```
 
 충돌 방지·삭제 소유권·런타임별 경로는 [USAGE.md의 스킬 설치](USAGE.md#ai-스킬-설치)를

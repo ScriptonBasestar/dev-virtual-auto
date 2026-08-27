@@ -7,7 +7,7 @@ effort: M
 created-at: 2026-08-26T18:40:00+09:00
 source: "independent post-TASK-233 contract review"
 scope: "guided proposal persistence, selected-plan resolution, and discovery report freshness"
-status: doing
+status: done
 completed-at: 2026-08-26T18:57:44+09:00
 completion-summary: "Preserve reviewed proposal data, bind approval to the current run, gate every mutation, resolve the approved plan safely, and remove stale automatic discovery input."
 verification-status: verified

@@ -59,8 +59,9 @@ func TestSkillManifestDescribesRealSubcommands(t *testing.T) {
 		"install":   skillInstallCmd.Short,
 		"status":    skillStatusCmd.Short,
 		"uninstall": skillUninstallCmd.Short,
+		"backup":    skillBackupCmd.Short,
 	}
-	types := map[string]string{"install": "mutation", "status": "query", "uninstall": "mutation"}
+	types := map[string]string{"install": "mutation", "status": "query", "uninstall": "mutation", "backup": "meta"}
 	for name, want := range children {
 		subcommand, ok := entry.Subcommands[name]
 		if !ok {
@@ -73,6 +74,9 @@ func TestSkillManifestDescribesRealSubcommands(t *testing.T) {
 		if subcommand.Type != types[name] {
 			t.Errorf("skill %s type = %q, want %q", name, subcommand.Type, types[name])
 		}
+		if name == "backup" {
+			continue
+		}
 		for _, flagName := range []string{"scope", "runtime"} {
 			if strings.TrimSpace(subcommand.Options[flagName]) == "" {
 				t.Errorf("skill %s omits --%s", name, flagName)
@@ -81,6 +85,10 @@ func TestSkillManifestDescribesRealSubcommands(t *testing.T) {
 	}
 	if len(entry.Subcommands) != len(children) {
 		t.Fatalf("manifest skill subcommands = %v", entry.Subcommands)
+	}
+	backup, ok := entry.Subcommands["backup"]
+	if !ok || backup.Subcommands["list"].Type != "query" {
+		t.Fatalf("manifest backup list = %#v", backup)
 	}
 }
 
@@ -95,6 +103,7 @@ func TestSkillCommandContract(t *testing.T) {
 		{name: skillInstallCmd.Name(), scope: skillInstallScope},
 		{name: skillStatusCmd.Name(), scope: skillStatusScope},
 		{name: skillUninstallCmd.Name(), scope: skillRemoveScope},
+		{name: skillBackupListCmd.Name(), scope: skillBackupListScope},
 	} {
 		if command.scope != "user" {
 			t.Errorf("%s default scope = %q, want user", command.name, command.scope)
@@ -102,6 +111,35 @@ func TestSkillCommandContract(t *testing.T) {
 	}
 	if isTopLevelCommand("skill") != true {
 		t.Fatal("skill command is not reserved")
+	}
+}
+
+func TestSkillBackupListHumanOutputIsDeterministic(t *testing.T) {
+	oldJSON := jsonOutput
+	jsonOutput = false
+	t.Cleanup(func() { jsonOutput = oldJSON })
+	result := skillinstall.BackupListResult{Scope: skillinstall.ScopeUser, Backups: []skillinstall.TakeoverBackupResult{{
+		BackupID: "0123456789abcdef0123456789abcdef", Destination: "/home/.agents/skills",
+		Runtimes: []skillinstall.Runtime{skillinstall.RuntimeAntigravity, skillinstall.RuntimeCodex},
+		Skills:   []string{"dva", "dva-config"}, Status: "available",
+	}}}
+	first := captureOutput(t, func() {
+		if err := printSkillBackupList(result); err != nil {
+			t.Fatal(err)
+		}
+	})
+	second := captureOutput(t, func() {
+		if err := printSkillBackupList(result); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if first != second {
+		t.Fatalf("human output is nondeterministic:\nfirst: %q\nsecond: %q", first, second)
+	}
+	for _, want := range []string{"0123456789abcdef0123456789abcdef", "available", "antigravity,codex", "skills: dva,dva-config"} {
+		if !strings.Contains(first, want) {
+			t.Errorf("human output omits %q:\n%s", want, first)
+		}
 	}
 }
 

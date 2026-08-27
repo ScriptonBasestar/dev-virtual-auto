@@ -127,6 +127,7 @@ canonical skill directories and expose deterministic installation without an AI 
 ```bash
 dva skill install
 dva skill status
+dva skill backup list
 dva skill uninstall
 ```
 
@@ -147,6 +148,8 @@ option first writes a durable, manifest-verified backup of regular bytes, paths,
 and permission bits; it rejects symlinks and special files. Ordinary uninstall preserves that backup
 as a backup-only receipt tombstone; restoration is the separate explicit
 `dva skill uninstall --restore-takeover-backup` operation.
+`dva skill backup list` is a read-only, scope/runtime-filtered view of retained verified backup IDs;
+shared project destinations are listed once.
 
 Do not edit generated artifacts (`.cursor/rules/*`, the `AGENTS.md` skills section,
 `claude-plugin/skills`). Edit the canonical skill and regenerate.

@@ -58,6 +58,9 @@ dva skill uninstall --runtime grok
 dva skill install --runtime codex --takeover
 # 일반 uninstall은 백업을 복원하지 않음; 명시할 때만 검증 후 복원
 dva skill uninstall --runtime codex --restore-takeover-backup
+# 보존된 backup ID와 검증 상태 조회; state를 바꾸지 않음
+dva skill backup list --runtime codex
+dva --json skill backup list --scope project --runtime codex,antigravity
 
 # 실제 파일과 receipt를 바꾸지 않고 충돌까지 미리 검사
 dva skill install --dry-run
@@ -82,7 +85,9 @@ dva skill uninstall --dry-run --runtime claude-code
 `$XDG_STATE_HOME/agent-skills/claims/v1/`에 producer-neutral claim을 기록하며, DVA는
 `dva` producer로 자신의 두 이름만 claim합니다. 다른 producer claim, symlink, 특수 파일은
 `--takeover`로도 거부합니다. 인수 백업은 DVA state에 남아 있으며 status에서 available/corrupt를
-확인할 수 있습니다. 일반 uninstall은 백업을 보존하고 자동 복원하지 않습니다.
+확인할 수 있습니다. `dva skill backup list`는 scope/runtime으로 필터한 receipt-backed backup ID,
+대상, 스킬과 무결성 상태를 조회하며 state를 바꾸지 않습니다. 프로젝트 scope의 공유 목적지는
+한 행으로 합쳐집니다. 일반 uninstall은 백업을 보존하고 자동 복원하지 않습니다.
 두 위험 옵션은 지원 runtime 전체를 암묵적으로 선택하지 않으며 `--runtime`을 반드시 지정해야
 합니다. 공유 목적지에 다른 consumer가 남아 있으면 복원을 거부합니다.
 

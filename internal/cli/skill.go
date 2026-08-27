@@ -26,6 +26,8 @@ var (
 	skillRemoveScope                 string
 	skillRemoveRuntimes              []string
 	skillRemoveRestoreTakeoverBackup bool
+	skillBackupListScope             string
+	skillBackupListRuntimes          []string
 )
 
 var skillInstallCmd = &cobra.Command{
@@ -81,6 +83,28 @@ var skillUninstallCmd = &cobra.Command{
 	},
 }
 
+var skillBackupCmd = &cobra.Command{
+	Use:   "backup",
+	Short: "Inspect retained takeover backups",
+}
+
+var skillBackupListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List verified retained takeover backups without changing state",
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		options, err := skillOptions(skillBackupListScope, skillBackupListRuntimes, false)
+		if err != nil {
+			return err
+		}
+		result, err := skillinstall.ListTakeoverBackups(options)
+		if err != nil {
+			return err
+		}
+		return printSkillBackupList(result)
+	},
+}
+
 type skillCommandResult struct {
 	Operation string                           `json:"operation"`
 	DryRun    bool                             `json:"dry_run"`
@@ -100,7 +124,10 @@ func init() {
 	skillUninstallCmd.Flags().StringVar(&skillRemoveScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
 	skillUninstallCmd.Flags().StringSliceVar(&skillRemoveRuntimes, "runtime", nil, runtimeUsage)
 	skillUninstallCmd.Flags().BoolVar(&skillRemoveRestoreTakeoverBackup, "restore-takeover-backup", false, "Restore a verified backup created by --takeover; never automatic")
-	skillCmd.AddCommand(skillInstallCmd, skillStatusCmd, skillUninstallCmd)
+	skillBackupListCmd.Flags().StringVar(&skillBackupListScope, "scope", string(skillinstall.ScopeUser), scopeUsage)
+	skillBackupListCmd.Flags().StringSliceVar(&skillBackupListRuntimes, "runtime", nil, runtimeUsage)
+	skillBackupCmd.AddCommand(skillBackupListCmd)
+	skillCmd.AddCommand(skillInstallCmd, skillStatusCmd, skillUninstallCmd, skillBackupCmd)
 }
 
 func skillOptions(scopeValue string, runtimeValues []string, isDryRun bool) (skillinstall.Options, error) {
@@ -165,6 +192,21 @@ func printSkillResult(operation string, isDryRun bool, result skillinstall.Resul
 		if entry.Detail != "" {
 			fmt.Printf("  %s\n", entry.Detail)
 		}
+	}
+	return nil
+}
+
+func printSkillBackupList(result skillinstall.BackupListResult) error {
+	if jsonOutput {
+		return output.PrintJSON(result)
+	}
+	if len(result.Backups) == 0 {
+		fmt.Println("no retained takeover backups")
+		return nil
+	}
+	for _, backup := range result.Backups {
+		fmt.Printf("%-32s %-10s %-24s %s\n", backup.BackupID, backup.Status, joinSkillRuntimes(backup.Runtimes), backup.Destination)
+		fmt.Printf("  skills: %s\n", strings.Join(backup.Skills, ","))
 	}
 	return nil
 }

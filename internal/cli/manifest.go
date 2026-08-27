@@ -367,6 +367,12 @@ func buildManifest(c *config.Config) *Manifest {
 					"install":   {Type: "mutation"},
 					"status":    {Type: "query"},
 					"uninstall": {Type: "mutation"},
+					"backup": {
+						Type: "meta",
+						Subcommands: map[string]ManifestCmd{
+							"list": {Type: "query"},
+						},
+					},
 				},
 			},
 			"status": {Type: "query"},
