@@ -21,38 +21,73 @@ the installed binary passed live skill discovery in Codex, Claude Code, Agent Me
 Grok. TASK-063 remains immutable history of the earlier option-B decision; this task records the
 later product decision that supersedes it.
 
-Do not create or push the tag while GitHub release authorization is unavailable. A tag without its
-release would recreate the split external state this task is intended to close. The current README
-and `.goreleaser.yml` snapshot-only note remain truthful until the blocker is removed.
+Do not create or push the tag while GitHub release authorization is unavailable. Tag creation,
+draft creation, asset uploads, and publication are separate external operations; no procedure can
+make them atomic. Minimize and make that partial state recoverable rather than claiming it cannot
+happen. The current README and `.goreleaser.yml` snapshot-only note remain truthful until the
+blocker is removed.
 
 ## Unblock condition
 
-Replace the active token with one whose expiration satisfies the organization policy and which has
-Contents read/write access to `ScriptonBasestar/dva`. Both commands must succeed before the first
-source or tag mutation:
+Replace the active token with one whose expiration satisfies the organization policy. A human must
+confirm in the GitHub token settings that it grants Contents read/write for
+`ScriptonBasestar/dva`; the read-only probes below do not prove write access. Do not record the
+token or credential details in this card. All four commands must succeed immediately before the
+first external mutation:
 
 ```sh
 gh repo view ScriptonBasestar/dva
 gh release list --repo ScriptonBasestar/dva
+test -z "$(git ls-remote --tags origin refs/tags/v0.1.44)"
+! gh release view v0.1.44 --repo ScriptonBasestar/dva >/dev/null 2>&1
 ```
+
+## Publication procedure
+
+Prepare the final release commit first. Change `.goreleaser.yml` from its snapshot-only policy to
+an explicit publication policy with `release.target_commitish: "{{ .Commit }}"`,
+`use_existing_draft: true`, and `replace_existing_artifacts: true`. Keep `draft: false`: GoReleaser
+still creates a GitHub draft while uploading and publishes it only after the uploads complete.
+These settings let the pinned GoReleaser 2.12.7 create the remote tag at the exact release commit
+and resume an interrupted draft without deleting or moving the tag.
+
+Create a **local lightweight** `v0.1.44` tag at the clean release commit; do not push it separately.
+An annotated local tag would not match the commit ref GitHub creates from `target_commitish`.
+Before any external write, exercise real release mode locally—not snapshot mode—and validate its
+outputs:
+
+```sh
+git tag v0.1.44
+goreleaser release --skip=publish --clean
+go run ./tools/releasecheck artifacts --dist dist
+```
+
+After repeating the unblock probes, run pinned `goreleaser release --clean`. Publication is still
+not atomic: interruption can leave a draft and its tag. On failure, inspect the remote tag and
+draft, fix authorization or connectivity, and rerun for the **same** local tag. Never delete,
+repoint, or recreate a public release tag to conceal a failed attempt. The existing-draft and
+artifact-replacement settings make that retry the declared recovery path. Escalate instead of
+inventing a different tag if the remote tag points anywhere other than the intended release commit.
 
 ## Completion criteria
 
-- [ ] Record an explicit-release policy in `.goreleaser.yml` without implying that CI publishes | verify: `head -5 .goreleaser.yml`
+- [ ] Record the explicit publication and retry policy in `.goreleaser.yml` without implying that CI publishes | verify: `/usr/bin/grep -E 'target_commitish|use_existing_draft|replace_existing_artifacts' .goreleaser.yml`
 - [ ] Re-run the clean six-platform snapshot gate at the exact release commit | verify: `make release-check`
-- [ ] Create and push annotated tag `v0.1.44`, matching `internal/config.Version`, only after API preflight succeeds | verify: `git tag --points-at HEAD | /usr/bin/grep -qx v0.1.44`
-- [ ] Publish six archives plus `checksums.txt` through GoReleaser and verify the GitHub release is non-draft | verify: `gh release view v0.1.44 --repo ScriptonBasestar/dva --json isDraft,tagName,assets`
-- [ ] Verify the tagged Go module and one host-native archive install path | verify: `GOBIN="$(mktemp -d)" go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44`
+- [ ] Validate a local lightweight tag against `internal/config.Version` and build real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.44)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
+- [ ] Publish through GoReleaser, then prove the remote tag resolves to the release commit and the release has exactly six archives plus `checksums.txt` | verify: `test "$(git ls-remote origin refs/tags/v0.1.44 | cut -f1)" = "$(git rev-parse HEAD)" && gh release view v0.1.44 --repo ScriptonBasestar/dva --json isDraft,tagName,assets | jq -e '(.isDraft == false) and (.tagName == "v0.1.44") and (([.assets[].name] | sort) == (["checksums.txt","dva_darwin_amd64.tar.gz","dva_darwin_arm64.tar.gz","dva_linux_amd64.tar.gz","dva_linux_arm64.tar.gz","dva_windows_amd64.zip","dva_windows_arm64.zip"] | sort))'`
+- [ ] Verify immediate tagged-module installation directly from GitHub and execute the installed binary | verify: `tmp_bin="$(mktemp -d)"; trap 'rm -rf "$tmp_bin"' EXIT; GOPROXY=direct GOBIN="$tmp_bin" go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44 && "$tmp_bin/dva" version | /usr/bin/grep -q '^dva version 0.1.44$'`
 - [ ] Add pinned-version, checksum-verifying binary installation documentation only after the assets exist | verify: `make doc-check`
-- [ ] Record release URL, artifact names/checksums, checks, push state, and final external probes before archiving this card
+- [ ] Record release URL, artifact names/checksums, checks, push state, and final external probes; then remove the local `dist/` build output before archiving this card | verify: `test ! -e dist`
 
 ## Preserved evidence
 
-- DVA release candidate source: `61d101943cc5a480f65715461818f11cdeb28781`
+- Live-runtime-tested baseline source: `61d101943cc5a480f65715461818f11cdeb28781`
 - Installed binary SHA-256: `be7033f2cb8581147b63835cd217a81e97cfd469240ef4cc2ec69f6146277f2e`
 - `make release-check`: passed with Darwin/Linux/Windows on amd64/arm64 and `checksums.txt`
 - CE/DVA neutral-claim dogfood: passed from the integrated flow devbox target
 - GitHub API preflight: blocked before tag creation by the organization token-lifetime policy
 
-These hashes identify the reviewed pre-release state. If `master` advances before unblocking, repeat
-all gates and record the actual tagged revision instead of treating these hashes as release pins.
+These hashes identify the reviewed pre-release state, not the future release commit. If `master`
+advances before unblocking, repeat all gates and record the actual tagged revision instead of
+treating these hashes as release pins. `GOPROXY=direct` is intentional for the immediate module
+probe; the public proxy is the normal user path but may lag the new tag and can be checked later.
