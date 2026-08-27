@@ -37,7 +37,8 @@ first external mutation:
 
 ```sh
 gh repo view ScriptonBasestar/dva
-test -z "$(git ls-remote --tags origin refs/tags/v0.1.44)"
+remote_tag="$(git ls-remote --tags origin refs/tags/v0.1.44)"
+test -z "$remote_tag"
 release_json="$(gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName)"
 printf '%s\n' "$release_json" | jq -e 'all(.[]; .tagName != "v0.1.44")'
 ```
