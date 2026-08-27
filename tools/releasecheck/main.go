@@ -160,7 +160,7 @@ func checkStamping(args []string) error {
 			makeFlag = "-X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)"
 		}
 		if !strings.Contains(string(makeData), makeFlag) {
-			return fmt.Errorf("Makefile is missing build stamp %q", makeFlag)
+			return fmt.Errorf("makefile is missing build stamp %q", makeFlag)
 		}
 		goreleaserValue := fmt.Sprintf("{{.%s}}", field)
 		if field == "BuildDate" {
@@ -225,16 +225,16 @@ func versionFromFile(path string) (string, error) {
 			}
 			literal, ok := value.Values[0].(*ast.BasicLit)
 			if !ok || literal.Kind != token.STRING {
-				return "", fmt.Errorf("Version in %s must be a string literal", path)
+				return "", fmt.Errorf("version in %s must be a string literal", path)
 			}
 			version := strings.Trim(literal.Value, "\"")
 			if version == "" {
-				return "", fmt.Errorf("Version in %s is empty", path)
+				return "", fmt.Errorf("version in %s is empty", path)
 			}
 			return version, nil
 		}
 	}
-	return "", fmt.Errorf("Version variable not found in %s", path)
+	return "", fmt.Errorf("version variable not found in %s", path)
 }
 
 func checkArtifacts(args []string) error {
@@ -361,12 +361,17 @@ func readChecksums(path string) (map[string]string, error) {
 	return checksums, nil
 }
 
-func fileSHA256(path string) (string, error) {
+func fileSHA256(path string) (digest string, err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("read archive %s: %w", path, err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); err == nil && closeErr != nil {
+			digest = ""
+			err = fmt.Errorf("close archive %s: %w", path, closeErr)
+		}
+	}()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", fmt.Errorf("hash archive %s: %w", path, err)

@@ -208,7 +208,7 @@ func inlineAnchor(skill, relative string) string {
 func demoteHeadings(source string, levels int) string {
 	var output strings.Builder
 	fenced := false
-	for _, line := range strings.Split(source, "\n") {
+	for line := range strings.SplitSeq(source, "\n") {
 		trimmed := strings.TrimLeft(line, " \t")
 		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
 			fenced = !fenced
