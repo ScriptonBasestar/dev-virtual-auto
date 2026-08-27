@@ -36,6 +36,7 @@ token or credential details in this card. These commands must succeed immediatel
 first external mutation:
 
 ```sh
+set -eu
 gh repo view ScriptonBasestar/dva
 remote_tag="$(git ls-remote --tags origin refs/tags/v0.1.44)"
 test -z "$remote_tag"
@@ -73,12 +74,16 @@ still report no tag or release, delete only the unpublished local tag, make and 
 commit, and create the local tag again. Once any remote state exists, the tag is immutable for
 this procedure and recovery stays on that exact commit and tag.
 
-After repeating the unblock probes, run pinned `goreleaser release --clean`. Publication is still
-not atomic: interruption can leave a draft and its tag. On failure, inspect the remote tag and
-draft, fix authorization or connectivity, and rerun for the **same** local tag. Never delete,
-repoint, or recreate a public release tag to conceal a failed attempt. The existing-draft and
-artifact-replacement settings make that retry the declared recovery path. Escalate instead of
-inventing a different tag if the remote tag points anywhere other than the intended release commit.
+After repeating the unblock probes, require
+`test "$(git rev-list -n1 v0.1.44)" = "$release_commit"` and then run pinned
+`goreleaser release --clean`. Keep the original recorded value in the release shell or restore that
+exact value from the release evidence; do not recompute it from the tag for this pre-publish guard.
+Publication is still not atomic: interruption can leave a draft and its tag. On failure, inspect
+the remote tag and draft, fix authorization or connectivity, and rerun for the **same** local tag.
+Never delete, repoint, or recreate a public release tag to conceal a failed attempt. The
+existing-draft and artifact-replacement settings make that retry the declared recovery path.
+Escalate instead of inventing a different tag if the remote tag points anywhere other than the
+intended release commit.
 
 ## Completion criteria
 
