@@ -1,6 +1,5 @@
-# No public release has been published. TASK-063 deliberately removed the release-download
-# documentation; this configuration is exercised only as a local/CI snapshot build until a human
-# decides to create and publish a version tag. Snapshot validation produces no GitHub release.
+# Public releases are deliberate local operations authorized by TASK-237. CI continues to run only
+# the snapshot gate and has no publication credentials or tag-triggered release workflow.
 version: 2
 
 project_name: dva
@@ -48,5 +47,8 @@ release:
   github:
     owner: ScriptonBasestar
     name: dva
+  target_commitish: "{{ .Commit }}"
+  use_existing_draft: true
+  replace_existing_artifacts: true
   draft: false
   prerelease: auto

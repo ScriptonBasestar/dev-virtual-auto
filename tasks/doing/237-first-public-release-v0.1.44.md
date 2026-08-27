@@ -7,11 +7,15 @@ effort: S
 created-at: 2026-08-27T00:00:00+09:00
 source: "explicit user approval after TASK-231 snapshot readiness and multi-runtime dogfood"
 scope: "release decision record, v0.1.44 tag, GoReleaser publication, artifact verification, and installation documentation"
-status: blocked
-blocked-on: "The active GITHUB_TOKEN is rejected by the ScriptonBasestar organization because its fine-grained token lifetime exceeds 366 days."
+status: doing
+started-at: 2026-08-27T17:12:10+09:00
+unblocked-at: 2026-08-27T17:12:10+09:00
 ---
 
 # Task 237: publish the first public v0.1.44 release
+
+GitHub authorization was restored with repository `ADMIN` access. The fail-closed preflight found
+no local or remote `v0.1.44` tag and an empty release list before this task entered `doing`.
 
 ## Decision
 
