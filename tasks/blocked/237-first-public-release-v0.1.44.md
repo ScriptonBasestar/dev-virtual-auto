@@ -32,14 +32,14 @@ blocker is removed.
 Replace the active token with one whose expiration satisfies the organization policy. A human must
 confirm in the GitHub token settings that it grants Contents read/write for
 `ScriptonBasestar/dva`; the read-only probes below do not prove write access. Do not record the
-token or credential details in this card. All four commands must succeed immediately before the
+token or credential details in this card. These commands must succeed immediately before the
 first external mutation:
 
 ```sh
 gh repo view ScriptonBasestar/dva
-gh release list --repo ScriptonBasestar/dva
 test -z "$(git ls-remote --tags origin refs/tags/v0.1.44)"
-! gh release view v0.1.44 --repo ScriptonBasestar/dva >/dev/null 2>&1
+release_json="$(gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName)"
+printf '%s\n' "$release_json" | jq -e 'all(.[]; .tagName != "v0.1.44")'
 ```
 
 ## Publication procedure
@@ -62,6 +62,11 @@ goreleaser release --skip=publish --clean
 go run ./tools/releasecheck artifacts --dist dist
 ```
 
+If this local-only validation requires a source correction, first prove that both remote probes
+still report no tag or release, delete only the unpublished local tag, make and verify the final
+commit, and create the local tag again. Once any remote state exists, the tag is immutable for
+this procedure and recovery stays on that exact commit and tag.
+
 After repeating the unblock probes, run pinned `goreleaser release --clean`. Publication is still
 not atomic: interruption can leave a draft and its tag. On failure, inspect the remote tag and
 draft, fix authorization or connectivity, and rerun for the **same** local tag. Never delete,
@@ -71,12 +76,12 @@ inventing a different tag if the remote tag points anywhere other than the inten
 
 ## Completion criteria
 
-- [ ] Record the explicit publication and retry policy in `.goreleaser.yml` without implying that CI publishes | verify: `/usr/bin/grep -E 'target_commitish|use_existing_draft|replace_existing_artifacts' .goreleaser.yml`
+- [ ] Record the explicit publication and retry policy in `.goreleaser.yml` without implying that CI publishes | verify: `goreleaser check && test "$(/usr/bin/grep -Fxc '  target_commitish: "{{ .Commit }}"' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  use_existing_draft: true' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  replace_existing_artifacts: true' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  draft: false' .goreleaser.yml)" -eq 1`
 - [ ] Re-run the clean six-platform snapshot gate at the exact release commit | verify: `make release-check`
 - [ ] Validate a local lightweight tag against `internal/config.Version` and build real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.44)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
 - [ ] Publish through GoReleaser, then prove the remote tag resolves to the release commit and the release has exactly six archives plus `checksums.txt` | verify: `test "$(git ls-remote origin refs/tags/v0.1.44 | cut -f1)" = "$(git rev-parse HEAD)" && gh release view v0.1.44 --repo ScriptonBasestar/dva --json isDraft,tagName,assets | jq -e '(.isDraft == false) and (.tagName == "v0.1.44") and (([.assets[].name] | sort) == (["checksums.txt","dva_darwin_amd64.tar.gz","dva_darwin_arm64.tar.gz","dva_linux_amd64.tar.gz","dva_linux_arm64.tar.gz","dva_windows_amd64.zip","dva_windows_arm64.zip"] | sort))'`
 - [ ] Verify immediate tagged-module installation directly from GitHub and execute the installed binary | verify: `tmp_bin="$(mktemp -d)"; trap 'rm -rf "$tmp_bin"' EXIT; GOPROXY=direct GOBIN="$tmp_bin" go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44 && "$tmp_bin/dva" version | /usr/bin/grep -q '^dva version 0.1.44$'`
-- [ ] Add pinned-version, checksum-verifying binary installation documentation only after the assets exist | verify: `make doc-check`
+- [ ] Add pinned-version, checksum-verifying binary installation documentation only after the assets exist | verify: `/usr/bin/grep -Fq 'github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44' README.md && /usr/bin/grep -Fq '/releases/download/v0.1.44/checksums.txt' README.md && /usr/bin/grep -Eq 'sha256sum|shasum -a 256' README.md && make doc-check`
 - [ ] Record release URL, artifact names/checksums, checks, push state, and final external probes; then remove the local `dist/` build output before archiving this card | verify: `test ! -e dist`
 
 ## Preserved evidence
