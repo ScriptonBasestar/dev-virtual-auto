@@ -52,13 +52,18 @@ still creates a GitHub draft while uploading and publishes it only after the upl
 These settings let the pinned GoReleaser 2.12.7 create the remote tag at the exact release commit
 and resume an interrupted draft without deleting or moving the tag.
 
+After committing and verifying that tree, record `release_commit="$(git rev-parse HEAD)"` before
+creating the tag. Treat that value as the publication identity; later documentation commits may
+move `HEAD`. Every local and remote tag comparison must resolve `v0.1.44` back to that recorded
+commit rather than comparing it with whichever commit happens to be checked out later.
+
 Create a **local lightweight** `v0.1.44` tag at the clean release commit; do not push it separately.
 An annotated local tag would not match the commit ref GitHub creates from `target_commitish`.
 Before any external write, exercise real release mode locally—not snapshot mode—and validate its
 outputs:
 
 ```sh
-git tag v0.1.44
+git tag v0.1.44 "$release_commit"
 goreleaser release --skip=publish --clean
 go run ./tools/releasecheck artifacts --dist dist
 ```
@@ -78,9 +83,9 @@ inventing a different tag if the remote tag points anywhere other than the inten
 ## Completion criteria
 
 - [ ] Record the explicit publication and retry policy in `.goreleaser.yml` without implying that CI publishes | verify: `goreleaser check && test "$(/usr/bin/grep -Fxc '  target_commitish: "{{ .Commit }}"' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  use_existing_draft: true' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  replace_existing_artifacts: true' .goreleaser.yml)" -eq 1 && test "$(/usr/bin/grep -Fxc '  draft: false' .goreleaser.yml)" -eq 1`
-- [ ] Re-run the clean six-platform snapshot gate at the exact release commit | verify: `make release-check`
+- [ ] Re-run all repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
 - [ ] Validate a local lightweight tag against `internal/config.Version` and build real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.44)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
-- [ ] Publish through GoReleaser, then prove the remote tag resolves to the release commit and the release has exactly six archives plus `checksums.txt` | verify: `test "$(git ls-remote origin refs/tags/v0.1.44 | cut -f1)" = "$(git rev-parse HEAD)" && gh release view v0.1.44 --repo ScriptonBasestar/dva --json isDraft,tagName,assets | jq -e '(.isDraft == false) and (.tagName == "v0.1.44") and (([.assets[].name] | sort) == (["checksums.txt","dva_darwin_amd64.tar.gz","dva_darwin_arm64.tar.gz","dva_linux_amd64.tar.gz","dva_linux_arm64.tar.gz","dva_windows_amd64.zip","dva_windows_arm64.zip"] | sort))'`
+- [ ] Publish through GoReleaser, then prove the remote tag resolves to the tagged release commit and the release has exactly six archives plus `checksums.txt` | verify: `release_commit="$(git rev-list -n1 v0.1.44)" && test -n "$release_commit" && remote_tag="$(git ls-remote origin refs/tags/v0.1.44 | cut -f1)" && test "$remote_tag" = "$release_commit" && gh release view v0.1.44 --repo ScriptonBasestar/dva --json isDraft,tagName,assets | jq -e '(.isDraft == false) and (.tagName == "v0.1.44") and (([.assets[].name] | sort) == (["checksums.txt","dva_darwin_amd64.tar.gz","dva_darwin_arm64.tar.gz","dva_linux_amd64.tar.gz","dva_linux_arm64.tar.gz","dva_windows_amd64.zip","dva_windows_arm64.zip"] | sort))'`
 - [ ] Verify immediate tagged-module installation directly from GitHub and execute the installed binary | verify: `tmp_bin="$(mktemp -d)"; trap 'rm -rf "$tmp_bin"' EXIT; GOPROXY=direct GOBIN="$tmp_bin" go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44 && "$tmp_bin/dva" version | /usr/bin/grep -q '^dva version 0.1.44$'`
 - [ ] Add pinned-version, checksum-verifying binary installation documentation only after the assets exist | verify: `/usr/bin/grep -Fq 'github.com/ScriptonBasestar/dva/cmd/dva@v0.1.44' README.md && /usr/bin/grep -Fq '/releases/download/v0.1.44/checksums.txt' README.md && /usr/bin/grep -Eq 'sha256sum|shasum -a 256' README.md && make doc-check`
 - [ ] Record release URL, artifact names/checksums, checks, push state, and final external probes; then remove the local `dist/` build output before archiving this card | verify: `test ! -e dist`
@@ -91,6 +96,9 @@ inventing a different tag if the remote tag points anywhere other than the inten
 - Installed binary SHA-256: `be7033f2cb8581147b63835cd217a81e97cfd469240ef4cc2ec69f6146277f2e`
 - `make release-check`: passed with Darwin/Linux/Windows on amd64/arm64 and `checksums.txt`
 - CE/DVA neutral-claim dogfood: passed from the integrated flow devbox target
+- Antigravity user projection: receipt, 12-file manifest, neutral claim, and bundle digest passed
+  independent review; native IDE discovery remains unverified because no Antigravity host is
+  installed, so this is not evidence of a live runtime pass
 - GitHub API preflight: blocked before tag creation by the organization token-lifetime policy
 
 These hashes identify the reviewed pre-release state, not the future release commit. If `master`
