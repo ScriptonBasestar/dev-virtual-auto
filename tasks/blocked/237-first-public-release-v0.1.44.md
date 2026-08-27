@@ -82,14 +82,16 @@ still report no tag or release, delete only the unpublished local tag, make and 
 commit, and create the local tag again. Once any remote state exists, the tag is immutable for
 this procedure and recovery stays on that exact commit and tag.
 
-After repeating the unblock probes, require
-`test "$(git rev-list -n1 v0.1.44)" = "$release_commit"` and then run pinned
-`goreleaser release --clean`. Keep the original recorded value in the release shell or restore that
-exact value from the release evidence; do not recompute it from the tag for this pre-publish guard.
-Publication is still not atomic: interruption can leave a draft and its tag. On failure, inspect
-the remote tag and draft, fix authorization or connectivity, and rerun for the **same** local tag.
-Never delete, repoint, or recreate a public release tag to conceal a failed attempt. The
-existing-draft and artifact-replacement settings make that retry the declared recovery path.
+After repeating the unblock probes, require both
+`test "$(git rev-parse HEAD)" = "$release_commit"` and
+`test "$(git rev-list -n1 v0.1.44)" = "$release_commit"`, then run pinned
+`mise exec -- goreleaser release --clean`. Keep the original recorded value in the release shell or
+restore that exact value from the release evidence; do not recompute it from the tag for this
+pre-publish guard. Publication is still not atomic: interruption can leave a draft and its tag. On
+failure, inspect the remote tag and draft, fix authorization or connectivity, and rerun for the
+**same** local tag. Never delete, repoint, or recreate a public release tag to conceal a failed
+attempt. The existing-draft and artifact-replacement settings make that retry the declared
+recovery path.
 Escalate instead of inventing a different tag if the remote tag points anywhere other than the
 intended release commit.
 
@@ -116,6 +118,10 @@ creation with `403 Resource not accessible by personal access token`. Post-failu
 remote tag, draft, or published release, so no partial external state needs repair. Keep the local
 tag at the recorded release commit and retry the same publication command only after the token has
 fine-grained **Contents: read/write** permission and the refreshed environment passes preflight.
+Because this blocker record advances `master` beyond the release commit, retry from a new clean
+**detached worktree at `v0.1.44`**, not from the current master checkout. Restore
+`release_commit=49d444cc8f4fb128c61b00f6789b577545bc7a21`, require
+`HEAD == v0.1.44 == release_commit`, and only then invoke GoReleaser.
 
 ## Preserved evidence
 
@@ -130,7 +136,10 @@ fine-grained **Contents: read/write** permission and the refreshed environment p
   policy; replacement authentication later passed with `ADMIN`, an empty release list, and no
   local or remote `v0.1.44` tag
 
-These hashes identify the reviewed pre-release state, not the future release commit. If `master`
-advances before publication, repeat all gates and record the actual tagged revision instead of
-treating these hashes as release pins. `GOPROXY=direct` is intentional for the immediate module
-probe; the public proxy is the normal user path but may lag the new tag and can be checked later.
+The first two hashes identify the earlier reviewed pre-release state; the publication-attempt
+section records the now-fixed release commit. A `master` advance **before local tag creation**
+invalidates a candidate and requires all gates again. A blocker or documentation commit made
+**after the local tag is fixed** does not move the release identity: retry from a detached worktree
+at the existing tag and never retag the newer master. `GOPROXY=direct` is intentional for the
+immediate module probe; the public proxy is the normal user path but may lag the new tag and can be
+checked later.
