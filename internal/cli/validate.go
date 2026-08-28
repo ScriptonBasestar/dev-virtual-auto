@@ -321,11 +321,11 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 func configuredRootComposeFiles(c *config.Config) []string {
 	root := c.FileDir()
 	var files []string
-	for _, file := range c.AllComposeFiles() {
-		path := file
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(root, path)
+	for _, file := range configuredComposeFiles(c) {
+		if !file.root {
+			continue
 		}
+		path := file.path
 		rel, err := filepath.Rel(root, path)
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 			continue
@@ -343,31 +343,92 @@ func configuredRootComposeFiles(c *config.Config) []string {
 // isolated subdirectory projects out of the root drift comparison without
 // letting a stale subdirectory or absolute path pass strict validation.
 func missingConfiguredComposeFiles(c *config.Config) []string {
-	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
-	env.MergeVars(c.Environment)
-	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
-
 	seen := make(map[string]bool)
 	var missing []string
-	for _, file := range c.AllComposeFiles() {
-		if strings.TrimSpace(file) == "" {
+	for _, file := range configuredComposeFiles(c) {
+		identity := file.sourceIdentity + "\x00" + file.path
+		if seen[identity] {
 			continue
 		}
-		path := env.Interpolate(file)
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(c.FileDir(), path)
-		}
-		path = filepath.Clean(path)
-		if seen[path] {
-			continue
-		}
-		seen[path] = true
-		if !fileExists(path) {
-			missing = append(missing, file)
+		seen[identity] = true
+		if !fileExists(file.path) {
+			if file.root {
+				missing = append(missing, file.file)
+			} else {
+				missing = append(missing, fmt.Sprintf("%s (stack entry %q)", file.file, file.entryName))
+			}
 		}
 	}
 	sort.Strings(missing)
 	return missing
+}
+
+type configuredComposeFile struct {
+	entryName      string
+	file           string
+	path           string
+	sourceIdentity string
+	root           bool
+}
+
+// configuredComposeFiles resolves each compose file the same way the lifecycle
+// runner does: ordinary entries are relative to dva.yml, while source entries
+// are relative to their SourceDir. A source that has not been made available yet
+// is deferred to source readiness; validation must not mistake an unfetched git
+// cache (or absent path source) for a missing compose file.
+func configuredComposeFiles(c *config.Config) []configuredComposeFile {
+	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
+	env.MergeVars(c.Environment)
+	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
+
+	names := make([]string, 0, len(c.Stack))
+	for name := range c.Stack {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var files []configuredComposeFile
+	for _, name := range names {
+		entry := c.Stack[name]
+		if entry == nil || entry.ComposeConfig() == nil {
+			continue
+		}
+
+		baseDir := c.FileDir()
+		root := true
+		sourceIdentity := "root"
+		if entry.Source != nil {
+			resolved, err := config.SourceDir(entry.Source, name, c.FileDir())
+			if err != nil {
+				continue
+			}
+			info, err := os.Stat(resolved)
+			if err != nil || !info.IsDir() {
+				continue
+			}
+			baseDir = resolved
+			root = false
+			sourceIdentity = "source:" + name + ":" + filepath.Clean(resolved)
+		}
+
+		for _, declared := range entry.ComposeConfig().Files {
+			if strings.TrimSpace(declared) == "" {
+				continue
+			}
+			resolved := env.Interpolate(declared)
+			if !filepath.IsAbs(resolved) {
+				resolved = filepath.Join(baseDir, resolved)
+			}
+			files = append(files, configuredComposeFile{
+				entryName:      name,
+				file:           declared,
+				path:           filepath.Clean(resolved),
+				sourceIdentity: sourceIdentity,
+				root:           root,
+			})
+		}
+	}
+	return files
 }
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {
@@ -515,12 +576,8 @@ func detectComposeFilesInDir(dir string) []string {
 // neither of them declared, and it survives only as long as nobody refactors either half.
 func configuredComposeServices(c *config.Config) map[string]bool {
 	services := map[string]bool{}
-	for _, file := range c.AllComposeFiles() {
-		path := file
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(c.FileDir(), file)
-		}
-		for _, service := range extractComposeServices(path) {
+	for _, file := range configuredComposeFiles(c) {
+		for _, service := range extractComposeServices(file.path) {
 			services[service] = true
 		}
 	}

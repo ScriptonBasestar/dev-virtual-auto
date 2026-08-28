@@ -217,6 +217,85 @@ stack:
 	}
 }
 
+func TestDetectConfigDriftWarnings_ResolvesPathSourcedComposeFilesPerEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, source := range []string{"source-a", "source-b"} {
+		if err := os.Mkdir(filepath.Join(tmpDir, source), 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", source, err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "source-a", "compose.yaml"), []byte("services: {}\n"), 0644); err != nil {
+		t.Fatalf("write source-a compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  source-a:
+    default_runner: compose
+    source:
+      path: source-a
+    runners:
+      compose:
+        files: [compose.yaml]
+  source-b:
+    default_runner: compose
+    source:
+      path: source-b
+    runners:
+      compose:
+        files: [compose.yaml]
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) != 1 {
+		t.Fatalf("expected missing compose only for source-b, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], `compose file "compose.yaml (stack entry \"source-b\")"`) {
+		t.Fatalf("missing source-b warning not found: %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_DefersUnavailableGitSource(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  remote:
+    default_runner: compose
+    source:
+      git: https://example.com/shared-infra.git
+      ref: v1
+    runners:
+      compose:
+        files: [compose.yaml]
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected unavailable git source to defer to source readiness, got %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_SourceStackFixtureHasNoFalseComposeWarnings(t *testing.T) {
+	fixture := filepath.Join("..", "integration", "testdata", "fixtures", "source-stack")
+	c, err := config.Load(fixture)
+	if err != nil {
+		t.Fatalf("load source-stack fixture: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected no root or missing compose warnings for source-stack fixture, got %v", warnings)
+	}
+}
+
 func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldWd, _ := os.Getwd()
