@@ -556,10 +556,11 @@ func (c *Config) entriesNamedByPlans() map[string]bool {
 // split across stack entries. Each entry is its own `docker compose` invocation, so
 // an overlay entry cannot patch a base entry's service definitions.
 //
-// It stays quiet when modes divide the entries up, because that is the shape DVA
-// itself prescribes: modes.<name>.compose was removed, and one entry per mode
-// selected by modes.<name>.stack is the replacement. Warning there told users to
-// undo the migration DVA required of them.
+// Named plans are the authoritative lifecycle surface. When every compose entry
+// belongs to plans that select at most one at a time, and a default plan prevents
+// a bare lifecycle command from falling through to the whole stack, those entries
+// cannot co-occur. Legacy modes retain the same isolation rule for configurations
+// that have not migrated yet.
 func (c *Config) warnMultiStackComposeSplit() []string {
 	composeEntries := map[string]bool{}
 	for name, entry := range c.Stack {
@@ -570,7 +571,14 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 			composeEntries[name] = true
 		}
 	}
-	if len(composeEntries) < 2 || c.modesIsolateEntries(composeEntries) {
+	if len(composeEntries) < 2 {
+		return nil
+	}
+	if len(c.Plans) > 0 {
+		if c.plansIsolateEntries(composeEntries) {
+			return nil
+		}
+	} else if c.modesIsolateEntries(composeEntries) {
 		return nil
 	}
 
@@ -580,9 +588,38 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 	}
 	sort.Strings(names)
 	return []string{
-		fmt.Sprintf("stack: compose entries [%s] can run in the same invocation set — each is a separate 'docker compose' call, so an overlay entry cannot patch another entry's services; give each its own mode (modes.<name>.stack: [entry]), or merge them into one entry whose files: lists the overlays",
+		fmt.Sprintf("stack: compose entries [%s] can run in the same invocation set — each is a separate 'docker compose' call, so an overlay entry cannot patch another entry's services; give each its own named plan (plans.<name>.entries: [{name: entry}]), or merge them into one entry whose files: lists the overlays",
 			strings.Join(names, ", ")),
 	}
+}
+
+// plansIsolateEntries reports whether named plans make the compose entries
+// mutually exclusive. A default plan is required because plan-aware commands
+// otherwise still have a legacy whole-stack route when passed flags; treating
+// that route as safe would silence the warning for entries that can co-occur.
+func (c *Config) plansIsolateEntries(entries map[string]bool) bool {
+	if len(c.Plans) == 0 || c.DefaultPlan() == "" {
+		return false
+	}
+
+	claimed := make(map[string]bool, len(entries))
+	for _, plan := range c.Plans {
+		if plan == nil {
+			return false
+		}
+		hits := 0
+		for _, entry := range plan.Entries {
+			if entries[entry.Name] {
+				hits++
+				claimed[entry.Name] = true
+			}
+		}
+		if hits > 1 {
+			return false
+		}
+	}
+
+	return len(claimed) == len(entries)
 }
 
 // modesIsolateEntries reports whether every entry in the set is claimed by a mode and

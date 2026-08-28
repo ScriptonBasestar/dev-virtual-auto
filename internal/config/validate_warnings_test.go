@@ -742,6 +742,86 @@ func TestWarnMultiStackComposeSplitModeIsolation(t *testing.T) {
 	}
 }
 
+func TestWarnMultiStackComposeSplitPlanIsolation(t *testing.T) {
+	composeStack := func() map[string]*LifecycleEntry {
+		return map[string]*LifecycleEntry{
+			"compose":      {Compose: &ComposePluginConfig{Files: []string{"compose.yaml"}}},
+			"compose-live": {Compose: &ComposePluginConfig{Files: []string{"compose.dns-bridge.yaml"}}},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		plans       map[string]*PlanConfig
+		defaultPlan string
+		modes       map[string]ModeConfig
+		warn        bool
+	}{
+		{
+			name: "isolated plans with explicit default",
+			plans: map[string]*PlanConfig{
+				"local-infra": {Entries: []PlanEntry{{Name: "compose"}}},
+				"full-live":   {Entries: []PlanEntry{{Name: "compose-live"}}},
+			},
+			defaultPlan: "local-infra",
+			warn:        false,
+		},
+		{
+			name: "isolated multiple plans without default have unsafe stack path",
+			plans: map[string]*PlanConfig{
+				"local-infra": {Entries: []PlanEntry{{Name: "compose"}}},
+				"full-live":   {Entries: []PlanEntry{{Name: "compose-live"}}},
+			},
+			defaultPlan: "",
+			warn:        true,
+		},
+		{
+			name: "one plan selects both entries",
+			plans: map[string]*PlanConfig{
+				"local-infra": {Entries: []PlanEntry{{Name: "compose"}, {Name: "compose-live"}}},
+			},
+			warn: true,
+		},
+		{
+			name: "unplanned compose entry has unsafe stack path",
+			plans: map[string]*PlanConfig{
+				"local-infra": {Entries: []PlanEntry{{Name: "compose"}}},
+			},
+			warn: true,
+		},
+		{
+			name: "plans take precedence over legacy modes",
+			plans: map[string]*PlanConfig{
+				"local-infra": {Entries: []PlanEntry{{Name: "compose"}, {Name: "compose-live"}}},
+			},
+			defaultPlan: "local-infra",
+			modes: map[string]ModeConfig{
+				"infra": {Stack: []string{"compose"}},
+				"live":  {Stack: []string{"compose-live"}},
+			},
+			warn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{
+				Stack:           composeStack(),
+				Plans:           tt.plans,
+				DefaultPlanName: tt.defaultPlan,
+				Modes:           tt.modes,
+			}
+			warnings := c.warnMultiStackComposeSplit()
+			if tt.warn && len(warnings) != 1 {
+				t.Fatalf("expected a warning, got %v", warnings)
+			}
+			if !tt.warn && len(warnings) != 0 {
+				t.Fatalf("expected silence, got %v", warnings)
+			}
+		})
+	}
+}
+
 // TestWarnDuplicateComposeApplicationOwnership was here. It covered the shape where
 // applications.<app>.run.docker.service named a service a compose stack entry already
 // owned, so `dva up` started it once through the orchestrator and again through the
