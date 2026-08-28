@@ -42,13 +42,33 @@ and delayed publication so an interrupted upload can be resumed without moving t
 
 ## Completion criteria
 
-- [ ] Set runtime version `0.1.45` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.45 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
-- [ ] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
-- [ ] Validate a local lightweight tag and real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.45)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
+- [x] Set runtime version `0.1.45` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.45 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
+- [x] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
+- [x] Validate a local lightweight tag and real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.45)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
 - [ ] Confirm GitHub write authorization and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && test -z "$(git ls-remote --tags origin refs/tags/v0.1.45)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.45")'`
 - [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
 - [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
 - [ ] Record the release URL, artifact checksums, checks, push state, and final probes; remove local `dist/` before archiving | verify: `test ! -e dist`
+
+## Local preparation evidence
+
+The release identity is commit `39019d1e12b1fb131ed773abde18ce7726f44e08`. That exact clean
+commit passed lint, race/coverage tests, integration tests, skill dogfood, documentation and commit
+gates, and the six-platform snapshot gate. The preserved historical `v0.1.44` tag initially exposed
+a snapshot-version drift: GoReleaser chose the nearest tag while the repository contract used only
+an exact tag. The release commit fixes that mismatch by passing the exact-tag-aware version into
+GoReleaser; its untagged snapshot was `0.0.0-SNAPSHOT-39019d1`.
+
+After integration, the local lightweight `v0.1.45` tag was created at that same commit. The tagged
+snapshot reported `0.1.45-SNAPSHOT-39019d1`. Real release mode with `--skip=publish` produced six
+platform archives and six matching checksum entries; its metadata and host binary reported exact
+version `0.1.45` and the full release commit. Post-build probes still found no remote `v0.1.45` tag
+or GitHub release. Generated `dist/` and `bin/` directories were removed after verification.
+
+This evidence commit advances `master` beyond the fixed release identity. Any future publication
+must therefore use a new clean detached worktree at local tag `v0.1.45`, restore the recorded
+release commit above, and require `HEAD == v0.1.45 == release_commit` before invoking GoReleaser.
+Do not publish from the newer `master` tip and do not move the tag.
 
 ## Preserved history
 
