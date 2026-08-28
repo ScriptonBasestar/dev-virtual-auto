@@ -271,7 +271,7 @@ dva manifest -f json      # JSON format
 dva manifest -f yaml      # YAML format
 ```
 
-Manifest includes: `dva_version`, `schema_version`, `static_commands`, `dynamic_commands`, `runners`, `plans`, `subprojects`, `health_checks`, `compose_files`, `environment_keys`. Plan entries expose resolved runner, order, dependency, wave, and service-selection metadata without variable values or runner configuration.
+Manifest includes: `dva_version`, `schema_version`, `default_plan`, `default_plan_source`, `static_commands`, `dynamic_commands`, `runners`, `plans`, `subprojects`, `health_checks`, `compose_files`, `environment_keys`. `default_plan` is the effective bare-lifecycle selection when one exists; `default_plan_source` is always one of `explicit`, `implicit-single`, or `none`. Plan entries expose resolved runner, order, dependency, wave, and service-selection metadata without variable values or runner configuration.
 
 ### `dva provision [PROFILE]`
 
