@@ -276,12 +276,12 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 	var warnings []string
 
 	detectedCompose := detectComposeFilesInDir(c.FileDir())
-	if len(detectedCompose) > 0 {
-		configured := normalizeRelativePaths(c.AllComposeFiles())
-		if !sameStringSlice(configured, detectedCompose) {
+	configuredRootCompose := configuredRootComposeFiles(c)
+	if len(detectedCompose) > 0 || len(configuredRootCompose) > 0 {
+		if !sameStringSlice(configuredRootCompose, detectedCompose) {
 			warnings = append(warnings,
 				fmt.Sprintf("compose.files is %s but detected root compose files are %s; review whether dva.yml is tracking the current project layout",
-					formatList(configured), formatList(detectedCompose)))
+					formatList(configuredRootCompose), formatList(detectedCompose)))
 		}
 	}
 
@@ -306,6 +306,33 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 	}
 
 	return warnings
+}
+
+// configuredRootComposeFiles returns configured compose files that live directly
+// beside dva.yml. Root autodiscovery deliberately does not walk subdirectories,
+// so comparing it to every configured file treats an explicit, isolated compose
+// project (for example compose/e2e.yaml) as drift on every strict validation.
+//
+// Existing root paths remain in the comparison even when absent, making a stale
+// root compose declaration visible instead of silently skipping it.
+func configuredRootComposeFiles(c *config.Config) []string {
+	root := c.FileDir()
+	var files []string
+	for _, file := range c.AllComposeFiles() {
+		path := file
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(root, path)
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			continue
+		}
+		if filepath.Dir(rel) != "." {
+			continue
+		}
+		files = append(files, filepath.ToSlash(rel))
+	}
+	return deduplicateComposeFiles(root, files)
 }
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {

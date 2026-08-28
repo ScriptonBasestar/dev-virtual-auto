@@ -112,6 +112,71 @@ stack:
 	}
 }
 
+func TestDetectConfigDriftWarnings_IgnoresConfiguredSubdirectoryComposeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tmpDir, "compose"), 0755); err != nil {
+		t.Fatalf("mkdir compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.yaml"), []byte("services: {}\n"), 0644); err != nil {
+		t.Fatalf("write root compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose", "minor-guardian-e2e.yaml"), []byte("services: {}\n"), 0644); err != nil {
+		t.Fatalf("write isolated compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  minor-guardian-e2e-infra:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose/minor-guardian-e2e.yaml]
+        project_name: isolated-e2e
+  compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+        project_name: app
+plans:
+  local-infra:
+    entries:
+      - name: compose
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected no compose drift warning for configured subdirectory file, got %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_MissingConfiguredRootComposeFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "compose.files is compose.yaml but detected root compose files are (none)") {
+		t.Fatalf("expected missing root compose drift warning, got %v", warnings)
+	}
+}
+
 func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldWd, _ := os.Getwd()
