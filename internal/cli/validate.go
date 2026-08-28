@@ -288,11 +288,11 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 		warnings = append(warnings, fmt.Sprintf("compose file %q is configured by dva.yml but does not exist", file))
 	}
 
-	availableServices := configuredComposeServices(c)
-	if len(availableServices) == 0 {
+	availableServices, complete := configuredComposeServices(c)
+	if !complete || len(availableServices) == 0 {
 		// Not merely an optimization: this is what stops a compose file built entirely out
-		// of `include:` from producing a false positive on every interaction, because
-		// configuredComposeServices cannot see through `include:`. See its doc comment.
+		// of `include:` or an incomplete configured corpus from producing a false positive
+		// on every interaction. See configuredComposeServices' doc comment.
 		return warnings
 	}
 
@@ -323,7 +323,7 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 func configuredRootComposeFiles(c *config.Config) ([]string, bool) {
 	root := c.FileDir()
 	var files []string
-	configured, deferredRootCompose := configuredComposeFiles(c)
+	configured, deferredRootCompose, _ := configuredComposeFiles(c)
 	for _, file := range configured {
 		if !file.root {
 			continue
@@ -348,7 +348,7 @@ func configuredRootComposeFiles(c *config.Config) ([]string, bool) {
 func missingConfiguredComposeFiles(c *config.Config) []string {
 	seen := make(map[string]bool)
 	var missing []string
-	configured, _ := configuredComposeFiles(c)
+	configured, _, _ := configuredComposeFiles(c)
 	for _, file := range configured {
 		identity := file.sourceIdentity + "\x00" + file.path
 		if seen[identity] {
@@ -384,7 +384,7 @@ type configuredComposeFile struct {
 // compose file. Paths still containing interpolation after those static layers
 // are deferred too: plan/site/plan-entry variables belong to lifecycle resolution,
 // and this validator intentionally does not duplicate that resolver.
-func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
+func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool, bool) {
 	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
 	env.MergeVars(c.Environment)
 	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
@@ -397,6 +397,7 @@ func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
 
 	var files []configuredComposeFile
 	deferredRootCompose := false
+	complete := true
 	for _, name := range names {
 		entry := c.Stack[name]
 		if entry == nil || entry.ComposeConfig() == nil {
@@ -409,10 +410,12 @@ func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
 		if entry.Source != nil {
 			resolved, err := config.SourceDir(entry.Source, name, c.FileDir())
 			if err != nil {
+				complete = false
 				continue
 			}
 			info, err := os.Stat(resolved)
 			if err != nil || !info.IsDir() {
+				complete = false
 				continue
 			}
 			baseDir = resolved
@@ -428,6 +431,7 @@ func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
 			}
 			resolved := entryEnv.Interpolate(declared)
 			if strings.Contains(resolved, "$") {
+				complete = false
 				if root {
 					deferredRootCompose = true
 				}
@@ -436,16 +440,20 @@ func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
 			if !filepath.IsAbs(resolved) {
 				resolved = filepath.Join(baseDir, resolved)
 			}
+			resolved = filepath.Clean(resolved)
+			if !fileExists(resolved) {
+				complete = false
+			}
 			files = append(files, configuredComposeFile{
 				entryName:      name,
 				file:           declared,
-				path:           filepath.Clean(resolved),
+				path:           resolved,
 				sourceIdentity: sourceIdentity,
 				root:           root,
 			})
 		}
 	}
-	return files, deferredRootCompose
+	return files, deferredRootCompose, complete
 }
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {
@@ -591,15 +599,27 @@ func detectComposeFilesInDir(dir string) []string {
 // uses, this returns an empty map and the interaction-service comparison is skipped
 // wholesale. Stated because that is a load-bearing dependency between two functions that
 // neither of them declared, and it survives only as long as nobody refactors either half.
-func configuredComposeServices(c *config.Config) map[string]bool {
+func configuredComposeServices(c *config.Config) (map[string]bool, bool) {
 	services := map[string]bool{}
-	configured, _ := configuredComposeFiles(c)
+	configured, _, complete := configuredComposeFiles(c)
 	for _, file := range configured {
+		if !composeFileReadable(file.path) {
+			complete = false
+			continue
+		}
 		for _, service := range extractComposeServices(file.path) {
 			services[service] = true
 		}
 	}
-	return services
+	return services, complete
+}
+
+func composeFileReadable(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	return f.Close() == nil
 }
 
 func sameStringSlice(a, b []string) bool {

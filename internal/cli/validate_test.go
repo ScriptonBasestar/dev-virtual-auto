@@ -325,7 +325,8 @@ interaction:
 	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
 		t.Fatalf("expected entry vars to resolve compose path and service discovery, got %v", warnings)
 	}
-	if !configuredComposeServices(c)["api"] {
+	services, complete := configuredComposeServices(c)
+	if !complete || !services["api"] {
 		t.Fatal("service discovery did not use entry-resolved compose file")
 	}
 }
@@ -388,6 +389,119 @@ stack:
 	missing := missingConfiguredComposeFiles(c)
 	if len(missing) != 1 || missing[0] != "compose.${STAGE}.yml" {
 		t.Fatalf("expected one missing resolved path, got %v", missing)
+	}
+}
+
+func TestDetectConfigDriftWarnings_DefersServiceComparisonForDynamicPlanCorpus(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.yaml"), []byte("services:\n  postgres:\n    image: postgres\n"), 0644); err != nil {
+		t.Fatalf("write root compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  postgres:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+  api:
+    default_runner: compose
+    runners:
+      compose:
+        files: ["compose.${STAGE}.yaml"]
+plans:
+  local:
+    site: local
+    entries:
+      - name: postgres
+      - name: api
+        vars:
+          STAGE: dev
+sites:
+  local:
+    vars:
+      STAGE: dev
+interaction:
+  api-shell:
+    service: api
+    command: sh
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected incomplete plan corpus to defer api service comparison, got %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_DefersServiceComparisonForUnavailableSource(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.yaml"), []byte("services:\n  postgres:\n    image: postgres\n"), 0644); err != nil {
+		t.Fatalf("write root compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  postgres:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+  source-api:
+    default_runner: compose
+    source:
+      git: https://example.com/api.git
+      ref: v1
+    runners:
+      compose:
+        files: [compose.yaml]
+interaction:
+  api-shell:
+    service: api
+    command: sh
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected unavailable source corpus to defer api service comparison, got %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_CompleteCorpusStillReportsMissingService(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.yaml"), []byte("services:\n  postgres:\n    image: postgres\n"), 0644); err != nil {
+		t.Fatalf("write root compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  postgres:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+interaction:
+  api-shell:
+    service: api
+    command: sh
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) != 1 || !strings.Contains(warnings[0], `references compose service "api"`) {
+		t.Fatalf("expected complete corpus missing-service warning, got %v", warnings)
 	}
 }
 
