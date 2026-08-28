@@ -171,6 +171,14 @@ func checkStamping(args []string) error {
 			return fmt.Errorf("GoReleaser config is missing release stamp %q", goreleaserFlag)
 		}
 	}
+	const snapshotTemplate = `version_template: "{{ .Env.DVA_SNAPSHOT_VERSION }}"`
+	if !strings.Contains(string(configData), snapshotTemplate) {
+		return fmt.Errorf("GoReleaser config is missing deterministic snapshot template %q", snapshotTemplate)
+	}
+	const snapshotInvocation = `DVA_SNAPSHOT_VERSION="$$snapshot_version" goreleaser release --snapshot --clean`
+	if !strings.Contains(string(makeData), snapshotInvocation) {
+		return fmt.Errorf("makefile is missing deterministic snapshot invocation %q", snapshotInvocation)
+	}
 	fmt.Println("releasecheck: Makefile and GoReleaser stamp Version, Commit, and BuildDate")
 	return nil
 }

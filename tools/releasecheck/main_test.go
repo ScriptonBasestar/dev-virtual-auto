@@ -24,8 +24,8 @@ func TestCheckStampingRequiresTheSameThreeFields(t *testing.T) {
 	dir := t.TempDir()
 	makefile := filepath.Join(dir, "Makefile")
 	config := filepath.Join(dir, ".goreleaser.yml")
-	make := "-X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)"
-	release := "-X github.com/ScriptonBasestar/dva/internal/config.Version={{.Version}}\n-X github.com/ScriptonBasestar/dva/internal/config.Commit={{.Commit}}\n-X github.com/ScriptonBasestar/dva/internal/config.BuildDate={{.Date}}\n"
+	make := "-X $(MODULE)/internal/config.Version=$(VERSION) -X $(MODULE)/internal/config.Commit=$(COMMIT) -X $(MODULE)/internal/config.BuildDate=$(BUILD_DATE)\nDVA_SNAPSHOT_VERSION=\"$$snapshot_version\" goreleaser release --snapshot --clean\n"
+	release := "-X github.com/ScriptonBasestar/dva/internal/config.Version={{.Version}}\n-X github.com/ScriptonBasestar/dva/internal/config.Commit={{.Commit}}\n-X github.com/ScriptonBasestar/dva/internal/config.BuildDate={{.Date}}\nversion_template: \"{{ .Env.DVA_SNAPSHOT_VERSION }}\"\n"
 	if err := os.WriteFile(makefile, []byte(make), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -40,6 +40,15 @@ func TestCheckStampingRequiresTheSameThreeFields(t *testing.T) {
 	}
 	if err := checkStamping([]string{"--makefile", makefile, "--config", config}); err == nil {
 		t.Fatal("checkStamping without BuildDate = nil, want error")
+	}
+	if err := os.WriteFile(config, []byte(release), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(makefile, []byte(strings.Replace(make, "DVA_SNAPSHOT_VERSION", "OTHER_SNAPSHOT_VERSION", 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := checkStamping([]string{"--makefile", makefile, "--config", config}); err == nil || !strings.Contains(err.Error(), "snapshot invocation") {
+		t.Fatalf("checkStamping without snapshot assignment error = %v, want snapshot invocation failure", err)
 	}
 }
 

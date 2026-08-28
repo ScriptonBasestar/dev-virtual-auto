@@ -7,14 +7,26 @@ effort: S
 created-at: 2026-08-27T00:00:00+09:00
 source: "explicit user approval after TASK-231 snapshot readiness and multi-runtime dogfood"
 scope: "release decision record, v0.1.44 tag, GoReleaser publication, artifact verification, and installation documentation"
-status: blocked
+status: superseded
+superseded-by: TASK-238
 started-at: 2026-08-27T17:12:10+09:00
 unblocked-at: 2026-08-27T17:12:10+09:00
 blocked-at: 2026-08-27T17:22:34+09:00
 blocked-on: "The replacement fine-grained GITHUB_TOKEN can read the repository but GitHub rejects POST /repos/ScriptonBasestar/dva/releases with 403; grant Contents read/write and restart the session."
+closed-at: 2026-08-28T23:38:29+09:00
+archived-at: 2026-08-28T23:38:29+09:00
 ---
 
 # Task 237: publish the first public v0.1.44 release
+
+## Supersession
+
+TASK-238 supersedes this publication target with `v0.1.45`. The local lightweight `v0.1.44`
+tag remains immutable historical evidence at `49d444cc8f4fb128c61b00f6789b577545bc7a21`, and no
+remote `v0.1.44` tag, draft, or release exists. Validator fixes and effective-default-plan
+observability were integrated after that tag, so publishing the older candidate would exclude the
+configuration behavior exercised by the completed DVA waves. This record retains the failed
+authorization attempt and recovery evidence; it is no longer an active publication procedure.
 
 GitHub read authorization was restored and the fail-closed preflight found no local or remote
 `v0.1.44` tag and an empty release list before this task entered `doing`. The later publish attempt

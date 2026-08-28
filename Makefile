@@ -385,7 +385,7 @@ release-check: build
 		go run ./tools/releasecheck stamping; \
 		go run ./tools/releasecheck version --tag "$$tag"; \
 		go run ./tools/releasecheck binary --binary ./bin/dva --commit "$$commit" --version "$$version"; \
-		goreleaser release --snapshot --clean; \
+		DVA_SNAPSHOT_VERSION="$$snapshot_version" goreleaser release --snapshot --clean; \
 		go run ./tools/releasecheck artifacts --dist dist; \
 		host_os=$$(go env GOOS); host_arch=$$(go env GOARCH); \
 		archive="dist/dva_$${host_os}_$${host_arch}.tar.gz"; \

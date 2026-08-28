@@ -1,5 +1,6 @@
-# Public releases are deliberate local operations authorized by TASK-237. CI continues to run only
-# the snapshot gate and has no publication credentials or tag-triggered release workflow.
+# TASK-238 authorizes local release preparation only. Public publication still requires its
+# explicit human authorization gate. CI runs only the snapshot gate and has no publication
+# credentials or tag-triggered release workflow.
 version: 2
 
 project_name: dva
@@ -34,6 +35,11 @@ archives:
 
 checksum:
   name_template: checksums.txt
+
+snapshot:
+  # releasecheck owns exact-tag detection; the nearest historical tag is not
+  # the identity of an untagged snapshot.
+  version_template: "{{ .Env.DVA_SNAPSHOT_VERSION }}"
 
 changelog:
   sort: asc
