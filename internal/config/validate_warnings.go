@@ -556,52 +556,84 @@ func (c *Config) entriesNamedByPlans() map[string]bool {
 // split across stack entries. Each entry is its own `docker compose` invocation, so
 // an overlay entry cannot patch a base entry's service definitions.
 //
-// Named plans are the authoritative lifecycle surface. When every compose entry
-// belongs to plans that select at most one at a time, and a default plan prevents
-// a bare lifecycle command from falling through to the whole stack, those entries
-// cannot co-occur. Legacy modes retain the same isolation rule for configurations
-// that have not migrated yet.
+// Named plans are the authoritative lifecycle surface. Entries that share an
+// explicit project_name can only be overlays when the same plan selects them.
+// Different non-empty project names are independent Compose projects. Entries
+// without a project name remain conservative because Docker Compose derives the
+// name from its working directory.
 func (c *Config) warnMultiStackComposeSplit() []string {
-	composeEntries := map[string]bool{}
+	byProjectName := make(map[string]map[string]bool)
 	for name, entry := range c.Stack {
 		// ComposeConfig(), not entry.Compose: the supported shape stores compose under
 		// runners, so reading the legacy field alone made this warning unreachable for
 		// every config that follows the current schema.
 		if entry.ComposeConfig() != nil {
-			composeEntries[name] = true
+			projectName := strings.TrimSpace(entry.ComposeConfig().ProjectName)
+			if byProjectName[projectName] == nil {
+				byProjectName[projectName] = make(map[string]bool)
+			}
+			byProjectName[projectName][name] = true
 		}
-	}
-	if len(composeEntries) < 2 {
-		return nil
-	}
-	if len(c.Plans) > 0 {
-		if c.plansIsolateEntries(composeEntries) {
-			return nil
-		}
-	} else if c.modesIsolateEntries(composeEntries) {
-		return nil
 	}
 
-	names := make([]string, 0, len(composeEntries))
-	for name := range composeEntries {
+	projectNames := make([]string, 0, len(byProjectName))
+	for projectName := range byProjectName {
+		projectNames = append(projectNames, projectName)
+	}
+	sort.Strings(projectNames)
+
+	var warnings []string
+	for _, projectName := range projectNames {
+		entries := byProjectName[projectName]
+		if len(entries) < 2 || c.composeEntriesAreIsolated(entries) {
+			continue
+		}
+		warnings = append(warnings, c.composeSplitWarning(entries))
+	}
+	return warnings
+}
+
+func (c *Config) composeEntriesAreIsolated(entries map[string]bool) bool {
+	if len(c.Plans) > 0 {
+		return c.plansIsolateEntries(entries)
+	}
+	return c.modesIsolateEntries(entries)
+}
+
+func (c *Config) composeSplitWarning(entries map[string]bool) string {
+	names := make([]string, 0, len(entries))
+	for name := range entries {
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	return []string{
-		fmt.Sprintf("stack: compose entries [%s] can run in the same invocation set — each is a separate 'docker compose' call, so an overlay entry cannot patch another entry's services; give each its own named plan (plans.<name>.entries: [{name: entry}]), or merge them into one entry whose files: lists the overlays",
-			strings.Join(names, ", ")),
+
+	remedy := "give each its own named plan (plans.<name>.entries: [{name: entry}])"
+	if len(c.Plans) > 0 && c.plansWouldIsolateEntries(entries) && c.DefaultPlan() == "" {
+		remedy = "set default_plan to a minimal plan that selects one entry, so unnamed lifecycle commands have a bounded selection"
+	} else if len(c.Plans) > 0 && c.anyPlanSelectsEntries(entries) {
+		remedy = "merge them into one entry whose files: lists the overlays"
 	}
+
+	return fmt.Sprintf("stack: compose entries [%s] can run in the same invocation set — each is a separate 'docker compose' call, so an overlay entry cannot patch another entry's services; %s",
+		strings.Join(names, ", "), remedy)
 }
 
 // plansIsolateEntries reports whether named plans make the compose entries
-// mutually exclusive. A default plan is required because plan-aware commands
-// otherwise still have a legacy whole-stack route when passed flags; treating
-// that route as safe would silence the warning for entries that can co-occur.
+// mutually exclusive. A default plan is required before an unnamed lifecycle
+// command has a bounded selection; explicit entry-oriented lifecycle commands
+// are deliberate escape hatches and are not evidence that plans co-occur.
 func (c *Config) plansIsolateEntries(entries map[string]bool) bool {
-	if len(c.Plans) == 0 || c.DefaultPlan() == "" {
+	return c.DefaultPlan() != "" && c.plansWouldIsolateEntries(entries)
+}
+
+// plansWouldIsolateEntries reports whether each named plan selects at most one
+// entry and every entry is selected by a plan. It intentionally does not inspect
+// explicit entry-oriented lifecycle commands, which bypass plan selection by
+// design and should not make otherwise isolated plans warn.
+func (c *Config) plansWouldIsolateEntries(entries map[string]bool) bool {
+	if len(c.Plans) == 0 {
 		return false
 	}
-
 	claimed := make(map[string]bool, len(entries))
 	for _, plan := range c.Plans {
 		if plan == nil {
@@ -620,6 +652,24 @@ func (c *Config) plansIsolateEntries(entries map[string]bool) bool {
 	}
 
 	return len(claimed) == len(entries)
+}
+
+func (c *Config) anyPlanSelectsEntries(entries map[string]bool) bool {
+	for _, plan := range c.Plans {
+		if plan == nil {
+			continue
+		}
+		hits := 0
+		for _, entry := range plan.Entries {
+			if entries[entry.Name] {
+				hits++
+			}
+		}
+		if hits > 1 {
+			return true
+		}
+	}
+	return false
 }
 
 // modesIsolateEntries reports whether every entry in the set is claimed by a mode and

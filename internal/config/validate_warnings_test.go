@@ -822,6 +822,67 @@ func TestWarnMultiStackComposeSplitPlanIsolation(t *testing.T) {
 	}
 }
 
+func TestWarnMultiStackComposeSplitProjectNameIsolation(t *testing.T) {
+	newConfig := func(firstProject, secondProject string) *Config {
+		return &Config{
+			Stack: map[string]*LifecycleEntry{
+				"app": {
+					Compose: &ComposePluginConfig{Files: []string{"compose.yaml"}, ProjectName: firstProject},
+				},
+				"e2e": {
+					Compose: &ComposePluginConfig{Files: []string{"compose/e2e.yaml"}, ProjectName: secondProject},
+				},
+			},
+			Plans: map[string]*PlanConfig{
+				"full": {Entries: []PlanEntry{{Name: "app"}, {Name: "e2e"}}},
+			},
+			DefaultPlanName: "full",
+		}
+	}
+
+	t.Run("different explicit project names are independent", func(t *testing.T) {
+		if warnings := newConfig("app", "isolated-e2e").warnMultiStackComposeSplit(); len(warnings) != 0 {
+			t.Fatalf("expected no warning for independent compose projects, got %v", warnings)
+		}
+	})
+
+	t.Run("same project name remains an overlay warning", func(t *testing.T) {
+		warnings := newConfig("app", "app").warnMultiStackComposeSplit()
+		if len(warnings) != 1 {
+			t.Fatalf("expected one warning for same project name, got %v", warnings)
+		}
+		if !strings.Contains(warnings[0], "merge them into one entry") {
+			t.Fatalf("same-project warning must suggest merging overlays, got %q", warnings[0])
+		}
+	})
+
+	t.Run("empty project names remain conservative", func(t *testing.T) {
+		if warnings := newConfig("", "").warnMultiStackComposeSplit(); len(warnings) != 1 {
+			t.Fatalf("expected warning for unknown compose project names, got %v", warnings)
+		}
+	})
+}
+
+func TestWarnMultiStackComposeSplitMissingDefaultPlanSuggestsSafeDefault(t *testing.T) {
+	c := &Config{
+		Stack: map[string]*LifecycleEntry{
+			"compose":      {Compose: &ComposePluginConfig{ProjectName: "app"}},
+			"compose-live": {Compose: &ComposePluginConfig{ProjectName: "app"}},
+		},
+		Plans: map[string]*PlanConfig{
+			"infra": {Entries: []PlanEntry{{Name: "compose"}}},
+			"live":  {Entries: []PlanEntry{{Name: "compose-live"}}},
+		},
+	}
+	warnings := c.warnMultiStackComposeSplit()
+	if len(warnings) != 1 {
+		t.Fatalf("expected one warning without default plan, got %v", warnings)
+	}
+	if !strings.Contains(warnings[0], "set default_plan") {
+		t.Fatalf("missing-default warning must suggest default_plan, got %q", warnings[0])
+	}
+}
+
 // TestWarnDuplicateComposeApplicationOwnership was here. It covered the shape where
 // applications.<app>.run.docker.service named a service a compose stack entry already
 // owned, so `dva up` started it once through the orchestrator and again through the
