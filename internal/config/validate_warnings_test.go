@@ -861,6 +861,28 @@ func TestWarnMultiStackComposeSplitProjectNameIsolation(t *testing.T) {
 			t.Fatalf("expected warning for unknown compose project names, got %v", warnings)
 		}
 	})
+
+	t.Run("empty name can match an explicit project", func(t *testing.T) {
+		if warnings := newConfig("", "app").warnMultiStackComposeSplit(); len(warnings) != 1 {
+			t.Fatalf("expected warning for empty and explicit project names, got %v", warnings)
+		}
+	})
+
+	t.Run("interpolated name can match a literal project", func(t *testing.T) {
+		c := newConfig("${PROJECT_NAME}", "app")
+		c.Vars = map[string]string{"PROJECT_NAME": "other"}
+		if warnings := c.warnMultiStackComposeSplit(); len(warnings) != 1 {
+			t.Fatalf("expected warning for interpolated and literal project names, got %v", warnings)
+		}
+	})
+
+	t.Run("interpolated names resolving equal remain unknown", func(t *testing.T) {
+		c := newConfig("${PROJECT_NAME}", "$PROJECT_NAME")
+		c.Vars = map[string]string{"PROJECT_NAME": "app"}
+		if warnings := c.warnMultiStackComposeSplit(); len(warnings) != 1 {
+			t.Fatalf("expected warning for interpolated project names, got %v", warnings)
+		}
+	})
 }
 
 func TestWarnMultiStackComposeSplitMissingDefaultPlanSuggestsSafeDefault(t *testing.T) {

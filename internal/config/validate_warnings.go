@@ -556,19 +556,23 @@ func (c *Config) entriesNamedByPlans() map[string]bool {
 // split across stack entries. Each entry is its own `docker compose` invocation, so
 // an overlay entry cannot patch a base entry's service definitions.
 //
-// Named plans are the authoritative lifecycle surface. Entries that share an
-// explicit project_name can only be overlays when the same plan selects them.
-// Different non-empty project names are independent Compose projects. Entries
-// without a project name remain conservative because Docker Compose derives the
-// name from its working directory.
+// Named plans are the authoritative lifecycle surface. Only two non-empty,
+// fully literal project_name values that differ are provably independent Compose
+// projects. Empty or interpolation-bearing names remain unknown: plan, site and
+// entry variables can change their runtime value, which validation cannot prove.
 func (c *Config) warnMultiStackComposeSplit() []string {
 	byProjectName := make(map[string]map[string]bool)
+	unknown := make(map[string]bool)
 	for name, entry := range c.Stack {
 		// ComposeConfig(), not entry.Compose: the supported shape stores compose under
 		// runners, so reading the legacy field alone made this warning unreachable for
 		// every config that follows the current schema.
 		if entry.ComposeConfig() != nil {
-			projectName := strings.TrimSpace(entry.ComposeConfig().ProjectName)
+			projectName, literal := literalComposeProjectName(entry.ComposeConfig().ProjectName)
+			if !literal {
+				unknown[name] = true
+				continue
+			}
 			if byProjectName[projectName] == nil {
 				byProjectName[projectName] = make(map[string]bool)
 			}
@@ -584,13 +588,27 @@ func (c *Config) warnMultiStackComposeSplit() []string {
 
 	var warnings []string
 	for _, projectName := range projectNames {
-		entries := byProjectName[projectName]
+		entries := make(map[string]bool, len(byProjectName[projectName])+len(unknown))
+		for name := range byProjectName[projectName] {
+			entries[name] = true
+		}
+		for name := range unknown {
+			entries[name] = true
+		}
 		if len(entries) < 2 || c.composeEntriesAreIsolated(entries) {
 			continue
 		}
 		warnings = append(warnings, c.composeSplitWarning(entries))
 	}
+	if len(projectNames) == 0 && len(unknown) > 1 && !c.composeEntriesAreIsolated(unknown) {
+		warnings = append(warnings, c.composeSplitWarning(unknown))
+	}
 	return warnings
+}
+
+func literalComposeProjectName(projectName string) (string, bool) {
+	projectName = strings.TrimSpace(projectName)
+	return projectName, projectName != "" && !strings.Contains(projectName, "$")
 }
 
 func (c *Config) composeEntriesAreIsolated(entries map[string]bool) bool {
