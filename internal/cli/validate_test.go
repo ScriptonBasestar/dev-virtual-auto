@@ -296,6 +296,101 @@ func TestDetectConfigDriftWarnings_SourceStackFixtureHasNoFalseComposeWarnings(t
 	}
 }
 
+func TestDetectConfigDriftWarnings_ResolvesComposeFilesWithEntryVars(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.dev.yml"), []byte("services:\n  api:\n    image: nginx\n"), 0644); err != nil {
+		t.Fatalf("write entry-resolved compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  compose:
+    default_runner: compose
+    vars:
+      STAGE: dev
+    runners:
+      compose:
+        files: ["compose.${STAGE}.yml"]
+interaction:
+  api-shell:
+    service: api
+    command: sh
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected entry vars to resolve compose path and service discovery, got %v", warnings)
+	}
+	if !configuredComposeServices(c)["api"] {
+		t.Fatal("service discovery did not use entry-resolved compose file")
+	}
+}
+
+func TestDetectConfigDriftWarnings_DefersPlanOrSiteDrivenComposePath(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, "compose.yaml"), []byte("services: {}\n"), 0644); err != nil {
+		t.Fatalf("write root compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  compose:
+    default_runner: compose
+    runners:
+      compose:
+        files: ["compose.${STAGE}.yml"]
+plans:
+  local:
+    site: local
+    entries:
+      - name: compose
+        vars:
+          STAGE: dev
+sites:
+  local:
+    vars:
+      STAGE: dev
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if warnings := detectConfigDriftWarnings(c); len(warnings) != 0 {
+		t.Fatalf("expected unresolved plan/site path to defer static drift checks, got %v", warnings)
+	}
+}
+
+func TestMissingConfiguredComposeFiles_DeduplicatesEntryResolvedPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(`version: "0.1.44"
+stack:
+  compose:
+    default_runner: compose
+    vars:
+      STAGE: dev
+    runners:
+      compose:
+        files: ["compose.${STAGE}.yml", compose.dev.yml]
+`), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	missing := missingConfiguredComposeFiles(c)
+	if len(missing) != 1 || missing[0] != "compose.${STAGE}.yml" {
+		t.Fatalf("expected one missing resolved path, got %v", missing)
+	}
+}
+
 func TestDetectConfigDriftWarnings_MissingService(t *testing.T) {
 	tmpDir := t.TempDir()
 	oldWd, _ := os.Getwd()

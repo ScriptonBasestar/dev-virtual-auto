@@ -276,8 +276,8 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 	var warnings []string
 
 	detectedCompose := detectComposeFilesInDir(c.FileDir())
-	configuredRootCompose := configuredRootComposeFiles(c)
-	if len(detectedCompose) > 0 || len(configuredRootCompose) > 0 {
+	configuredRootCompose, deferredRootCompose := configuredRootComposeFiles(c)
+	if !deferredRootCompose && (len(detectedCompose) > 0 || len(configuredRootCompose) > 0) {
 		if !sameStringSlice(configuredRootCompose, detectedCompose) {
 			warnings = append(warnings,
 				fmt.Sprintf("compose.files is %s but detected root compose files are %s; review whether dva.yml is tracking the current project layout",
@@ -317,11 +317,14 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 // project (for example compose/e2e.yaml) as drift on every strict validation.
 //
 // Existing root paths remain in the comparison even when absent, making a stale
-// root compose declaration visible instead of silently skipping it.
-func configuredRootComposeFiles(c *config.Config) []string {
+// root compose declaration visible instead of silently skipping it. The boolean
+// result is true when a root file still needs plan/site resolution; callers must
+// defer the comparison rather than compare autodiscovery to an incomplete set.
+func configuredRootComposeFiles(c *config.Config) ([]string, bool) {
 	root := c.FileDir()
 	var files []string
-	for _, file := range configuredComposeFiles(c) {
+	configured, deferredRootCompose := configuredComposeFiles(c)
+	for _, file := range configured {
 		if !file.root {
 			continue
 		}
@@ -335,7 +338,7 @@ func configuredRootComposeFiles(c *config.Config) []string {
 		}
 		files = append(files, filepath.ToSlash(rel))
 	}
-	return deduplicateComposeFiles(root, files)
+	return deduplicateComposeFiles(root, files), deferredRootCompose
 }
 
 // missingConfiguredComposeFiles checks every configured Compose path, rather
@@ -345,7 +348,8 @@ func configuredRootComposeFiles(c *config.Config) []string {
 func missingConfiguredComposeFiles(c *config.Config) []string {
 	seen := make(map[string]bool)
 	var missing []string
-	for _, file := range configuredComposeFiles(c) {
+	configured, _ := configuredComposeFiles(c)
+	for _, file := range configured {
 		identity := file.sourceIdentity + "\x00" + file.path
 		if seen[identity] {
 			continue
@@ -373,10 +377,14 @@ type configuredComposeFile struct {
 
 // configuredComposeFiles resolves each compose file the same way the lifecycle
 // runner does: ordinary entries are relative to dva.yml, while source entries
-// are relative to their SourceDir. A source that has not been made available yet
-// is deferred to source readiness; validation must not mistake an unfetched git
-// cache (or absent path source) for a missing compose file.
-func configuredComposeFiles(c *config.Config) []configuredComposeFile {
+// are relative to their SourceDir. The base environment is cloned for every
+// entry before entry vars are merged, matching the orchestrator's scope. A source
+// that has not been made available yet is deferred to source readiness; validation
+// must not mistake an unfetched git cache (or absent path source) for a missing
+// compose file. Paths still containing interpolation after those static layers
+// are deferred too: plan/site/plan-entry variables belong to lifecycle resolution,
+// and this validator intentionally does not duplicate that resolver.
+func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool) {
 	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
 	env.MergeVars(c.Environment)
 	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
@@ -388,6 +396,7 @@ func configuredComposeFiles(c *config.Config) []configuredComposeFile {
 	sort.Strings(names)
 
 	var files []configuredComposeFile
+	deferredRootCompose := false
 	for _, name := range names {
 		entry := c.Stack[name]
 		if entry == nil || entry.ComposeConfig() == nil {
@@ -411,11 +420,19 @@ func configuredComposeFiles(c *config.Config) []configuredComposeFile {
 			sourceIdentity = "source:" + name + ":" + filepath.Clean(resolved)
 		}
 
+		entryEnv := env.Clone()
+		entryEnv.MergeVars(entry.Vars)
 		for _, declared := range entry.ComposeConfig().Files {
 			if strings.TrimSpace(declared) == "" {
 				continue
 			}
-			resolved := env.Interpolate(declared)
+			resolved := entryEnv.Interpolate(declared)
+			if strings.Contains(resolved, "$") {
+				if root {
+					deferredRootCompose = true
+				}
+				continue
+			}
 			if !filepath.IsAbs(resolved) {
 				resolved = filepath.Join(baseDir, resolved)
 			}
@@ -428,7 +445,7 @@ func configuredComposeFiles(c *config.Config) []configuredComposeFile {
 			})
 		}
 	}
-	return files
+	return files, deferredRootCompose
 }
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {
@@ -576,7 +593,8 @@ func detectComposeFilesInDir(dir string) []string {
 // neither of them declared, and it survives only as long as nobody refactors either half.
 func configuredComposeServices(c *config.Config) map[string]bool {
 	services := map[string]bool{}
-	for _, file := range configuredComposeFiles(c) {
+	configured, _ := configuredComposeFiles(c)
+	for _, file := range configured {
 		for _, service := range extractComposeServices(file.path) {
 			services[service] = true
 		}
