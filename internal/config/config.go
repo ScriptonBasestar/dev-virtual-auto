@@ -592,6 +592,22 @@ func (c *Config) DefaultPlan() string {
 	return ""
 }
 
+// DefaultPlanSource reports why DefaultPlan selected its effective value.
+//
+// The value is intentionally about the resolved lifecycle behavior, not merely
+// whether default_plan was declared. An invalid explicit name therefore reports
+// "none": validation rejects the declaration and bare lifecycle commands have
+// no effective default to select.
+func (c *Config) DefaultPlanSource() string {
+	if c.DefaultPlan() == "" {
+		return "none"
+	}
+	if c.DefaultPlanName != "" {
+		return "explicit"
+	}
+	return "implicit-single"
+}
+
 func copyStringMap(m map[string]string) map[string]string {
 	if m == nil {
 		return nil

@@ -161,6 +161,9 @@ func TestConfigPlanHelpers(t *testing.T) {
 	if cfg.DefaultPlan() != "" {
 		t.Error("empty config should have no default plan")
 	}
+	if source := cfg.DefaultPlanSource(); source != "none" {
+		t.Errorf("empty config default plan source = %q, want none", source)
+	}
 
 	cfg.Plans = map[string]*PlanConfig{
 		"local-dev": {Description: "local dev"},
@@ -171,10 +174,16 @@ func TestConfigPlanHelpers(t *testing.T) {
 	if dp := cfg.DefaultPlan(); dp != "local-dev" {
 		t.Errorf("default plan should be 'local-dev', got '%s'", dp)
 	}
+	if source := cfg.DefaultPlanSource(); source != "implicit-single" {
+		t.Errorf("single plan source = %q, want implicit-single", source)
+	}
 
 	cfg.Plans["stg"] = &PlanConfig{Description: "staging"}
 	if dp := cfg.DefaultPlan(); dp != "" {
 		t.Errorf("2 plans should return empty default, got '%s'", dp)
+	}
+	if source := cfg.DefaultPlanSource(); source != "none" {
+		t.Errorf("multiple-plan source = %q, want none", source)
 	}
 
 	// Explicit default_plan selects among multiple plans.
@@ -182,10 +191,16 @@ func TestConfigPlanHelpers(t *testing.T) {
 	if dp := cfg.DefaultPlan(); dp != "stg" {
 		t.Errorf("explicit default_plan should win, got '%s'", dp)
 	}
+	if source := cfg.DefaultPlanSource(); source != "explicit" {
+		t.Errorf("explicit default plan source = %q, want explicit", source)
+	}
 
 	// An explicit default_plan that names no existing plan resolves to empty.
 	cfg.DefaultPlanName = "ghost"
 	if dp := cfg.DefaultPlan(); dp != "" {
 		t.Errorf("unknown default_plan should resolve to empty, got '%s'", dp)
+	}
+	if source := cfg.DefaultPlanSource(); source != "none" {
+		t.Errorf("invalid explicit default plan source = %q, want none", source)
 	}
 }

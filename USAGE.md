@@ -217,6 +217,11 @@ dva config show           # JSON 형식 (기본)
 dva config show -f yaml   # YAML 형식
 ```
 
+`dva show --json`과 `dva manifest -f json`/`yaml`은 bare lifecycle이 실제로 선택하는
+플랜을 `default_plan`으로, 선택 근거를 `default_plan_source` (`explicit`, `implicit-single`,
+`none`)으로 출력합니다. 선택할 플랜이 없으면 `default_plan`은 생략되고 source는 항상
+출력됩니다.
+
 ### Lifecycle
 
 #### 권장 실행 모델

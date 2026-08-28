@@ -190,7 +190,12 @@ func showText(c *config.Config) error {
 
 	if len(c.Plans) > 0 {
 		fmt.Println()
-		fmt.Println("Plans (dva up <name>):")
+		defaultPlan := c.DefaultPlan()
+		if defaultPlan == "" {
+			fmt.Println("Plans (dva up <name>; default: none):")
+		} else {
+			fmt.Printf("Plans (dva up <name>; default: %s [%s]):\n", defaultPlan, c.DefaultPlanSource())
+		}
 		names := sortedKeys(c.Plans)
 		maxLen := maxKeyLen(names)
 		for _, name := range names {
@@ -322,9 +327,13 @@ func showText(c *config.Config) error {
 
 func showJSON(c *config.Config) error {
 	data := map[string]any{
-		"dva_version":    config.Version,
-		"config_path":    c.FilePath(),
-		"config_version": c.Version,
+		"dva_version":         config.Version,
+		"config_path":         c.FilePath(),
+		"config_version":      c.Version,
+		"default_plan_source": c.DefaultPlanSource(),
+	}
+	if defaultPlan := c.DefaultPlan(); defaultPlan != "" {
+		data["default_plan"] = defaultPlan
 	}
 
 	// Same source as the text view: a consumer that sees `compose` but no `stack` cannot tell

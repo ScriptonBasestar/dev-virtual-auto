@@ -44,6 +44,12 @@ type Manifest struct {
 	ProjectDir    string   `json:"project_dir" yaml:"project_dir"`
 	ComposeFiles  []string `json:"compose_files,omitempty" yaml:"compose_files,omitempty"`
 	EnvKeys       []string `json:"environment_keys,omitempty" yaml:"environment_keys,omitempty"`
+	// DefaultPlan is the effective selection used by bare lifecycle commands. It
+	// is omitted when no plan can be selected unambiguously; DefaultPlanSource
+	// remains present so machine consumers can distinguish that from a missing
+	// field in an older manifest.
+	DefaultPlan       string `json:"default_plan,omitempty" yaml:"default_plan,omitempty"`
+	DefaultPlanSource string `json:"default_plan_source" yaml:"default_plan_source"`
 	// GlobalFlags are the root persistent flags (--debug, --dry-run, --json, …), listed
 	// once rather than on every command (TASK-151). Derived from cobra; a new persistent
 	// flag appears here without editing this table.
@@ -277,12 +283,14 @@ func fillCommandDescriptions(command *cobra.Command, entry ManifestCmd) Manifest
 
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
-		DvaVersion:    config.Version,
-		SchemaVersion: "1.3",
-		GeneratedAt:   time.Now().Format(time.RFC3339),
-		ConfigFile:    c.FilePath(),
-		ProjectDir:    c.FileDir(),
-		ComposeFiles:  c.AllComposeFiles(),
+		DvaVersion:        config.Version,
+		SchemaVersion:     "1.3",
+		GeneratedAt:       time.Now().Format(time.RFC3339),
+		ConfigFile:        c.FilePath(),
+		ProjectDir:        c.FileDir(),
+		ComposeFiles:      c.AllComposeFiles(),
+		DefaultPlan:       c.DefaultPlan(),
+		DefaultPlanSource: c.DefaultPlanSource(),
 		// StaticCommands must name every command registered on rootCmd — this document's own doc
 		// comment says the audience is an LLM, and an agent that reads a subset concludes the
 		// missing commands do not exist. It was a hand-copied 13 of 27 until TASK-096.
