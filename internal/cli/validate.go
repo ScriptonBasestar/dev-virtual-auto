@@ -508,14 +508,6 @@ func sameStringSlice(a, b []string) bool {
 	return true
 }
 
-func normalizeRelativePaths(paths []string) []string {
-	out := make([]string, 0, len(paths))
-	for _, path := range paths {
-		out = append(out, filepath.ToSlash(path))
-	}
-	return out
-}
-
 func sortedSetKeys(m map[string]bool) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
