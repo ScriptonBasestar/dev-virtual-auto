@@ -184,7 +184,7 @@ func TestDetectConfigDriftWarnings_MissingConfiguredSubdirectoryAndAbsoluteCompo
 	if err := os.Mkdir(filepath.Join(tmpDir, "compose"), 0755); err != nil {
 		t.Fatalf("mkdir compose: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(fmt.Sprintf(`version: "0.1.44"
+	dvaConfig := fmt.Sprintf(`version: "0.1.44"
 stack:
   subdirectory:
     default_runner: compose
@@ -196,7 +196,8 @@ stack:
     runners:
       compose:
         files: [%q]
-`, missingAbsolute)), 0644); err != nil {
+`, missingAbsolute)
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(dvaConfig), 0644); err != nil {
 		t.Fatalf("write dva.yml: %v", err)
 	}
 
