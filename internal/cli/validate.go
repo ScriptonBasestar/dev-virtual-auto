@@ -284,6 +284,9 @@ func detectConfigDriftWarnings(c *config.Config) []string {
 					formatList(configuredRootCompose), formatList(detectedCompose)))
 		}
 	}
+	for _, file := range missingConfiguredComposeFiles(c) {
+		warnings = append(warnings, fmt.Sprintf("compose file %q is configured by dva.yml but does not exist", file))
+	}
 
 	availableServices := configuredComposeServices(c)
 	if len(availableServices) == 0 {
@@ -333,6 +336,38 @@ func configuredRootComposeFiles(c *config.Config) []string {
 		files = append(files, filepath.ToSlash(rel))
 	}
 	return deduplicateComposeFiles(root, files)
+}
+
+// missingConfiguredComposeFiles checks every configured Compose path, rather
+// than only the root-level paths compared with autodiscovery. That keeps
+// isolated subdirectory projects out of the root drift comparison without
+// letting a stale subdirectory or absolute path pass strict validation.
+func missingConfiguredComposeFiles(c *config.Config) []string {
+	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
+	env.MergeVars(c.Environment)
+	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
+
+	seen := make(map[string]bool)
+	var missing []string
+	for _, file := range c.AllComposeFiles() {
+		if strings.TrimSpace(file) == "" {
+			continue
+		}
+		path := env.Interpolate(file)
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(c.FileDir(), path)
+		}
+		path = filepath.Clean(path)
+		if seen[path] {
+			continue
+		}
+		seen[path] = true
+		if !fileExists(path) {
+			missing = append(missing, file)
+		}
+	}
+	sort.Strings(missing)
+	return missing
 }
 
 func printConfigSuggestionWarnings(w io.Writer, warnings []string) {

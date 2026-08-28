@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -172,8 +173,46 @@ stack:
 		t.Fatalf("load config: %v", err)
 	}
 	warnings := detectConfigDriftWarnings(c)
-	if len(warnings) != 1 || !strings.Contains(warnings[0], "compose.files is compose.yaml but detected root compose files are (none)") {
+	if len(warnings) != 2 || !strings.Contains(warnings[0], "compose.files is compose.yaml but detected root compose files are (none)") || !strings.Contains(warnings[1], `compose file "compose.yaml" is configured by dva.yml but does not exist`) {
 		t.Fatalf("expected missing root compose drift warning, got %v", warnings)
+	}
+}
+
+func TestDetectConfigDriftWarnings_MissingConfiguredSubdirectoryAndAbsoluteComposeFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	missingAbsolute := filepath.Join(t.TempDir(), "missing-absolute.yaml")
+	if err := os.Mkdir(filepath.Join(tmpDir, "compose"), 0755); err != nil {
+		t.Fatalf("mkdir compose: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(fmt.Sprintf(`version: "0.1.44"
+stack:
+  subdirectory:
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose/missing.yaml, compose/missing.yaml]
+  absolute:
+    default_runner: compose
+    runners:
+      compose:
+        files: [%q]
+`, missingAbsolute)), 0644); err != nil {
+		t.Fatalf("write dva.yml: %v", err)
+	}
+
+	c, err := config.Load(tmpDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	warnings := detectConfigDriftWarnings(c)
+	if len(warnings) != 2 {
+		t.Fatalf("expected one warning per missing resolved path, got %v", warnings)
+	}
+	if !strings.Contains(strings.Join(warnings, "\n"), `compose file "compose/missing.yaml" is configured by dva.yml but does not exist`) {
+		t.Fatalf("missing subdirectory compose warning not found: %v", warnings)
+	}
+	if !strings.Contains(strings.Join(warnings, "\n"), missingAbsolute) {
+		t.Fatalf("missing absolute compose warning not found: %v", warnings)
 	}
 }
 
