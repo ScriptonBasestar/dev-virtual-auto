@@ -7,7 +7,9 @@ effort: S
 created-at: 2026-08-29T22:29:37+09:00
 source: "DVA wave follow-up reproduced missing optional env files as false doctor failures"
 scope: "env_file required metadata, doctor built-in results, tests, usage documentation, and changelog"
-status: todo
+status: done
+completed-at: 2026-08-29T22:44:45+09:00
+verification-status: verified
 ---
 
 # Task 239: make doctor honor optional env file semantics
@@ -20,10 +22,10 @@ rejects configurations that the runtime intentionally accepts.
 
 ## Completion criteria
 
-- [ ] Normalized env-file access preserves each path's required flag while path-only callers keep their existing contract | verify: `go test ./internal/config -run TestAllEnvFileConfigsPreservesRequiredMetadata`
-- [ ] Doctor omits missing optional files, fails missing required or inaccessible files, and reports existing optional and required files as passing | verify: `go test ./internal/cli -run 'TestDoctorEnvFiles|TestDoctorOptionalEnvFile|TestDoctorFailRow'`
-- [ ] User documentation and the changelog describe required-only missing-file diagnostics | verify: `make doc-check`
-- [ ] Repository gates pass before integration | verify: `make lint && make test && make test-integration && make commit-check`
+- [x] Normalized env-file access preserves each path's required flag while path-only callers keep their existing contract | verify: `go test ./internal/config -run TestAllEnvFileConfigsPreservesRequiredMetadata`
+- [x] Doctor omits missing optional files, fails missing required or inaccessible files, and reports existing optional and required files as passing | verify: `go test ./internal/cli -run 'TestDoctorEnvFiles|TestDoctorOptionalEnvFile|TestDoctorFailRow'`
+- [x] User documentation and the changelog describe required-only missing-file diagnostics | verify: `make doc-check`
+- [x] Repository gates pass before integration | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Decision
 
