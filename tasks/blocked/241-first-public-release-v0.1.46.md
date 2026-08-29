@@ -86,6 +86,11 @@ release-notes input, ignored `dist/`, and ignored `bin/` were removed after veri
 remains blocked only on explicit human confirmation of the active token's Contents read/write
 permission and the external publication/post-publication criteria above.
 
+This evidence commit advances `master` beyond the fixed release identity. Future publication must
+therefore use a new clean detached worktree at local tag `v0.1.46` and require
+`HEAD == v0.1.46 == release_commit` before invoking GoReleaser. Do not publish from the newer
+`master` tip and do not move the tag.
+
 ## Preserved history
 
 TASK-238 records the local `v0.1.45` tag and successful six-platform snapshot and real release-mode
