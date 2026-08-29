@@ -7,7 +7,9 @@ effort: S
 created-at: 2026-08-29T22:47:35+09:00
 source: "post-wave review found README and USAGE still claiming bare up always widens to the whole stack"
 scope: "README and USAGE bare lifecycle/default_plan/default_mode guidance, status regression test, changelog"
-status: todo
+status: done
+completed-at: 2026-08-29T23:02:17+09:00
+verification-status: verified
 ---
 
 # Task 240: document bare lifecycle selection accurately
@@ -23,10 +25,10 @@ the command actually performs.
 
 ## Completion criteria
 
-- [ ] README distinguishes argument-free actions, status fallback, and stack-flag/passthrough compatibility paths | verify: `make doc-check`
-- [ ] USAGE applies the same distinctions to lifecycle, status, profile, default_mode, and default_plan guidance | verify: `make doc-check`
-- [ ] Public wording is pinned to CLI selection tests, including ambiguous-plan status fallback | verify: `go test ./internal/cli -run 'TestRequirePlanSelection|TestUpBareUsesDefaultPlan|TestStatusWithAmbiguousPlansFallsBackToWorkspace|TestStatusWithoutPlansKeepsWorkspacePath'`
-- [ ] Repository documentation and commit gates pass | verify: `make doc-check && make commit-check`
+- [x] README distinguishes argument-free actions, status fallback, and stack-flag/passthrough compatibility paths | verify: `make doc-check`
+- [x] USAGE applies the same distinctions to lifecycle, status, profile, default_mode, and default_plan guidance | verify: `make doc-check`
+- [x] Public wording is pinned to CLI selection tests, including ambiguous-plan status fallback | verify: `go test ./internal/cli -run 'TestRequirePlanSelection|TestUpBareUsesDefaultPlan|TestStatusWithAmbiguousPlansFallsBackToWorkspace|TestStatusWithoutPlansKeepsWorkspacePath'`
+- [x] Repository documentation and commit gates pass | verify: `make doc-check && make commit-check`
 
 ## Decision
 
