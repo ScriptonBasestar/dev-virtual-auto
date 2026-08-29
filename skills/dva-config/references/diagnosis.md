@@ -50,11 +50,13 @@ not close a status bug if DVA still reports an unrelated process as healthy.
   service subsets from plans. Create separate stack entries only for genuinely
   distinct executable declarations, such as native hot-reload and built-preview
   commands that cannot share one runner configuration.
-- Treat `default_plan` as a project choice among named plans. When plans exist,
-  a bare lifecycle command selects the effective default (the explicit
-  `default_plan`, or the sole plan); multiple plans without a default are
-  refused as ambiguous. Whole-stack fallback applies only when no plans exist.
-  Named plans explicitly select their entries and services.
+- Treat `default_plan` as a project choice among named plans. Bare `up`, `down`,
+  `stop`, `restart`, `build`, and `logs` select the effective default (the
+  explicit `default_plan`, or the sole plan); multiple plans without a default
+  are refused as ambiguous. Their whole-stack fallback applies only when no
+  plans exist. Bare `status` also selects an effective default, but reports the
+  whole workspace when none is available. Named plans explicitly select their
+  entries and services.
   Keep always-on core dependencies profile-less and gate optional Compose tiers
   with Compose-native profiles when that matches project intent.
 - Treat schema acceptance and plan resolution as necessary but insufficient.
