@@ -114,8 +114,7 @@ fresh clone materializes the gitignored ones locally.
 
 1. **Author / edit** `skills/<name>/SKILL.md` (+ `references/`, `assets/`).
 2. **Set overrides** in the skill's `x-targets` or in `_targets.yaml` `defaults`.
-3. **Generate** platform artifacts (Phase 3 — `make generate`; until then Cursor
-   is hand-converted per this spec).
+3. **Generate** platform artifacts with `make generate`.
 4. **Verify** generated outputs are fresh in CI (`generate` then `git diff --exit-code`).
 
 ## Binary installation
