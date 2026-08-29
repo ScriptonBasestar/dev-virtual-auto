@@ -182,10 +182,18 @@ func (c *Config) PrimaryComposeConfig() *ComposePluginConfig {
 	return nil
 }
 
+// AllEnvFileConfigs returns normalized env file declarations while preserving
+// whether each path is required. Callers that diagnose readiness need this
+// metadata; execution-only callers can continue to use AllEnvFiles.
+func (c *Config) AllEnvFileConfigs() []EnvFileConfig {
+	return normalizeEnvFileConfig(c.EnvFile)
+}
+
 // AllEnvFiles aggregates env file paths from the config.
 func (c *Config) AllEnvFiles() []string {
-	var paths []string
-	for _, cfg := range normalizeEnvFileConfig(c.EnvFile) {
+	configs := c.AllEnvFileConfigs()
+	paths := make([]string, 0, len(configs))
+	for _, cfg := range configs {
 		paths = append(paths, cfg.Path)
 	}
 	return paths

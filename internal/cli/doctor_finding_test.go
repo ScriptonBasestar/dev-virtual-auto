@@ -318,7 +318,10 @@ stack:
 func envFileConfig(t *testing.T, present bool) *config.Config {
 	t.Helper()
 	c := loadTestConfig(t, `version: "0.1.22"
-env_file: .env.local
+env_file:
+  files:
+    - path: .env.local
+      required: true
 `)
 	if present {
 		if err := os.WriteFile(filepath.Join(c.FileDir(), ".env.local"), []byte("A=1\n"), 0o644); err != nil {

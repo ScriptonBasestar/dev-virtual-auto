@@ -535,21 +535,24 @@ func checkEnvFiles(c *config.Config) []DoctorResult {
 	var results []DoctorResult
 	cfgDir := c.FileDir()
 
-	for _, envFile := range c.AllEnvFiles() {
-		if envFile == "" {
+	for _, envFile := range c.AllEnvFileConfigs() {
+		if envFile.Path == "" {
 			continue
 		}
-		path := envFile
+		path := envFile.Path
 		if !filepath.IsAbs(path) {
-			path = filepath.Join(cfgDir, envFile)
+			path = filepath.Join(cfgDir, envFile.Path)
 		}
 
 		passed := fileExists(path)
+		if !passed && !envFile.Required {
+			continue
+		}
 		results = append(results, DoctorResult{
-			Name:    fmt.Sprintf("Environment file exists: %s", envFile),
-			Finding: condStr(!passed, fmt.Sprintf("Environment file is MISSING: %s", envFile)),
+			Name:    fmt.Sprintf("Environment file exists: %s", envFile.Path),
+			Finding: condStr(!passed, fmt.Sprintf("Environment file is MISSING: %s", envFile.Path)),
 			Passed:  passed,
-			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", envFile)),
+			FixHint: condStr(!passed, fmt.Sprintf("Create or check path: %s", envFile.Path)),
 		})
 	}
 

@@ -527,7 +527,7 @@ dva doctor --strict       # 빌트인 체크 실패도 exit≠0 (기본은 advis
 빌트인 체크 항목:
 - Docker 소켓 권한 및 데몬 접근 가능 여부
 - Compose 파일 존재 여부 및 project name 정합성
-- `.env` 파일 존재 여부
+- `required: true`로 선언된 `env_file` 존재 여부 (누락된 선택 파일은 진단에서 제외)
 - Stack 엔트리 참조 파일 존재 여부
 - `.sb/dva/`가 `.gitignore`에 포함되어 있는지
 - devcontainer 설정 시 `devcontainer.json` 존재 여부

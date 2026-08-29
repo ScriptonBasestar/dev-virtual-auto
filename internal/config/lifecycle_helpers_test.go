@@ -30,6 +30,37 @@ func sortedEntry(t *testing.T, cfg *Config, name string) LifecycleEntry {
 	return LifecycleEntry{}
 }
 
+func TestAllEnvFileConfigsPreservesRequiredMetadata(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want []EnvFileConfig
+	}{
+		{name: "scalar", yaml: `.env`, want: []EnvFileConfig{{Path: ".env"}}},
+		{name: "list strings", yaml: `[a.env, b.env]`, want: []EnvFileConfig{{Path: "a.env"}, {Path: "b.env"}}},
+		{name: "per-file required", yaml: `{files: [{path: a.env}, {path: b.env, required: true}]}`, want: []EnvFileConfig{{Path: "a.env"}, {Path: "b.env", Required: true}}},
+		{name: "outer required", yaml: `{files: [{path: a.env, required: false}, b.env], required: true}`, want: []EnvFileConfig{{Path: "a.env", Required: true}, {Path: "b.env", Required: true}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := loadStackConfig(t, "version: \"0.1.45\"\nenv_file: "+tt.yaml+"\n")
+			got := cfg.AllEnvFileConfigs()
+			if len(got) != len(tt.want) {
+				t.Fatalf("AllEnvFileConfigs() = %+v, want %+v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("AllEnvFileConfigs()[%d] = %+v, want %+v", i, got[i], tt.want[i])
+				}
+			}
+			if gotPaths := cfg.AllEnvFiles(); len(gotPaths) != len(tt.want) {
+				t.Errorf("AllEnvFiles() returned %d paths, want %d", len(gotPaths), len(tt.want))
+			}
+		})
+	}
+}
+
 // TestSortedStackIsDeterministic pins the sequence for entries that share an Order — which includes
 // every config where no entry declares `order:` at all, the shape `dva init` produces. Entries come
 // from a map, so before the Name tiebreak this returned Go's randomized iteration order and

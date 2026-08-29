@@ -33,6 +33,9 @@ All notable changes to DVA are documented here.
 - `env_file` loading now active in config pipeline
 
 ### Changed
+- **`dva doctor`가 선택 `env_file`의 누락을 실패로 보고하지 않습니다**: 런타임 로더와
+  동일하게 `required: false`인 누락 파일은 건너뛰고, 필수 파일 누락만 진단합니다.
+  존재하는 선택·필수 파일은 계속 통과 항목으로 표시됩니다.
 - `compose:` / `kubectl:` 최상위 섹션 → `stack:` 섹션으로 통합 마이그레이션
 - 모듈 디렉토리 `.dva/` → `.sb/dva/`로 변경
 - CLI 구조 변경: lifecycle 동사가 backend 기준(`stack`/`app`/`compose`)에서 **intent 기준
