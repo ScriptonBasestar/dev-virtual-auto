@@ -34,18 +34,20 @@ binary installation, or post-publication documentation that advertises assets wh
 
 ## Release identity and retry policy
 
-The release commit is the clean task tip that passes every repository and six-platform gate. Create
-a local lightweight `v0.1.46` tag at exactly that commit, do not push it separately, and validate
-real release-mode artifacts with `--skip=publish`. Once remote state exists, recovery stays on that
-exact tag and commit; never retag a newer commit to conceal a failed attempt. `.goreleaser.yml`
-retains `target_commitish`, existing-draft reuse, artifact replacement, and delayed publication so
-an interrupted upload can be resumed without moving the tag.
+The release commit is the clean, integrated `master` tip that passes every repository and
+six-platform gate. Verify the task branch against the current source, fast-forward and push
+`master`, then require `release_commit == master == origin/master` before creating a local
+lightweight `v0.1.46` tag. Do not push the tag separately; validate real release-mode artifacts
+with `--skip=publish`. Once remote state exists, recovery stays on that exact tag and commit; never
+retag a newer commit to conceal a failed attempt. `.goreleaser.yml` retains `target_commitish`,
+existing-draft reuse, artifact replacement, and delayed publication so an interrupted upload can be
+resumed without moving the tag.
 
 ## Completion criteria
 
 - [ ] Set runtime version `0.1.46` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.46 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
 - [ ] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
-- [ ] Validate a local lightweight tag and real release-mode artifacts without publishing | verify: `test "$(git cat-file -t v0.1.46)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
+- [ ] Validate the integrated identity, local lightweight tag, and real release-mode artifacts without publishing | verify: `release_commit="$(git rev-list -n1 v0.1.46)" && test "$release_commit" = "$(git rev-parse master)" && test "$release_commit" = "$(git rev-parse origin/master)" && test "$(git cat-file -t v0.1.46)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
 - [ ] Confirm GitHub write authorization and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
 - [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
 - [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
