@@ -1,4 +1,4 @@
-# TASK-238 authorizes local release preparation only. Public publication still requires its
+# TASK-241 authorizes local release preparation only. Public publication still requires its
 # explicit human authorization gate. CI runs only the snapshot gate and has no publication
 # credentials or tag-triggered release workflow.
 version: 2

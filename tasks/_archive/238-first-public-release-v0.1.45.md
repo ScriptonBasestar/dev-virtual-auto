@@ -7,14 +7,26 @@ effort: S
 created-at: 2026-08-28T23:38:29+09:00
 source: "explicit user approval of the recommended v0.1.45 direction after DVA wave follow-up review"
 scope: "v0.1.45 version identity, repository and release gates, local artifacts, eventual GitHub publication, and post-publication installation documentation"
-status: blocked
+status: superseded
+superseded-by: TASK-241
 started-at: 2026-08-28T23:38:29+09:00
 blocked-at: 2026-08-28T23:38:29+09:00
 blocked-on: "Public publication still requires a human-confirmed fine-grained GITHUB_TOKEN with Contents read/write; local release preparation may proceed without it."
 supersedes: TASK-237
+closed-at: 2026-08-29T23:05:09+09:00
+archived-at: 2026-08-29T23:05:09+09:00
 ---
 
 # Task 238: prepare and publish the first public v0.1.45 release
+
+## Supersession
+
+TASK-241 supersedes this publication target with `v0.1.46`. The local lightweight `v0.1.45` tag
+remains immutable at `39019d1e12b1fb131ed773abde18ce7726f44e08`; its six-platform and real
+release-mode artifact evidence below remains valid historical evidence. No remote `v0.1.45` tag,
+draft, or release was created. Optional env-file doctor semantics and the corrected bare lifecycle
+public contract were integrated after that tag, so the first public release candidate advances
+rather than moving or deleting the frozen tag.
 
 ## Decision
 

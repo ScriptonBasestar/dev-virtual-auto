@@ -13,7 +13,7 @@ const MinScaffoldVersion = "0.1.44"
 
 var (
 	// Version is the current DVA version (bump manually for releases).
-	Version = "0.1.45"
+	Version = "0.1.46"
 	// Commit is the git commit hash, injected at build time via ldflags.
 	Commit = "dev"
 	// BuildDate is the build timestamp, injected at build time via ldflags.
