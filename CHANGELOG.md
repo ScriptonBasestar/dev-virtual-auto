@@ -33,6 +33,9 @@ All notable changes to DVA are documented here.
 - `env_file` loading now active in config pipeline
 
 ### Changed
+- README와 USAGE의 bare lifecycle 설명을 실제 선택 규칙에 맞췄습니다. 명시된
+  `default_plan` 또는 유일한 plan을 선택하고, 여러 plan에 기본값이 없으면 거부하며,
+  plan이 없을 때만 whole-stack 경로를 사용합니다 (`status`는 워크스페이스 전체 조회).
 - **`dva doctor`가 선택 `env_file`의 누락을 실패로 보고하지 않습니다**: 런타임 로더와
   동일하게 `required: false`인 누락 파일은 건너뛰고, 필수 파일 누락만 진단합니다.
   존재하는 선택·필수 파일은 계속 통과 항목으로 표시됩니다.

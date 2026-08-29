@@ -203,14 +203,14 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 | Command | Description |
 |---------|-------------|
 | `dva show` | 설정 요약 또는 특정 실행 이름 상세 표시 |
-| `dva status` | 워크스페이스 상태 (컨테이너, 서비스 상태) |
+| `dva status` | 기본 plan 상태; plan이 없을 때 워크스페이스 상태 |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
 dva show local-dev        # 특정 named execution entry 상세
 dva show --json           # JSON 출력
-dva status                # 전체 상태 요약
+dva status                # 기본 plan 상태; plan이 없으면 전체 상태
 dva status local-dev      # 특정 named execution entry 상태
 dva status --json         # JSON 출력
 dva config show           # JSON 형식 (기본)
@@ -334,9 +334,18 @@ rc=1입니다 — 후자의 `--`는 그 목록의 첫 `--`이지만 맨 앞이 �
 
 플래그 집합은 **이름 없이 실행할 때**와 **named plan을 지정해 실행할 때**가 서로 다릅니다.
 
-**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
+**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`, `dva build`,
+`dva logs`, `dva status`)
 
-`plans`가 정확히 하나이면 이름 없는 `dva up`/`down`/`stop`/`restart`/`status`는 그 plan을 기본 실행한다. 앞에 플래그만 두면 기본 plan 경로가 막히므로, `dva up <plan> --force`처럼 plan 이름을 명시해야 한다. `--`는 여기서 말하는 플래그가 아니다 — 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않고 (TASK-210), plan이 없는 설정에서 전체 stack 경로도 막지 않는다 (TASK-216). 이 검사는 플래그 유효성보다 먼저 돌기 때문에, 오타 난 플래그도 "plan 이름을 쓰라"는 메시지를 받는다.
+명시된 `default_plan`이 있으면 그 plan을 선택하고, `plans`가 정확히 하나이면 그 plan을
+자동 선택합니다. 여러 plan이 있는데 `default_plan`이 없으면 DVA는 범위를 추측하지 않고
+plan 이름을 요구합니다. plan이 전혀 없을 때만 기존 whole-stack 경로를 사용하며,
+`status`는 이 경우 워크스페이스 전체를 조회합니다. plan-name 위치에 플래그만 남아 기본
+plan 경로가 막히면 `dva up <plan> --force`처럼 plan 이름을 명시해야 합니다. `--`는 여기서
+말하는 플래그가 아닙니다. 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않고
+(TASK-210), plan이 없는 설정에서 whole-stack 경로도 막지 않습니다 (TASK-216). 이 검사는
+플래그 유효성보다 먼저 돌 수 있으므로, 오타 난 플래그가 먼저 "plan 이름을 쓰라"는 메시지를
+받는 경우가 있습니다.
 
 | Flag | Description |
 |---|---|
@@ -402,9 +411,10 @@ dva logs db-only
 dva down db-only
 ```
 
-> **이름 없는 `dva up`은 plan을 고르지 않고 선언된 전체를 시작합니다** (`plans`가 정확히
-> 하나이거나 `default_plan`이 있으면 그 plan). Compose 러너에서는 `--profile` 없는
-> `docker compose up`이므로 profile 없는 서비스만 뜹니다. 기본을 최소로 유지하려면
+> **이름 없는 `dva up`은 명시된 `default_plan` 또는 유일한 plan을 선택합니다.** 여러
+> plan에 기본값이 없으면 plan 이름을 요구하며, plan이 전혀 없을 때만 선언된 stack 전체를
+> 대상으로 합니다. 이 whole-stack 경로의 Compose 러너는 `--profile` 없는
+> `docker compose up`이므로 profile 없는 서비스만 뜹니다. 이 경로의 기본을 최소로 유지하려면
 > **Docker Compose 네이티브 `profiles:`**로 계층을 나누세요 — 코어 데이터
 > (postgres/redis)는 profile 없이 항상 시작하고, 무거운 계층은
 > `profiles: [workflow|monitoring|dev-tools|apps]`로 opt-in 합니다. 명시적 서비스 서브셋
@@ -735,13 +745,16 @@ modes:
     ...
 ```
 
-- 기본값이 없습니다. 설정하지 않으면 어떤 mode도 적용되지 않으며, `dva up`은 모든 compose 파일의 모든 서비스를 시작합니다.
+- 기본값이 없습니다. 설정하지 않으면 어떤 mode도 적용되지 않습니다. 실행 범위는 plan
+  선택 규칙을 따르며, plan이 없는 whole-stack 경로에서는 모든 stack 엔트리와 Compose의
+  profile 없는 서비스를 대상으로 합니다.
 - `modes`가 정의되어 있는데 `default_mode`가 비어 있으면 `dva validate`가 경고합니다. 최소 인프라 mode(예: `infra`)를 지정하는 것을 권장합니다.
 - `modes`에 없는 이름을 지정하면 경고가 아니라 검증 에러입니다.
 
 ### default_plan
 
-`default_plan`은 플랜 이름 없이 `dva up/down/stop/restart`를 실행할 때 적용할 `plans` 엔트리를 선택합니다.
+`default_plan`은 플랜 이름 없이 `dva up/down/stop/restart/build/logs/status`를 실행할 때
+적용할 `plans` 엔트리를 선택합니다.
 
 ```yaml
 default_plan: dev

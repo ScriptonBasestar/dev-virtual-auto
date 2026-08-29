@@ -61,8 +61,8 @@ interaction:
 dva ls              # 사용 가능한 커맨드 목록
 dva shell           # = dva run shell → docker compose run app /bin/bash
 dva test            # = dva run test → docker compose run app bundle exec rspec
-dva up              # stack 전체 시작 (compose up -d --wait 등)
-dva down            # stack 전체 중지
+dva up              # 이 예시는 plans가 없어 stack 전체 시작 (compose up -d --wait 등)
+dva down            # 이 예시는 plans가 없어 stack 전체 teardown
 dva validate        # dva.yml 스키마 검증
 dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 ```
@@ -79,7 +79,7 @@ dva build local-dev        # plan 엔트리 빌드
 dva logs local-dev         # plan 엔트리 로그
 dva status local-dev       # named plan 상태
 
-dva up                     # plan 인자를 생략하면 stack 전체
+dva up                     # default_plan 또는 유일한 plan 시작
 
 # 파괴적 teardown (확인 프롬프트, --force로 생략)
 dva down local-dev -v      # 볼륨까지 제거
@@ -93,13 +93,18 @@ dva ls                     # 사용 가능한 커맨드 목록
 dva shell                  # = dva run shell (run 생략 가능)
 
 # Utilities
-dva status                 # 워크스페이스 상태 확인
+dva status                 # 기본 plan 상태; plans가 없을 때 워크스페이스 상태
 dva show                   # 설정 요약
 dva validate               # dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원)
 dva provision              # 프로비저닝 실행
 dva config docs            # AI 에이전트 가이드(CLAUDE.md) 생성
 dva doctor                 # 환경 사전조건 진단
 ```
+
+이름 없는 `up`/`down`/`stop`/`restart`/`build`/`logs`/`status`는 명시된
+`default_plan`을 선택하고, plan이 하나뿐이면 그 plan을 자동 선택합니다. 여러 plan이 있는데
+`default_plan`이 없으면 이름을 요구하며, plan이 전혀 없을 때만 lifecycle 동사는 기존
+whole-stack 경로를 사용합니다 (`status`는 워크스페이스 전체를 조회).
 
 전체 커맨드 레퍼런스: **[USAGE.md](USAGE.md)**
 
