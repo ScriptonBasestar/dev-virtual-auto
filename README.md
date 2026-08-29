@@ -106,8 +106,9 @@ dva doctor                 # 환경 사전조건 진단
 `default_plan`이 없으면 plan 이름을 요구합니다. plan이 전혀 없으면 앞의 네 동사는 기존
 whole-stack 경로를, `build`/`logs`는 primary Compose passthrough를 사용합니다. `status`는
 effective default가 있으면 그 plan을 조회하고, 없으면 다중 plan 구성에서도 워크스페이스
-전체를 조회합니다. selector나 Compose passthrough 인자가 있는 호출은 별도 호환 경로이므로
-[USAGE.md](USAGE.md#라이프사이클-플래그)를 확인하세요.
+전체를 조회합니다. stack-path flag나 Compose passthrough 인자가 있는 호출은 별도 호환
+경로입니다. 특히 기본값 없는 다중 plan에서 `dva up --force`는 whole-stack force-recreate가
+될 수 있으므로 [USAGE.md](USAGE.md#라이프사이클-플래그)를 확인하세요.
 
 전체 커맨드 레퍼런스: **[USAGE.md](USAGE.md)**
 

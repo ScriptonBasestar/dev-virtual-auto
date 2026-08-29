@@ -70,7 +70,14 @@ func TestStatusWithAmbiguousPlansFallsBackToWorkspace(t *testing.T) {
       - name: s2
 `)
 
-	if err := statusCmd.RunE(statusCmd, []string{}); err != nil {
-		t.Fatalf("'dva status' with ambiguous plans must report the workspace: %v", err)
+	out := captureStdout(t, func() {
+		if err := statusCmd.RunE(statusCmd, []string{}); err != nil {
+			t.Fatalf("'dva status' with ambiguous plans must report the workspace: %v", err)
+		}
+	})
+	for _, entry := range []string{"[s1]", "[s2]"} {
+		if !strings.Contains(out, entry) {
+			t.Errorf("'dva status' output does not contain workspace entry %s:\n%s", entry, out)
+		}
 	}
 }

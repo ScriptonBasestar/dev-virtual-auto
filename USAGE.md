@@ -344,22 +344,25 @@ rc=1입니다 — 후자의 `--`는 그 목록의 첫 `--`이지만 맨 앞이 �
   기본값 없는 다중 plan 구성에서도 워크스페이스 전체를 조회합니다.
 
 `build`/`logs`에 plan 대신 Compose option이나 service를 쓰면 legacy primary-Compose
-passthrough를 명시적으로 선택한 것입니다. `up`/`down`/`stop`/`restart`에 selector를 쓰는
-경우는 아래 규칙을 따릅니다.
+passthrough를 명시적으로 선택한 것입니다. `up`/`down`/`stop`/`restart`에 stack-path flag를
+쓰는 경우는 아래 규칙을 따릅니다.
 
 #### 라이프사이클 플래그
 
 플래그 집합은 **이름 없이 실행할 때**와 **named plan을 지정해 실행할 때**가 서로 다릅니다.
 
-**plan 이름 없이 selector 사용 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
+**plan 이름 없이 stack-path flag 사용 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
 
-effective default가 있는데 plan-name 위치에 selector만 남으면 기본 plan 경로가 막히므로,
+effective default가 있는데 plan-name 위치에 flag만 남으면 기본 plan 경로가 막히므로,
 `dva up <plan> --force`처럼 plan 이름을 명시해야 합니다. 반대로 기본값 없는 다중 plan 구성은
-selector가 범위를 직접 제한하므로 legacy stack 경로를 허용합니다. 이것은 완전한 무인자
-호출이 모호성으로 거부되는 것과 다른 명시적 호환 경로입니다. `--`는 여기서 말하는 selector가
-아닙니다. 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않고 (TASK-210), plan이
-없는 설정에서 whole-stack 경로도 막지 않습니다 (TASK-216). 이 검사는 플래그 유효성보다 먼저
-돌 수 있으므로, 오타 난 플래그가 먼저 "plan 이름을 쓰라"는 메시지를 받는 경우가 있습니다.
+지원되는 stack-path flag가 raw 인자를 남기면 legacy stack 경로를 허용합니다. selector
+(`--tag`, `--exclude-tag`)는 범위를 좁힐 수 있지만 `--force`, `--no-wait`, `--dry-run`은
+범위를 좁히지 않습니다. 따라서 `dva up --force`는 다중 plan 구성에서도 whole-stack
+force-recreate가 될 수 있습니다. 이것은 완전한 무인자 호출이 모호성으로 거부되는 것과 다른
+호환 경로입니다. `--`는 여기서 말하는 flag가 아닙니다. 맨 앞의 `--`는 구분자로 소비되므로
+기본 plan 경로를 막지 않고 (TASK-210), plan이 없는 설정에서 whole-stack 경로도 막지 않습니다
+(TASK-216). 이 검사는 플래그 유효성보다 먼저 돌 수 있으므로, 오타 난 플래그가 먼저 "plan
+이름을 쓰라"는 메시지를 받는 경우가 있습니다.
 
 | Flag | Description |
 |---|---|
@@ -425,7 +428,7 @@ dva logs db-only
 dva down db-only
 ```
 
-> **이름 없는 `dva up`은 명시된 `default_plan` 또는 유일한 plan을 선택합니다.** 여러
+> **완전히 인자 없는 `dva up`은 명시된 `default_plan` 또는 유일한 plan을 선택합니다.** 여러
 > plan에 기본값이 없으면 plan 이름을 요구하며, plan이 전혀 없을 때만 선언된 stack 전체를
 > 대상으로 합니다. 이 whole-stack 경로의 Compose 러너는 `--profile` 없는
 > `docker compose up`이므로 profile 없는 서비스만 뜹니다. 이 경로의 기본을 최소로 유지하려면

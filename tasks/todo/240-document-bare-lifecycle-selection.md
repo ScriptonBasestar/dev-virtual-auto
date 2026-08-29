@@ -23,7 +23,7 @@ the command actually performs.
 
 ## Completion criteria
 
-- [ ] README distinguishes argument-free actions, status fallback, and selector/passthrough compatibility paths | verify: `make doc-check`
+- [ ] README distinguishes argument-free actions, status fallback, and stack-flag/passthrough compatibility paths | verify: `make doc-check`
 - [ ] USAGE applies the same distinctions to lifecycle, status, profile, default_mode, and default_plan guidance | verify: `make doc-check`
 - [ ] Public wording is pinned to CLI selection tests, including ambiguous-plan status fallback | verify: `go test ./internal/cli -run 'TestRequirePlanSelection|TestUpBareUsesDefaultPlan|TestStatusWithAmbiguousPlansFallsBackToWorkspace|TestStatusWithoutPlansKeepsWorkspacePath'`
 - [ ] Repository documentation and commit gates pass | verify: `make doc-check && make commit-check`
@@ -34,6 +34,8 @@ Describe fully argument-free `up`, `down`, `stop`, `restart`, `build`, and `logs
 explicit `default_plan`, then an implicit lone plan, then refusing an ambiguous multi-plan setup.
 Without plans, only the first four use whole-stack lifecycle; build and logs use the legacy
 primary-Compose passthrough. Status selects the effective default when one exists and otherwise
-reports the whole workspace, including for ambiguous multi-plan configurations. Treat selector and
-passthrough arguments as explicit compatibility routes rather than calling them bare invocations.
-Keep Compose profile advice, but scope it to the no-plan whole-stack path.
+reports the whole workspace, including for ambiguous multi-plan configurations. Treat stack-path
+flags and passthrough arguments as compatibility routes rather than calling them bare invocations.
+Do not imply every stack-path flag narrows scope: a default-less multi-plan `up --force` can reach
+whole-stack force-recreate. Keep Compose profile advice, but scope it to a fully argument-free,
+no-plan whole-stack path.
