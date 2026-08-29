@@ -45,13 +45,46 @@ resumed without moving the tag.
 
 ## Completion criteria
 
-- [ ] Set runtime version `0.1.46` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.46 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
-- [ ] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
-- [ ] Validate the integrated identity, local lightweight tag, and real release-mode artifacts without publishing | verify: `release_commit="$(git rev-list -n1 v0.1.46)" && test "$release_commit" = "$(git rev-parse master)" && test "$release_commit" = "$(git rev-parse origin/master)" && test "$(git cat-file -t v0.1.46)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
+- [x] Set runtime version `0.1.46` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.46 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
+- [x] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
+- [x] Validate the integrated identity, local lightweight tag, and real release-mode artifacts without publishing | verify: `release_commit="$(git rev-list -n1 v0.1.46)" && test "$release_commit" = "$(git rev-parse master)" && test "$release_commit" = "$(git rev-parse origin/master)" && test "$(git cat-file -t v0.1.46)" = commit && go run ./tools/releasecheck version --tag "$(git describe --tags --exact-match)" && mise exec -- goreleaser release --skip=publish --clean && go run ./tools/releasecheck artifacts --dist dist`
 - [ ] Confirm GitHub write authorization and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
 - [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
 - [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
-- [ ] Record the release commit, artifact checks, final probes, and cleanup; remove local `dist/` and `bin/` before eventual archiving | verify: `test ! -e dist && test ! -e bin`
+- [ ] Record the release URL, published asset checksums, tag/source push state, and final remote probes; remove local `dist/` and `bin/` before archiving | verify: `test ! -e dist && test ! -e bin`
+
+## Local preparation evidence
+
+The release identity is commit `55d9895afa7e57a84b7e0797a657eddd83fc169c`. Before local tag
+creation, the reviewed task tip was fast-forwarded to `master`, pushed, and verified equal to
+`origin/master`. The local lightweight `v0.1.46` tag points at that same commit. It was not pushed.
+
+That exact commit passed `dva lint`, race/coverage tests, integration tests, built-executable skill
+dogfood, documentation and commit gates, and the six-platform snapshot gate. The untagged snapshot
+reported `0.0.0-SNAPSHOT-55d9895`; after tagging, the snapshot reported
+`0.1.46-SNAPSHOT-55d9895`.
+
+Real release mode ran with `--skip=publish --clean` and an explicit temporary release-notes file.
+Its metadata recorded version `0.1.46`, full commit
+`55d9895afa7e57a84b7e0797a657eddd83fc169c`, and build date
+`2026-08-29T23:15:19.460916+09:00`. The host `darwin/arm64` binary independently reported version
+`0.1.46`, that full commit, and UTC build date `2026-08-29T14:15:19Z`.
+
+The six locally verified archive checksums were:
+
+```text
+5731c940a6ac95df14614caa6f0f625406e13ee28518be5b23ef3cf88c372661  dva_darwin_amd64.tar.gz
+8d7296a8e414ef849064c2312744f5681ca9359405e5f04548891801ecc06172  dva_darwin_arm64.tar.gz
+c5ab2c03c3fa73bbc262196212d27df90313dde041119298ac4f99e98b9477c6  dva_linux_amd64.tar.gz
+bc2eae5c261ffc24f709e3bdc7e875e710d612fe1b8c73819f2a1cbc3eb916a1  dva_linux_arm64.tar.gz
+0748a58dcf5ffc81d546cd5646efca20834ff0392ccc812dc051d51574fd5c4e  dva_windows_amd64.zip
+9de85d9b0cf48177272e111a3ff679707d7a62674a74be9f3c68ff8708397c32  dva_windows_arm64.zip
+```
+
+Post-build probes still found no remote `v0.1.46` tag and an empty GitHub release list. The temporary
+release-notes input, ignored `dist/`, and ignored `bin/` were removed after verification. The task
+remains blocked only on explicit human confirmation of the active token's Contents read/write
+permission and the external publication/post-publication criteria above.
 
 ## Preserved history
 
