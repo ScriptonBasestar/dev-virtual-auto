@@ -203,14 +203,14 @@ dva ls -d                 # 상세 정보 (runner type, service, command)
 | Command | Description |
 |---------|-------------|
 | `dva show` | 설정 요약 또는 특정 실행 이름 상세 표시 |
-| `dva status` | 기본 plan 상태; plan이 없을 때 워크스페이스 상태 |
+| `dva status` | effective default plan 상태; 없으면 워크스페이스 상태 |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
 dva show local-dev        # 특정 named execution entry 상세
 dva show --json           # JSON 출력
-dva status                # 기본 plan 상태; plan이 없으면 전체 상태
+dva status                # effective default plan 상태; 없으면 전체 상태
 dva status local-dev      # 특정 named execution entry 상태
 dva status --json         # JSON 출력
 dva config show           # JSON 형식 (기본)
@@ -330,22 +330,36 @@ rc=1입니다 — 후자의 `--`는 그 목록의 첫 `--`이지만 맨 앞이 �
 `dva restart -- -- s1`은 `unknown stack entry "--"`입니다. `build`는 반대 방향으로
 갈리며 (`--` 형태가 맨 형태보다 **더** 합니다) 그것은 TASK-217이 다룹니다.
 
+#### 무인자 lifecycle 선택
+
+완전히 인자 없는 `dva up`/`down`/`stop`/`restart`/`build`/`logs`는 명시된
+`default_plan`을 선택하고, `plans`가 정확히 하나이면 그 plan을 자동 선택합니다. 여러 plan이
+있는데 `default_plan`이 없으면 DVA는 범위를 추측하지 않고 plan 이름을 요구합니다.
+
+- plan이 없을 때 `up`/`down`/`stop`/`restart`는 기존 whole-stack lifecycle 경로를
+  사용합니다.
+- plan이 없을 때 `build`/`logs`는 primary Compose에 대한 legacy passthrough를 사용합니다.
+  다른 stack 엔트리의 native/process runner까지 포함한다는 뜻은 아닙니다.
+- `status`는 effective default가 있으면 해당 plan을 조회하고, 없으면 plan이 없는 구성뿐 아니라
+  기본값 없는 다중 plan 구성에서도 워크스페이스 전체를 조회합니다.
+
+`build`/`logs`에 plan 대신 Compose option이나 service를 쓰면 legacy primary-Compose
+passthrough를 명시적으로 선택한 것입니다. `up`/`down`/`stop`/`restart`에 selector를 쓰는
+경우는 아래 규칙을 따릅니다.
+
 #### 라이프사이클 플래그
 
 플래그 집합은 **이름 없이 실행할 때**와 **named plan을 지정해 실행할 때**가 서로 다릅니다.
 
-**이름 없이 실행 시** (`dva up`, `dva down`, `dva stop`, `dva restart`, `dva build`,
-`dva logs`, `dva status`)
+**plan 이름 없이 selector 사용 시** (`dva up`, `dva down`, `dva stop`, `dva restart`)
 
-명시된 `default_plan`이 있으면 그 plan을 선택하고, `plans`가 정확히 하나이면 그 plan을
-자동 선택합니다. 여러 plan이 있는데 `default_plan`이 없으면 DVA는 범위를 추측하지 않고
-plan 이름을 요구합니다. plan이 전혀 없을 때만 기존 whole-stack 경로를 사용하며,
-`status`는 이 경우 워크스페이스 전체를 조회합니다. plan-name 위치에 플래그만 남아 기본
-plan 경로가 막히면 `dva up <plan> --force`처럼 plan 이름을 명시해야 합니다. `--`는 여기서
-말하는 플래그가 아닙니다. 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않고
-(TASK-210), plan이 없는 설정에서 whole-stack 경로도 막지 않습니다 (TASK-216). 이 검사는
-플래그 유효성보다 먼저 돌 수 있으므로, 오타 난 플래그가 먼저 "plan 이름을 쓰라"는 메시지를
-받는 경우가 있습니다.
+effective default가 있는데 plan-name 위치에 selector만 남으면 기본 plan 경로가 막히므로,
+`dva up <plan> --force`처럼 plan 이름을 명시해야 합니다. 반대로 기본값 없는 다중 plan 구성은
+selector가 범위를 직접 제한하므로 legacy stack 경로를 허용합니다. 이것은 완전한 무인자
+호출이 모호성으로 거부되는 것과 다른 명시적 호환 경로입니다. `--`는 여기서 말하는 selector가
+아닙니다. 맨 앞의 `--`는 구분자로 소비되므로 기본 plan 경로를 막지 않고 (TASK-210), plan이
+없는 설정에서 whole-stack 경로도 막지 않습니다 (TASK-216). 이 검사는 플래그 유효성보다 먼저
+돌 수 있으므로, 오타 난 플래그가 먼저 "plan 이름을 쓰라"는 메시지를 받는 경우가 있습니다.
 
 | Flag | Description |
 |---|---|
@@ -765,6 +779,8 @@ plans:
 ```
 
 - `plans`가 정확히 1개면 그 플랜이 자동으로 기본값입니다. `default_plan`은 **여러 plan 중** 기본을 고를 때 씁니다.
+- 완전히 인자 없는 action 명령은 다중 plan에 기본값이 없으면 plan 이름을 요구하지만,
+  `status`는 이 경우 워크스페이스 전체를 조회합니다.
 - `plans`에 없는 이름을 지정하면 검증 에러입니다 (`dva config validate`).
 - 무엇을 기본으로 둘지는 프로젝트 정책입니다 (예: devbox 로컬은 `dev`). DVA는 선택지를 표현할 뿐 기본을 강제하지 않습니다.
 

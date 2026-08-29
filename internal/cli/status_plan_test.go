@@ -63,3 +63,14 @@ func TestStatusWithPlansAndNoArgs(t *testing.T) {
 		t.Fatalf("'dva status' with plans but no args must not error: %v", err)
 	}
 }
+
+func TestStatusWithAmbiguousPlansFallsBackToWorkspace(t *testing.T) {
+	useConfig(t, planStackConfig+`  p2:
+    entries:
+      - name: s2
+`)
+
+	if err := statusCmd.RunE(statusCmd, []string{}); err != nil {
+		t.Fatalf("'dva status' with ambiguous plans must report the workspace: %v", err)
+	}
+}
