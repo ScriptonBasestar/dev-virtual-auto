@@ -60,3 +60,20 @@ env_file:
 		t.Fatalf("checkEnvFiles() = %+v, want one passing required.env result", result)
 	}
 }
+
+func TestDoctorOptionalEnvFileDoesNotHideStatErrors(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.45"
+env_file: parent-file/child.env
+`)
+	if err := os.WriteFile(filepath.Join(c.FileDir(), "parent-file"), []byte("not a directory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := onlyResult(t, checkEnvFiles(c))
+	if result.Passed {
+		t.Fatalf("checkEnvFiles() = %+v, want optional path with ENOTDIR to fail", result)
+	}
+	if result.Finding != "Environment file is INACCESSIBLE: parent-file/child.env" {
+		t.Errorf("Finding = %q, want inaccessible-path diagnostic", result.Finding)
+	}
+}
