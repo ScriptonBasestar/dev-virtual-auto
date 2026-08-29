@@ -545,30 +545,40 @@ func checkEnvFiles(c *config.Config) []DoctorResult {
 		}
 
 		_, statErr := os.Stat(path)
-		if statErr != nil && os.IsNotExist(statErr) && !envFile.Required {
+		result, include := doctorEnvFileResult(envFile.Path, envFile.Required, statErr)
+		if !include {
 			continue
 		}
-		passed := statErr == nil
-		finding := ""
-		fixHint := ""
-		if statErr != nil {
-			if os.IsNotExist(statErr) {
-				finding = fmt.Sprintf("Environment file is MISSING: %s", envFile.Path)
-				fixHint = fmt.Sprintf("Create or check path: %s", envFile.Path)
-			} else {
-				finding = fmt.Sprintf("Environment file is INACCESSIBLE: %s", envFile.Path)
-				fixHint = fmt.Sprintf("Check path type and permissions: %s", envFile.Path)
-			}
-		}
-		results = append(results, DoctorResult{
-			Name:    fmt.Sprintf("Environment file exists: %s", envFile.Path),
-			Finding: finding,
-			Passed:  passed,
-			FixHint: fixHint,
-		})
+		results = append(results, result)
 	}
 
 	return results
+}
+
+func doctorEnvFileResult(path string, required bool, statErr error) (DoctorResult, bool) {
+	if statErr != nil && os.IsNotExist(statErr) && !required {
+		return DoctorResult{}, false
+	}
+
+	passed := statErr == nil
+	finding := ""
+	fixHint := ""
+	if statErr != nil {
+		if os.IsNotExist(statErr) {
+			finding = fmt.Sprintf("Environment file is MISSING: %s", path)
+			fixHint = fmt.Sprintf("Create or check path: %s", path)
+		} else {
+			finding = fmt.Sprintf("Environment file is INACCESSIBLE: %s", path)
+			fixHint = fmt.Sprintf("Check path type and permissions: %s", path)
+		}
+	}
+
+	return DoctorResult{
+		Name:    fmt.Sprintf("Environment file exists: %s", path),
+		Finding: finding,
+		Passed:  passed,
+		FixHint: fixHint,
+	}, true
 }
 
 func checkStackFiles(c *config.Config) []DoctorResult {

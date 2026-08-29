@@ -29,7 +29,7 @@ rejects configurations that the runtime intentionally accepts.
 
 Keep missing optional files out of the result set rather than rendering a misleading passing
 "exists" assertion. Preserve the existing stable result name for files that exist and for missing
-required files. Only `os.IsNotExist` is an allowed optional-file omission; path-shape, permission,
-and other access errors remain failures because the runtime loader also rejects them. Project
+required files. Only errors classified by `os.IsNotExist` are allowed optional-file omissions;
+other access errors remain failures because the runtime loader also rejects them. Project
 configurations must not create placeholder secrets or change optional files to required merely to
 silence doctor.

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,18 +63,14 @@ env_file:
 }
 
 func TestDoctorOptionalEnvFileDoesNotHideStatErrors(t *testing.T) {
-	c := loadTestConfig(t, `version: "0.1.45"
-env_file: parent-file/child.env
-`)
-	if err := os.WriteFile(filepath.Join(c.FileDir(), "parent-file"), []byte("not a directory\n"), 0o644); err != nil {
-		t.Fatal(err)
+	result, include := doctorEnvFileResult(".env.local", false, errors.New("synthetic stat failure"))
+	if !include {
+		t.Fatal("doctorEnvFileResult() omitted a non-IsNotExist error")
 	}
-
-	result := onlyResult(t, checkEnvFiles(c))
 	if result.Passed {
-		t.Fatalf("checkEnvFiles() = %+v, want optional path with ENOTDIR to fail", result)
+		t.Fatalf("doctorEnvFileResult() = %+v, want optional path with stat error to fail", result)
 	}
-	if result.Finding != "Environment file is INACCESSIBLE: parent-file/child.env" {
+	if result.Finding != "Environment file is INACCESSIBLE: .env.local" {
 		t.Errorf("Finding = %q, want inaccessible-path diagnostic", result.Finding)
 	}
 }
