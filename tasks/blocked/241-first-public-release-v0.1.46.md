@@ -49,7 +49,9 @@ resumed without moving the tag.
 - [x] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
 - [x] Validate the frozen release identity and its integration into the current local and remote source tips | verify: `release_commit=55d9895afa7e57a84b7e0797a657eddd83fc169c && test "$(git rev-list -n1 v0.1.46)" = "$release_commit" && test "$(git cat-file -t v0.1.46)" = commit && git merge-base --is-ancestor "$release_commit" master && git merge-base --is-ancestor "$release_commit" origin/master`
 - [x] Validate real release-mode artifacts without publishing, then remove the local artifacts | verify: human — the immutable release commit, build metadata, six archive checksums, and cleanup probes are recorded in Local preparation evidence below
-- [ ] Confirm GitHub write authorization and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
+- [x] Prepare reviewed first-public-release notes independently of automatic historical-tag changelog selection | verify: `test "$(shasum -a 256 release-notes/v0.1.46.md | cut -d ' ' -f 1)" = "720ebc330af83b890487f2c9e03ce91b430219b0bbf4b4e6acd27bbb068d96a9"`
+- [ ] Confirm the active fine-grained token grants `ScriptonBasestar/dva` Contents read/write and any required organization approval | verify: human — the token holder must confirm repository scope and permission immediately before publication
+- [ ] Confirm the authenticated session and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && gh auth status && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
 - [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
 - [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
 - [ ] Record the release URL, published asset checksums, tag/source push state, and final remote probes; remove local `dist/` and `bin/` before archiving | verify: `test ! -e dist && test ! -e bin`
@@ -86,6 +88,12 @@ Post-build probes still found no remote `v0.1.46` tag and an empty GitHub releas
 release-notes input, ignored `dist/`, and ignored `bin/` were removed after verification. The task
 remains blocked only on explicit human confirmation of the active token's Contents read/write
 permission and the external publication/post-publication criteria above.
+
+The reviewed first-public-release notes now live at `release-notes/v0.1.46.md`. They summarize the
+full public product surface instead of relying on GoReleaser's automatic changelog range, which may
+start at the unpublished local `v0.1.45` tag. Publication must pass this exact reviewed file with
+`--release-notes`; because the frozen `v0.1.46` tag predates the notes, use its absolute path from the
+clean preparation worktree and verify the recorded SHA-256 immediately before the release command.
 
 This evidence commit advances `master` beyond the fixed release identity. Future publication must
 therefore use a new clean detached worktree at local tag `v0.1.46` and require
