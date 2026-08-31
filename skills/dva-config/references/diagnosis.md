@@ -18,6 +18,21 @@ process-health disputes.
 
 ## Decide Configuration Scope
 
+- At a devbox root, read `.gz-git.yaml` when present before deciding scope. Treat its
+  active workspace entries as the authoritative child-repository inventory. Include
+  every locally present active child in a devbox-wide DVA application by default, while
+  excluding archived, generated, vendor, and guidance-prohibited entries. Do not clone
+  or sync a missing child merely to complete discovery; report it as unavailable unless
+  the user separately authorizes that operation.
+- Keep two decisions separate: whether a child owns a useful `dva.yml`, and whether the
+  root imports anything from that child. “Do not import child `dva.yml` from the root”
+  controls only `subprojects.*.import`; it does not remove the child repository from the
+  authoring and validation scope. Treat the work as root-only only when the user
+  explicitly forbids child-repository changes, then list the deferred inventory entries
+  and describe the result as partial devbox coverage.
+- Inspect and modify each child in its own repository context. Follow that repository's
+  guidance and Git workflow, and preserve `.gz-git.yaml` ownership of clone, sync, and
+  status operations; a parent DVA change must not absorb those responsibilities.
 - Decide whether DVA is useful independently for the workspace root and every
   active subproject. Parent or sibling usage alone does not justify a child
   `dva.yml`.

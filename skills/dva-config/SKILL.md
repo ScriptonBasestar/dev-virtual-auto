@@ -55,7 +55,10 @@ configuration authoring, migration, and defect attribution.
 1. Read target and active module guidance.
 2. Inspect scoped Git status; protect secrets, generated files, archives, and unrelated user
    changes.
-3. Capture the installed executable path and `dva version`. Treat that executable as the schema
+3. At a devbox root, inspect `.gz-git.yaml` when present and inventory every active child repository
+   before selecting scope. Inventory is read-only evidence: do not clone or sync children unless the
+   user separately authorizes it.
+4. Capture the installed executable path and `dva version`. Treat that executable as the schema
    authority; do not rely on remembered fields or assume a source checkout produced it.
 
 ### 2. Capture a Read-Only Baseline
@@ -92,14 +95,21 @@ Never infer rewrite merely because a newer model exists.
   explicit, behavior-preserving migration is proven.
 - Keep shared lifecycle at the devbox root; keep module-native commands in the owning active
   subproject.
+- For a devbox with `.gz-git.yaml`, a request to apply DVA to the devbox includes the root and every
+  locally present active child in that inventory by default. Evaluate and change each repository in
+  its own ownership and Git context; do not treat the parent checkout as owning child files.
+- Keep child configuration scope separate from root import scope. A request to omit child imports
+  from the root `dva.yml` does not omit creating or improving the child `dva.yml` files. Only an
+  explicit instruction not to modify child repositories narrows the work to root-only; report that
+  result as partial devbox coverage and list the deferred children.
 - Declare a DVA subproject only when its child `dva.yml` exists. If it is missing, choose explicitly
   between removing the root declaration and adding an owned child configuration; never leave a
   broken declaration as a placeholder.
 - Exclude archived, legacy, generated, and guidance-prohibited modules.
-- Use recursive improvement only when each detected subproject is in scope.
 - Keep docs and advertised commands aligned with `dva show`/`dva ls` output.
 - Decide DVA need independently for the root and every active subproject; do not generate a child
-  config merely because a parent or sibling uses DVA.
+  config merely because a parent or sibling uses DVA. A `.gz-git.yaml` entry establishes discovery
+  and default task scope, not proof that the child has a useful DVA command surface.
 - For run/dev variants, Compose profiles, native port binding, and runtime ownership diagnostics,
   follow `references/diagnosis.md` instead of inferring behavior from configuration alone.
 
@@ -162,6 +172,9 @@ Never infer rewrite merely because a newer model exists.
 - Treating `docker` and `compose` runners as interchangeable names for the same service.
 - Migrating to plans because validation passes while runtime silently ignores resolved fields.
 - Declaring root subprojects before their child `dva.yml` files exist.
+- Reading “no root child imports” as “do not configure child repositories.”
+- Reporting a root-only change as complete devbox coverage when `.gz-git.yaml` children were
+  explicitly deferred.
 - Applying root rules recursively to archived or independently owned modules.
 - Copying a schema example without checking the installed DVA version.
 - Treating a pidfile, wrapper, or responding port as proof that DVA controls the healthy process.
