@@ -366,7 +366,7 @@ func remoteTagTarget(tag, commit string) error {
 	if err != nil {
 		return err
 	}
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 2 && fields[0] == commit {
 			return nil
@@ -422,7 +422,9 @@ func verifyReleaseDownloads(repo, tag string) error {
 	if err != nil {
 		return fmt.Errorf("create release verification directory: %w", err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		_ = os.RemoveAll(dir)
+	}()
 
 	names := sorted(assets)
 	args := []string{"release", "download", tag, "--repo", repo, "--dir", dir}
