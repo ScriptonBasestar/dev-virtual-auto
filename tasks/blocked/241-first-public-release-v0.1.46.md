@@ -6,7 +6,7 @@ priority: P1
 effort: S
 created-at: 2026-08-29T23:05:09+09:00
 source: "approved recommendation after post-wave doctor and bare lifecycle contract corrections"
-scope: "v0.1.46 version identity, repository and release gates, local artifacts, eventual GitHub publication, and post-publication installation documentation"
+scope: "v0.1.46 version identity, repository and release gates, local artifacts, eventual GitHub publication, published-binary dogfood, and post-publication installation documentation"
 status: blocked
 started-at: 2026-08-29T23:05:09+09:00
 blocked-at: 2026-08-29T23:05:09+09:00
@@ -46,13 +46,14 @@ resumed without moving the tag.
 ## Completion criteria
 
 - [x] Set runtime version `0.1.46` while preserving scaffold floor `0.1.44` | verify: `go run ./tools/releasecheck version --tag v0.1.46 && test "$(/usr/bin/grep -Fxc 'const MinScaffoldVersion = "0.1.44"' internal/config/version.go)" -eq 1`
-- [x] Re-run repository and six-platform release gates at the exact release commit | verify: `dva lint && dva test && dva test integration && make test-skill-dogfood && make doc-check && make commit-check && mise exec -- make release-check`
+- [x] Re-run repository and six-platform release gates at the exact release commit | verify: human — the immutable release commit and its successful lint, test, integration, skill-dogfood, documentation, commit, and six-platform gate evidence are recorded below
 - [x] Validate the frozen release identity and its integration into the current local and remote source tips | verify: `release_commit=55d9895afa7e57a84b7e0797a657eddd83fc169c && test "$(git rev-list -n1 v0.1.46)" = "$release_commit" && test "$(git cat-file -t v0.1.46)" = commit && git merge-base --is-ancestor "$release_commit" master && git merge-base --is-ancestor "$release_commit" origin/master`
 - [x] Validate real release-mode artifacts without publishing, then remove the local artifacts | verify: human — the immutable release commit, build metadata, six archive checksums, and cleanup probes are recorded in Local preparation evidence below
-- [x] Prepare reviewed first-public-release notes independently of automatic historical-tag changelog selection | verify: `test "$(shasum -a 256 release-notes/v0.1.46.md | cut -d ' ' -f 1)" = "720ebc330af83b890487f2c9e03ce91b430219b0bbf4b4e6acd27bbb068d96a9"`
+- [x] Prepare reviewed first-public-release notes independently of automatic historical-tag changelog selection | verify: `test "$(shasum -a 256 release-notes/v0.1.46.md | cut -d ' ' -f 1)" = "54ddd64d75fce021672b61dd871b470ef1b717ef03025fc0c5c9ee5b51708ce4"`
 - [ ] Confirm the active fine-grained token grants `ScriptonBasestar/dva` Contents read/write and any required organization approval | verify: human — the token holder must confirm repository scope and permission immediately before publication
 - [ ] Confirm the authenticated session and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && gh auth status && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
 - [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
+- [ ] Run the checksum-pinned published host binary through the black-box skill installer dogfood against the clean canonical flow repository | verify: `test -n "$DVA_BIN" && test -n "$DVA_SHA256" && test -n "$FLOW_ROOT" && make dogfood-skill-install DVA_BIN="$DVA_BIN" DVA_SHA256="$DVA_SHA256" FLOW_ROOT="$FLOW_ROOT"`
 - [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
 - [ ] Record the release URL, published asset checksums, tag/source push state, and final remote probes; remove local `dist/` and `bin/` before archiving | verify: `test ! -e dist && test ! -e bin`
 
@@ -119,6 +120,15 @@ repository-scoped fine-grained **Contents: read/write** permission (and obtain a
 organization approval), then repeat the absence probes and publish from a newly created detached
 worktree at this exact tag. This failed authorization does not authorize moving, recreating, or
 pushing the tag separately.
+
+## Post-publication dogfood policy
+
+After publication, extract the host binary from the published archive and take `DVA_SHA256` from the
+published `checksums.txt`; do not reuse the earlier local artifact or checksum. Resolve `FLOW_ROOT`
+through the portfolio catalog to the clean canonical `flow-knowchain-devbox` checkout. The existing
+`dogfood-skill-install` target executes an immutable copy of that binary, proves the real flow tree
+and runtime paths are unchanged by project-scope dry-run, and exercises all six runtime installers,
+shared claims, uninstall, and takeover in isolated HOME/XDG roots.
 
 ## Preserved history
 
