@@ -193,6 +193,17 @@ and after dogfood. Real-target dry-run preservation, isolated six-runtime instal
 shared-runtime unlink, and takeover lifecycle all passed. Generated `dist/`, `bin/`, `tmp/`, and the
 detached release worktree were removed after verification.
 
+An independent post-publication recheck on 2026-08-31 downloaded only the published
+`dva_darwin_arm64.tar.gz` and `checksums.txt` into the repository's ignored `tmp/` directory. The
+archive again passed `shasum -a 256 -c -`; its extracted executable again reported `0.1.46`, commit
+`55d9895afa7e57a84b7e0797a657eddd83fc169c`, and the recorded executable SHA-256. The tagged module
+was also installed with `GOPROXY=direct` and `GOSUMDB=sum.golang.org` into isolated `GOBIN`,
+`GOMODCACHE`, `GOPATH`, and `GOCACHE` directories under that temporary root. It reported `dva version
+0.1.46`. Its `commit: dev` and `build date: unknown` are expected for `go install`, which compiles
+the tagged module without the GoReleaser link-time metadata; the separately downloaded release
+archive is the artifact that proves the published commit/build identity. No global binary was
+installed, and the temporary root was removed after the probes.
+
 ## Preserved history
 
 TASK-238 records the local `v0.1.45` tag and successful six-platform snapshot and real release-mode
