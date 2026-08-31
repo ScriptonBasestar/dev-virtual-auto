@@ -100,6 +100,26 @@ therefore use a new clean detached worktree at local tag `v0.1.46` and require
 `HEAD == v0.1.46 == release_commit` before invoking GoReleaser. Do not publish from the newer
 `master` tip and do not move the tag.
 
+## Publication attempt — 2026-08-31
+
+Publication was attempted from a clean detached worktree at the immutable `v0.1.46` commit with
+GoReleaser `2.12.7` and this explicit release-notes file:
+
+```bash
+goreleaser release --clean --release-notes /absolute/path/release-notes/v0.1.46.md --verbose
+```
+
+GoReleaser successfully built the six platform archives and `checksums.txt`, then GitHub rejected
+release creation with `403 Resource not accessible by personal access token`. A post-failure probe
+confirmed that neither remote tag `v0.1.46` nor a GitHub release for that tag exists. Local `dist/`
+was removed and the detached worktree was removed; the local lightweight tag remains unchanged.
+
+Do not retry with the same credential. The token holder must replace or repair `GITHUB_TOKEN` with
+repository-scoped fine-grained **Contents: read/write** permission (and obtain any required
+organization approval), then repeat the absence probes and publish from a newly created detached
+worktree at this exact tag. This failed authorization does not authorize moving, recreating, or
+pushing the tag separately.
+
 ## Preserved history
 
 TASK-238 records the local `v0.1.45` tag and successful six-platform snapshot and real release-mode
