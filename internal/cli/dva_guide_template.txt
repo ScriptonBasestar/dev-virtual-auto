@@ -19,8 +19,10 @@ you run short aliases defined in `dva.yml`.
 
 ```bash
 # Bootstrap (if dva.yml is missing)
-dva init               # Scaffold dva.yml
-am run dva-improve     # Inspect evidence and improve the generated config
+dva init                            # Scaffold only when a Compose file is in this directory
+am run dva-discover                 # Inspect Compose-less, non-standard, or multi-project layouts first
+am run dva-improve                  # Improve an existing configuration
+am run dva-improve -p mode=rewrite  # Explicit opt-in for a full rewrite
 
 # Discover available commands
 dva ls                 # List all commands
@@ -60,7 +62,7 @@ When working on this project:
 2. Use `dva test` (or equivalent) instead of direct test runners
 3. Use `dva build` instead of direct build commands
 4. If a task requires a new DVA command, suggest adding it to `dva.yml` interaction section
-5. If `dva.yml` does not exist, run `dva init`, then `am run dva-improve`
+5. If `dva.yml` does not exist and this directory has a Compose file, run `dva init`, then `am run dva-improve`; otherwise run `am run dva-discover` first. Use `am run dva-improve -p mode=rewrite` only for an intentional full rewrite.
 6. When adding new services, follow existing port range conventions in dva.yml
 7. When modifying infrastructure, run `dva config validate` after changes
 8. Never guess a plan name or run `dva up *`; use the exact named plan

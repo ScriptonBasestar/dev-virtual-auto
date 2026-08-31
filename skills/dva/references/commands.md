@@ -50,7 +50,11 @@ Display version, commit hash, and build date.
 
 ### `dva init` / `dva config init`
 
-Scaffold a new `dva.yml` configuration. `dva init` is a backward-compatible alias for `dva config init`.
+Scaffold a new `dva.yml` configuration from a Compose file in the current directory.
+`dva init` is a backward-compatible alias for `dva config init`; it does not scaffold
+Compose-less, non-standard, or multi-project layouts. For those layouts, run
+`am run dva-discover` first, and use `am run dva-improve -p mode=rewrite` only when a
+full rewrite is intentional.
 
 ```bash
 dva config init                  # auto-detect project structure

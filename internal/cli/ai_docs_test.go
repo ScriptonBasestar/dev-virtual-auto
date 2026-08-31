@@ -27,6 +27,9 @@ func TestDVAGuideUsesNamedPlanLifecycle(t *testing.T) {
 		"dva down PLAN",
 		"dva config validate",
 		"dva up *",
+		"Compose-less, non-standard, or multi-project layouts",
+		"am run dva-discover",
+		"am run dva-improve -p mode=rewrite",
 	}
 	for _, fragment := range required {
 		if !strings.Contains(dvaGuideTemplate, fragment) {
