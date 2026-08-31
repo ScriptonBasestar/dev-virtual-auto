@@ -21,10 +21,11 @@ process-health disputes.
 - At a devbox root, read `.gz-git.yaml` when present before deciding scope. Treat every
   entry in its workspace inventory as a child-repository candidate. Include every locally
   present candidate in a devbox-wide DVA application by default. Exclude one only when
-  the manifest, repository guidance, or path classification explicitly identifies it as
-  disabled, archived, generated, vendor, or prohibited; never infer inactivity from its
-  name. Do not clone or sync a missing child merely to complete discovery; report it as
-  unavailable unless the user separately authorizes that operation.
+  `.gz-git.yaml`, the nearest repository guidance, or its actual location under a
+  generated, vendor, or archive directory explicitly identifies it as out of scope. Keep
+  it in scope when no such evidence exists, and never infer inactivity from its name. Do
+  not clone or sync a missing child merely to complete discovery; report it as unavailable
+  unless the user separately authorizes that operation.
 - Keep two decisions separate: whether a child owns a useful `dva.yml`, and whether the
   root imports anything from that child. “Do not import child `dva.yml` from the root”
   controls only `subprojects.*.import`; it does not remove the child repository from the
@@ -51,7 +52,8 @@ Use these scope outcomes as a regression check:
 
 | Evidence | Required scope decision |
 |---|---|
-| Local inventory child, root imports omitted | Author and validate the useful child config independently. |
+| Local inventory child, root imports omitted | Assess independently; author and validate a child config when it has a useful DVA surface. |
+| Local inventory child, no useful DVA surface | Record the assessment; do not create an empty or ceremonial child config. |
 | Inventory child missing locally | Report unavailable; do not clone or sync without authority. |
 | Explicit prohibition on child-repository edits | Change root only; report partial coverage and deferred children. |
 

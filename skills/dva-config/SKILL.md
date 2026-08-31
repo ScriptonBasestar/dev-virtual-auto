@@ -98,8 +98,9 @@ Never infer rewrite merely because a newer model exists.
 - For a devbox with `.gz-git.yaml`, a request to apply DVA to the devbox includes the root and every
   locally present repository listed in its workspace inventory by default. Evaluate and change each
   repository in its own ownership and Git context; do not treat the parent checkout as owning child
-  files. Exclude an inventory entry only with explicit evidence from the manifest, repository
-  guidance, or its generated/vendor/archive classification; never infer inactivity from its name.
+  files. Exclude an inventory entry only when `.gz-git.yaml`, the nearest repository guidance, or
+  its actual location under a generated/vendor/archive directory says to; keep it in scope when no
+  such evidence exists, and never infer inactivity from its name.
 - Keep child configuration scope separate from root import scope. A request to omit child imports
   from the root `dva.yml` does not omit creating or improving the child `dva.yml` files. Only an
   explicit instruction not to modify child repositories narrows the work to root-only; report that
@@ -109,9 +110,10 @@ Never infer rewrite merely because a newer model exists.
   broken declaration as a placeholder.
 - Exclude archived, legacy, generated, and guidance-prohibited modules.
 - Keep docs and advertised commands aligned with `dva show`/`dva ls` output.
-- Decide DVA need independently for the root and every active subproject; do not generate a child
-  config merely because a parent or sibling uses DVA. A `.gz-git.yaml` entry establishes discovery
-  and default task scope, not proof that the child has a useful DVA command surface.
+- Decide DVA need independently for the root and every inventory child that remains in scope; do not
+  generate a child config merely because a parent or sibling uses DVA. A `.gz-git.yaml` entry
+  establishes discovery and default task scope, not proof that the child has a useful DVA command
+  surface.
 - For run/dev variants, Compose profiles, native port binding, and runtime ownership diagnostics,
   follow `references/diagnosis.md` instead of inferring behavior from configuration alone.
 
