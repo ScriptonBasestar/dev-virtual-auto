@@ -4,6 +4,13 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Changed
+- 첫 공개 릴리스 `v0.1.46`을 기준으로 README와 USAGE의 설치 안내를 고정했습니다. Go module
+  설치는 `@v0.1.46`을 사용하고, 공개 archive 설치는 플랫폼별 자산 선택과 SHA-256
+  `checksums.txt` 검증 절차를 안내합니다.
+
+## [0.1.46] - 2026-08-31
+
 ### Added
 - **Named plan이 유일한 lifecycle 모델입니다** (docs/43): 모든 lifecycle 동사가
   `dva <verb> <plan>` 한 형태로 수렴했습니다

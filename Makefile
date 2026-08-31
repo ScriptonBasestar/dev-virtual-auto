@@ -19,7 +19,7 @@ WF_LIBRARY  := agent-mesh-flows/shared/library
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
 
-.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check dogfood-skill-install
+.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check release-preflight release-clean release-postflight dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -392,6 +392,24 @@ release-check: build
 		tmp_dir=$$(mktemp -d); trap 'rm -rf "$$tmp_dir"' EXIT; \
 		tar -xzf "$$archive" -C "$$tmp_dir"; \
 		go run ./tools/releasecheck binary --binary "$$tmp_dir/dva" --commit "$$commit" --version "$$snapshot_version" --snapshot
+
+## release-preflight: Validate a clean detached release worktree and its non-persisting GitHub publication prerequisites
+release-preflight:
+	@test -n "$(RELEASE_TAG)" || { echo "ERROR: set RELEASE_TAG (for example v0.1.47)" >&2; exit 2; }
+	@test -n "$(RELEASE_COMMIT)" || { echo "ERROR: set RELEASE_COMMIT to the full immutable commit SHA" >&2; exit 2; }
+	@test -n "$(RELEASE_NOTES)" || { echo "ERROR: set RELEASE_NOTES to the reviewed release notes path" >&2; exit 2; }
+	@test -n "$(RELEASE_NOTES_SHA256)" || { echo "ERROR: set RELEASE_NOTES_SHA256 to its recorded SHA-256" >&2; exit 2; }
+	@go run ./tools/releaseworkflow preflight --tag "$(RELEASE_TAG)" --commit "$(RELEASE_COMMIT)" --release-notes "$(RELEASE_NOTES)" --release-notes-sha256 "$(RELEASE_NOTES_SHA256)" --cleanup-path dist --cleanup-path bin --cleanup-path tmp
+
+## release-postflight: Verify the final published release identity, exact assets, and local cleanup after manual publication
+release-postflight:
+	@test -n "$(RELEASE_TAG)" || { echo "ERROR: set RELEASE_TAG (for example v0.1.47)" >&2; exit 2; }
+	@test -n "$(RELEASE_COMMIT)" || { echo "ERROR: set RELEASE_COMMIT to the full immutable commit SHA" >&2; exit 2; }
+	@go run ./tools/releaseworkflow postflight --tag "$(RELEASE_TAG)" --commit "$(RELEASE_COMMIT)" --cleanup-path dist --cleanup-path bin --cleanup-path tmp
+
+## release-clean: Remove only the local release workflow outputs before postflight verification
+release-clean:
+	rm -rf -- dist bin tmp
 
 ## help: Show this help
 help:

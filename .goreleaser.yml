@@ -1,6 +1,6 @@
-# TASK-241 authorizes local release preparation only. Public publication still requires its
-# explicit human authorization gate. CI runs only the snapshot gate and has no publication
-# credentials or tag-triggered release workflow.
+# CI runs only the snapshot gate; it has no publication credentials or tag-triggered release
+# workflow. Publish manually from an immutable, approved tag, injecting the dedicated credential
+# only into that publication process. Never move a published tag to recover a failed release.
 version: 2
 
 project_name: dva
