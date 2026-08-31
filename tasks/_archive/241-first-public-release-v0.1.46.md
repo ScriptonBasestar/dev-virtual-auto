@@ -202,7 +202,8 @@ was also installed with `GOPROXY=direct` and `GOSUMDB=sum.golang.org` into isola
 `GOMODCACHE`, `GOPATH`, and `GOCACHE` directories under that temporary root. It reported `dva version
 0.1.46`. Its `commit: dev` and `build date: unknown` are expected for `go install`, which compiles
 the tagged module without the GoReleaser link-time metadata; the separately downloaded release
-archive is the artifact that proves the published commit/build identity. No global binary was
+archive is the checksum-verified artifact used to verify the recorded published commit/build
+identity. No global binary was
 installed, and the temporary root was removed after the probes.
 
 ## Preserved history
