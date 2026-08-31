@@ -90,11 +90,41 @@ func TestGuidedFlowUsesPlanAndCapabilityContract(t *testing.T) {
 		t.Error("automatic improve flow does not accept and consume capability_bindings")
 	}
 
-	corpus := strings.Join([]string{top, analyze, configure, execute, discover}, "\n")
+	corpus := strings.Join([]string{
+		stripGeneratedFlowCorpus(top),
+		stripGeneratedFlowCorpus(analyze),
+		stripGeneratedFlowCorpus(configure),
+		stripGeneratedFlowCorpus(execute),
+		stripGeneratedFlowCorpus(discover),
+	}, "\n")
 	for _, stale := range []string{"recommended_modes", "--mode", "param.mode"} {
 		if strings.Contains(corpus, stale) {
 			t.Errorf("guided flow corpus still contains migration-only contract %q", stale)
 		}
+	}
+}
+
+// stripGeneratedFlowCorpus keeps command-surface checks focused on flow-owned
+// instructions. The inlined shared corpus is generated from canonical Markdown
+// and deliberately retains historical migration guidance such as --mode.
+func stripGeneratedFlowCorpus(flow string) string {
+	const start = "<!-- AUTOGEN:dva_flow_"
+	for {
+		blockStart := strings.Index(flow, start)
+		if blockStart < 0 {
+			return flow
+		}
+		startEnd := strings.Index(flow[blockStart:], ":start -->")
+		if startEnd < 0 {
+			return flow
+		}
+		startEnd += blockStart + len(":start -->")
+		endMarker := flow[blockStart:startEnd-len(":start -->")] + ":end -->"
+		endOffset := strings.Index(flow[startEnd:], endMarker)
+		if endOffset < 0 {
+			return flow
+		}
+		flow = flow[:blockStart] + flow[startEnd+endOffset+len(endMarker):]
 	}
 }
 

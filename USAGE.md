@@ -190,7 +190,9 @@ dva config init --devcontainer   # .devcontainer/devcontainer.json 포함 생성
 dva config init --all            # 가능한 모든 기능 통합 활성화 (devcontainer 등)
 ```
 
-생성 후 `am run dva-improve`로 AI 기반 최적화를 실행할 수 있습니다.
+생성 후 `am run dva-discover`로 프로젝트와 설정 후보를 먼저 확인하세요. 기존 설정을
+개선하려면 `am run dva-improve`를 사용하고, 전체 재작성은 명시적으로
+`am run dva-improve -p mode=rewrite`를 지정한 경우에만 실행하세요.
 
 #### docs (config docs)
 
@@ -1178,8 +1180,9 @@ subproject의 `interaction`과 `provision`은 해당 subproject root 기준으�
 
 DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제공합니다.
 
+- `am run dva-discover` — 프로젝트 분석 및 dva.yml 설정 후보 탐색
 - `am run dva-improve` — dva.yml AI 개선 (기존 파일 수정)
-- `am run dva-improve param.mode=rewrite` — dva.yml AI 개선 (처음부터 재작성)
+- `am run dva-improve -p mode=rewrite` — dva.yml AI 개선 (처음부터 재작성, 명시적 opt-in)
 - `dva config docs` — CLAUDE.md/AGENTS.md 가이드 생성/갱신
 - `am run dva-improve-guided` — Claude Code 대화형 가이드 모드
 - `dva manifest` — 구조화된 커맨드 매니페스트 (JSON/YAML)
@@ -1193,7 +1196,10 @@ DVA는 LLM 에이전트(Claude, Cursor 등)와의 통합을 위한 기능을 제
 
 ```bash
 cd /path/to/project
-am run dva-improve            # target 기본값 "." — 정상
+am run dva-discover           # 비표준/다중 프로젝트의 우선 분석 경로
+am run dva-improve            # target 기본값 "." — 기존 설정 개선
+# 전체 재작성은 명시적으로 opt-in
+am run dva-improve -p mode=rewrite
 ```
 
 `target`을 다른 경로로 넘기면 플로우가 첫 쓰기 이전에 중단됩니다. agent-mesh는

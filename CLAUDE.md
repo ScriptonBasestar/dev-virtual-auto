@@ -52,9 +52,9 @@ AI 기반 프로젝트 분석, 설정 개선, 진단 워크플로우는 agent-me
 
 ```bash
 # Agent-Mesh DVA 워크플로우 커맨드:
-am run dva-discover                   # 프로젝트 분석 및 후보 옵션 탐색
+am run dva-discover                   # 프로젝트 분석 및 후보 옵션 탐색 (우선 실행)
 am run dva-improve                    # 기존 dva.yml 개선
-am run dva-improve param.mode=rewrite # 처음부터 파일 재생성 (초기화)
+am run dva-improve -p mode=rewrite    # 전체 재작성 (명시적 opt-in)
 am run dva-improve-guided             # 대화형 가이드 모드
 am run dva-diagnose                   # 환경 상태 점검 및 문제 자동 진단
 ```

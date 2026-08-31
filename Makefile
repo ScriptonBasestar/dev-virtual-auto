@@ -13,11 +13,17 @@ GO_BIN_DIR ?=
 # Workflow source directories (single source of truth)
 WF_LIBRARY  := agent-mesh-flows/shared/library
 
-# Generated embeddable files (output of make generate)
-# library_reference.txt: read by am flows, corpus for removed_keys_test (no longer embedded)
+# Generated flow and embeddable library files (output of make generate)
+# library_reference.txt: DVA CLI library output and corpus for removed_keys_test
 # dva_guide_template.txt: embedded by ai_docs.go (static, hand-authored)
 GEN_DIR         := internal/cli
 GEN_LIBRARY     := $(GEN_DIR)/library_reference.txt
+WF_PUBLIC_FLOWS := agent-mesh-flows/dva-diagnose.yaml \
+	agent-mesh-flows/dva-discover.yaml \
+	agent-mesh-flows/dva-improve.yaml \
+	agent-mesh-flows/dva-improve-guided.yaml \
+	agent-mesh-flows/dva-improve-guided/00-analyze.yaml \
+	agent-mesh-flows/dva-improve-guided/30-configure.yaml
 
 .PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check release-preflight release-clean release-postflight dogfood-skill-install
 
@@ -328,7 +334,7 @@ clean:
 	@# cached findings by the same mechanism, just less often. TASK-203.
 	rm -rf $(CURDIR)/tmp/golangci-lint-cache
 
-## generate: Generate embeddable library reference from agent-mesh-flows/shared/library/
+## generate: Generate DVA library references and self-contained Agent Mesh flows
 generate:
 	@echo "Regenerating Go-sourced fact blocks in shared-guardrails.md..."
 	@go run ./tools/libgen
@@ -347,15 +353,17 @@ generate:
 	   cat $(WF_LIBRARY)/reference-examples.md; \
 	} > $(GEN_LIBRARY)
 	@echo "Generated: $(GEN_LIBRARY)"
+	@echo "Rendering self-contained Agent Mesh DVA flows..."
+	@go run ./tools/flowgen
 	@echo "Generating platform skill artifacts from skills/..."
 	@go run ./tools/skillgen
 
 ## check-generate: Verify generated files are up-to-date
 check-generate:
 	@set -e; \
-		before=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		before=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
 		$(MAKE) generate; \
-		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
 		[ "$$before" = "$$after" ] || { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
 ## doc-check: Enforce doc size limits, markdown links, CI labels and flow decision gates (TASK-090) (CI)

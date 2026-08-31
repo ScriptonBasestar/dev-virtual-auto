@@ -212,6 +212,12 @@ func TestInitCommandMentionsImproveFlow(t *testing.T) {
 	if !strings.Contains(initCmd.Long, "am run dva-improve") {
 		t.Fatalf("init long help should mention am run dva-improve, got: %s", initCmd.Long)
 	}
+	if !strings.Contains(initCmd.Long, "am run dva-discover") {
+		t.Fatalf("init long help should mention am run dva-discover, got: %s", initCmd.Long)
+	}
+	if !strings.Contains(initCmd.Long, "am run dva-improve -p mode=rewrite") {
+		t.Fatalf("init long help should document explicit rewrite syntax, got: %s", initCmd.Long)
+	}
 }
 
 func TestFilterEnv(t *testing.T) {

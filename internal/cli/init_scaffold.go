@@ -23,8 +23,10 @@ func scaffoldDvaYml(dir, tmpl string) (bool, error) {
 	if len(detectComposeFilesIn(dir)) == 0 {
 		return false, fmt.Errorf(`%w in %s; dva.yml was not created
   DVA init only scaffolds projects with a Compose file in the current directory.
-  For non-standard or multi-project layouts, run:
-    am run dva-improve param.mode=rewrite
+  For non-standard or multi-project layouts, inspect the project first:
+    am run dva-discover
+  If a full rewrite is explicitly intended, run:
+    am run dva-improve -p mode=rewrite
   Or create dva.yml manually, then run:
     dva config validate`, errComposeFileNotFound, dir)
 	}

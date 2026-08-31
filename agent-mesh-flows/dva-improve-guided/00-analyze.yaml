@@ -23,9 +23,6 @@ parameters:
   - name: target
     description: "Target directory to scan"
     default: "."
-  - name: shared_dir
-    description: "Absolute path to agent-mesh-flows/shared. Empty → $DVA_SHARED_DIR, then the run directory. Must also appear in am's allowed_roots_add."
-    default: ""
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
     default: "[]"
@@ -257,70 +254,9 @@ steps:
         exit 0
       dir_tree: "find {{param.target}} -maxdepth 3 -not -path '*/\\.*' -not -path '*/vendor/*' -not -path '*/node_modules/*' -not -path '*/target/*' 2>/dev/null | head -80"
 
-  # ══════════════════════════════════════════════
-  # ══════════════════════════════════════════════
-  # Locate agent-mesh-flows/shared
-  # ══════════════════════════════════════════════
-  # `read_file` resolves `src` against the run directory and refuses to leave am's
-  # approved roots, so a repo-relative path only reaches the library when the flow
-  # happens to run from inside the dva repo — and these flows exist to be pointed at
-  # other projects. The path is machine-specific, so it arrives by parameter or env
-  # var and the search below takes the first candidate that actually holds the library.
-  #
-  # Two conditions must hold on the workstation, and only the first is testable here:
-  #   1. the directory resolves — proven below by looking for shared-guardrails.md;
-  #   2. it is listed under `allowed_roots_add:` in
-  #      ~/.config/agent-mesh/sandbox_override.yaml — enforced by am inside read_file.
-  # `when:` does not gate that second check (measured: the path check runs before the
-  # condition), so a missing root surfaces as "escaped all approved roots" on the next
-  # step. The message below names both requirements for that reason.
-  #
-  # Failing loudly is deliberate. `exit_if_empty` exits the pipeline *successfully*,
-  # which would hand back a report produced with no guardrails at all — the exact
-  # defect this resolver exists to close.
-  - id: resolve_shared
-    type: context
-    context:
-      dir: |
-        for cand in "{{param.shared_dir}}" "$DVA_SHARED_DIR" "$PWD/agent-mesh-flows/shared"; do
-          [ -n "$cand" ] || continue
-          [ -f "$cand/library/shared-guardrails.md" ] || continue
-          printf '%s' "$cand"
-          exit 0
-        done
-        echo "ERROR: agent-mesh-flows/shared not found." >&2
-        echo "  Pass it explicitly:  -p shared_dir=<dva-repo>/agent-mesh-flows/shared" >&2
-        echo "  or export DVA_SHARED_DIR to the same path." >&2
-        echo "  The same path must also be listed under allowed_roots_add: in" >&2
-        echo "  ~/.config/agent-mesh/sandbox_override.yaml — am's read_file cannot" >&2
-        echo "  read outside an approved root." >&2
-        exit 1
-
-  # ══════════════════════════════════════════════
-  # Library rules this stage's own output is judged against
-  # ══════════════════════════════════════════════
-  # Stage 00 writes no dva.yml, so it looked like a stage that needed no guardrails.
-  # But `candidate_environments`, `recommended_plans` and `changes[]` are carried
-  # into the stage 10 proposal and then the approved artifact consumed by stages 20
-  # and 30. Those stages do not re-derive the candidates, so one that breaks a rule
-  # here is already past the gate before configuration. Measured on a
-  # foreign project: the report proposed `development/staging/production` against the
-  # dev/stg/prd preset, and 4 of 7 changes built a stg/prd deployment axis that
-  # rule 41 forbids. Schema and examples stay out — they govern generation, and
-  # generation happens in stage 30, which already loads them.
-  - id: load_guardrails
-    type: read_file
-    depends_on: [resolve_shared]
-    src: "{{resolve_shared.dir}}/library/shared-guardrails.md"
-
-  - id: load_naming
-    type: read_file
-    depends_on: [resolve_shared]
-    src: "{{resolve_shared.dir}}/library/naming-presets.md"
-
   - id: analyze
     type: llm
-    depends_on: [detect_basics, dva_cli_data, scan_project, load_guardrails, load_naming]
+    depends_on: [detect_basics, dva_cli_data, scan_project]
     json_mode: true
     instruction: |
       프로젝트를 분석하여 DVA 설정 계획과 선택 가능한 옵션을 JSON으로 생성하라.
@@ -330,10 +266,287 @@ steps:
       않고 소비하므로 여기서 통과한 것은 그대로 반영된다.
 
       ## 라이브러리 규칙 — 가드레일
-      {{load_guardrails.output}}
+      <!-- AUTOGEN:dva_flow_guardrails:start -->
+      # DVA Configuration Guardrails (Shared)
+
+      > Single source of truth for dva.yml generation/improvement rules.
+      > Referenced by: improve prompt (auto mode), guided improve pipeline (interactive mode).
+
+      > **Auto-generated sections** — rule 4 (`version:`), rule 9 (reserved commands) and rule 14
+      > (section order) are regenerated from `internal/config` by `make generate` (tools/libgen) and
+      > bounded by `<!-- AUTOGEN:... -->` markers. Edit the Go source, not the marker block. Other
+      > rules are hand-authored. See `shared/library/README.md` for the ownership boundary.
+
+      ## Critical Rules
+
+      1. **`stack:` section required** — Compose config MUST be under `stack.<entry>.runners.compose`. Migrate legacy root-level `compose:` and `stack.<entry>.compose` fields to `runners.compose`.
+      2. **`plans:` current model** — New/rewrite configs MUST use named `plans:`.
+         Preserve legacy `modes:` only until an explicit migration; never generate new
+         modes/applications merely to satisfy an old example.
+      3. **Plan scope** — Derive self-contained plans from the capability closure in
+         `naming-presets.md`. Provide only plans backed by evidence. Service selection
+         belongs in `plans.*.entries[].services`; plans do not inherit or overlay each other.
+      4. **`version:` field** — Optional, and it is a **minimum required reader version**, not the
+         version of the binary that generated the config. Canonical source:
+         `internal/config/version.go` — the block below is regenerated by `make generate`
+         (tools/libgen); do not edit it by hand.
+
+         <!-- AUTOGEN:version_rule:start -->
+         Omit `version:` for no compatibility gate. When declaring it, use `0.1.44` — the floor `dva init` writes. Never scaffold the running CLI version: that makes every generated config refuse to load on an older DVA, ratcheting the floor up on each release. Subproject `version:` is checked against the running DVA independently; DVA never compares a subproject's version to root, so do not require them to agree.
+         <!-- AUTOGEN:version_rule:end -->
+      5. **`health_checks`: `start` and/or `start_hint`** — `start` is the auto-start command (optional). `start_hint` is human-readable hint text shown by `dva status` (optional). If `start` is set, `start_hint` is only needed when it differs from the start command. Do not set both to identical values (validation warning).
+      6. **Health check URLs: literal values only** — `url:` and `address:` fields must use literal values (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` patterns.
+      7. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017. Pick a project-specific range instead (e.g. 11100-11199).
+      8. **`runner: local` for host commands** — Build/test/lint/fmt/check MUST use `runner: local`. Never use `echo 'Run: ...'` wrappers.
+      9. **Reserved commands** — DVA built-in commands that MUST NOT appear as plain interaction
+         keys. Hookable ones use `replace:` hooks; others must be renamed (e.g., `service-status`,
+         `db-migrate`). Canonical source: `internal/config/reserved.go` — the block below is
+         regenerated by `make generate` (tools/libgen); do not edit it by hand.
+
+         <!-- AUTOGEN:reserved_commands:start -->
+         Reserved (24, must not be interaction keys): `build`, `completion`, `compose`, `config`, `console`, `doctor`, `down`, `help`, `init`, `ktl`, `logs`, `ls`, `manifest`, `provision`, `restart`, `run`, `show`, `skill`, `ssh`, `status`, `stop`, `up`, `validate`, `version`
+         Hookable (use `replace:` hooks, 6): `build`, `down`, `logs`, `restart`, `stop`, `up`
+         <!-- AUTOGEN:reserved_commands:end -->
+      10. **Provision: setup only** — NEVER call `run: "dva <command>"` (circular
+          dependency), and do not duplicate plan up/down actions with raw lifecycle commands.
+      11. **Provision evidence** — Generate only profiles backed by actual setup work;
+          never invent `default`, `full`, or `reset` profiles to satisfy a template.
+      12. **`env_file:` object format** — Prefer `{ files: [...] }` (optional `required:`); plain string path is also valid.
+      13. **Built-in checks first** — Do not generate custom Docker socket, Compose
+          file, or env-file checks already emitted by `dva doctor`. Add `checks:` only
+          for project-specific prerequisites.
+      14. **Section order (canonical)** — Canonical source:
+          `internal/config/validate_warnings.go` — the order below is regenerated by
+          `make generate` (tools/libgen). Legacy keys (`checks` … `modes`) retain a
+          deterministic position during migration only; do not generate them for new configs.
+
+          <!-- AUTOGEN:section_order:start -->
+          `version` → `vars` → `environment` → `env_file` → `stack` → `plans` → `default_plan` → `environments` → `sites` → `checks` → `default_mode` → `suggestion_ignore` → `modes` → `health_checks` → `interaction` → `provision` → `modules` → `subprojects` → `endpoints` → `infra` → `ssh` → `devcontainer`
+          <!-- AUTOGEN:section_order:end -->
+      15. **File header** — First line must be `# yaml-language-server: $schema=...` schema comment.
+      16. **`stack.<entry>.runners.compose.tags: [infra]`** — Primary compose runner MUST have compose-level `tags:` field.
+      17. **Service metadata: tags required** — Every service MUST have `tags:`. Port metadata (label, http, paths) belongs in `endpoints:` section, NOT in `services.ports`.
+      18. **Compose `name:` required** — compose.yml must have top-level `name:` matching `stack.<entry>.runners.compose.project_name`.
+      19. **Compose `version:` key** — Remove if present (Compose Specification does not require it).
+      20. **Stack files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist. Run `ls` to verify.
+      21. **Multi-stack entries: no duplicate base files** — Do NOT repeat base `compose.yml` in every entry.
+      22. **Package names: EXACT from manifests** — Use `[package] name` from Cargo.toml, module path from go.mod, `name` from package.json. NOT directory names.
+      23. **Naming presets** — Tags: infra, api, worker, ui, data, monitoring, build.
+          Plans: local-infra, local-dev, full-stack, observability, tools. Environments:
+          dev, test, stg, prd. The exact inclusion/default matrix and injected platform
+          binding rules live in `naming-presets.md`.
+          Environment names label variable sets, not deployment targets — see rule 41.
+      24. **No echo wrappers** — Never generate `echo 'Run: ...'` dummy commands.
+      25. **No code changes** — Only modify `dva.yml` and related config. Do not touch app code or Dockerfiles.
+      26. **Subprojects** — `exclude_tags: [infra]` to avoid parent infra duplication. Allowed fields: `path`, `exclude_tags`, `import`. Only add non-empty `import` entries after the child `dva.yml` exists; placeholders may omit `import` or use `import: {}`.
+      27. **App declarations** — Model native app processes as native/process stack
+          runners and select them from plans. Compose-hosted apps remain services of
+          the compose stack entry.
+      28. **Single lifecycle owner** — A Compose service MUST NOT also appear as
+          `applications.*.run.docker.service`, a standalone docker runner, a raw
+          `docker compose up` interaction, or a provision lifecycle step.
+      29. **Runner meaning** — `compose` manages Compose services. `docker` manages a
+          standalone `docker run` container. Merely being containerized does not
+          justify generating both runners.
+      30. **Plan dependencies** — Express cross-entry startup order with
+          `plans.entries[].depends_on` and `order`.
+      31. **Health ownership** — Compose healthchecks remain in Compose; native
+          process readiness belongs to its stack runner/health configuration.
+      32. **`stop` vs `down` semantics** — Validate both operations for the same
+          named plan. `stop` preserves resources; `down` tears entries down in reverse dependency order.
+      33. **Named lifecycle** — Use `dva up <plan>`/`down <plan>` for declarative
+          lifecycle. `dva app` and `dva stack` were removed; `--mode` is migration-only.
+      34. **No synthetic dual path** — Do not invent native and docker alternatives.
+          Declare only execution paths proven by project files and developer workflow.
+      35. **Environment switching** — Put dev/stg/prd variables in `environments:`
+          and host/location differences in `sites:`; plans select both. Remote sites carry
+          development or maintenance intent (rule 41).
+      36. **Provision boundary** — Provision prepares files, dependencies, directories,
+          or credentials. Lifecycle startup belongs to plans.
+      37. **Interaction boundary** — Interactions are one-shot developer commands,
+          not alternate lifecycle wrappers.
+      38. **Compose command reuse** — Container exec interactions should use
+          `service:` + `command:`. Avoid repeating declared Compose file/project flags.
+      39. **Preserve migration** — In preserve mode, report legacy ownership overlap
+          before migration; do not silently delete working commands.
+      40. **Rewrite migration** — In rewrite mode, remove legacy applications/modes
+          only after equivalent stack runners and plans exist.
+      41. **Local-first scope** — Generated configuration serves local development and
+          maintenance. Default every execution target to a local virtual environment, and
+          declare a remote target only for a resource that cannot run locally (a shared
+          database, a managed service). Never generate release, rollout, or incident-response
+          workflows: DVA is not a production operations tool. Environment names follow
+          `naming-presets.md` § Environment Presets.
+      42. **Capability closure and safe default** — Every selected service must have one
+          verified provider for each required capability. Never invent a provider or select
+          two lifecycle owners. Prefer `default_plan: local-infra` only when it is local and
+          non-destructive; never generate `full-stack` as the default. If no safe default is
+          provable, omit `default_plan` and require `dva up <plan>`.
+      43. **Platform bindings are input context** — Apply an injected `capability_bindings`
+          preference only when its provider target and evidence are verified. Do not emit
+          capability metadata as unsupported `dva.yml` keys, hardcode portfolio product names
+          into generic defaults, or replace a working provider silently in preserve mode.
+      <!-- AUTOGEN:dva_flow_guardrails:end -->
 
       ## 라이브러리 규칙 — 네이밍 프리셋
-      {{load_naming.output}}
+      <!-- AUTOGEN:dva_flow_naming:start -->
+      # DVA Naming and Plan Presets
+
+      > `dva.yml` 생성기가 사용하는 결정 규약. 새/rewrite 설정은 현재 `stack` + named
+      > `plans` 모델만 생성하며 legacy `modes`, `compose_services`, `default_mode`를 만들지 않는다.
+      > 이 문서의 분류는 생성 규칙이며 DVA validator가 대신 판단해 주지 않는다.
+
+      ## Service Tags
+
+      | Tag | Meaning | Examples |
+      |-----|---------|----------|
+      | `infra` | Runtime infrastructure | postgres, redis, rabbitmq, oidc-provider |
+      | `api` | HTTP/gRPC handlers | api-server, gateway, graphql |
+      | `worker` | Background processing | sidekiq, consumer, scheduler |
+      | `ui` | User-facing dev servers | next, vite, storybook |
+      | `data` | Database/search/object storage | postgres, meilisearch, minio |
+      | `monitoring` | Observability | prometheus, grafana, jaeger |
+      | `build` | Build-time only | builder, compiler, asset-pipeline |
+
+      Use every tag supported by project evidence. The primary Compose runner has `tags: [infra]`.
+      Subprojects exclude parent-owned infrastructure with `exclude_tags: [infra]`.
+
+      ## Capability Closure
+
+      Classify discovered services before writing plans. A plan is complete only when every selected
+      capability's required capabilities have a single lifecycle provider.
+
+      | Capability | Typical evidence | Requires | Plan class |
+      |------------|------------------|----------|------------|
+      | `database` | DATABASE_URL, migrations, SQL driver | — | core |
+      | `cache` | REDIS_URL, cache client | — | core when startup requires it |
+      | `identity` | OIDC issuer/client settings, identity-provider service | `database` unless explicitly external/self-contained | core when normal development authenticates |
+      | `queue` | broker URL, producer/consumer | — | core only when startup requires it; otherwise extended |
+      | `object-storage` / `search` | S3, MinIO, Elasticsearch settings | — | core only when startup requires it; otherwise extended |
+      | `app-native` | verified local run command | its runtime dependencies | local-dev |
+      | `app-compose` | app service in a verified Compose model | its runtime dependencies | full-stack |
+      | `observability` | metrics/tracing Compose files | observed targets | opt-in |
+      | `tools` | admin UI, mail viewer, debug utility | its declared dependencies | opt-in |
+
+      Do not infer capability requirements from a service name alone. Verify Compose `depends_on`,
+      environment variables, manifests, README/Makefile targets, and existing DVA declarations. Do not
+      select two database providers, or both native and Compose ownership for the same app.
+
+      ## Provider Resolution
+
+      Resolve each required capability deterministically:
+
+      1. An explicit project provider contract or documented platform-policy opt-out wins.
+      2. Preserve mode keeps a working existing lifecycle owner and reports a conflicting binding.
+      3. Fresh/rewrite mode applies an accepted portfolio/platform binding before generic inference.
+      4. Otherwise use a verified local service already present in the project's Compose model.
+      5. If none resolves, report the capability; never invent a service, path, or command.
+
+      Rewrite/new generation applies a platform binding only when its target and lifecycle command or
+      imported plan are verified. A remote/shared provider is represented as an external dependency or
+      imported plan, not by generating a second local database.
+
+      ### Injected platform bindings
+
+      Portfolio-specific relationships enter discovery as `capability_bindings`; product names and
+      provider choices do not belong in generic DVA defaults. Each binding supplies `capability`,
+      `provider`, `consumer`, `ownership`, and concrete `evidence`. Apply this deterministic table:
+
+      | Evidence | Result |
+      |----------|--------|
+      | Provider and consumer are separate parent-owned stack entries | Include both in one plan and make the consumer entry depend on the provider entry |
+      | Provider and consumer are services of one Compose entry | Select both services; ordering remains in Compose `depends_on`, not plan `depends_on` |
+      | Either side is an external/shared runtime or separately imported plan | Emit verified prerequisite commands or health contracts separately; do not pretend two plans are one atomic plan |
+      | Existing config already owns a local/embedded DB | Preserve it in preserve mode and report the provider-policy mismatch; migrate only in rewrite mode after the orchestrator target is verified |
+      | Project explicitly opts out of the platform provider | Use the project's verified provider and record the exception in the generated summary |
+      | No verified provider target exists | Report the unresolved capability; do not guess a service or sibling path |
+
+      Bindings are generation inputs and are never emitted as new `dva.yml` keys. Without an injected
+      binding, use the generic provider-resolution order above.
+
+      ## Deterministic Plan Matrix
+
+      Each plan is a self-contained list. DVA does not compose or inherit plans, so repeat the resolved
+      entry/service closure explicitly and keep matching `up`, `stop`, and `down` names symmetric.
+
+      | Plan | Exact inclusion rule | Default policy |
+      |------|----------------------|----------------|
+      | `local-infra` | Verified core providers needed by the normal native workflow; no app, monitoring, or tool entries | Preferred `default_plan` when all providers are local and non-destructive |
+      | `local-dev` | Complete `local-infra` closure plus every verified native app entry and its dependencies | Generate when native run commands exist; not the default merely because it is convenient |
+      | `full-stack` | Runtime capability closure plus verified Compose-hosted app services | Explicit opt-in; never the generated default |
+      | `observability` | The complete base closure needed by observed targets plus monitoring entries/services | Explicit opt-in; not an overlay at runtime |
+      | `tools` | Only verified tool services plus their capability closure | Explicit opt-in |
+
+      Omit a plan whose execution path has no evidence. Add project-specific plans only for a distinct,
+      documented workflow and use project vocabulary. If several plans exist but no safe local default can
+      be proven, omit `default_plan` so bare `dva up` fails and forces a name.
+
+      ### Command policy
+
+      | Level | Rule |
+      |-------|------|
+      | Required | Discover names with `dva ls`, `dva show`, or `dva manifest -f json`; run lifecycle as `dva up <plan>`, `dva stop <plan>`, and `dva down <plan>` |
+      | Recommended | Use `dva up local-infra` for dependencies only and `dva up local-dev` for the verified native workflow |
+      | Discouraged | Bare `dva up`; it hides which `default_plan` was selected and is suitable only for a documented human shortcut |
+      | Forbidden | `dva up *`, guessed plan names, raw Compose/Kubernetes lifecycle duplicates, and making `full-stack` the generated default |
+
+      ## Canonical Hybrid Example
+
+      ```yaml
+      stack:
+        core-compose:
+          default_runner: compose
+          runners:
+            compose:
+              files: [compose.yml]
+              tags: [infra]
+              services:
+                postgres: { tags: [infra, data] }
+                redis: { tags: [infra, data] }
+                api: { tags: [api] }
+        api:
+          default_runner: native
+          runners:
+            native: { run: make run }
+
+      plans:
+        local-infra:
+          entries:
+            - name: core-compose
+              runner: compose
+              services: [postgres, redis]
+        local-dev:
+          entries:
+            - name: core-compose
+              runner: compose
+              services: [postgres, redis]
+            - name: api
+              runner: native
+              depends_on: [core-compose]
+        full-stack:
+          entries:
+            - name: core-compose
+              runner: compose
+              services: [postgres, redis, api]
+      default_plan: local-infra
+      ```
+
+      The service lists contain concrete Compose service names, not tags. Native entries are separate
+      stack entries. Replace every example value with names and commands verified in the target project.
+
+      ## Environment and Site Presets
+
+      | Environment | Meaning |
+      |-------------|---------|
+      | `dev` | Local development variables |
+      | `test` | Test-specific database/logging variables |
+      | `stg` | Staging-shaped variables used for local validation |
+      | `prd` | Production-shaped variables used for local validation |
+
+      Use `environments` for variable sets and `sites` for host/location differences. DVA is a local
+      development and maintenance tool: a remote site does not grant deployment or incident authority.
+      Match existing project vocabulary such as `.env.staging` when evidence is stronger than this preset.
+      <!-- AUTOGEN:dva_flow_naming:end -->
 
       ## DVA CLI 정보
       - DVA 버전: {{check_dva.dva_version}}

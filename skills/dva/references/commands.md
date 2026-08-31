@@ -217,13 +217,15 @@ dva config validate       # schema + compose project name check
 dva config validate --fix # auto-fix compose project name mismatch
 ```
 
-### `am run dva-improve` / `dva config docs`
+### `am run dva-discover` / `am run dva-improve` / `dva config docs`
 
-AI-based configuration improvement.
+Analyze a project before changing configuration, then improve an existing configuration.
+Full rewrites are explicit opt-in.
 
 ```bash
+am run dva-discover            # analyze project and discover configuration candidates
 am run dva-improve             # run AI-based configuration improvement
-am run dva-improve param.mode=rewrite # run AI improvement (rewrite from scratch)
+am run dva-improve -p mode=rewrite # run AI improvement (rewrite from scratch)
 dva config docs                # generate/update AI agent config docs (CLAUDE.md/AGENTS.md)
 ```
 
