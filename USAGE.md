@@ -9,13 +9,17 @@
 재현 가능한 기본 설치는 공개 버전을 고정한 Go module 설치입니다.
 
 ```bash
+set -euo pipefail
 go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.46
-dva version
-dva skill install
+go_bin="$(go env GOBIN)"
+test -n "$go_bin" || go_bin="$(go env GOPATH)/bin"
+"$go_bin/dva" version
+"$go_bin/dva" skill install
 ```
 
 `@latest`는 이후 릴리스를 자동 추적해야 할 때만 사용합니다. 특정 작업공간이나 자동화에서는
-검증한 버전을 고정해야 같은 바이너리를 다시 설치할 수 있습니다.
+검증한 버전을 고정해야 같은 바이너리를 다시 설치할 수 있습니다. 이후 `dva`를 직접
+호출하려면 위에서 확인한 `go_bin`을 `PATH`에 추가합니다.
 
 Go toolchain 없이 설치하려면 [v0.1.46 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.46)에서
 현재 플랫폼의 archive와 `checksums.txt`를 내려받습니다.
@@ -32,12 +36,14 @@ Go toolchain 없이 설치하려면 [v0.1.46 Release](https://github.com/Scripto
 macOS Apple Silicon 예시:
 
 ```bash
+set -euo pipefail
 version=v0.1.46
 asset=dva_darwin_arm64.tar.gz
 base=https://github.com/ScriptonBasestar/dva/releases/download/$version
 curl -fLO "$base/$asset"
 curl -fLO "$base/checksums.txt"
-grep "  $asset$" checksums.txt | shasum -a 256 -c -
+awk -v asset="$asset" '$2 == asset { found++; line=$0 } END { if (found != 1) exit 1; print line }' \
+  checksums.txt | shasum -a 256 -c -
 tar -xzf "$asset"
 mkdir -p "$HOME/.local/bin"
 install -m 0755 dva "$HOME/.local/bin/dva"

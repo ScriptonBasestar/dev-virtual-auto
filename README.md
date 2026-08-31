@@ -17,6 +17,9 @@ make build
 ./bin/dva version
 ```
 
+Go가 설치한 바이너리는 `GOBIN` 또는 `$(go env GOPATH)/bin`에 생성됩니다. 해당 디렉터리가
+`PATH`에 없으면 추가한 뒤 `dva`를 실행하세요.
+
 Go toolchain 없이 설치하려면 [v0.1.46 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.46)에서
 OS/architecture archive와 `checksums.txt`를 함께 내려받으세요. 자산 선택과 SHA-256 검증 절차는
 [USAGE.md의 설치](USAGE.md#설치)를 따릅니다. 최신판을 자동 추적하려는 경우에만 `@latest`를
