@@ -409,7 +409,7 @@ release-postflight:
 
 ## release-clean: Remove only the local release workflow outputs before postflight verification
 release-clean:
-	rm -rf -- dist bin tmp
+	@go run ./tools/releaseworkflow clean
 
 ## help: Show this help
 help:

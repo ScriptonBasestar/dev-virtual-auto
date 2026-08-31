@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,11 +79,25 @@ case "$*" in
 
 func TestPreflightNeverLeaksCredentialValue(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "secret-value-must-not-escape")
-	dir := fakeCommands(t, "exit 1", "echo 'credential rejected' >&2; exit 1", "exit 9")
-	notes, digest := fixtureNotes(t, dir)
-	err := preflight([]string{"--tag", "v1.2.3", "--commit", testCommit, "--release-notes", notes, "--release-notes-sha256", digest, "--mise-file", filepath.Join(dir, ".mise.toml")})
+	fakeCommands(t, "exit 9", "echo \"credential rejected: $GH_TOKEN\" >&2; exit 1", "exit 9")
+	_, err := runGH("api", "user")
 	if err == nil || strings.Contains(err.Error(), "secret-value-must-not-escape") {
 		t.Fatalf("credential leaked in error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("credential was not visibly redacted: %v", err)
+	}
+}
+
+func TestReleaseAbsentNeverLeaksCredentialValue(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "secret-value-must-not-escape")
+	fakeCommands(t, "exit 9", "echo \"credential rejected: $GH_TOKEN\" >&2; exit 1", "exit 9")
+	err := releaseAbsent(defaultRepo, "v1.2.3")
+	if err == nil || strings.Contains(err.Error(), "secret-value-must-not-escape") {
+		t.Fatalf("credential leaked in error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("credential was not visibly redacted: %v", err)
 	}
 }
 
@@ -116,7 +131,17 @@ esac`, `echo 'goreleaser version 2.12.7'`)
 
 func TestPostflightRequiresFinalExactSevenAssetsAndCleanup(t *testing.T) {
 	assetJSON := `{"tagName":"v1.2.3","targetCommitish":"` + testCommit + `","isDraft":false,"isPrerelease":false,"assets":[{"name":"checksums.txt","state":"uploaded","size":1},{"name":"dva_linux_amd64.tar.gz","state":"uploaded","size":1},{"name":"dva_linux_arm64.tar.gz","state":"uploaded","size":1},{"name":"dva_darwin_amd64.tar.gz","state":"uploaded","size":1},{"name":"dva_darwin_arm64.tar.gz","state":"uploaded","size":1},{"name":"dva_windows_amd64.zip","state":"uploaded","size":1},{"name":"dva_windows_arm64.zip","state":"uploaded","size":1}]}`
-	dir := fakeCommands(t, `case "$*" in "ls-remote --tags origin refs/tags/v1.2.3 refs/tags/v1.2.3^{}") echo 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/tags/v1.2.3';; *) exit 9;; esac`, "case \"$*\" in \"release view v1.2.3 --repo ScriptonBasestar/dva --json tagName,targetCommitish,isDraft,isPrerelease,assets\") echo '"+assetJSON+"';; *) exit 9;; esac", "exit 9")
+	dir := fakeCommands(t, `case "$*" in "ls-remote --tags origin refs/tags/v1.2.3 refs/tags/v1.2.3^{}") echo 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa refs/tags/v1.2.3';; *) exit 9;; esac`, `
+case "$*" in
+  "release view v1.2.3 --repo ScriptonBasestar/dva --json tagName,targetCommitish,isDraft,isPrerelease,assets") echo '`+assetJSON+`' ;;
+  "release download v1.2.3"*)
+    while [ "$#" -gt 0 ]; do [ "$1" = --dir ] && { shift; out=$1; }; shift; done
+    cp "$RELEASE_ASSET_FIXTURE"/* "$out" ;;
+  *) exit 9 ;;
+esac`, "exit 9")
+	fixture := filepath.Join(dir, "release-assets")
+	writeReleaseAssets(t, fixture)
+	t.Setenv("RELEASE_ASSET_FIXTURE", fixture)
 	if err := postflight([]string{"--tag", "v1.2.3", "--commit", testCommit, "--cleanup-path", filepath.Join(dir, "gone")}); err != nil {
 		t.Fatalf("postflight: %v", err)
 	}
@@ -125,6 +150,81 @@ func TestPostflightRequiresFinalExactSevenAssetsAndCleanup(t *testing.T) {
 	}
 	if err := postflight([]string{"--tag", "v1.2.3", "--commit", testCommit, "--cleanup-path", filepath.Join(dir, "leftover")}); err == nil || !strings.Contains(err.Error(), "cleanup path") {
 		t.Fatalf("cleanup error = %v", err)
+	}
+}
+
+func TestDownloadedChecksumsRejectCorruptAsset(t *testing.T) {
+	dir := t.TempDir()
+	writeReleaseAssets(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "dva_linux_amd64.tar.gz"), []byte("corrupt"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := verifyDownloadedChecksums(dir); err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("checksum error = %v", err)
+	}
+}
+
+func TestCleanRequiresRepositoryRootAndRefusesSymlink(t *testing.T) {
+	dir := fakeCommands(t, `
+case "$*" in
+  "rev-parse --show-toplevel") printf '%s\n' "$CLEAN_REPOSITORY_ROOT" ;;
+  *) exit 9 ;;
+esac`, "exit 9", "exit 9")
+	repo := filepath.Join(dir, "repo")
+	if err := os.Mkdir(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLEAN_REPOSITORY_ROOT", repo)
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(repo); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(old) })
+
+	for _, name := range []string{"dist", "bin", "tmp"} {
+		if err := os.Mkdir(filepath.Join(repo, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Remove(filepath.Join(repo, "bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(repo, "outside"), filepath.Join(repo, "bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := clean(nil); err == nil || !strings.Contains(err.Error(), "expected a real directory") {
+		t.Fatalf("symlink error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "dist")); err != nil {
+		t.Fatalf("preflight deleted dist before refusing bin: %v", err)
+	}
+
+	otherRoot := filepath.Join(dir, "another-root")
+	if err := os.Mkdir(otherRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CLEAN_REPOSITORY_ROOT", otherRoot)
+	if err := clean(nil); err == nil || !strings.Contains(err.Error(), "outside repository root") {
+		t.Fatalf("root error = %v", err)
+	}
+
+	t.Setenv("CLEAN_REPOSITORY_ROOT", repo)
+	if err := os.Remove(filepath.Join(repo, "bin")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(repo, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := clean(nil); err != nil {
+		t.Fatalf("clean: %v", err)
+	}
+	for _, name := range []string{"dist", "bin", "tmp"} {
+		if _, err := os.Lstat(filepath.Join(repo, name)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cleanup path %s still exists: %v", name, err)
+		}
 	}
 }
 
@@ -159,6 +259,28 @@ func fixtureNotes(t *testing.T, dir string) (string, string) {
 	}
 	sum := sha256.Sum256(data)
 	return path, fmtHex(sum[:])
+}
+
+func writeReleaseAssets(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	var checksums strings.Builder
+	for name := range assets {
+		if name == "checksums.txt" {
+			continue
+		}
+		data := []byte("release asset: " + name + "\n")
+		if err := os.WriteFile(filepath.Join(dir, name), data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		sum := sha256.Sum256(data)
+		checksums.WriteString(fmtHex(sum[:]) + "  " + name + "\n")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "checksums.txt"), []byte(checksums.String()), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 func fmtHex(b []byte) string {
 	const hex = "0123456789abcdef"

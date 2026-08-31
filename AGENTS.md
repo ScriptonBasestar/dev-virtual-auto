@@ -160,6 +160,8 @@ make test       # go test -race -cover ./...
 make doc-check  # 3 gates: markdown links/size, CI labels, flow decision paths
 ```
 
+공개 릴리스 운영 순서는 [수동 공개 릴리스 런북](docs/52-manual-release-runbook.md)을 따릅니다.
+
 ## Documentation gate (TASK-090 option B)
 
 Limits (LLM-friendly linear reads):

@@ -31,7 +31,7 @@ var (
 
 func main() {
 	if len(os.Args) < 2 {
-		fail(errors.New("usage: releaseworkflow <preflight|postflight> [flags]"))
+		fail(errors.New("usage: releaseworkflow <preflight|postflight|clean> [flags]"))
 	}
 	var err error
 	switch os.Args[1] {
@@ -39,8 +39,10 @@ func main() {
 		err = preflight(os.Args[2:])
 	case "postflight":
 		err = postflight(os.Args[2:])
+	case "clean":
+		err = clean(os.Args[2:])
 	default:
-		err = fmt.Errorf("unknown command %q (want preflight or postflight)", os.Args[1])
+		err = fmt.Errorf("unknown command %q (want preflight, postflight, or clean)", os.Args[1])
 	}
 	fail(err)
 }
@@ -176,9 +178,16 @@ func runGH(args ...string) ([]byte, error) {
 		return out, err
 	}
 	if code != 0 {
-		return out, fmt.Errorf("gh %s: exit status %d: %s", strings.Join(args, " "), code, strings.TrimSpace(string(out)))
+		return out, fmt.Errorf("gh %s: exit status %d: %s", strings.Join(args, " "), code, redactCredential(strings.TrimSpace(string(out))))
 	}
 	return out, nil
+}
+
+func redactCredential(s string) string {
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		return strings.ReplaceAll(s, token, "[REDACTED]")
+	}
+	return s
 }
 
 func runGHStatus(args ...string) ([]byte, int, error) {
@@ -341,7 +350,7 @@ func releaseAbsent(repo, tag string) error {
 	if code != 0 && regexp.MustCompile(`(?m)^HTTP/\S+ 404(?: |\r?$)`).Match(out) {
 		return nil
 	}
-	return fmt.Errorf("cannot determine whether GitHub release %s exists (gh api exit %d: %s)", tag, code, strings.TrimSpace(string(out)))
+	return fmt.Errorf("cannot determine whether GitHub release %s exists (gh api exit %d: %s)", tag, code, redactCredential(strings.TrimSpace(string(out))))
 }
 
 func capabilityProbe(repo, tag, commit string) error {
@@ -404,6 +413,120 @@ func finalRelease(repo, tag, commit string) error {
 		if !got[a] {
 			return fmt.Errorf("release assets missing %s", a)
 		}
+	}
+	return verifyReleaseDownloads(repo, tag)
+}
+
+func verifyReleaseDownloads(repo, tag string) error {
+	dir, err := os.MkdirTemp("", "dva-release-postflight-")
+	if err != nil {
+		return fmt.Errorf("create release verification directory: %w", err)
+	}
+	defer os.RemoveAll(dir)
+
+	names := sorted(assets)
+	args := []string{"release", "download", tag, "--repo", repo, "--dir", dir}
+	for _, name := range names {
+		args = append(args, "--pattern", name)
+	}
+	if _, err := runGH(args...); err != nil {
+		return fmt.Errorf("download release assets for checksum verification: %w", err)
+	}
+	return verifyDownloadedChecksums(dir)
+}
+
+func verifyDownloadedChecksums(dir string) error {
+	b, err := os.ReadFile(filepath.Join(dir, "checksums.txt"))
+	if err != nil {
+		return fmt.Errorf("read downloaded checksums.txt: %w", err)
+	}
+	want := make(map[string]string, len(assets)-1)
+	for lineNo, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || !regexp.MustCompile(`^[0-9a-f]{64}$`).MatchString(fields[0]) {
+			return fmt.Errorf("checksums.txt line %d is not '<sha256> <asset>'", lineNo+1)
+		}
+		name := strings.TrimPrefix(fields[1], "*")
+		if name == "checksums.txt" || !assets[name] {
+			return fmt.Errorf("checksums.txt names unexpected asset %q", name)
+		}
+		if _, exists := want[name]; exists {
+			return fmt.Errorf("checksums.txt repeats asset %q", name)
+		}
+		want[name] = fields[0]
+	}
+	if len(want) != len(assets)-1 {
+		return fmt.Errorf("checksums.txt covers %d archives, want %d", len(want), len(assets)-1)
+	}
+	for name, digest := range want {
+		b, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return fmt.Errorf("read downloaded asset %s: %w", name, err)
+		}
+		got := sha256.Sum256(b)
+		if hex.EncodeToString(got[:]) != digest {
+			return fmt.Errorf("downloaded asset %s SHA-256 does not match checksums.txt", name)
+		}
+	}
+	return nil
+}
+
+func clean(args []string) error {
+	f := flag.NewFlagSet("clean", flag.ContinueOnError)
+	f.SetOutput(io.Discard)
+	if err := f.Parse(args); err != nil {
+		return err
+	}
+	if f.NArg() != 0 {
+		return errors.New("clean accepts no arguments")
+	}
+	if err := checkRepositoryRoot(); err != nil {
+		return err
+	}
+	if err := checkOrigin(); err != nil {
+		return err
+	}
+	paths := []string{"dist", "bin", "tmp"}
+	for _, name := range paths {
+		info, err := os.Lstat(name)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("inspect cleanup path %s: %w", name, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("refusing cleanup path %s: expected a real directory", name)
+		}
+	}
+	for _, name := range paths {
+		if err := os.RemoveAll(name); err != nil {
+			return fmt.Errorf("remove cleanup path %s: %w", name, err)
+		}
+	}
+	fmt.Println("releaseworkflow: removed repository-local dist, bin, and tmp outputs")
+	return nil
+}
+
+func checkRepositoryRoot() error {
+	out, err := run("git", "rev-parse", "--show-toplevel")
+	if err != nil {
+		return fmt.Errorf("resolve repository root: %w", err)
+	}
+	root, err := filepath.EvalSymlinks(strings.TrimSpace(string(out)))
+	if err != nil {
+		return fmt.Errorf("resolve repository root path: %w", err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("resolve current directory: %w", err)
+	}
+	cwd, err = filepath.EvalSymlinks(cwd)
+	if err != nil {
+		return fmt.Errorf("resolve current directory path: %w", err)
+	}
+	if cwd != root {
+		return fmt.Errorf("refusing cleanup outside repository root (cwd=%s root=%s)", cwd, root)
 	}
 	return nil
 }

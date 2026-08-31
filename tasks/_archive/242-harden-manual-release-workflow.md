@@ -10,7 +10,7 @@ scope: "CHANGELOG release boundary, GoReleaser policy comments, repeatable manua
 status: done
 started-at: 2026-08-31T14:55:16+09:00
 completed-at: 2026-08-31T15:17:55+09:00
-completion-summary: "Recorded v0.1.46, codified the current manual publication policy, and added fail-closed preflight, cleanup, and postflight commands with tests."
+completion-summary: "Recorded v0.1.46, codified the current manual publication policy, and added fail-closed preflight, guarded cleanup, downloaded-asset checksum verification, and postflight commands with tests."
 verification-status: verified
 verification-evidence:
   - kind: automated
@@ -21,6 +21,7 @@ quality-reviewed-at: 2026-08-31T15:17:55+09:00
 quality-review-evidence:
   - "Independent security review verified fixed GitHub host, token precedence, origin identity, exact tag/version/commit checks, strict remote absence handling, and non-mutating preflight behavior."
   - "Independent operational review verified the publish, release-clean, and postflight sequence and command-scoped Keychain credential boundary."
+  - "Follow-up review replaced raw recursive cleanup with a repository-root-guarded command, redacted credential values from GitHub errors, and required downloaded archives to match checksums.txt."
 archived-at: 2026-08-31T15:17:55+09:00
 verified-at: 2026-08-31T15:17:55+09:00
 ---
