@@ -121,6 +121,17 @@ organization approval), then repeat the absence probes and publish from a newly 
 worktree at this exact tag. This failed authorization does not authorize moving, recreating, or
 pushing the tag separately.
 
+A second attempt on 2026-08-31 followed an explicit human statement that the DVA repository
+Contents read/write setting was complete. The active credential was still the shell's
+`GITHUB_TOKEN`, byte-identical to the login Keychain item whose service is `mise-github-token`;
+`gh api user` identified `archmagece`, and the repository metadata reported `permissions.push=true`.
+The retry again built all six archives and reached release creation, where GitHub returned the same
+`403 Resource not accessible by personal access token`. Immediate probes again found no remote tag
+and no release, and the generated `dist/` plus detached worktree were removed. The push permission
+probe is therefore not accepted as evidence of Release API authorization. Before another retry,
+repair or replace this specific Keychain credential, reload `GITHUB_TOKEN`, and confirm the new
+environment value is the intended token.
+
 ## Post-publication dogfood policy
 
 After publication, extract the host binary from the published archive and take `DVA_SHA256` from the
