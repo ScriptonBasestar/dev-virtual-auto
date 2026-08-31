@@ -132,6 +132,17 @@ probe is therefore not accepted as evidence of Release API authorization. Before
 repair or replace this specific Keychain credential, reload `GITHUB_TOKEN`, and confirm the new
 environment value is the intended token.
 
+A third attempt used the newly created, distinct Keychain credential whose service is
+`github-token-scriptonbasestar-dva-release`, injected directly as `GITHUB_TOKEN` for both the
+preflight and GoReleaser process. It authenticated as `archmagece`, could read
+`ScriptonBasestar/dva`, and still received the same `403` at release creation after building all six
+archives. `ScriptonBasestar` is an organization, so another retry requires evidence that this
+fine-grained token selects `ScriptonBasestar` as its resource owner (or otherwise has approved
+access to that organization's repositories), selects the `dva` repository, grants repository
+Contents read/write, and is approved by the organization if approval is required.
+Post-failure probes again found no remote tag or release; generated artifacts and the detached
+worktree were removed.
+
 ## Post-publication dogfood policy
 
 After publication, extract the host binary from the published archive and take `DVA_SHA256` from the
