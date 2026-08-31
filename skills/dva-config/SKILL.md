@@ -55,9 +55,9 @@ configuration authoring, migration, and defect attribution.
 1. Read target and active module guidance.
 2. Inspect scoped Git status; protect secrets, generated files, archives, and unrelated user
    changes.
-3. At a devbox root, inspect `.gz-git.yaml` when present and inventory every active child repository
-   before selecting scope. Inventory is read-only evidence: do not clone or sync children unless the
-   user separately authorizes it.
+3. At a devbox root, inspect `.gz-git.yaml` when present and inventory every child listed in its
+   workspace inventory before selecting scope. Inventory is read-only evidence: do not clone or
+   sync children unless the user separately authorizes it.
 4. Capture the installed executable path and `dva version`. Treat that executable as the schema
    authority; do not rely on remembered fields or assume a source checkout produced it.
 
@@ -96,8 +96,10 @@ Never infer rewrite merely because a newer model exists.
 - Keep shared lifecycle at the devbox root; keep module-native commands in the owning active
   subproject.
 - For a devbox with `.gz-git.yaml`, a request to apply DVA to the devbox includes the root and every
-  locally present active child in that inventory by default. Evaluate and change each repository in
-  its own ownership and Git context; do not treat the parent checkout as owning child files.
+  locally present repository listed in its workspace inventory by default. Evaluate and change each
+  repository in its own ownership and Git context; do not treat the parent checkout as owning child
+  files. Exclude an inventory entry only with explicit evidence from the manifest, repository
+  guidance, or its generated/vendor/archive classification; never infer inactivity from its name.
 - Keep child configuration scope separate from root import scope. A request to omit child imports
   from the root `dva.yml` does not omit creating or improving the child `dva.yml` files. Only an
   explicit instruction not to modify child repositories narrows the work to root-only; report that

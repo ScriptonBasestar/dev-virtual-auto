@@ -18,12 +18,13 @@ process-health disputes.
 
 ## Decide Configuration Scope
 
-- At a devbox root, read `.gz-git.yaml` when present before deciding scope. Treat its
-  active workspace entries as the authoritative child-repository inventory. Include
-  every locally present active child in a devbox-wide DVA application by default, while
-  excluding archived, generated, vendor, and guidance-prohibited entries. Do not clone
-  or sync a missing child merely to complete discovery; report it as unavailable unless
-  the user separately authorizes that operation.
+- At a devbox root, read `.gz-git.yaml` when present before deciding scope. Treat every
+  entry in its workspace inventory as a child-repository candidate. Include every locally
+  present candidate in a devbox-wide DVA application by default. Exclude one only when
+  the manifest, repository guidance, or path classification explicitly identifies it as
+  disabled, archived, generated, vendor, or prohibited; never infer inactivity from its
+  name. Do not clone or sync a missing child merely to complete discovery; report it as
+  unavailable unless the user separately authorizes that operation.
 - Keep two decisions separate: whether a child owns a useful `dva.yml`, and whether the
   root imports anything from that child. “Do not import child `dva.yml` from the root”
   controls only `subprojects.*.import`; it does not remove the child repository from the
@@ -31,8 +32,9 @@ process-health disputes.
   explicitly forbids child-repository changes, then list the deferred inventory entries
   and describe the result as partial devbox coverage.
 - Inspect and modify each child in its own repository context. Follow that repository's
-  guidance and Git workflow, and preserve `.gz-git.yaml` ownership of clone, sync, and
-  status operations; a parent DVA change must not absorb those responsibilities.
+  guidance and Git workflow, including a scoped `git status`. Preserve `.gz-git.yaml`
+  ownership of workspace-wide clone, sync, and aggregate status operations; a parent DVA
+  change must not absorb those responsibilities.
 - Decide whether DVA is useful independently for the workspace root and every
   active subproject. Parent or sibling usage alone does not justify a child
   `dva.yml`.
@@ -44,6 +46,14 @@ process-health disputes.
 - When Compose changes, carry forward renamed, added, and removed files; service
   names; profiles; port variables; and environment prerequisites before editing
   DVA references.
+
+Use these scope outcomes as a regression check:
+
+| Evidence | Required scope decision |
+|---|---|
+| Local inventory child, root imports omitted | Author and validate the useful child config independently. |
+| Inventory child missing locally | Report unavailable; do not clone or sync without authority. |
+| Explicit prohibition on child-repository edits | Change root only; report partial coverage and deferred children. |
 
 ## Attribute Each Finding
 
