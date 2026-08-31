@@ -18,11 +18,12 @@ verification-evidence:
     command-or-step: "remote tag/release/asset probes; published checksum verification; make dogfood-skill-install; make doc-check; make commit-check"
     result: "remote identity and seven-asset set matched; downloaded archive and binary identity passed; isolated skill dogfood passed"
 quality-review: pass
-quality-reviewed-at: 2026-08-31T14:53:23+09:00
+quality-reviewed-at: 2026-08-31T14:58:40+09:00
 quality-review-evidence:
   - "Independent final review confirmed the remote tag, final release state, seven-asset set, checksums, archive-to-binary evidence, and absence of credential values."
   - "Review found and the implementation corrected the missing ~/.local/bin creation step before approving the completion archive."
   - "Follow-up review made checksum failure fail closed and documented the Go installation directory instead of assuming it is already on PATH."
+  - "The tagged module probe was independently repeated in an isolated GOBIN and reproduced version 0.1.46 with the expected non-GoReleaser metadata."
 archived-at: 2026-08-31T13:56:46+09:00
 verified-at: 2026-08-31T13:56:46+09:00
 ---
