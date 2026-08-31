@@ -6,16 +6,21 @@
 
 ## Install
 
-DVA는 Go toolchain에서 직접 설치하거나 로컬 빌드로 사용합니다.
+DVA는 Go toolchain에서 버전을 고정해 설치하는 방법을 권장합니다.
 
 ```bash
-# From source
-go install github.com/ScriptonBasestar/dva/cmd/dva@latest
+# Reproducible module install
+go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.46
 
 # Or build locally
 make build
 ./bin/dva version
 ```
+
+Go toolchain 없이 설치하려면 [v0.1.46 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.46)에서
+OS/architecture archive와 `checksums.txt`를 함께 내려받으세요. 자산 선택과 SHA-256 검증 절차는
+[USAGE.md의 설치](USAGE.md#설치)를 따릅니다. 최신판을 자동 추적하려는 경우에만 `@latest`를
+사용하세요.
 
 `make install`은 DVA 바이너리만 설치합니다. 내장된 `dva`, `dva-config` 스킬은
 AI 없이 별도 설치합니다:

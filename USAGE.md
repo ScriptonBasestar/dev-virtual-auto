@@ -4,6 +4,52 @@
 > 현재 권장 모델은 `stack`을 선언 저장소로 두고, 실제 실행은 `plans`의 이름을 대상으로 수행하는 구조입니다.
 > 빠른 시작은 [README.md](README.md), 설계 배경은 [docs/40-declarative-stack-and-plans.md](docs/40-declarative-stack-and-plans.md) 참조.
 
+## 설치
+
+재현 가능한 기본 설치는 공개 버전을 고정한 Go module 설치입니다.
+
+```bash
+go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.46
+dva version
+dva skill install
+```
+
+`@latest`는 이후 릴리스를 자동 추적해야 할 때만 사용합니다. 특정 작업공간이나 자동화에서는
+검증한 버전을 고정해야 같은 바이너리를 다시 설치할 수 있습니다.
+
+Go toolchain 없이 설치하려면 [v0.1.46 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.46)에서
+현재 플랫폼의 archive와 `checksums.txt`를 내려받습니다.
+
+| OS | Architecture | Asset |
+|----|--------------|-------|
+| macOS | Intel | `dva_darwin_amd64.tar.gz` |
+| macOS | Apple Silicon | `dva_darwin_arm64.tar.gz` |
+| Linux | x86-64 | `dva_linux_amd64.tar.gz` |
+| Linux | ARM64 | `dva_linux_arm64.tar.gz` |
+| Windows | x86-64 | `dva_windows_amd64.zip` |
+| Windows | ARM64 | `dva_windows_arm64.zip` |
+
+macOS Apple Silicon 예시:
+
+```bash
+version=v0.1.46
+asset=dva_darwin_arm64.tar.gz
+base=https://github.com/ScriptonBasestar/dva/releases/download/$version
+curl -fLO "$base/$asset"
+curl -fLO "$base/checksums.txt"
+grep "  $asset$" checksums.txt | shasum -a 256 -c -
+tar -xzf "$asset"
+mkdir -p "$HOME/.local/bin"
+install -m 0755 dva "$HOME/.local/bin/dva"
+"$HOME/.local/bin/dva" version
+"$HOME/.local/bin/dva" skill install
+```
+
+Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를 사용합니다. Windows에서는
+`Get-FileHash -Algorithm SHA256` 결과를 `checksums.txt`의 해당 자산 값과 비교한 뒤 ZIP의
+`dva.exe`를 `PATH`에 포함된 디렉터리로 옮깁니다. 체크섬이 다르면 바이너리를 실행하지 말고
+파일을 삭제한 뒤 Release 페이지에서 다시 내려받으세요.
+
 ## Global Flags
 
 | Flag | Description |

@@ -7,11 +7,25 @@ effort: S
 created-at: 2026-08-29T23:05:09+09:00
 source: "approved recommendation after post-wave doctor and bare lifecycle contract corrections"
 scope: "v0.1.46 version identity, repository and release gates, local artifacts, eventual GitHub publication, published-binary dogfood, and post-publication installation documentation"
-status: blocked
+status: done
 started-at: 2026-08-29T23:05:09+09:00
 blocked-at: 2026-08-29T23:05:09+09:00
 blocked-on: "Public publication requires a human-confirmed fine-grained GITHUB_TOKEN with Contents read/write; local release preparation may proceed without it."
 supersedes: TASK-238
+completed-at: 2026-08-31T13:56:46+09:00
+completion-summary: "Published the immutable v0.1.46 tag and seven verified assets, dogfooded the downloaded host binary across all six skill runtimes, and added pinned/checksum-verifying installation documentation."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "remote tag/release/asset probes; published checksum verification; make dogfood-skill-install; make doc-check; make commit-check"
+    result: "remote identity and seven-asset set matched; downloaded archive and binary identity passed; isolated skill dogfood passed"
+quality-review: pass
+quality-reviewed-at: 2026-08-31T13:56:46+09:00
+quality-review-evidence:
+  - "Independent final review confirmed the remote tag, final release state, seven-asset set, checksums, archive-to-binary evidence, and absence of credential values."
+  - "Review found and the implementation corrected the missing ~/.local/bin creation step before approving the completion archive."
+archived-at: 2026-08-31T13:56:46+09:00
+verified-at: 2026-08-31T13:56:46+09:00
 ---
 
 # Task 241: prepare and publish the first public v0.1.46 release
@@ -50,12 +64,12 @@ resumed without moving the tag.
 - [x] Validate the frozen release identity and its integration into the current local and remote source tips | verify: `release_commit=55d9895afa7e57a84b7e0797a657eddd83fc169c && test "$(git rev-list -n1 v0.1.46)" = "$release_commit" && test "$(git cat-file -t v0.1.46)" = commit && git merge-base --is-ancestor "$release_commit" master && git merge-base --is-ancestor "$release_commit" origin/master`
 - [x] Validate real release-mode artifacts without publishing, then remove the local artifacts | verify: human — the immutable release commit, build metadata, six archive checksums, and cleanup probes are recorded in Local preparation evidence below
 - [x] Prepare reviewed first-public-release notes independently of automatic historical-tag changelog selection | verify: `test "$(shasum -a 256 release-notes/v0.1.46.md | cut -d ' ' -f 1)" = "54ddd64d75fce021672b61dd871b470ef1b717ef03025fc0c5c9ee5b51708ce4"`
-- [ ] Confirm the active fine-grained token grants `ScriptonBasestar/dva` Contents read/write and any required organization approval | verify: human — the token holder must confirm repository scope and permission immediately before publication
-- [ ] Confirm the authenticated session and absence of conflicting remote state immediately before publication | verify: `test -n "$GITHUB_TOKEN" && gh auth status && test -z "$(git ls-remote --tags origin refs/tags/v0.1.46)" && gh release list --repo ScriptonBasestar/dva --limit 100 --json tagName | jq -e 'all(.[]; .tagName != "v0.1.46")'`
-- [ ] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — external publication requires explicit authorization and post-write evidence
-- [ ] Run the checksum-pinned published host binary through the black-box skill installer dogfood against the clean canonical flow repository | verify: `test -n "$DVA_BIN" && test -n "$DVA_SHA256" && test -n "$FLOW_ROOT" && make dogfood-skill-install DVA_BIN="$DVA_BIN" DVA_SHA256="$DVA_SHA256" FLOW_ROOT="$FLOW_ROOT"`
-- [ ] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: human — documentation must not advertise assets before publication
-- [ ] Record the release URL, published asset checksums, tag/source push state, and final remote probes; remove local `dist/` and `bin/` before archiving | verify: `test ! -e dist && test ! -e bin`
+- [x] Confirm the active fine-grained token grants `ScriptonBasestar/dva` Contents read/write and any required organization approval | verify: human — the token holder confirmed scope and the non-persisting release-notes API probe requiring Contents write succeeded
+- [x] Confirm the authenticated session and absence of conflicting remote state immediately before publication | verify: human — scoped-token authentication, remote tag absence, and release absence were repeated immediately before the successful attempt
+- [x] Publish through pinned GoReleaser and prove the remote tag, final release, six archives, and checksum asset all match the release identity | verify: human — the final publication evidence below records the remote identity and complete asset set
+- [x] Run the checksum-pinned published host binary through the black-box skill installer dogfood against the clean canonical flow repository | verify: human — the published archive was checksum-verified before extracting and hashing the executable passed to `make dogfood-skill-install`
+- [x] Add pinned-module and checksum-verifying binary installation documentation only after public assets exist | verify: `/usr/bin/grep -F 'github.com/ScriptonBasestar/dva/cmd/dva@v0.1.46' README.md USAGE.md && /usr/bin/grep -F 'checksums.txt' README.md USAGE.md`
+- [x] Record the release URL, published asset checksums, tag/source push state, and final remote probes; remove local `dist/` and `bin/` before archiving | verify: `test ! -e dist && test ! -e bin`
 
 ## Local preparation evidence
 
@@ -145,12 +159,40 @@ worktree were removed.
 
 ## Post-publication dogfood policy
 
-After publication, extract the host binary from the published archive and take `DVA_SHA256` from the
-published `checksums.txt`; do not reuse the earlier local artifact or checksum. Resolve `FLOW_ROOT`
-through the portfolio catalog to the clean canonical `flow-knowchain-devbox` checkout. The existing
-`dogfood-skill-install` target executes an immutable copy of that binary, proves the real flow tree
-and runtime paths are unchanged by project-scope dry-run, and exercises all six runtime installers,
-shared claims, uninstall, and takeover in isolated HOME/XDG roots.
+The published `checksums.txt` hashes archives, while `dogfood-skill-install` requires the extracted
+executable's SHA-256. The verified chain is therefore: verify the downloaded host archive against
+the published checksum, extract it, independently record the binary SHA-256, and pass that value as
+`DVA_SHA256`. Resolve `FLOW_ROOT` through the portfolio catalog to the clean canonical
+`flow-knowchain-devbox` checkout. The target executes an immutable copy of that binary, proves the
+real flow tree and runtime paths are unchanged by project-scope dry-run, and exercises all six
+runtime installers, shared claims, uninstall, and takeover in isolated HOME/XDG roots.
+
+## Final publication evidence
+
+GoReleaser `2.12.7` published the immutable `v0.1.46` tag on 2026-08-31. The final release is neither
+draft nor prerelease and is available at
+<https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.46>. The remote tag and release
+`target_commitish` both equal `55d9895afa7e57a84b7e0797a657eddd83fc169c`.
+
+The published `checksums.txt` records exactly six archives:
+
+```text
+7e2a9498e0a1e738f1fd038e23aa8d430bcb1fb582a6d3c291519b5209fa0afe  dva_darwin_amd64.tar.gz
+e98967433617fea36d0b38e6ebe067cd32c1ac14cbd79f7e0a7a7a9b8165c740  dva_darwin_arm64.tar.gz
+e56a34663fa50fd44d9152d54eaba08c2f68448fe83851691e3e65446a19f38c  dva_linux_amd64.tar.gz
+999af00733860aa281ff653674c064d64acd8b126405feb1009e2ed55cce4638  dva_linux_arm64.tar.gz
+9b9f6d7e2b068265679d94183dad632ec00dd2e441de58503f4c184fd3f0bfbb  dva_windows_amd64.zip
+a3ff2cbc2f248369ef86b51bc9d60af7b29ebeedda6b06749356af8c285806d0  dva_windows_arm64.zip
+```
+
+The downloaded `dva_darwin_arm64.tar.gz` matched its published checksum. Its extracted binary SHA-256
+was `5a0aade6fc2cbd3bbb169b127cad3275c126a1d5c4d41782fb33304cd713703e` and reported version
+`0.1.46`, the full release commit, and build date `2026-08-31T04:52:10Z`. Portfolio catalog
+resolution located the clean canonical `flow-knowchain-devbox` checkout at
+`/Users/archmagece/mydevbox/flow-knowchain-devbox`; `develop == origin/develop == 5c5022e` before
+and after dogfood. Real-target dry-run preservation, isolated six-runtime install/status/uninstall,
+shared-runtime unlink, and takeover lifecycle all passed. Generated `dist/`, `bin/`, `tmp/`, and the
+detached release worktree were removed after verification.
 
 ## Preserved history
 
