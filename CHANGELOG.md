@@ -4,10 +4,24 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+## [0.1.47] - 2026-08-31
+
+### Added
+- 수동 공개 릴리스의 fail-closed preflight/postflight와 안전한 local artifact 정리 명령을
+  추가했습니다. immutable tag·commit·version·release-notes digest, remote tag/Release 상태,
+  GitHub write-capability, 공개 7개 asset과 다운로드 checksum을 검증합니다.
+- [수동 공개 릴리스 런북](docs/52-manual-release-runbook.md)을 추가했습니다. CI snapshot 검증과
+  승인된 detached worktree의 수동 공개 경계를 분리하고, 실패 시 immutable identity를 유지하는
+  복구 절차를 기록합니다.
+
 ### Changed
 - 첫 공개 릴리스 `v0.1.46`을 기준으로 README와 USAGE의 설치 안내를 고정했습니다. Go module
   설치는 `@v0.1.46`을 사용하고, 공개 archive 설치는 플랫폼별 자산 선택과 SHA-256
   `checksums.txt` 검증 절차를 안내합니다.
+
+### Fixed
+- release cleanup은 저장소 루트의 실제 `dist`·`bin`·`tmp` 디렉터리만 제거하며 symlink나 일반
+  파일을 거부합니다. GitHub 오류에 포함될 수 있는 명령 범위 credential 값도 출력 전에 가립니다.
 
 ## [0.1.46] - 2026-08-31
 
