@@ -276,7 +276,10 @@ func writeReleaseAssets(t *testing.T, dir string) {
 			t.Fatal(err)
 		}
 		sum := sha256.Sum256(data)
-		checksums.WriteString(fmtHex(sum[:]) + "  " + name + "\n")
+		checksums.WriteString(fmtHex(sum[:]))
+		checksums.WriteString("  ")
+		checksums.WriteString(name)
+		checksums.WriteByte('\n')
 	}
 	if err := os.WriteFile(filepath.Join(dir, "checksums.txt"), []byte(checksums.String()), 0o600); err != nil {
 		t.Fatal(err)
