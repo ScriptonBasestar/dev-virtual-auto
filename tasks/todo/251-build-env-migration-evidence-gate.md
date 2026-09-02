@@ -19,6 +19,10 @@ depends-on: [TASK-246, TASK-248]
 Turn cross-repository migration claims into pinned, reproducible, fail-closed evidence that a later
 release decision can verify.
 
+This task starts only when TASK-252 records that promotion evidence is worth collecting. If TASK-252
+selects permanent `config env`, archive this card with explicit N/A disposition instead of building an
+unused scanner or release gate.
+
 ## Problem
 
 An unversioned “scan 0 / validate 0 / four reports exist” claim is not a release gate. It does not
@@ -26,6 +30,10 @@ identify the external revisions, scanner, reserved-set simulation, ownership sta
 blind spots that produced the result.
 
 ## Completion Criteria
+
+- [ ] If TASK-252 first selects permanent `config env`, record that final decision and mark every evidence-branch criterion below `[~]` with the decision reference before archiving this card as N/A | verify: human — TASK-252 must close first and this card must preserve the explicit N/A rationale
+
+The remaining criteria apply only when TASK-252 selects promotion evidence collection:
 
 - [ ] Define a machine-readable manifest that pins canonical repository ID, commit SHA, inspected paths, base DVA commit/version, virtual reserved set, scanner digest, timestamp, and migration result; incomplete or unknown fields are errors | verify: `/usr/bin/grep -Eq '^func TestManifestRejectsIncompleteEvidence\(' tools/envgate/manifest_test.go && go test ./tools/envgate -count=1`
 - [ ] Scan interaction trees recursively, including nested subcommand bodies, and detect literal stdout decrypt behavior rather than only the top-level `env` key | verify: `/usr/bin/grep -Eq '^func TestScannerFindsBareAndNestedDecrypt\(' tools/envgate/scanner_test.go && go test ./tools/envgate -count=1`

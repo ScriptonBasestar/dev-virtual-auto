@@ -51,13 +51,16 @@ diff와 명령 결과를 다시 확인한다.
 | 2 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-247의 current-loader safety 구현·통합 완료 |
 | 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-244·249 결과 구현·통합 완료 |
 | 3 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정과 TASK-248 loader contract 위에서 구현·통합 완료 |
-| 4 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | pinned evidence gate 구현·통합 완료 |
-| 5 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | 사용자 결정 또는 fail-closed 유지가 기록됨 |
+| 4 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | 영구 유지 결정 또는 promotion evidence 요청이 기록됨 |
+| 조건부 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | TASK-252가 요청한 경우 gate 통합, 아니면 N/A 종료 |
+| 조건부 재개 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | TASK-251 evidence를 사용한 최종 결정 기록 |
 
 첫 세션은 기존 warning-and-continue 위험을 먼저 닫는 TASK-247을 권장한다. TASK-245는 같은 wave의 별도
 decision session으로 진행할 수 있지만, TASK-246은 TASK-248이 통합되기 전 시작하지 않는다.
 
-TASK-252가 promotion을 선택해도 그 세션은 reservation을 구현하지 않는다. Exact route,
+TASK-252의 권장안은 TASK-251을 선행 구현하지 않고 permanent `config env`로 닫는 것이다. Promotion
+가치 조사를 사람이 선택하면 TASK-252를 pending으로 유지한 채 TASK-251을 실행하고 같은 decision을
+재개한다. 최종적으로 promotion을 선택해도 그 세션은 reservation을 구현하지 않는다. Exact route,
 compatibility, rollback과 pinned-corpus 재검증을 소유하는 새 child card를 만들고 PLAN-002를 갱신한 뒤
 종료한다.
 

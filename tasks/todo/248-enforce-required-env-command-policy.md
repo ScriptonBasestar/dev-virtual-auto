@@ -27,7 +27,7 @@ cutting off the command that diagnoses the missing file.
 ## Completion Criteria
 
 - [ ] Refactor environment loading so callers can distinguish required true/false, missing, inaccessible, malformed, and multi-file partial-merge state while successful precedence and caching remain unchanged | verify: `go test ./internal/config ./internal/cli -count=1`
-- [ ] Implement every TASK-247 matrix row with table-driven text/JSON/exit tests and prove fail-closed rows start no external child process | verify: `go test ./internal/cli -count=1`
+- [ ] Implement every TASK-247 matrix row with table-driven text/JSON/exit tests; root, imported canonical, and imported alias routes preserve their owner, and fail-closed rows stop before hooks, health checks, backend runners, or any external child | verify: `go test ./internal/cli -count=1`
 - [ ] Preserve complete doctor output in default and strict modes; refine existing env-file checks and source-aware hints rather than adding a duplicate check | verify: `go test ./internal/cli -count=1`
 - [ ] Keep stdout to one JSON document, use the existing root error envelope where the decision calls for failure, and keep human diagnostics off JSON stdout | verify: `go test ./internal/cli -count=1`
 - [ ] Optional missing files remain skipped, optional existing unreadable/malformed files remain explicit errors, no execution continues on accidental partial merge, and no command invents an unseal hint without recognized source metadata from a later approved bridge | verify: `go test ./internal/config ./internal/cli -count=1`

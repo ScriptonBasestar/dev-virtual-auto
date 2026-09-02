@@ -58,8 +58,9 @@ gate 결과를 확인한다.
 | 3 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-262·263 위에서 composition 사람 승인 기록 |
 | 4 | [TASK-261](../tasks/todo/261-decide-vnext-vocabulary-and-migration.md) | 선행 결과를 근거로 사람 승인 또는 현행 유지 기록 |
 
-TASK-262·253은 완료됐다. 다음 변경 세션은 TASK-254를 권장하고, 이어서 product critical path인
-TASK-259→263→260을 별도 session으로 진행한다. TASK-255·257은 TASK-254가
+TASK-262·253은 완료됐다. PLAN-003 내부의 다음 변경 세션은 TASK-254다. 저장소 전체 순서에서는
+PLAN-002의 live safety 경로인 TASK-247→248을 먼저 닫고 이 런북으로 복귀한다. 이어서 product critical
+path인 TASK-259→263→260을 별도 session으로 진행한다. TASK-255·257은 TASK-254가
 manifest route identity의 소유권을 조사한 뒤 시작한다. 서로 독립인 조사도 source integration은 최신
 source tip에 대해 직렬화한다.
 

@@ -43,9 +43,10 @@ card(TASK-245·247·249·252)는 모두 `decision-status: pending`이다. 기존
    matrix를 확정하고 TASK-248로 현재의 warning-and-continue 동작을 먼저 제거한다.
 2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
 3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
-4. TASK-246·248이 모두 통합된 뒤 TASK-251 evidence gate를 만들고, TASK-252에서는 기본적으로
-   `config env` 영구 유지를 선택한다. TASK-251·252는 top-level 승격의 blocker이지 검증된
-   `config env` bridge 자체를 출시하는 blocker는 아니다.
+4. TASK-246·248이 모두 통합된 뒤 TASK-252에서 먼저 `config env` 영구 유지와 promotion 조사 계속을
+   비교한다. 권장안인 영구 유지를 선택하면 TASK-251은 N/A 근거를 기록하고 종료한다. Promotion의
+   제품 가치가 evidence-gate 비용을 정당화한다고 사람이 선택한 경우에만 TASK-251을 실행하고, 같은
+   TASK-252를 재개해 pinned evidence로 최종 판정한다. 두 task는 검증된 bridge 출시 blocker가 아니다.
 
 이 순서는 required file 오류를 삼키는 기존 위험을 새 bridge보다 뒤로 미루지 않고, init이 아직 존재하지
 않는 D6/D7 검사를 통과했다고 주장하는 것도 막는다. 각 선택의 권장안은 해당 decision card에 기록하며,
@@ -246,15 +247,17 @@ TASK-244  D6/D7 warnings
 
 TASK-247  required-env policy ──> TASK-248 propagation ──┐
 TASK-245  env bridge contract ───────────────────────────┴─> TASK-246 secure bridge
-TASK-246 + TASK-248 ─────────────> TASK-251 gate ───────────> TASK-252 decision
+TASK-246 + TASK-248 ─────────────> TASK-252 initial decision
+                                      ├─ permanent config env ─> TASK-251 N/A disposition
+                                      └─ promotion evidence ───> TASK-251 gate ─> resume TASK-252
 
 TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
 TASK-244, TASK-245, TASK-247, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
 TASK-248은 새 encrypted-source schema와 독립된 현재 loader safety 작업이다. TASK-246은 TASK-245 결정과
-TASK-248 loader contract 위에서 시작한다. TASK-251은 bridge와 propagation이 존재한 뒤 시작하고,
-TASK-252는 external evidence가 같은 revision에서 green일 때만 시작한다. TASK-245가 여러 OS를 지원한다고
+TASK-248 loader contract 위에서 시작한다. TASK-252는 bridge와 propagation 뒤 먼저 시작한다. Promotion
+evidence가 필요하다는 중간 판정을 기록한 경우에만 TASK-251을 실행하고 TASK-252를 재개한다. TASK-245가 여러 OS를 지원한다고
 결정하면 TASK-246은 그 OS를 지속 검증하는 CI matrix까지 소유해야 한다. 범위가 TASK-246에 안전하게
 들어가지 않으면 TASK-245를 닫는 변경에서 bounded CI child와 dependency를 먼저 만든다. 그 전까지
 검증되지 않은 OS는 fail closed한다.

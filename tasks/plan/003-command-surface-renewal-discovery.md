@@ -38,8 +38,9 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 
 TASK-262는 imported plan의 전체 lifecycle을 복구했고 TASK-253은 help group과 discovery 설명을
 정렬했다. 두 작업 모두 독립 리뷰와 repository gate를 통과했다. 나머지 TASK-254~261·263은 아직
-`todo`다. 다음 시작점은 TASK-254의 metadata ownership 조사이며, 이어서 P0 critical path인
-TASK-259→263→260을 진행한다. TASK-255·257은 manifest route identity를 각자 발명하지 않도록
+`todo`다. **PLAN-003 안의** 다음 시작점은 TASK-254다. 저장소 전체 일정에서는 live required-env
+안전 결함을 닫는 PLAN-002의 TASK-247→248을 먼저 끝낸 뒤 TASK-254로 복귀한다. 이어서 P0 critical
+path인 TASK-259→263→260을 진행한다. TASK-255·257은 manifest route identity를 각자 발명하지 않도록
 TASK-254가 끝난 뒤에 시작한다.
 
 TASK-262를 추가한 역사적 이유는 문서가 지원한다고 설명한 imported plan이 normal child stack에서
@@ -58,8 +59,8 @@ PLAN-003이나 해당 구현 task를 완료할 수 없다.
 
 권장 방향은 다음과 같다.
 
-- Imported plan은 parent stack을 암묵 flatten하지 않고 owning child effective config와 working directory로
-  해석한다. 복구 전 fail-closed fallback은 plan import를 validation에서 거부하고 지원 문구를 내리는 것이다.
+- Imported plan은 parent stack을 암묵 flatten하지 않고 owning child effective config, `env_file`과 working
+  directory로 해석한다. Canonical/alias lifecycle route는 같은 child owner를 보존한다.
 - Direct interaction의 machine route는 `run --project`, human shorthand는 `project:item`, explicit import의
   canonical name은 `project/item`을 유지한다. 자동 registration과 separator 통일은 채택하지 않는다.
 - Composition은 arbitrary recursive include보다 root가 exposed child plans를 명시적으로 aggregate하는
@@ -118,7 +119,7 @@ TASK-259  addressing discovery ─> TASK-263 address decision ──┴─> TASK
 ```
 
 TASK-254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
-다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
+PLAN-002의 TASK-248 뒤 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
 TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한
