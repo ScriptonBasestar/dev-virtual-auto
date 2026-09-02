@@ -17,6 +17,11 @@ import (
 type commandRuntime struct {
 	config *config.Config
 	env    *config.Environment
+
+	// report is the env-input verdict of the config that owns this route. Like
+	// planRuntime.report it is per-owner: an imported interaction is judged by the
+	// child's env_file, never the parent's.
+	report *config.EnvInputReport
 }
 
 // ownedRuntime builds the runtime for a config that owns itself: a dynamically loaded
@@ -24,17 +29,20 @@ type commandRuntime struct {
 // The environment is rooted at the child's config directory, so relative script, compose
 // and provision assets resolve from the child rather than from the caller's cwd.
 func ownedRuntime(owner *config.Config) *commandRuntime {
-	return &commandRuntime{config: owner, env: newOwnedConfigEnvironment(owner)}
+	load := newOwnedConfigEnvironment(owner)
+	return &commandRuntime{config: owner, env: load.env, report: load.report}
 }
 
 // resolveInteractionRuntime selects the owner of a top-level interaction entry before any
 // environment is loaded.
 //
 // Owner selection deliberately precedes env loading rather than following it. loadEnv
-// reads the root's env_file, and TASK-248 will turn a failure there into an exit code
-// instead of today's warning; resolving first is what keeps a broken root env_file from
-// deciding the fate of a route that never reads it. Until TASK-248 lands, the
-// warning-and-continue policy inside newConfigEnvironmentAt is unchanged.
+// reads the root's env_file and TASK-248 turns a failure there into an exit code;
+// resolving first is what keeps a broken root env_file from deciding the fate of a
+// route that never reads it.
+//
+// TASK-248 has landed: the report resolved here is the one the route acts on, and the
+// warning-and-continue policy this comment used to describe is gone.
 //
 // Subcommand nodes need no separate lookup: cloneImportedInteraction stamps the same
 // owner onto the whole subtree, so the top-level key answers for every route beneath it.
@@ -44,7 +52,8 @@ func resolveInteractionRuntime(root *config.Config, entryName string) (*commandR
 		return nil, fmt.Errorf("interaction %q has no execution owner", entryName)
 	}
 	if owner == root {
-		return &commandRuntime{config: root, env: loadEnv(root)}, nil
+		rootEnv, report := loadEnv(root)
+		return &commandRuntime{config: root, env: rootEnv, report: report}, nil
 	}
 	return ownedRuntime(owner), nil
 }
@@ -58,7 +67,8 @@ func resolveProvisionRuntime(root *config.Config, profileName string) (*commandR
 		return nil, fmt.Errorf("provision profile %q has no execution owner", profileName)
 	}
 	if owner == root {
-		return &commandRuntime{config: root, env: loadEnv(root)}, nil
+		rootEnv, report := loadEnv(root)
+		return &commandRuntime{config: root, env: rootEnv, report: report}, nil
 	}
 	return ownedRuntime(owner), nil
 }

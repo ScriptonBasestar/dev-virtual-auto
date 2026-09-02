@@ -76,7 +76,7 @@ func TestPlanUpDryRunPrintsResolution(t *testing.T) {
 	e := planResolutionEnv(t, c)
 
 	_, stderr := captureStreams(t, func() {
-		if err := runPlanUp(c, e, "p1", []string{"--dry-run"}); err != nil {
+		if err := runPlanUp(c, planEnv(e), "p1", []string{"--dry-run"}); err != nil {
 			t.Errorf("plan up dry-run failed: %v", err)
 		}
 	})
@@ -104,7 +104,7 @@ func TestPlanUpWithoutDryRunStaysQuiet(t *testing.T) {
 	e := planResolutionEnv(t, c)
 
 	stdout, stderr := captureStreams(t, func() {
-		if err := runPlanUp(c, e, "p1", nil); err != nil {
+		if err := runPlanUp(c, planEnv(e), "p1", nil); err != nil {
 			t.Errorf("plan up failed: %v", err)
 		}
 	})
@@ -126,7 +126,7 @@ func TestPlanResolutionGoesToStderr(t *testing.T) {
 	t.Cleanup(func() { jsonOutput = oldJSON })
 
 	stdout, stderr := captureStreams(t, func() {
-		if err := runPlanUp(c, e, "p1", []string{"--dry-run"}); err != nil {
+		if err := runPlanUp(c, planEnv(e), "p1", []string{"--dry-run"}); err != nil {
 			t.Errorf("plan up dry-run --json failed: %v", err)
 		}
 	})
@@ -150,7 +150,7 @@ func TestPlanDownDryRunPrintsResolution(t *testing.T) {
 	e := planResolutionEnv(t, c)
 
 	_, stderr := captureStreams(t, func() {
-		if err := runPlanDown(c, e, "p1", []string{"--dry-run"}); err != nil {
+		if err := runPlanDown(c, planEnv(e), "p1", []string{"--dry-run"}); err != nil {
 			t.Errorf("plan down dry-run failed: %v", err)
 		}
 	})
@@ -165,7 +165,7 @@ func TestPlanStopDryRunPrintsResolution(t *testing.T) {
 	e := planResolutionEnv(t, c)
 
 	_, stderr := captureStreams(t, func() {
-		if err := runPlanStop(c, e, "p1", []string{"--dry-run"}); err != nil {
+		if err := runPlanStop(c, planEnv(e), "p1", []string{"--dry-run"}); err != nil {
 			t.Errorf("plan stop dry-run failed: %v", err)
 		}
 	})
@@ -180,7 +180,7 @@ func TestPlanRestartDryRunPrintsResolution(t *testing.T) {
 	e := planResolutionEnv(t, c)
 
 	_, stderr := captureStreams(t, func() {
-		if err := runPlanRestart(c, e, "p1", []string{"--dry-run"}); err != nil {
+		if err := runPlanRestart(c, planEnv(e), "p1", []string{"--dry-run"}); err != nil {
 			t.Errorf("plan restart dry-run failed: %v", err)
 		}
 	})

@@ -69,7 +69,7 @@ func TestPlanDownPurgeAsksBeforeDestroying(t *testing.T) {
 	stdinFrom(t, "n\n")
 
 	var err error
-	stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	stderr := captureBothStreams(t, func() { err = runPlanDown(c, planEnv(e), "demo", []string{"--purge"}) })
 
 	if err != nil {
 		t.Fatalf("an answered decline is not a failure: %v", err)
@@ -93,7 +93,7 @@ func TestPlanDownPurgeEOFIsNotADecline(t *testing.T) {
 	stdinEOF(t)
 
 	var err error
-	stderr := captureBothStreams(t, func() { err = runPlanDown(c, e, "demo", []string{"--purge"}) })
+	stderr := captureBothStreams(t, func() { err = runPlanDown(c, planEnv(e), "demo", []string{"--purge"}) })
 
 	if err == nil {
 		t.Fatalf("--purge with no terminal returned nil, so a script is told the volumes were "+
@@ -123,7 +123,7 @@ func TestPlanDownPurgeDryRunSkipsThePromptAndPreviewsMarkers(t *testing.T) {
 
 	var err error
 	stderr := captureBothStreams(t, func() {
-		err = runPlanDown(c, e, "demo", []string{"--purge", "--dry-run"})
+		err = runPlanDown(c, planEnv(e), "demo", []string{"--purge", "--dry-run"})
 	})
 
 	if err != nil {
@@ -154,7 +154,7 @@ func TestPlanDownPurgeForceRemovesMarkers(t *testing.T) {
 
 	var err error
 	stderr := captureBothStreams(t, func() {
-		err = runPlanDown(c, e, "demo", []string{"--purge", "--force"})
+		err = runPlanDown(c, planEnv(e), "demo", []string{"--purge", "--force"})
 	})
 
 	if err != nil {
@@ -200,7 +200,7 @@ plans:
 	// variable, so captureBothStreams sees nothing of it.
 	logs := useBufferedSlog(t)
 
-	if err := runPlanDown(c, e, "demo", []string{"--purge", "--force", "--dry-run"}); err != nil {
+	if err := runPlanDown(c, planEnv(e), "demo", []string{"--purge", "--force", "--dry-run"}); err != nil {
 		t.Fatalf("runPlanDown failed: %v", err)
 	}
 
@@ -225,10 +225,14 @@ func TestPlanUpRejectsDownOnlyFlags(t *testing.T) {
 		name string
 		run  func(*config.Config, *config.Environment, []string) error
 	}{
-		{"up", func(c *config.Config, e *config.Environment, a []string) error { return runPlanUp(c, e, "demo", a) }},
-		{"stop", func(c *config.Config, e *config.Environment, a []string) error { return runPlanStop(c, e, "demo", a) }},
+		{"up", func(c *config.Config, e *config.Environment, a []string) error {
+			return runPlanUp(c, planEnv(e), "demo", a)
+		}},
+		{"stop", func(c *config.Config, e *config.Environment, a []string) error {
+			return runPlanStop(c, planEnv(e), "demo", a)
+		}},
 		{"restart", func(c *config.Config, e *config.Environment, a []string) error {
-			return runPlanRestart(c, e, "demo", a)
+			return runPlanRestart(c, planEnv(e), "demo", a)
 		}},
 	} {
 		for _, flag := range []string{"--purge", "--volumes"} {

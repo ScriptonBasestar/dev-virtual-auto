@@ -20,7 +20,12 @@ var sshUpCmd = &cobra.Command{
 	Short: "Start SSH agent container",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		e, envReport := loadEnv(c)
+		// `ssh up` starts a container and interpolates key/volume from the environment.
+		// `ssh down` and `ssh status` take no env input and keep their existing behavior.
+		if err := envReport.Err(); err != nil {
+			return err
+		}
 
 		key, _ := cmd.Flags().GetString("key")
 		volume, _ := cmd.Flags().GetString("volume")

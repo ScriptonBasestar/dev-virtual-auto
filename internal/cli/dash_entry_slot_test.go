@@ -55,7 +55,7 @@ func TestPlanBuildRoutesToAnEntryNamedWithALoneDash(t *testing.T) {
 		c := loadTestConfig(t, dashEntryBuildConfig)
 		e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-		if err := runPlanBuild(c, e, "multi", []string{"-"}); err != nil {
+		if err := runPlanBuild(c, planEnv(e), "multi", []string{"-"}); err != nil {
 			t.Fatalf(`build multi -: %v; the plan declares an entry named "-" and the message that refused it offered that very name`, err)
 		}
 
@@ -73,7 +73,7 @@ func TestPlanBuildRoutesToAnEntryNamedWithALoneDash(t *testing.T) {
 		c := loadTestConfig(t, dashEntryBuildConfig)
 		e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-		err := runPlanBuild(c, e, "multi", []string{"--no-cache"})
+		err := runPlanBuild(c, planEnv(e), "multi", []string{"--no-cache"})
 
 		if err == nil {
 			t.Fatal("--no-cache was routed as an entry name; the length test is what keeps flags out of this slot")
@@ -114,7 +114,7 @@ func TestPlanLogsRoutesToAnEntryNamedWithALoneDash(t *testing.T) {
 		writeEntryLog(t, c, "s2", "S2_ENTRY_LOG\n")
 
 		var err error
-		out := captureStdout(t, func() { err = runPlanLogs(c, e, "multi", []string{"-"}) })
+		out := captureStdout(t, func() { err = runPlanLogs(c, planEnv(e), "multi", []string{"-"}) })
 
 		if err != nil {
 			t.Fatalf(`logs multi -: %v`, err)
@@ -131,7 +131,7 @@ func TestPlanLogsRoutesToAnEntryNamedWithALoneDash(t *testing.T) {
 		c := loadTestConfig(t, dashEntryLogConfig)
 		e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-		err := runPlanLogs(c, e, "multi", []string{"-f"})
+		err := runPlanLogs(c, planEnv(e), "multi", []string{"-f"})
 
 		if err == nil {
 			t.Fatal("-f was routed as an entry name")

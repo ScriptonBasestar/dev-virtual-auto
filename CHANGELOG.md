@@ -14,6 +14,15 @@ All notable changes to DVA are documented here.
   `config` 하위 명령·`skill` 정정(docs/43)
 
 ### Changed
+- **읽을 수 없는 `env_file`이 경고가 아니라 명령별 정책이 됐습니다** (TASK-247/TASK-248):
+  required 파일 부재, 읽기 실패, dotenv 문법이 아닌 줄이 있으면 그 소유자의 `env_file`
+  값은 하나도 적용되지 않습니다 — 앞선 파일이 성공했어도 마찬가지입니다. `up`/`down`
+  계열은 hook·health check·백엔드를 시작하기 전에 exit 1, `status`/`logs`는 자식 없이
+  "조회하지 않았음"을 명시한 부분 결과 후 exit 1, `doctor`는 모든 체크를 끝내고 기본
+  exit 0(`--strict`는 1), `validate`는 env 파일을 열지 않습니다. root와 imported child는
+  각자의 판정만 사용합니다. 진단에는 키·값·파일 내용·병합 개수가 나오지 않습니다.
+  **마이그레이션**: 이전에는 `WARN: env_file: ...` 후 계속 실행했으므로, 조용히 무시되던
+  잘못된 dotenv 줄은 이제 고쳐야 합니다 ([USAGE.md](USAGE.md#환경-입력이-불완전할-때))
 - **`--help` 그룹이 발견 경로 기준으로 재정렬됐습니다**: `manifest`가 advanced에서 core로,
   `status`가 project에서 lifecycle로 이동했고, `show`("Show declared workspace configuration")와
   `status`("Display current workspace and runtime status")의 설명이 선언/런타임 구분을 드러내도록

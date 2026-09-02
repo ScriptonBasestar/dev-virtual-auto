@@ -158,7 +158,7 @@ func TestRunPlanBuildExecutesTheNativeBuildCommand(t *testing.T) {
 	}
 
 	var err error
-	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "native_only", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, planEnv(buildTestEnv(c)), "native_only", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)
@@ -185,7 +185,7 @@ func TestRunPlanBuildBuildsEveryEntryAndKeepsGoing(t *testing.T) {
 	prepareBuildTree(t, c.FileDir())
 
 	var err error
-	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, planEnv(buildTestEnv(c)), "full", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)
@@ -212,7 +212,7 @@ func TestRunPlanBuildStopsAtTheFirstFailure(t *testing.T) {
 	c := buildTestConfig(t)
 
 	var err error
-	captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "chain", nil) })
+	captureBothStreams(t, func() { err = runPlanBuild(c, planEnv(buildTestEnv(c)), "chain", nil) })
 
 	if err == nil {
 		t.Fatal("a failing build command reported success")
@@ -233,7 +233,7 @@ func TestRunPlanBuildDryRunPreviewsWithoutBuilding(t *testing.T) {
 	c := buildTestConfig(t)
 
 	var err error
-	stderr := captureBothStreams(t, func() { err = runPlanBuild(c, buildTestEnv(c), "full", nil) })
+	stderr := captureBothStreams(t, func() { err = runPlanBuild(c, planEnv(buildTestEnv(c)), "full", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanBuild failed: %v", err)
@@ -254,7 +254,7 @@ func TestRunPlanBuildDryRunPreviewsWithoutBuilding(t *testing.T) {
 func TestRunPlanBuildRejectsExtraArgsOnANativeEntry(t *testing.T) {
 	c := buildTestConfig(t)
 
-	err := runPlanBuild(c, buildTestEnv(c), "full", []string{"api", "--no-cache"})
+	err := runPlanBuild(c, planEnv(buildTestEnv(c)), "full", []string{"api", "--no-cache"})
 
 	if err == nil {
 		t.Fatal("--no-cache was accepted on a native entry")
@@ -273,7 +273,7 @@ func TestRunPlanBuildRejectsExtraArgsOnANativeEntry(t *testing.T) {
 func TestRunPlanBuildRefusesUnroutableArgsAcrossSeveralEntries(t *testing.T) {
 	c := buildTestConfig(t)
 
-	err := runPlanBuild(c, buildTestEnv(c), "full", []string{"--no-cache"})
+	err := runPlanBuild(c, planEnv(buildTestEnv(c)), "full", []string{"--no-cache"})
 
 	if err == nil {
 		t.Fatal("an argument that belongs to no entry was accepted")
@@ -291,7 +291,7 @@ func TestRunPlanBuildRefusesUnroutableArgsAcrossSeveralEntries(t *testing.T) {
 func TestRunPlanBuildReportsAPlanWithNothingToBuild(t *testing.T) {
 	c := buildTestConfig(t)
 
-	err := runPlanBuild(c, buildTestEnv(c), "nothing", nil)
+	err := runPlanBuild(c, planEnv(buildTestEnv(c)), "nothing", nil)
 
 	if err == nil {
 		t.Fatal("a plan with nothing to build reported success")

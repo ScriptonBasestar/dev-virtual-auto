@@ -316,7 +316,7 @@ func setPlanVar(dst map[string]string, kv string) error {
 	return nil
 }
 
-func runPlanUp(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
+func runPlanUp(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
 		return err
@@ -325,8 +325,13 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 		return err
 	}
 
-	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, el, planName, flags.cliVars)
 	if err != nil {
+		return err
+	}
+	// Fail closed before the first child. The plan's own owner decides this — a root
+	// env_file failure never reaches an imported plan, and vice versa (TASK-247 §3, §4).
+	if err := runtime.report.Err(); err != nil {
 		return err
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
@@ -379,14 +384,19 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 	return nil
 }
 
-func runPlanDown(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
+func runPlanDown(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
 		return err
 	}
 
-	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, el, planName, flags.cliVars)
 	if err != nil {
+		return err
+	}
+	// Fail closed before the first child. The plan's own owner decides this — a root
+	// env_file failure never reaches an imported plan, and vice versa (TASK-247 §3, §4).
+	if err := runtime.report.Err(); err != nil {
 		return err
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
@@ -439,7 +449,7 @@ func runPlanDown(c *config.Config, e *config.Environment, planName string, extra
 	})
 }
 
-func runPlanStop(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
+func runPlanStop(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
 		return err
@@ -448,8 +458,13 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 		return err
 	}
 
-	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, el, planName, flags.cliVars)
 	if err != nil {
+		return err
+	}
+	// Fail closed before the first child. The plan's own owner decides this — a root
+	// env_file failure never reaches an imported plan, and vice versa (TASK-247 §3, §4).
+	if err := runtime.report.Err(); err != nil {
 		return err
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
@@ -471,7 +486,7 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 	})
 }
 
-func runPlanRestart(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
+func runPlanRestart(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
 	flags, err := parsePlanFlags(extraArgs)
 	if err != nil {
 		return err
@@ -480,8 +495,13 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 		return err
 	}
 
-	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, el, planName, flags.cliVars)
 	if err != nil {
+		return err
+	}
+	// Fail closed before the first child. The plan's own owner decides this — a root
+	// env_file failure never reaches an imported plan, and vice versa (TASK-247 §3, §4).
+	if err := runtime.report.Err(); err != nil {
 		return err
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
@@ -505,10 +525,33 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 	})
 }
 
-func runPlanStatus(c *config.Config, e *config.Environment, planName string) error {
-	runtime, err := resolvePlanRuntime(c, e, planName, nil)
+func runPlanStatus(c *config.Config, el *envLoad, planName string) error {
+	runtime, err := resolvePlanRuntime(c, el, planName, nil)
 	if err != nil {
 		return err
+	}
+	// Before the `[plan: ...]` header, which is a claim about a plan that was resolved
+	// and is about to be queried. On incomplete inputs nothing is queried, so the
+	// header would describe work that never happens.
+	//
+	// planName rather than plan.Name throughout: the contract preserves the spelling
+	// the user typed, canonical or alias, because that is the name they can retry.
+	if runtime.report.Incomplete() {
+		if jsonOutput {
+			doc := map[string]any{
+				"action":      "status",
+				"plan":        planName,
+				"environment": envPartialJSON(runtime.report),
+				"runtime":     envNotQueriedJSON(),
+				"error":       envErrorJSON(),
+			}
+			if printErr := output.PrintJSON(doc); printErr != nil {
+				return printErr
+			}
+			return envIncompleteError(runtime.report)
+		}
+		fmt.Printf("Plan: %s (not queried: environment inputs incomplete)\n", planName)
+		return envIncompleteError(runtime.report)
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))

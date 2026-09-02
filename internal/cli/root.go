@@ -19,8 +19,19 @@ var (
 	dryRun     bool
 	jsonOutput bool
 	cfg        *config.Config
-	env        *config.Environment
+	env        *envLoad
 )
+
+// envLoad is one owner's environment together with the verdict on that owner's
+// declared env-file inputs.
+//
+// The two travel together because no route may apply the values without first
+// deciding what its policy is for the verdict, and because the verdict is
+// per-owner: a broken root env_file says nothing about an imported child's.
+type envLoad struct {
+	env    *config.Environment
+	report *config.EnvInputReport
+}
 
 // isTopLevelCommand reports whether name is a built-in DVA command.
 // Delegates to config.IsReservedCommand for single-source-of-truth.
@@ -396,39 +407,59 @@ func mustLoadConfig() *config.Config {
 	return c
 }
 
-func loadEnv(c *config.Config) *config.Environment {
-	if env != nil {
-		return env
+// loadEnv returns the cached root environment and the report describing the
+// root's declared env-file inputs.
+//
+// The report is returned, never acted on here. TASK-247 forbids an unconditional
+// failure inside this helper: doctor and the partial-observation routes have to
+// reach their diagnostics with exactly the inputs that make `up` refuse to start.
+// The policy therefore lives at each call site, where it is one route's decision
+// and can be tested as one.
+func loadEnv(c *config.Config) (*config.Environment, *config.EnvInputReport) {
+	l := rootEnvLoad(c)
+	return l.env, l.report
+}
+
+// rootEnvLoad returns the cached root envLoad as one value.
+//
+// Lifecycle verbs need this rather than the pair: they must build the root load
+// before they know whether the invocation is a root route or an imported plan
+// route, and only the plan runtime can answer that. Handing the pair to the plan
+// resolver keeps a root env_file failure from deciding the fate of a plan whose
+// owner is a child that loaded cleanly.
+func rootEnvLoad(c *config.Config) *envLoad {
+	if env == nil {
+		env = newConfigEnvironment(c)
 	}
-	env = newConfigEnvironment(c)
 	return env
 }
 
 // newConfigEnvironment builds an uncached environment for one effective config.
 // Imported plans use this instead of the package-global root environment so child
 // vars and env_file paths cannot be contaminated by a parent invocation.
-func newConfigEnvironment(c *config.Config) *config.Environment {
+func newConfigEnvironment(c *config.Config) *envLoad {
 	wd, _ := os.Getwd()
 	return newConfigEnvironmentAt(c, wd)
 }
 
 // newOwnedConfigEnvironment gives an imported project the same default working
 // directory it has when invoked directly from its own root.
-func newOwnedConfigEnvironment(c *config.Config) *config.Environment {
+func newOwnedConfigEnvironment(c *config.Config) *envLoad {
 	return newConfigEnvironmentAt(c, c.FileDir())
 }
 
-func newConfigEnvironmentAt(c *config.Config, workDir string) *config.Environment {
+func newConfigEnvironmentAt(c *config.Config, workDir string) *envLoad {
 	// Precedence (lowest → highest among config layers):
 	// vars < environment: < env_file; OS env still wins per MergeVars.
 	result := config.NewEnvironment(c.Vars, workDir, c.FileDir())
 	result.MergeVars(c.Environment)
-	if c.EnvFile != nil {
-		if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), result); err != nil {
-			fmt.Fprintf(os.Stderr, "WARN: env_file: %s\n", err)
-		}
-	}
-	return result
+
+	// ApplyEnvFiles is atomic: if any declaration fails, result keeps the vars and
+	// environment layers and gains nothing from any file, including files that
+	// individually loaded. Before TASK-248 this warned to stderr and continued with
+	// a half-merged map, which is the partial environment TASK-247 rejected.
+	report := config.ApplyEnvFiles(c.EnvFile, c.FileDir(), result)
+	return &envLoad{env: result, report: report}
 }
 
 // levenshtein calculates the edit distance between two strings.

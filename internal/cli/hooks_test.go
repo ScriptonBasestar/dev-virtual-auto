@@ -34,7 +34,7 @@ func TestWrapWithHooks_DryRunArgProtectsHooks(t *testing.T) {
 
 	oldCfg, oldEnv, oldDryRun := cfg, env, dryRun
 	cfg = c
-	env = config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+	env = planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
 	dryRun = false
 	t.Cleanup(func() {
 		cfg, env, dryRun = oldCfg, oldEnv, oldDryRun

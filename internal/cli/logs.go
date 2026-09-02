@@ -113,10 +113,16 @@ func planComposeLogArgs(target planLogTarget, passthrough []string) []string {
 // Unlike the lifecycle verbs this does not go through parsePlanFlags. Everything after the
 // optional entry name belongs to the tool that owns the logs — `-f`, `--tail 50`, a service
 // name — and parsePlanFlags exists to reject exactly that.
-func runPlanLogs(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
-	runtime, err := resolvePlanRuntime(c, e, planName, nil)
+func runPlanLogs(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
+	runtime, err := resolvePlanRuntime(c, el, planName, nil)
 	if err != nil {
 		return err
+	}
+	// No log content, no control record, no compose child and no log-file read. The
+	// target names the plan as invoked and never the trailing argv, because DVA does
+	// not guess which of a backend's arguments was a service name.
+	if runtime.report.Incomplete() {
+		return fmt.Errorf("logs not queried for plan %s: environment inputs are incomplete", planName)
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env
 

@@ -16,7 +16,7 @@ func TestImportedPlanLifecycleParity(t *testing.T) {
 	root, child := loadImportedPlanCLIFixture(t)
 	rootEnv := config.NewEnvironment(nil, root.FileDir(), root.FileDir())
 
-	if err := runPlanUp(root, rootEnv, "child/dev", []string{"--var", "CLI_VALUE=cli"}); err != nil {
+	if err := runPlanUp(root, planEnv(rootEnv), "child/dev", []string{"--var", "CLI_VALUE=cli"}); err != nil {
 		t.Fatalf("imported up: %v", err)
 	}
 	for _, name := range []string{"first-up", "second-up"} {
@@ -34,7 +34,7 @@ func TestImportedPlanLifecycleParity(t *testing.T) {
 		t.Fatalf("parent stack executed for imported up: %v", err)
 	}
 
-	if err := runPlanDown(root, rootEnv, "child/dev", nil); err != nil {
+	if err := runPlanDown(root, planEnv(rootEnv), "child/dev", nil); err != nil {
 		t.Fatalf("imported down: %v", err)
 	}
 	downOrder, err := os.ReadFile(filepath.Join(child, "down-order"))
@@ -45,19 +45,19 @@ func TestImportedPlanLifecycleParity(t *testing.T) {
 		t.Fatalf("down order = %v, want reverse dependency order [second first]", got)
 	}
 
-	if err := runPlanUp(root, rootEnv, "child/dev", nil); err != nil {
+	if err := runPlanUp(root, planEnv(rootEnv), "child/dev", nil); err != nil {
 		t.Fatalf("second imported up: %v", err)
 	}
-	if err := runPlanStop(root, rootEnv, "child/dev", nil); err != nil {
+	if err := runPlanStop(root, planEnv(rootEnv), "child/dev", nil); err != nil {
 		t.Fatalf("imported stop: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(child, "second-stop")); err != nil {
 		t.Fatalf("child stop did not run: %v", err)
 	}
-	if err := runPlanRestart(root, rootEnv, "child-dev", nil); err != nil {
+	if err := runPlanRestart(root, planEnv(rootEnv), "child-dev", nil); err != nil {
 		t.Fatalf("imported alias restart: %v", err)
 	}
-	if err := runPlanStatus(root, rootEnv, "child/dev"); err != nil {
+	if err := runPlanStatus(root, planEnv(rootEnv), "child/dev"); err != nil {
 		t.Fatalf("imported status: %v", err)
 	}
 
@@ -66,7 +66,7 @@ func TestImportedPlanLifecycleParity(t *testing.T) {
 	writeEntryLog(t, owner, "first", "child-log-only")
 	var logErr error
 	logOutput := captureStdout(t, func() {
-		logErr = runPlanLogs(root, rootEnv, "child/dev", []string{"first"})
+		logErr = runPlanLogs(root, planEnv(rootEnv), "child/dev", []string{"first"})
 	})
 	if logErr != nil {
 		t.Fatalf("imported logs: %v", logErr)
@@ -75,7 +75,7 @@ func TestImportedPlanLifecycleParity(t *testing.T) {
 		t.Fatalf("imported logs used wrong owner:\n%s", logOutput)
 	}
 
-	if err := runPlanBuild(root, rootEnv, "child/build", nil); err != nil {
+	if err := runPlanBuild(root, planEnv(rootEnv), "child/build", nil); err != nil {
 		t.Fatalf("imported build: %v", err)
 	}
 	builtFrom, err := os.ReadFile(filepath.Join(child, "app", "build-dir"))
@@ -108,7 +108,7 @@ func TestImportedPlanUsesOwnerHooksAndEndpoints(t *testing.T) {
 		if !ok {
 			t.Fatalf("up did not detect imported plan in %v", args)
 		}
-		return runPlanUp(root, loadEnv(root), planName, extra)
+		return runPlanUp(root, rootEnvLoad(root), planName, extra)
 	}}
 	wrapWithHooks("up", up)
 
@@ -143,7 +143,7 @@ func TestImportedPlanUsesOwnerHooksAndEndpoints(t *testing.T) {
 	jsonOutput = true
 	var jsonErr error
 	jsonText := captureStdout(t, func() {
-		jsonErr = runPlanUp(root, loadEnv(root), "child-dev", nil)
+		jsonErr = runPlanUp(root, rootEnvLoad(root), "child-dev", nil)
 	})
 	jsonOutput = false
 	if jsonErr != nil {
@@ -185,7 +185,7 @@ func TestImportedPlanUsesOwnerHooksAndEndpoints(t *testing.T) {
 		if !ok {
 			t.Fatalf("logs did not detect imported plan in %v", filtered)
 		}
-		return runPlanLogs(root, loadEnv(root), planName, extra)
+		return runPlanLogs(root, rootEnvLoad(root), planName, extra)
 	}}
 	wrapWithHooks(config.LogsDirName, logs)
 	writeEntryLog(t, root.Plans["child/dev"].OwnerConfig(root), "first", "child-log")

@@ -1118,7 +1118,7 @@ func TestWarnUnresolvedEnvVars(t *testing.T) {
 	env := NewEnvironment(c.Environment, ".", ".")
 	env.Vars["EXISTING_VAR"] = "exists"
 
-	warnings := c.warnUnresolvedEnvVars(env)
+	warnings := c.warnUnresolvedEnvVars(env, false)
 	if len(warnings) != 2 {
 		t.Fatalf("expected 2 warnings, got %d", len(warnings))
 	}

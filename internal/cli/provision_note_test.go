@@ -84,7 +84,7 @@ func TestParallelBatchPrintsNote(t *testing.T) {
 			}
 
 			out := captureStdout(t, func() {
-				if err := executeParallelBatch(loadEnv(c), c, batch, 0, len(batch), tc.dryRun); err != nil {
+				if err := executeParallelBatch(mustEnv(c), c, batch, 0, len(batch), tc.dryRun); err != nil {
 					t.Errorf("executeParallelBatch: %v", err)
 				}
 			})
@@ -148,7 +148,7 @@ func TestSequentialAndParallelNotesAgree(t *testing.T) {
 	}
 
 	seqOut := captureStdout(t, func() {
-		if err := executeProvisionStep(loadEnv(c), c, seq[0], 0, 1, false); err != nil {
+		if err := executeProvisionStep(mustEnv(c), c, seq[0], 0, 1, false); err != nil {
 			t.Errorf("executeProvisionStep: %v", err)
 		}
 	})

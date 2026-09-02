@@ -70,7 +70,7 @@ plans:
 		t.Fatal(err)
 	}
 
-	if err := runPlanRestart(c, e, "local-dev", []string{"--dry-run"}); err != nil {
+	if err := runPlanRestart(c, planEnv(e), "local-dev", []string{"--dry-run"}); err != nil {
 		t.Fatalf("plan restart dry-run failed: %v", err)
 	}
 	if _, err := os.Stat(pidFile); err != nil {
@@ -684,4 +684,20 @@ func TestUpLoneDashAgreesWithABareUp(t *testing.T) {
 	if len(dashRan) != 0 {
 		t.Errorf("up -: refused with %v but still ran %v; the guard must stop the command before any entry is touched", dashErr, dashRan)
 	}
+}
+
+// planEnv wraps a bare environment as the report-carrying value the runPlan* helpers
+// take. The zero report is the loadable one — a test that builds its environment
+// directly has declared no env files, so there is nothing that could have failed.
+// Tests that mean to exercise the incomplete path build the report explicitly.
+func planEnv(e *config.Environment) *envLoad {
+	return &envLoad{env: e}
+}
+
+// mustEnv is loadEnv for tests that only need the environment. The discarded report
+// belongs to the route, not to the environment, and these tests are exercising
+// something below the route layer.
+func mustEnv(c *config.Config) *config.Environment {
+	e, _ := loadEnv(c)
+	return e
 }

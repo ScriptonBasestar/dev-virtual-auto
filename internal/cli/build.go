@@ -149,9 +149,14 @@ func buildPlanEntry(e *config.Environment, c *config.Config, target planBuildTar
 // entry name belongs to the tool doing the building — `--no-cache`, `--pull`, a service
 // name — and parsePlanFlags exists to reject exactly that. The DVA flags were already taken
 // by parseDvaFlags before the plan was chosen, which is how --dry-run reaches here.
-func runPlanBuild(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
-	runtime, err := resolvePlanRuntime(c, e, planName, nil)
+func runPlanBuild(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
+	runtime, err := resolvePlanRuntime(c, el, planName, nil)
 	if err != nil {
+		return err
+	}
+	// Fail closed before the first child. The plan's own owner decides this — a root
+	// env_file failure never reaches an imported plan, and vice versa (TASK-247 §3, §4).
+	if err := runtime.report.Err(); err != nil {
 		return err
 	}
 	plan, c, e := runtime.plan, runtime.config, runtime.env

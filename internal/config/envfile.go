@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -19,40 +18,15 @@ type EnvFileConfig struct {
 
 // LoadEnvFile loads environment variables from .env file(s).
 // The config can be: string, []any, or map with files/required keys.
+//
+// It is the error-returning adapter over ApplyEnvFiles, kept for callers that
+// only need "did the whole declaration set load". Like ApplyEnvFiles it is
+// atomic: on failure env is unchanged, so no caller can observe values merged
+// before a later file failed. Callers that must distinguish missing from
+// unreadable from malformed, or that must report every failure rather than the
+// first, need the report from ApplyEnvFiles instead.
 func LoadEnvFile(envFileConfig any, basePath string, env *Environment) error {
-	files := normalizeEnvFileConfig(envFileConfig)
-
-	for _, f := range files {
-		path := f.Path
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(basePath, path)
-		}
-
-		data, err := os.Open(path)
-		if err != nil {
-			if os.IsNotExist(err) {
-				if f.Required {
-					return fmt.Errorf("required environment file not found: %s", path)
-				}
-				continue // optional, skip
-			}
-			return fmt.Errorf("reading env file %s: %w", path, err)
-		}
-
-		vars, err := parseEnvFile(data)
-		_ = data.Close()
-		if err != nil {
-			return fmt.Errorf("parsing env file %s: %w", path, err)
-		}
-
-		// Merge into environment respecting OS priority (env_file < OS env)
-		env.MergeVars(vars)
-	}
-
-	// Interpolate loaded vars
-	interpolateEnvVars(env)
-
-	return nil
+	return ApplyEnvFiles(envFileConfig, basePath, env).Err()
 }
 
 func normalizeEnvFileConfig(config any) []EnvFileConfig {
@@ -84,11 +58,21 @@ func normalizeEnvFileConfig(config any) []EnvFileConfig {
 	return nil
 }
 
-func parseEnvFile(f *os.File) (map[string]string, error) {
+// parseEnvFileStrict parses a dotenv stream and rejects any non-blank,
+// non-comment line that is not an assignment.
+//
+// The returned line number is the discriminator the caller switches on: a
+// non-zero line means "line N is not valid dotenv" (malformed), while a zero
+// line with a non-nil error means the scanner itself failed (a read fault).
+// Before TASK-248 an unrecognized line was silently skipped, which let a typo
+// like `PORT 8080` reach the runtime as a missing variable instead of an error.
+func parseEnvFileStrict(f *os.File) (map[string]string, int, error) {
 	vars := make(map[string]string)
 	scanner := bufio.NewScanner(f)
+	lineNo := 0
 
 	for scanner.Scan() {
+		lineNo++
 		line := strings.TrimSpace(scanner.Text())
 
 		// Skip empty lines and comments
@@ -98,7 +82,7 @@ func parseEnvFile(f *os.File) (map[string]string, error) {
 
 		matches := envLineRegex.FindStringSubmatch(line)
 		if matches == nil {
-			continue
+			return nil, lineNo, fmt.Errorf("invalid dotenv syntax at line %d", lineNo)
 		}
 
 		key := matches[1]
@@ -115,7 +99,10 @@ func parseEnvFile(f *os.File) (map[string]string, error) {
 		vars[key] = value
 	}
 
-	return vars, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, 0, err
+	}
+	return vars, 0, nil
 }
 
 func unquoteEnvValue(value string) string {

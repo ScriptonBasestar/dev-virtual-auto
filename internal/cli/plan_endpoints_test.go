@@ -17,7 +17,7 @@ func TestRunPlanUpPrintsAllConfiguredEndpointsAfterSuccessfulStartup(t *testing.
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", nil)
+		err = runPlanUp(c, planEnv(e), "demo", nil)
 	})
 
 	if err != nil {
@@ -39,7 +39,7 @@ func TestRunPlanUpPrintsOnlyEndpointsMatchingPlanTags(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", nil)
+		err = runPlanUp(c, planEnv(e), "demo", nil)
 	})
 
 	if err != nil {
@@ -69,7 +69,7 @@ func TestRunPlanUpDoesNotProbeEndpointsExcludedByPlanTags(t *testing.T) {
 	c := loadTestConfig(t, configText)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	if err := runPlanUp(c, e, "demo", nil); err != nil {
+	if err := runPlanUp(c, planEnv(e), "demo", nil); err != nil {
 		t.Fatalf("runPlanUp failed: %v", err)
 	}
 	if got := requests.Load(); got != 0 {
@@ -93,7 +93,7 @@ func TestRunPlanUpDoesNotProbeConfiguredEndpoints(t *testing.T) {
 	c := loadTestConfig(t, configText)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	if err := runPlanUp(c, e, "demo", nil); err != nil {
+	if err := runPlanUp(c, planEnv(e), "demo", nil); err != nil {
 		t.Fatalf("runPlanUp failed: %v", err)
 	}
 	if got := requests.Load(); got != 0 {
@@ -107,7 +107,7 @@ func TestRunPlanUpOmitsEndpointsWhenStartupFails(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", nil)
+		err = runPlanUp(c, planEnv(e), "demo", nil)
 	})
 
 	if err == nil {
@@ -124,7 +124,7 @@ func TestRunPlanUpDryRunOmitsEndpoints(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", []string{"--dry-run"})
+		err = runPlanUp(c, planEnv(e), "demo", []string{"--dry-run"})
 	})
 
 	if err != nil {
@@ -146,7 +146,7 @@ func TestRunPlanUpJSONOutputReturnsStructuredResult(t *testing.T) {
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", nil)
+		err = runPlanUp(c, planEnv(e), "demo", nil)
 	})
 
 	if err != nil {
@@ -193,7 +193,7 @@ plans:
 
 	var err error
 	out := captureStdout(t, func() {
-		err = runPlanUp(c, e, "demo", nil)
+		err = runPlanUp(c, planEnv(e), "demo", nil)
 	})
 
 	if err != nil {

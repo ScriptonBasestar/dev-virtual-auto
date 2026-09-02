@@ -129,7 +129,7 @@ func TestRunPlanLogsRequiresANameWhenSeveralEntriesQualify(t *testing.T) {
 	c := logTestConfig(t)
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 
-	err := runPlanLogs(c, e, "full", nil)
+	err := runPlanLogs(c, planEnv(e), "full", nil)
 
 	if err == nil {
 		t.Fatal("an ambiguous plan produced logs anyway, without saying whose")
@@ -153,7 +153,7 @@ func TestRunPlanLogsReadsTheLogFileOfANamedProcessEntry(t *testing.T) {
 	writeEntryLog(t, c, "api", "listening on :8080\n")
 
 	var err error
-	out := captureStdout(t, func() { err = runPlanLogs(c, e, "full", []string{"api"}) })
+	out := captureStdout(t, func() { err = runPlanLogs(c, planEnv(e), "full", []string{"api"}) })
 
 	if err != nil {
 		t.Fatalf("runPlanLogs failed: %v", err)
@@ -171,7 +171,7 @@ func TestRunPlanLogsUsesTheSoleEntryWithoutBeingNamed(t *testing.T) {
 	writeEntryLog(t, c, "api", "sole entry\n")
 
 	var err error
-	out := captureStdout(t, func() { err = runPlanLogs(c, e, "solo", nil) })
+	out := captureStdout(t, func() { err = runPlanLogs(c, planEnv(e), "solo", nil) })
 
 	if err != nil {
 		t.Fatalf("runPlanLogs failed: %v", err)
@@ -190,7 +190,7 @@ func TestRunPlanLogsRejectsPassthroughArgsOnAFileBackedEntry(t *testing.T) {
 	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
 	writeEntryLog(t, c, "api", "x\n")
 
-	err := runPlanLogs(c, e, "full", []string{"api", "-f"})
+	err := runPlanLogs(c, planEnv(e), "full", []string{"api", "-f"})
 
 	if err == nil {
 		t.Fatal("-f was accepted and ignored on a file-backed entry")

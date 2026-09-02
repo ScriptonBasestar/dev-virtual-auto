@@ -43,7 +43,7 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 			return original(cmd, args)
 		}
 
-		rootEnv := loadEnv(c)
+		rootLoad := rootEnvLoad(c)
 		hookConfig, err := hookOwnerConfig(c, cmdName, args)
 		if err != nil {
 			return err
@@ -53,10 +53,20 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 			return original(cmd, args)
 		}
 
-		e := rootEnv
+		load := rootLoad
 		if hookConfig != c {
-			e = newOwnedConfigEnvironment(hookConfig)
+			load = newOwnedConfigEnvironment(hookConfig)
 		}
+
+		// TASK-247 §4: hooks are evaluated only after the target route's owner and
+		// report are known, and never on incomplete inputs. Delegating to the built-in
+		// rather than failing here keeps route policy in exactly one place — `up` will
+		// refuse, doctor will still report — while guaranteeing the part hooks own:
+		// no before-hook fires for a command that is about to refuse.
+		if load.report.Incomplete() {
+			return original(cmd, args)
+		}
+		e := load.env
 
 		// The wrapped command obtains its environment through the package cache. Point that
 		// cache at the already-loaded owner environment for this invocation so an imported
@@ -64,7 +74,7 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 		// preserves direct-project semantics when a before-hook edits the env_file: the
 		// built-in continues with the snapshot on which its hooks were based.
 		previousEnv := env
-		env = e
+		env = load
 		defer func() { env = previousEnv }()
 
 		// Set hook depth to prevent recursion in subprocesses.

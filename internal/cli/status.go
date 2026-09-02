@@ -17,11 +17,17 @@ var statusCmd = &cobra.Command{
 	Short: "Display current workspace and runtime status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
+		var rootLoad *envLoad
 		if err == nil {
-			e := loadEnv(c)
+			el := rootEnvLoad(c)
 			if planName, _, ok := detectPlanRoute(c, args); ok {
-				return runPlanStatus(c, e, planName)
+				return runPlanStatus(c, el, planName)
 			}
+			// Whole-stack route: root-owned, so the root report governs. Observation does
+			// not fail before printing — it prints a document explicitly marked partial and
+			// then exits 1, so a reader is never left to guess whether an empty stack list
+			// means "nothing declared" or "nothing asked".
+			rootLoad = el
 			if err := rejectSuppressedDefaultPlan(c, "status", args); err != nil {
 				return err
 			}
@@ -42,8 +48,20 @@ var statusCmd = &cobra.Command{
 				statusData["commands_count"] = len(c.Interaction)
 				statusData["stack_count"] = len(c.Stack)
 
-				e := loadEnv(c)
-				orch := lifecycle.NewOrchestrator(c, e)
+				if rootLoad.report.Incomplete() {
+					// Config metadata stays; the runtime-derived "stack" key is omitted
+					// rather than emitted empty. One document, exit 1.
+					statusData["target"] = "stack"
+					statusData["environment"] = envPartialJSON(rootLoad.report)
+					statusData["runtime"] = envNotQueriedJSON()
+					statusData["error"] = envErrorJSON()
+					if printErr := output.PrintJSON(statusData); printErr != nil {
+						return printErr
+					}
+					return envIncompleteError(rootLoad.report)
+				}
+
+				orch := lifecycle.NewOrchestrator(c, rootLoad.env)
 				status, statusErr := orch.Status(context.Background())
 				if statusErr == nil {
 					stackStatus = status
@@ -86,8 +104,13 @@ var statusCmd = &cobra.Command{
 		}
 
 		// Lifecycle status via orchestrator
-		e := loadEnv(c)
-		orch := lifecycle.NewOrchestrator(c, e)
+		if rootLoad.report.Incomplete() {
+			// The endpoint table is omitted too: it would start HTTP health checks, and
+			// observation on incomplete inputs starts no child and probes no network.
+			fmt.Println("\nLifecycle: (not queried: environment inputs incomplete)")
+			return envIncompleteError(rootLoad.report)
+		}
+		orch := lifecycle.NewOrchestrator(c, rootLoad.env)
 		status, statusErr := orch.Status(context.Background())
 		if statusErr != nil {
 			fmt.Println("\nLifecycle: (error querying status)")

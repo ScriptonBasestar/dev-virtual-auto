@@ -385,9 +385,13 @@ type configuredComposeFile struct {
 // are deferred too: plan/site/plan-entry variables belong to lifecycle resolution,
 // and this validator intentionally does not duplicate that resolver.
 func configuredComposeFiles(c *config.Config) ([]configuredComposeFile, bool, bool) {
+	// TASK-248: no env-file I/O during validation. A compose path that still
+	// interpolates after the literal layers below is deferred by the existing
+	// `strings.Contains(resolved, "$")` guard, exactly as plan and site variables
+	// already are — one more deferral, not a new failure mode, and never a claim
+	// that a path the validator cannot resolve is present.
 	env := config.NewEnvironment(c.Vars, c.FileDir(), c.FileDir())
 	env.MergeVars(c.Environment)
-	_ = config.LoadEnvFile(c.EnvFile, c.FileDir(), env)
 
 	names := make([]string, 0, len(c.Stack))
 	for name := range c.Stack {

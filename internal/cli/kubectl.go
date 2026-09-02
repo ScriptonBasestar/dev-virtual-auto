@@ -22,7 +22,12 @@ If multiple kubectl entries exist, the first argument must be the entry name.`,
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		e, envReport := loadEnv(c)
+		// Execution: `ktl` resolves a cluster resource identity from the environment,
+		// so an incomplete environment could address the wrong cluster or namespace.
+		if err := envReport.Err(); err != nil {
+			return err
+		}
 
 		// The fourth site of TASK-092's leak: both exec paths below append args straight
 		// into kubectl's argv, so `dva --debug ktl get pods` ran `kubectl get pods --debug`.

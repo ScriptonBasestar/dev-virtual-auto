@@ -34,7 +34,10 @@ If multiple compose entries exist, the first argument must be the entry name.`,
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		e, envReport := loadEnv(c)
+		if err := envReport.Err(); err != nil {
+			return err
+		}
 
 		// Same leak as `dva stack log` (TASK-092), and worse-positioned: these args are
 		// appended before the compose subcommand, so `dva --debug --json compose logs`
@@ -110,10 +113,16 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanUp(c, e, planName, extraArgs)
+			return runPlanUp(c, el, planName, extraArgs)
 		}
+		// Root-owned route from here: no plan claimed the invocation, so the root's own
+		// env-input report governs and this fails closed before any hook or backend child.
+		if err := el.report.Err(); err != nil {
+			return err
+		}
+		e := el.env
 		// A LEADING `--` is a separator: `dva up --` ≡ `dva up`, and `dva up -- X` ≡ `dva up X`.
 		// TASK-216 widened TASK-207's restart-local identity to up/down/stop; the argument, and
 		// what keeping it restart-local cost, is written at dropFlagTerminator (selectors.go).
@@ -281,7 +290,15 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 // for both down and stop commands. verb is "down" or "stop" for error messages.
 func teardownCommon(args []string, verb string) (*config.Config, *config.Environment, string, []string, []string, error) {
 	c := mustLoadConfig()
-	e := loadEnv(c)
+	e, envReport := loadEnv(c)
+
+	// Teardown fails closed exactly like startup. Tearing down with the wrong
+	// environment resolves the wrong resource identity, and cleaning up someone
+	// else's resources is worse than refusing to clean up at all (TASK-247 §4).
+	// This precedes every hook, marker removal and backend child below.
+	if err := envReport.Err(); err != nil {
+		return nil, nil, "", nil, nil, err
+	}
 
 	mode, envName, includeTags, excludeTags, remaining, err := parseDvaFlags(args)
 	if err != nil {
@@ -369,9 +386,9 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanDown(c, e, planName, extraArgs)
+			return runPlanDown(c, el, planName, extraArgs)
 		}
 		// `dva down --` ≡ `dva down`. TASK-216; the ruling and its cost are at
 		// dropFlagTerminator (selectors.go), the placement argument at `up` above.
@@ -444,9 +461,9 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanStop(c, e, planName, extraArgs)
+			return runPlanStop(c, el, planName, extraArgs)
 		}
 		// `dva stop --` ≡ `dva stop`. TASK-216; same ruling, same placement argument, and the
 		// same teardownCommon door as `down` above — stop and down share that helper, but not
@@ -532,10 +549,16 @@ Stack flags:
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanRestart(c, e, planName, extraArgs)
+			return runPlanRestart(c, el, planName, extraArgs)
 		}
+		// Root-owned route from here: no plan claimed the invocation, so the root's own
+		// env-input report governs and this fails closed before any hook or backend child.
+		if err := el.report.Err(); err != nil {
+			return err
+		}
+		e := el.env
 		if err := requirePlanSelection(c, "restart", args); err != nil {
 			return err
 		}
@@ -711,7 +734,7 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 
 		// remaining is docker's argv from here on — `dva build --no-cache` has to reach
 		// docker, so nothing downstream can tell a malformed DVA flag from a valid docker
@@ -730,8 +753,14 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 		// consumeRootPersistentFlags at this point instead; here parseDvaFlags has done that
 		// job and more, and calling both would walk the same argv twice.
 		if planName, extraArgs, ok := detectPlanRoute(c, remaining); ok {
-			return runPlanBuild(c, e, planName, extraArgs)
+			return runPlanBuild(c, el, planName, extraArgs)
 		}
+		// Root-owned route from here: no plan claimed the invocation, so the root's own
+		// env-input report governs and this fails closed before any hook or backend child.
+		if err := el.report.Err(); err != nil {
+			return err
+		}
+		e := el.env
 		if err := requirePlanSelection(c, "build", remaining); err != nil {
 			return err
 		}
@@ -798,7 +827,7 @@ compose passthrough: 'dva logs api' still means the 'api' service.`,
 			return cmd.Help()
 		}
 		c := mustLoadConfig()
-		e := loadEnv(c)
+		el := rootEnvLoad(c)
 		// TASK-092, third site: `dva --debug logs` sent --debug on to docker as a flag of
 		// `compose logs`.
 		args, err := consumeRootPersistentFlags(args)
@@ -806,8 +835,16 @@ compose passthrough: 'dva logs api' still means the 'api' service.`,
 			return err
 		}
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
-			return runPlanLogs(c, e, planName, extraArgs)
+			return runPlanLogs(c, el, planName, extraArgs)
 		}
+		// Observation, not execution: nothing reaches stdout and no compose child or
+		// log file is read. The diagnostic target is the literal word `stack` whatever
+		// trailing argv follows, because DVA does not guess a service name out of raw
+		// passthrough argv (TASK-247 §5).
+		if el.report.Incomplete() {
+			return fmt.Errorf("logs not queried for stack: environment inputs are incomplete")
+		}
+		e := el.env
 		if err := requirePlanSelection(c, "logs", args); err != nil {
 			return err
 		}

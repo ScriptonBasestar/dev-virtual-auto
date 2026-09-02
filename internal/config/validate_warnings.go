@@ -69,11 +69,18 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnInertProvisionSteps()...)
 	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
 
-	// Build a contextual environment for accurate interpolation checks
+	// Build a contextual environment for accurate interpolation checks.
+	//
+	// TASK-248: validation performs no env-file I/O. Structural validation has to
+	// keep working when those files are missing or unreadable — availability is
+	// doctor's and the runtime's to report, not the schema validator's. The cost
+	// is that a reference satisfied only by an env file is no longer decidable
+	// here, so the unresolved-variable check defers rather than reporting a
+	// variable it can no longer see. It does not become a new warning category
+	// and it does not claim success.
 	env := NewEnvironment(c.Environment, c.FileDir(), c.FileDir())
-	_ = LoadEnvFile(c.EnvFile, c.FileDir(), env)
 
-	warnings = append(warnings, c.warnUnresolvedEnvVars(env)...)
+	warnings = append(warnings, c.warnUnresolvedEnvVars(env, c.EnvFile != nil)...)
 	warnings = append(warnings, c.warnSuspiciousEnvPatterns()...)
 
 	if c.filePath != "" {
@@ -1061,7 +1068,14 @@ func (c *Config) warnUnreachableCommands() []string {
 // after config and OS interpolation, indicating a possible typo or missing variable.
 //
 // Severity: Semantic Warning
-func (c *Config) warnUnresolvedEnvVars(env *Environment) []string {
+func (c *Config) warnUnresolvedEnvVars(env *Environment, envFilesDeclared bool) []string {
+	// An env_file declaration can define any of the names still unresolved here,
+	// and validation does not open it. Warning anyway would report a defect that
+	// does not exist for every project that keeps its variables in .env.
+	if envFilesDeclared {
+		return nil
+	}
+
 	var warnings []string
 
 	for k, v := range c.Environment {

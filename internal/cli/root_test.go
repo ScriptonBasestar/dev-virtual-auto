@@ -192,7 +192,7 @@ func TestLoadEnv(t *testing.T) {
 	os.WriteFile(config.FileName, []byte("version: \"0.1.22\"\nenvironment:\n  APP_ENV: dev\n"), 0644)
 
 	c, _ := loadConfig()
-	e := loadEnv(c)
+	e, _ := loadEnv(c)
 	if e == nil {
 		t.Fatal("expected non-nil environment")
 	}
@@ -201,7 +201,7 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	// Second call should return cached env
-	e2 := loadEnv(c)
+	e2, _ := loadEnv(c)
 	if e2 != e {
 		t.Error("second call should return same cached env")
 	}
@@ -254,7 +254,7 @@ func TestLoadEnv_IncludesGlobalVars(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	e := loadEnv(c)
+	e, _ := loadEnv(c)
 	if e == nil {
 		t.Fatal("expected non-nil environment")
 	}

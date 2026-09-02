@@ -112,20 +112,49 @@ func runDoctorChecks(c *config.Config) []DoctorResult {
 	// Built-in: a subproject claiming the parent's compose project name
 	results = append(results, checkSubprojectComposeProjectNames(c)...)
 
-	// Built-in: Environment files exist
-	results = append(results, checkEnvFiles(c)...)
+	// Built-in: environment inputs. This is the same report the execution routes fail
+	// closed on, inspected rather than applied, so doctor and `up` can never disagree
+	// about which declarations are loadable (TASK-247 §5).
+	envReport := config.InspectEnvFiles(c.EnvFile, c.FileDir())
+	results = append(results, envInputResults(envReport)...)
 
 	// Built-in: non-Compose stack entry files exist
 	results = append(results, checkStackFiles(c)...)
 
-	// Built-in: Compose files exist
-	results = append(results, checkComposeFiles(c)...)
+	if envReport.Incomplete() {
+		// Both compose checks below interpolate their paths with env-file-derived
+		// values, and the second starts a compose child. Running them on an
+		// environment DVA has already refused would report a MISSING file whose name
+		// was resolved against inputs that were never applied — a failure against a
+		// config that is fine. So they are skipped, and the skip is a row rather than
+		// a silence, because a check that quietly does not run reads as a check that
+		// passed. passed:true: not running a check is not evidence of a broken file,
+		// and the env failure row above already carries the real finding.
+		//
+		// The guards keep parity with the checks themselves — neither emits anything
+		// for a config with no compose files, so neither may emit a skip notice.
+		if len(c.AllComposeFiles()) > 0 {
+			results = append(results, DoctorResult{
+				Name:   "Compose file existence (skipped: environment input unavailable)",
+				Passed: true,
+			})
+		}
+		if cc := c.PrimaryComposeConfig(); cc != nil && len(cc.Files) > 0 {
+			results = append(results, DoctorResult{
+				Name:   "Compose config resolves (skipped: environment input unavailable)",
+				Passed: true,
+			})
+		}
+	} else {
+		// Built-in: Compose files exist
+		results = append(results, checkComposeFiles(c)...)
 
-	// Built-in: Compose config resolves (catches include:/-f targets that the
-	// per-file existence check above misses — e.g. compose.yaml includes a file
-	// that was renamed/removed). Runs the configured compose command's `config`,
-	// which needs no daemon (TASK-119 made the check binary match the config).
-	results = append(results, checkComposeConfigResolves(c)...)
+		// Built-in: Compose config resolves (catches include:/-f targets that the
+		// per-file existence check above misses — e.g. compose.yaml includes a file
+		// that was renamed/removed). Runs the configured compose command's `config`,
+		// which needs no daemon (TASK-119 made the check binary match the config).
+		results = append(results, checkComposeConfigResolves(c)...)
+	}
 
 	for _, check := range c.DoctorChecks {
 		r := runSingleCheck(check, c.FileDir())
@@ -531,54 +560,45 @@ func sameStringSet(a, b []string) bool {
 	return len(seen) == len(set)
 }
 
+// checkEnvFiles reports one row per env-file declaration.
+//
+// It replaces the former existence check, and the difference is not cosmetic: existence
+// was never the question a user needed answered. A file that exists but cannot be read,
+// or whose line 12 is not an assignment, used to pass doctor and then stop `dva up`, so
+// the command whose whole job is explaining why things do not work was the one surface
+// that could not see the reason. Asking the loader instead of os.Stat means doctor
+// reports exactly what the runtime will decide.
 func checkEnvFiles(c *config.Config) []DoctorResult {
+	return envInputResults(config.InspectEnvFiles(c.EnvFile, c.FileDir()))
+}
+
+// envInputResults renders one report into doctor rows, in declaration order.
+//
+// An optional file that is simply absent produces no row at all. That is the author
+// having said "use this if it is here", and reporting a row for it would turn a
+// deliberate choice into something that looks like a finding.
+func envInputResults(r *config.EnvInputReport) []DoctorResult {
 	var results []DoctorResult
-	cfgDir := c.FileDir()
-
-	for _, envFile := range c.AllEnvFileConfigs() {
-		if envFile.Path == "" {
+	for _, entry := range r.Entries {
+		if entry.Status == config.EnvInputSkipped {
 			continue
 		}
-		path := envFile.Path
-		if !filepath.IsAbs(path) {
-			path = filepath.Join(cfgDir, envFile.Path)
+		// One Name across both outcomes: a --json consumer correlates a failing run
+		// with a passing one by this string, so it may not encode the verdict.
+		result := DoctorResult{
+			Name:   fmt.Sprintf("Environment input loads: %s", entry.File),
+			Passed: entry.Status == config.EnvInputLoaded,
 		}
-
-		_, statErr := os.Stat(path)
-		result, include := doctorEnvFileResult(envFile.Path, envFile.Required, statErr)
-		if !include {
-			continue
+		if !result.Passed {
+			// entry.Reason() is the frozen, content-free explanation. Nothing here can
+			// widen it to a key, a value or a merge count, because the report does not
+			// carry those in the first place.
+			result.Finding = fmt.Sprintf("Environment input is UNAVAILABLE: %s", entry.Reason())
+			result.FixHint = fmt.Sprintf("Fix env_file entry: %s", entry.File)
 		}
 		results = append(results, result)
 	}
-
 	return results
-}
-
-func doctorEnvFileResult(path string, required bool, statErr error) (DoctorResult, bool) {
-	if statErr != nil && os.IsNotExist(statErr) && !required {
-		return DoctorResult{}, false
-	}
-
-	passed := statErr == nil
-	finding := ""
-	fixHint := ""
-	if statErr != nil {
-		if os.IsNotExist(statErr) {
-			finding = fmt.Sprintf("Environment file is MISSING: %s", path)
-			fixHint = fmt.Sprintf("Create or check path: %s", path)
-		} else {
-			finding = fmt.Sprintf("Environment file is INACCESSIBLE: %s", path)
-			fixHint = fmt.Sprintf("Check path type and permissions: %s", path)
-		}
-	}
-
-	return DoctorResult{
-		Name:    fmt.Sprintf("Environment file exists: %s", path),
-		Finding: finding,
-		Passed:  passed,
-		FixHint: fixHint,
-	}, true
 }
 
 func checkStackFiles(c *config.Config) []DoctorResult {
@@ -630,7 +650,7 @@ func checkStackFiles(c *config.Config) []DoctorResult {
 func checkComposeFiles(c *config.Config) []DoctorResult {
 	var results []DoctorResult
 	seen := make(map[string]struct{})
-	e := loadEnv(c)
+	e, _ := loadEnv(c)
 
 	for _, f := range c.AllComposeFiles() {
 		if f == "" {
@@ -678,7 +698,8 @@ func checkComposeConfigResolves(c *config.Config) []DoctorResult {
 		return nil
 	}
 
-	composeCmd, args, err := dvaexec.ComposeArgv(loadEnv(c), cc, c.FileDir())
+	e, _ := loadEnv(c)
+	composeCmd, args, err := dvaexec.ComposeArgv(e, cc, c.FileDir())
 	if err != nil {
 		// A command: that splits to no words. `dva doctor` is the command people run to
 		// find out what is wrong, so this is the one place it should certainly not be

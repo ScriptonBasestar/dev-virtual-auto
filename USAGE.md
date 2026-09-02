@@ -621,7 +621,13 @@ dva doctor --strict       # 빌트인 체크 실패도 exit≠0 (기본은 advis
 빌트인 체크 항목:
 - Docker 소켓 권한 및 데몬 접근 가능 여부
 - Compose 파일 존재 여부 및 project name 정합성
-- `required: true`로 선언된 `env_file` 존재 여부 (누락된 선택 파일은 진단에서 제외)
+- 선언된 `env_file`이 **로드 가능한지** (존재 여부가 아니라 실제 파싱까지 — 누락된 선택
+  파일은 진단에서 제외). 실패 시 `Environment input is UNAVAILABLE: <이유>` 한 줄과
+  `Fix env_file entry: <선언한 경로>` 힌트를 출력합니다
+- 환경 입력이 불완전하면 Compose 존재/해석 체크는 실행하지 않고
+  `(skipped: environment input unavailable)` 행으로 표시합니다 — 값이 채워지지 않은
+  환경에서 경로를 해석하면 멀쩡한 설정을 MISSING으로 보고하기 때문입니다. 이때 기본
+  exit는 0이고, `--strict`에서만 1입니다 (아래 [환경 입력이 불완전할 때](#환경-입력이-불완전할-때) 참조)
 - Stack 엔트리 참조 파일 존재 여부
 - `.sb/dva/`가 `.gitignore`에 포함되어 있는지
 - devcontainer 설정 시 `devcontainer.json` 존재 여부
@@ -884,6 +890,64 @@ env_file < global vars < environment vars < site vars < plan vars < CLI vars < O
 
 OS 환경 변수가 가장 높은 우선순위입니다. 같은 키가 OS에 설정되어 있으면
 `dva.yml`의 어떤 레이어(`--var` 포함)도 그 값을 덮어쓰지 못합니다.
+
+#### 환경 입력이 불완전할 때
+
+선언한 `env_file`을 읽을 수 없으면 — required 파일이 없거나, 읽기가 실패하거나, dotenv
+문법이 아닌 줄이 있으면 — DVA는 **그 소유자의 env_file에서 온 값을 하나도 적용하지
+않습니다**. 앞선 파일이 성공했더라도 마찬가지입니다. 절반만 채워진 환경은 다른
+project name이나 다른 cluster를 가리킬 수 있고, 그 상태로 실행·정리하는 것이 멈추는
+것보다 위험하기 때문입니다.
+
+진단은 선언한 경로와 아래 세 가지 이유만 출력합니다. 키, 값, 파일 내용, 그리고 실패
+직전까지 몇 개가 병합됐는지는 어떤 출력에도 나오지 않습니다.
+
+```text
+environment inputs are incomplete
+  - .env: missing required file
+  - config/app.env: cannot read file
+  - .env.local: invalid dotenv syntax at line 12
+```
+
+명령별 동작:
+
+| 분류 | 명령 | 동작 |
+|---|---|---|
+| 실행/변경 | `up`, `restart`, `build`, `run`, `provision`, `compose`, `ktl`, `ssh up` | hook·health check·백엔드를 **시작하기 전에** exit 1 |
+| 정리 | `down`, `stop` | 같음. 잘못된 환경으로 해석한 리소스를 지울 수 있으므로 예외를 두지 않습니다 |
+| 관찰 | `status`, `logs` | 자식 프로세스를 실행하지 않고, 조회하지 않았음을 명시한 부분 결과를 출력한 뒤 exit 1 |
+| 진단 | `doctor` | 독립적인 체크는 끝까지 수행. 기본 exit 0, `--strict`에서 exit 1 |
+| 구조 검증 | `validate`, `config validate` | env 파일을 **열지 않습니다**. 스키마·의미 검사는 그대로 수행 |
+| env 비의존 | `ssh down`, `ssh status`, 설정 조회 계열 | 영향 없음 |
+
+`status`의 부분 결과는 설정 메타데이터는 유지하고 런타임에서 온 항목만 생략합니다.
+`--json`은 문서 하나만 출력하며, `runtime.queried: false`가 "결과가 비었다"와 "묻지
+않았다"를 구분해 줍니다.
+
+```bash
+dva status --json
+```
+
+```json
+{
+  "target": "stack",
+  "environment": {
+    "state": "partial",
+    "failures": [{"file": ".env", "required": true, "kind": "missing_required"}]
+  },
+  "runtime": {"queried": false, "reason": "environment_incomplete"},
+  "error": {"message": "environment inputs are incomplete", "exit_code": 1}
+}
+```
+
+소유자는 선언한 config 단위입니다. root의 `env_file` 실패는 `subprojects:`로 가져온
+plan·interaction·provision을 막지 않고, 반대로 child의 실패도 root 경로를 막지
+않습니다. 각 경로는 자기 소유자의 판정만 사용합니다.
+
+> **마이그레이션**: 이전 버전은 위 상황에서 `WARN: env_file: ...`을 출력하고 계속
+> 실행했습니다. dotenv 문법이 아닌 줄을 조용히 무시하던 파일은 이제 명시적 오류이므로
+> 해당 줄을 고쳐야 합니다. 선택 파일 부재, 정상 경로의 우선순위, 설정 조회 계열
+> 명령의 동작은 그대로입니다.
 
 #### 컨테이너로 전달되는 환경변수
 

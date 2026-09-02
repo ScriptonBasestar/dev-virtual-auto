@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,20 +56,30 @@ env_file:
 	}
 
 	result := onlyResult(t, checkEnvFiles(c))
-	if !result.Passed || result.Name != "Environment file exists: required.env" {
+	if !result.Passed || result.Name != "Environment input loads: required.env" {
 		t.Fatalf("checkEnvFiles() = %+v, want one passing required.env result", result)
 	}
 }
 
-func TestDoctorOptionalEnvFileDoesNotHideStatErrors(t *testing.T) {
-	result, include := doctorEnvFileResult(".env.local", false, errors.New("synthetic stat failure"))
-	if !include {
-		t.Fatal("doctorEnvFileResult() omitted a non-IsNotExist error")
+// TestDoctorOptionalEnvFileDoesNotHideReadErrors pins the distinction the whole
+// required/optional split rests on: "absent" is a decision the author made, and
+// "present but unreadable" is not, so an optional declaration that cannot be read is
+// still reported. The fixture is a directory rather than a synthetic stat error —
+// os.Open succeeds on it and the read fails, which is the real shape of the bug.
+func TestDoctorOptionalEnvFileDoesNotHideReadErrors(t *testing.T) {
+	c := loadTestConfig(t, "version: \"0.1.45\"\nenv_file: .env.local\n")
+	if err := os.Mkdir(filepath.Join(c.FileDir(), ".env.local"), 0o755); err != nil {
+		t.Fatal(err)
 	}
+
+	result := onlyResult(t, checkEnvFiles(c))
 	if result.Passed {
-		t.Fatalf("doctorEnvFileResult() = %+v, want optional path with stat error to fail", result)
+		t.Fatalf("checkEnvFiles() = %+v, want an unreadable optional path to fail", result)
 	}
-	if result.Finding != "Environment file is INACCESSIBLE: .env.local" {
-		t.Errorf("Finding = %q, want inaccessible-path diagnostic", result.Finding)
+	if result.Finding != "Environment input is UNAVAILABLE: cannot read file" {
+		t.Errorf("Finding = %q, want the frozen unreadable-input diagnostic", result.Finding)
+	}
+	if result.FixHint != "Fix env_file entry: .env.local" {
+		t.Errorf("FixHint = %q, want the configured path as written", result.FixHint)
 	}
 }
