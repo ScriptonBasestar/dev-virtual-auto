@@ -31,6 +31,13 @@ Each item below is a disagreement between what a surface prints and what the run
    unconditional form "for a shadowed key was the one form that provably ran something else — a
    different command with a different description, in the same document, silently". The subproject
    path still carries that defect.
+
+   **This is new code, not a call to an existing helper.** `interactionUsage` and
+   `config.ConflictAdvice` (`internal/config/reserved.go:231`) set the standard to meet — every
+   invocation they name was executed against the binary — but both take a single *root* key, know
+   nothing about subprojects, and never emit a `--project` form. The
+   `dva run --project <project> <item>` fallback has to be written here. Scoping this item as
+   "route the subproject path through the existing root helper" will not satisfy criterion 1.
 2. `internal/cli/run.go:115` tells the user to run `dva ls --project <project>` when a subproject
    command is not found. `lsCmd` registers only `--format`/`-f` and `--detailed`/`-d`
    (`internal/cli/list.go:45-46`); `--project` is registered on `runCmd` alone (`run.go:144`). The

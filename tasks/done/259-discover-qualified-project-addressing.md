@@ -72,7 +72,11 @@ own `cfg.Plans`, `cfg.Interaction` and `cfg.Provision.Profiles` maps at config-l
 2. `config.LiteralKeyWins(c, cmdName)` (`internal/config/reserved.go:155`) — a declared literal
    key containing `:` beats the subproject reading, unless its prefix is a reserved built-in.
 3. `SplitN(":", 2)` — first colon only. `dva engine:mytool:fast` routes to project `engine`,
-   command `mytool:fast`, and works (measured, rc 0).
+   command `mytool:fast`, and works. Measured against its own fixture, not Fixture A — Fixture A's
+   `mytool:fast` is a *root* literal key, so it exercises rule 2, not this one. The config that
+   exercises rule 3 is `subprojects: {engine: {path: ./engine}}` with child
+   `interaction: {"mytool:fast": {...}}` and no `import:`; `dva engine:mytool:fast` and
+   `dva run engine:mytool:fast` both rc 0.
 4. Root interaction tree.
 
 **Reserved prefixes** (`internal/config/reserved.go:118` `UnroutableNamespacePrefix`, `:195`
@@ -82,8 +86,13 @@ produces the sharpest asymmetry found:
 - Interaction key `compose:ps` in the root → `dva config validate` rc 1, unroutable, `ls` marks
   it `(unreachable: 'compose' is a reserved DVA command; rename to 'compose-ps')`.
 - Subproject named `compose` with a child interaction `ps` → `dva compose:ps`, `dva run
-  compose:ps`, `dva run --project compose ps` and `dva compose/ps` all exit 0 and run the child.
-  `dva config validate` exits 0. The schema pattern for subproject keys
+  compose:ps` and `dva run --project compose ps` all exit 0 and run the child; `dva compose/ps`
+  exits 1 with `unknown command "compose/ps" for "dva"` until the parent declares
+  `import.interactions: [{name: ps}]`, after which it too exits 0. That asymmetry is the general
+  rule stated above, not a property of the reserved word: `/` names exist only because
+  `resolveSubprojectImports` writes them, and it returns early for a subproject with no `import:`
+  (`hasSubprojectImports`, `internal/config/subproject.go:86-93`, `:202-207`).
+  `dva config validate` exits 0 either way. The schema pattern for subproject keys
   (`internal/config/schema.json`, `subprojects.patternProperties` `^[\w\-.]+$`) does not exclude
   reserved words.
 
@@ -203,10 +212,14 @@ change (`ok internal/config 0.856s`, `ok internal/cli 15.376s`).
 
 ### 2. Surface inventory: qualification, reachability, owner identity
 
-`--project` is registered on `runCmd` alone. Measured by reading `--help` for all fifteen
-commands: `run` is the only one that accepts it; `up`, `down`, `stop`, `restart`, `build`,
-`logs`, `status`, `provision`, `show`, `ls`, `manifest`, `validate`, `doctor`, `console` reject
-it. `dva up --project engine dev` → rc 1, `unknown flag "--project" for "dva up"`.
+`--project` is registered on `runCmd` alone. The root registers 22 commands
+(`grep -c 'rootCmd.AddCommand' internal/cli/*.go`) plus cobra's `help` and `completion`. `--help`
+was read for the fifteen that carry a project-addressable surface: `run` is the only one that
+accepts `--project`; `up`, `down`, `stop`, `restart`, `build`, `logs`, `status`, `provision`,
+`show`, `ls`, `manifest`, `validate`, `doctor`, `console` reject it. The remaining root commands
+(`compose`, `config`, `init`, `ktl`, `skill`, `ssh`, `version`, plus `help`/`completion`) were not
+read for this flag; `completion` is covered separately in the table below.
+`dva up --project engine dev` → rc 1, `unknown flag "--project" for "dva up"`.
 
 | Surface | `p:item` | `--project` | `p/item` | owner identity shown | canonical vs alias distinguished |
 |---|---|---|---|---|---|
@@ -311,6 +324,16 @@ path is load-bearing and nothing here depends on an external corpus. All fixture
 and secret-free: the only values are the sentinels `from-root`, `from-child`, `root-vars`,
 `child-vars` and `echo` payloads.
 
+**Scope of "canonical repository IDs", stated plainly.** Exactly one repository is pinned —
+`ScriptonBasestar/dva` itself. No external consumer repository was surveyed, and every layout
+below other than the tracked-path table is a synthetic fixture rather than a real project. That
+is narrower than the criterion's plural wording. It was accepted as sufficient because addressing
+grammar is a property of the binary's resolution order, not of any consumer's config: a consumer
+repo can show which forms are *popular*, but only the fixtures isolate the precedence rules, and
+the fixtures reproduce from the text alone at the pinned revision. If TASK-263 needs adoption
+evidence — which forms authors actually write — that is a separate, unmet corpus and must be
+gathered before any deprecation period is priced.
+
 **Tracked layout evidence in the repository** (real qualified layouts, no invented paths):
 
 | Path | What it pins |
@@ -398,9 +421,12 @@ Fail-closed, but the message does not distinguish "your literal key collides wit
 from "two imports collide", and it takes down routes that never touch the name.
 
 **Fixture D — reserved word as a project name.** `subprojects: {compose: {path: ./child}}` with
-child interaction `ps`. `dva config validate` → rc 0; `dva compose:ps`, `dva run compose:ps`,
-`dva run --project compose ps`, `dva compose/ps` → all rc 0, `CHILD-PS`. The identical token as a
-*root interaction key* is a hard validation error.
+child interaction `ps`, no `import:`. `dva config validate` → rc 0; `dva compose:ps`,
+`dva run compose:ps`, `dva run --project compose ps` → rc 0, `CHILD-PS`; `dva compose/ps` → rc 1,
+`unknown command "compose/ps" for "dva"`, because nothing registered that name. Adding
+`import: {interactions: [{name: ps}]}` to the same subproject makes `dva compose/ps` rc 0,
+`CHILD-PS`, with `dva config validate` still rc 0. The identical token as a *root interaction key*
+is a hard validation error.
 
 **Fixture E — lazy vs eager child loading.** Two subprojects, one pointing at a missing
 directory. With no `import:` on either: `dva ls`, `dva hello`, `dva engine:test` all rc 0, and
@@ -489,7 +515,10 @@ every child a load-time dependency of every parent command, multiplying Fixture 
 by the number of subprojects; it silently reinterprets existing configs (a declaration-only
 subproject currently contributes zero names); and it turns every child key into a potential
 parent-namespace collision, including against reserved built-ins, with no author decision behind
-it. No measured evidence supports it.
+it. Nothing here is a measurement — automatic registration is not implemented, so it cannot be
+measured; the rejection rests on the three consequences above, each of which *is* grounded in a
+measured behavior of the current loader (Fixture E's blast radius, the declaration-only
+subproject contributing zero names, and the reserved-word collision in Fixture D).
 
 ### 5. Recommendation
 
@@ -509,9 +538,12 @@ freeze representation, not routing:
    and `manifest` entries for imported items need an owner field and a canonical-vs-alias marker,
    so an agent stops seeing six names for three items.
 2. `manifest.subprojects.*.commands.*.usage_example` must be computed against the parent's
-   namespace, exactly as `ConflictAdvice` and the root `dynamic_commands` marks already are —
-   falling back to `dva run --project <p> <item>` when the `:` form is shadowed. The current
-   unconditional `dva %s:%s` is measurably wrong.
+   namespace rather than emitted unconditionally as `dva %s:%s`, which is measurably wrong under
+   collision (Fixture B). `ConflictAdvice` (`internal/config/reserved.go:231`) and the root
+   `dynamic_commands` marks set the *standard* to meet — every invocation they name was executed
+   against the binary — but neither is a reusable implementation of this fallback: both take a
+   single root key, know nothing about subprojects, and never emit a `--project` form. The
+   `dva run --project <p> <item>` fallback has to be written, not reused.
 3. `internal/cli/run.go:115` must stop advertising `dva ls --project`, or `ls` must gain the flag.
    The two cannot continue to disagree.
 4. Completion must be specified for all three forms plus `--project` values and plan names; today
@@ -546,3 +578,4 @@ are separable from any addressing decision — they are correct under every opti
 ## Troubleshooting Log
 
 - 증상: 한 subproject의 `path`가 존재하지 않을 때 부모 자신의 로컬 interaction까지 `unknown command "hello" for "dva"`로 실패 / 원인: `import:`가 선언된 subproject는 매 명령마다 eager 로드되는데, `cli.Execute`(`internal/cli/root.go:195`)가 `loadConfig()` 에러를 버리고 cobra에 넘겨 동적 라우팅이 통째로 사라짐 — `dva run hello`는 진짜 원인을 출력하므로 bare 형태에서만 마스킹됨 / 해결: 진단 코드 변경 없이 lazy-vs-eager 차이와 마스킹 지점을 corpus fixture E로 고정해 TASK-263 결정 근거로 기록 / 약 40분
+- 증상: 카드 종료 후 독립 리뷰에서 Fixture D의 `dva compose/ps` → rc 0 주장이 카드 자신의 `/` 모델과 모순된다는 지적 / 원인: Fixture D는 `import:` 없이 선언만 했는데 `/` 이름은 `resolveSubprojectImports`가 써 넣어야만 존재한다 — `hasSubprojectImports`가 false면 `continue`로 조기 반환하므로 등록되는 이름이 하나도 없음(`internal/config/subproject.go:86-93`, `:202-207`) / 해결: 픽스처를 직접 재현해 `import:` 없이 rc 1 `unknown command "compose/ps"`, `import.interactions: [{name: ps}]` 추가 시 rc 0 `CHILD-PS`임을 실측하고 §1 산문과 Fixture D를 정정. 같은 리뷰의 `config.go:77/:263/:439` 인용 오류 지적은 재검증 결과 세 인용 모두 정확해 반영하지 않음 / 약 35분
