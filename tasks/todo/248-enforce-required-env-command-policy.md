@@ -36,6 +36,9 @@ cutting off the command that diagnoses the missing file.
 
 ## Non-goals
 
+- No interaction or subcommand `env_file` support, deprecation warning or schema change. TASK-265 decided
+  versioned rejection and [TASK-266](266-deprecate-and-reject-interaction-env-file.md) owns it; this task
+  only keeps the field inert exactly as TASK-247 §4 froze it.
 - No implicit unseal.
 - No config env command, encrypted-source schema, or sops invocation.
 - No change to optional env-file absence.

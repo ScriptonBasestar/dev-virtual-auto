@@ -3,10 +3,10 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 10
-total-tasks: 10
+progress: 9
+total-tasks: 11
 completed-tasks: 1
-children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265]
+children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266]
 target-date: "2026-12-31"
 created: 2026-09-01
 ---
@@ -29,7 +29,7 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../todo/244-validate-plan-declaration-drift.md) |
 | `config env` bridge | 선행 계약 필요 | [TASK-245](../todo/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
 | required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
-| interaction-level `env_file` | inert field compatibility 결정 필요 | [TASK-265](../todo/265-decide-interaction-env-file-contract.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
+| interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../todo/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
 | top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |
@@ -37,10 +37,12 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 ## Current status and recommended order (2026-09-02)
 
 TASK-247은 사용자 승인, 독립 review와 repository gate를 거쳐 required-env route 계약을 확정했다.
-나머지 9개 task는 `todo`이며 TASK-245·249·252·265는 `decision-status: pending`이다. 다음 순서를 권장한다.
+나머지 10개 task는 `todo`이며 TASK-245·249·252는 `decision-status: pending`이다. TASK-265는 versioned
+rejection으로 `decided`이며 구현은 TASK-266이 소유한다. 다음 순서를 권장한다.
 
-1. TASK-264가 imported interaction/provision owner를 복구했다. TASK-265에서 inert
-   interaction `env_file`을 결정한 뒤 TASK-248에서 warning-and-continue를 제거한다.
+1. TASK-264가 imported interaction/provision owner를 복구했고 TASK-265가 inert interaction
+   `env_file`을 versioned rejection으로 닫았다. TASK-248에서 warning-and-continue를 제거한다.
+   TASK-266은 TASK-248과 독립이며 release 경계를 사이에 둔 두 stage를 소유한다.
 2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
 3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
 4. TASK-246·248이 모두 통합된 뒤 TASK-252에서 먼저 `config env` 영구 유지와 promotion 조사 계속을
@@ -252,12 +254,14 @@ TASK-246 + TASK-248 ─────────────> TASK-252 initial de
                                       ├─ permanent config env ─> TASK-251 N/A disposition
                                       └─ promotion evidence ───> TASK-251 gate ─> resume TASK-252
 
+TASK-265 decision ──> TASK-266 deprecate then reject interaction env_file
+
 TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
 남은 작업 중 TASK-244, TASK-245, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
-TASK-264는 닫힌 cross-plan prerequisite고 TASK-265는 inert schema field의 compatibility
-decision이다. TASK-265가 닫힌 뒤 TASK-248이 current-loader safety를 구현한다. TASK-246은 TASK-245 결정과
+TASK-264는 닫힌 cross-plan prerequisite고 TASK-265는 닫힌 compatibility decision이다. TASK-248이
+current-loader safety를 구현하고, TASK-266이 그 결정의 deprecation·rejection을 별도로 소유한다. TASK-246은 TASK-245 결정과
 TASK-248 loader contract 위에서 시작한다. TASK-252는 bridge와 propagation 뒤 먼저 시작한다. Promotion
 evidence가 필요하다는 중간 판정을 기록한 경우에만 TASK-251을 실행하고 TASK-252를 재개한다. TASK-245가 여러 OS를 지원한다고
 결정하면 TASK-246은 그 OS를 지속 검증하는 CI matrix까지 소유해야 한다. 범위가 TASK-246에 안전하게
@@ -298,5 +302,6 @@ release candidate는 최소 `make lint`, `make test`, `make test-integration`, `
 - TASK-251 — build a versioned cross-repository env migration evidence gate
 - TASK-252 — decide whether top-level env promotion is safer than keeping config env
 - TASK-265 — decide the interaction-level env_file compatibility contract
+- TASK-266 — deprecate then reject the inert interaction env_file field
 
 Cross-plan prerequisite: PLAN-003의 TASK-264가 TASK-248보다 먼저 imported interaction/provision owner를 복구한다.
