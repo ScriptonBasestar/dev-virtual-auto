@@ -5,6 +5,9 @@ All notable changes to DVA are documented here.
 ## [Unreleased]
 
 ### Fixed
+- **`dva manifest`가 `down`의 `--purge`/`--force`를 노출합니다**: manifest만 조회하는
+  에이전트도 두 플래그를 발견할 수 있습니다 (`--force`는 down에서 `--purge` 확인
+  프롬프트 생략 전용)
 - **문서의 CLI 표면 서술을 실제 구현에 맞췄습니다**: 예약어 개수 23→24(`skill` 반영,
   docs/43·51과 스키마 레퍼런스), `dva show`는 plan 이름 인자를 받지 않음(docs/40·41·43),
   `dva ls <topic>` 보조 조회는 도입하지 않았음을 명시(docs/41), Tier 4/5 목록의

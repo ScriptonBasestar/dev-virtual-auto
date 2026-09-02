@@ -327,7 +327,11 @@ func buildManifest(c *config.Config) *Manifest {
 			"down": {
 				Type: "compose_shortcut",
 				Options: map[string]string{
-					"volumes":     "Also remove volumes (--volumes, -v)",
+					"volumes": "Also remove volumes (--volumes, -v)",
+					"purge":   "Also remove named volumes, locally built images and provision markers (--purge; asks for confirmation)",
+					// On down, --force only waives the --purge confirmation
+					// (plan_lifecycle.go) — it is not compose --force-recreate.
+					"force":       "Skip the --purge confirmation prompt",
 					"mode":        optMode,
 					"env":         optEnv,
 					"tag":         optTag,
@@ -390,7 +394,7 @@ func buildManifest(c *config.Config) *Manifest {
 			"init":   {Type: "config"},
 			"help":   {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
-			// call, so a reader grepping for AddCommand finds 21 and this table lists 23.
+			// call, so a reader grepping for rootCmd.AddCommand finds 22 and this table lists 24.
 			"completion": {Type: "meta"},
 		},
 		Runners: map[string]ManifestRunner{
