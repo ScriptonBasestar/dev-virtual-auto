@@ -12,35 +12,26 @@ Fresh writable session 하나는 task 하나만 소유한다. Discovery 또는 d
 병렬 활용할 수 있지만, 여러 root session이 같은 source surface를 동시에 통합하지 않는다. 현재 task
 밖의 결함은 blocker나 새 card 제안으로 남기고 자동으로 scope를 넓히지 않는다.
 
-각 세션은 다음 순서를 지킨다.
+각 세션이 지키는 단계 순서는 아래 §6 공통 프롬프트가 정본이며 여기에 중복해 두지 않는다.
 
-1. 가장 가까운 `AGENTS.md`, PLAN-003, 이 런북과 target card를 끝까지 읽는다.
-2. Dependency와 `decision-status`를 확인하고 별도 task worktree를 만든다.
-3. 최대 3개의 독립 단위만 위임하며 하위 위임은 금지한다.
-4. Target criterion만 구현하거나 조사한다.
-5. 구현자와 다른 reviewer가 actual diff 또는 decision evidence를 검토한다.
-6. Root가 파일과 명령 결과를 재검증하고 source branch 통합·push·cleanup까지 완료한다.
+## 2. 역할과 런타임 매핑
 
-## 2. 모델과 역할
+이 런북은 벤더 에이전트 이름이 아니라 **역할**을 계약으로 삼는다. 어떤 런타임에서 이어받아도 아래
+경계가 유지되어야 하며 여러 역할을 하나로 합치는 대체는 허용하지 않는다. 표에 없는 런타임은 같은
+경계를 만족하는 수단을 고르고 그 선택을 세션 보고에 남긴다.
 
-품질 우선 root session은 **`gpt-5.6-sol` + high 이상 reasoning**을 권장한다. Public CLI,
-compatibility, composition 또는 migration 결정을 다루는 TASK-255·257·260·261·263은 `max`를 고려한다.
-모델이나 specialist role이 제공되지 않으면 조용히 낮은 tier로 대체하지 말고 review separation과
-판단 품질을 보존할 수 있는지 먼저 보고한다.
+| 역할 | 범위와 경계 | Codex | Claude Code |
+| --- | --- | --- | --- |
+| Root | 최종 판단·통합. 요약이 아니라 실제 파일·diff·명령 결과로 재확인 | `gpt-5.6-sol` high/max | 최상위 tier 세션 |
+| 조사 | command owner, corpus, code path, compatibility. 수집만 하고 결정·편집 금지 | `ce-scanner`, `ce-explorer` | `Explore` |
+| 구현 | 결정이 닫힌 bounded 구현. 승인된 contract 밖을 정리하지 않음 | `ce-worker`, `spark-worker` | `patterns:backend-dever` |
+| 판정 | public contract·operability·actual-diff review. 자기 변경은 검토 금지 | `ce-judge` | `core:code-reviewer` |
 
-| 역할 | 권장 에이전트 | 사용 범위 |
-| --- | --- | --- |
-| Root | `gpt-5.6-sol`, high/max | 최종 판단, cross-cutting edit, 검증, 통합 |
-| 기계 조사 | `ce-scanner` | command owner, invocation corpus, flag·route inventory |
-| 읽기 분석 | `ce-explorer` | code path, compatibility, namespace와 lifecycle semantics |
-| 분리 구현 | `ce-worker` | 결정이 닫힌 bounded 구현과 명시된 파일 소유권 |
-| 독립 판정 | `ce-judge` | public contract, operability와 actual-diff review |
-| 일반 bounded 작업 | `spark-worker` | specialist가 필요 없는 단일 구현·정리 작업 |
-| Spark fallback | `luna-worker` | Spark unavailable/quota/rate-limit일 때 동일 작업 1회 |
-
-Decision session에서 scanner와 explorer는 근거를 수집할 뿐 결정을 대신하지 않는다. 구현과 리뷰는
-같은 agent에게 맡기지 않는다. Subagent summary는 lead이며 root가 실제 code, diff, pinned revision과
-gate 결과를 확인한다.
+Public CLI, compatibility, composition 또는 migration 결정을 다루는 TASK-255·257·260·261·263은 가장
+강한 설정을 고려한다. Codex에서 Spark가 unavailable·quota·rate-limit이면 `luna-worker`로 1회 대체한다.
+요구한 tier나 역할을 제공할 수 없으면 조용히 낮은 tier로 대체하지 말고 review separation과 판단
+품질을 보존할 수 있는지 먼저 보고한다. 구현과 리뷰는 같은 agent에게 맡기지 않으며 subagent summary는
+lead이고 root가 실제 code, diff, pinned revision과 gate 결과를 확인한다.
 
 ## 3. Dependency wave
 
@@ -53,7 +44,7 @@ gate 결과를 확인한다.
 | 1 | [TASK-259](../tasks/todo/259-discover-qualified-project-addressing.md) | addressing evidence와 recommendation이 기록·통합 |
 | 2 | [TASK-255](../tasks/todo/255-decide-kubectl-route-compatibility.md) | TASK-254 근거를 사용한 사람 승인 decision 기록 |
 | 2 | [TASK-257](../tasks/todo/257-decide-validate-route-compatibility.md) | TASK-254 근거를 사용한 사람 승인 decision 기록 |
-| 2 | [TASK-263](../tasks/todo/263-decide-qualified-project-addressing.md) | TASK-259 근거로 address/exposure 사람 승인 기록 |
+| 2 | [TASK-263](../tasks/todo/263-decide-qualified-project-addressing.md) | TASK-259 근거와 TASK-264 owner 복구 위에서 address/exposure 사람 승인 기록 |
 | 3 | [TASK-256](../tasks/todo/256-implement-kubectl-route-decision.md) | TASK-255 결정 구현·통합 |
 | 3 | [TASK-258](../tasks/todo/258-implement-validate-route-decision.md) | TASK-257 결정 구현·통합 |
 | 3 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-262·263 위에서 composition 사람 승인 기록 |
@@ -93,6 +84,10 @@ failure, route collision 의미 불명확, destructive lifecycle flag scope 미�
 Build, test, service 또는 log 작업 전에는 repository `dva` skill을 읽고 `dva manifest -f json`으로
 실행 표면을 찾는다. DVA에 같은 workflow가 없을 때만 raw tool을 사용한다. Target criterion과 관련
 repository gate가 exit 0이어야 하고, blocker 수정 뒤 independent focused re-review가 PASS해야 한다.
+
+대화형 실행은 위와 같이 `dva`를 쓰지만 **card의 `verify:` binding은 `make` target으로 쓴다**. Binding은
+clean checkout·CI·reviewer 환경에서 재현되어야 하는데 `dva` 경로는 설치된 바이너리에 의존하고, DVA
+자신의 config 로딩이나 route 해석을 고치는 task에서는 수정 전 바이너리로 결과를 검증하는 순환이 된다.
 
 완료는 task commit만 뜻하지 않는다. Task branch push, current source tip 재검증, configured source
 branch direct integration과 push, task worktree·local branch·remote branch·빈 parent 정리까지 수행한다.

@@ -42,7 +42,7 @@ flatten child declarations or expose local absolute owner paths in public discov
 - [ ] Resolve owner and validate missing/ambiguous child configuration before any interaction/provision step starts; preserve literal-key precedence, canonical/alias collision errors, CLI args, runner selection and successful-path output | verify: `go test ./internal/config ./internal/runner ./internal/cli -count=1`
 - [ ] Provide an owner-aware environment-loading seam for TASK-248 but preserve the current warning-and-continue failure policy until TASK-248 changes it; do not implement partial status/logs or doctor policy here | verify: `go test ./internal/config ./internal/cli -count=1`
 - [ ] Keep absolute and parent-relative child paths valid and resolve script, compose, local and provision assets from the child root | verify: `go test ./internal/config ./internal/runner ./internal/cli -count=1`
-- [ ] Update architecture and usage documentation only where verified behavior changes, then pass repository gates and independent review | verify: `dva lint && dva test && dva test integration && make doc-check && make commit-check`
+- [ ] Update architecture and usage documentation only where verified behavior changes, then pass repository gates and independent review | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 

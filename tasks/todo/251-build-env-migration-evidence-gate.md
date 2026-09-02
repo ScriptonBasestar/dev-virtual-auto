@@ -9,7 +9,7 @@ created-at: 2026-09-01T19:27:00+09:00
 source: "PLAN-002 versioned migration evidence contract"
 scope: "scanner, manifest schema, pinned corpus validation, nested command and stdout-decrypt detection, freshness checks"
 status: todo
-depends-on: [TASK-246, TASK-248]
+depends-on: [TASK-246, TASK-248, TASK-252]
 ---
 
 # Task 251: build the env migration evidence gate

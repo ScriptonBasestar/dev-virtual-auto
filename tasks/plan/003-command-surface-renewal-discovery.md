@@ -116,12 +116,14 @@ TASK-247 decision ─> TASK-264 owner repair ─┐
                    └> TASK-265 decision ───┴─> TASK-248 (PLAN-002)
 TASK-254  metadata ownership ─┬─> TASK-255 ─> TASK-256 ────────┤
                               └─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
-TASK-259  addressing discovery ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
+TASK-259 discovery + TASK-264 ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
 ```
 
 TASK-254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
 TASK-264→TASK-265→TASK-248 뒤 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
-TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-255·257·260·261·263은
+TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-263은 TASK-259 evidence만으로 시작하지 않는다.
+Imported interaction/provision owner가 복구되기 전 addressing을 결정하면 잘못된 현행 기준선 위에서
+route를 고르게 되므로 TASK-264도 함께 닫혀야 한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한
 alias를 만들지 않고, 결정이 요구한 문서·검증 정리만 수행한 뒤 완료할 수 있다. TASK-260은 TASK-262와
