@@ -20,7 +20,7 @@ make build          # bin/dva 생성 (generate 포함)
 make install        # ~/.local/bin/dva 설치
 make test           # 전체 테스트
 make test-integration  # 통합 테스트 (-tags=integration)
-make generate       # agent-mesh-flows/shared/library/ → internal/cli/library_reference.txt 생성 (am flow가 읽음, 바이너리 임베드 아님)
+make generate       # 생성물 일괄 갱신: libgen(fact 블록) + library_reference.txt(am flow가 읽음, 바이너리 임베드 아님) + flowgen(self-contained flow) + skillgen(플랫폼 스킬)
 ```
 
 **규칙**: `go build` 직접 실행 금지 → `make build` 사용
@@ -30,7 +30,7 @@ make generate       # agent-mesh-flows/shared/library/ → internal/cli/library_
 ```
 cmd/dva/             # main 진입점 (minimal)
 internal/
-  cli/               # cobra 명령어 (root, run, compose, stack, ...)
+  cli/               # cobra 명령어 (root, run, compose, show, ...)
   config/            # dva.yml 파싱·병합·검증
   lifecycle/         # 플러그인 백엔드 (compose/helm/kubectl/...)
   runner/            # interaction 실행 엔진 (compose/local/kubectl 러너)
@@ -41,7 +41,7 @@ internal/
 agent-mesh-flows/    # agent-mesh flow 정의 (product: dva.yml 분석/개선, am 실행)
 skills/              # 포터블 스킬 단일 소스 (SKILL.md → Cursor/Codex/OpenCode 투영, tools/skillgen)
 workflows/           # DVA 자체 개선 dogfood 워크플로우 (prmpt에서 import, 단일 소스)
-tools/skillgen/      # skills/ → 플랫폼별 아티팩트 변환기 (make generate)
+tools/               # 생성·검증 도구 모음 (skillgen, flowgen 등 — make generate/check 실행)
 examples/            # dva.yml 예시 파일
 tasks/               # 작업 추적
 ```

@@ -4,6 +4,31 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Changed
+- **`--help` 그룹이 발견 경로 기준으로 재정렬됐습니다**: `manifest`가 advanced에서 core로,
+  `status`가 project에서 lifecycle로 이동했고, `show`("Show declared workspace configuration")와
+  `status`("Display current workspace and runtime status")의 설명이 선언/런타임 구분을 드러내도록
+  바뀌었습니다
+- **`dva init`이 Compose-less 경로를 안내합니다**: scaffold 실패 메시지·Next steps 출력·생성되는
+  에이전트 가이드가 Compose 파일이 없거나 비표준/멀티 프로젝트 레이아웃에서는 `am run dva-discover`를
+  먼저 실행하도록 안내하고, 전체 재작성은 `am run dva-improve -p mode=rewrite` 명시적 opt-in으로만
+  권합니다
+
+### Fixed
+- **import된 plan이 parent 설정으로 실행되던 문제**: `subprojects:`로 가져온 plan이 child 프로젝트의
+  effective config(vars, `env_file`, 프로젝트 루트) 대신 parent의 것으로 실행됐습니다. 이제 각
+  imported plan이 자신을 선언한 child config를 소유자로 갖고 그 기준으로 실행됩니다
+- **import된 interaction/provision이 parent 설정으로 실행되던 문제**: plan 소유권 수리 이후에도
+  imported interaction과 provision profile은 parent의 vars·`env_file`·루트로 실행됐고,
+  `dva run --project`는 child의 `environment:`를 base vars 자리에 넣으면서 child의 `vars:`와
+  `env_file`을 버렸습니다. interaction/provision도 import 단위 소유자를 갖습니다. 또한 imported
+  provision의 마커 파일명에 canonical name(`child/setup`)이 디렉토리 경로로 들어가 기록이 항상
+  ENOENT 경고로 끝나던 문제도 수정됐습니다 — 마커 이름을 writer와 reader가 공유합니다
+- **Agent Mesh DVA flow가 self-contained로 렌더링됩니다**: `make generate`가 공개 flow에 shared
+  library 내용을 내장해, 저장소 checkout 없이도 `am run dva-*`가 동작합니다. 전체 재작성 opt-in
+  표기는 `am run dva-improve param.mode=rewrite`에서 `am run dva-improve -p mode=rewrite`로
+  바뀌었습니다
+
 ## [0.1.47] - 2026-08-31
 
 ### Added
@@ -35,7 +60,17 @@ All notable changes to DVA are documented here.
     확인 프롬프트를 거치며 `--force`가 답합니다. 비-tty에서는 EOF를 거부로 취급해 중단
   - `--purge` / `-v`는 모든 plan 동사가 **파싱**한 뒤 `down` 밖에서 거부합니다.
     `dva up <plan> --purge`가 파괴적 플래그를 조용히 무시하는 대신 에러로 멈춥니다
-- **`stack:` 섹션**: 플러그인 기반 인프라 오케스트레이션 파이프라인 (기존 `compose:`/`kubectl:` 최상위 섹션 대체)
+- **`dva skill` 커맨드군** (`install` / `status` / `uninstall` / `backup list`): 번들 DVA 스킬을
+  AI 런타임 디렉터리(claude-code, codex, opencode, grok, antigravity, agent-mesh)에 에이전트 없이
+  결정적으로 설치합니다 (`--scope user|project`, `--runtime` 복수 지정, dry-run 지원)
+  - 스킬별 소유권 claim을 XDG state 디렉터리에 기록하고, DVA receipt이 없는 이름 충돌은
+    덮어쓰지 않고 거부합니다
+  - `install --takeover`는 receipt 없는 DVA-이름 충돌만 백업을 남기고 교체하며,
+    `uninstall --restore-takeover-backup`으로 검증된 백업을 복원합니다 — 두 동작 모두 명시적
+    `--runtime` 지정을 요구하고, 자동으로 일어나지 않습니다. `backup list`가 보존된 takeover
+    백업을 상태 변경 없이 보여줍니다
+  - `uninstall`은 수정되지 않은 DVA 소유 설치만 제거하고, `status`는 설치 상태와 로컬 변경
+    여부를 런타임별로 보고합니다
 - Stack 플러그인 시스템: compose, kubectl, helm, kustomize, tilt, skaffold, podman-compose, process, script, docker, vagrant, sam, serverless, multipass
 - 플랫 포맷: 플러그인별 설정을 중첩 없이 최상위에 기술 + `plugin:` 필드로 타입 명시
 - 엔트리 이름 기반 플러그인 자동추론 (이름이 플러그인명과 일치하면 `plugin:` 생략 가능)
@@ -44,9 +79,9 @@ All notable changes to DVA are documented here.
 - **설정 병합 시스템** (`mergeFrom`): 필드 레벨 deep merge (모듈/오버라이드 적용 시)
   - map은 key별 merge, list/scalar는 replace
   - `plugin`, `runner` 등 구조적 필드 override 금지
-- **시맨틱 검증 경고** (`dva config validate`): 13개 비-치명 검사
+- **시맨틱 검증 경고** (`dva config validate`): 19개 비-치명 검사 + 정규 섹션 순서 검증
   - 중복 stack order, 무거운 인프라 기본 모드 경고, 미해결 환경변수
-  - 깊은 서브커맨드 중첩, 정규 섹션 순서 검증
+  - 깊은 서브커맨드 중첩 등
 - `dva doctor` command: environment prerequisite checks and setup diagnostics
 - Command hooks system (`before`/`replace`/`after`) for hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `logs`)
 - `DVA_CURRENT_UID` special variable (numeric user ID); `DVA_CURRENT_USER` now returns username (string)
@@ -110,8 +145,9 @@ All notable changes to DVA are documented here.
 > 없습니다. `0.1.16`에서 올라오는 경우 영향받지 않습니다. master 빌드를 쓰고 있었다면
 > `dva config migrate`가 `applications:`와 `stack.*.order`를 자동 변환합니다 (`--write`로 적용).
 
-- **`dva stack` / `dva app` / `dva infra` / `dva clean` 커맨드** (docs/43): 예약어가 27개에서
-  **23개**로 줄었습니다. lifecycle 동사가 plan/stack/app 3중 복제였고, 그중 plan만이
+- **`dva stack` / `dva app` / `dva infra` / `dva clean` 커맨드** (docs/43): 예약어 4개가
+  빠졌습니다 (27개 → 23개; 같은 릴리스에서 `dva skill`이 추가되어 이 릴리스의 예약어는
+  **24개**입니다). lifecycle 동사가 plan/stack/app 3중 복제였고, 그중 plan만이
   사용자가 실제로 표현하려는 것(의도)에 대응했습니다
   - `dva stack up <entry>` → plan에 해당 엔트리만 담아 `dva up <plan>`
   - `dva app up` / `dva app up <app> --dev` → 엔트리를 각각 선언하고 plan이 선택

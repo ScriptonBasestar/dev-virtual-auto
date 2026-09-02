@@ -47,6 +47,9 @@ internal/cli/                  → Cobra commands
   root.go                      → Dynamic routing (interaction → run)
   compose.go                   → up/down/stop/restart verbs (plan and whole-stack paths)
   run.go, list.go, show.go     → Core commands
+  plan_lifecycle.go            → Plan verb execution path (resolved plan → orchestrator)
+  plan_runtime.go              → planRuntime: imported plan ↔ owning child config (TASK-262)
+  command_runtime.go           → commandRuntime: interaction/provision owner resolution (TASK-264)
   validate.go                  → dva config validate (schema + semantic warnings)
   config_migrate.go            → dva config migrate (legacy declaration conversion)
 internal/config/               → dva.yml loading, env interpolation, schema validation
@@ -61,6 +64,9 @@ internal/lifecycle/            → Execution plan resolution + runtime orchestra
   process.go                   → Process execution and signal handling
 internal/runner/               → Interaction execution (DockerCompose, Kubectl, Local)
 internal/exec/                 → Process execution (syscall.Exec, subprocess)
+internal/skillinstall/         → dva skill install|status|uninstall|backup (no AI runtime needed)
+internal/skillclaim/           → Agent Skills claim protocol (installed-file ownership verdicts)
+tools/                         → doccheck, flowcheck, skillgen (make doc-check / make generate)
 ```
 
 ## Key Flows
@@ -82,14 +88,17 @@ internal/exec/                 → Process execution (syscall.Exec, subprocess)
 1. `cli/root.go`: Built-in command가 아니면서 `interaction`에 있으면 `run`으로 라우팅
 2. `cli/run.go`: `InteractionTree`로 명령 resolve
 3. subproject import인 경우 canonical name (`backend/shell`) resolve
-4. subproject interaction은 해당 subproject root 기준으로 실행
+4. `cli/command_runtime.go`가 owner 해석 — 실행 소유권은 선언한 child effective config에
+   있음 (child `vars`/`environment`/`env_file` 적용, child config directory 기준, parent
+   같은 이름 값 미혼입 — TASK-264)
 5. `runner/runner.go`가 `DockerComposeRunner`, `KubectlRunner`, `LocalRunner` 중 선택
 
 ### Provision Execution (`dva provision ...`)
 
 1. provision은 준비/초기화 절차를 담당
 2. subproject import인 경우 canonical name (`backend/setup`) resolve
-3. subproject provision 역시 해당 subproject root 기준으로 실행
+3. import된 profile 역시 child effective config가 실행을 소유 — `cli/command_runtime.go`의
+   owner 해석 후 child 환경과 config directory로 step 실행 (TASK-264)
 
 ### Config Loading
 

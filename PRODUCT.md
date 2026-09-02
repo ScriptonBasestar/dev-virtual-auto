@@ -40,6 +40,9 @@ to the tool that owns the underlying resource.
   and diagnose prerequisites
 - **Machine-readable discovery**: Publish commands and resolved configuration for coding agents
 - **Subproject composition**: Import active child projects without taking ownership of their native commands
+- **Portable skill installation**: Install bundled AI skills into runtime directories
+  (`dva skill install|status|uninstall|backup`) with per-skill ownership claims, collision
+  rejection for unowned files, and recoverable takeover backups behind explicit runtime selection
 
 ## Product Boundaries
 
@@ -68,7 +71,7 @@ DVA coordinates existing developer tools; it does not replace them.
 
 | Item | Status |
 |------|--------|
-| **Maturity** | Active development — named plans are the only lifecycle model; the legacy `stack`/`app`/`infra`/`clean` surfaces were removed ([docs/43](docs/43-command-surface-restructure.md)) |
+| **Maturity** | Active development — named plans are the only application lifecycle surface; the legacy `stack`/`app`/`infra`/`clean` CLI verbs were removed, while `stack:` and `infra:` remain declarative config sections ([docs/43](docs/43-command-surface-restructure.md)). `dva ssh` separately manages the workspace SSH helper container. |
 | **Primary interface** | `dva` CLI with project-owned `dva.yml` |
 | **Execution model** | Reusable declarations resolved into immutable named plans |
 | **Agent integration** | Machine-readable manifest plus optional Claude and agent-mesh workflows |

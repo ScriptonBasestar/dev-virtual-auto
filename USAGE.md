@@ -82,7 +82,7 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 | `dva stop <NAME>` | named execution entry 중지 |
 | `dva status [NAME]` | 실행 상태 표시 |
 | `dva version` | 버전 표시 |
-| `dva skill install/status/uninstall` | 내장 AI 스킬 설치 상태 관리 |
+| `dva skill install/status/uninstall/backup` | 내장 AI 스킬 설치 상태 관리 |
 
 `dva run`은 생략 가능합니다. `dva shell`은 `dva run shell`과 동일합니다.
 `namespace:command` 문법도 지원합니다 (예: `dva engine:test`).
@@ -334,8 +334,8 @@ dva up backend/local-dev
 | `dva stop <NAME>` | 중지 (제거하지 않음) |
 | `dva restart <NAME>` | 재시작 |
 | `dva status [NAME]` | 현재 워크스페이스와 runtime 상태 표시 |
-| `dva logs [NAME]` | 로그 보기 |
-| `dva build [NAME]` | 빌드 수행 |
+| `dva logs [NAME] [ENTRY]` | 로그 보기 (엔트리 지정 가능) |
+| `dva build [NAME] [ENTRY]` | 빌드 수행 (엔트리 지정 가능) |
 
 ```bash
 dva up local-dev
@@ -635,7 +635,7 @@ dva config validate --fix    # compose 파일 project name 불일치 자동 수�
 dva config validate --strict # drift 경고 시에도 검증 실패 처리
 ```
 
-스키마 검증 외에 13개 시맨틱 경고를 검사합니다:
+스키마 검증 외에 20개 시맨틱 경고를 검사합니다:
 - 중복 stack order, 다중 compose 엔트리 분할 권고
 - 실행 계획 누락 또는 과도하게 무거운 기본 실행 구성 경고
 - 미해결 환경변수 (`${MISSING_VAR}`), 비지원 셸 문법 감지
@@ -960,12 +960,13 @@ health_checks:
 커맨드와 겹치면 `dva validate`가 exit 1로 실패하고, 설정을 읽을 때마다 경고가 출력됩니다.
 선언이 버려지는 것은 아니며 짧은 형식만 내장 커맨드에게 넘어갑니다 — 아래 규칙을 따릅니다.
 
-**예약어 23개** — 내장 커맨드 이름입니다:
+**예약어 24개** — 내장 커맨드 이름입니다:
 
 ```text
 help  version   ls       compose  up      stop    down   build
 run   provision validate manifest ktl     ssh     console
 completion init  status   config   logs    restart show   doctor
+skill
 ```
 
 **훅 가능 6개** — 예약어 중 `before`/`replace`/`after` 훅을 받는 것:

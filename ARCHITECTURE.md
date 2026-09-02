@@ -14,19 +14,20 @@ dva.yml
   + active subprojects
           │
           ▼
-Config Loader → Schema/Semantic Validation → Resolver
-                                               │
-                                               ▼
-                                     Immutable ExecutionPlan
-                                               │
-                                               ▼
-                                          Orchestrator
-                                               │
-                    ┌──────────────────────────┼─────────────────────────┐
-                    ▼                          ▼                         ▼
-              Compose runner            Cluster runners           Local runner
-                    │                          │                         │
-                    └──────────── external tools and processes ─────────┘
+Config Loader → Schema/Semantic Validation → effective config
+          │
+          ▼
+   CLI (internal/cli)
+          │
+          ├──────────────────────────────────┐
+          ▼                                  ▼
+ Plan lifecycle 경로                  Interaction/Provision 경로
+ (internal/lifecycle/)                (interaction: internal/runner/,
+ Resolver → Immutable ExecutionPlan    provision: internal/cli + internal/exec)
+ → Orchestrator                       interaction tree 해석
+ → backend plugin (14종)              → Compose/Kubectl/Local runner
+          │                                  │
+          └─── external tools and processes ─┘
 ```
 
 ## 역할 분담
@@ -52,14 +53,29 @@ Config Loader → Schema/Semantic Validation → Resolver
 - teardown은 의존 관계의 역순으로 수행한다.
 - 별도의 app lifecycle은 없다. 앱 프로세스도 `native` 러너를 쓰는 stack 엔트리로
   같은 해석 경로를 탄다 (docs/43).
+- 실행은 `internal/lifecycle/plugin_type.go`에 등록된 14종 backend plugin에 위임한다
+  (compose, helm, kubectl, process, script 등 — 전체 목록은 plugin registry가 원본).
 
 ### Runners and execution
 
-- `internal/runner/`는 Compose, Kubectl, Local interaction을 backend 동작으로 변환한다.
+- `internal/runner/`는 interaction 단발성 명령을 Compose, Kubectl, Local runner로
+  실행한다. provision step은 `internal/cli`가 `internal/exec`로 직접 실행한다. 둘 다
+  lifecycle과 독립적인 병렬 경로다.
 - `internal/exec/`는 외부 프로세스 실행과 process replacement를 담당한다.
 - 외부 도구의 리소스 의미를 DVA가 다시 구현하지 않는다.
 
-의존 방향은 CLI에서 설정·수명 주기 계약을 거쳐 runner와 외부 실행으로 향한다.
+### Skill distribution
+
+- `internal/skillinstall/`은 번들된 DVA 스킬의 설치·상태·제거·백업을 담당한다
+  (`dva skill install|status|uninstall|backup`).
+- `internal/skillclaim/`은 producer 중립 Agent Skills claim 프로토콜로 설치 파일의
+  소유권을 판정한다.
+
+의존 방향은 CLI에서 설정 계약을 거쳐 두 병렬 실행 경로로 향한다: plan lifecycle은
+`internal/lifecycle/`로, interaction은 `internal/runner/`로, provision은
+`internal/cli`의 step 실행기(`internal/exec`)로 내려가며, `internal/lifecycle/`와
+`internal/runner/`는 서로 import하지 않는다. Orchestrator가 runner를 호출하는 구조가
+아니다.
 
 ## Source of Truth
 
@@ -84,8 +100,13 @@ Config Loader → Schema/Semantic Validation → Resolver
 | `plans` | 사용자가 실행하는 이름과 entry 선택 | runner 원본 설정의 중복 |
 | `environments` | dev/stg/prd 같은 용도별 변수 차이 | 실행 host 선택 |
 | `sites` | local/office/remote/cloud 같은 host 차이 | 애플리케이션 환경 의미 |
+| `modes`/`default_mode` | `dva up --mode`의 named 운영 모드 선택 축 (legacy — validate가 plans 이관을 권고) | environment/site가 소유한 의미 |
+| `subprojects` | import된 이름의 parent namespace 노출 | 실행 소유권 (child effective config에 남음) |
 | `interaction` | 반복 가능한 단발성 프로젝트 명령 | 서비스 수명 주기 |
 | `provision` | 한 번 수행하는 준비·초기화 | 계획을 대신하는 반복 startup |
+
+Import된 plan·interaction·provision은 이름만 parent에 노출되고 실행 소유권은 선언한
+child effective config에 남는다 (아래 실행 데이터 흐름 참조).
 
 ## 설정 병합 흐름
 
@@ -132,10 +153,24 @@ endpoint와 readiness의 기준으로 사용한다. Parent의 같은 이름 선�
 dva <interaction> or dva run <interaction>
     → built-in command check
     → interaction tree and subproject namespace resolution
-    → owning project directory
+    → owner effective config resolution
     → selected runner
     → external command
 ```
+
+직접 선언이든 import든, interaction은 그 항목을 선언한 effective config가 실행을
+소유한다. Parent가 import한 `child/deploy`는 route만 parent에 노출되고, 실행은 child의
+`vars`·top-level `environment`·`env_file`과 child config directory를 기준으로 하며,
+같은 이름의 parent 값은 섞이지 않는다. Owner 해석은 env 로딩보다 먼저 수행되므로
+root `env_file` 실패가 child route를 막지 않는다 (`internal/cli/command_runtime.go`).
+
+### Provision
+
+`dva provision <profile>`도 같은 owner 계약을 따른다. Import된 provision profile은
+등록된 이름(canonical/alias)별로 child owner를 기록하고, `internal/cli/provision.go`가
+`command_runtime.go`의 owner 해석으로 child effective config와 환경을 선택한 뒤 step을
+child config directory 기준으로 실행한다. Local owner 경로는 manifest/show/list 출력에
+직렬화하지 않는다.
 
 ### Agent discovery
 

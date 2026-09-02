@@ -7,9 +7,8 @@ version: "0.1.0"
 stack:
   # Git-sourced shared infrastructure.
   # Cloned once into .sb/dva/sources/postgres (never auto-pulled — reproducible).
-  # Refresh explicitly with: dva infra update postgres
+  # Refresh by deleting .sb/dva/sources/postgres and re-running the plan.
   postgres:
-    order: 10
     default_runner: compose
     source:
       git: https://example.com/shared-infra.git
@@ -20,7 +19,17 @@ stack:
 
   # Local directory referenced in place (no fetch).
   local-infra:
-    order: 20
     default_runner: compose
     source:
       path: ../shared-infra
+
+plans:
+  shared-infra:
+    description: Sourced stacks in execution order
+    entries:
+      - name: postgres
+        runner: compose
+        order: 10
+      - name: local-infra
+        runner: compose
+        order: 20
