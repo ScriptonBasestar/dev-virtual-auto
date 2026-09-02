@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 18
+progress: 27
 total-tasks: 11
-completed-tasks: 2
+completed-tasks: 3
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -27,7 +27,7 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | --- | --- | --- |
 | lifecycle 7동사, plan 위치 인자 | 유지 | 변경 없음 |
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../todo/244-validate-plan-declaration-drift.md) |
-| `config env` bridge | 선행 계약 필요 | [TASK-245](../todo/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
+| `config env` bridge | Option A 확정 | [TASK-245](../done/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
 | required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
 | interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../done/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
@@ -37,13 +37,14 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 ## Current status and recommended order (2026-09-02)
 
 TASK-247은 사용자 승인, 독립 review와 repository gate를 거쳐 required-env route 계약을 확정했다.
-나머지 10개 task는 `todo`이며 TASK-245·249·252는 `decision-status: pending`이다. TASK-265는 versioned
-rejection으로 `decided`이며 구현은 TASK-266이 소유한다. 다음 순서를 권장한다.
+나머지 9개 task는 `todo`이며 TASK-249·252가 `decision-status: pending`으로 남아 있다. TASK-265는
+versioned rejection으로 `decided`이며 구현은 TASK-266이, TASK-245는 Option A로 `decided`이며 구현은
+TASK-246이 소유한다. 다음 순서를 권장한다.
 
 1. TASK-264가 imported interaction/provision owner를 복구했고 TASK-265가 inert interaction
    `env_file`을 versioned rejection으로 닫았다. TASK-248에서 warning-and-continue를 제거한다.
    TASK-266은 TASK-248과 독립이며 release 경계를 사이에 둔 두 stage를 소유한다.
-2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
+2. TASK-245가 secret write contract를 Option A로 확정했다. 수정된 loader contract 위에서 TASK-246을 구현한다.
 3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
 4. TASK-246·248이 모두 통합된 뒤 TASK-252에서 먼저 `config env` 영구 유지와 promotion 조사 계속을
    비교한다. 권장안인 영구 유지를 선택하면 TASK-251은 N/A 근거를 기록하고 종료한다. Promotion의
@@ -259,7 +260,8 @@ TASK-265 decision ──> TASK-266 deprecate then reject interaction env_file
 TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
-남은 작업 중 TASK-244, TASK-245, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
+남은 작업 중 TASK-244, TASK-248, TASK-249는 독립 착수 가능하다. TASK-246은 TASK-245 결정이 닫혔어도
+`depends-on`의 TASK-248이 아직 열려 있어 착수 조건을 만족하지 않는다. 구현과 independent review는 분리한다.
 TASK-264는 닫힌 cross-plan prerequisite고 TASK-265는 닫힌 compatibility decision이다. TASK-248이
 current-loader safety를 구현하고, TASK-266이 그 결정의 deprecation·rejection을 별도로 소유한다. TASK-246은 TASK-245 결정과
 TASK-248 loader contract 위에서 시작한다. TASK-252는 bridge와 propagation 뒤 먼저 시작한다. Promotion

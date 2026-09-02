@@ -10,7 +10,7 @@ source: "PLAN-002 env bridge decision gate"
 scope: "env_file source-target model, exact CLI grammar, Git/path safety, output contract, cross-platform replace spike"
 status: todo
 needs-human: true
-decision-status: pending
+decision-status: decided
 ---
 
 # Task 245: freeze the env bridge contract
@@ -41,23 +41,27 @@ Base/module/override가 합쳐져 provenance가 모호하거나 여러 origin이
 제외한다. 이는 load 호환성을 제거한다는 뜻이 아니라, secret-bearing mutation의 대상만 보수적으로
 제한한다는 뜻이다. Provenance-preserving loader와 별도 fixture가 승인되면 지원 origin을 넓힐 수 있다.
 
-## Prepared Decision (승인 대기)
+## Decision (승인됨)
 
 [런북 §5](../../docs/53-command-surface-agent-execution.md)에 따라 에이전트는 결정을 준비만 하고
-확정하지 않는다. 아래는 option, 근거, matrix, fixture, 기각 대안을 완성한 **제안 계약**이며
-`decision-status`는 사용자가 Option을 고르기 전까지 `pending`으로 남는다. 승인 전에는 schema,
-command registration, loader 중 어떤 것도 변경하지 않는다.
+확정하지 않는다. 아래 option, 근거, matrix, fixture, 기각 대안은 그 준비 단계에서 작성됐고,
+`decision-status`는 사용자가 Option을 고르기 전까지 `pending`이었다.
+
+**승인 이력.** 2026-09-03에 사용자가 §0에서 Option A를 선택하고 §13의 남은 불확실성 4개 항목을
+전부 카드 권장안대로 확정했다. 런북 §5가 요구하는 사용자 선택은 이 시점에 충족됐고,
+`decision-status: decided`와 아래 Completion Criteria 체크는 그 승인에 근거한다. 승인 이전에는
+schema, command registration, loader 중 어떤 것도 바꾸지 않았다.
 
 ### 0. 상호 배타 option
 
 | Option | 요약 | 판정 |
 | --- | --- | --- |
-| **A (권장)** | Entry-level `sops_source`, target으로 선택, `edit`/`unseal` 분리, top-level 3 origin만 write | 권장 |
+| **A (확정)** | Entry-level `sops_source`, target으로 선택, `edit`/`unseal` 분리, top-level 3 origin만 write | **확정 2026-09-03** |
 | B | Top-level `sops:` 별도 section에 source↔target map 선언 | 기각 §11 |
 | C | `sops_source` 없이 `<target>.enc` naming convention 추론 | 기각 §11 |
 | D | `env_file` shape 유지 + `dva config env unseal <source> <target>` 순수 argv 지정 | 기각 §11 |
 
-이하 §1~§10은 Option A를 확정했을 때의 계약이다.
+Option A가 확정됐으므로 이하 §1~§10이 발효 중인 계약이다.
 
 ### 1. 확인된 현재 동작 (2026-09-02, 실제 코드)
 
@@ -671,7 +675,7 @@ Sops는 shell 없이 argv로 실행(§8-1), dotenv in/out 명시(§8-1), secret�
 - Windows 사용자는 이 명령을 쓸 수 없고 명시적 오류를 받는다. direnv `use sops`나 기존 Makefile 경로가
   그대로 남으므로 기능 회귀는 아니다.
 
-### 13. 남은 불확실성 (승인 전 확인 요청)
+### 13. 남은 불확실성 (승인 완료)
 
 1. **darwin 지원 여부** — `macos-latest`에서 pinned sops/age를 재현 가능하게 설치할 수 있는지는
    TASK-246 착수 시 확인된다. 실패하면 darwin도 fail-closed로 내린다 (§8-6).
@@ -682,22 +686,35 @@ Sops는 shell 없이 argv로 실행(§8-1), dotenv in/out 명시(§8-1), secret�
 4. **`.error.code` 가산** — 기존 envelope의 확장이므로 안전하다고 판단하지만, 공개 계약 변경이므로
    명시 승인을 요청한다.
 
-### 14. 승인 게이트
+**확정 (2026-09-03, 사용자 승인).** 네 항목 모두 위 권장안대로 확정됐다.
 
-사용자가 Option을 고르고 §13의 4개 항목을 확정하면, 같은 세션이 `decision-status: decided`와
-Completion Criteria 체크를 기록하고 `make doc-check`를 실행한 뒤 통합한다. 그 전까지 TASK-246은
-착수하지 않는다.
+| 항목 | 확정 내용 |
+| --- | --- |
+| 1 darwin | `macos-latest`에서 pinned sops/age 재현 설치가 되지 않으면 범위를 넓히지 말고 darwin을 fail-closed로 내리고 그 사실을 이 카드에 기록한다 (§8-6) |
+| 2 `edit --json` | 거부한다 — editor를 실행하지 않고 `E` code=`json_unsupported_for_edit`, exit 1 (§3-1). `--json`은 root persistent flag(`internal/cli/root.go:66`)라 모든 하위 명령이 상속하므로 `edit`에서 등록을 빼는 선택지가 없고, 넘겼을 때의 동작을 계약이 정의해야 한다 |
+| 3 Git repo 밖 | 허용하고 stderr에 notice 한 줄을 낸다 (§7-2). fail-closed는 repo 없는 devbox를 막으므로 채택하지 않는다 |
+| 4 `.error.code` | 기존 envelope에 가산한다. 두 번째 root error envelope은 만들지 않는다 (§7-1, §7-3) |
+
+### 14. 승인 게이트 (충족됨)
+
+**충족 2026-09-03.** 사용자가 Option A를 고르고 §13의 4개 항목을 확정했으므로, 같은 세션이
+`decision-status: decided`와 Completion Criteria 체크를 기록하고 `make doc-check`를 실행한 뒤
+통합했다. TASK-246은 이제 착수 가능하다.
+
+PLAN-002 §6의 조건부 platform rule은 §8-6이 판정했다 — [TASK-246](246-implement-secure-config-env-bridge.md)이
+이미 `ci.yml`의 `config-env-platform` job 추가를 자기 acceptance criterion으로 소유하므로, 이 카드를
+닫는 변경에서 별도 CI enablement child를 만들지 않는다.
 
 ## Completion Criteria
 
-- [ ] Choose one source↔target representation and show its behavior in every existing top-level `env_file` shape, including load, merge, show, and validation round-trip compatibility; interaction/subcommand `env_file` must reject encrypted-source metadata unless a separate runtime use case is approved | verify: human — the decision must include accepted and rejected YAML examples for both schema locations
-- [ ] Freeze the exact command grammar and the zero/one/many encrypted-entry selection rule; ambiguous selection and implicit multi-target writes must fail closed | verify: human — the decision must include an argv table with text and JSON outcomes
-- [ ] Define `edit` ownership and the full unseal state matrix across source/target existence, required/optional, and force | verify: human — the matrix must cover every Cartesian branch
-- [ ] Define the allowed effective top-level declaration origins and preserved provenance, then define the resolution anchor for root/module/override/subproject declarations plus path containment, absolute paths, Git-outside behavior, tracked/not-ignored targets, symlink/non-regular files, source=target, and permission failures | verify: human — every origin, ambiguous merge, location, and unsafe state must name its exact resolution or fail-closed rejection and whether it is non-overridable
-- [ ] Limit `--force` to existing regular-target overwrite unless a separately justified security decision says otherwise; it must not silently bypass tracked, ignore, symlink, type, or path guards | verify: human — rejected alternatives and migration advice must be recorded
-- [ ] Run a Linux/macOS/Windows replacement and concurrency spike; specify handle-relative or equivalent TOCTOU defense, file and parent-directory sync, atomicity, durability, cancellation cleanup, SIGKILL/power-loss limits, owned stale-temp recovery, and fail-closed behavior on an unverified platform | verify: human — evidence must include commands, OS/version, results, unresolved guarantees, and the exact supported-OS CI matrix that will keep those guarantees live
-- [ ] Freeze success/error text, JSON envelope, exit codes, secret redaction, and stable machine-code policy without inventing a second root error envelope | verify: human — fixture-ready expected documents must contain no decrypted value or raw child output
-- [ ] Record the selected option and why alternatives were rejected in this card before changing its status | verify: `make doc-check`
+- [x] Choose one source↔target representation and show its behavior in every existing top-level `env_file` shape, including load, merge, show, and validation round-trip compatibility; interaction/subcommand `env_file` must reject encrypted-source metadata unless a separate runtime use case is approved | verify: human — the decision must include accepted and rejected YAML examples for both schema locations
+- [x] Freeze the exact command grammar and the zero/one/many encrypted-entry selection rule; ambiguous selection and implicit multi-target writes must fail closed | verify: human — the decision must include an argv table with text and JSON outcomes
+- [x] Define `edit` ownership and the full unseal state matrix across source/target existence, required/optional, and force | verify: human — the matrix must cover every Cartesian branch
+- [x] Define the allowed effective top-level declaration origins and preserved provenance, then define the resolution anchor for root/module/override/subproject declarations plus path containment, absolute paths, Git-outside behavior, tracked/not-ignored targets, symlink/non-regular files, source=target, and permission failures | verify: human — every origin, ambiguous merge, location, and unsafe state must name its exact resolution or fail-closed rejection and whether it is non-overridable
+- [x] Limit `--force` to existing regular-target overwrite unless a separately justified security decision says otherwise; it must not silently bypass tracked, ignore, symlink, type, or path guards | verify: human — rejected alternatives and migration advice must be recorded
+- [x] Run a Linux/macOS/Windows replacement and concurrency spike; specify handle-relative or equivalent TOCTOU defense, file and parent-directory sync, atomicity, durability, cancellation cleanup, SIGKILL/power-loss limits, owned stale-temp recovery, and fail-closed behavior on an unverified platform | verify: human — evidence must include commands, OS/version, results, unresolved guarantees, and the exact supported-OS CI matrix that will keep those guarantees live
+- [x] Freeze success/error text, JSON envelope, exit codes, secret redaction, and stable machine-code policy without inventing a second root error envelope | verify: human — fixture-ready expected documents must contain no decrypted value or raw child output
+- [x] Record the selected option and why alternatives were rejected in this card before changing its status | verify: `make doc-check`
 
 ## Non-negotiable baseline
 
