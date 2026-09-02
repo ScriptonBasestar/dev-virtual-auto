@@ -3,10 +3,10 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 31
-total-tasks: 13
-completed-tasks: 4
-children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264, TASK-267]
+progress: 36
+total-tasks: 14
+completed-tasks: 5
+children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264, TASK-267, TASK-272]
 target-date: "2027-03-31"
 created: 2026-09-02
 ---
@@ -26,9 +26,10 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | Workstream | 판정 | 작업 |
 | --- | --- | --- |
 | help group과 discovery 설명 | 기존 contract 안에서 개선 완료 | [TASK-253](../_archive/done/253-align-help-groups-and-discovery-descriptions.md) |
-| command metadata 중복 | 구현 전 소유권 조사 | [TASK-254](../todo/254-discover-command-metadata-registry.md) |
+| command metadata 중복 | 구현 전 소유권 조사 | [TASK-254](../done/254-discover-command-metadata-registry.md) |
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
+| manifest route identity | TASK-254 증거로 조건 발생, 구현 전 사람 결정 | [TASK-272](../todo/272-freeze-manifest-route-identity.md) |
 | imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
 | imported interaction/provision 실행 | owner 복구 완료 | [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) |
 | qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../done/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
@@ -51,10 +52,13 @@ root와 child 또는 서로 다른 child의 모양만 같은 plan을 중복으�
 또한 project address grammar와 plan composition은 독립된 public contract다. TASK-259는 evidence만
 수집하고 TASK-263이 address/exposure를 사람 결정으로 닫은 뒤, TASK-260이 composition 의미만 결정한다.
 Manifest가 canonical/compatibility route를 표현할 schema가 필요하다고 TASK-254·255·257에서 판정되면
-bounded child를 먼저 만들며 TASK-256·258 안에서 ad-hoc schema를 추가하지 않는다. 이 조건이 발생하면
-다음 미사용 task id로 child card를 만든 같은 변경에서 PLAN-003의 `children`, `total-tasks`, graph와 완료
-정의를 갱신하고, 영향을 받는 TASK-256·258의 `depends-on`에 child를 추가한다. 그 child가 닫히기 전에는
-PLAN-003이나 해당 구현 task를 완료할 수 없다.
+bounded child를 먼저 만들며 TASK-256·258 안에서 ad-hoc schema를 추가하지 않는다. TASK-254가 2026-09-03에
+이 조건을 판정했다. `ManifestCmd`는 `description`/`type`/`options`/`subcommands` 네 필드뿐이고
+`static_commands`는 이름 하나로 keying되므로 두 route가 같은 command라는 사실을 표현할 수단이 없으며,
+측정된 manifest는 `subcommands`를 `skill`에만 채워서 TASK-257이 선택 대상으로 삼는 `config validate`
+자체가 문서에 없다. 따라서 [TASK-272](../todo/272-freeze-manifest-route-identity.md)을 만들고 같은
+변경에서 PLAN-003의 `children`, `total-tasks`, `progress`, graph, 완료 정의와 TASK-256·258의
+`depends-on`을 갱신했다. TASK-272이 닫히기 전에는 PLAN-003이나 해당 구현 task를 완료할 수 없다.
 
 권장 방향은 다음과 같다.
 
@@ -115,13 +119,15 @@ TASK-253  help/discovery descriptions (done)                   │
 TASK-247 decision ─> TASK-264 owner repair ─┐
                    └> TASK-265 decision ───┴─> TASK-248 (PLAN-002)
 TASK-254  metadata ownership ─┬─> TASK-255 ─> TASK-256 ────────┤
-                              └─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
+                              ├─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
+                              └─> TASK-272 gates 256·258       │
 TASK-259 discovery + TASK-264 ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
 ```
 
 TASK-254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
 TASK-264→TASK-265→TASK-248 뒤 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
-TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-263은 TASK-259 evidence만으로 시작하지 않는다.
+TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-272은 TASK-254 뒤에 시작하고 TASK-256·258의 manifest
+변경을 gate한다. TASK-263은 TASK-259 evidence만으로 시작하지 않는다.
 Imported interaction/provision owner가 복구되기 전 addressing을 결정하면 잘못된 현행 기준선 위에서
 route를 고르게 되므로 TASK-264도 함께 닫혀야 한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
@@ -151,7 +157,8 @@ guardrail은 PLAN-003에 적용하지 않는다.
 
 ## 5. 완료 정의
 
-PLAN-003은 TASK-253~264와 실행 중 조건부로 추가된 manifest contract child가 모두 닫히고, 선택된
+PLAN-003은 TASK-253~264, TASK-267, 그리고 TASK-254 판정으로 추가된 manifest route identity child
+TASK-272이 모두 닫히고, 선택된
 incremental compatibility 구현이 source branch에서 검증되며, project addressing·composition·vNext
 vocabulary의 선택과 기각 근거가 기록됐을 때 완료한다.
 vNext 구현을 선택한 경우 새 plan과 child cards를 만드는 것까지가 이 계획의 완료 범위이며, 그 구현
@@ -172,3 +179,4 @@ vNext 구현을 선택한 경우 새 plan과 child cards를 만드는 것까지�
 - TASK-263 — decide qualified-project addressing and exposure
 - TASK-264 — restore imported interaction and provision execution ownership
 - TASK-267 — repair grammar-independent subproject exposure defects
+- TASK-272 — freeze the manifest command route-identity representation

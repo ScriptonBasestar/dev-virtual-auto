@@ -9,7 +9,7 @@ created-at: 2026-09-02T10:08:00+09:00
 source: "PLAN-003 approved TASK-255 contract"
 scope: "kubectl command registration, compatibility reservation, parity tests, manifest, completion, and documentation"
 status: todo
-depends-on: [TASK-255]
+depends-on: [TASK-255, TASK-272]
 ---
 
 # Task 256: implement kubectl route decision

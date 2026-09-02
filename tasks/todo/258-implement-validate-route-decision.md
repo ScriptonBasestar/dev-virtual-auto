@@ -9,7 +9,7 @@ created-at: 2026-09-02T10:10:00+09:00
 source: "PLAN-003 approved TASK-257 contract"
 scope: "validate route registration, parity tests, help, manifest, completion, documentation, and generated skills"
 status: todo
-depends-on: [TASK-257]
+depends-on: [TASK-257, TASK-272]
 ---
 
 # Task 258: implement validate route decision
