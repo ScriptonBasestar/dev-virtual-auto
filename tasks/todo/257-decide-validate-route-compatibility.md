@@ -11,6 +11,7 @@ scope: "validate usage evidence, canonical route, parity, deprecation, rollback,
 status: todo
 needs-human: true
 decision-status: pending
+depends-on: [TASK-254]
 ---
 
 # Task 257: decide validate route compatibility

@@ -29,7 +29,7 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | command metadata 중복 | 구현 전 소유권 조사 | [TASK-254](../todo/254-discover-command-metadata-registry.md) |
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
-| imported plan 실행 | advertised contract 복구가 최우선 | [TASK-262](../todo/262-restore-imported-plan-execution.md) |
+| imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
 | qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../todo/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
 | cross-project composition | 기존 import와 address contract 이후 판단 | [TASK-260](../todo/260-freeze-cross-project-plan-composition.md) |
 | vNext vocabulary | 앞선 evidence를 모은 최종 결정 | [TASK-261](../todo/261-decide-vnext-vocabulary-and-migration.md) |
@@ -37,11 +37,16 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 ## Current status and review corrections (2026-09-02)
 
 TASK-262는 owning child config를 기준으로 imported plan의 전체 lifecycle을 복구하고 독립 리뷰와
-repository gate를 통과했다. 나머지 TASK-253~261·263은 아직 `todo`다. Review에서
-문서가 지원한다고 설명하는 imported plan의 실행 경로가 normal child stack에서 실패할 수 있음을
-확인했다. Loader는 child plan만 parent `Plans`에 clone하고 resolver는 parent `Stack`에서 entry를 찾으며,
-plan의 `SubprojectPath`는 resolver ownership 선택에 쓰이지 않는다. 새 기능 discovery보다 현재 약속의
-복구가 먼저이므로 TASK-262를 P0 첫 작업으로 추가했고 2026-09-02에 완료했다.
+repository gate를 통과했다. 나머지 TASK-253~261·263은 아직 `todo`다. 다음 시작점은 사용자에게 바로
+보이는 작은 구현인 TASK-253이며, 이어서 TASK-254의 metadata ownership 조사와 P0 critical path인
+TASK-259→263→260을 진행한다. TASK-255·257은 manifest route identity를 각자 발명하지 않도록
+TASK-254가 끝난 뒤에 시작한다.
+
+TASK-262를 추가한 역사적 이유는 문서가 지원한다고 설명한 imported plan이 normal child stack에서
+실패했기 때문이다. 당시 loader는 child plan만 parent `Plans`에 clone하고 resolver는 parent `Stack`에서
+entry를 찾았다. 이 결함과 독립 리뷰 지적은 2026-09-02에 TASK-262 회귀 테스트로 닫혔으므로 별도
+runtime 후속 카드를 만들지 않는다. TASK-244의 owner-partition criterion은 별도로 D6 경고가
+root와 child 또는 서로 다른 child의 모양만 같은 plan을 중복으로 오인하지 않게 한다.
 
 또한 project address grammar와 plan composition은 독립된 public contract다. TASK-259는 evidence만
 수집하고 TASK-263이 address/exposure를 사람 결정으로 닫은 뒤, TASK-260이 composition 의미만 결정한다.
@@ -105,16 +110,16 @@ Renewal에서 채택하는 것은 다음 원리다.
 ## 3. 작업 graph와 시작점
 
 ```text
-TASK-253  help/discovery descriptions
-TASK-254  metadata ownership discovery ───────────────────────────────┐
-TASK-255  kubectl route decision ──> TASK-256 implementation ────────┤
-TASK-257  validate route decision ─> TASK-258 implementation ────────┼─> TASK-261 vNext decision
-TASK-262  imported-plan repair ────────────────────────────────┐      │
+TASK-262  imported-plan repair (done) ─────────────────────────┐
+TASK-253  help/discovery descriptions                          │
+TASK-254  metadata ownership ─┬─> TASK-255 ─> TASK-256 ────────┤
+                              └─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
 TASK-259  addressing discovery ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
 ```
 
-TASK-253, TASK-254, TASK-255, TASK-257, TASK-259, TASK-262는 dependency 없이 착수 가능하지만 현재
-지원 계약 결함인 TASK-262를 먼저 통합한다. TASK-255·257·260·261·263은
+TASK-253·254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
+첫 세션은 TASK-253, 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
+TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한
 alias를 만들지 않고, 결정이 요구한 문서·검증 정리만 수행한 뒤 완료할 수 있다. TASK-260은 TASK-262와

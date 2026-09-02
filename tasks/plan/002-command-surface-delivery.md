@@ -39,12 +39,13 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 card(TASK-245·247·249·252)는 모두 `decision-status: pending`이다. 기존 runtime safety 결함을 새 기능보다
 먼저 닫기 위해 다음 순서를 권장한다.
 
-1. TASK-247에서 required env caller matrix를 확정하고 TASK-248로 현재의 warning-and-continue 동작을
-   먼저 제거한다.
+1. TASK-247에서 source 위치 수가 아니라 사용자에게 보이는 command route 기준으로 required env caller
+   matrix를 확정하고 TASK-248로 현재의 warning-and-continue 동작을 먼저 제거한다.
 2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
 3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
 4. TASK-246·248이 모두 통합된 뒤 TASK-251 evidence gate를 만들고, TASK-252에서는 기본적으로
-   `config env` 영구 유지를 선택한다.
+   `config env` 영구 유지를 선택한다. TASK-251·252는 top-level 승격의 blocker이지 검증된
+   `config env` bridge 자체를 출시하는 blocker는 아니다.
 
 이 순서는 required file 오류를 삼키는 기존 위험을 새 bridge보다 뒤로 미루지 않고, init이 아직 존재하지
 않는 D6/D7 검사를 통과했다고 주장하는 것도 막는다. 각 선택의 권장안은 해당 decision card에 기록하며,
@@ -122,7 +123,9 @@ not-ignored target, symlink/non-regular file, source=target, path escape까지 �
 나눴지만 `status`, `logs`, `down`/`stop`, JSON 경로를 어디에 둘지 정하지 않았다. 관측을 완전히 막으면
 장애 대응이 어려워지고, 필요한 interpolation 없이 계속하면 잘못된 resource를 관측하거나 실행할 수 있다.
 
-TASK-247은 18개 caller를 아래 matrix로 전수 판정하고 partial merge가 command에 노출되는지도 닫는다.
+TASK-247은 `loadEnv` 호출 위치를 단순히 세지 않고, 한 command의 중복 branch와 hook wrapper를 합쳐
+사용자에게 보이는 route별로 아래 matrix를 전수 판정한다. 호출처 수는 조사 결과로 기록하며 계획의
+고정 전제로 두지 않는다.
 
 ```text
 caller × required(true/false) × missing/unreadable/malformed × multi-file partial merge
@@ -251,7 +254,10 @@ TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 TASK-244, TASK-245, TASK-247, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
 TASK-248은 새 encrypted-source schema와 독립된 현재 loader safety 작업이다. TASK-246은 TASK-245 결정과
 TASK-248 loader contract 위에서 시작한다. TASK-251은 bridge와 propagation이 존재한 뒤 시작하고,
-TASK-252는 external evidence가 같은 revision에서 green일 때만 시작한다.
+TASK-252는 external evidence가 같은 revision에서 green일 때만 시작한다. TASK-245가 여러 OS를 지원한다고
+결정하면 TASK-246은 그 OS를 지속 검증하는 CI matrix까지 소유해야 한다. 범위가 TASK-246에 안전하게
+들어가지 않으면 TASK-245를 닫는 변경에서 bounded CI child와 dependency를 먼저 만든다. 그 전까지
+검증되지 않은 OS는 fail closed한다.
 
 세션 경계, 모델 라우팅, 서브에이전트 역할과 재사용 시작 프롬프트는
 [Command Surface 작업의 에이전트 실행 런북](../../docs/53-command-surface-agent-execution.md)이 소유한다.

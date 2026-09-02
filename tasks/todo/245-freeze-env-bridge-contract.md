@@ -56,3 +56,11 @@ Base/module/override가 합쳐져 provenance가 모호하거나 여러 origin이
 
 Sops is invoked without a shell, dotenv input/output is explicit, secret material never reaches DVA
 output, and an ambiguous selector fails before any write. DVA does not adopt age key/provider ownership.
+
+## Conditional platform rule
+
+지원한다고 결정한 OS는 TASK-246의 safe-writer와 command integration CI에서 계속 검증해야 한다. 현재
+CI가 그 matrix를 제공하지 못하고 이를 TASK-246 범위에서 안전하게 추가할 수 없다면, 이 결정 카드가
+별도의 bounded CI enablement child를 만들고 PLAN-002의 children·count·graph와 TASK-246 dependency를
+같은 변경에서 갱신한다. 그 child가 통합되기 전에는 해당 OS 지원을 선언하지 않으며, 검증되지 않은
+platform에서는 mutation을 fail closed한다. 이 조건은 spike를 지속 보증으로 오인하지 않기 위한 것이다.

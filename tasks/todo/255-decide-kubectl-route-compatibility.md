@@ -11,6 +11,7 @@ scope: "usage evidence, route naming, alias and reservation behavior, deprecatio
 status: todo
 needs-human: true
 decision-status: pending
+depends-on: [TASK-254]
 ---
 
 # Task 255: decide kubectl route compatibility
@@ -23,9 +24,10 @@ approved.
 
 ## Recommended direction
 
-충돌 corpus가 green일 때만 `kubectl`을 canonical로 추가하고 `ktl`은 visible compatibility route로
-유지하는 방향을 권장한다. 제거 날짜는 미리 약속하지 않고, 실제 사용이 0이며 rollback support가 끝난
-별도 release decision에서만 검토한다. Evidence가 불완전하면 현재 `ktl` 하나를 유지한다.
+현재 `ktl` 하나를 유지하는 것을 기본 권장안으로 둔다. 충돌 corpus green은 필요한 안전 조건일 뿐 새
+top-level route의 사용자 가치를 증명하지 않는다. Pinned usage evidence가 반복되는 발견성 문제나 명확한
+`kubectl` 수요를 보여주고 충돌도 없을 때만 `kubectl`을 canonical로 추가하고 `ktl`은 visible
+compatibility route로 유지한다. 제거 날짜는 미리 약속하지 않고, evidence가 불완전하면 현행을 유지한다.
 
 ## Completion Criteria
 
