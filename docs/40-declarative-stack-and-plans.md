@@ -65,7 +65,7 @@ dva down local-dev
 dva stop local-dev
 dva status local-dev
 dva ls
-dva show local-dev
+dva show
 ```
 
 `plan`이라는 용어는 내부 개념으로만 사용하고, CLI에는 굳이 드러내지 않아도 됩니다.

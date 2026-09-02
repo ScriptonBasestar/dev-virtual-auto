@@ -4,6 +4,12 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- **문서의 CLI 표면 서술을 실제 구현에 맞췄습니다**: 예약어 개수 23→24(`skill` 반영,
+  docs/43·51과 스키마 레퍼런스), `dva show`는 plan 이름 인자를 받지 않음(docs/40·41·43),
+  `dva ls <topic>` 보조 조회는 도입하지 않았음을 명시(docs/41), Tier 4/5 목록의
+  `config` 하위 명령·`skill` 정정(docs/43)
+
 ### Changed
 - **`--help` 그룹이 발견 경로 기준으로 재정렬됐습니다**: `manifest`가 advanced에서 core로,
   `status`가 project에서 lifecycle로 이동했고, `show`("Show declared workspace configuration")와

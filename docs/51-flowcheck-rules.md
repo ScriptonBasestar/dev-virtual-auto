@@ -74,7 +74,7 @@ am은 셸 필드를 정적 분석해 명령 이름을 뽑고 허용목록에 없
 |---|---|---|
 | `dead-gate` | jq `//`는 `null`뿐 아니라 `false`도 대체한다. 명시적 `false`가 `true`로 읽혀 정지 분기가 도달 불가가 된다 | `.dva_needed // true` → `has("dva_needed")`로 부재와 거짓을 분리 |
 | `unguarded-report` | `tmp/` 경로를 읽는 `jq` 필드가 `jq -e -s` guard를 쓰지 않으면 발동한다. `jq -e .`는 **스트림**을 받아 `[1][2]{...}`도 exit 0이고 뒤쪽 객체에서 그럴듯한 값이 나온다 | `jq -e -s`로 객체가 정확히 하나인지 확인한다 |
-| `phantom-command` | 없는 `dva` 하위 명령의 오류 텍스트가 리포트에 **발견 사항처럼** 렌더된다 | `dva app ls` → `dva ls` (예약 23개 중 하나) |
+| `phantom-command` | 없는 `dva` 하위 명령의 오류 텍스트가 리포트에 **발견 사항처럼** 렌더된다 | `dva app ls` → `dva ls` (예약 24개 중 하나) |
 | `exit-if-empty` | `exit_if_empty`는 파이프라인을 **성공으로** 끝낸다. 전제 조건 누락과 "할 일 없음"이 구분되지 않는다 | `exit_if_empty: true` → `[ -n "$x" ] \|\| exit 1` |
 
 `phantom-command`가 쓰는 예약 명령 목록은 `internal/config`를 컴파일 시점에 import해서 얻는다

@@ -80,24 +80,17 @@ dva down <name>
 dva stop <name>
 dva status [name]
 dva ls
-dva show <name>
+dva show
 ```
 
 의미:
 
 - `dva ls`: 실행 가능한 이름 목록 출력
-- `dva show <name>`: 해당 실행 계획 상세 출력
+- `dva show`: 선언된 설정 요약 출력 (plan 이름 인자는 받지 않습니다)
 - `dva up <name>`: 실행
 
-필요하면 보조 조회 명령을 둘 수 있습니다.
-
-```bash
-dva ls stack
-dva ls environments
-dva ls sites
-```
-
-하지만 기본 UX는 `dva ls`만으로 충분해야 합니다.
+`dva ls stack` 같은 주제별 보조 조회 명령은 도입하지 않았습니다 — 기본 UX는
+`dva ls`만으로 충분해야 합니다.
 
 ## 9. 권장 YAML 예시
 

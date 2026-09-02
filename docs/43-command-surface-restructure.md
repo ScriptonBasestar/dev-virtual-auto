@@ -9,7 +9,8 @@ CLI는 [41-execution-plans-and-cli.md](41-execution-plans-and-cli.md), 마이그
 철학 판단은 [SOUL.md](../SOUL.md), 제품 범위는 [PRODUCT.md](../PRODUCT.md), 구현 경계는
 [ARCHITECTURE.md](../ARCHITECTURE.md)가 각각 소유하며 여기서는 반복하지 않는다.
 
-**구현 상태: 적용 완료.** 예약어는 23개, `dva --help`에 `stack`/`app`/`infra`/`clean`이
+**구현 상태: 적용 완료.** 예약어는 24개(재구성 당시 23개, 이후 `dva skill` 추가 —
+정본은 `internal/config/reserved.go`), `dva --help`에 `stack`/`app`/`infra`/`clean`이
 없다. §14는 재구성 **이전** 상태의 기록으로 남긴다 — 왜 이렇게 바꿨는지의 근거이므로
 현재형으로 읽지 않는다. 기능 하나가 대체 없이 사라졌다: `applications.<name>.health.required`
 (엄격 준비 상태 게이트). §16 Tier 1 참조.
@@ -87,7 +88,7 @@ exit)에 해당하는 스위치가 이 표면에 없다. 최상위 `health_check
 ### Tier 2 — Discovery (사람 + 에이전트 공용)
 
 ```
-dva ls / dva show <name> / dva manifest / dva validate / dva doctor
+dva ls / dva show / dva manifest / dva validate / dva doctor
 ```
 
 stack이 CLI에서 사라지므로 `ls`/`show`가 stack 선언을 보여주는 유일한 창이다.
@@ -103,7 +104,7 @@ dva provision <name>    # 1회성 준비/초기화
 
 ```
 dva compose ...   dva ktl ...              # DVA 대응이 없을 때
-dva init / version / completion / config(show|migrate) / ssh / console / docs
+dva init / version / completion / config(show|docs|migrate|init|validate) / ssh / console / skill
 ```
 
 ## 17. 현재→목표 매핑
