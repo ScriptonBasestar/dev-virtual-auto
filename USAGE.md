@@ -596,6 +596,7 @@ dva ssh up -v /workspace          # --volume: 마운트할 볼륨 (기본값 $HO
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
 | `dva validate` | dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원) |
 | `dva doctor` | 환경 사전조건 및 설정 문제 진단 (`--fix` 자동 수정) |
+| `dva completion [bash\|zsh\|fish\|powershell]` | 셸 자동완성 스크립트 생성 |
 
 #### provision
 
@@ -632,6 +633,21 @@ dva doctor --strict       # 빌트인 체크 실패도 exit≠0 (기본은 advis
 - `.sb/dva/`가 `.gitignore`에 포함되어 있는지
 - devcontainer 설정 시 `devcontainer.json` 존재 여부
 - `dva.yml`의 `checks` 섹션에 정의된 사용자 커스텀 체크
+
+#### completion
+
+```bash
+dva completion bash         # Bash 자동완성 스크립트 생성
+dva completion zsh          # Zsh 자동완성 스크립트 생성
+dva completion fish         # Fish 자동완성 스크립트 생성
+dva completion powershell   # PowerShell 자동완성 스크립트 생성
+```
+
+현재 셸 세션에 즉시 로드하려면 `source <(dva completion bash)` (zsh/fish도 동일 패턴).
+영구 설치는 셸별로 다릅니다 — 예를 들어 bash는 `dva completion bash >
+$(brew --prefix)/etc/bash_completion.d/dva` (macOS) 또는
+`dva completion bash > /etc/bash_completion.d/dva` (Linux). 셸별 정확한 설치 경로와
+전제조건(예: bash-completion 패키지)은 `dva completion <shell> --help`를 참조하세요.
 
 #### config validate
 
@@ -690,15 +706,17 @@ interaction:
 |---------|-------------|
 | `version` | 최소 DVA 버전 |
 | `vars` | 글로벌 환경변수 |
+| `environment` | 환경변수 체인의 최하위 레이어 — `env_file`보다 먼저 적용되고 이후 덮어써짐 (`environment:` < `env_file` < OS 환경 변수). 복수형 `environments`(환경 프리셋)와는 다른 키 |
 | `env_file` | .env 파일 로딩 |
 | `stack` | 재사용 가능한 실행 대상 선언 |
 | `plans` | 실제 실행 가능한 이름 |
 | `default_plan` | 플랜 이름 미지정 시 적용할 기본 `plans` 엔트리 (여러 plan 중 기본 선택) |
-| `checks` | `dva doctor` 환경 사전조건 체크 |
-| `default_mode` | `--mode` 미지정 시 적용할 기본 `modes` 엔트리 |
-| `modes` | 런타임 전략 프리셋 (`--mode`로 선택) |
 | `environments` | 환경 프리셋 (`dev/stg/prd`) |
 | `sites` | 실행 host 프리셋 (`local/remote/cloud`) |
+| `checks` | `dva doctor` 환경 사전조건 체크 |
+| `default_mode` | `--mode` 미지정 시 적용할 기본 `modes` 엔트리 |
+| `suggestion_ignore` | config suggestion 경고에서 제외할 Makefile/package.json 타겟 glob 패턴 |
+| `modes` | 런타임 전략 프리셋 (`--mode`로 선택) |
 | `health_checks` | 비-compose 서비스 헬스체크 |
 | `interaction` | 커맨드 정의 (command, command list, script, script_file, steps, subcommands 등) — 예약어/훅 규칙은 아래 [interaction](#interaction-예약어와-훅) 참조 |
 | `provision` | 프로비저닝 프로필 및 스텝 정의 |
