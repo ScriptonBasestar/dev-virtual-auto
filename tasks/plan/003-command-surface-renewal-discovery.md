@@ -3,10 +3,10 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 18
-total-tasks: 11
+progress: 17
+total-tasks: 12
 completed-tasks: 2
-children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263]
+children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264]
 target-date: "2027-03-31"
 created: 2026-09-02
 ---
@@ -30,18 +30,17 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
 | imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
+| imported interaction/provision 실행 | owner 복구 필요 | [TASK-264](../todo/264-restore-imported-command-ownership.md) |
 | qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../todo/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
 | cross-project composition | 기존 import와 address contract 이후 판단 | [TASK-260](../todo/260-freeze-cross-project-plan-composition.md) |
 | vNext vocabulary | 앞선 evidence를 모은 최종 결정 | [TASK-261](../todo/261-decide-vnext-vocabulary-and-migration.md) |
 
 ## Current status and review corrections (2026-09-02)
 
-TASK-262는 imported plan의 전체 lifecycle을 복구했고 TASK-253은 help group과 discovery 설명을
-정렬했다. 두 작업 모두 독립 리뷰와 repository gate를 통과했다. 나머지 TASK-254~261·263은 아직
-`todo`다. **PLAN-003 안의** 다음 시작점은 TASK-254다. 저장소 전체 일정에서는 live required-env
-안전 결함을 닫는 PLAN-002의 TASK-247→248을 먼저 끝낸 뒤 TASK-254로 복귀한다. 이어서 P0 critical
-path인 TASK-259→263→260을 진행한다. TASK-255·257은 manifest route identity를 각자 발명하지 않도록
-TASK-254가 끝난 뒤에 시작한다.
+TASK-262는 imported plan lifecycle을 복구했고 TASK-253은 help discovery를 정렬했다. TASK-247 caller
+audit에서 interaction/provision owner 결함이 확인되어 TASK-264를 추가했다. 저장소 전체의 다음 구현은
+TASK-264이며, 그 뒤 PLAN-002 TASK-265→248을 닫고 TASK-254로 복귀한다. 이어서 P0 critical path인
+TASK-259→263→260을 진행한다. TASK-255·257은 TASK-254 뒤에 시작한다.
 
 TASK-262를 추가한 역사적 이유는 문서가 지원한다고 설명한 imported plan이 normal child stack에서
 실패했기 때문이다. 당시 loader는 child plan만 parent `Plans`에 clone하고 resolver는 parent `Stack`에서
@@ -113,13 +112,15 @@ Renewal에서 채택하는 것은 다음 원리다.
 ```text
 TASK-262  imported-plan repair (done) ─────────────────────────┐
 TASK-253  help/discovery descriptions (done)                   │
+TASK-247 decision ─> TASK-264 owner repair ─┐
+                   └> TASK-265 decision ───┴─> TASK-248 (PLAN-002)
 TASK-254  metadata ownership ─┬─> TASK-255 ─> TASK-256 ────────┤
                               └─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
 TASK-259  addressing discovery ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
 ```
 
 TASK-254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
-PLAN-002의 TASK-248 뒤 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
+TASK-264→TASK-265→TASK-248 뒤 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
 TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한
@@ -148,7 +149,7 @@ guardrail은 PLAN-003에 적용하지 않는다.
 
 ## 5. 완료 정의
 
-PLAN-003은 TASK-253~263과 실행 중 조건부로 추가된 manifest contract child가 모두 닫히고, 선택된
+PLAN-003은 TASK-253~264와 실행 중 조건부로 추가된 manifest contract child가 모두 닫히고, 선택된
 incremental compatibility 구현이 source branch에서 검증되며, project addressing·composition·vNext
 vocabulary의 선택과 기각 근거가 기록됐을 때 완료한다.
 vNext 구현을 선택한 경우 새 plan과 child cards를 만드는 것까지가 이 계획의 완료 범위이며, 그 구현
@@ -167,3 +168,4 @@ vNext 구현을 선택한 경우 새 plan과 child cards를 만드는 것까지�
 - TASK-261 — decide vNext vocabulary and migration commitment
 - TASK-262 — restore imported-plan execution against the owning project
 - TASK-263 — decide qualified-project addressing and exposure
+- TASK-264 — restore imported interaction and provision execution ownership

@@ -11,7 +11,7 @@ scope: "interaction machine route and shorthand, imported item names, exposure, 
 status: todo
 needs-human: true
 decision-status: pending
-depends-on: [TASK-259]
+depends-on: [TASK-259, TASK-264]
 ---
 
 # Task 263: decide qualified-project addressing

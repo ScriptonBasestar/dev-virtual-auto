@@ -9,7 +9,7 @@ created-at: 2026-09-01T19:24:00+09:00
 source: "PLAN-002 and TASK-247 current-loader safety decision"
 scope: "loadEnv result model, all CLI callers, doctor hints, text/JSON fixtures, child-start guards"
 status: todo
-depends-on: [TASK-247]
+depends-on: [TASK-247, TASK-264, TASK-265]
 ---
 
 # Task 248: enforce required env behavior by command
