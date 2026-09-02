@@ -19,6 +19,14 @@ var manifestFormat string
 var manifestCmd = &cobra.Command{
 	Use:   "manifest",
 	Short: "Output the structured command manifest in JSON/YAML (for LLMs)",
+	Long: `Print a structured document describing this project's runnable surface: static
+built-in commands with their flags, every interaction command from dva.yml's
+interaction: section (including ones imported from subprojects), declared plans, stack
+runners, health checks, and the effective default_plan together with why it was chosen.
+
+This is the machine-readable twin of 'dva ls' — the same underlying data, shaped for a
+program (or an LLM) to consume rather than for a human to scan a table. See USAGE.md's
+"manifest" section.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		manifest := buildManifest(c)

@@ -16,8 +16,26 @@ var (
 )
 
 var runCmd = &cobra.Command{
-	Use:                "run [OPTIONS] CMD [ARGS...]",
-	Short:              "Execute a predefined script from 'dva.yml' (prefix 'run' can be omitted)",
+	Use:   "run [OPTIONS] CMD [ARGS...]",
+	Short: "Execute a predefined script from 'dva.yml' (prefix 'run' can be omitted)",
+	Long: `Run a command declared under dva.yml's interaction: section (an "interaction").
+
+The 'run' prefix can be omitted for any interaction name that does not collide with a
+reserved built-in command name: 'dva shell' reaches the same interaction as
+'dva run shell' when 'shell' is not reserved. A name that does collide is only reachable
+through the explicit 'dva run <name>' form — see USAGE.md's "interaction (예약어와 훅)"
+section for the reserved list and the conflict rules.
+
+A subcommand declared under interaction.<name>.subcommands inherits its parent's command
+and default_args unless it declares its own command/script/script_file/steps, which
+resets default_args to empty rather than carrying the parent's over — see USAGE.md's
+"interaction.subcommands (default_args 상속)" section for the full inheritance table.
+
+--project NAME (or the 'project:cmd' namespace form) routes to a subproject's own
+interaction tree and runs it against that subproject's effective config — its own vars,
+environment, and env_file, rooted at the subproject's directory rather than the parent's.
+
+See USAGE.md's "run" section for worked examples.`,
 	DisableFlagParsing: false,
 	Args:               cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

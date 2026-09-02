@@ -13,11 +13,17 @@ import (
 var consoleCmd = &cobra.Command{
 	Use:   "console",
 	Short: "Launch or inject into a DVA-integrated shell",
+	Long: `Group parent for shell integration subcommands: 'start' prints an eval-able
+integration script, and 'inject' prints shell function wrappers for this project's
+interaction: commands.`,
 }
 
 var consoleStartCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Output shell integration script (eval in .zshrc/.bashrc)",
+	Long: `Print the DVA shell integration script — the dva_inject/dva_reload/dva_clear
+functions and the DVA_SHELL/DVA_PROMPT_TEXT environment variables. Eval its output in
+.zshrc/.bashrc once to enable it in interactive sessions.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		binPath, _ := os.Executable()
 		fmt.Print(consoleStartScript(binPath))

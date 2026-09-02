@@ -11,6 +11,10 @@ import (
 var sshCmd = &cobra.Command{
 	Use:   "ssh",
 	Short: "Manage the workspace SSH agent container",
+	Long: `Manage a docker container running an ssh-agent (default image whilp/ssh-agent,
+overridable via dva.yml's ssh.agent_image) used to forward an SSH key into other
+containers. 'up' starts it and adds a key, 'down' stops and removes it along with its
+volume, 'status' inspects its current docker state. See USAGE.md's "ssh up" section.`,
 }
 
 const defaultSSHAgentImage = "whilp/ssh-agent"
@@ -18,6 +22,10 @@ const defaultSSHAgentImage = "whilp/ssh-agent"
 var sshUpCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Start SSH agent container",
+	Long: `Start the ssh-agent docker container and its ssh_data volume, then run
+'ssh-add' with --key inside it. --user sets the container's user, and --volume
+bind-mounts an extra host path (default $HOME) into the container so ssh-add can reach a
+key stored there.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		e, envReport := loadEnv(c)
@@ -67,6 +75,7 @@ var sshUpCmd = &cobra.Command{
 var sshDownCmd = &cobra.Command{
 	Use:   "down",
 	Short: "Stop and remove SSH agent container",
+	Long:  `Stop and remove the ssh-agent container along with its ssh_data volume.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		runDockerSilent("stop", "ssh-agent")
 		runDockerSilent("rm", "-v", "ssh-agent")
@@ -79,6 +88,7 @@ var sshDownCmd = &cobra.Command{
 var sshStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show SSH agent container status",
+	Long:  `Print the ssh-agent container's docker state via 'docker inspect --format {{.State.Status}}'.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", "ssh-agent")
 		c.Stdout = os.Stdout

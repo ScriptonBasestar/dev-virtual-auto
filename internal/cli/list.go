@@ -19,6 +19,16 @@ var (
 var lsCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List all available interaction scripts and commands",
+	Long: `List every command declared under dva.yml's interaction: section, including ones
+imported from subprojects: entries, alongside the invocation that actually reaches each
+one — 'dva run <name>' when a name is only reachable through the explicit form, or a
+"(unreachable: ...)" mark when nothing reaches it because a reserved-name prefix collides.
+Declared plans (plans:) are listed separately below the commands, since they run through
+'dva up <plan>' rather than 'dva run'.
+
+'manifest' is the machine-readable twin of this listing — the same underlying data,
+shaped for a program (or an LLM) to consume rather than for a human to scan a table. See
+USAGE.md's "ls" and "manifest" sections.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		tree := runner.NewInteractionTree(c.Interaction)

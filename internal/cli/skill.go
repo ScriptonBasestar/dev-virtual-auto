@@ -15,6 +15,11 @@ import (
 var skillCmd = &cobra.Command{
 	Use:   "skill",
 	Short: "Install and manage DVA skills for AI runtimes",
+	Long: `Manage the bundled DVA skills — portable how-to guides for using DVA — across AI
+coding runtimes: claude-code, codex, opencode, grok, antigravity, and agent-mesh.
+'install' places them at --scope (user or project), 'status' reports what is installed
+and whether it was modified locally, 'uninstall' removes unmodified DVA-owned
+installations, and 'backup' inspects backups retained from a prior --takeover install.`,
 }
 
 var (
@@ -33,7 +38,10 @@ var (
 var skillInstallCmd = &cobra.Command{
 	Use:   "install",
 	Short: "Install the bundled DVA skills without an AI agent",
-	Args:  cobra.NoArgs,
+	Long: `Install DVA's bundled skills into the target AI runtime(s) at --scope (user or
+project); --takeover backs up and replaces only receipt-less DVA-name collisions instead
+of leaving them alone.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		options, err := skillOptions(skillInstallScope, skillInstallRuntimes, dryRun)
 		if err != nil {
@@ -51,7 +59,9 @@ var skillInstallCmd = &cobra.Command{
 var skillStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show installed DVA skills and detect local changes",
-	Args:  cobra.NoArgs,
+	Long: `Report which DVA skills are installed at --scope for the targeted --runtime(s),
+and flag any whose files were modified locally since installation.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		options, err := skillOptions(skillStatusScope, skillStatusRuntimes, false)
 		if err != nil {
@@ -68,7 +78,11 @@ var skillStatusCmd = &cobra.Command{
 var skillUninstallCmd = &cobra.Command{
 	Use:   "uninstall",
 	Short: "Remove only unmodified DVA-owned skill installations",
-	Args:  cobra.NoArgs,
+	Long: `Remove DVA-owned skill installations at --scope that still match their install
+receipt exactly, leaving locally modified files in place; --restore-takeover-backup
+restores a verified backup from a prior 'skill install --takeover' instead — never
+automatic.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		options, err := skillOptions(skillRemoveScope, skillRemoveRuntimes, dryRun)
 		if err != nil {
@@ -86,12 +100,16 @@ var skillUninstallCmd = &cobra.Command{
 var skillBackupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Inspect retained takeover backups",
+	Long: `Group parent for inspecting backups retained from a prior
+'skill install --takeover'; 'list' is its only subcommand.`,
 }
 
 var skillBackupListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List verified retained takeover backups without changing state",
-	Args:  cobra.NoArgs,
+	Long: `List retained takeover backups at --scope for the targeted --runtime(s) — their
+backup ID, status, runtimes, and destination — without restoring or deleting anything.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		options, err := skillOptions(skillBackupListScope, skillBackupListRuntimes, false)
 		if err != nil {

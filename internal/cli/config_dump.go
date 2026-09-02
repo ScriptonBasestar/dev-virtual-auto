@@ -11,6 +11,10 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View or manage DVA configuration settings",
+	Long: `Group parent for dva.yml configuration subcommands: 'show' the final merged
+config, 'validate' its schema and semantics, 'init' a new dva.yml, 'docs' to regenerate
+the CLAUDE.md/AGENTS.md guide docs, or 'migrate' legacy declarations into the current
+stack/plan shape. See 'dva config <subcommand> --help' for each one.`,
 }
 
 var configShowFormat string

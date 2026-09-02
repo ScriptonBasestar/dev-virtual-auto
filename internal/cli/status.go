@@ -15,6 +15,16 @@ import (
 var statusCmd = &cobra.Command{
 	Use:   "status [NAME]",
 	Short: "Display current workspace and runtime status",
+	Long: `Show DVA's version and config summary, then query each stack entry's live runtime
+state (container/process status) through the lifecycle orchestrator, plus endpoint health
+checks when endpoints: are declared.
+
+With no NAME it queries the effective default plan when one can be selected, or the whole
+declared stack otherwise; with NAME it scopes the query to that named plan's entries only.
+It requires a complete environment (vars/environment/env_file) — an incomplete one is
+reported and the command exits non-zero without querying runtime state.
+
+See USAGE.md's "named execution entry" section for status usage alongside up/down/stop.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
 		var rootLoad *envLoad

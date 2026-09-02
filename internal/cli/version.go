@@ -13,6 +13,8 @@ var versionCmd = &cobra.Command{
 	Use:     "version",
 	Aliases: []string{"-v", "--version"},
 	Short:   "Show DVA version",
+	Long: `Print the dva binary's version, commit, and build date, injected at build time
+via -ldflags; this reflects the binary, not the dva.yml in the current directory.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if jsonOutput {
 			return output.PrintJSON(map[string]string{

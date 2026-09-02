@@ -129,6 +129,21 @@ func detectUnrunnableComposeCommands(c *config.Config) []string {
 var validateCmd = &cobra.Command{
 	Use:   "validate",
 	Short: "Validate the syntax and schema of 'dva.yml'",
+	// Set here in the struct literal, not from a later init(): validate_alias.go copies
+	// this Long by value into the top-level 'dva validate' alias inside its own init(), so
+	// assigning it afterward would leave that alias's Long empty while this command's own
+	// Long looked fixed.
+	Long: `Check dva.yml against its JSON schema, then run semantic checks: unrunnable
+compose runner commands (hard failure), compose file project-name mismatches, interaction
+name collisions, config drift, and other semantic warnings. Reached as both
+'dva validate' and 'dva config validate'.
+
+--fix rewrites compose file 'name:' mismatches (and creates a missing devcontainer.json
+when a devcontainer: section is declared and enabled) instead of only reporting them.
+--strict turns config-drift, semantic, and interaction-collision warnings into a failing
+exit code; without it those are reported but do not fail validation.
+
+See USAGE.md's "config validate" section for the full list of semantic checks.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 		report := newValidateReport(c)
