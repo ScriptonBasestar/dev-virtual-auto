@@ -600,6 +600,7 @@ func runShellCommandTo(e *config.Environment, cmdStr string, stdout, stderr io.W
 	c.Stdout = stdout
 	c.Stderr = stderr
 	if e != nil {
+		c.Dir = e.WorkDir()
 		c.Env = e.EnvSlice()
 	}
 	return c.Run()

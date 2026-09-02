@@ -3,9 +3,9 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 0
+progress: 9
 total-tasks: 11
-completed-tasks: 0
+completed-tasks: 1
 children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263]
 target-date: "2027-03-31"
 created: 2026-09-02
@@ -36,11 +36,12 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 
 ## Current status and review corrections (2026-09-02)
 
-이 계획을 만든 뒤 child implementation commit은 아직 없으며 TASK-253~261은 모두 `todo`다. Review에서
+TASK-262는 owning child config를 기준으로 imported plan의 전체 lifecycle을 복구하고 독립 리뷰와
+repository gate를 통과했다. 나머지 TASK-253~261·263은 아직 `todo`다. Review에서
 문서가 지원한다고 설명하는 imported plan의 실행 경로가 normal child stack에서 실패할 수 있음을
 확인했다. Loader는 child plan만 parent `Plans`에 clone하고 resolver는 parent `Stack`에서 entry를 찾으며,
 plan의 `SubprojectPath`는 resolver ownership 선택에 쓰이지 않는다. 새 기능 discovery보다 현재 약속의
-복구가 먼저이므로 TASK-262를 P0 첫 작업으로 추가한다.
+복구가 먼저이므로 TASK-262를 P0 첫 작업으로 추가했고 2026-09-02에 완료했다.
 
 또한 project address grammar와 plan composition은 독립된 public contract다. TASK-259는 evidence만
 수집하고 TASK-263이 address/exposure를 사람 결정으로 닫은 뒤, TASK-260이 composition 의미만 결정한다.

@@ -325,12 +325,11 @@ func runPlanUp(c *config.Config, e *config.Environment, planName string, extraAr
 		return err
 	}
 
-	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
 	if err != nil {
 		return err
 	}
-
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
 	effectiveDryRun := dryRun || flags.dryRun
@@ -386,12 +385,11 @@ func runPlanDown(c *config.Config, e *config.Environment, planName string, extra
 		return err
 	}
 
-	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
 	if err != nil {
 		return err
 	}
-
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
 	effectiveDryRun := dryRun || flags.dryRun
@@ -450,12 +448,11 @@ func runPlanStop(c *config.Config, e *config.Environment, planName string, extra
 		return err
 	}
 
-	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
 	if err != nil {
 		return err
 	}
-
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
 	effectiveDryRun := dryRun || flags.dryRun
@@ -483,12 +480,11 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 		return err
 	}
 
-	plan, err := lifecycle.ResolvePlan(c, planName, flags.cliVars)
+	runtime, err := resolvePlanRuntime(c, e, planName, flags.cliVars)
 	if err != nil {
 		return err
 	}
-
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
 	effectiveDryRun := dryRun || flags.dryRun
@@ -510,12 +506,11 @@ func runPlanRestart(c *config.Config, e *config.Environment, planName string, ex
 }
 
 func runPlanStatus(c *config.Config, e *config.Environment, planName string) error {
-	plan, err := lifecycle.ResolvePlan(c, planName, nil)
+	runtime, err := resolvePlanRuntime(c, e, planName, nil)
 	if err != nil {
 		return err
 	}
-
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 	fmt.Fprintf(os.Stderr, "[plan: %s] environment=%s site=%s entries=%d\n", plan.Name, plan.EnvironmentName, plan.SiteName, len(plan.Entries))
 
 	orch, err := lifecycle.NewPlanOrchestrator(c, e, plan)

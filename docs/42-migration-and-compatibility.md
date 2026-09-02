@@ -112,7 +112,7 @@ subprojects:
 
 #### Subproject execution path
 
-subproject의 `interactions`와 `provision`은 parent의 현재 작업 디렉터리가 아니라, 해당 subproject의 설정 파일이 있는 디렉터리를 기준으로 실행하는 것이 기본 원칙입니다.
+Imported 항목은 subproject 설정 디렉터리를 기준으로 실행합니다.
 
 즉:
 
@@ -125,6 +125,8 @@ subproject의 `interactions`와 `provision`은 parent의 현재 작업 디렉터
 - subproject 내부 상대 경로가 parent 위치에 영향을 받지 않도록 하기 위해
 - subproject가 독립적으로도 동일하게 실행되도록 하기 위해
 - parent에서 import해도 동작 의미가 바뀌지 않도록 하기 위해
+
+세부 owner·path 계약은 [resolution 문서](31-execution-plan-resolution.md#6-subproject-resolution)가 소유합니다.
 
 예를 들어 `services/backend/dva.yml` 에 정의된:
 

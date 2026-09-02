@@ -400,17 +400,35 @@ func loadEnv(c *config.Config) *config.Environment {
 	if env != nil {
 		return env
 	}
+	env = newConfigEnvironment(c)
+	return env
+}
+
+// newConfigEnvironment builds an uncached environment for one effective config.
+// Imported plans use this instead of the package-global root environment so child
+// vars and env_file paths cannot be contaminated by a parent invocation.
+func newConfigEnvironment(c *config.Config) *config.Environment {
 	wd, _ := os.Getwd()
+	return newConfigEnvironmentAt(c, wd)
+}
+
+// newOwnedConfigEnvironment gives an imported project the same default working
+// directory it has when invoked directly from its own root.
+func newOwnedConfigEnvironment(c *config.Config) *config.Environment {
+	return newConfigEnvironmentAt(c, c.FileDir())
+}
+
+func newConfigEnvironmentAt(c *config.Config, workDir string) *config.Environment {
 	// Precedence (lowest → highest among config layers):
 	// vars < environment: < env_file; OS env still wins per MergeVars.
-	env = config.NewEnvironment(c.Vars, wd, c.FileDir())
-	env.MergeVars(c.Environment)
+	result := config.NewEnvironment(c.Vars, workDir, c.FileDir())
+	result.MergeVars(c.Environment)
 	if c.EnvFile != nil {
-		if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), env); err != nil {
+		if err := config.LoadEnvFile(c.EnvFile, c.FileDir(), result); err != nil {
 			fmt.Fprintf(os.Stderr, "WARN: env_file: %s\n", err)
 		}
 	}
-	return env
+	return result
 }
 
 // levenshtein calculates the edit distance between two strings.

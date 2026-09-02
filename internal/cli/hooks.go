@@ -10,6 +10,7 @@ import (
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 	dvaexec "github.com/ScriptonBasestar/dva/internal/exec"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 // forceSubprocess, when true, makes execComposePassthrough delegate to
@@ -42,12 +43,29 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 			return original(cmd, args)
 		}
 
-		ic := c.Interaction[cmdName]
+		rootEnv := loadEnv(c)
+		hookConfig, err := hookOwnerConfig(c, cmdName, args)
+		if err != nil {
+			return err
+		}
+		ic := hookConfig.Interaction[cmdName]
 		if ic == nil || !ic.HasHooks() {
 			return original(cmd, args)
 		}
 
-		e := loadEnv(c)
+		e := rootEnv
+		if hookConfig != c {
+			e = newOwnedConfigEnvironment(hookConfig)
+		}
+
+		// The wrapped command obtains its environment through the package cache. Point that
+		// cache at the already-loaded owner environment for this invocation so an imported
+		// plan does not read its env_file once for hooks and again for the built-in. This also
+		// preserves direct-project semantics when a before-hook edits the env_file: the
+		// built-in continues with the snapshot on which its hooks were based.
+		previousEnv := env
+		env = e
+		defer func() { env = previousEnv }()
 
 		// Set hook depth to prevent recursion in subprocesses.
 		//
@@ -67,14 +85,14 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 
 		// Phase 1: before hooks (fail-fast)
 		if len(ic.Before) > 0 {
-			if err := runHookSteps(he, c, "before", cmdName, ic.Before); err != nil {
+			if err := runHookSteps(he, hookConfig, "before", cmdName, ic.Before); err != nil {
 				return err
 			}
 		}
 
 		// Phase 2: built-in or replace
 		if len(ic.Replace) > 0 {
-			if err := runHookSteps(he, c, "replace", cmdName, ic.Replace); err != nil {
+			if err := runHookSteps(he, hookConfig, "replace", cmdName, ic.Replace); err != nil {
 				return err
 			}
 		} else {
@@ -91,12 +109,53 @@ func wrapWithHooks(cmdName string, cmd *cobra.Command) {
 
 		// Phase 3: after hooks
 		if len(ic.After) > 0 {
-			if err := runHookSteps(he, c, "after", cmdName, ic.After); err != nil {
+			if err := runHookSteps(he, hookConfig, "after", cmdName, ic.After); err != nil {
 				return err
 			}
 		}
 
 		return nil
+	}
+}
+
+// hookOwnerConfig selects the same project owner the built-in plan path will use.
+// Parent hooks remain the owner for whole-stack and root-plan invocations; a
+// standalone imported plan is wrapped only by its child's lifecycle hooks.
+func hookOwnerConfig(root *config.Config, cmdName string, args []string) (*config.Config, error) {
+	routeArgs, err := hookPlanRoutingArgs(cmdName, args)
+	if err != nil {
+		return nil, err
+	}
+
+	planName, _, ok := detectPlanRoute(root, routeArgs)
+	if !ok {
+		return root, nil
+	}
+	resolved, err := lifecycle.ResolvePlan(root, planName, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resolved.OwnerConfig(root), nil
+}
+
+// hookPlanRoutingArgs applies the same command-specific normalization as the wrapped
+// built-in before asking which project owns its hooks. Keeping this in lockstep matters
+// for flags that may precede the plan name: routing to a child plan after running parent
+// hooks is a cross-project side effect, not merely a different diagnostic.
+func hookPlanRoutingArgs(cmdName string, args []string) ([]string, error) {
+	switch cmdName {
+	case "build":
+		_, _, _, _, filtered, err := parseDvaFlags(args)
+		if err != nil {
+			return nil, err
+		}
+		return dropLeadingTerminator(filtered), nil
+	case config.LogsDirName:
+		return consumeRootPersistentFlags(args)
+	default:
+		// wrapWithHooks has already applied consumeDryRunFlag. The four lifecycle
+		// built-ins call detectPlanRoute on precisely this slice.
+		return args, nil
 	}
 }
 

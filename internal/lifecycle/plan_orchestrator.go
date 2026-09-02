@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"path/filepath"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -13,6 +14,16 @@ import (
 func NewPlanOrchestrator(cfg *config.Config, env *config.Environment, plan *ExecutionPlan) (*Orchestrator, error) {
 	if plan == nil {
 		return nil, fmt.Errorf("execution plan is nil")
+	}
+	owner := plan.OwnerConfig(cfg)
+	if owner == nil {
+		return nil, fmt.Errorf("execution plan owner config is nil")
+	}
+	if env == nil {
+		return nil, fmt.Errorf("execution plan environment is nil")
+	}
+	if filepath.Clean(env.CfgDir()) != filepath.Clean(owner.FileDir()) {
+		return nil, fmt.Errorf("execution plan environment config dir %q does not match owner %q", env.CfgDir(), owner.FileDir())
 	}
 
 	entries := make([]config.LifecycleEntry, 0, len(plan.Entries))
@@ -31,7 +42,7 @@ func NewPlanOrchestrator(cfg *config.Config, env *config.Environment, plan *Exec
 	return &Orchestrator{
 		entries:         entries,
 		composeServices: composeServices,
-		cfg:             cfg,
+		cfg:             owner,
 		env:             env,
 		logger:          slog.Default(),
 		hc:              &HealthChecker{},

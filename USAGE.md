@@ -1158,7 +1158,12 @@ dva run backend/shell
 dva provision backend/setup
 ```
 
-subproject의 `interaction`과 `provision`은 해당 subproject root 기준으로 실행됩니다.
+Imported plan은 child의 stack, environment, site, vars, env_file, lifecycle hook, endpoint와
+readiness를 사용합니다. Parent의 같은 이름 선언은 섞이지 않으며, canonical name과 명시적 alias는
+같은 child owner를 실행합니다. Plan runner의 상대 경로와 process state도 해당 subproject root를
+기준으로 합니다. `interaction`과 `provision` 역시 같은 root 기준으로 실행됩니다.
+
+Subproject `path`는 absolute path나 parent 밖을 가리키는 `../` path도 사용할 수 있습니다.
 
 ### 특수 변수
 

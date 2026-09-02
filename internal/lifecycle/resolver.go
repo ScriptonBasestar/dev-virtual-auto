@@ -17,6 +17,18 @@ type ExecutionPlan struct {
 	EnvVars         map[string]string
 	Entries         []ResolvedEntry
 	ResolutionTrace []string
+
+	owner *config.Config
+}
+
+// OwnerConfig returns the configuration that supplied the declarations resolved
+// into this plan. Plans constructed by callers before owner tracking retain the
+// supplied fallback configuration.
+func (p *ExecutionPlan) OwnerConfig(fallback *config.Config) *config.Config {
+	if p != nil && p.owner != nil {
+		return p.owner
+	}
+	return fallback
 }
 
 type ResolvedEntry struct {
@@ -69,6 +81,10 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 	if err != nil {
 		return nil, &ResolveError{PlanName: planName, Step: "lookup", Cause: err}
 	}
+	owner := plan.OwnerConfig(cfg)
+	if owner == nil {
+		return nil, &ResolveError{PlanName: name, Step: "owner", Cause: fmt.Errorf("plan owner config is nil")}
+	}
 
 	resolved := &ExecutionPlan{
 		Name:            name,
@@ -78,24 +94,25 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		EnvVars:         make(map[string]string),
 		Entries:         make([]ResolvedEntry, 0, len(plan.Entries)),
 		ResolutionTrace: make([]string, 0, 16),
+		owner:           owner,
 	}
 
 	resolved.trace("plan: resolved %q", name)
 
 	// Layers 1-2 of the documented precedence chain are applied by the config loader
 	// (loadEnv, internal/cli/root.go), not here — see appendUpstreamVarTrace.
-	appendUpstreamVarTrace(resolved, cfg)
+	appendUpstreamVarTrace(resolved, owner)
 
 	// Layers 3-6. Each merge is recorded whether or not it contributed: a layer the config
 	// does not declare is the answer to "why is my variable not set", so it is stated rather
 	// than skipped (the reasoning TASK-082 settled for the dogfood loop applies to the
 	// precedence chain too — an absence is information).
-	resolved.traceLayer("vars: global vars", cfg.Vars, "not declared")
-	mergeStringMap(resolved.EnvVars, cfg.Vars)
+	resolved.traceLayer("vars: global vars", owner.Vars, "not declared")
+	mergeStringMap(resolved.EnvVars, owner.Vars)
 
 	var envProfile *config.EnvironmentProfile
 	if plan.Environment != "" {
-		p, ok := cfg.Environments[plan.Environment]
+		p, ok := owner.Environments[plan.Environment]
 		if !ok {
 			return nil, &ResolveError{
 				PlanName: name,
@@ -112,7 +129,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 
 	var site *config.SiteConfig
 	if plan.Site != "" {
-		s, ok := cfg.Sites[plan.Site]
+		s, ok := owner.Sites[plan.Site]
 		if !ok || s == nil {
 			return nil, &ResolveError{
 				PlanName: name,
@@ -143,7 +160,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 		return resolved, nil
 	}
 
-	if len(cfg.Stack) == 0 {
+	if len(owner.Stack) == 0 {
 		return nil, &ResolveError{PlanName: name, Step: "stack_ref", Cause: fmt.Errorf("stack is empty")}
 	}
 
@@ -154,7 +171,7 @@ func ResolvePlan(cfg *config.Config, planName string, cliVars map[string]string)
 			return nil, &ResolveError{PlanName: name, Step: "stack_ref", Cause: fmt.Errorf("entry[%d] has empty name", i)}
 		}
 
-		stackEntry, ok := cfg.Stack[entryName]
+		stackEntry, ok := owner.Stack[entryName]
 		if !ok || stackEntry == nil {
 			return nil, &ResolveError{
 				PlanName: name,

@@ -99,6 +99,11 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 
 	for subprojectName, subproject := range importedSubprojects {
 		subCfg := subCfgs[subprojectName]
+		if len(subproject.Import.Plans) > 0 {
+			if _, err := finalizeLoadedConfig(subCfg); err != nil {
+				return fmt.Errorf("finalizing imported plans from subproject %q: %w", subprojectName, err)
+			}
+		}
 
 		subprojectPath := subproject.Path
 		if !filepath.IsAbs(subprojectPath) {
@@ -120,7 +125,7 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 				return fmt.Errorf("plan name collision: %q already exists", canonicalName)
 			}
 
-			importedPlan := cloneImportedPlan(plan, subprojectPath)
+			importedPlan := cloneImportedPlan(plan, subCfg, subprojectPath)
 			cfg.Plans[canonicalName] = importedPlan
 
 			alias := strings.TrimSpace(entry.As)
@@ -197,12 +202,13 @@ func hasSubprojectImports(imports *SubprojectImportConfig) bool {
 			len(imports.Provision) > 0)
 }
 
-func cloneImportedPlan(plan *PlanConfig, subprojectPath string) *PlanConfig {
+func cloneImportedPlan(plan *PlanConfig, owner *Config, subprojectPath string) *PlanConfig {
 	if plan == nil {
 		return nil
 	}
 	clone := *plan
 	clone.SubprojectPath = subprojectPath
+	clone.owner = owner
 	if plan.EndpointTags != nil {
 		clone.EndpointTags = append([]string(nil), plan.EndpointTags...)
 	}

@@ -69,6 +69,22 @@ type PlanConfig struct {
 	Entries      []PlanEntry       `yaml:"entries"`
 
 	SubprojectPath string `yaml:"-"`
+
+	// owner is the fully loaded configuration that declared this plan when it is
+	// imported from a subproject. It intentionally has no YAML representation:
+	// importing a plan exposes a route in the parent, not the child's complete
+	// declaration namespace.
+	owner *Config
+}
+
+// OwnerConfig returns the configuration whose declarations a plan resolves
+// against. Locally declared and manually constructed plans have no recorded
+// owner, so fallback preserves their historical behavior.
+func (p *PlanConfig) OwnerConfig(fallback *Config) *Config {
+	if p != nil && p.owner != nil {
+		return p.owner
+	}
+	return fallback
 }
 
 // PlanEntry is a single entry in a plan, referencing a stack declaration.
@@ -692,7 +708,32 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		}
 	}
 
-	// Apply defaults
+	applyConfigDefaults(cfg)
+
+	if len(cfg.Subprojects) > 0 {
+		if err := resolveSubprojectImports(cfg, opts...); err != nil {
+			return nil, fmt.Errorf("resolving subprojects: %w", err)
+		}
+	}
+
+	if migrated, err := finalizeLoadedConfig(cfg); err != nil {
+		return nil, err
+	} else if len(migrated) > 0 {
+		fmt.Fprintf(os.Stderr, "⚠  'infra:' is deprecated (TASK-051): migrated %s into stack: as source-backed compose entries (tag: infra).\n   Declare them under stack.<name>.source instead; 'infra:' will be removed in a future release.\n", strings.Join(migrated, ", "))
+	}
+
+	// Reserved-command warnings belong to the root command surface. Imported
+	// children are finalized for execution but do not independently expose their
+	// whole interaction tree, so warning here avoids duplicate child warnings.
+	WarnReservedCommandConflicts(cfg.Interaction)
+
+	return cfg, nil
+}
+
+// applyConfigDefaults initializes the maps that downstream config consumers may
+// write or index. It is shared by root and imported-child loading so an imported
+// plan has the same effective declaration shape as a directly loaded plan.
+func applyConfigDefaults(cfg *Config) {
 	if cfg.Environment == nil {
 		cfg.Environment = make(map[string]string)
 	}
@@ -714,21 +755,20 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	if cfg.Sites == nil {
 		cfg.Sites = make(map[string]*SiteConfig)
 	}
+}
 
-	if len(cfg.Subprojects) > 0 {
-		if err := resolveSubprojectImports(cfg, opts...); err != nil {
-			return nil, fmt.Errorf("resolving subprojects: %w", err)
-		}
-	}
+// finalizeLoadedConfig applies the post-merge work required before a config can
+// supply executable declarations. It deliberately does not resolve subprojects:
+// imported children are finalized as independent roots, never recursively
+// imported into their parent.
+func finalizeLoadedConfig(cfg *Config) ([]string, error) {
+	applyConfigDefaults(cfg)
 
-	// Fold deprecated top-level infra: into stack: as source-backed entries.
-	if migrated, err := cfg.migrateInfraToStack(); err != nil {
+	migrated, err := cfg.migrateInfraToStack()
+	if err != nil {
 		return nil, err
-	} else if len(migrated) > 0 {
-		fmt.Fprintf(os.Stderr, "⚠  'infra:' is deprecated (TASK-051): migrated %s into stack: as source-backed compose entries (tag: infra).\n   Declare them under stack.<name>.source instead; 'infra:' will be removed in a future release.\n", strings.Join(migrated, ", "))
 	}
 
-	// Populate Name field and resolve deferred plugins from map keys
 	for name, entry := range cfg.Stack {
 		entry.Name = name
 		if err := entry.ResolvePluginFromName(); err != nil {
@@ -739,13 +779,8 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		}
 	}
 
-	// Resolve endpoint URLs from source references
 	cfg.ResolveEndpoints()
-
-	// Warn if interaction commands shadow reserved built-in commands
-	WarnReservedCommandConflicts(cfg.Interaction)
-
-	return cfg, nil
+	return migrated, nil
 }
 
 var yamlDeprecationWarned bool

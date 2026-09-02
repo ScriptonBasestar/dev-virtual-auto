@@ -114,11 +114,11 @@ func planComposeLogArgs(target planLogTarget, passthrough []string) []string {
 // optional entry name belongs to the tool that owns the logs — `-f`, `--tail 50`, a service
 // name — and parsePlanFlags exists to reject exactly that.
 func runPlanLogs(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
-	plan, err := lifecycle.ResolvePlan(c, planName, nil)
+	runtime, err := resolvePlanRuntime(c, e, planName, nil)
 	if err != nil {
 		return err
 	}
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 
 	targets := planLogTargets(plan)
 	if len(targets) == 0 {

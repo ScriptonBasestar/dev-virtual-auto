@@ -27,6 +27,13 @@ type HealthChecker struct{}
 
 // Check runs all configured health checks concurrently and returns results.
 func (hc *HealthChecker) Check(checks map[string]config.HealthCheckConfig) []HealthCheckResult {
+	return hc.CheckWithContext(checks, "", nil)
+}
+
+// CheckWithContext runs checks with the owning project's working directory and
+// environment. HTTP/TCP checks ignore them; command checks must observe the same
+// project context as the lifecycle entry they guard.
+func (hc *HealthChecker) CheckWithContext(checks map[string]config.HealthCheckConfig, dir string, env *config.Environment) []HealthCheckResult {
 	if len(checks) == 0 {
 		return nil
 	}
@@ -56,7 +63,7 @@ func (hc *HealthChecker) Check(checks map[string]config.HealthCheckConfig) []Hea
 			case "tcp":
 				result.Ready = CheckTCP(check.Address, timeout)
 			case "command":
-				result.Ready = checkCommand(check.Command, timeout)
+				result.Ready = checkCommand(check.Command, timeout, dir, env)
 			default:
 				fmt.Fprintf(os.Stderr, "[warn] unknown health check type %q for %s\n", check.Type, name)
 			}
@@ -78,8 +85,13 @@ func (hc *HealthChecker) Check(checks map[string]config.HealthCheckConfig) []Hea
 
 // WaitUntilReady polls health checks until all pass or context is cancelled.
 func (hc *HealthChecker) WaitUntilReady(ctx context.Context, checks map[string]config.HealthCheckConfig) []HealthCheckResult {
+	return hc.WaitUntilReadyWithContext(ctx, checks, "", nil)
+}
+
+// WaitUntilReadyWithContext is WaitUntilReady with project context for command checks.
+func (hc *HealthChecker) WaitUntilReadyWithContext(ctx context.Context, checks map[string]config.HealthCheckConfig, dir string, env *config.Environment) []HealthCheckResult {
 	for {
-		results := hc.Check(checks)
+		results := hc.CheckWithContext(checks, dir, env)
 		allReady := true
 		for _, r := range results {
 			if !r.Ready {
@@ -138,8 +150,15 @@ func CheckTCP(address string, timeout time.Duration) bool {
 	return true
 }
 
-func checkCommand(command string, timeout time.Duration) bool {
+func checkCommand(command string, timeout time.Duration, dir string, env *config.Environment) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	return exec.CommandContext(ctx, "sh", "-c", command).Run() == nil
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	if env != nil {
+		cmd.Env = env.EnvSlice()
+	}
+	return cmd.Run() == nil
 }

@@ -150,11 +150,11 @@ func buildPlanEntry(e *config.Environment, c *config.Config, target planBuildTar
 // name — and parsePlanFlags exists to reject exactly that. The DVA flags were already taken
 // by parseDvaFlags before the plan was chosen, which is how --dry-run reaches here.
 func runPlanBuild(c *config.Config, e *config.Environment, planName string, extraArgs []string) error {
-	plan, err := lifecycle.ResolvePlan(c, planName, nil)
+	runtime, err := resolvePlanRuntime(c, e, planName, nil)
 	if err != nil {
 		return err
 	}
-	e.MergeVars(plan.EnvVars)
+	plan, c, e := runtime.plan, runtime.config, runtime.env
 
 	targets := planBuildTargets(plan)
 	if len(targets) == 0 {

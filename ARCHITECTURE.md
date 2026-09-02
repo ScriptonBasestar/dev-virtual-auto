@@ -120,6 +120,12 @@ dva up/down/stop/status <name>
     → structured status and errors
 ```
 
+Parent가 import한 `project/plan`도 이름만 parent namespace에 노출될 뿐 실행 소유권은
+child effective config에 남는다. Resolver는 child의 stack·environment·site·vars를 사용하고,
+CLI와 orchestrator는 같은 child config directory를 runner 파일, process state, hook,
+endpoint와 readiness의 기준으로 사용한다. Parent의 같은 이름 선언은 imported plan에
+섞이지 않으며 CLI `--var`처럼 문서화된 호출 입력만 추가된다.
+
 ### Interaction
 
 ```text

@@ -216,18 +216,25 @@ subproject에서 import된 실행 entrypoint는 canonical namespace 이름을 �
 - 충돌은 hard error
 - `subprojects.<name>` 선언만으로 child `dva.yml`을 즉시 로드하지 않음 (`import` 생략 또는 `import: {}` 포함)
 - `import`에 실제 대상이 있거나 `dva run <subproject>:<command>`처럼 직접 실행할 때는 해당 subproject의 `dva.yml`이 필요함
+- imported plan의 canonical name과 alias는 같은 child effective config를 실행 owner로 사용
+- child stack, environment, site, vars, env_file, lifecycle hooks, endpoints와 readiness를 parent 선언과 섞지 않음
 
 ## 7. subproject execution path
 
-subproject의 `interactions`와 `provision`은 parent 기준이 아니라, 해당 subproject 설정 파일이 있는 디렉터리 기준으로 실행합니다.
+subproject의 imported `plans`, `interactions`와 `provision`은 parent 기준이 아니라, 해당
+subproject 설정 파일이 있는 디렉터리 기준으로 실행합니다.
 
 즉:
 
 - command resolution 기준 = subproject config
 - relative path 기준 = subproject config dir
 - default working directory = subproject root
+- runner/config 상대 경로와 process state 기준 = subproject root
+- imported plan hook·endpoint·readiness 기준 = subproject config
 
 이 원칙은 parent에서 import해도 subproject가 독립 실행될 때와 동일한 의미를 보장합니다.
+Subproject `path` 자체는 absolute 또는 parent 밖의 `../` 위치일 수 있으며, import가 새 containment
+제약을 추가하지 않습니다.
 
 ## 8. 책임 경계
 

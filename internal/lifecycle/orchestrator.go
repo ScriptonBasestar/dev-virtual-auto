@@ -145,7 +145,7 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 
 		// Run health checks for this entry and wait if needed
 		if len(entry.HealthChecks) > 0 && opts.Wait {
-			results := o.hc.WaitUntilReady(ctx, entry.HealthChecks)
+			results := o.hc.WaitUntilReadyWithContext(ctx, entry.HealthChecks, entryEnv.WorkDir(), entryEnv)
 			allReady := true
 			for _, r := range results {
 				if !r.Ready {
@@ -335,7 +335,7 @@ func (o *Orchestrator) Status(ctx context.Context) (*AggregatedStatus, error) {
 
 		var healthResults []HealthCheckResult
 		if len(entry.HealthChecks) > 0 {
-			healthResults = o.hc.Check(entry.HealthChecks)
+			healthResults = o.hc.CheckWithContext(entry.HealthChecks, entryEnv.WorkDir(), entryEnv)
 		}
 
 		es := EntryStatus{
@@ -588,7 +588,7 @@ func (o *Orchestrator) startModeProcesses(ctx context.Context, opts UpOptions, e
 					readyTimeout = 30 * time.Second
 				}
 				waitCtx, cancel := context.WithTimeout(ctx, readyTimeout)
-				results := o.hc.WaitUntilReady(waitCtx, checks)
+				results := o.hc.WaitUntilReadyWithContext(waitCtx, checks, env.WorkDir(), env)
 				cancel()
 				for _, r := range results {
 					if !r.Ready {
