@@ -235,6 +235,9 @@ TASK-244, TASK-245, TASK-247, TASK-249는 독립 착수 가능하다. 구현과 
 TASK-251은 bridge와 propagation이 존재한 뒤 시작하고, TASK-252는 external evidence가 같은 revision에서
 green일 때만 시작한다.
 
+세션 경계, 모델 라우팅, 서브에이전트 역할과 재사용 시작 프롬프트는
+[Command Surface 작업의 에이전트 실행 런북](../../docs/53-command-surface-agent-execution.md)이 소유한다.
+
 ## 7. 하지 않는 것
 
 - lifecycle 동사 재배치 또는 plan flag화
