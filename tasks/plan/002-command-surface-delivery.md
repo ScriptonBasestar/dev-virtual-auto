@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 9
+progress: 18
 total-tasks: 11
-completed-tasks: 1
+completed-tasks: 2
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -29,7 +29,7 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../todo/244-validate-plan-declaration-drift.md) |
 | `config env` bridge | 선행 계약 필요 | [TASK-245](../todo/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
 | required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
-| interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../todo/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
+| interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../done/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
 | top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |

@@ -45,19 +45,20 @@ diff와 명령 결과를 다시 확인한다.
 | Wave | Task | 세션 종료 조건 |
 | --- | --- | --- |
 | 1 | [TASK-245](../tasks/todo/245-freeze-env-bridge-contract.md) | 사용자 결정이 기록·검증됨 |
-| 완료 | [TASK-247](../tasks/_archive/done/247-freeze-required-env-command-policy.md) | caller matrix 사용자 결정·검증·통합 완료 |
+| 완료 | [TASK-247](../tasks/_archive/done/247-freeze-required-env-command-policy.md) | 결정·검증·통합 완료 |
 | 1 | [TASK-249](../tasks/todo/249-redesign-capability-driven-init.md) | init contract 사용자 결정이 기록·검증됨 |
 | 1 | [TASK-244](../tasks/todo/244-validate-plan-declaration-drift.md) | D6/D7 구현·독립 review·통합 완료 |
-| 완료 | [TASK-264](../tasks/_archive/done/264-restore-imported-command-ownership.md) | imported interaction/provision owner 복구·통합 완료 |
-| 1 | [TASK-265](../tasks/todo/265-decide-interaction-env-file-contract.md) | inert interaction env_file 사람 결정 기록 |
+| 완료 | [TASK-264](../tasks/_archive/done/264-restore-imported-command-ownership.md) | owner 복구·통합 완료 |
+| 완료 | [TASK-265](../tasks/done/265-decide-interaction-env-file-contract.md) | env_file 결정 승인 완료 |
+| 1 | [TASK-266](../tasks/todo/266-deprecate-and-reject-interaction-env-file.md) | TASK-265 결정 구현 |
 | 2 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-247·264·265 위에서 loader safety 구현·통합 완료 |
 | 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-244·249 결과 구현·통합 완료 |
-| 3 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정과 TASK-248 loader contract 위에서 구현·통합 완료 |
+| 3 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정·TASK-248 contract 위에서 구현·통합 완료 |
 | 4 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | 영구 유지 결정 또는 promotion evidence 요청이 기록됨 |
 | 조건부 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | TASK-252가 요청한 경우 gate 통합, 아니면 N/A 종료 |
 | 조건부 재개 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | TASK-251 evidence를 사용한 최종 결정 기록 |
 
-TASK-264는 완료됐다. 다음은 TASK-265 결정 후 TASK-248이다.
+TASK-265 결정이 승인됐다. 다음은 TASK-248과 TASK-266이다.
 TASK-246은 TASK-248이 통합되기 전 시작하지 않는다.
 
 TASK-252의 권장안은 TASK-251을 선행 구현하지 않고 permanent `config env`로 닫는 것이다. Promotion
@@ -117,10 +118,10 @@ configured source branch direct integration과 push, task worktree·local branch
 
 ## 8. 새 세션 시작 프롬프트
 
-`TARGET_TASK`만 바꾸어 매 session 사용한다. TASK-264 완료 뒤 재개 값은 `TASK-265`다.
+`TARGET_TASK`만 바꾸어 매 session 사용한다. TASK-265 승인 뒤 재개 값은 `TASK-248`이다.
 
 ```text
-TARGET_TASK: TASK-265
+TARGET_TASK: TASK-248
 PLAN: tasks/plan/002-command-surface-delivery.md
 RUNBOOK: docs/53-command-surface-agent-execution.md
 

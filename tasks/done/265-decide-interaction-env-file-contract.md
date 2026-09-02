@@ -45,8 +45,13 @@ parent/subcommand inheritance, top-level 대비 precedence, required 실패라�
 새 runtime file I/O를 수요 evidence 없이 추가하게 된다. Silent inert 유지는 카드 제약상 선택할 수 없다.
 
 이 기록은 `needs-human: true` 카드의 결정문이다. 아래 §1·§2의 모든 주장은 tracked symbol 또는 재현
-가능한 read-only scan으로 뒷받침한다. 정책상 독립 review는 이 결정을 작성하지 않은 주체가 수행하며,
-카드를 done으로 옮기기 전에 완료한다.
+가능한 read-only scan으로 뒷받침한다.
+
+**승인 이력.** 독립 review는 이 결정을 작성하지 않은 reviewer가 수행했고, §1 증거표의 file:line 주장과
+§5 handoff를 source에 대해 재확인했다. 그 결과를 사용자에게 제시한 뒤 2026-09-03에 사용자가 versioned
+deprecation → rejection을 승인했다. [런북 §5](../../docs/53-command-surface-agent-execution.md)가 요구하는
+사용자 선택은 이 시점에 충족됐고, `decision-status: decided`는 그 승인에 근거한다. 승인 전 상태에서는
+이 field가 `pending`이어야 했다.
 
 ### 1. 확인된 현재 동작
 

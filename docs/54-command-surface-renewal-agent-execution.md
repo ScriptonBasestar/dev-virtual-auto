@@ -41,7 +41,8 @@ lead이고 root가 실제 code, diff, pinned revision과 gate 결과를 확인�
 | 완료 | [TASK-253](../tasks/_archive/done/253-align-help-groups-and-discovery-descriptions.md) | help 정비 구현·독립 review·통합 완료 |
 | 완료 | [TASK-264](../tasks/_archive/done/264-restore-imported-command-ownership.md) | imported interaction/provision owner 복구·독립 review·통합 완료 |
 | 1 | [TASK-254](../tasks/todo/254-discover-command-metadata-registry.md) | evidence와 recommendation이 card에 기록·통합 |
-| 1 | [TASK-259](../tasks/todo/259-discover-qualified-project-addressing.md) | addressing evidence와 recommendation이 기록·통합 |
+| 완료 | [TASK-259](../tasks/done/259-discover-qualified-project-addressing.md) | addressing evidence와 recommendation 기록·통합 완료 |
+| 1 | [TASK-267](../tasks/todo/267-repair-subproject-exposure-defects.md) | TASK-259 §5의 문법 독립 노출 결함 수리 |
 | 2 | [TASK-255](../tasks/todo/255-decide-kubectl-route-compatibility.md) | TASK-254 근거를 사용한 사람 승인 decision 기록 |
 | 2 | [TASK-257](../tasks/todo/257-decide-validate-route-compatibility.md) | TASK-254 근거를 사용한 사람 승인 decision 기록 |
 | 2 | [TASK-263](../tasks/todo/263-decide-qualified-project-addressing.md) | TASK-259 근거와 TASK-264 owner 복구 위에서 address/exposure 사람 승인 기록 |
@@ -50,7 +51,7 @@ lead이고 root가 실제 code, diff, pinned revision과 gate 결과를 확인�
 | 3 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-262·263 위에서 composition 사람 승인 기록 |
 | 4 | [TASK-261](../tasks/todo/261-decide-vnext-vocabulary-and-migration.md) | 선행 결과를 근거로 사람 승인 또는 현행 유지 기록 |
 
-TASK-262·253·247·264는 완료됐다. 다음 변경 세션은 PLAN-002의 TASK-265→248이다.
+TASK-262·253·247·264·259는 완료됐다. 다음 변경 세션은 PLAN-002의 TASK-248이다.
 그 뒤 TASK-254와 product critical path TASK-259→263→260을 진행한다. TASK-255·257은 TASK-254가
 manifest route identity의 소유권을 조사한 뒤 시작한다. 서로 독립인 조사도 source integration은 최신
 source tip에 대해 직렬화한다.

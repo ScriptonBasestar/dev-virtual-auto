@@ -3,10 +3,10 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 17
-total-tasks: 12
-completed-tasks: 2
-children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264]
+progress: 31
+total-tasks: 13
+completed-tasks: 4
+children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264, TASK-267]
 target-date: "2027-03-31"
 created: 2026-09-02
 ---
@@ -31,7 +31,7 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
 | imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
 | imported interaction/provision 실행 | owner 복구 완료 | [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) |
-| qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../todo/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
+| qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../done/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
 | cross-project composition | 기존 import와 address contract 이후 판단 | [TASK-260](../todo/260-freeze-cross-project-plan-composition.md) |
 | vNext vocabulary | 앞선 evidence를 모은 최종 결정 | [TASK-261](../todo/261-decide-vnext-vocabulary-and-migration.md) |
 
@@ -171,3 +171,4 @@ vNext 구현을 선택한 경우 새 plan과 child cards를 만드는 것까지�
 - TASK-262 — restore imported-plan execution against the owning project
 - TASK-263 — decide qualified-project addressing and exposure
 - TASK-264 — restore imported interaction and provision execution ownership
+- TASK-267 — repair grammar-independent subproject exposure defects
