@@ -41,7 +41,9 @@ dva skill backup list --runtime codex     # 보존된 takeover backup ID 조회
 
 ## Quick Start
 
-프로젝트 루트에 `dva.yml` 생성:
+`dva init`(= `dva config init`)이 프로젝트 루트에 `dva.yml`을 자동 감지로 스캐폴딩합니다.
+`dva init -t node`처럼 템플릿(minimal, rails, node, python, go)을 지정할 수 있습니다.
+생성 결과는 다음과 같은 형태입니다:
 
 ```yaml
 version: "0.1.44"
@@ -77,46 +79,19 @@ dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 
 ## Commands
 
-```bash
-# Lifecycle — 동사는 전부 plan 기준입니다
-dva up local-dev           # named plan 시작
-dva down local-dev         # named plan teardown
-dva stop local-dev         # 컨테이너 유지한 채 정지
-dva restart local-dev      # 재시작
-dva build local-dev        # plan 엔트리 빌드
-dva logs local-dev         # plan 엔트리 로그
-dva status local-dev       # named plan 상태
+`dva --help`와 같은 다섯 그룹입니다. 이름과 한 줄 역할만 싣고, 플래그·동작 상세는
+[USAGE.md](USAGE.md#command-quick-reference)를 참조하세요.
 
-dva up                     # default_plan 또는 유일한 plan 시작
+- **Core**: `run` — interaction 실행 (`dva shell` = `dva run shell`, run 생략 가능) · `ls` — 커맨드 목록 · `manifest` — LLM용 커맨드 매니페스트 · `version`
+- **Project Management**: `show` — 설정 요약 · `config` — `init`/`docs`/`migrate`/`show`/`validate` 서브커맨드 (`dva init`은 top-level alias) · `doctor` — 환경 사전조건 진단
+- **Lifecycle**: `up`/`down`/`stop`/`restart`/`status`/`logs`/`build` — 전부 `dva <verb> <plan>` 형태. `down -v`·`--purge` 같은 파괴적 teardown은 확인 프롬프트를 거칩니다 (`--force`로 생략)
+- **Integration Tools**: `compose` — raw Docker Compose passthrough (escape hatch) · `ktl` — kubectl passthrough · `ssh` — SSH agent 컨테이너 관리
+- **Advanced Utilities**: `console` — 셸 통합 · `provision` — 프로비저닝 실행 · `skill` — 내장 AI 스킬 설치 관리 · `validate` — dva.yml 검증 (`dva config validate`와 동일)
 
-# 파괴적 teardown (확인 프롬프트, --force로 생략)
-dva down local-dev -v      # 볼륨까지 제거
-dva down local-dev --purge # 볼륨 + 이미지 + provision 마커까지 제거
-
-# Escape hatch
-dva compose ps             # raw Docker Compose passthrough
-
-# Interaction
-dva ls                     # 사용 가능한 커맨드 목록
-dva shell                  # = dva run shell (run 생략 가능)
-
-# Utilities
-dva status                 # effective default plan 상태; 없으면 워크스페이스 상태
-dva show                   # 설정 요약
-dva validate               # dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원)
-dva provision              # 프로비저닝 실행
-dva config docs            # AI 에이전트 가이드(CLAUDE.md) 생성
-dva doctor                 # 환경 사전조건 진단
-```
-
-완전히 인자 없는 `up`/`down`/`stop`/`restart`/`build`/`logs`는 명시된
-`default_plan`을 선택하고, plan이 하나뿐이면 그 plan을 자동 선택합니다. 여러 plan이 있는데
-`default_plan`이 없으면 plan 이름을 요구합니다. plan이 전혀 없으면 앞의 네 동사는 기존
-whole-stack 경로를, `build`/`logs`는 primary Compose passthrough를 사용합니다. `status`는
-effective default가 있으면 그 plan을 조회하고, 없으면 다중 plan 구성에서도 워크스페이스
-전체를 조회합니다. stack-path flag나 Compose passthrough 인자가 있는 호출은 별도 호환
-경로입니다. 특히 기본값 없는 다중 plan에서 `dva up --force`는 whole-stack force-recreate가
-될 수 있으므로 [USAGE.md](USAGE.md#라이프사이클-플래그)를 확인하세요.
+완전히 인자 없는 lifecycle 동사는 명시된 `default_plan`을, plan이 하나뿐이면 그 plan을
+자동 선택합니다. 예외 경로와 `dva up --force`의 whole-stack 위험은
+[무인자 lifecycle 선택](USAGE.md#무인자-lifecycle-선택)과
+[라이프사이클 플래그](USAGE.md#라이프사이클-플래그)를 확인하세요.
 
 전체 커맨드 레퍼런스: **[USAGE.md](USAGE.md)**
 
@@ -149,7 +124,8 @@ stack:
 > 엔트리에 `order:`를 직접 다는 legacy 형식은 plan 경로에서 읽히지 않습니다. 실행되는 것은
 > `plans.*.entries[].order`이며, `dva config migrate`가 변환합니다.
 
-지원 플러그인: `compose`, `kubectl`, `helm`, `kustomize`, `tilt`, `skaffold`, `podman-compose`, `process`, `script`, `docker`, `vagrant`, `sam`, `serverless`, `multipass`
+지원 플러그인은 `compose`, `kubectl`, `helm`, `process` 등 3-tier 14종입니다 — 전체
+tier 표는 [USAGE.md의 stack](USAGE.md#stack-선언-저장소)을 참조하세요.
 
 ### 앱 프로세스 (`native` 러너)
 
@@ -214,30 +190,21 @@ dva down local-dev --purge
 
 ## LLM Integration
 
-```bash
-am run dva-discover          # 프로젝트 분석 및 옵션 탐색
-am run dva-improve           # AI로 dva.yml 자동 생성/개선
-am run dva-diagnose          # 에러 분석 및 설정 자동 수정
-dva config docs              # AI 에이전트 가이드(CLAUDE.md) 생성
-dva manifest                 # 구조화된 커맨드 매니페스트
-dva config show -f yaml      # 스키마 키를 보존한 병합 최종 설정 출력 (JSON도 지원)
-```
+`dva config docs`가 AI 에이전트 가이드(CLAUDE.md/AGENTS.md)를 생성하고, `dva manifest`가
+자동화용 구조화 커맨드 매니페스트를 출력합니다. agent-mesh flow로는 `am run
+dva-discover`/`dva-improve`(분석·개선)와 `am run dva-diagnose`(환경 점검·에러 분석)가
+있습니다. `--json` 플래그 등 전체 통합 표면은
+[USAGE.md](USAGE.md#llm-integration)를 참조하세요.
 
 AI 스킬의 정본은 `skills/` 하나입니다. `make generate`는 DVA 소스 checkout 안에서만
-Claude Code 플러그인 내부의 skills symlink, Antigravity·OpenCode용 symlink,
-Cursor rule, Codex 호환 `AGENTS.md` 섹션을 만듭니다. 사용자나 다른 프로젝트에 설치하는
-명령이 아닙니다. 정확한 checkout 산출물은 [skills target 표](skills/README.md#targets)를
-참조하세요.
+생성물을 일괄 갱신합니다 — libgen(fact 블록), `library_reference.txt` 재조립,
+flowgen(self-contained agent-mesh flow), skillgen(플랫폼별 스킬 아티팩트) — 사용자나 다른
+프로젝트에 설치하는 명령이 아닙니다. checkout 산출물 상세는
+[skills target 표](skills/README.md#targets)를 참조하세요.
 
-설치된 바이너리의 `dva skill install`은 내장된 `dva`와 `dva-config`를 선택한 runtime의
-user/project discovery path에 복사합니다. Claude Code, Codex, OpenCode, Grok,
-Antigravity, Agent Mesh의 정확한 설치 경로와 공유 경로 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를
-참조하세요. Agent Mesh에는 같은 스킬을 flat Markdown으로 변환해 설치합니다.
-공유 skill root는 어느 installer의 소유도 아니며, DVA는 per-skill XDG claim으로 `dva`와
-`dva-config`만 표시합니다. receipt 없는 동명 충돌은 기본적으로 거부하고, 필요한 경우에만
-`dva skill install --takeover`가 검증 가능한 백업을 만든 뒤 인수합니다. 복원은 자동이 아니라
-`dva skill uninstall --restore-takeover-backup`로 명시합니다. 두 옵션 모두 변경 범위를 제한하도록
-명시적 `--runtime`을 요구합니다.
+설치된 바이너리의 `dva skill install`은 내장 `dva`·`dva-config` 스킬을 선택한 runtime의
+user/project discovery path에 복사합니다. runtime별 경로, per-skill claim과 충돌 거부,
+`--takeover` 백업·복원 규칙은 [AI 스킬 설치](USAGE.md#ai-스킬-설치)를 참조하세요.
 
 ## Documentation
 

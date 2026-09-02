@@ -98,7 +98,7 @@ Config Loader → Schema/Semantic Validation → effective config
 |---------|----------------|--------------|
 | `stack` | 재사용 가능한 logical unit과 runner 선언 | 이번 실행의 최종 선택과 순서 |
 | `plans` | 사용자가 실행하는 이름과 entry 선택 | runner 원본 설정의 중복 |
-| `environments` | dev/stg/prd 같은 용도별 변수 차이 | 실행 host 선택 |
+| `environments` | 용도별(개발·테스트·유지보수 등) 변수 세트 선택 — `stg`/`prd` 같은 이름도 변수 세트 라벨일 뿐이다 (경계는 PRODUCT.md) | 실행 host 선택, 해당 환경의 운영 권한 |
 | `sites` | local/office/remote/cloud 같은 host 차이 | 애플리케이션 환경 의미 |
 | `modes`/`default_mode` | `dva up --mode`의 named 운영 모드 선택 축 (legacy — validate가 plans 이관을 권고) | environment/site가 소유한 의미 |
 | `subprojects` | import된 이름의 parent namespace 노출 | 실행 소유권 (child effective config에 남음) |
