@@ -47,7 +47,7 @@ gate 결과를 확인한다.
 | Wave | Task | 종료 조건 |
 | --- | --- | --- |
 | 완료 | [TASK-262](../tasks/_archive/done/262-restore-imported-plan-execution.md) | imported-plan owner contract 복구·독립 review·통합 완료 |
-| 1 | [TASK-253](../tasks/todo/253-align-help-groups-and-discovery-descriptions.md) | help 정비 구현·독립 review·통합 |
+| 완료 | [TASK-253](../tasks/_archive/done/253-align-help-groups-and-discovery-descriptions.md) | help 정비 구현·독립 review·통합 완료 |
 | 1 | [TASK-254](../tasks/todo/254-discover-command-metadata-registry.md) | evidence와 recommendation이 card에 기록·통합 |
 | 1 | [TASK-259](../tasks/todo/259-discover-qualified-project-addressing.md) | addressing evidence와 recommendation이 기록·통합 |
 | 2 | [TASK-255](../tasks/todo/255-decide-kubectl-route-compatibility.md) | TASK-254 근거를 사용한 사람 승인 decision 기록 |
@@ -58,8 +58,8 @@ gate 결과를 확인한다.
 | 3 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-262·263 위에서 composition 사람 승인 기록 |
 | 4 | [TASK-261](../tasks/todo/261-decide-vnext-vocabulary-and-migration.md) | 선행 결과를 근거로 사람 승인 또는 현행 유지 기록 |
 
-TASK-262는 완료됐다. 다음 변경 세션은 사용자에게 즉시 보이는 TASK-253을 권장하고, 이어서 TASK-254와
-product critical path인 TASK-259→263→260을 별도 session으로 진행한다. TASK-255·257은 TASK-254가
+TASK-262·253은 완료됐다. 다음 변경 세션은 TASK-254를 권장하고, 이어서 product critical path인
+TASK-259→263→260을 별도 session으로 진행한다. TASK-255·257은 TASK-254가
 manifest route identity의 소유권을 조사한 뒤 시작한다. 서로 독립인 조사도 source integration은 최신
 source tip에 대해 직렬화한다.
 
@@ -74,7 +74,7 @@ migration, rollback, failure fixture와 남은 불확실성을 완성한 뒤 사
 `## Decision Record`를 추가하고 `decision-status: decided`로 바꾼다. 그 전에는 dependent production
 code, schema, command registration 또는 vNext plan을 만들지 않는다.
 
-Implementation task(TASK-253·256·258)는 승인된 contract 밖의 정리를 함께 하지 않는다. 선행 decision이
+Implementation task(TASK-256·258)는 승인된 contract 밖의 정리를 함께 하지 않는다. 선행 decision이
 현재 route 유지를 선택한 경우 불필요한 alias를 만들지 않고, 결정이 특정한 test/documentation gap만
 닫는다. TASK-256·258이 현재 manifest로 표현할 수 없는 route identity를 필요로 하면 TASK-254가 요구한
 bounded child를 만든다. 그 변경에서 PLAN-003의 `children`, `total-tasks`, graph와 완료 정의를 갱신하고
@@ -98,10 +98,10 @@ PR/MR은 만들지 않는다.
 
 ## 6. 새 세션 공통 프롬프트
 
-아래 블록에서 `TARGET_TASK`만 바꾼다. 현재 첫 권장 실행값은 `TASK-253`이다.
+아래 블록에서 `TARGET_TASK`만 바꾼다. 현재 첫 권장 실행값은 `TASK-254`이다.
 
 ```text
-TARGET_TASK: TASK-253
+TARGET_TASK: TASK-254
 PLAN: tasks/plan/003-command-surface-renewal-discovery.md
 RUNBOOK: docs/54-command-surface-renewal-agent-execution.md
 

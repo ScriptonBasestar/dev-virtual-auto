@@ -3,9 +3,9 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 9
+progress: 18
 total-tasks: 11
-completed-tasks: 1
+completed-tasks: 2
 children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263]
 target-date: "2027-03-31"
 created: 2026-09-02
@@ -25,7 +25,7 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 
 | Workstream | 판정 | 작업 |
 | --- | --- | --- |
-| help group과 discovery 설명 | 기존 contract 안에서 즉시 개선 | [TASK-253](../todo/253-align-help-groups-and-discovery-descriptions.md) |
+| help group과 discovery 설명 | 기존 contract 안에서 개선 완료 | [TASK-253](../_archive/done/253-align-help-groups-and-discovery-descriptions.md) |
 | command metadata 중복 | 구현 전 소유권 조사 | [TASK-254](../todo/254-discover-command-metadata-registry.md) |
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
@@ -36,9 +36,9 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 
 ## Current status and review corrections (2026-09-02)
 
-TASK-262는 owning child config를 기준으로 imported plan의 전체 lifecycle을 복구하고 독립 리뷰와
-repository gate를 통과했다. 나머지 TASK-253~261·263은 아직 `todo`다. 다음 시작점은 사용자에게 바로
-보이는 작은 구현인 TASK-253이며, 이어서 TASK-254의 metadata ownership 조사와 P0 critical path인
+TASK-262는 imported plan의 전체 lifecycle을 복구했고 TASK-253은 help group과 discovery 설명을
+정렬했다. 두 작업 모두 독립 리뷰와 repository gate를 통과했다. 나머지 TASK-254~261·263은 아직
+`todo`다. 다음 시작점은 TASK-254의 metadata ownership 조사이며, 이어서 P0 critical path인
 TASK-259→263→260을 진행한다. TASK-255·257은 manifest route identity를 각자 발명하지 않도록
 TASK-254가 끝난 뒤에 시작한다.
 
@@ -111,14 +111,14 @@ Renewal에서 채택하는 것은 다음 원리다.
 
 ```text
 TASK-262  imported-plan repair (done) ─────────────────────────┐
-TASK-253  help/discovery descriptions                          │
+TASK-253  help/discovery descriptions (done)                   │
 TASK-254  metadata ownership ─┬─> TASK-255 ─> TASK-256 ────────┤
                               └─> TASK-257 ─> TASK-258 ────────┼─> TASK-261 vNext decision
 TASK-259  addressing discovery ─> TASK-263 address decision ──┴─> TASK-260 composition decision ┘
 ```
 
-TASK-253·254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
-첫 세션은 TASK-253, 다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
+TASK-254·259는 dependency 없이 착수 가능하지만 변경을 통합하는 root session은 직렬화한다.
+다음 discovery는 TASK-254, product critical path의 첫 조사는 TASK-259를 권장한다.
 TASK-255·257은 TASK-254 뒤에만 시작한다. TASK-255·257·260·261·263은
 `needs-human` decision card이므로 evidence와 independent review가 끝나도 사람이 선택을 기록하기 전에는
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한

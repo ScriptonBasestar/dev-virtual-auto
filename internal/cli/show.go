@@ -13,7 +13,7 @@ import (
 
 var showCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show registered configuration summary",
+	Short: "Show declared workspace configuration",
 	// Short/Long deliberately do not enumerate sections (TASK-081): the set is driven by
 	// what the loaded config declares, and a help list went stale within days of the stack
 	// section landing. Areas with nothing to show are omitted at render time.

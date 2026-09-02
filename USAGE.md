@@ -66,7 +66,7 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 
 ## Commands
 
-### Core Commands
+### Command Quick Reference
 
 | Command | Description |
 |---------|-------------|
@@ -75,7 +75,8 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 | `dva config migrate` | legacy compose 선언을 `runners` 형태로 재작성 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
-| `dva show <NAME>` | 특정 실행 이름 또는 설정 개요 표시 |
+| `dva manifest` | 자동화용 구조화 command manifest 출력 |
+| `dva show` | 선언된 워크스페이스 설정 요약 표시 |
 | `dva up <NAME>` | named execution entry 실행 |
 | `dva down <NAME>` | named execution entry teardown |
 | `dva stop <NAME>` | named execution entry 중지 |
@@ -252,21 +253,26 @@ dva ls -f yaml            # YAML 출력
 dva ls -d                 # 상세 정보 (runner type, service, command)
 ```
 
+#### manifest
+
+```bash
+dva manifest -f json      # 자동화용 구조화 command manifest
+dva manifest -f yaml      # YAML 형식
+```
+
+`manifest`는 `ls`와 함께 core discovery surface입니다. 사람이 읽는 실행 이름 목록은 `ls`, command와
+flag metadata를 소비하는 자동화는 `manifest`를 사용합니다.
+
 ### Project Management
 
 | Command | Description |
 |---------|-------------|
-| `dva show` | 설정 요약 또는 특정 실행 이름 상세 표시 |
-| `dva status` | effective default plan 상태; 없으면 워크스페이스 상태 |
+| `dva show` | 선언된 워크스페이스 설정 요약 표시 |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
-dva show local-dev        # 특정 named execution entry 상세
 dva show --json           # JSON 출력
-dva status                # effective default plan 상태; 없으면 전체 상태
-dva status local-dev      # 특정 named execution entry 상태
-dva status --json         # JSON 출력
 dva config show           # JSON 형식 (기본)
 dva config show -f yaml   # YAML 형식
 ```
@@ -295,7 +301,7 @@ dva config show -f yaml   # YAML 형식
 
 ```bash
 dva ls
-dva show local-dev
+dva show
 dva up local-dev
 dva status local-dev
 dva stop local-dev
@@ -323,6 +329,7 @@ dva up backend/local-dev
 | `dva down <NAME> --purge` | 볼륨·로컬 이미지·provision 마커까지 제거 (구 `dva clean`) |
 | `dva stop <NAME>` | 중지 (제거하지 않음) |
 | `dva restart <NAME>` | 재시작 |
+| `dva status [NAME]` | 현재 워크스페이스와 runtime 상태 표시 |
 | `dva logs [NAME]` | 로그 보기 |
 | `dva build [NAME]` | 빌드 수행 |
 
@@ -330,6 +337,9 @@ dva up backend/local-dev
 dva up local-dev
 dva down local-dev
 dva stop local-dev
+dva status                # effective default plan 상태; 없으면 전체 상태
+dva status local-dev      # 특정 named execution entry 상태
+dva status --json         # JSON 출력
 ```
 
 위치 인자로 stack entry 이름을 받는 라이프사이클 동사는 `restart` 하나뿐입니다.
@@ -578,7 +588,6 @@ dva ssh up -v /workspace          # --volume: 마운트할 볼륨 (기본값 $HO
 
 | Command | Description |
 |---------|-------------|
-| `dva manifest` | LLM용 커맨드 매니페스트 출력 |
 | `dva console start/inject` | 셸 통합 |
 | `dva provision [PROFILE]` | 프로비저닝 스크립트 실행 |
 | `dva validate` | dva.yml 스키마 + 시맨틱 검증 (`dva config validate`도 지원) |

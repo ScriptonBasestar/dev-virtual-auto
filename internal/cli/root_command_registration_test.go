@@ -48,6 +48,97 @@ func TestRootValidateMatchesConfigValidate(t *testing.T) {
 	}
 }
 
+// TestCommandHelpGroupsAndDiscoveryDescriptions keeps the user-visible command
+// taxonomy and the two complementary discovery descriptions deliberate. It also
+// records the compatibility boundaries of this presentation-only change: route
+// spelling, aliases, reservation, and manifest schema stay as they were.
+func TestCommandHelpGroupsAndDiscoveryDescriptions(t *testing.T) {
+	commands := []struct {
+		name        string
+		use         string
+		group       string
+		description string
+		flags       []commandFlagSpec
+	}{
+		{
+			name: "manifest", use: "manifest", group: "core",
+			flags: []commandFlagSpec{{Name: "format", DefValue: "json", Usage: "Output format (json, yaml)"}},
+		},
+		{name: "show", use: "show", group: "project", description: "Show declared workspace configuration", flags: []commandFlagSpec{}},
+		{name: "status", use: "status [NAME]", group: "lifecycle", description: "Display current workspace and runtime status", flags: []commandFlagSpec{}},
+	}
+
+	for _, want := range commands {
+		cmd := mustFindCommand(t, []string{want.name})
+		if cmd.Use != want.use {
+			t.Errorf("%s Use = %q, want unchanged %q", want.name, cmd.Use, want.use)
+		}
+		if len(cmd.Aliases) != 0 {
+			t.Errorf("%s aliases = %q, want no aliases", want.name, cmd.Aliases)
+		}
+		if cmd.Args != nil {
+			t.Errorf("%s acquired an argument validator; want the existing unrestricted Args contract", want.name)
+		}
+		if got := flagSpecs(cmd); !reflect.DeepEqual(got, want.flags) {
+			t.Errorf("%s flags = %#v, want unchanged %#v", want.name, got, want.flags)
+		}
+		if cmd.GroupID != want.group {
+			t.Errorf("%s group = %q, want %q", want.name, cmd.GroupID, want.group)
+		}
+		if want.description != "" && cmd.Short != want.description {
+			t.Errorf("%s Short = %q, want %q", want.name, cmd.Short, want.description)
+		}
+		if !config.IsReservedCommand(want.name) {
+			t.Errorf("%s is no longer reserved", want.name)
+		}
+	}
+
+	manifest := buildManifest(&config.Config{})
+	if manifest.SchemaVersion != "1.4" {
+		t.Errorf("manifest schema version = %q, want unchanged 1.4", manifest.SchemaVersion)
+	}
+	for _, name := range []string{"manifest", "show", "status"} {
+		entry, ok := manifest.StaticCommands[name]
+		if !ok {
+			t.Errorf("manifest static_commands lost %q", name)
+			continue
+		}
+		if got, want := entry.Description, mustFindCommand(t, []string{name}).Short; got != want {
+			t.Errorf("manifest static_commands[%q].description = %q, want command Short %q", name, got, want)
+		}
+	}
+
+	help := rootCmd.UsageString()
+	core := strings.Index(help, "Core Commands")
+	project := strings.Index(help, "Project Management")
+	lifecycle := strings.Index(help, "Lifecycle")
+	integration := strings.Index(help, "Integration Tools")
+	advanced := strings.Index(help, "Advanced Utilities")
+	if core < 0 || project < 0 || lifecycle < 0 || integration < 0 || advanced < 0 ||
+		core >= project || project >= lifecycle || lifecycle >= integration || integration >= advanced {
+		t.Fatalf("help group order = core:%d project:%d lifecycle:%d integration:%d advanced:%d, "+
+			"want that order:\n%s", core, project, lifecycle, integration, advanced, help)
+	}
+	other := strings.Index(help, "Other Commands")
+	if other < lifecycle || integration < other {
+		t.Fatalf("lifecycle Other Commands block not found before Integration Tools:\n%s", help)
+	}
+	for _, want := range []struct {
+		name       string
+		groupStart int
+		groupEnd   int
+	}{
+		{name: "manifest", groupStart: core, groupEnd: project},
+		{name: "show", groupStart: project, groupEnd: lifecycle},
+		{name: "status", groupStart: other, groupEnd: integration},
+	} {
+		at := indexOfLine(t, help, want.name)
+		if at <= want.groupStart || (want.groupEnd >= 0 && at >= want.groupEnd) {
+			t.Errorf("%s is at %d, want it in its help group (%d..%d):\n%s", want.name, at, want.groupStart, want.groupEnd, help)
+		}
+	}
+}
+
 // This list mirrors root.go's manualFlagCommands, which is a local in init() and so cannot be
 // read from here. It is written out rather than exported because a test that iterates the
 // production list asserts nothing about that list's contents — dropping a command from

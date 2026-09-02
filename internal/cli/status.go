@@ -14,7 +14,7 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status [NAME]",
-	Short: "Display workspace status (config, lifecycle entries, services)",
+	Short: "Display current workspace and runtime status",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := loadConfig()
 		if err == nil {

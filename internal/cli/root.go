@@ -76,14 +76,15 @@ func init() {
 	runCmd.GroupID = "core"
 	lsCmd.GroupID = "core"
 	versionCmd.GroupID = "core"
+	manifestCmd.GroupID = "core"
 
 	showCmd.GroupID = "project"
-	statusCmd.GroupID = "project"
 	configCmd.GroupID = "project"
 	upCmd.GroupID = "lifecycle"
 	downCmd.GroupID = "lifecycle"
 	stopCmd.GroupID = "lifecycle"
 	restartCmd.GroupID = "lifecycle"
+	statusCmd.GroupID = "lifecycle"
 	logsCmd.GroupID = "lifecycle"
 	buildCmd.GroupID = "lifecycle"
 
@@ -91,7 +92,6 @@ func init() {
 	ktlCmd.GroupID = "integration"
 	sshCmd.GroupID = "integration"
 
-	manifestCmd.GroupID = "advanced"
 	consoleCmd.GroupID = "advanced"
 	provisionCmd.GroupID = "advanced"
 	skillCmd.GroupID = "advanced"
