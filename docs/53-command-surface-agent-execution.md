@@ -48,7 +48,7 @@ diff와 명령 결과를 다시 확인한다.
 | 완료 | [TASK-247](../tasks/_archive/done/247-freeze-required-env-command-policy.md) | caller matrix 사용자 결정·검증·통합 완료 |
 | 1 | [TASK-249](../tasks/todo/249-redesign-capability-driven-init.md) | init contract 사용자 결정이 기록·검증됨 |
 | 1 | [TASK-244](../tasks/todo/244-validate-plan-declaration-drift.md) | D6/D7 구현·독립 review·통합 완료 |
-| 선행 | [TASK-264](../tasks/todo/264-restore-imported-command-ownership.md) | imported interaction/provision owner 복구·통합 완료 |
+| 완료 | [TASK-264](../tasks/_archive/done/264-restore-imported-command-ownership.md) | imported interaction/provision owner 복구·통합 완료 |
 | 1 | [TASK-265](../tasks/todo/265-decide-interaction-env-file-contract.md) | inert interaction env_file 사람 결정 기록 |
 | 2 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-247·264·265 위에서 loader safety 구현·통합 완료 |
 | 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-244·249 결과 구현·통합 완료 |
@@ -57,7 +57,7 @@ diff와 명령 결과를 다시 확인한다.
 | 조건부 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | TASK-252가 요청한 경우 gate 통합, 아니면 N/A 종료 |
 | 조건부 재개 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | TASK-251 evidence를 사용한 최종 결정 기록 |
 
-TASK-247 뒤 PLAN-003 런북으로 TASK-264를 복구하고 TASK-265를 결정한 다음 TASK-248로 돌아온다.
+TASK-264는 완료됐다. 다음은 TASK-265 결정 후 TASK-248이다.
 TASK-246은 TASK-248이 통합되기 전 시작하지 않는다.
 
 TASK-252의 권장안은 TASK-251을 선행 구현하지 않고 permanent `config env`로 닫는 것이다. Promotion

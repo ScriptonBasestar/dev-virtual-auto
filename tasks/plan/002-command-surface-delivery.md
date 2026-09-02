@@ -28,7 +28,7 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | lifecycle 7동사, plan 위치 인자 | 유지 | 변경 없음 |
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../todo/244-validate-plan-declaration-drift.md) |
 | `config env` bridge | 선행 계약 필요 | [TASK-245](../todo/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
-| required env 오류 전파 | 계약 확정·owner 복구 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../todo/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
+| required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
 | interaction-level `env_file` | inert field compatibility 결정 필요 | [TASK-265](../todo/265-decide-interaction-env-file-contract.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
@@ -39,8 +39,8 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 TASK-247은 사용자 승인, 독립 review와 repository gate를 거쳐 required-env route 계약을 확정했다.
 나머지 9개 task는 `todo`이며 TASK-245·249·252·265는 `decision-status: pending`이다. 다음 순서를 권장한다.
 
-1. TASK-247 조사에서 확인된 imported interaction/provision owner 결함을 TASK-264로 복구하고,
-   TASK-265에서 inert interaction `env_file`을 결정한 뒤 TASK-248에서 warning-and-continue를 제거한다.
+1. TASK-264가 imported interaction/provision owner를 복구했다. TASK-265에서 inert
+   interaction `env_file`을 결정한 뒤 TASK-248에서 warning-and-continue를 제거한다.
 2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
 3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
 4. TASK-246·248이 모두 통합된 뒤 TASK-252에서 먼저 `config env` 영구 유지와 promotion 조사 계속을
@@ -256,8 +256,8 @@ TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
 남은 작업 중 TASK-244, TASK-245, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
-TASK-264는 PLAN-003이 소유하는 cross-plan prerequisite고 TASK-265는 inert schema field의 compatibility
-decision이다. 둘이 닫힌 뒤 TASK-248이 current-loader safety를 구현한다. TASK-246은 TASK-245 결정과
+TASK-264는 닫힌 cross-plan prerequisite고 TASK-265는 inert schema field의 compatibility
+decision이다. TASK-265가 닫힌 뒤 TASK-248이 current-loader safety를 구현한다. TASK-246은 TASK-245 결정과
 TASK-248 loader contract 위에서 시작한다. TASK-252는 bridge와 propagation 뒤 먼저 시작한다. Promotion
 evidence가 필요하다는 중간 판정을 기록한 경우에만 TASK-251을 실행하고 TASK-252를 재개한다. TASK-245가 여러 OS를 지원한다고
 결정하면 TASK-246은 그 OS를 지속 검증하는 CI matrix까지 소유해야 한다. 범위가 TASK-246에 안전하게

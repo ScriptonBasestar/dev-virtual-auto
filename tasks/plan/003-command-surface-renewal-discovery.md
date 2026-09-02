@@ -30,7 +30,7 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
 | `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
 | imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
-| imported interaction/provision 실행 | owner 복구 필요 | [TASK-264](../todo/264-restore-imported-command-ownership.md) |
+| imported interaction/provision 실행 | owner 복구 완료 | [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) |
 | qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../todo/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
 | cross-project composition | 기존 import와 address contract 이후 판단 | [TASK-260](../todo/260-freeze-cross-project-plan-composition.md) |
 | vNext vocabulary | 앞선 evidence를 모은 최종 결정 | [TASK-261](../todo/261-decide-vnext-vocabulary-and-migration.md) |
@@ -38,8 +38,8 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 ## Current status and review corrections (2026-09-02)
 
 TASK-262는 imported plan lifecycle을 복구했고 TASK-253은 help discovery를 정렬했다. TASK-247 caller
-audit에서 interaction/provision owner 결함이 확인되어 TASK-264를 추가했다. 저장소 전체의 다음 구현은
-TASK-264이며, 그 뒤 PLAN-002 TASK-265→248을 닫고 TASK-254로 복귀한다. 이어서 P0 critical path인
+audit에서 interaction/provision owner 결함이 확인되어 TASK-264를 추가했고 복구는 완료됐다.
+저장소 전체의 다음은 PLAN-002 TASK-265→248이며, 그 뒤 TASK-254로 복귀한다. 이어서 P0 critical path인
 TASK-259→263→260을 진행한다. TASK-255·257은 TASK-254 뒤에 시작한다.
 
 TASK-262를 추가한 역사적 이유는 문서가 지원한다고 설명한 imported plan이 normal child stack에서
