@@ -33,6 +33,23 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
 | top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |
 
+## Current status and recommended order (2026-09-02)
+
+이 계획을 만든 뒤 child implementation commit은 아직 없다. 9개 task는 모두 `todo`, 네 decision
+card(TASK-245·247·249·252)는 모두 `decision-status: pending`이다. 기존 runtime safety 결함을 새 기능보다
+먼저 닫기 위해 다음 순서를 권장한다.
+
+1. TASK-247에서 required env caller matrix를 확정하고 TASK-248로 현재의 warning-and-continue 동작을
+   먼저 제거한다.
+2. TASK-245의 secret write contract를 확정한 뒤, 수정된 loader contract 위에서 TASK-246을 구현한다.
+3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
+4. TASK-246·248이 모두 통합된 뒤 TASK-251 evidence gate를 만들고, TASK-252에서는 기본적으로
+   `config env` 영구 유지를 선택한다.
+
+이 순서는 required file 오류를 삼키는 기존 위험을 새 bridge보다 뒤로 미루지 않고, init이 아직 존재하지
+않는 D6/D7 검사를 통과했다고 주장하는 것도 막는다. 각 선택의 권장안은 해당 decision card에 기록하며,
+권장안은 사람 승인을 대신하지 않는다.
+
 ## 1. 비판적 검토 결과
 
 ### 1-1. 즉시 구현 가능한 범위
@@ -224,16 +241,17 @@ pinned corpus를 다시 검증한다. 그 child가 통합되기 전에는 PLAN-0
 ```text
 TASK-244  D6/D7 warnings
 
-TASK-245  env bridge contract ──> TASK-246 secure bridge
-TASK-247  required-env policy ──> TASK-248 propagation (also depends on TASK-245 and TASK-246)
-TASK-248  propagation ──────────> TASK-251 gate ──> TASK-252 decision
+TASK-247  required-env policy ──> TASK-248 propagation ──┐
+TASK-245  env bridge contract ───────────────────────────┴─> TASK-246 secure bridge
+TASK-246 + TASK-248 ─────────────> TASK-251 gate ───────────> TASK-252 decision
 
-TASK-249  init redesign ─────────> TASK-250 init implementation
+TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
 TASK-244, TASK-245, TASK-247, TASK-249는 독립 착수 가능하다. 구현과 independent review는 분리한다.
-TASK-251은 bridge와 propagation이 존재한 뒤 시작하고, TASK-252는 external evidence가 같은 revision에서
-green일 때만 시작한다.
+TASK-248은 새 encrypted-source schema와 독립된 현재 loader safety 작업이다. TASK-246은 TASK-245 결정과
+TASK-248 loader contract 위에서 시작한다. TASK-251은 bridge와 propagation이 존재한 뒤 시작하고,
+TASK-252는 external evidence가 같은 revision에서 green일 때만 시작한다.
 
 세션 경계, 모델 라우팅, 서브에이전트 역할과 재사용 시작 프롬프트는
 [Command Surface 작업의 에이전트 실행 런북](../../docs/53-command-surface-agent-execution.md)이 소유한다.

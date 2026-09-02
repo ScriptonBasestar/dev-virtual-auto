@@ -32,3 +32,4 @@ command, and distinguish declared configuration (`show`) from current workspace/
 - No command metadata registry refactor.
 - No `ktl`, `validate`, project addressing, or vocabulary decision.
 - No manifest JSON field or compatibility change.
+- No reserved-command count or command-set correction; TASK-244 owns that current-state drift.

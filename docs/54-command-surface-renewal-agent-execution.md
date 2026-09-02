@@ -24,7 +24,7 @@ Fresh writable session 하나는 task 하나만 소유한다. Discovery 또는 d
 ## 2. 모델과 역할
 
 품질 우선 root session은 **`gpt-5.6-sol` + high 이상 reasoning**을 권장한다. Public CLI,
-compatibility, composition 또는 migration 결정을 다루는 TASK-255·257·260·261은 `max`를 고려한다.
+compatibility, composition 또는 migration 결정을 다루는 TASK-255·257·260·261·263은 `max`를 고려한다.
 모델이나 specialist role이 제공되지 않으면 조용히 낮은 tier로 대체하지 말고 review separation과
 판단 품질을 보존할 수 있는지 먼저 보고한다.
 
@@ -46,6 +46,7 @@ gate 결과를 확인한다.
 
 | Wave | Task | 종료 조건 |
 | --- | --- | --- |
+| 0 | [TASK-262](../tasks/todo/262-restore-imported-plan-execution.md) | advertised imported-plan contract 복구·독립 review·통합 |
 | 1 | [TASK-253](../tasks/todo/253-align-help-groups-and-discovery-descriptions.md) | help 정비 구현·독립 review·통합 |
 | 1 | [TASK-254](../tasks/todo/254-discover-command-metadata-registry.md) | evidence와 recommendation이 card에 기록·통합 |
 | 1 | [TASK-255](../tasks/todo/255-decide-kubectl-route-compatibility.md) | 사람 승인 decision이 card에 기록·통합 |
@@ -53,12 +54,14 @@ gate 결과를 확인한다.
 | 1 | [TASK-259](../tasks/todo/259-discover-qualified-project-addressing.md) | addressing evidence와 recommendation이 기록·통합 |
 | 2 | [TASK-256](../tasks/todo/256-implement-kubectl-route-decision.md) | TASK-255 결정 구현·통합 |
 | 2 | [TASK-258](../tasks/todo/258-implement-validate-route-decision.md) | TASK-257 결정 구현·통합 |
-| 2 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-259 근거로 사람 승인 contract 기록·통합 |
-| 3 | [TASK-261](../tasks/todo/261-decide-vnext-vocabulary-and-migration.md) | 선행 결과를 근거로 사람 승인 또는 현행 유지 기록 |
+| 2 | [TASK-263](../tasks/todo/263-decide-qualified-project-addressing.md) | TASK-259 근거로 address/exposure 사람 승인 기록 |
+| 3 | [TASK-260](../tasks/todo/260-freeze-cross-project-plan-composition.md) | TASK-262·263 위에서 composition 사람 승인 기록 |
+| 4 | [TASK-261](../tasks/todo/261-decide-vnext-vocabulary-and-migration.md) | 선행 결과를 근거로 사람 승인 또는 현행 유지 기록 |
 
-첫 변경 세션은 사용자에게 즉시 보이는 TASK-253을 권장한다. Product critical path는 TASK-259→260이며,
-TASK-253 통합 뒤 별도 session으로 이어간다. TASK-254·255·257은 독립 session으로 실행할 수 있지만
-source integration은 최신 source tip에 대해 직렬화한다.
+첫 변경 세션은 현재 지원한다고 문서화된 경로를 복구하는 TASK-262를 권장한다. 그 뒤 사용자에게 즉시
+보이는 TASK-253과 product critical path인 TASK-259→263→260을 별도 session으로 이어간다.
+TASK-254·255·257은 독립 session으로 실행할 수 있지만 source integration은 최신 source tip에 대해
+직렬화한다.
 
 ## 4. Session 종류별 stop condition
 
@@ -66,17 +69,22 @@ Discovery task(TASK-254·259)는 code/schema/route를 바꾸지 않는다. 조�
 `## Evidence and Recommendation`이 canonical record가 되며, 근거가 크면 tracked artifact를 만들고
 card에서 링크한다.
 
-Decision task(TASK-255·257·260·261)는 상호 배타적 option, 권장안, current evidence, compatibility,
+Decision task(TASK-255·257·260·261·263)는 상호 배타적 option, 권장안, current evidence, compatibility,
 migration, rollback, failure fixture와 남은 불확실성을 완성한 뒤 사용자 선택에서 멈춘다. 승인 후 card에
 `## Decision Record`를 추가하고 `decision-status: decided`로 바꾼다. 그 전에는 dependent production
 code, schema, command registration 또는 vNext plan을 만들지 않는다.
 
-Implementation task(TASK-253·256·258)는 승인된 contract 밖의 정리를 함께 하지 않는다. 선행 decision이
+Implementation task(TASK-253·256·258·262)는 승인된 contract 밖의 정리를 함께 하지 않는다. 선행 decision이
 현재 route 유지를 선택한 경우 불필요한 alias를 만들지 않고, 결정이 특정한 test/documentation gap만
-닫는다.
+닫는다. TASK-256·258이 현재 manifest로 표현할 수 없는 route identity를 필요로 하면 TASK-254가 요구한
+bounded child를 만든다. 그 변경에서 PLAN-003의 `children`, `total-tasks`, graph와 완료 정의를 갱신하고
+영향을 받는 TASK-256·258의 `depends-on`에 child를 추가한 뒤 멈춘다. Child가 통합되기 전에는 schema
+변경이나 해당 구현 task 완료를 시작하지 않는다.
 
 Dependency 미완료, 사람 승인 부재, stale/unpinned external evidence, source conflict, task-relevant gate
 failure, route collision 의미 불명확, destructive lifecycle flag scope 미정에서는 즉시 멈춘다.
+`ce task preflight`의 runnable 표시는 card 형식 준비도이며 `depends-on`, `needs-human` 또는
+`decision-status` 승인을 대신하지 않는다. 이 런북과 frontmatter를 직접 확인한다.
 
 ## 5. 검증과 Git 완료
 
@@ -90,10 +98,10 @@ PR/MR은 만들지 않는다.
 
 ## 6. 새 세션 공통 프롬프트
 
-아래 블록에서 `TARGET_TASK`만 바꾼다. 첫 권장 실행값은 `TASK-253`이다.
+아래 블록에서 `TARGET_TASK`만 바꾼다. 첫 권장 실행값은 `TASK-262`다.
 
 ```text
-TARGET_TASK: TASK-253
+TARGET_TASK: TASK-262
 PLAN: tasks/plan/003-command-surface-renewal-discovery.md
 RUNBOOK: docs/54-command-surface-renewal-agent-execution.md
 

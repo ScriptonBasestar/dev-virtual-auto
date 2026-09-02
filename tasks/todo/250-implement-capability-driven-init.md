@@ -9,7 +9,7 @@ created-at: 2026-09-01T19:26:00+09:00
 source: "TASK-249 decision"
 scope: "init discovery and generation, plan preset integration, skills/workflows, fixtures, usage documentation"
 status: todo
-depends-on: [TASK-249]
+depends-on: [TASK-244, TASK-249]
 ---
 
 # Task 250: implement capability-driven init

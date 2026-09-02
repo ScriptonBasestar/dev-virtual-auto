@@ -24,7 +24,7 @@ the approved decision.
 
 - [ ] Command registration, canonical naming, visibility, aliases, and reserved-name handling match the approved TASK-255 record; every coexisting public name preserves the approved load-warning/validate-error/bare-built-in/explicit-`run`/reserved-prefix collision matrix | verify: `/usr/bin/grep -Eq '^func TestKubectlCompatibilityRouteParity\(' internal/cli/ktl_flag_passthrough_test.go && go test ./internal/cli ./internal/config -count=1`
 - [ ] Canonical and compatibility invocations have identical root-flag handling, entry selection, kubectl argv, stdin/stdout/stderr, debug mode, exit status, signal forwarding, and process-replacement behavior except for explicitly approved warnings | verify: `go test ./internal/cli -count=1`
-- [ ] Root help, direct help, manifest, shell completion, user documentation, canonical skills, and generated projections identify canonical and compatibility status consistently | verify: `make generate && make check-generate && make doc-check`
+- [ ] Root help, direct help, shell completion, user documentation, canonical skills, and generated projections identify canonical and compatibility status consistently; manifest uses the approved existing representation or waits for the bounded route-identity child rather than changing schema inside this task | verify: `make generate && make check-generate && make doc-check`
 - [ ] No compatibility name is removed and no deprecation warning is added outside the exact release/channel contract approved in TASK-255 | verify: human — diff and tests must be checked against the signed decision record
 - [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 

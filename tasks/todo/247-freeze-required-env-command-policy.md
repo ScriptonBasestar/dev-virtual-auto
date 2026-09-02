@@ -28,6 +28,17 @@ inputs. Optional files still error when present but unreadable or malformed, and
 after earlier files have already merged into the environment. The proposal's lifecycle-versus-query
 split does not decide `status`, `logs`, teardown, partial merge, or the duplicate JSON status path.
 
+## Recommended direction
+
+외부 process를 시작하거나 resource identity를 해석하는 실행·mutation 경로는 required/inaccessible/
+malformed 입력에서 첫 child 전에 fail closed하는 것을 권장한다. 여기에는 teardown도 포함한다. 잘못된
+환경으로 다른 resource를 정리하는 것보다 명시적으로 실패하고 진단을 제공하는 편이 안전하다.
+
+`status`·`logs` 같은 관측 경로는 config-only 정보를 계속 보여줄 수 있지만 결과를 `partial`로 명시하고,
+필요한 env가 없으면 backend child를 시작하지 않는다. Doctor는 모든 check를 끝까지 수행하고 default는
+advisory, `--strict`은 non-zero로 유지한다. Partial merge는 어떤 실행 경로에도 노출하지 않고 버리며,
+관측 경로에서도 변수값 자체가 아니라 실패 metadata만 보여준다.
+
 ## Completion Criteria
 
 - [ ] Inventory every `loadEnv` caller and classify it by observable command and purpose rather than source filename | verify: `/usr/bin/grep -R -n 'loadEnv(' internal/cli`

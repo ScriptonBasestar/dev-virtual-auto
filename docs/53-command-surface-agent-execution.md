@@ -48,13 +48,14 @@ diff와 명령 결과를 다시 확인한다.
 | 1 | [TASK-247](../tasks/todo/247-freeze-required-env-command-policy.md) | caller matrix 사용자 결정이 기록·검증됨 |
 | 1 | [TASK-249](../tasks/todo/249-redesign-capability-driven-init.md) | init contract 사용자 결정이 기록·검증됨 |
 | 1 | [TASK-244](../tasks/todo/244-validate-plan-declaration-drift.md) | D6/D7 구현·독립 review·통합 완료 |
-| 2 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정 구현·통합 완료 |
-| 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-249 결정 구현·통합 완료 |
-| 3 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-245·246·247 결과 구현·통합 완료 |
+| 2 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-247의 current-loader safety 구현·통합 완료 |
+| 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-244·249 결과 구현·통합 완료 |
+| 3 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정과 TASK-248 loader contract 위에서 구현·통합 완료 |
 | 4 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | pinned evidence gate 구현·통합 완료 |
 | 5 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | 사용자 결정 또는 fail-closed 유지가 기록됨 |
 
-첫 세션은 critical path를 여는 TASK-245를 권장한다.
+첫 세션은 기존 warning-and-continue 위험을 먼저 닫는 TASK-247을 권장한다. TASK-245는 같은 wave의 별도
+decision session으로 진행할 수 있지만, TASK-246은 TASK-248이 통합되기 전 시작하지 않는다.
 
 TASK-252가 promotion을 선택해도 그 세션은 reservation을 구현하지 않는다. Exact route,
 compatibility, rollback과 pinned-corpus 재검증을 소유하는 새 child card를 만들고 PLAN-002를 갱신한 뒤
@@ -71,6 +72,8 @@ compatibility, rollback과 pinned-corpus 재검증을 소유하는 새 child car
 
 Dependency·사용자 결정 부재, conflict, gate 실패, secret/filesystem/OS safety 불명확, stale·ambiguous
 external evidence나 SHA drift, task 밖 public contract 변경 필요에서는 즉시 멈춘다.
+`ce task preflight`의 runnable 표시는 card 형식 준비도이며 `depends-on`, `needs-human` 또는
+`decision-status` 승인을 대신하지 않는다. 이 런북과 frontmatter를 직접 확인한다.
 
 ## 5. Decision session 규칙
 
@@ -109,10 +112,10 @@ configured source branch direct integration과 push, task worktree·local branch
 
 ## 8. 새 세션 시작 프롬프트
 
-`TARGET_TASK`만 바꾸어 매 session 사용한다. 첫 실행값은 `TASK-245`다.
+`TARGET_TASK`만 바꾸어 매 session 사용한다. 첫 실행값은 `TASK-247`이다.
 
 ```text
-TARGET_TASK: TASK-245
+TARGET_TASK: TASK-247
 PLAN: tasks/plan/002-command-surface-delivery.md
 RUNBOOK: docs/53-command-surface-agent-execution.md
 

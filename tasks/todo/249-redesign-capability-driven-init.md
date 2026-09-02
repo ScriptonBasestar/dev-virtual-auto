@@ -26,6 +26,17 @@ The proposed unconditional `local-infra`, `local-dev`, and `full-stack` scaffold
 contains invalid top-level fields, and asks the current Compose-only detector to invent a native runner.
 It can also generate empty or duplicate plans that immediately trigger D6.
 
+## Recommended direction
+
+검증된 provider closure 하나에서 plan 하나를 생성하는 보수적 기본값을 권장한다. 단일 plan은 기존 bare
+lifecycle의 implicit default를 사용하고, 실제 evidence가 둘 이상의 독립 plan을 정당화할 때만 명시적
+`default_plan`을 기록한다. 이름은 기존 사용자 선언을 보존하고, 새 이름은 entry/provider identity에서
+기계적으로 도출한다. 충돌하거나 불완전한 discovery에서는 preview만 제공하고 파일을 쓰지 않는다.
+
+현재 다섯 template과 `config init`/top-level `init` surface는 유지하되 모두 하나의 generator를 호출하게
+한다. Corpus 빈도는 detector 개선의 입력으로만 사용하고 새로운 archetype이나 plan label의 근거로
+사용하지 않는다.
+
 ## Completion Criteria
 
 - [ ] Define expected discovery evidence and generated output for compose-only, native-only, hybrid, and no-discovery fixtures | verify: human — each fixture must list detected facts, unverified facts, generated entries/plans, and explicit omissions

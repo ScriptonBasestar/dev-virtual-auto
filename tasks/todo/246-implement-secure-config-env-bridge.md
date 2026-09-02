@@ -9,7 +9,7 @@ created-at: 2026-09-01T19:22:00+09:00
 source: "PLAN-002 frozen security boundary and TASK-245 decision"
 scope: "env_file model, Cobra commands, sops runner, safe writer, output fixtures, integration tests, user documentation"
 status: todo
-depends-on: [TASK-245]
+depends-on: [TASK-245, TASK-248]
 ---
 
 # Task 246: implement the secure config env bridge
@@ -27,7 +27,7 @@ without changing legacy env-file shapes, and without leaving a partial or leaked
 ## Completion Criteria
 
 - [ ] Implement exactly TASK-245's schema and command grammar across schema, runtime normalization, merged config output, and documentation; existing string/list/object shapes preserve their observable load order, required semantics, merge result, and show round-trip | verify: `/usr/bin/grep -Eq '^func TestConfigEnvLegacyShapeRoundTrip\(' internal/config/envfile_test.go && go test ./internal/config -count=1`
-- [ ] Encrypted source metadata is accepted only at the decided top-level location and is rejected rather than ignored in interaction, nested subcommand, module, override, and subproject shapes outside that contract | verify: `/usr/bin/grep -Eq '^func TestConfigEnvSourceMetadataScope\(' internal/config/envfile_test.go && go test ./internal/config -count=1`
+- [ ] Encrypted source metadata is accepted only at the decided effective top-level origins with preserved provenance and is rejected rather than ignored in interaction, nested subcommand, ambiguous module/override merge, and subproject shapes outside that contract | verify: `/usr/bin/grep -Eq '^func TestConfigEnvSourceMetadataScope\(' internal/config/envfile_test.go && go test ./internal/config -count=1`
 - [ ] Invoke an injectable sops runner by argv without a shell, pin dotenv input/output behavior, and return exit 1 for binary absence, decryption failure, invalid/empty output, or cancellation | verify: `go test ./internal/cli -count=1`
 - [ ] Resolve root/module/override/subproject paths exactly as TASK-245 decided, revalidate source and target type/containment at use time, and prevent path-component or symlink swaps between preflight and replace | verify: `/usr/bin/grep -Eq '^func TestConfigEnvRejectsPathSwap\(' internal/cli/config_env_test.go && go test ./internal/cli -count=1`
 - [ ] Write through a same-directory 0600/O_EXCL temporary file, validate dotenv before replacement, sync the file and required parent directory, and implement the decided owned stale-temp recovery without claiming SIGKILL or power-loss cleanup that cannot be guaranteed | verify: `/usr/bin/grep -Eq '^func TestConfigEnvAtomicWriteFaultMatrix\(' internal/cli/config_env_test.go && go test ./internal/cli -count=1`

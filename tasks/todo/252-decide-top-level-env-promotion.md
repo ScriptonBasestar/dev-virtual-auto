@@ -27,6 +27,15 @@ Passing a migration gate makes reservation review possible; it does not make pro
 This card compares a permanent `config env` surface with a new top-level `env` reservation using the
 same-revision evidence produced by TASK-251.
 
+## Recommended direction
+
+`config env`를 영구 canonical surface로 유지하는 것을 권장한다. Top-level `env`는 typing을 조금 줄이지만
+새 reserved name, interaction migration, hook/collision 설명과 rollback 비용을 만든다. Secret bridge는
+자주 입력하는 일상 명령이 아니므로 이 비용을 상쇄할 제품 가치가 아직 없다.
+
+TASK-251이 완전한 green evidence를 만들더라도 그것은 promotion 가능성만 증명한다. 실제 사용자
+discoverability 측정과 routing candidate 검증이 별도 이익을 증명하지 못하면 현재 group 안에서 끝낸다.
+
 ## Completion Criteria
 
 - [ ] Re-run TASK-251's virtual-reservation gate with the base DVA, scanner, and external repository revisions frozen for this decision; stale, missing, ambiguous, unresolved, or non-zero evidence stops promotion and selects permanent `config env` | verify: human — the reviewed manifest/report location, byte digest, retention boundary, virtual reserved set, and all pinned revisions must be recorded
