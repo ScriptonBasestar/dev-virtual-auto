@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"sort"
@@ -68,6 +69,8 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnUnreachableCommands()...)
 	warnings = append(warnings, c.warnInertProvisionSteps()...)
 	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
+	warnings = append(warnings, c.warnDuplicatePlanDeclarations()...)
+	warnings = append(warnings, c.warnMultiplePlansWithoutDefault()...)
 
 	// Build a contextual environment for accurate interpolation checks.
 	//
@@ -256,6 +259,150 @@ func (c *Config) warnIgnoredParallelSteps() []string {
 
 	sort.Strings(warnings)
 	return warnings
+}
+
+// warnDuplicatePlanDeclarations warns when two plans declared in the same partition
+// (see below) carry equal declaration fields: `environment`, `site`, `vars`,
+// `endpoint_tags`, and per-entry `name`, `runner`, `order`, `depends_on`, `services`,
+// `vars` (TASK-244 / PLAN-002's frozen D6 contract).
+//
+// This is deliberately narrower than "the plans are equivalent at runtime" — it does
+// not resolve site overrides, environment profiles, or stack entries, so the message
+// below states only that the compared declaration fields match. It also never
+// recommends a canonical name or deletion: two authors may have equal declarations on
+// purpose (e.g. one mid-migration to a renamed plan), and this check's job is to
+// surface the coincidence, not to resolve it.
+func (c *Config) warnDuplicatePlanDeclarations() []string {
+	if len(c.Plans) < 2 {
+		return nil
+	}
+
+	names := make([]string, 0, len(c.Plans))
+	for name := range c.Plans {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var warnings []string
+	for i, nameA := range names {
+		planA := c.Plans[nameA]
+		if planA == nil {
+			continue
+		}
+		for _, nameB := range names[i+1:] {
+			planB := c.Plans[nameB]
+			if planB == nil {
+				continue
+			}
+			// A canonical import name and its `as:` alias are the SAME *PlanConfig
+			// reachable under two map keys (subproject.go's import loop assigns
+			// both `cfg.Plans[canonicalName]` and, when `as:` is given,
+			// `cfg.Plans[alias]` to one `importedPlan`). That is one declaration
+			// exposed twice, not two authors independently writing the same
+			// plan — comparing declaration fields on it would always "duplicate"
+			// and would warn on every aliased import.
+			if planA == planB {
+				continue
+			}
+			// Partition by SubprojectPath: "" for root-declared plans, the
+			// subproject directory for imported ones (subproject.go's
+			// cloneImportedPlan). Root and each subproject are independently
+			// authored namespaces — subprojects are resolved once, flatly,
+			// against the root (config.go's single Load call site), so this
+			// never compares root against a child or one child against another;
+			// a same-shaped plan across those boundaries is not one author's
+			// accidental duplicate.
+			if planA.SubprojectPath != planB.SubprojectPath {
+				continue
+			}
+			if !plansHaveEqualDeclaration(planA, planB) {
+				continue
+			}
+			warnings = append(warnings, fmt.Sprintf(
+				"plans %q and %q declare equal environment, site, vars, endpoint_tags, and entries — review whether both are intentional",
+				nameA, nameB,
+			))
+		}
+	}
+	return warnings
+}
+
+// plansHaveEqualDeclaration compares exactly the fields TASK-244's D6 contract
+// freezes. Map fields (Vars) are order-insensitive by construction: maps.Equal
+// compares key/value pairs, not iteration order, and treats a nil map as equal to
+// an empty one because both have length zero. Slice fields (EndpointTags, and
+// per-entry DependsOn/Services) are order-sensitive: slices.Equal compares
+// position by position, so a reordered list is NOT a duplicate, and it likewise
+// treats nil and empty as equal by length. Description is intentionally excluded —
+// it is prose, not a declared executable field, and the card does not list it.
+func plansHaveEqualDeclaration(a, b *PlanConfig) bool {
+	if a.Environment != b.Environment || a.Site != b.Site {
+		return false
+	}
+	if !maps.Equal(a.Vars, b.Vars) {
+		return false
+	}
+	if !slices.Equal(a.EndpointTags, b.EndpointTags) {
+		return false
+	}
+	if len(a.Entries) != len(b.Entries) {
+		return false
+	}
+	for i := range a.Entries {
+		if !planEntriesEqual(a.Entries[i], b.Entries[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// planEntriesEqual compares one PlanEntry pair on the fields D6 freezes: Name,
+// Runner, Order, DependsOn, Services, Vars. Entries are compared positionally by
+// plansHaveEqualDeclaration (list order in Entries is itself part of the
+// declaration), so this only judges whether the entries at matching positions
+// agree.
+func planEntriesEqual(a, b PlanEntry) bool {
+	return a.Name == b.Name &&
+		a.Runner == b.Runner &&
+		a.Order == b.Order &&
+		slices.Equal(a.DependsOn, b.DependsOn) &&
+		slices.Equal(a.Services, b.Services) &&
+		maps.Equal(a.Vars, b.Vars)
+}
+
+// warnMultiplePlansWithoutDefault warns when two or more plans are declared but
+// `default_plan` is not set, leaving bare lifecycle commands (e.g. `dva up`) with no
+// bounded plan selection — plan_lifecycle.go's guard already refuses those at
+// runtime ("multiple plans configured; specify one: ..."), so this surfaces the same
+// condition earlier, at `validate` time.
+//
+// Checks c.DefaultPlanName == "" rather than c.DefaultPlan() == "" (or
+// c.DefaultPlanSource() == "none"). Those two also resolve to "" / "none" when
+// default_plan IS declared but names a plan that does not exist — and
+// validate.go's Validate() already rejects exactly that as a hard error
+// ("default_plan '%s' not found in plans"). Testing the resolved value here would
+// re-warn on top of that hard error and would contradict this warning's own
+// wording ("default_plan is not set"), which is only true when the key is absent,
+// not when it is present but wrong.
+//
+// len(c.Plans) >= 2 excludes the single-plan implicit-default contract: DefaultPlan()
+// already treats a lone plan as the default with no declaration required, so a
+// single-plan config is not ambiguous and must not warn here.
+func (c *Config) warnMultiplePlansWithoutDefault() []string {
+	if len(c.Plans) < 2 || c.DefaultPlanName != "" {
+		return nil
+	}
+
+	names := make([]string, 0, len(c.Plans))
+	for name := range c.Plans {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	return []string{fmt.Sprintf(
+		"%d plans are defined (%s) but default_plan is not set — bare lifecycle commands (e.g. 'dva up') require naming a plan explicitly; set default_plan to one of them",
+		len(names), strings.Join(names, ", "),
+	)}
 }
 
 // warnHealthCheckRedundancy warns when both start and start_hint are set on a health check.
