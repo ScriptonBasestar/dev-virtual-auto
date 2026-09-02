@@ -516,9 +516,7 @@ subprojects:
 	if err != nil {
 		t.Fatalf("error loading parent config: %v", err)
 	}
-	e := config.NewEnvironment(nil, dir, dir)
-
-	err = runSubprojectCommand(parent, e, "subpkg", "nonexistent-cmd", nil)
+	err = runSubprojectCommand(parent, "subpkg", "nonexistent-cmd", nil)
 	if err == nil {
 		t.Fatal("expected error for missing command in subproject")
 	}
@@ -546,15 +544,13 @@ subprojects:
 	if err != nil {
 		t.Fatalf("error loading parent config: %v", err)
 	}
-	e := config.NewEnvironment(nil, dir, dir)
-
 	// Enable dry-run so no real subprocess is spawned
 	old := dryRun
 	dryRun = true
 	defer func() { dryRun = old }()
 
 	out := captureStdout(t, func() {
-		err = runSubprojectCommand(parent, e, "subpkg", "hello", nil)
+		err = runSubprojectCommand(parent, "subpkg", "hello", nil)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

@@ -152,7 +152,7 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 				return fmt.Errorf("interaction name collision: %q already exists", canonicalName)
 			}
 
-			importedInteraction := cloneImportedInteraction(interaction, subprojectPath)
+			importedInteraction := cloneImportedInteraction(interaction, subCfg, subprojectPath)
 			cfg.Interaction[canonicalName] = importedInteraction
 
 			alias := strings.TrimSpace(entry.As)
@@ -181,6 +181,7 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 
 			importedProfile := append([]ProvisionItem(nil), profile...)
 			cfg.Provision.Profiles[canonicalName] = importedProfile
+			cfg.Provision.setProfileOwner(canonicalName, subCfg)
 
 			alias := strings.TrimSpace(entry.As)
 			if alias != "" && alias != canonicalName {
@@ -188,6 +189,9 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 					return fmt.Errorf("provision profile alias collision: %q already exists", alias)
 				}
 				cfg.Provision.Profiles[alias] = importedProfile
+				// Same *Config as the canonical name, not a second lookup: the alias is
+				// another route to one import, so the two must resolve identically.
+				cfg.Provision.setProfileOwner(alias, subCfg)
 			}
 		}
 	}
@@ -233,13 +237,14 @@ func cloneImportedPlan(plan *PlanConfig, owner *Config, subprojectPath string) *
 	return &clone
 }
 
-func cloneImportedInteraction(command *InteractionCommand, subprojectPath string) *InteractionCommand {
+func cloneImportedInteraction(command *InteractionCommand, owner *Config, subprojectPath string) *InteractionCommand {
 	if command == nil {
 		return nil
 	}
 
 	clone := *command
 	clone.SubprojectPath = subprojectPath
+	clone.owner = owner
 	if command.Environment != nil {
 		clone.Environment = copyStringMap(command.Environment)
 	}
@@ -265,7 +270,9 @@ func cloneImportedInteraction(command *InteractionCommand, subprojectPath string
 	if command.Subcommands != nil {
 		clone.Subcommands = make(map[string]*InteractionCommand, len(command.Subcommands))
 		for name, sub := range command.Subcommands {
-			clone.Subcommands[name] = cloneImportedInteraction(sub, subprojectPath)
+			// Subcommands inherit the same owner: a nested route is still one import,
+			// and InteractionTree.Find can return the nested node directly.
+			clone.Subcommands[name] = cloneImportedInteraction(sub, owner, subprojectPath)
 		}
 	}
 

@@ -244,6 +244,10 @@ dva run --project api test  # 서브프로젝트 커맨드 실행
 dva api:test              # 위와 동일 (namespace 문법)
 ```
 
+`--project`와 namespace 문법은 해당 subproject의 effective config로 실행합니다. Child의
+`vars`, `environment`, `env_file`을 적용하고 child config directory를 기준으로 삼으며, parent의
+같은 이름 값은 섞이지 않습니다.
+
 #### ls
 
 ```bash

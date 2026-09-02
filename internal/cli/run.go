@@ -22,7 +22,6 @@ var runCmd = &cobra.Command{
 	Args:               cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
-		e := loadEnv(c)
 
 		cmdName := args[0]
 		cmdArgs := args[1:]
@@ -36,9 +35,11 @@ var runCmd = &cobra.Command{
 			}
 		}
 
-		// Route to sub-project if --project is specified or namespace syntax used
+		// Route to sub-project if --project is specified or namespace syntax used.
+		// Reached before any environment is loaded: the root env_file is irrelevant to a
+		// child route and must not get a vote in whether that route runs (TASK-264).
 		if resolvedProject != "" {
-			return runSubprojectCommand(c, e, resolvedProject, cmdName, cmdArgs)
+			return runSubprojectCommand(c, resolvedProject, cmdName, cmdArgs)
 		}
 
 		tree := runner.NewInteractionTree(c.Interaction)
@@ -46,6 +47,16 @@ var runCmd = &cobra.Command{
 		if resolved == nil {
 			return fmt.Errorf("command `%s` not recognized! Run 'dva ls' to see available commands", cmdName)
 		}
+
+		// Owner before environment. For a locally declared command this is the root config
+		// and the loaded env is exactly what it always was; for one imported from a
+		// subproject it is the child, whose vars, environment: and env_file the command is
+		// documented to run against.
+		rt, err := resolveInteractionRuntime(c, cmdName)
+		if err != nil {
+			return err
+		}
+		e := rt.env
 
 		// Merge interaction-level environment
 		e.MergeVars(resolved.Environment)
@@ -63,7 +74,7 @@ var runCmd = &cobra.Command{
 		r := runner.NewRunner(resolved, runner.RunOptions{
 			Publish: publishPorts,
 			Explain: dryRun,
-			Config:  c,
+			Config:  rt.config,
 		})
 
 		return r.Execute(e)
@@ -71,7 +82,7 @@ var runCmd = &cobra.Command{
 }
 
 // runSubprojectCommand loads and runs a command from a sub-project's dva.yml.
-func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environment, project, cmdName string, cmdArgs []string) error {
+func runSubprojectCommand(parentCfg *config.Config, project, cmdName string, cmdArgs []string) error {
 	sub, ok := parentCfg.Subprojects[project]
 	if !ok {
 		available := make([]string, 0, len(parentCfg.Subprojects))
@@ -87,7 +98,16 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	}
 
 	subCfg := subs[project]
-	subEnv := config.NewEnvironment(subCfg.Environment, parentEnv.WorkDir(), subCfg.FileDir())
+	if subCfg == nil {
+		return fmt.Errorf("subproject `%s` loaded no configuration", project)
+	}
+	// Was config.NewEnvironment(subCfg.Environment, parentEnv.WorkDir(), subCfg.FileDir()),
+	// which dropped the child's `vars:` (the base slot held `environment:` instead), never
+	// read the child's env_file at all, and ran from the caller's cwd. ownedRuntime applies
+	// the documented child precedence — vars < environment: < env_file, OS env still
+	// winning — and roots the run at the child config directory (TASK-264).
+	rt := ownedRuntime(subCfg)
+	subEnv := rt.env
 
 	tree := runner.NewInteractionTree(subCfg.FilterInteractions(sub.ExcludeTags))
 	resolved := tree.Find(cmdName, cmdArgs...)
@@ -109,7 +129,7 @@ func runSubprojectCommand(parentCfg *config.Config, parentEnv *config.Environmen
 	r := runner.NewRunner(resolved, runner.RunOptions{
 		Publish: publishPorts,
 		Explain: dryRun,
-		Config:  subCfg,
+		Config:  rt.config,
 	})
 
 	if err := r.Execute(subEnv); err != nil {

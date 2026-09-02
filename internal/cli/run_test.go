@@ -13,9 +13,7 @@ func TestRunSubprojectCommand_NotFound(t *testing.T) {
 			"engine": {Path: "./engine"},
 		},
 	}
-	e := config.NewEnvironment(nil, "/tmp", "/tmp")
-
-	err := runSubprojectCommand(c, e, "nonexistent", "test", nil)
+	err := runSubprojectCommand(c, "nonexistent", "test", nil)
 	if err == nil {
 		t.Fatal("expected error for nonexistent subproject")
 	}
@@ -29,9 +27,7 @@ func TestRunSubprojectCommand_NotFound(t *testing.T) {
 
 func TestRunSubprojectCommand_NoSubprojects(t *testing.T) {
 	c := &config.Config{}
-	e := config.NewEnvironment(nil, "/tmp", "/tmp")
-
-	err := runSubprojectCommand(c, e, "any", "test", nil)
+	err := runSubprojectCommand(c, "any", "test", nil)
 	if err == nil {
 		t.Fatal("expected error when no subprojects exist")
 	}

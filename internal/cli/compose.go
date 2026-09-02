@@ -1131,7 +1131,7 @@ func resolveMode(c *config.Config, mode string) (*resolvedMode, error) {
 // (via marker file in .sb/dva/) and prints a suggestion if not.
 func suggestProvision(c *config.Config, provisionProfile string) {
 	markerDir := filepath.Join(c.FileDir(), config.DotDirName)
-	markerFile := filepath.Join(markerDir, "provisioned-"+provisionProfile)
+	markerFile := filepath.Join(markerDir, provisionMarkerName(provisionProfile))
 
 	if _, err := os.Stat(markerFile); err == nil {
 		return // already provisioned

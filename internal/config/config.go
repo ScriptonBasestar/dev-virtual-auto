@@ -254,6 +254,23 @@ type InteractionCommand struct {
 	After   []ProvisionItem `yaml:"after"`
 
 	SubprojectPath string `yaml:"-"`
+
+	// owner is the fully loaded configuration that declared this command when it is
+	// imported from a subproject, mirroring PlanConfig.owner (TASK-262/264). It has no
+	// YAML representation on purpose: importing an interaction exposes a route in the
+	// parent, not the child's declaration namespace, and the owner holds the child's
+	// absolute local paths, which must never reach manifest, show or list output.
+	owner *Config
+}
+
+// OwnerConfig returns the configuration whose declarations this command resolves
+// against. Locally declared and manually constructed commands have no recorded owner,
+// so fallback preserves their historical behavior.
+func (c *InteractionCommand) OwnerConfig(fallback *Config) *Config {
+	if c != nil && c.owner != nil {
+		return c.owner
+	}
+	return fallback
 }
 
 // HasHooks reports whether the command defines any hook steps (before/replace/after).
@@ -411,6 +428,39 @@ type ComposeOptions struct {
 type ProvisionConfig struct {
 	DefaultProfile string                     `yaml:"-"`
 	Profiles       map[string][]ProvisionItem `yaml:"-"`
+
+	// profileOwners records the child configuration an imported profile executes
+	// against, keyed by its registered name. Profiles is map[string][]ProvisionItem —
+	// a value slice with nowhere to hang the pointer PlanConfig and InteractionCommand
+	// carry inline — so ownership lives beside it rather than inside the item type,
+	// which is also shared by interaction steps and hooks that have no owner of their
+	// own. Unexported for the same reason as PlanConfig.owner: it holds local absolute
+	// paths and must not serialize (TASK-264).
+	profileOwners map[string]*Config
+}
+
+// ProfileOwner returns the configuration a provision profile resolves against.
+// Locally declared profiles have no recorded owner, so fallback preserves their
+// historical behavior.
+func (pc *ProvisionConfig) ProfileOwner(name string, fallback *Config) *Config {
+	if pc != nil && pc.profileOwners != nil {
+		if owner := pc.profileOwners[name]; owner != nil {
+			return owner
+		}
+	}
+	return fallback
+}
+
+// setProfileOwner records the owner of a registered profile name. Canonical and alias
+// registrations of one import must be passed the same *Config so they cannot drift.
+func (pc *ProvisionConfig) setProfileOwner(name string, owner *Config) {
+	if owner == nil {
+		return
+	}
+	if pc.profileOwners == nil {
+		pc.profileOwners = make(map[string]*Config)
+	}
+	pc.profileOwners[name] = owner
 }
 
 // MarshalYAML restores the schema shape consumed by UnmarshalYAML.
@@ -930,6 +980,12 @@ func (c *Config) mergeFrom(other *Config) error {
 			c.Provision.Profiles = make(map[string][]ProvisionItem)
 		}
 		maps.Copy(c.Provision.Profiles, other.Provision.Profiles)
+		// Ownership travels with the profile it belongs to. Modules are local files and
+		// carry no owner today, but a copied profile that left its owner behind would
+		// silently fall back to the parent — the exact defect TASK-264 repairs.
+		for name := range other.Provision.Profiles {
+			c.Provision.setProfileOwner(name, other.Provision.profileOwners[name])
+		}
 	}
 
 	// health_checks: deep merge per entry (struct fields replace individually)

@@ -32,8 +32,6 @@ var provisionCmd = &cobra.Command{
 			return listProvisionProfiles(c)
 		}
 
-		e := loadEnv(c)
-
 		requested := "default"
 		explicit := len(args) > 0
 		if explicit {
@@ -44,6 +42,18 @@ var provisionCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		// Owner and its environment are resolved after the profile name is settled and
+		// before the first step runs. An imported profile executes against the child that
+		// declared it, so its steps see the child's vars, environment: and env_file and run
+		// from the child config directory; a root profile is unchanged. Resolving here also
+		// keeps a broken root env_file from blocking a purely child-owned profile — the
+		// warning-and-continue policy itself is TASK-248's to change (TASK-264).
+		rt, err := resolveProvisionRuntime(c, profile)
+		if err != nil {
+			return err
+		}
+		e, owner := rt.env, rt.config
 
 		if dryRun {
 			fmt.Printf("🔍 DRY RUN — showing execution plan for profile: %s\n\n", profile)
@@ -58,14 +68,14 @@ var provisionCmd = &cobra.Command{
 			if len(batch) == 1 || !batch[0].Parallel {
 				// Sequential execution
 				for _, step := range batch {
-					if err := executeProvisionStep(e, c, step, stepOffset, len(steps), dryRun); err != nil {
+					if err := executeProvisionStep(e, owner, step, stepOffset, len(steps), dryRun); err != nil {
 						return err
 					}
 					stepOffset++
 				}
 			} else {
 				// Parallel execution
-				if err := executeParallelBatch(e, c, batch, stepOffset, len(steps), dryRun); err != nil {
+				if err := executeParallelBatch(e, owner, batch, stepOffset, len(steps), dryRun); err != nil {
 					return err
 				}
 				stepOffset += len(batch)
@@ -622,6 +632,22 @@ func clearProvisionMarkers(configDir string) {
 // claims to describe. Returns nil for an unreadable directory, which is the same silence
 // clearProvisionMarkers has always kept — a missing .sb/dva is the ordinary case on a
 // project that has never provisioned. TASK-166.
+// provisionMarkerName is the file name recording that a profile has been provisioned.
+//
+// The marker stays in the *invoked* project's dot-directory even for an imported profile:
+// it answers "has this project been provisioned", which is the question `dva up` asks of
+// the config it was run against, not of the child that owns the steps.
+//
+// The slash replacement is what makes an imported name usable as a file name at all.
+// Imports register canonically as `child/profile`, and filepath.Join then read that slash
+// as a directory component: MkdirAll had created only the dot-directory, so the write
+// failed with ENOENT and every imported provision run ended on a warning. The literal "/"
+// is the separator applySubprojectImports writes, on every platform. Shared with the
+// reader in compose.go so the two cannot spell the same profile differently (TASK-264).
+func provisionMarkerName(profile string) string {
+	return "provisioned-" + strings.ReplaceAll(profile, "/", "__")
+}
+
 func provisionMarkers(configDir string) []string {
 	markerDir := filepath.Join(configDir, config.DotDirName)
 	entries, err := os.ReadDir(markerDir)
@@ -644,7 +670,7 @@ func writeProvisionMarker(configDir, profile string) {
 	if err := os.MkdirAll(markerDir, 0755); err != nil {
 		return
 	}
-	markerFile := filepath.Join(markerDir, "provisioned-"+profile)
+	markerFile := filepath.Join(markerDir, provisionMarkerName(profile))
 	if err := os.WriteFile(markerFile, []byte(""), 0644); err != nil {
 		fmt.Fprintf(os.Stderr, "[warn] could not write provision marker: %v\n", err)
 	}
