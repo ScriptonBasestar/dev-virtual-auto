@@ -679,12 +679,6 @@ steps:
       - 기존 값이 있으면 그대로 두고, 없으면 생략하세요. `version`은 optional이며 생략은
         "읽는 쪽에 아무것도 요구하지 않는다"는 뜻입니다.
 
-      ## CRITICAL: 예약 커맨드 — interaction 키로 사용 금지
-      다음 이름은 DVA 내장 커맨드로 예약되어 있습니다:
-      `up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`, `status`, `show`, `ls`, `run`,
-      `config`, `doctor`, `provision`, `version`, `console`, `infra`, `app`, `stack`, `help`,
-      `compose`, `validate`, `manifest`, `ktl`, `ssh`, `completion`, `init`
-
       ---
 
       # Injected Platform Capability Bindings
