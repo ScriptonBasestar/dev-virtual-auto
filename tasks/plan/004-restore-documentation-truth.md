@@ -3,9 +3,9 @@ id: PLAN-004
 title: "Restore documentation truth across skills, flows, and the example corpus"
 type: plan
 scope: "CLI advice strings, agent-mesh flow prompt claims, skill reference fictions, example corpus defects, and the markdown-YAML validation gap"
-progress: 67
+progress: 83
 total-tasks: 6
-completed-tasks: 4
+completed-tasks: 5
 children: [TASK-273, TASK-274, TASK-275, TASK-276, TASK-283, TASK-288]
 target-date: "2026-11-30"
 created: 2026-09-03
@@ -43,7 +43,7 @@ question 2가 소유한다.
 | flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | **완료 (`159bf1b`)** | [TASK-274](../done/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | **완료** | [TASK-275](../done/275-correct-skill-reference-fictions.md) |
 | example corpus 결함 + markdown-YAML 게이트 공백 | **범위 판정 완료 (2026-09-03)** — examples는 fragment corpus | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
-| `service-orchestration.yml` overlay 모델링 경고 | TASK-276에서 분리 — 결함 주체 미정 | [TASK-288](../todo/288-model-compose-overlays-in-service-orchestration-example.md) |
+| `service-orchestration.yml` overlay 모델링 경고 | **완료 (2026-09-03)** — reading 2(경고 판정식이 틀림) 확정, `plansPartitionComposeServices` 추가 | [TASK-288](../done/288-model-compose-overlays-in-service-orchestration-example.md) |
 
 ## 권장 순서 (2026-09-03)
 
@@ -115,7 +115,7 @@ TASK-276의 기준 5는 "`examples/*.yml` 16개 전부 `--strict` 무경고"였�
 검증기를 바꾸게 두지 않는다.
 
 남은 한 경고(`service-orchestration.yml` overlay)는 파일 부재와 무관한 별개 결함이라
-[TASK-288](../todo/288-model-compose-overlays-in-service-orchestration-example.md)로 분리했고
+[TASK-288](../done/288-model-compose-overlays-in-service-orchestration-example.md)로 분리했고
 이 계획의 자식으로 편입했다.
 
 ## 계획 밖으로 분리한 카드

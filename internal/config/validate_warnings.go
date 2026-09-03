@@ -797,9 +797,113 @@ func literalComposeProjectName(projectName string) (string, bool) {
 
 func (c *Config) composeEntriesAreIsolated(entries map[string]bool) bool {
 	if len(c.Plans) > 0 {
-		return c.plansIsolateEntries(entries)
+		return c.plansIsolateEntries(entries) || c.plansPartitionComposeServices(entries)
 	}
 	return c.modesIsolateEntries(entries)
+}
+
+// plansPartitionComposeServices reports whether, in every plan that selects two or
+// more of the given compose entries together as compose invocations, each of those
+// entries restricts itself to a disjoint, non-empty services: subset. That is the
+// supported "compose service subsets" shape (examples/service-orchestration.yml's
+// infra-compose/frontend pair): each entry is still its own 'docker compose'
+// invocation, but the invocations start different services from the same file
+// rather than one entry's file list patching another's service definitions.
+// warnMultiStackComposeSplit's overlay concern — an entry cannot patch another
+// entry's services because they never run in the same invocation — does not apply
+// when the invocations share nothing to begin with.
+//
+// A plan entry that resolves to a non-compose runner (api/worker's runner: native
+// in that same example, falling back to their default_runner otherwise) never
+// issues the 'docker compose' call this warning is about, so it is excluded before
+// counting co-occurrence — it is not a participant to partition against. Site
+// entry_overrides are not consulted: like the rest of this file's plan-shape
+// warnings, the check reasons about the plan's own declaration, not a runtime
+// site selection.
+//
+// An empty services: (nil, meaning "all services in the file") or a service name
+// repeated across two co-selected entries falls through to the real overlay warning,
+// because either shape can still start the same service from two separate invocations.
+//
+// Gated on DefaultPlan() != "" exactly like plansIsolateEntries: partitioning inside
+// every named plan says nothing about the unnamed lifecycle path (a bare `dva up`),
+// which is unsafe on its own whenever no default_plan bounds it.
+func (c *Config) plansPartitionComposeServices(entries map[string]bool) bool {
+	return c.DefaultPlan() != "" && c.plansWouldPartitionComposeServices(entries)
+}
+
+// plansWouldPartitionComposeServices is plansPartitionComposeServices without the
+// default_plan gate, split out the same way plansWouldIsolateEntries is split from
+// plansIsolateEntries: the two functions answer the same "can these entries
+// co-occur" question that warnMissingDefaultMode's default_plan analogue also asks,
+// and repeating the gate inline here would just be a second voice on one problem.
+func (c *Config) plansWouldPartitionComposeServices(entries map[string]bool) bool {
+	if len(c.Plans) == 0 {
+		return false
+	}
+	claimed := make(map[string]bool, len(entries))
+	for _, plan := range c.Plans {
+		if plan == nil {
+			return false
+		}
+		var matched []PlanEntry
+		for _, entry := range plan.Entries {
+			if !entries[entry.Name] {
+				continue
+			}
+			claimed[entry.Name] = true
+			if c.planEntryRunner(entry) != "compose" {
+				continue
+			}
+			matched = append(matched, entry)
+		}
+		if len(matched) < 2 {
+			continue
+		}
+		seen := make(map[string]bool, len(matched))
+		for _, entry := range matched {
+			if len(entry.Services) == 0 {
+				return false
+			}
+			for _, svc := range entry.Services {
+				if seen[svc] {
+					return false
+				}
+				seen[svc] = true
+			}
+		}
+	}
+	// An entry no plan mentions at all is reachable through an entry-oriented
+	// lifecycle command with no plan-declared services: restriction in play,
+	// same hazard plansWouldIsolateEntries's own claimed-length check guards.
+	return len(claimed) == len(entries)
+}
+
+// planEntryRunner returns the runner a plan entry resolves to: its own runner:
+// override when set, else the stack entry's default_runner, else "compose" — the
+// entries warnMultiStackComposeSplit ever calls this with all carry a compose:
+// block by construction (that is how they entered its entries map), so absent an
+// explicit override elsewhere, compose is what they resolve to; the same absence
+// is what the pre-TASK-288 warning always assumed. It mirrors lifecycle.resolver's
+// finalRunner precedence for those two inputs only — the site-override and
+// plugin-detection fallbacks the resolver also applies are runtime concerns this
+// validation-time check does not have enough context to reproduce. Only positive
+// evidence of a non-compose runner (an explicit plan runner: or stack
+// default_runner naming something else) excludes an entry from
+// plansPartitionComposeServices's co-occurrence count — silence does not, because
+// silently excluding an entry there makes the check MORE likely to call a plan
+// isolated, which would suppress the real overlay warning rather than only widen
+// when it fires.
+func (c *Config) planEntryRunner(entry PlanEntry) string {
+	if runner := normalizeRunnerName(entry.Runner); runner != "" {
+		return runner
+	}
+	if stackEntry, ok := c.Stack[entry.Name]; ok {
+		if runner := stackEntry.DefaultRunnerName(); runner != "" {
+			return runner
+		}
+	}
+	return "compose"
 }
 
 func (c *Config) composeSplitWarning(entries map[string]bool) string {

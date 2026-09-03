@@ -8,9 +8,11 @@ exec-tier: standard
 created-at: 2026-09-03T21:30:00+09:00
 source: "TASK-276 ruling 2026-09-03 — the one strict warning that is not compose absence"
 scope: "examples/service-orchestration.yml semantic overlay warning, and whether the warning or the example is wrong"
-status: todo
+status: done
 needs-human: true
-decision-status: pending
+decision-status: decided
+decided-at: 2026-09-03T22:40:00+09:00
+closed-at: 2026-09-03T22:40:00+09:00
 depends-on: []
 ---
 
@@ -54,7 +56,7 @@ logic in `internal/lifecycle/` and `internal/config/validate_warnings.go` agains
 example is trying to teach, and deciding whether DVA *intends* to support ordered entries over
 a shared compose file.
 
-## Recommended direction
+## Recommended direction (original, superseded by the Decision below)
 
 Reading 3 is the most likely and the cheapest to verify first: the warning's diagnosis is
 probably accurate and only its remedy is unsafe. Confirm by checking whether the invocation-set
@@ -62,11 +64,79 @@ grouping actually ignores `order:`; if it does, the shape really is unsupported 
 purposes and reading 1 or 2 follows depending on whether that is intended. Do not apply the
 suggested merge under any reading — it is the one action already known to be wrong.
 
+This turned out to be wrong. It was written from the warning's own text before measuring the
+warning's actual predicate against the runtime code path; see the Decision below.
+
+## Decision (frozen 2026-09-03)
+
+**Reading 2 holds: the warning is wrong.** `warnMultiStackComposeSplit`'s "same invocation set"
+predicate is too coarse — it groups compose entries sharing one literal `compose.project_name`
+and warns unless `composeEntriesAreIsolated` proves the entries never co-occur, but "never
+co-occur" was the only escape hatch it recognized. It had no way to recognize entries that *do*
+co-occur but never conflict because each restricts itself to a disjoint `services:` subset —
+`infra-compose`/`frontend`'s actual shape.
+
+### Why reading 3 (this card's own original recommendation) does not hold
+
+Reading 3 says the diagnosis is accurate and only the remedy (merge) is unsafe. Measuring the
+runtime code path shows the diagnosis itself is the false positive, not just its remedy:
+
+- `plans.local-full.entries[].services` (`PlanEntry.Services`, `internal/config/config.go:100`)
+  is a real runtime restriction, not decorative: `internal/lifecycle/resolver.go:234` copies it
+  into `ResolvedEntry.Services`, and `internal/lifecycle/plan_orchestrator.go:37-38` uses it to
+  restrict which services a compose invocation actually starts
+  (`if resolved.Runner == "compose" && resolved.Services != nil { composeServices[...] = ... }`).
+- So `infra-compose` and `frontend` do not "patch" each other — they issue two separate
+  `docker compose ... up postgres kafka` / `docker compose ... up frontend` invocations against
+  the same file, starting disjoint services. Nothing is overlaid; the overlay-patch concern the
+  warning exists for (one entry's `files:` list patching another's service definitions in a
+  shared invocation) does not apply to this shape at all.
+- `order:`/`depends_on:` (on the *plan entry*, not the stack entry — the card's Problem section
+  misattributed them) are exactly what already sequences `infra-compose` before `frontend`; no
+  merge or reordering was ever needed to preserve that.
+- `plansIsolateEntries`/`plansWouldIsolateEntries` (pre-existing, unmodified) answer "does at
+  most one of these entries ever run" via mutual exclusion between plans. They correctly return
+  false here, because `local-full` selects both entries together — but mutual exclusion was
+  never the right question for this shape; disjoint services under simultaneous invocation is a
+  different, equally-safe shape that isolation-by-exclusion cannot express.
+
+### Fix applied
+
+Narrowed the predicate. `composeEntriesAreIsolated` (`internal/config/validate_warnings.go:798`)
+now also treats a set of compose entries as isolated when a new `plansPartitionComposeServices`
+holds: in every plan that selects two or more of the entries together *as compose invocations*
+(a plan entry resolving to a non-compose runner — `api`/`worker`'s `runner: native` in this
+example — is excluded from the count via a new `planEntryRunner` helper), every one of those
+entries declares a non-empty `services:` and no service name repeats across them. An empty
+`services:` (meaning "all services") or a repeated service name still falls through to the
+original overlay warning, and so does any entry never claimed by any plan — both retain the
+warning's original behavior. `plansPartitionComposeServices` is gated on `DefaultPlan() != ""`
+exactly like `plansIsolateEntries`, for the same reason: partitioning inside every named plan
+says nothing about the unnamed `dva up` lifecycle path.
+
+Verified behaviorally: `make build` + `dva config validate --strict` against
+`examples/service-orchestration.yml` now draws only the two documented compose-absence
+config-drift warnings (TASK-276's territory, untouched); the overlay-split warning is gone.
+Verified not to over-widen: new table-driven unit tests
+(`TestWarnMultiStackComposeSplitServiceSubsetting`,
+`internal/config/validate_warnings_test.go`) cover disjoint services (silent), a mixed
+compose/native plan (silent), empty services (still warns), and overlapping services (still
+warns); all four pre-existing `TestWarnMultiStackComposeSplit*` tests still pass unmodified.
+
+### Rejected alternatives
+
+- **Reading 1** (rewrite the example — overlays genuinely unsupported): rejected by the same
+  runtime evidence above; `services:` subsetting is a supported, runtime-consumed shape (not a
+  fiction the example invented), so there is nothing to design around.
+- **Reading 3** (keep the warning, fix only its remedy): rejected — measurement shows the
+  *diagnosis*, not only the remedy, is wrong on this shape. Fixing only the remedy text would
+  leave a false-positive warning firing on a documented, supported configuration.
+
 ## Completion Criteria
 
-- [ ] Establish which of the three readings holds, from the overlay/invocation-set source rather than from the warning text | verify: human — the reading, the source citations that establish it, and the two rejected readings must be recorded
-- [ ] Apply the fix the chosen reading implies, without merging the entries | verify: human — the ordered startup the example demonstrates (`order:` and `depends_on:` on `frontend`) must survive the change
-- [ ] `examples/service-orchestration.yml` draws no strict warning other than the documented compose-absence pair | verify: `make test && make doc-check`
+- [x] Establish which of the three readings holds, from the overlay/invocation-set source rather than from the warning text | verify: human — the reading, the source citations that establish it, and the two rejected readings must be recorded
+- [x] Apply the fix the chosen reading implies, without merging the entries | verify: human — the ordered startup the example demonstrates (`order:` and `depends_on:` on `frontend`) must survive the change
+- [x] `examples/service-orchestration.yml` draws no strict warning other than the documented compose-absence pair | verify: `make test && make doc-check`
 
 ## Non-goals
 

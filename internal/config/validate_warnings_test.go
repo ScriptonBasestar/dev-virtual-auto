@@ -885,6 +885,85 @@ func TestWarnMultiStackComposeSplitProjectNameIsolation(t *testing.T) {
 	})
 }
 
+// TestWarnMultiStackComposeSplitServiceSubsetting covers the shape TASK-288 found: two
+// compose entries sharing one project_name/file, each restricted by a plan entry's
+// services: to a disjoint, non-empty subset (examples/service-orchestration.yml's
+// infra-compose/frontend pair). Nothing overlays here — each entry is its own compose
+// invocation starting different services from the same file — so the overlay-patch
+// warning must not fire. Every deviation from that exact shape (empty services:,
+// overlapping services:, or a third participant) falls back to the original warning.
+func TestWarnMultiStackComposeSplitServiceSubsetting(t *testing.T) {
+	stackWithNative := func() map[string]*LifecycleEntry {
+		return map[string]*LifecycleEntry{
+			"infra-compose": {DefaultRunner: "compose", Compose: &ComposePluginConfig{Files: []string{"docker-compose.yml"}, ProjectName: "orchestrator"}},
+			"api":           {DefaultRunner: "native", Compose: &ComposePluginConfig{Files: []string{"docker-compose.yml"}, ProjectName: "orchestrator"}},
+			"frontend":      {DefaultRunner: "compose", Compose: &ComposePluginConfig{Files: []string{"docker-compose.yml"}, ProjectName: "orchestrator"}},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		entries []PlanEntry
+		warn    bool
+	}{
+		{
+			name: "disjoint non-empty services across compose entries is silent",
+			entries: []PlanEntry{
+				{Name: "infra-compose", Services: []string{"postgres", "kafka"}},
+				{Name: "api"},
+				{Name: "frontend", Services: []string{"frontend"}},
+			},
+			warn: false,
+		},
+		{
+			name: "a native runner override on a compose-configured entry excludes it too",
+			entries: []PlanEntry{
+				{Name: "infra-compose", Services: []string{"postgres"}},
+				{Name: "api", Runner: "native"},
+				{Name: "frontend", Runner: "native", Services: []string{"frontend"}},
+			},
+			warn: false,
+		},
+		{
+			name: "empty services on either entry falls back to the overlay warning",
+			entries: []PlanEntry{
+				{Name: "infra-compose", Services: []string{"postgres"}},
+				{Name: "api"},
+				{Name: "frontend"},
+			},
+			warn: true,
+		},
+		{
+			name: "overlapping services falls back to the overlay warning",
+			entries: []PlanEntry{
+				{Name: "infra-compose", Services: []string{"postgres", "kafka"}},
+				{Name: "api"},
+				{Name: "frontend", Services: []string{"kafka"}},
+			},
+			warn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Config{
+				Stack: stackWithNative(),
+				Plans: map[string]*PlanConfig{
+					"local-full": {Entries: tt.entries},
+				},
+				DefaultPlanName: "local-full",
+			}
+			warnings := c.warnMultiStackComposeSplit()
+			if tt.warn && len(warnings) != 1 {
+				t.Fatalf("expected a warning, got %v", warnings)
+			}
+			if !tt.warn && len(warnings) != 0 {
+				t.Fatalf("expected silence, got %v", warnings)
+			}
+		})
+	}
+}
+
 func TestWarnMultiStackComposeSplitMissingDefaultPlanSuggestsSafeDefault(t *testing.T) {
 	c := &Config{
 		Stack: map[string]*LifecycleEntry{
