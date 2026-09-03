@@ -178,3 +178,43 @@ ran — will pass any criterion bound this way.
 
 Criteria 2, 4 and 6 were executed and pass. Criteria 1 and 3 are human-bound and carry the
 implementer's assertion, not an orchestrator verification.
+
+## Criterion 5 is a scope decision, not fourteen fixes (2026-09-03, batch review)
+
+The 14 strict failures are not fourteen independent drifts. Thirteen of them are the same
+warning pair — `compose.files is docker-compose.yml but detected root compose files are
+(none)` and `compose file "docker-compose.yml" is configured by dva.yml but does not exist`
+— and they fire for a reason that is a property of the corpus rather than a defect in the
+files:
+
+- **No compose file has ever existed under `examples/`.** Every path ever tracked there,
+  across all history, is a dva.yml sample, a dva module under `modules/.sb/dva/`, or a
+  markdown doc. Verified with `git log --all --name-only -- examples | sort -u` (no
+  pathspec globs, so nothing is hidden by a glob that failed to match).
+- **`examples/README.md` says the examples are meant to be adapted, not run.** Its "Using
+  These Examples" workflow is copy → customize → validate, and the customize step names
+  "Service names in docker-compose.yml" as the reader's job. The reader supplies the compose
+  file; the example never claimed to.
+
+So criterion 5's first branch — "ship the referenced compose files" — would author fourteen
+compose files that exist only to satisfy a validator, and would contradict the workflow the
+corpus documents for itself. The second branch, "adjust the examples so config-drift warnings
+do not fire", means removing the `compose.files:` references that are the entire point of a
+compose example.
+
+What this card actually needs is the decision it has been standing in for: **are examples
+illustrative fragments or runnable trees?** If fragments (which the evidence above says they
+already are), the resolution is to say so — exempt the corpus from the strict compose-drift
+check, or teach the check that a template referencing an absent compose file is not drift —
+and criterion 5 should be rewritten to match. If some subset is meant to be runnable, then
+the split and its rationale matter, not the count.
+
+The remaining warning is a different defect with a different owner: `service-orchestration.yml`
+draws one `semantic:` warning saying its four compose entries "can run in the same invocation
+set", so an overlay entry cannot patch another entry's services. That is about how the example
+models overlays, has nothing to do with missing files, and the mechanical fix (merge into one
+entry) would collapse the ordered startup the example exists to demonstrate.
+
+Framing credit: raised by a peer session reviewing the same corpus; the discriminator
+(has any example ever shipped a compose file / does any doc promise runnability) is theirs,
+the measurement is this session's.
