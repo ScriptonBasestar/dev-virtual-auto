@@ -94,12 +94,14 @@ recur silently.
   "Command-specific env_file" section of `examples/README.md` are owned by
   [TASK-266](266-deprecate-and-reject-interaction-env-file.md) and are out of scope here —
   do not touch either as part of this task.
-- No change to `confirmDestruction`'s gating behaviour itself (whether `-v` alone *should*
-  prompt is a product decision outside this task); this task only corrects the documentation
-  to match the current, confirmed behaviour. Note that closing this card leaves DVA
-  deleting volumes without a prompt on bare `-v` — the doc fix removes the false assurance
-  but does not remove the hazard. That decision is carried as an open question in
-  [PLAN-004](../plan/004-restore-documentation-truth.md).
+- No change to `confirmDestruction`'s gating behaviour. This is not a deferral: `-v` and
+  `--purge` have different reach, and the prompt asymmetry follows that difference exactly.
+  `-v` removes named volumes and nothing else, which is what the flag says and what
+  `docker compose down -v` means — typing it is the consent. `--purge` additionally removes
+  locally built images and every provision marker in the config directory, reaching outside
+  the plan the user named, which is what the prompt guards. The gating condition is correct;
+  only the README sentence is wrong. See PLAN-004's 검토 종료된 항목 for the full record —
+  **do not add a prompt to the `-v` path.**
 - No change to `ProvisionConfig.UnmarshalYAML` or any other runtime type — corpus and docs are
   brought into agreement with the existing parser, not the other way around.
 - No new example files beyond what's needed to demonstrate a corrected provision shape in
