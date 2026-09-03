@@ -1,26 +1,26 @@
 ---
 id: TASK-279
-title: "Repair plan-path flags that are accepted and then discarded"
+title: "Repair lifecycle flags that are accepted and then discarded"
 type: bug
 priority: P2
 effort: S
 exec-tier: standard
 created-at: 2026-09-03T12:55:00+09:00
-source: "TASK-273 audit — surfaced as evidence there, excluded from its scope as behaviour rather than guidance defects"
-scope: "internal/cli/plan_lifecycle.go restart/stop/down plan routes, internal/lifecycle StopOptions/DownOptions"
+source: "TASK-273 audit — surfaced as evidence there, excluded from its scope as behaviour rather than guidance defects; §3 added from the TASK-273 implementer's measurement"
+scope: "internal/cli/plan_lifecycle.go restart/stop/down plan routes, the build route in internal/cli/compose.go, internal/lifecycle StopOptions/DownOptions"
 status: todo
 depends-on: []
 ---
 
-# Task 279: repair plan-path flags that are accepted and then discarded
+# Task 279: repair lifecycle flags that are accepted and then discarded
 
 ## Summary
 
-`parsePlanFlags` accepts `--force` and `--no-wait` on every lifecycle verb, but two of the plan
-routes drop what it parsed. `restart` overwrites `--force` with a hardcoded `true`, so the flag
-does nothing and restart force-recreates whether or not it was typed. `stop` and `down` accept
-`--no-wait` and then pass it to option structs that have no field to receive it. In both cases
-the CLI answers exit 0, which reads as "your flag was honoured".
+Three lifecycle routes parse a flag and then throw the value away. `restart` overwrites
+`--force` with a hardcoded `true`, so the flag does nothing and restart force-recreates whether
+or not it was typed. `stop` and `down` accept `--no-wait` and pass it to option structs with no
+field to receive it. `build` discards `--env`, `--tag` and `--exclude-tag` at the parse call
+itself. Every one of them answers exit 0, which reads as "your flag was honoured".
 
 ## Problem
 
@@ -74,22 +74,49 @@ Two directions, and the card does not prejudge which:
   the manifest and reject `--force` there.
 
 Direction (a) is the smaller change for `restart` and the larger one for `stop`/`down`, because
-"wait" has no meaning for every plugin. An implementer should not mix directions across the two
-defects without saying why in the commit.
+"wait" has no meaning for every plugin.
+
+`build` (§3) is the one place where the two directions are not equally available. It cannot
+simply reject the three selectors: `parseDvaFlags` is what keeps them from leaking into docker's
+argv, so the parse has to stay. The choice is between binding the values and using them, and
+binding them only to fail on an unsupported combination. Whichever is chosen, `--env` must stop
+being silent on this route while it errors on the stack route.
+
+An implementer should not mix directions across the defects without saying why in the commit.
 
 ## Completion Criteria
 
 - [ ] `dva restart <plan> --force` and `dva restart <plan>` are distinguishable — either the flag reaches the orchestrator, or it is rejected on this route | verify: `go test ./internal/cli -count=1`
 - [ ] Restart no longer force-recreates on behalf of a user who did not ask for it, or the manifest states that restart always force-recreates | verify: `go test ./internal/cli -count=1`
 - [ ] `--no-wait` on `stop`/`down` either reaches the orchestrator or is rejected; it is not silently absorbed | verify: `go test ./internal/cli -count=1`
-- [ ] A regression test pins the chosen behaviour for all three routes, so a later refactor cannot quietly restore the discard | verify: `go test ./internal/cli -count=1`
+- [ ] `build` either honours `--env`/`--tag`/`--exclude-tag` or rejects them; in particular `--env NAME` against a config with no `environments:` does not stay silent on the build route while failing on the stack route | verify: `go test ./internal/cli -count=1`
+- [ ] A regression test pins the chosen behaviour for all four routes, so a later refactor cannot quietly restore the discard | verify: `go test ./internal/cli -count=1`
 - [ ] `optForce`'s manifest text matches what every route actually does with the flag | verify: `human — read optForce against the up and restart call sites: the description must hold on both routes, not only on up`
 - [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+
+3. **`build` discards `--env`, `--tag` and `--exclude-tag` at the parse site.**
+   `buildCmd`'s `RunE` calls `mode, _, _, _, remaining, err := parseDvaFlags(args)`
+   (`/usr/bin/grep -n 'mode, _, _, _, remaining, err' internal/cli/compose.go`). The four
+   selectors are all parsed — which is why none of them leaks through to docker — but only
+   `mode` is bound to a name. The env, include-tag and exclude-tag return values go to `_`.
+
+   This is worse than a no-op in one specific way: on the stack path `dva up --env prod` against
+   a config declaring no `environments:` *fails* with `env 'prod' not found`, because the parsed
+   value is looked up. On the build route the same flag is silently accepted, because the value
+   never reaches a lookup. The same flag on two routes of the same tool gives an error on one and
+   silence on the other.
+
+   Measured by the TASK-273 implementer on a plan fixture: `dva build local-dev --exclude-tag app`
+   still built the entry tagged `app`, and `--env prod` did not fail against a config declaring no
+   `environments:`. The code reading above is the reason.
+
+   `--mode` is not affected — it is bound and used, which is why TASK-273 could give it an
+   accurate manifest qualifier while the other three could not be described honestly at all.
 
 ## Non-goals
 
 - No change to `up`, which already passes `Force` and `Wait` faithfully.
-- No change to which flags `parsePlanFlags` accepts beyond the two named here.
+- No change to which flags `parsePlanFlags` accepts beyond the ones named here.
   `--tag`/`--exclude-tag`/`--mode`/`--env` are path-conditional and owned by
   [TASK-273](273-repair-misleading-cli-guidance.md).
 - No change to the `--purge` confirmation gate, which was reviewed and closed in
