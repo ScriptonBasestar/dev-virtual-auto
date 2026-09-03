@@ -48,6 +48,83 @@ func TestRootValidateMatchesConfigValidate(t *testing.T) {
 	}
 }
 
+// TestValidateRouteCompatibilityContract pins the route/visibility/alias/reserved-name/manifest
+// facts TASK-257's Decision Record froze: `dva config validate` is the canonical documentation
+// route, `dva validate` is a permanent, visible, behavior-identical compatibility shortcut, and
+// neither route is hidden, warned, aliased, or unreserved as part of that decision. TASK-258's
+// completion criterion 1 requires this function to exist and pass.
+func TestValidateRouteCompatibilityContract(t *testing.T) {
+	rootValidate := mustFindCommand(t, []string{"validate"})
+	configValidate := mustFindCommand(t, []string{"config", "validate"})
+
+	// Registration: both routes resolve to their documented full path.
+	if got := rootValidate.CommandPath(); got != "dva validate" {
+		t.Errorf("root validate CommandPath = %q, want %q", got, "dva validate")
+	}
+	if got := configValidate.CommandPath(); got != "dva config validate" {
+		t.Errorf("config validate CommandPath = %q, want %q", got, "dva config validate")
+	}
+
+	// Canonical naming: the two routes share one RunE function pointer (validate_alias.go
+	// copies configValidate.RunE rather than reimplementing it), so "compatibility shortcut"
+	// is a routing fact, not a maintained-twice implementation.
+	rootRunE := reflect.ValueOf(rootValidate.RunE).Pointer()
+	configRunE := reflect.ValueOf(configValidate.RunE).Pointer()
+	if rootRunE != configRunE {
+		t.Errorf("root validate and config validate RunE differ; want the shared function pointer validate_alias.go wires up")
+	}
+
+	// Help visibility: neither route is hidden, and the top-level shortcut keeps its existing
+	// "Advanced Utilities" placement — TASK-257 approved no visibility change.
+	if rootValidate.Hidden {
+		t.Error("root validate is hidden, want visible (TASK-257 keeps the compatibility route visible)")
+	}
+	if configValidate.Hidden {
+		t.Error("config validate is hidden, want visible")
+	}
+	if rootValidate.GroupID != "advanced" {
+		t.Errorf("root validate GroupID = %q, want unchanged %q", rootValidate.GroupID, "advanced")
+	}
+
+	// Aliases: TASK-257 introduces no new alias on either route.
+	if len(rootValidate.Aliases) != 0 {
+		t.Errorf("root validate aliases = %v, want none", rootValidate.Aliases)
+	}
+	if len(configValidate.Aliases) != 0 {
+		t.Errorf("config validate aliases = %v, want none", configValidate.Aliases)
+	}
+
+	// Reserved-name behavior: both "validate" and "config" stay reserved built-in names —
+	// TASK-257 did not lift either reservation.
+	if !config.IsReservedCommand("validate") {
+		t.Error(`"validate" is no longer a reserved command`)
+	}
+	if !config.IsReservedCommand("config") {
+		t.Error(`"config" is no longer a reserved command`)
+	}
+
+	// Manifest: TASK-272's Option B canonical_name marker lands on the compatibility entry only.
+	manifest := buildManifest(&config.Config{})
+	rootEntry, ok := manifest.StaticCommands["validate"]
+	if !ok {
+		t.Fatal(`manifest static_commands is missing "validate"`)
+	}
+	if rootEntry.CanonicalName != "config validate" {
+		t.Errorf(`static_commands["validate"].canonical_name = %q, want "config validate"`, rootEntry.CanonicalName)
+	}
+	configEntry, ok := manifest.StaticCommands["config"]
+	if !ok {
+		t.Fatal(`manifest static_commands is missing "config"`)
+	}
+	configValidateEntry, ok := configEntry.Subcommands["validate"]
+	if !ok {
+		t.Fatal(`manifest static_commands["config"].subcommands is missing "validate"`)
+	}
+	if configValidateEntry.CanonicalName != "" {
+		t.Errorf(`static_commands["config"].subcommands["validate"].canonical_name = %q, want empty (it is the canonical entry)`, configValidateEntry.CanonicalName)
+	}
+}
+
 // TestCommandHelpGroupsAndDiscoveryDescriptions keeps the user-visible command
 // taxonomy and the two complementary discovery descriptions deliberate. It also
 // records the compatibility boundaries of this presentation-only change: route
@@ -93,9 +170,12 @@ func TestCommandHelpGroupsAndDiscoveryDescriptions(t *testing.T) {
 		}
 	}
 
+	// schema_version moved 1.4 -> 1.5 under TASK-258/TASK-272 (the canonical_name route-identity
+	// marker); TestValidateRouteCompatibilityContract owns that change, this test only keeps the
+	// value pinned so a future presentation-only change does not drift it again unnoticed.
 	manifest := buildManifest(&config.Config{})
-	if manifest.SchemaVersion != "1.4" {
-		t.Errorf("manifest schema version = %q, want unchanged 1.4", manifest.SchemaVersion)
+	if manifest.SchemaVersion != "1.5" {
+		t.Errorf("manifest schema version = %q, want unchanged 1.5", manifest.SchemaVersion)
 	}
 	for _, name := range []string{"manifest", "show", "status"} {
 		entry, ok := manifest.StaticCommands[name]

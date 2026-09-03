@@ -115,6 +115,14 @@ type ManifestCmd struct {
 	Type        string                 `json:"type" yaml:"type"`
 	Options     map[string]string      `json:"options,omitempty" yaml:"options,omitempty"`
 	Subcommands map[string]ManifestCmd `json:"subcommands,omitempty" yaml:"subcommands,omitempty"`
+	// CanonicalName names the invocation this entry is a compatibility route for, e.g. the
+	// top-level "validate" entry carries "config validate". It is set only on the
+	// compatibility side of a two-name pair; the canonical entry and every entry with no
+	// second name omit it. A consumer that does not read this field still sees two correct,
+	// independently valid entries — the same fail-open shape as ShadowedByBuiltin/Unroutable
+	// on ManifestDynCmd. TASK-272 froze this representation; TASK-258 is the first of
+	// TASK-256/TASK-258 to populate it, so schema_version moves 1.4 -> 1.5 here.
+	CanonicalName string `json:"canonical_name,omitempty" yaml:"canonical_name,omitempty"`
 }
 
 type ManifestDynCmd struct {
@@ -325,7 +333,7 @@ func fillCommandDescriptions(command *cobra.Command, entry ManifestCmd) Manifest
 func buildManifest(c *config.Config) *Manifest {
 	m := &Manifest{
 		DvaVersion:        config.Version,
-		SchemaVersion:     "1.4",
+		SchemaVersion:     "1.5",
 		GeneratedAt:       time.Now().Format(time.RFC3339),
 		ConfigFile:        c.FilePath(),
 		ProjectDir:        c.FileDir(),
@@ -395,10 +403,14 @@ func buildManifest(c *config.Config) *Manifest {
 			// nothing.
 			"build":     {Type: "compose_shortcut", Options: map[string]string{"mode": optModeBuild}},
 			"provision": {Type: "lifecycle"},
-			"validate":  {Type: "config"},
-			"manifest":  {Type: "meta"},
-			"ktl":       {Type: "passthrough"},
-			"version":   {Type: "info"},
+			// canonical_name: TASK-257 decided "dva config validate" is the documentation
+			// canonical route; this top-level entry is the visible, behavior-identical
+			// compatibility shortcut (validate_alias.go), so it names its canonical form.
+			// The config.validate subcommand entry below is the canonical side and omits it.
+			"validate": {Type: "config", CanonicalName: "config validate"},
+			"manifest": {Type: "meta"},
+			"ktl":      {Type: "passthrough"},
+			"version":  {Type: "info"},
 
 			"ssh":  {Type: "lifecycle"},
 			"logs": {Type: "compose_shortcut"},
@@ -431,9 +443,26 @@ func buildManifest(c *config.Config) *Manifest {
 			"status": {Type: "query"},
 			"show":   {Type: "query"},
 			"doctor": {Type: "query"},
-			"config": {Type: "config"},
-			"init":   {Type: "config"},
-			"help":   {Type: "meta"},
+			// config's six real cobra children (docs, env, init, migrate, show, validate) were
+			// absent from this entry's subcommands until TASK-272/TASK-258 — Type/Description
+			// are filled the same way top-level entries are (fillCommandOptions/
+			// fillCommandDescriptions recurse into Subcommands), so only Type is declared here.
+			// init and validate are also independently reachable at the top level
+			// (init.go/validate_alias.go); their canonical_name marker lives on those top-level
+			// entries, not here, since this is the canonical side of both pairs.
+			"config": {
+				Type: "config",
+				Subcommands: map[string]ManifestCmd{
+					"docs":     {Type: "mutation"},
+					"env":      {Type: "mutation"},
+					"init":     {Type: "config"},
+					"migrate":  {Type: "mutation"},
+					"show":     {Type: "query"},
+					"validate": {Type: "config"},
+				},
+			},
+			"init": {Type: "config"},
+			"help": {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
 			// call, so a reader grepping for rootCmd.AddCommand finds 22 and this table lists 24.
 			"completion": {Type: "meta"},
