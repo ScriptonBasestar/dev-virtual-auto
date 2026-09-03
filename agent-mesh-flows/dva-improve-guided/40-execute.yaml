@@ -71,7 +71,21 @@ steps:
     action: |
       cd '{{param.target}}'
       echo "=== dva doctor ==="
-      dva doctor 2>&1 || echo "doctor check skipped"
+      # doctorExitError in internal/cli/doctor.go makes dva doctor exit non-zero only when a
+      # user-defined checks entry fails: a built-in FAIL prints but stays exit 0, and a config
+      # declaring no checks has nothing user-defined left to fail. The exit code therefore
+      # already separates a real declared-check failure from doctor having nothing to assert,
+      # and the fallback that used to report such a failure as merely skipped erased exactly
+      # that one signal -- a missing Docker socket or toolchain read as fine. The exit code is
+      # propagated now. No backticks or quote characters here on purpose: am carries quote
+      # state across a comment marker and across lines, so either one can block this step at
+      # run time. TASK-274 also binds the retired message to a grep, so it is described rather
+      # than written out.
+      if ! command -v dva >/dev/null 2>&1; then
+        echo "doctor not applicable: the dva binary is not on PATH"
+        exit 0
+      fi
+      dva doctor 2>&1
 
   - id: resolve_plan
     type: context

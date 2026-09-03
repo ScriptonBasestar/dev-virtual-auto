@@ -20,6 +20,26 @@ All notable changes to DVA are documented here.
   ([USAGE.md](USAGE.md#암호화된-소스-브리지-dva-config-env))
 
 ### Fixed
+- **agent-mesh flow 프롬프트가 더 이상 유효한 config를 거절하거나 무동작 config를 만들도록
+  가르치지 않습니다** (TASK-274): `dva-improve`의 결정적 pre-screen이 `version:` 부재를
+  하드 에러로 처리했으나 `schema.json`에는 root `required`가 없어 `version:`은 optional
+  입니다 — 같은 파일의 guardrail이 이미 "없으면 생략"이라고 말하고 있었고, pre-screen은
+  실제 validator가 받아들이는 설정을 그보다 먼저 거절했습니다. 제거했습니다
+  (기존 값을 보존하라는 규칙은 그대로입니다).
+- **K8s/Helm stack 추론 규칙이 실제로 동작하는 shape를 가르칩니다** (TASK-274):
+  `dva-improve.yaml`과 `dva-improve-guided/00-analyze.yaml`이 runner 이름을 `stack:` 바로
+  아래 키로 두고 kubectl에 존재하지 않는 `dir:`을 지정하라고 안내했습니다. 이 shape는
+  **검증을 통과합니다** — stack entry가 임의 키를 허용하므로 그 이름의 엔트리가 만들어지고
+  runner는 이름에서 추론되며 `dir:`은 무시되어, `kubectl apply`가 매니페스트 없이 도는
+  무동작 설정이 됩니다. 두 프롬프트 모두 `stack.<entry>.runners.kubectl`(키: `manifests`,
+  `namespace`, `context`, `kubeconfig`)와 `stack.<entry>.runners.helm`(키: `chart`,
+  `release`, `namespace`, `context`, `values`, `set`) 중첩을 명시하도록 정정했습니다.
+- **guided flow가 `dva doctor` 실패를 "skipped"로 감추지 않습니다** (TASK-274):
+  `40-execute.yaml`이 `|| echo`로 exit code를 버려서, Docker 소켓이나 툴체인이 없는 환경이
+  정상으로 읽혔습니다. `dva doctor`는 advisory 기본값에서 **사용자 정의 `checks:` 실패에만**
+  non-zero를 내므로(빌트인 `[FAIL]`은 exit 0, `checks:` 미선언도 exit 0) 그 exit code가 이미
+  "진짜 실패"와 "판정할 것이 없음"을 구분하고 있었습니다. 이제 그대로 전달하며, exit code로
+  표현할 수 없는 경우(바이너리가 PATH에 없음)만 별도 분기로 not-applicable을 보고합니다.
 - **`dva up --tag app`이 제안하는 명령이 이제 실제로 동작합니다** (TASK-273): plan이 선언된
   프로젝트에서 `dva up --tag app`은 "flags suppress the default plan; name it explicitly:
   dva up <plan> --tag app"으로 답했고, 그 제안을 그대로 실행하면 `unsupported plan flag:

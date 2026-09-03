@@ -597,9 +597,21 @@ steps:
       [TREE] {{scan_project.dir_tree}}
 
       ## Kubernetes/Helm Stack Inference
-      - K8s manifests detected (k8s_manifests != None) → suggest `stack.kubectl` with `dir:` pointing to manifest directory.
-      - Helm charts detected (helm_charts != None) → suggest `stack.helm` with appropriate `chart:` and `release:` fields.
-      - Both present → suggest `stack.kubectl` for raw manifests AND `stack.helm` for charts.
+      - A runner always lives in the `runners:` map under a stack entry. Putting a runner name
+        directly under `stack:` as its own key is **not** rejected: stack entries accept
+        arbitrary keys, so it silently becomes an entry *named* after the runner, the runner is
+        inferred from that name, and the keys meant as runner config are ignored -- `kubectl
+        apply` then runs with no manifests at all. It validates, so nothing surfaces the
+        mistake. Nest under `runners:`.
+      - K8s manifests detected (k8s_manifests != None) → suggest a stack entry whose
+        `stack.<entry>.runners.kubectl` sets `manifests:` (an array of strings) to the manifest
+        paths. There is no `dir:` key — the kubectl runner accepts only `manifests`,
+        `namespace`, `context`, `kubeconfig`.
+      - Helm charts detected (helm_charts != None) → suggest `stack.<entry>.runners.helm` with
+        `chart:` and `release:`. The helm runner accepts only `chart`, `release`, `namespace`,
+        `context`, `values`, `set`.
+      - Both present → suggest one entry using `runners.kubectl` for the raw manifests AND a
+        separate entry using `runners.helm` for the charts.
       - 실행 대상은 로컬 클러스터(kind/minikube/k3d/docker-desktop)를 기본값으로 둔다.
         로컬에서 실행할 수 없는 리소스에 한해서만 원격 대상을 선언한다 (규칙 41).
       - K8s/Helm 과 compose 가 함께 있으면 둘 다 **로컬 실행 전략**으로 제안한다.

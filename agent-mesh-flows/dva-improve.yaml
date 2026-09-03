@@ -752,8 +752,16 @@ steps:
       ```
 
       ### 6. Kubernetes/Helm Stack 추론 규칙
-      - K8s manifests 감지 → `stack.kubectl`에 `dir:` 지정
-      - Helm Chart.yaml 감지 → `stack.helm`에 `chart:`, `release:` 지정
+      - runner는 언제나 stack entry 밑의 `runners:` 맵에 들어간다. runner 이름을 `stack:`
+        바로 아래 키로 놓아도 **schema는 거부하지 않는다** — stack entry는 임의 키를
+        허용하므로 그 이름을 가진 엔트리가 하나 생기고, runner는 엔트리 이름에서 추론되며,
+        runner 설정으로 의도한 키는 조용히 무시된다. 결과는 `kubectl apply`가 매니페스트
+        없이 도는 무동작 config다. 검증을 통과하므로 오류로 드러나지도 않는다.
+      - K8s manifests 감지 → stack entry를 만들고 `stack.<entry>.runners.kubectl`의
+        `manifests:`(문자열 배열)에 매니페스트 경로를 넣는다. `dir:` 키는 존재하지 않는다 —
+        kubectl runner가 받는 키는 `manifests`, `namespace`, `context`, `kubeconfig` 뿐이다.
+      - Helm Chart.yaml 감지 → `stack.<entry>.runners.helm`에 `chart:`, `release:` 지정.
+        helm runner가 받는 키는 `chart`, `release`, `namespace`, `context`, `values`, `set` 뿐이다.
       - 실행 대상은 로컬 클러스터(kind/minikube/k3d/docker-desktop)를 기본값으로 둔다.
         로컬에서 실행할 수 없는 리소스에 한해서만 원격 대상을 선언한다 (규칙 41).
       - K8s/Helm + compose 공존 → 둘 다 **로컬 실행 전략**으로 `plans:`에 표현한다.
@@ -2606,10 +2614,6 @@ steps:
         # Rule: stack section must not be empty if compose/kubectl/helm files detected
         stack_keys=$(yq e '.stack | keys | length' "$DVA_FILE" 2>/dev/null || echo 0)
         [ "$stack_keys" = "0" ] && ERRORS="$ERRORS\nERROR: .stack section is empty or missing — add at least one plugin entry"
-
-        # Rule: version field must exist
-        ver=$(yq e '.version' "$DVA_FILE" 2>/dev/null || echo "")
-        [ -z "$ver" ] || [ "$ver" = "null" ] && ERRORS="$ERRORS\nERROR: .version field is missing"
 
         # Rule: new declarative model should expose at least one named plan
         plan_keys=$(yq e '.plans | keys | length' "$DVA_FILE" 2>/dev/null || echo 0)
