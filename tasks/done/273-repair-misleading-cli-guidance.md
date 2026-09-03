@@ -219,3 +219,25 @@ invent a restriction that does not exist.
 built-ins. That is the same class of false claim as this card's item 2, but the Non-goals bar
 changing "which built-in commands are hookable", and the description is a statement about that
 set rather than about the relocation advice. Left for a separate card.
+
+## Reopened as TASK-283 (2026-09-03)
+
+An independent review by a reviewer that did not write this card found the suppressed-default-plan
+suggestion still dead-ends on four inputs, and regresses on a fifth. The implementer re-measured
+all five against a fresh `make build` of master at `916b07e` and reproduced every one.
+
+The regression is the reason this note exists rather than a silent follow-up card. `--dry-run` is
+a root persistent flag, consumed before the guard runs, so `dva up --tag app --dry-run` now
+suggests `dva up p1` — and following that suggestion **starts the entry**. Before `206918a` the
+same input suggested `dva up p1 --tag app`, which exits 1 and runs nothing. For this one input the
+change made the outcome worse, not better: a preview request became a real action.
+
+Also still open: `logs` asserts a whole-stack path it does not have (`--tag` is rejected there
+too, and the `logs` manifest entry has no Options, so the runtime message contradicts the manifest
+this card required it to agree with); `restart`'s positional entry name is left in a suggestion the
+plan route answers with `unexpected argument in plan mode`; and a flag-shaped selector value is
+either stranded as a positional or swallowed unreported.
+
+The work is [TASK-283](../todo/283-repair-plan-route-flag-guidance.md). What this card did fix and
+the review confirmed correct — the `selectors.go` split, the `--mode` manifest qualifier,
+`build`'s divergent route, and the `validate.go` clean-hook advice — stands.

@@ -1,0 +1,142 @@
+---
+id: TASK-284
+title: "Anchor the env-bridge safe write to the target's directory, not the config root"
+type: bug
+priority: P1
+effort: M
+exec-tier: strong
+created-at: 2026-09-03T19:45:00+09:00
+source: "Independent review of TASK-246 (`cccb310`) by a reviewer that did not write it; root cause re-read and the symlink bypass independently reproduced with a standalone os.Root program"
+scope: "internal/cli/config_env_safewrite.go newTemp/newSafeWriter/Commit/syncDir, the temp naming rule, internal/cli/config_env_test.go TestConfigEnvRejectsPathSwap and its fakeGit"
+status: todo
+depends-on: []
+---
+
+# Task 284: anchor the env-bridge safe write to the target's directory
+
+## Summary
+
+The env bridge creates its temporary file at the **config root** and then renames it to the
+target's declared path. When the target has a directory component — `env_file: sub/.env` — the
+directory part is re-resolved by name at rename time, and every guarantee the preflight
+established for that directory is discarded at exactly the moment it is needed.
+
+Three defects follow from that one fact, and the first lets decrypted plaintext land in a
+directory that passed neither the symlink gate nor the git guard.
+
+Two doc comments assert the property that is missing. `newTemp` says it "creates a uniquely
+named temporary **in the target's directory**" (`internal/cli/config_env_safewrite.go:175`) and
+`newSafeWriter` says it creates the temp "**in the same directory as the target**" (line 218).
+`tempName` (line 166) returns `.dva-env-<pid>-<token>.tmp` with no directory component at all,
+and `newSafeWriter` opens it directly on the root handle. Both comments are true only for a
+target that sits at the config root.
+
+[TASK-282](282-implement-gated-env-bridge-commands.md) §35 states the same convention as a
+requirement for the second writer — "same-directory 0600 O_EXCL temp → 검증 → rename → parent
+fsync". This card makes the first writer meet the convention the second one is being held to.
+
+## Problem
+
+1. **The symlink-component gate and the git guard are both defeated at commit time.** (HIGH)
+
+   `checkPath` walks every component through the handle and rejects a symlinked one with
+   `codePathComponentSymlnk` (`internal/cli/config_env_safewrite.go:89-91`). Its own comment
+   explains why the gate must be explicit: `os.Root` blocks escapes but **deliberately follows
+   symlinks that stay inside the root**, so containment alone is not the property the contract
+   wants.
+
+   `Commit` then calls `w.root.root.Rename(w.name, target)` (line 269) with `target` still
+   carrying its directory component. The handle is the root's, so `sub` is resolved by name at
+   that instant — after the sops child has run, which for a KMS-backed key is an unbounded
+   network wait.
+
+   Reproduced with a standalone program using only `os` on go1.26.5 — the same sequence the
+   implementation performs, with an in-root symlink swapped during the window:
+
+   ```
+   preflight Lstat(sub/.env): no such file or directory   (gate: missing leaf, allowed)
+   [temp created at the root, payload written]
+   [attacker: rm sub; ln -s decoy sub]
+   Rename(tmp, sub/.env) after swap: err=<nil>
+     absent real/.env
+     LANDED decoy/.env -> "SECRET=plaintext\n"
+   ```
+
+   The rename **succeeds**. Neither `real/` — the directory the preflight approved — nor the
+   contract's stated guarantee survives. The §5-4 git guard is bypassed identically: it asked
+   about a path in `real/`, and the bytes landed in `decoy/`.
+
+   `TestConfigEnvRejectsPathSwap` (`internal/cli/config_env_test.go:184-216`) exercises this
+   scenario and **passes because of the hole**: it accepts either outcome, logging rather than
+   failing when the write is not rejected, and then asserts only that the payload is intact in
+   whichever directory it found. It documents the behaviour instead of pinning the property.
+   `fakeGit` compounds this — its method discards both arguments, so no unit test can observe
+   *which* directory the guard was asked about.
+
+2. **A subdirectory target's parent is never fsynced.** (MEDIUM)
+
+   `syncDir` opens `"."` on the root handle (line 288-294). For `sub/.env` the durability step
+   flushes the config root, not `sub`. §8-1 requires the file and its parent directory to be
+   fsynced; at the root that holds, one level down it does not, and a crash can lose the rename
+   after the command reported success.
+
+3. **The plaintext temp sits at the config root under a name nothing ignores.** (MEDIUM)
+
+   §5-4 refuses to write a target that git tracks or does not ignore. The temp holds the same
+   decrypted bytes and is subject to no such check: `.dva-env-*.tmp` matches no pattern in the
+   repository's ignore files, and it is created at the config root where `git add -A` will find
+   it. `reclaimStaleTemps` collects it on the *next* run after an hour (§8-4 is explicit that
+   SIGKILL cleanup is not promised) — so between a `kill -9` and that next run, a commit picks
+   up secrets.
+
+4. **A dotenv line over 64 KiB is reported as malformed at line 0.** (LOW) The scanner's buffer
+   limit surfaces as a parse error with no line number, which reads as a corrupt file rather
+   than an oversized line.
+
+5. **A post-rename `syncDir` failure exits 1 after the target was already replaced.** (LOW)
+   `Commit`'s final `return w.root.syncDir()` (line 275) runs after the rename. Its error
+   reaches the user as a codeless envelope, contradicting the help text's promise that "any
+   failure leaves an existing target byte-for-byte unchanged" — here the target was changed and
+   the command still reported failure.
+
+## Direction
+
+§1, §2 and §3 have one repair between them: **open a second `os.Root` on the target's parent
+during preflight and hold it through the rename.** The temp is then created in that directory,
+the rename is a same-directory operation with no path component left to re-resolve, and
+`syncDir` flushes the directory the rename actually touched. §3 shrinks to the target's own
+directory, which is where the user's ignore rules for the env file already point.
+
+This is not a contract change. §5-3, §5-4 and §8-1 already state the properties; the
+implementation does not deliver them below the root. Do not reopen the frozen rulings for this.
+
+For §3, decide separately whether the temp should additionally be named so that a stray one is
+covered by the same ignore rule as the target — that is a new rule and should be stated, not
+assumed.
+
+Whatever the mechanism, `TestConfigEnvRejectsPathSwap` must be rewritten to fail when the write
+is not rejected, and `fakeGit` must record the path it was asked about, or the test suite will
+keep certifying this class of defect as passing.
+
+## Completion Criteria
+
+- [ ] The temp for a target with a directory component is created in that target's directory, not at the config root | verify: `go test ./internal/cli -count=1`
+- [ ] A rename whose directory component was swapped for an in-root symlink after preflight is refused, not committed into the swapped directory | verify: `go test ./internal/cli -run PathSwap -count=1`
+- [ ] `TestConfigEnvRejectsPathSwap` fails when the write is not rejected — it no longer accepts either outcome | verify: `go test ./internal/cli -run PathSwap -count=1`
+- [ ] `fakeGit` records the path it was asked about, and a test asserts the guard was asked about the directory the bytes actually land in | verify: `go test ./internal/cli -count=1`
+- [ ] `syncDir` flushes the directory the rename landed in for a subdirectory target | verify: `go test ./internal/cli -count=1`
+- [ ] A `kill -9` between temp creation and rename leaves no plaintext file that `git status` reports as untracked-and-not-ignored | verify: `human — create the temp, kill the process, run git status --porcelain in the fixture repo and confirm the temp is absent or ignored`
+- [ ] A dotenv line over the scanner limit is reported as an oversized line with its line number, not as a malformed file at line 0 | verify: `go test ./internal/config -count=1`
+- [ ] A post-rename failure is either impossible or reported in a way that does not claim the target is unchanged | verify: `go test ./internal/cli -count=1`
+- [ ] The `newTemp` and `newSafeWriter` doc comments describe where the temp is actually created | verify: `human — read both comments against tempName and the newSafeWriter call site`
+- [ ] The eight §7-4 secrecy constraints still hold after the change — plaintext never enters a DVA buffer, temp names carry nothing derived from content, sops stderr stays bounded and unechoed | verify: `human — re-read the §7-4 checklist against the new temp and rename path`
+- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+
+## Non-goals
+
+- No change to the frozen §5-3/§5-4/§8-1 rulings. This card makes the implementation meet them.
+- No change to the `env_bridge` gate, `seal`, or `show`, which are
+  [TASK-281](281-freeze-gated-env-bridge-commands.md) and
+  [TASK-282](282-implement-gated-env-bridge-commands.md).
+- No change to `reclaimStaleTemps`' one-hour rule (§8-5), which exists so a concurrent run's
+  temp is never a candidate.

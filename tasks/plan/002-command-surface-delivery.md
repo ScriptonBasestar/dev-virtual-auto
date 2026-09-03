@@ -4,9 +4,9 @@ title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
 progress: 46
-total-tasks: 13
+total-tasks: 15
 completed-tasks: 6
-children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282]
+children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285]
 target-date: "2026-12-31"
 created: 2026-09-01
 ---
@@ -28,8 +28,10 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | lifecycle 7동사, plan 위치 인자 | 유지 | 변경 없음 |
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../todo/244-validate-plan-declaration-drift.md) |
 | `config env` bridge | Option A 확정 | [TASK-245](../done/245-freeze-env-bridge-contract.md) → [TASK-246](../todo/246-implement-secure-config-env-bridge.md) |
+| env bridge safe write가 target 디렉토리에 고정되지 않음 | 리뷰에서 확인, 재현됨 | [TASK-284](../todo/284-anchor-env-safewrite-to-target-directory.md) |
 | required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../todo/248-enforce-required-env-command-policy.md) |
 | interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../done/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
+| migrate/validate 커버리지 차이 + Stage A exit-code 서술 | 리뷰에서 확인, 재현됨 | [TASK-285](../todo/285-close-migrate-validate-coverage-gap.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
 | top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |
@@ -41,7 +43,7 @@ TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 �
 있다 — doccheck가 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라
 카드 front-matter에서 읽는다.
 
-남은 5장과 각각의 착수 조건:
+남은 7장과 각각의 착수 조건:
 
 | Task | 상태 | 착수 조건 |
 | --- | --- | --- |
@@ -50,6 +52,8 @@ TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 �
 | TASK-251 | todo | TASK-252가 promotion evidence를 요구한다고 판정한 경우에만 |
 | TASK-252 | `decision-status: pending` | 착수 가능 — 선행 TASK-246·248이 모두 통합됐다 |
 | TASK-266 | todo, Stage A 완료 | Stage B는 릴리스 게이트 대기 |
+| TASK-284 | todo | 착수 가능 — 계약 재결정 없이 구현이 이미 선언된 §5-3/§5-4/§8-1을 충족하게 만드는 카드다 |
+| TASK-285 | todo | 착수 가능 — Stage B 릴리스 게이트와 무관하다 |
 
 다음 순서를 권장한다.
 
