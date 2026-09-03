@@ -256,6 +256,7 @@ dva ls                    # 테이블 형식
 dva ls -f json            # JSON 출력
 dva ls -f yaml            # YAML 출력
 dva ls -d                 # 상세 정보 (runner type, service, command)
+dva ls --project engine   # 서브프로젝트 engine의 interaction 목록 (-p engine)
 ```
 
 #### manifest
@@ -1199,9 +1200,22 @@ build  down  logs  restart  stop  up
 접두사가 죽어 있으므로 동일하게 표시됩니다.
 
 **예약어가 아닌 접두사는 도달합니다.** `mytool:fast`는 선언된 키 그대로 조회되어
-`dva mytool:fast`로 실행됩니다(선언이 추론을 이깁니다). 접두사와 같은 이름의 서브프로젝트가
-실제로 있는 경우는 영향이 없습니다 — 부모가 `subprojects: {engine: ...}`를 선언했다면
-`engine:test` 리터럴 키는 부모에 없고 자식 `dva.yml`에 있기 때문입니다.
+`dva mytool:fast`로 실행됩니다(선언이 추론을 이깁니다). 부모가 `subprojects: {engine: ...}`를
+선언한 상태에서 `engine:test`라는 리터럴 키를 **직접 선언할 수도 있습니다** — 아무것도 이를
+막지 않습니다. 이 경우 리터럴 키가 이겨서 `dva engine:test`는 부모의 명령을 실행하고, 같은
+이름의 자식 `test` 명령은 콜론 형식으로는 가려집니다(`dva run --project engine test`로만
+도달). 이 충돌은 `warnLiteralKeyShadowsSubproject` 경고가 로드 시점에 잡아내고, 가려진
+자식에 도달하는 `dva run --project` 형식을 함께 안내합니다.
+
+이 경우 `manifest`의 서브프로젝트 항목은 세 번째 필드를 씁니다 — `shadowed_by_builtin`도
+`unroutable`도 아닌 `shadowed_by_literal_key`입니다. 값은 콜론 형식을 가져간 부모 키
+(`engine:test`)이고, `usage_example`은 생략되지 않고 실제로 도달하는 형식
+(`dva run --project engine test`)으로 채워집니다. 세 필드를 구분하는 이유는 각각이 다른
+곳을 가리키기 때문입니다: `shadowed_by_builtin`은 `static_commands` 표에서 조회할 수 있는
+이름이지만 부모의 interaction 키는 그 표에 없고, `unroutable`은 도달 가능한 호출이 아예
+없다는 뜻인데 서브프로젝트 커맨드는 `dva run --project`로 항상 도달합니다. 같은 값을
+`dva ls --project <name> -f json`도 노출하고, 사람이 읽는 `dva ls --project <name>`은
+`(parent key '...' takes this name; run: ...)` 표시를 붙입니다.
 
 이 규칙은 **살아 있는 예약어 집합**을 기준으로 판정합니다. 그래서 `app`이 내장 커맨드에서
 빠진 지금 `app:build`는 unroutable이 아니라 평범한 interaction입니다 — 접두사가 더 이상

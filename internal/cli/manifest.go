@@ -141,6 +141,17 @@ type ManifestDynCmd struct {
 	// UnroutableReason carries the same sentence `dva validate` and the load-time warning
 	// print, so the machine-readable surface and the human one state one reason, not two.
 	UnroutableReason string `json:"unroutable_reason,omitempty" yaml:"unroutable_reason,omitempty"`
+	// ShadowedByLiteralKey names the parent interaction key (`<project>:<key>`) that the
+	// colon form runs instead of this subproject entry. It is a third state, distinct from
+	// both ShadowedByBuiltin and Unroutable: ShadowedByBuiltin names a static_commands entry
+	// a consumer can resolve against that table, but a parent literal key is not one of those
+	// entries, so reusing that field would send a consumer looking in the wrong place. There
+	// is no unroutable state for a subproject command — config.LiteralKeyWins is the only
+	// conflict it can be in, and `dva run --project <project> <key>` always reaches it — so
+	// this field only ever pairs with a working UsageExample, never with Unroutable. Set only
+	// when the condition holds; presence alone is the signal, the same contract as its
+	// neighbours above.
+	ShadowedByLiteralKey string `json:"shadowed_by_literal_key,omitempty" yaml:"shadowed_by_literal_key,omitempty"`
 }
 
 type ManifestRunner struct {
@@ -485,7 +496,7 @@ func buildManifest(c *config.Config) *Manifest {
 				m.Subprojects[name] = subManifest
 				continue
 			}
-			subManifest.Commands = buildManifestSubprojectCommands(name, subs[name])
+			subManifest.Commands = buildManifestSubprojectCommands(c, name, subs[name])
 			m.Subprojects[name] = subManifest
 		}
 	}
@@ -545,16 +556,28 @@ func unreachableHealthCheckStartReason(name string, hc config.HealthCheckConfig)
 		name, strings.Join(fields, " and "))
 }
 
-func buildManifestSubprojectCommands(name string, subCfg *config.Config) map[string]ManifestDynCmd {
+// buildManifestSubprojectCommands builds the manifest entries for one subproject's
+// interaction tree.
+//
+// parentCfg is the owner of the namespace a consumer actually types into: `dva
+// <name>:<key>` is resolved against the parent's own interaction: keys before it is ever
+// read as a subproject reference (config.LiteralKeyWins), so whether that colon form
+// reaches this entry can only be answered by asking parentCfg, not subCfg. usage_example
+// used to be `fmt.Sprintf("dva %s:%s", name, k)` unconditionally — the same defect the
+// comment on the root DynamicCommands loop above already fixed for local keys via
+// interactionUsage, left unfixed here because this loop predates subprojectUsage.
+func buildManifestSubprojectCommands(parentCfg *config.Config, name string, subCfg *config.Config) map[string]ManifestDynCmd {
 	subTree := runner.NewInteractionTree(subCfg.Interaction)
 	subCommands := subTree.List()
 	commands := make(map[string]ManifestDynCmd, len(subCommands))
 	for k, cmd := range subCommands {
+		usage, shadowedByLiteralKey := subprojectUsage(parentCfg, name, k)
 		dynCmd := ManifestDynCmd{
-			Description:  cmd.Description,
-			Command:      cmd.Command,
-			Runner:       runner.DetectRunnerType(cmd),
-			UsageExample: fmt.Sprintf("dva %s:%s", name, k),
+			Description:          cmd.Description,
+			Command:              cmd.Command,
+			Runner:               runner.DetectRunnerType(cmd),
+			UsageExample:         usage,
+			ShadowedByLiteralKey: shadowedByLiteralKey,
 		}
 		if cmd.Service != "" {
 			dynCmd.Service = cmd.Service

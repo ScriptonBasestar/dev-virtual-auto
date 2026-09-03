@@ -103,25 +103,40 @@ See USAGE.md's "run" section for worked examples.`,
 	},
 }
 
-// runSubprojectCommand loads and runs a command from a sub-project's dva.yml.
-func runSubprojectCommand(parentCfg *config.Config, project, cmdName string, cmdArgs []string) error {
+// loadSubprojectConfig resolves and loads one subproject's effective config: the not-found
+// check, the config.LoadSubprojects call, and the nil-result guard that both
+// runSubprojectCommand and `dva ls --project` need before they can do anything else with a
+// subproject name. Extracted so the two callers cannot drift on the not-found message or the
+// load-error wrapping — `dva ls --project <p>` on an unknown project must produce the exact
+// same "subproject `%s` not found. Available: ..." shape `dva run --project <p> <k>` already
+// does (TASK-267 item 2: run.go's recovery hint only works if the two agree).
+func loadSubprojectConfig(parentCfg *config.Config, project string) (*config.Config, config.SubprojectConfig, error) {
 	sub, ok := parentCfg.Subprojects[project]
 	if !ok {
 		available := make([]string, 0, len(parentCfg.Subprojects))
 		for k := range parentCfg.Subprojects {
 			available = append(available, k)
 		}
-		return fmt.Errorf("subproject `%s` not found. Available: %s", project, strings.Join(available, ", "))
+		return nil, config.SubprojectConfig{}, fmt.Errorf("subproject `%s` not found. Available: %s", project, strings.Join(available, ", "))
 	}
 
 	subs, err := config.LoadSubprojects(parentCfg.FileDir(), map[string]config.SubprojectConfig{project: sub})
 	if err != nil {
-		return fmt.Errorf("loading subproject `%s`: %w", project, err)
+		return nil, config.SubprojectConfig{}, fmt.Errorf("loading subproject `%s`: %w", project, err)
 	}
 
 	subCfg := subs[project]
 	if subCfg == nil {
-		return fmt.Errorf("subproject `%s` loaded no configuration", project)
+		return nil, config.SubprojectConfig{}, fmt.Errorf("subproject `%s` loaded no configuration", project)
+	}
+	return subCfg, sub, nil
+}
+
+// runSubprojectCommand loads and runs a command from a sub-project's dva.yml.
+func runSubprojectCommand(parentCfg *config.Config, project, cmdName string, cmdArgs []string) error {
+	subCfg, sub, err := loadSubprojectConfig(parentCfg, project)
+	if err != nil {
+		return err
 	}
 	// Was config.NewEnvironment(subCfg.Environment, parentEnv.WorkDir(), subCfg.FileDir()),
 	// which dropped the child's `vars:` (the base slot held `environment:` instead), never

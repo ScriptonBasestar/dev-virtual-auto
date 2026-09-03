@@ -138,9 +138,12 @@ func UnroutableNamespacePrefix(name string) string {
 // already treated the key as an ordinary command.
 //
 // An exact match beats an inference: a declared key is what the author wrote, a subproject
-// reference is what the shape suggests. A real subproject is unaffected, because a parent
-// declaring `subprojects: {engine: ...}` has no literal `engine:test` key of its own — that
-// command lives in the child's dva.yml.
+// reference is what the shape suggests. A parent CAN declare a literal `engine:test` key of
+// its own alongside a same-named `engine` subproject — nothing rejects that config — and when
+// it does, this function is exactly why the literal key wins and the subproject's `test` of
+// the same spelling becomes unreachable through the colon form. warnLiteralKeyShadowsSubproject
+// (validate_warnings.go) exists precisely for that shape: it fires on load and names the
+// `dva run --project` form that still reaches the shadowed child command.
 //
 // The reserved prefix is excepted so `compose:ps` keeps failing. Validate rejects such a
 // config outright (rc 1, reserved conflict), and routing it here would ship a file that one

@@ -200,14 +200,38 @@ func Execute() {
 
 	// Dynamic routing: if first arg is not a top-level command,
 	// check if it's an interaction command or namespace:command and prepend "run".
-	// Keep the lookup here, where its error is intentionally non-fatal; the pure rewrite below
-	// is also used by tests to compare shorthand routing with explicit `dva run`.
+	// Keep the lookup here, where a "no dva.yml at all" error is intentionally non-fatal
+	// (see reportDynamicRoutingConfigError below for the one case that is fatal); the pure
+	// rewrite below is also used by tests to compare shorthand routing with explicit `dva
+	// run`.
 	if len(args) > 0 {
 		firstArg := args[0]
 		if !isTopLevelCommand(firstArg) && !isFlag(firstArg) {
 			if c, err := loadConfig(); err == nil {
 				args = dynamicRunArgs(args, c)
 				os.Args = append([]string{os.Args[0]}, args...)
+			} else if shouldSurfaceDynamicRoutingConfigError(err) {
+				// A dva.yml exists but failed to load — e.g. a subprojects: entry whose
+				// import: is declared but whose path is missing. Before this, err was
+				// discarded unconditionally here and the (unmodified) args fell through to
+				// rootCmd.Execute(), where cobra found no command named firstArg and printed
+				// `unknown command "hello" for "dva"` — naming the wrong problem and hiding
+				// the real one. `dva run hello` already surfaced the true error through
+				// mustLoadConfig(); only this bare-form shortcut masked it.
+				//
+				// Measured: parent dva.yml with local interaction `hello` plus
+				// `subprojects: {broken: {path: ./nope, import: {plans: [{name: x}]}}}` —
+				// `dva hello` printed `ERROR: unknown command "hello" for "dva"`, while
+				// `dva run hello` printed `resolving subprojects: loading subproject
+				// "broken" (<abs>/nope/dva.yml): open ...: no such file or directory`.
+				//
+				// "could not find dva.yml" is excepted deliberately: that is the ordinary
+				// no-config-file case (`dva somethingunknown` run outside any project), it
+				// carries no subproject or path to name, and cobra's own "unknown command"
+				// plus suggestion list is already the right answer there — unchanged from
+				// before this fix. root.go:231 below matches the same string for the same
+				// reason (the init hint).
+				reportDynamicRoutingConfigError(err, args)
 			}
 		}
 	}
@@ -234,6 +258,40 @@ func Execute() {
 
 		os.Exit(1)
 	}
+}
+
+// shouldSurfaceDynamicRoutingConfigError reports whether a loadConfig() failure on the
+// dynamic-routing path names a real problem worth surfacing, as opposed to the ordinary "no
+// dva.yml anywhere in this tree" case, which carries no subproject or path to name and for
+// which cobra's own "unknown command" plus suggestion list is already the right answer —
+// unchanged from before this fix. Pulled out as its own predicate so the condition guarding
+// reportDynamicRoutingConfigError can be pinned by a test without going through Execute()'s
+// os.Exit.
+//
+// The string match mirrors root.go's other "could not find dva.yml" check a few lines below
+// (the `dva init` hint), for the same reason: findConfig (config/config.go) has no sentinel
+// error type for this case, only this message.
+func shouldSurfaceDynamicRoutingConfigError(err error) bool {
+	return err != nil && !strings.Contains(err.Error(), "could not find dva.yml")
+}
+
+// reportDynamicRoutingConfigError surfaces a loadConfig() failure that is not the ordinary
+// "no dva.yml in this tree" case, instead of letting Execute fall through to cobra — which
+// would report an unrecognized-command error naming firstArg rather than the config problem
+// that actually kept anything from routing. See the comment at its call site for the
+// measured before/after this fixes.
+//
+// It renders the same envelope rootCmd.Execute()'s own failure path renders below —
+// emitFailureJSONFor's --json envelope, then the "\nERROR: %s\n" stderr line — so a consumer
+// scripting against dva's failure shape sees one shape regardless of which of the two
+// chokepoints produced it. --debug/--json are re-derived from the raw args here because
+// PersistentPreRun, which normally sets them, never runs on this path: rootCmd.Execute() is
+// never reached, so cobra never gets a chance to parse anything.
+func reportDynamicRoutingConfigError(err error, args []string) {
+	applyRootPersistentFlagsFromArgs(args)
+	emitFailureJSONFor(err)
+	fmt.Fprintf(os.Stderr, "\nERROR: %s\n", err.Error())
+	os.Exit(1)
 }
 
 func isFlag(s string) bool {

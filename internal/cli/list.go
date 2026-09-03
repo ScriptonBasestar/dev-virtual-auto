@@ -14,6 +14,7 @@ import (
 var (
 	lsFormat   string
 	lsDetailed bool
+	lsProject  string
 )
 
 var lsCmd = &cobra.Command{
@@ -31,6 +32,11 @@ shaped for a program (or an LLM) to consume rather than for a human to scan a ta
 USAGE.md's "ls" and "manifest" sections.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
+
+		if lsProject != "" {
+			return runLsProject(c, lsProject)
+		}
+
 		tree := runner.NewInteractionTree(c.Interaction)
 		commands := tree.List()
 
@@ -54,6 +60,125 @@ USAGE.md's "ls" and "manifest" sections.`,
 func init() {
 	lsCmd.Flags().StringVarP(&lsFormat, "format", "f", "table", "Output format (table, json, yaml)")
 	lsCmd.Flags().BoolVarP(&lsDetailed, "detailed", "d", false, "Show detailed information")
+	// -p is free on lsCmd: runCmd's -p ("publish") is a different command's flag and flags
+	// are not inherited here (lsCmd registers on its own FlagSet, not PersistentFlags), and
+	// no root-level persistent flag claims -p either (--debug/--dry-run/--json are long-only).
+	// This is the flag run.go:118's recovery hint ("Run 'dva ls --project %s'") names — before
+	// this it was registered on runCmd alone and the hint exited non-zero as an unknown flag.
+	lsCmd.Flags().StringVarP(&lsProject, "project", "p", "", "List a specific sub-project's interactions instead of the parent's")
+}
+
+// runLsProject is `dva ls --project <name>`'s body: load that subproject the same way
+// runSubprojectCommand does (loadSubprojectConfig, then FilterInteractions with the
+// subproject's own ExcludeTags) and print its interaction tree in the same three formats
+// the root listing supports. An unknown project produces the exact error shape
+// loadSubprojectConfig already gives `dva run --project` (TASK-267 item 2).
+func runLsProject(parentCfg *config.Config, project string) error {
+	subCfg, sub, err := loadSubprojectConfig(parentCfg, project)
+	if err != nil {
+		return err
+	}
+
+	tree := runner.NewInteractionTree(subCfg.FilterInteractions(sub.ExcludeTags))
+	commands := tree.List()
+	keys := sortedKeys(commands)
+
+	if jsonOutput {
+		lsFormat = "json"
+	}
+
+	switch lsFormat {
+	case "json":
+		return printSubprojectJSON(parentCfg, project, commands, keys)
+	case "yaml":
+		return printSubprojectYAML(parentCfg, project, commands, keys)
+	default:
+		return printSubprojectTable(parentCfg, project, commands, keys)
+	}
+}
+
+// printSubprojectTable is printTable's twin for `dva ls --project`: same table shape, but the
+// usage each row advertises comes from subprojectUsage instead of interactionUsage, because a
+// subproject key's shadow state is a property of the PARENT's interaction: map, not the
+// child's own. There is no unreachable mark here, unlike printTable's: D1 — config.
+// LiteralKeyWins is the only conflict a subproject command can be in, and `dva run --project`
+// always reaches it, so the only mark this table ever prints is the shadowed one.
+func printSubprojectTable(parent *config.Config, project string, commands map[string]*runner.ResolvedCommand, keys []string) error {
+	maxName := 0
+	for _, k := range keys {
+		if len(k) > maxName {
+			maxName = len(k)
+		}
+	}
+
+	for _, k := range keys {
+		cmd := commands[k]
+		usage, shadowedByLiteralKey := subprojectUsage(parent, project, k)
+		mark := ""
+		if shadowedByLiteralKey != "" {
+			mark = fmt.Sprintf("  (parent key '%s' takes this name; run: %s)", shadowedByLiteralKey, usage)
+		}
+		if lsDetailed {
+			runnerType := runner.DetectRunnerType(cmd)
+			detail := ""
+			if cmd.Service != "" {
+				detail = fmt.Sprintf("service:%s", cmd.Service)
+			} else if cmd.Pod != "" {
+				detail = fmt.Sprintf("pod:%s", cmd.Pod)
+			}
+			fmt.Printf("%-*s  [%-14s]  %-20s  %s%s\n", maxName, k, runnerType, detail, cmd.Command, mark)
+			if cmd.Description != "" {
+				fmt.Printf("%s  # %s\n", strings.Repeat(" ", maxName), cmd.Description)
+			}
+		} else {
+			if cmd.Description != "" {
+				fmt.Printf("%-*s  # %s%s\n", maxName, k, cmd.Description, mark)
+			} else {
+				fmt.Printf("%-*s%s\n", maxName, k, mark)
+			}
+		}
+	}
+	return nil
+}
+
+// buildSubprojectCommandEntries is buildCommandEntries' twin for `dva ls --project --json`,
+// keyed through subprojectUsage for the same reason printSubprojectTable is: the shadow
+// state belongs to the parent's namespace, not the child interaction tree being listed.
+func buildSubprojectCommandEntries(parent *config.Config, project string, commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
+	entries := make(map[string]any, len(keys))
+	for _, k := range keys {
+		cmd := commands[k]
+		entry := map[string]any{
+			"command": cmd.Command,
+			"runner":  runner.DetectRunnerType(cmd),
+			"shell":   cmd.Shell,
+		}
+		if cmd.Description != "" {
+			entry["description"] = cmd.Description
+		}
+		if cmd.Service != "" {
+			entry["service"] = cmd.Service
+			entry["compose_method"] = cmd.Compose.Method
+		}
+		if cmd.Pod != "" {
+			entry["pod"] = cmd.Pod
+		}
+		// Only on the shadowed entries, so the field's presence is the signal — the same
+		// contract buildCommandEntries uses for shadowed_by_builtin/unroutable above.
+		if _, shadowedByLiteralKey := subprojectUsage(parent, project, k); shadowedByLiteralKey != "" {
+			entry["shadowed_by_literal_key"] = shadowedByLiteralKey
+		}
+		entries[k] = entry
+	}
+	return entries
+}
+
+func printSubprojectJSON(parent *config.Config, project string, commands map[string]*runner.ResolvedCommand, keys []string) error {
+	return output.PrintJSON(buildSubprojectCommandEntries(parent, project, commands, keys))
+}
+
+func printSubprojectYAML(parent *config.Config, project string, commands map[string]*runner.ResolvedCommand, keys []string) error {
+	return output.PrintYAML(buildSubprojectCommandEntries(parent, project, commands, keys))
 }
 
 func printTable(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) error {
@@ -205,6 +330,30 @@ func interactionUsage(c *config.Config, cmd *runner.ResolvedCommand) (usage, sha
 		return fmt.Sprintf("dva run %s", form), root, ""
 	}
 	return fmt.Sprintf("dva %s", form), "", ""
+}
+
+// subprojectUsage returns the invocation that reaches a subproject interaction key, and the
+// parent literal key that shadows it ("" when unshadowed).
+//
+// One function because `dva manifest` and `dva ls --project` describe the same key to the
+// same reader and must not disagree — the same reason interactionUsage above is one function
+// (see its doc comment and TestLsAndManifestStillAgree).
+//
+// There is no unroutable state to report here, unlike interactionUsage: measured, `dva
+// run:go` reaches a subproject named after a reserved command, and `dva run --project
+// <project> <key>` always reaches a declared subproject entry regardless of what shadows the
+// colon form. config.LiteralKeyWins is the only conflict a subproject command can be in — the
+// parent declares the same `<project>:<key>` string as one of its own interaction: keys, and
+// that literal key wins the colon form. Reuse it rather than reimplementing: it is the same
+// predicate warnLiteralKeyShadowsSubproject (internal/config/validate_warnings.go) is built
+// around, and it already excepts a reserved prefix, which is why a subproject named after a
+// reserved command still routes.
+func subprojectUsage(parent *config.Config, project, key string) (usage, shadowedByLiteralKey string) {
+	combined := project + ":" + key
+	if config.LiteralKeyWins(parent, combined) {
+		return fmt.Sprintf("dva run --project %s %s", project, key), combined
+	}
+	return fmt.Sprintf("dva %s", combined), ""
 }
 
 func buildCommandEntries(c *config.Config, commands map[string]*runner.ResolvedCommand, keys []string) map[string]any {
