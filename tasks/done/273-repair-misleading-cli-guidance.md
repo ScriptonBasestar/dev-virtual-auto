@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-03T00:20:00+09:00
 source: "Session audit of internal/cli and internal/config error/advice strings"
 scope: "plan_lifecycle.go suppressed-default-plan suggestion, the manifest and help text it echoes, validate.go clean-hook advice"
-status: todo
+status: done
 ---
 
 # Task 273: repair misleading CLI guidance
@@ -96,7 +96,7 @@ failure instead of a working invocation.
    It is not an instance of the blind spot it describes (a documented flag that *stopped* being
    accepted); these four never stopped.
 
-   Two directions are open and this card does not prejudge them:
+   Two directions were open:
 
    - **(a) Implement the four options on the plan path.** Stack entries already carry `tags:`
      and the filtering logic already exists; this connects it to plan routing.
@@ -106,6 +106,11 @@ failure instead of a working invocation.
 
    Whichever is chosen, the manifest, the static test, the help prose, and the guard message
    must end up saying the same thing.
+
+   **Direction taken: (b).** (a) remains open and unprejudged — nothing here forecloses
+   teaching plan routing to filter by tag; it would replace the qualifier with a wider
+   statement rather than contradict one. (b) was chosen because the harm the card is about is
+   the *advice*, and (b) removes it without changing which invocations run.
 
 2. The hook-relocation advice in `internal/config/validate.go` tells the author to move
    dead `clean` hooks "to interaction.clean.exec/steps to keep 'dva clean' as a command of
@@ -119,14 +124,14 @@ failure instead of a working invocation.
 
 ## Completion Criteria
 
-- [ ] `rejectSuppressedDefaultPlan` never prints a suggestion that the plan path then rejects — either the echoed option becomes accepted by plan routing, or the suggestion is rewritten to a form the plan path accepts | verify: `go test ./internal/cli -count=1`
-- [ ] A regression test exercises all four options (`tag`, `exclude-tag`, `mode`, `env`), not `--mode` alone, running each printed suggestion and asserting it does not fail with `unsupported plan flag` | verify: `go test ./internal/cli -count=1`
-- [ ] The stack-path behaviour of all four options is pinned by a test — `--tag`/`--exclude-tag` narrow the execution set, `--mode`/`--env` resolve against the config sections — so no later cleanup can delete them as unused | verify: `go test ./internal/cli -count=1`
-- [ ] `manifest.go` makes the applicable path explicit for each of the four, following `optVar`'s qualifier convention but using wording that says the option is *rejected* off its path rather than ignored | verify: `human — read the four option strings: a reader who has declared plans must be able to tell from the manifest alone that the option will be rejected, not silently dropped`
-- [ ] The manifest, `manifest_static_commands_test.go`, the `Long` help prose, and the guard message agree on where each of the four options applies | verify: `go test ./internal/cli -count=1`
-- [ ] The `clean` hook-relocation advice in `validate.go` no longer names the non-existent `exec` property | verify: `! /usr/bin/grep -q 'interaction.clean.exec' internal/config/validate.go`
-- [ ] The replacement advice names only schema-valid `interaction_command` properties and still round-trips through the validator | verify: `go test ./internal/config -count=1`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+- [x] `rejectSuppressedDefaultPlan` never prints a suggestion that the plan path then rejects — either the echoed option becomes accepted by plan routing, or the suggestion is rewritten to a form the plan path accepts | verify: `go test ./internal/cli -count=1`
+- [x] A regression test exercises all four options (`tag`, `exclude-tag`, `mode`, `env`), not `--mode` alone, running each printed suggestion and asserting it does not fail with `unsupported plan flag` | verify: `go test ./internal/cli -count=1`
+- [x] The stack-path behaviour of all four options is pinned by a test — `--tag`/`--exclude-tag` narrow the execution set, `--mode`/`--env` resolve against the config sections — so no later cleanup can delete them as unused | verify: `go test ./internal/cli -count=1`
+- [x] `manifest.go` makes the applicable path explicit for each of the four, following `optVar`'s qualifier convention but using wording that says the option is *rejected* off its path rather than ignored | verify: `human — read the four option strings: a reader who has declared plans must be able to tell from the manifest alone that the option will be rejected, not silently dropped`
+- [x] The manifest, `manifest_static_commands_test.go`, the `Long` help prose, and the guard message agree on where each of the four options applies | verify: `go test ./internal/cli -count=1`
+- [x] The `clean` hook-relocation advice in `validate.go` no longer names the non-existent `exec` property | verify: `! /usr/bin/grep -q 'interaction.clean.exec' internal/config/validate.go`
+- [x] The replacement advice names only schema-valid `interaction_command` properties and still round-trips through the validator | verify: `go test ./internal/config -count=1`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 
@@ -143,5 +148,74 @@ failure instead of a working invocation.
 - `optForce`'s accuracy is out of scope. Its text (`Compose only: pass --force-recreate; other
   plugins ignore it`) omits that the `restart` plan path discards `flags.force` and hardcodes
   `Force: true`; that is a behaviour defect, not a guidance one, and it is reported separately
-  under TASK-269's evidence. An implementer touching the option strings here should leave it
+  under TASK-279. An implementer touching the option strings here should leave it
   alone rather than half-fix it.
+
+## Evidence
+
+Measured on the branch binary against a two-entry fixture (`web` tagged `app`, `db` tagged
+`infra`) with and without a `plans:` section. Three facts the card did not have:
+
+1. **The guard fires for every leading flag, not only the four.** `up`/`down`/`stop`/`restart`
+   answer `flags suppress the default plan` for `--force`, `--no-wait`, `--var K=V`, `--purge`,
+   `-v` and an unknown flag too. For all of those the original suggestion is *correct* — the
+   named-plan form runs. So the message could not be rewritten wholesale without breaking the
+   cases it already got right; the repair discriminates, stripping only
+   `stackPathOnlySelectorFlags` and leaving the original message otherwise untouched. That is
+   what `TestSuppressedDefaultPlanKeepsWorkingSuggestions` pins.
+
+2. **`build` is not one of the four commands.** It calls `parseDvaFlags` *before*
+   `detectPlanRoute`, so the selectors are consumed off the raw args and never reach
+   `parsePlanFlags`: `dva build <plan> --mode native` runs where `dva up <plan> --mode native`
+   is rejected, and the guard never fires on `build` at all. `optMode` was shared by all five
+   commands, so appending the qualifier to it would have published a false claim on `build`.
+   `optModeBuild` holds the unqualified text and `build` alone uses it;
+   `TestManifestQualifiesStackPathOnlySelectors` asserts the exception rather than leaving it
+   to a reader of the call sites. (Separately observed and *not* fixed here: `build` accepts
+   `--tag`/`--exclude-tag`/`--env` and ignores them — `--exclude-tag app` still built `web`,
+   and `--env prod` did not fail against a config with no `environments:`. That is a behaviour
+   defect, not a guidance one, and it belongs with TASK-279's family.)
+
+3. **`status` never reaches the guard.** It uses cobra flag parsing, so `dva status --tag app`
+   answers `unknown flag: --tag` first. Nothing to repair there.
+
+`--dry-run`, `--debug` and `--json` were split out of `stackSelectorFlags` into a separate
+`stackPathOnlySelectorFlags` for exactly this reason: they are root persistent flags that work
+on both paths, and a guard that told the user to drop `--dry-run` when naming a plan would
+invent a restriction that does not exist.
+
+### Tests
+
+- `internal/cli/plan_path_flag_guidance_test.go`
+  - `TestSuppressedDefaultPlanSuggestionRuns` — 8 spellings of the four selectors
+    (`--tag`, `--tag=`, `-T`, `--exclude-tag`, `--mode`, `-M`, `--env`, `-E`) x 4 commands,
+    each parsing the suggestion back out of the printed message and re-running it. Criteria 1
+    and 2. It re-runs the text rather than asserting on wording, because an assertion on
+    wording would have passed for the message this card was filed against.
+  - `TestSuppressedDefaultPlanKeepsWorkingSuggestions` — the other half: `--force`,
+    `--no-wait`, `--var K=V`, `--purge`, `-v` keep the original suggestion and it runs.
+  - `TestSuppressedDefaultPlanStripsOnlyTheSelectors` — a mixed invocation keeps `--no-wait`
+    and `--var K=V`, drops `--tag`/`--mode`, and names both removed flags in the message.
+  - `TestStackPathSelectorsNarrowAndResolve` — criterion 3, with an unfiltered baseline so the
+    two filter assertions cannot pass on a fixture that only ever runs one entry. It reads the
+    `[lifecycle] <entry>` execution lines, not bare names: every run also prints a `Lifecycle:`
+    summary of every *declared* entry, and a substring test against that reports the excluded
+    entry as run.
+  - `TestManifestQualifiesStackPathOnlySelectors` — 16 option strings carry the qualifier, none
+    borrows `optVar`'s "ignored", `build --mode` does not carry it.
+  - `TestLongHelpAgreesWithTheManifest` — the four are listed under the qualified heading in
+    all four `Long` strings.
+- `internal/config/clean_hook_advice_test.go`
+  - `TestCleanHookAdviceNamesSchemaValidProperties` — criterion 7. It parses the relocation
+    targets out of the real error message, checks each against the property list read from
+    `schema.json`, and round-trips a config written in that shape through `validateYAMLSchema`
+    and `Validate()`. Reverting the message to the old spelling fails it with
+    `interaction_command has no such property`, so it is a regression test and not a
+    restatement.
+
+### Out of scope, observed
+
+`schema.json`'s `interaction_command.before` description still lists `clean` among the hookable
+built-ins. That is the same class of false claim as this card's item 2, but the Non-goals bar
+changing "which built-in commands are hookable", and the description is a statement about that
+set rather than about the relocation advice. Left for a separate card.

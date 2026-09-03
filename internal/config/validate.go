@@ -250,12 +250,20 @@ func (c *Config) validateHookPlacement() error {
 		// these hooks are exactly as dead as any other non-hookable name's — the config
 		// has to change either way. What differs is that this one worked yesterday, so the
 		// message names the removal and the two shapes that carry the work forward.
+		//
+		// Those shapes are named with schema-valid interaction_command properties. Until
+		// TASK-273 the single-command one was written as `exec`, which interaction_command
+		// has no such property for, so an author who followed the advice traded dead hooks
+		// for a config the schema rejects. `command` is the spelling that field was
+		// reaching for (schema.json: "Command to execute — a string, or a list run
+		// sequentially"), and `steps` was already correct. The card binds this to
+		// a grep, so the retired spelling is described here rather than quoted.
 		if name == "clean" {
 			problems = append(problems, fmt.Sprintf(
 				"%s: the 'clean' built-in was removed — teardown is 'dva down <plan> --purge', "+
 					"and a flag has no interaction key to hook. These hooks now run on nothing. "+
 					"Move them to interaction.down.before/after to keep extending teardown, or "+
-					"to interaction.clean.exec/steps to keep 'dva clean' as a command of its own", path))
+					"to interaction.clean.command/steps to keep 'dva clean' as a command of its own", path))
 			return
 		}
 		problems = append(problems, fmt.Sprintf(

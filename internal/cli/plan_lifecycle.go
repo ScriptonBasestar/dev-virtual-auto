@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -183,10 +184,69 @@ func rejectSuppressedDefaultPlan(c *config.Config, command string, args []string
 	if !isFlagToken(head[0]) {
 		return nil
 	}
+	// The suggestion has to be a command that works, not merely one that names the plan.
+	// Echoing the args untouched proposed `dva up p1 --tag app` for `dva up --tag app`, and
+	// the plan path answers that with `unsupported plan flag: --tag` — so following the
+	// advice was what broke the invocation. The four selectors are path-conditional: they
+	// filter and resolve on the whole-stack path, which is the path `dva up --tag app`
+	// would have taken had no plan been declared, and declaring a plan takes them away.
+	// TASK-273.
+	//
+	// Only those selectors are stripped. `--force`, `--no-wait`, `--var K=V`, `--purge` and
+	// `-v` reach the plan path intact and the original suggestion was already correct for
+	// them, so it is left alone; an unknown flag keeps it too, because there the second
+	// error names the flag and is the answer the user needs.
+	remaining, removed := stripStackPathOnlyFlags(args)
+	if len(removed) == 0 {
+		return fmt.Errorf(
+			"flags suppress the default plan %q; name it explicitly: dva %s %s %s",
+			def, command, def, strings.Join(args, " "),
+		)
+	}
+	verb, pronoun := "works", "it"
+	if len(removed) > 1 {
+		verb, pronoun = "work", "them"
+	}
+	suggestion := strings.TrimRight("dva "+command+" "+def+" "+strings.Join(remaining, " "), " ")
 	return fmt.Errorf(
-		"flags suppress the default plan %q; name it explicitly: dva %s %s %s",
-		def, command, def, strings.Join(args, " "),
+		"flags suppress the default plan %q; %s %s only on the whole-stack path and the plan path rejects %s, so name the plan without %s: %s",
+		def, strings.Join(removed, ", "), verb, pronoun, pronoun, suggestion,
 	)
+}
+
+// stripStackPathOnlyFlags removes the selectors parsePlanFlags rejects, together with the
+// values they take, and reports which flag names it removed in the order they were written.
+//
+// The value rule follows parseDvaFlags' takeValue with one deliberate divergence. takeValue
+// consumes the next token as the flag's value unless that token names another selector, in
+// which case it reports `--tag requires a value, got the flag -T` and consumes it anyway.
+// This walk additionally leaves any other flag-shaped token in place, so `dva up --tag
+// --no-wait` suggests `dva up p1 --no-wait` rather than swallowing a flag the user typed and
+// the plan path accepts. Nothing downstream depends on the two agreeing: this guard runs
+// before parseDvaFlags on every command that calls it except build, and it returns an error
+// in every case where it strips anything, so the malformed pair is reported either way.
+//
+// Tokens at and after a `--` terminator belong to whatever the invocation forwards to, so
+// dvaFlagEnd bounds the walk. rejectSuppressedDefaultPlan only reaches here when no
+// terminator occupies the plan-name slot, but one can still appear later in args.
+func stripStackPathOnlyFlags(args []string) (remaining []string, removed []string) {
+	end := dvaFlagEnd(args)
+	remaining = make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		name, _, hasValue := splitFlagToken(a)
+		if i >= end || !slices.Contains(stackPathOnlySelectorFlags, name) {
+			remaining = append(remaining, a)
+			continue
+		}
+		if !slices.Contains(removed, name) {
+			removed = append(removed, name)
+		}
+		if !hasValue && i+1 < end && (!isFlagToken(args[i+1]) || isRecognizedDVAFlagToken(args[i+1])) {
+			i++
+		}
+	}
+	return remaining, removed
 }
 
 // rejectUnknownPlanArg reports a plan name that reached the non-plan fallthrough

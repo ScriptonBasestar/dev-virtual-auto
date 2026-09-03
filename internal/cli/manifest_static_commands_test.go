@@ -210,6 +210,13 @@ func TestHandParsedOptionsAreDocumented(t *testing.T) {
 	// flag, and `dva up --dev` only suggests --env. The authoritative list the binary
 	// prints is --force, --no-wait, --var, --mode, --env, --tag, --exclude-tag plus
 	// the global --dry-run/--debug/--json; neither name appears in it.
+	//
+	// The list is right and used to be silent about the path, which is a different blind spot
+	// from the one above and not an instance of it: these seven never stopped being accepted.
+	// --mode/--env/--tag/--exclude-tag are accepted on the whole-stack path and answered with
+	// `unsupported plan flag` on the plan path, so the keys below are the same either way
+	// while the descriptions are not. TestManifestQualifiesStackPathOnlySelectors owns that
+	// half; this test stays a key-level contract. TASK-273.
 	want := map[string][]string{
 		"up":      {"force", "no-wait", "mode", "env", "tag", "exclude-tag", "var"},
 		"down":    {"volumes", "mode", "env", "tag", "exclude-tag", "var"},

@@ -21,9 +21,23 @@ import (
 // actually honoured, since those took only parseDvaFlags' mode and discarded env and the tag
 // filters. It went with the commands; the discarding is what TASK-113 recorded, and there is
 // nothing left doing it.
-var stackSelectorFlags = []string{
+var stackSelectorFlags = append(
+	append([]string{}, stackPathOnlySelectorFlags...),
+	"--dry-run", "--debug", "--json",
+)
+
+// stackPathOnlySelectorFlags are the entry-selecting flags whose acceptance depends on which
+// path the invocation takes: parseDvaFlags reads them on the whole-stack path, and
+// parsePlanFlags answers `unsupported plan flag` for every one of them on the plan path.
+//
+// They are split out of stackSelectorFlags rather than listed twice because the remaining
+// three members of that list — --dry-run, --debug, --json — are root persistent flags that
+// consumeRootPersistentFlags takes before either parser runs, so they work on both paths.
+// A guard that told the user to drop --dry-run when naming a plan would be inventing a
+// restriction that does not exist. TASK-273.
+var stackPathOnlySelectorFlags = []string{
 	"--mode", "-M", "--env", "-E", "--tag", "--tags", "-T",
-	"--exclude-tag", "--exclude-tags", "--dry-run", "--debug", "--json",
+	"--exclude-tag", "--exclude-tags",
 }
 
 // withSelectors returns a command's own flags followed by the shared ones it honours.

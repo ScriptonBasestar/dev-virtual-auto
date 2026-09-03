@@ -170,10 +170,32 @@ type ManifestRunner struct {
 // Each string names the invocation form, because a consumer that only learns a flag exists still
 // cannot tell whether it takes a value.
 const (
-	optMode       = "Use a named mode from the dva.yml modes section; takes a value (--mode MODE, -M MODE)"
-	optEnv        = "Use a named environment from the dva.yml environments section; takes a value (--env ENV, -E ENV)"
-	optTag        = "Include only lifecycle entries matching any of the given tags; takes a value (--tag TAG[,TAG], -T TAG[,TAG])"
-	optExcludeTag = "Exclude lifecycle entries matching any of the given tags; takes a value (--exclude-tag TAG[,TAG])"
+	// optStackPathOnly qualifies the four selectors in stackPathOnlySelectorFlags on the
+	// lifecycle commands. Without it the manifest was not wrong — the options exist and work
+	// — but a reader could not tell that declaring a plan takes them away, which is the one
+	// fact needed to predict whether an invocation runs. TASK-273.
+	//
+	// It says "rejected" where optVar below says "ignored", and the difference is not a
+	// stylistic one: the two are mirror images. --var is plan-path-only and is silently
+	// dropped off its path, while these four are whole-stack-path-only and answer
+	// `unsupported plan flag` off theirs. Copying optVar's word across would replace one
+	// missing fact with a false one. `dva up --help` already carries both forms and
+	// distinguishes them the same way.
+	optStackPathOnly = ". Whole-stack path only — rejected, not silently ignored, once a plan is named"
+
+	// optModeBuild is optMode without the qualifier, and build is the only command that uses
+	// it. build calls parseDvaFlags before detectPlanRoute, so --mode is consumed off the raw
+	// args and never reaches parsePlanFlags; `dva build <plan> --mode native` runs where
+	// `dva up <plan> --mode native` is rejected. Measured on both forms rather than inferred
+	// from the call order, which had already proved an unreliable guide for this command.
+	// Sharing one constant across five commands is only safe while the five behave alike;
+	// appending the qualifier to optMode itself would have published a false claim on build.
+	optModeBuild = "Use a named mode from the dva.yml modes section; takes a value (--mode MODE, -M MODE)"
+
+	optMode       = optModeBuild + optStackPathOnly
+	optEnv        = "Use a named environment from the dva.yml environments section; takes a value (--env ENV, -E ENV)" + optStackPathOnly
+	optTag        = "Include only lifecycle entries matching any of the given tags; takes a value (--tag TAG[,TAG], -T TAG[,TAG])" + optStackPathOnly
+	optExcludeTag = "Exclude lifecycle entries matching any of the given tags; takes a value (--exclude-tag TAG[,TAG])" + optStackPathOnly
 	optVar        = "Override a plan variable; takes a KEY=VAL value (--var KEY=VAL). Plan path only — ignored when no plan is being run"
 	optNoWait     = "Return without waiting for readiness"
 	optForce      = "Compose only: pass --force-recreate; other plugins ignore it"
@@ -371,7 +393,7 @@ func buildManifest(c *config.Config) *Manifest {
 			// build reads only the mode out of parseDvaFlags (compose.go:453); the tag and env
 			// results are discarded, so listing them here would advertise a filter that does
 			// nothing.
-			"build":     {Type: "compose_shortcut", Options: map[string]string{"mode": optMode}},
+			"build":     {Type: "compose_shortcut", Options: map[string]string{"mode": optModeBuild}},
 			"provision": {Type: "lifecycle"},
 			"validate":  {Type: "config"},
 			"manifest":  {Type: "meta"},

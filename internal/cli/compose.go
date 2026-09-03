@@ -100,6 +100,8 @@ Plan usage:
 Stack flags:
   --force                   Compose only: pass --force-recreate (other plugins ignore)
   --no-wait                 Start services and return immediately without waiting
+
+Whole-stack-path flags (rejected, not ignored, once a plan is named):
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -374,7 +376,7 @@ Plan usage:
                           Asks for confirmation first; --force answers it.
   --dry-run               Print the variable resolution and the actions, without executing
 
-Stack flags:
+Whole-stack-path flags (rejected, not ignored, once a plan is named):
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -456,7 +458,7 @@ Plan usage:
   --var KEY=VAL           Override a plan variable
   --dry-run               Print the variable resolution and the actions, without executing
 
-Stack flags:
+Whole-stack-path flags (rejected, not ignored, once a plan is named):
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
@@ -550,7 +552,7 @@ resolvable default plan — an explicit default_plan, or a lone plan, which coun
 as one — was the last exception, and TASK-210 removed it: the terminator is a
 separator, so what follows it is classified, never the separator itself.
 
-Stack flags:
+Whole-stack-path flags (rejected, not ignored, once a plan is named):
   --mode, -M MODE           Use a named mode from dva.yml modes section
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags

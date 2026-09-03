@@ -20,6 +20,22 @@ All notable changes to DVA are documented here.
   ([USAGE.md](USAGE.md#암호화된-소스-브리지-dva-config-env))
 
 ### Fixed
+- **`dva up --tag app`이 제안하는 명령이 이제 실제로 동작합니다** (TASK-273): plan이 선언된
+  프로젝트에서 `dva up --tag app`은 "flags suppress the default plan; name it explicitly:
+  dva up <plan> --tag app"으로 답했고, 그 제안을 그대로 실행하면 `unsupported plan flag:
+  --tag`가 났습니다 — **안내를 따르는 것이 명령을 깨뜨리는 동작**이었습니다.
+  `--mode`/`-M`, `--env`/`-E`, `--tag`/`--tags`/`-T`, `--exclude-tag`/`--exclude-tags`는
+  whole-stack 경로 전용이라 plan 경로가 거절하므로, 이제 제안에서 해당 플래그(와 그 값)를
+  빼고 어떤 플래그를 왜 뺐는지 함께 알려줍니다. `--force`, `--no-wait`, `--var`, `--purge`,
+  `-v`는 plan 경로가 받아들이므로 기존 제안이 그대로 유지됩니다.
+  `dva up --help`의 해당 목록과 `dva ai docs`의 옵션 설명에도 경로 조건이 명시됩니다
+  (`--var`의 "ignored"와 달리 이 넷은 **거절**되므로 표현을 구분합니다). `build`는
+  `parseDvaFlags`를 라우팅보다 먼저 호출해 두 경로 모두에서 `--mode`를 받으므로 예외로
+  두었습니다.
+- **`clean` 훅 이전 안내가 스키마에 없는 필드를 알려주지 않습니다** (TASK-273): 제거된
+  `clean` 빌트인의 훅을 옮기라는 메시지가 `interaction.clean.exec`를 지목했으나
+  `interaction_command`에 `exec` 속성은 없어서, 안내를 따르면 죽은 훅 대신 스키마가
+  거절하는 설정이 됐습니다. `interaction.clean.command/steps`로 정정했습니다.
 - **같은 `dva.yml`과 같은 `.env`가 매 실행 같은 환경변수를 만듭니다** (TASK-277): 한 배치
   안에서 다른 키를 참조하는 값(`B=${A}-derived`)의 결과가 Go의 map 순회 순서에 따라
   달라졌습니다. `MergeVars`가 이제 배치를 순회 순서가 아니라 **의존성 순서**로 해석하므로
