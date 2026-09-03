@@ -42,7 +42,7 @@ question 2가 소유한다.
 | CLI 조언 문자열이 실행 불가능한 명령을 제안 | **완료 (`206918a` → `20d0f67`)** — 잔존 다섯 입력을 TASK-283이 닫음 | [TASK-273](../done/273-repair-misleading-cli-guidance.md) → [TASK-283](../done/283-repair-plan-route-flag-guidance.md) |
 | flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | **완료 (`159bf1b`)** | [TASK-274](../done/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | **완료** | [TASK-275](../done/275-correct-skill-reference-fictions.md) |
-| example corpus 결함 + markdown-YAML 게이트 공백 | **범위 판정 완료 (2026-09-03)** — examples는 fragment corpus | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
+| example corpus 결함 + markdown-YAML 게이트 공백 | **범위 판정 완료 (2026-09-03)** — examples는 fragment corpus | [TASK-276](../done/276-correct-example-corpus-and-close-md-yaml-gap.md) |
 | `service-orchestration.yml` overlay 모델링 경고 | **완료 (2026-09-03)** — reading 2(경고 판정식이 틀림) 확정, `plansPartitionComposeServices` 추가 | [TASK-288](../done/288-model-compose-overlays-in-service-orchestration-example.md) |
 
 ## 권장 순서 (2026-09-03)
@@ -59,7 +59,7 @@ question 2가 소유한다.
    이 카드는 조언 문자열만 고쳤고 그 아래 **동작** 결함 — `restart`가 `--force`를 버리고,
    `stop`/`down`이 `--no-wait`를 흡수하며, `build`가 `--env`/`--tag`/`--exclude-tag`를
    파싱 지점에서 버리는 것 — 은 의도적으로 남겨
-   [TASK-279](../todo/279-repair-plan-flag-behaviour-defects.md)로 분리했다. TASK-279는
+   [TASK-279](../done/279-repair-plan-flag-behaviour-defects.md)로 분리했다. TASK-279는
    PLAN-004 소속이 아니며(문서가 아니라 런타임을 바꾼다) 이 계획의 자식 수에 포함되지 않는다.
 
    **`206918a` 이후 재개된 항목.** 이 카드를 쓰지 않은 리뷰어의 독립 검토에서 조언 문자열
@@ -120,7 +120,7 @@ TASK-276의 기준 5는 "`examples/*.yml` 16개 전부 `--strict` 무경고"였�
 
 ## 계획 밖으로 분리한 카드
 
-[TASK-287](../todo/287-gate-task-card-status-against-its-zone.md) — `tasks/done/` 여덟 장이
+[TASK-287](../done/287-gate-task-card-status-against-its-zone.md) — `tasks/done/` 여덟 장이
 `status: todo`로 남아 있던 드리프트를 잡는 게이트 카드다. 이 계획의 근본 원인 절이 지적한
 것과 **같은 종류의 사각지대**(게이트가 형식은 보고 사실은 묻지 않는다)이지만, 대상이
 사용자·에이전트가 읽는 출시 표면이 아니라 task 큐 메타데이터라 이 계획의 선언된 scope 밖이다.
@@ -194,5 +194,5 @@ TASK-279와 같은 방식으로 참조만 하고 자식으로 편입하지 않�
 댄 plan 밖까지 건드린다.
 
 따라서 `confirmDestruction`의 게이트 조건은 정확하며 코드 변경 대상이 아니다. 실제 결함은
-README가 `-v`도 프롬프트를 거친다고 서술한 문장 하나뿐이고, [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md)이
+README가 `-v`도 프롬프트를 거친다고 서술한 문장 하나뿐이고, [TASK-276](../done/276-correct-example-corpus-and-close-md-yaml-gap.md)이
 그것을 소유한다. **`-v` 경로에 프롬프트를 추가하는 후속 카드는 발행하지 않는다.**
