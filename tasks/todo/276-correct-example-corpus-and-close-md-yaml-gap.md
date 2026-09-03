@@ -218,3 +218,36 @@ entry) would collapse the ordered startup the example exists to demonstrate.
 Framing credit: raised by a peer session reviewing the same corpus; the discriminator
 (has any example ever shipped a compose file / does any doc promise runnability) is theirs,
 the measurement is this session's.
+
+## Trap for the examples/*.md sweep: `version:` is a floor, not a stamp
+
+Anyone sweeping `examples/` for version consistency will find `version: "0.1.44"` in
+`examples/README.md:157`, `DISCOURSE.md:121`, and `MAKEFILE.md:19` while the repo is at
+0.1.47, and read it as drift. **It is not, and bumping it is a defect.**
+`internal/config/version.go` declares `const MinScaffoldVersion = "0.1.44"` with the reason
+written out: `version:` states what a config requires of its reader, not which binary wrote
+it, so scaffolding the running version "would make every new config refuse to load on any
+older DVA, ratcheting the floor upward on each release". Raising these lines silently raises
+every example's compatibility floor and erases the distinction the const exists to hold.
+
+Two things in `examples/README.md` are genuinely different claims and were checked separately:
+
+- `**Last Updated**: March 2026` (line ~366) is **wrong**. The file was last changed
+  2026-09-03 (`c6aa64b`), and before that 2026-08-01 (`c50c5a1`). Stale by about six months.
+- `**Version**: 0.1.44` (line ~365) is **ambiguous and was deliberately left alone**. It sits
+  in a doc-metadata footer beside "Last Updated", so it may mean "these docs describe DVA
+  0.1.44" — a stale doc stamp — or it may be echoing the compatibility floor, in which case
+  it is correct. The line alone does not say which, and guessing wrong walks straight into
+  the trap above. Whoever resolves this should decide what the footer is claiming before
+  touching the number.
+
+Also verified while here, because the walkthrough these lines sit in is what criterion 5
+implicitly leans on: README step 3's `DVA_FILE=examples/basic.yml dva validate` is accurate on
+both halves. `DVA_FILE` is real (`internal/config/constants.go`, `EnvFileKey`), and
+`dva validate` is a genuine alias — its own help says "Reached as both 'dva validate' and
+'dva config validate'". Note what that walkthrough does: it validates an unmodified example
+in place and never runs one. The README's documented lifecycle for an untouched example
+terminates at `validate`, which is a third piece of evidence for the scope finding above —
+criterion 5 asks the corpus for a property the README's own procedure never exercises.
+
+Trap and the walkthrough observation raised by a peer session; verification is this session's.
