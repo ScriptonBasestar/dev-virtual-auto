@@ -150,12 +150,16 @@ func flagBoolValue(value string, hasValue bool) (v, ok bool) {
 // flag's name and has no error to return, so it cannot say "--mode requires a value". Its
 // caller decides.
 //
-// There is exactly one caller — parseDvaFlags' takeValue closure, which turns ok=false
-// into that error (TASK-211). Before TASK-211 there were four, the four value-taking
-// cases, each ignoring ok=false; this comment justified their silence by claiming the
-// helper also served callers for which taking the next token is optional. There were
-// none then and there are none now, so a future caller that wants the silence has to
-// earn the exception rather than inherit it from a sentence that was never true.
+// There are two callers and neither is silent about ok=false. parseDvaFlags' takeValue
+// closure turns it into that error (TASK-211). stripStackPathOnlyFlags (plan_lifecycle.go)
+// turns it into a `malformed` selector name, which makes its caller step aside so takeValue
+// reports the same thing a few lines later — the second caller exists to reproduce the
+// first one's value rule exactly, which is the one reason to reach for this helper rather
+// than write the two-line branch again. Before TASK-211 there were four callers, the four
+// value-taking cases, each ignoring ok=false; this comment justified their silence by
+// claiming the helper also served callers for which taking the next token is optional.
+// There were none then and there are none now, so a caller that wants the silence still has
+// to earn the exception rather than inherit it from a sentence that was never true.
 //
 // Counts here are stated with the commit they describe because they go stale silently —
 // TASK-208 is five comments that did not.

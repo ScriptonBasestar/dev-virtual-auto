@@ -238,6 +238,6 @@ this card required it to agree with); `restart`'s positional entry name is left 
 plan route answers with `unexpected argument in plan mode`; and a flag-shaped selector value is
 either stranded as a positional or swallowed unreported.
 
-The work is [TASK-283](../todo/283-repair-plan-route-flag-guidance.md). What this card did fix and
+The work is [TASK-283](../done/283-repair-plan-route-flag-guidance.md). What this card did fix and
 the review confirmed correct — the `selectors.go` split, the `--mode` manifest qualifier,
 `build`'s divergent route, and the `validate.go` clean-hook advice — stands.
