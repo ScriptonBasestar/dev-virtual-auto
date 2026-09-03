@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-03T00:00:00+09:00
 source: "TASK-246 gate run: TestLoadEnvFileKeepsSuccessfulPrecedence flakes on clean master"
 scope: "internal/config/envinput.go parse->merge path, internal/config/environment.go MergeVars"
-status: todo
+status: done
 ---
 
 # Task 277: repair nondeterministic env_file interpolation order
@@ -118,7 +118,7 @@ Consequence for the fix: whichever semantics is chosen, fixing only `ApplyEnvFil
 the other 18 call sites nondeterministic. The repair has to land in `MergeVars` itself, or
 `MergeVars` has to stop being handed an unordered map.
 
-## Decision required before implementing
+## Decision taken: (A) declaration-order scope
 
 The test names one semantics; the code implements two, nondeterministically. Fixing this
 means picking one and stating it:
@@ -133,14 +133,79 @@ means picking one and stating it:
 (A) is the recommended reading: it is the one already written down, and (B) would require
 rewriting a test that was added deliberately to pin the behavior.
 
+**(A) was implemented** (2026-09-03). The card carries no `needs-human` flag and the
+recommendation was unambiguous, so this was taken as a routine judgement call rather than
+held for a decision round; if (B) was actually wanted, the two tests named below are the
+places that say otherwise and would have to be rewritten.
+
+### How (A) was realized, and where it diverges from a literal reading
+
+The criteria offered two routes — carry declaration order through parsing, or stop making an
+interpolation decision while ranging an unordered map. The second was taken, because only it
+reaches all 19 call sites: dotenv parsing is the one place where an order exists to be
+preserved, while a YAML `environment:` block never had one.
+
+`MergeVars` now resolves a batch by **dependency** rather than by iteration order. A value
+referencing a sibling always sees that sibling's merged value, whichever order the range
+visits them in. Resolution is memoized, with an in-progress guard so that a reference closing
+a cycle, including a key referring to itself, falls back to the pre-merge environment;
+`e.Vars` is written only after the whole batch resolves, so a cycle never reads a
+half-applied batch. The OS-environment check runs first and takes the whole entry, unchanged
+from before: a key the OS defines never has its declared value examined, so it is never
+resolved on a sibling's behalf either, and a batch's `${K}` cannot disagree with the final
+`e.Vars[K]`. A consequence worth stating because it reads like something the guard fixes and
+is not: `PATH=${PATH}:/x` in a dotenv file does not append to PATH, and did not before this
+change — PATH is in the OS environment, so the declaration is discarded before the guard is
+reachable. The top-level walk is sorted, which does nothing for acyclic data and
+exists only to pin the answer for a genuine mutual cycle, where no starting point is more
+correct than another.
+
+This is (A) at the granularity that matters — a batch resolves when it merges, and a later
+batch redefining the source does not reach back and rewrite an earlier batch's derived value.
+It is *not* literal declaration-order scope within a single file: `B=${A}` written above
+`A=first` resolves to `first` here, where strict positional scope would leave it unresolved.
+That divergence is deliberate. Positional scope is only definable for the one input that has
+positions, so enforcing it would mean two different semantics depending on whether the batch
+came from a file or from YAML — and the failure it would produce (an unresolved `${A}`
+reaching a child process) is the exact failure this card exists to remove.
+
 ## Completion Criteria
 
-- [ ] Dotenv declaration order survives parsing — the parse result carries order, or merge consumes the file in declaration order rather than ranging over an unordered map, so no interpolation decision is made while ranging an unordered map | verify: `! /usr/bin/grep -q 'e.Vars\[k\] = e.Interpolate(v)' internal/config/environment.go`
-- [ ] `MergeVars` no longer interpolates while ranging over an unordered map, or is fed an ordered sequence | verify: `go test ./internal/config -count=1`
-- [ ] `TestLoadEnvFileKeepsSuccessfulPrecedence` passes deterministically — 50 consecutive runs, zero failures | verify: `go test ./internal/config -run TestLoadEnvFileKeepsSuccessfulPrecedence -count=50`
-- [ ] A regression test pins the chosen semantics explicitly for the two-file case (`A` redefined by a later file, `B` derived from `A` in the earlier one) so a future refactor cannot silently switch between (A) and (B) | verify: `go test ./internal/config -count=1`
-- [ ] Multi-key single-file interpolation is order-stable under repeated runs, not only the two-key case | verify: `go test ./internal/config -count=20`
-- [ ] The whole package is clean and race-free | verify: `go test -race ./internal/config -count=1`
+- [x] Dotenv declaration order survives parsing — the parse result carries order, or merge consumes the file in declaration order rather than ranging over an unordered map, so no interpolation decision is made while ranging an unordered map | verify: `! /usr/bin/grep -q 'e.Vars\[k\] = e.Interpolate(v)' internal/config/environment.go`
+- [x] `MergeVars` no longer interpolates while ranging over an unordered map, or is fed an ordered sequence | verify: `go test ./internal/config -count=1`
+- [x] `TestLoadEnvFileKeepsSuccessfulPrecedence` passes deterministically — 50 consecutive runs, zero failures | verify: `go test ./internal/config -run TestLoadEnvFileKeepsSuccessfulPrecedence -count=50`
+- [x] A regression test pins the chosen semantics explicitly for the two-file case (`A` redefined by a later file, `B` derived from `A` in the earlier one) so a future refactor cannot silently switch between (A) and (B) | verify: `go test ./internal/config -count=1`
+- [x] Multi-key single-file interpolation is order-stable under repeated runs, not only the two-key case | verify: `go test ./internal/config -count=20`
+- [x] The whole package is clean and race-free | verify: `go test -race ./internal/config -count=1`
+
+## Evidence
+
+`internal/config/environment.go` — `MergeVars` rewritten; `Interpolate` split into
+`interpolateWith(value, lookup)` + `(*Environment).lookup`, behavior unchanged.
+
+`internal/config/environment_merge_order_test.go` — new:
+
+- `TestMergeVarsResolvesSiblingReferencesRegardlessOfMapOrder` — a 7-key chain merged 200
+  times through `MergeVars` alone, with no repair pass behind it. This is the test that
+  covers the 18 call sites `interpolateEnvVars` never reaches.
+- `TestMergeVarsKeepsDeclarationScopeAcrossBatches` — the (A)/(B) pin. Under (B) the derived
+  value would read `second-derived`.
+- `TestMergeVarsSelfReferenceReadsPreMergeValue` — a key referring to itself, where the OS
+  does not define it.
+- `TestMergeVarsOSEnvShadowsSelfReferentialDeclaration` — the other half: where the OS *does*
+  define it, the declaration is dropped whole. Pins pre-existing behavior the rewrite had to
+  leave alone, and keeps the ordering claim in the `MergeVars` comment from going
+  unverified.
+- `TestMergeVarsMutualCycleIsDeterministic` — 200 runs, same answer; a cycle has no right
+  answer but must not be a source of run-to-run drift.
+- `TestMergeVarsOSEnvStillWinsOverBatch` — precedence carried through the rewrite, both for
+  the merged key and for a referenced name.
+- `TestLoadEnvFileMultiKeyChainIsOrderStable` — 9-key chain, 50 runs, end-to-end through
+  `LoadEnvFile` so the trailing repair pass is in play.
+
+Fixture keys are `T277_`-prefixed on purpose: `MergeVars` gives the OS environment priority,
+so a bare `A` exported in the shell running `go test` would take the assertions over
+silently.
 
 ## Notes
 

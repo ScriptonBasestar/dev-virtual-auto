@@ -20,6 +20,16 @@ All notable changes to DVA are documented here.
   ([USAGE.md](USAGE.md#암호화된-소스-브리지-dva-config-env))
 
 ### Fixed
+- **같은 `dva.yml`과 같은 `.env`가 매 실행 같은 환경변수를 만듭니다** (TASK-277): 한 배치
+  안에서 다른 키를 참조하는 값(`B=${A}-derived`)의 결과가 Go의 map 순회 순서에 따라
+  달라졌습니다. `MergeVars`가 이제 배치를 순회 순서가 아니라 **의존성 순서**로 해석하므로
+  형제 참조는 순회 순서와 무관하게 항상 해석됩니다. 사이클과 자기참조는 병합 이전 값으로
+  폴백합니다(OS 환경에 이미 있는 키는 종전과 동일하게 선언값을 통째로 무시합니다 — 즉
+  `PATH=${PATH}:/x`는 이 변경 전에도 후에도 PATH에 덧붙이지 않습니다). 파일 *사이*
+  순서는 그대로여서, 뒤 파일이 소스를
+  재정의해도 앞 파일이 이미 파생한 값을 소급 수정하지 않습니다. `env_file` 외의
+  `vars`/`environment` 경로에는 보정 패스가 없어서 미해석 `${VAR}`가 자식 프로세스까지
+  그대로 전달됐는데, 그 경로들도 함께 고쳐집니다
 - **`dva manifest`가 `down`의 `--purge`/`--force`를 노출합니다**: manifest만 조회하는
   에이전트도 두 플래그를 발견할 수 있습니다 (`--force`는 down에서 `--purge` 확인
   프롬프트 생략 전용)
