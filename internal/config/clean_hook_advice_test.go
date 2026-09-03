@@ -119,3 +119,58 @@ func sortedKeys(m map[string]bool) []string {
 	sort.Strings(out)
 	return out
 }
+
+// hookListInDescription pulls the parenthesised command list out of a schema description,
+// e.g. "... a hookable built-in command (build, down, ...)" -> "build, down, ...".
+var hookListInDescription = regexp.MustCompile(`hookable built-in command \(([^)]*)\)`)
+
+// TestSchemaDescriptionNamesTheLiveHookableCommands guards the one rendering of the hookable
+// set that is still written out by hand.
+//
+// Every other rendering goes through HookableCommandList, which reads the live map for exactly
+// the reason its comment gives. schema.json cannot call Go, so its description is a copy — and
+// it kept offering `clean` long after the command surface stopped accepting it (docs/43). That
+// copy is what an editor shows a config author while they type, so it is read more often than
+// the error messages that were repaired. TASK-280.
+func TestSchemaDescriptionNamesTheLiveHookableCommands(t *testing.T) {
+	desc := interactionCommandPropertyDescription(t, "before")
+	m := hookListInDescription.FindStringSubmatch(desc)
+	if m == nil {
+		t.Fatalf("interaction_command.before description %q no longer carries a parenthesised "+
+			"hookable command list; restore the list or retire this test deliberately, because "+
+			"a description without one silently stops being checked", desc)
+	}
+	if got, want := m[1], HookableCommandList(); got != want {
+		t.Fatalf("schema.json describes the hookable set as (%s) but the live set is (%s); the "+
+			"schema description is what a config author reads in their editor", got, want)
+	}
+}
+
+// interactionCommandPropertyDescription returns the description schema.json gives one
+// interaction_command property. A missing property or empty description fails here rather than
+// returning "", which would make every assertion built on it pass vacuously.
+func interactionCommandPropertyDescription(t *testing.T, prop string) string {
+	t.Helper()
+	raw, err := embeddedSchema.ReadFile("schema.json")
+	if err != nil {
+		t.Fatalf("read embedded schema: %v", err)
+	}
+	var doc struct {
+		Definitions map[string]struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+			} `json:"properties"`
+		} `json:"definitions"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse schema: %v", err)
+	}
+	p, ok := doc.Definitions["interaction_command"].Properties[prop]
+	if !ok {
+		t.Fatalf("schema.json declares no interaction_command.%s", prop)
+	}
+	if p.Description == "" {
+		t.Fatalf("interaction_command.%s carries no description", prop)
+	}
+	return p.Description
+}

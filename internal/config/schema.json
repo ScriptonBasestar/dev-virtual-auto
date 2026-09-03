@@ -535,7 +535,7 @@
         "before": {
           "type": "array",
           "items": { "$ref": "#/definitions/provision_item" },
-          "description": "Steps to run before a hookable built-in command (up, down, stop, restart, build, clean, logs)"
+          "description": "Steps to run before a hookable built-in command (build, down, logs, restart, stop, up)"
         },
         "replace": {
           "type": "array",
