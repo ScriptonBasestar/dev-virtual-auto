@@ -9,7 +9,7 @@ created-at: 2026-09-03T18:10:00+09:00
 source: "사용자 결정 2026-09-03 — 명령 표면을 모두 갖추되 기본 비활성, dva.yml opt-in"
 decided-at: 2026-09-03T19:40:00+09:00
 scope: "env_bridge gate schema and merge rules, seal contract, show contract, disabled-state behaviour, new error codes, superseded PLAN-002/TASK-245 rulings"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 depends-on: [TASK-246]
@@ -353,7 +353,7 @@ temp fd → sops stdout 수용 → rename → 부모 fsync. create-only이므로
 - [x] Decide the agent-exposure controls, recording that no caller-identity test is claimed as a security boundary and that any advisory refusal ships without a bypass flag | verify: human — the residual pty hole must be recorded and handed to TASK-286 rather than left implied
 - [x] Freeze disabled-state behaviour, help visibility, and the new error codes, placing the gate check before every other preflight step | verify: human — the argv table must show text and exit for both disabled commands
 - [x] Record the compatibility consequence of adding a top-level key under `additionalProperties: false`, including which DVA versions reject such a config outright | verify: human — the version boundary and any scaffold/version policy change must be named
-- [ ] Update PLAN-002 §1-1 and §7 to the narrowed wording, record that TASK-245 §11 is superseded without editing that done card, and create the implementation child before closing | verify: `make doc-check`
+- [x] Update PLAN-002 §1-1 and §7 to the narrowed wording, record that TASK-245 §11 is superseded without editing that done card, and create the implementation child before closing | verify: `make doc-check`
 
 ## Fail-closed default
 

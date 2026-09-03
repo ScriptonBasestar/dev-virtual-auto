@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 62
+progress: 68
 total-tasks: 16
-completed-tasks: 10
+completed-tasks: 11
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285, TASK-286]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -38,9 +38,9 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 
 ## Current status and recommended order (2026-09-03)
 
-16장 중 10장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
+16장 중 11장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
 TASK-248(`b23780e`), TASK-265, TASK-284(`bbe3db1`), TASK-285, TASK-252(결정), TASK-251(N/A
-종료). 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에 있다 — doccheck가
+종료), TASK-281(결정 + 종결). 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에 있다 — doccheck가
 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라 카드
 front-matter에서 읽는다.
 
@@ -50,14 +50,13 @@ front-matter에서 읽는다.
 TASK-251(P0/L)이 코드 한 줄 없이 N/A로 닫혔다. 승격 재개는 이 카드들을 되살리는 것이 아니라
 새 카드로 한다.
 
-남은 6장과 각각의 착수 조건:
+남은 5장과 각각의 착수 조건 (TASK-281은 2026-09-03 완료기준 9개 전부 충족으로 종결):
 
 | Task | 상태 | 착수 조건 |
 | --- | --- | --- |
 | TASK-249 | `decision-status: pending` | 사람 결정 필요. TASK-244가 닫혀 입력은 갖춰졌다 |
 | TASK-250 | todo | TASK-249 결정 이후 |
 | TASK-266 | todo, Stage A 완료 | Stage B는 0.1.48 릴리스 대기 |
-| TASK-281 | `decision-status: decided` (2026-09-03) | 결정 완료 — 구현으로 넘어간다 |
 | TASK-282 | todo | **착수 가능** — TASK-281이 계약을 동결했다 |
 | TASK-286 | todo | **착수 가능** — TASK-281 §3-6이 게이트 대상과 pty 구멍을 넘겼다 |
 
@@ -88,7 +87,7 @@ TASK-251(P0/L)이 코드 한 줄 없이 N/A로 닫혔다. 승격 재개는 이 �
 - D6: 합의된 plan 선언 필드의 equality-only non-fatal warning
 - D7: 다중 plan + `default_plan` 부재의 non-fatal warning, 단일 plan 제외
 - sops/age 소유권 유지, DVA는 호출만 함
-- 복호값 stdout 금지, lifecycle auto-unseal 금지 — 앞 절반은 [TASK-281](../todo/281-freeze-gated-env-bridge-commands.md)의
+- 복호값 stdout 금지, lifecycle auto-unseal 금지 — 앞 절반은 [TASK-281](../done/281-freeze-gated-env-bridge-commands.md)의
   `env_bridge.allow_show` 게이트가 켜졌을 때 `show`의 stdout 하나에 대해서만 열린다. 게이트가 없거나
   꺼진 상태, 그리고 log/error/JSON/temp filename은 예외 없이 금지다. lifecycle auto-unseal 금지는 불변
 - sops 미발견·복호 실패 exit 1
@@ -305,7 +304,7 @@ TASK-245가 여러 OS를 지원한다고 결정했다면 TASK-246이 그 OS를 �
 - 닫힌 plan vocabulary와 plan key 강제
 - D6 warning의 canonical name/삭제 대상 권고
 - 게이트 없는 `config env show`, top-level `dva env show`, lifecycle auto-unseal
-  (기본 비활성 + `env_bridge` opt-in은 [TASK-281](../todo/281-freeze-gated-env-bridge-commands.md)이 소유하며,
+  (기본 비활성 + `env_bridge` opt-in은 [TASK-281](../done/281-freeze-gated-env-bridge-commands.md)이 소유하며,
   [TASK-245](../done/245-freeze-env-bridge-contract.md) §11의 무조건 기각을 그만큼 supersede한다)
 - DVA의 age/provider/key management 재구현
 - fixed archetype/3-plan scaffold
@@ -335,6 +334,8 @@ release candidate는 최소 `make lint`, `make test`, `make test-integration`, `
 - TASK-266 — deprecate then reject the inert interaction env_file field
 - TASK-281 — freeze the gate-guarded seal and show contract for the config env bridge
 - TASK-282 — implement the gated seal and show commands behind the env_bridge switch
+- TASK-284 — anchor the env safewrite to the target's directory
+- TASK-285 — close the migrate/validate coverage gap for the env bridge
 - TASK-286 — project agent-runtime deny rules for the commands agents must not run
 
 Cross-plan prerequisite: PLAN-003의 TASK-264가 TASK-248보다 먼저 imported interaction/provision owner를 복구한다.
