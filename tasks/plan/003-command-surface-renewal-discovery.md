@@ -150,7 +150,7 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 | TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **결정됨 (2026-09-03)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
 | TASK-256 | TASK-255 · TASK-272 ✅ | 대기 — TASK-255가 남아 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
 | TASK-258 | TASK-257 ✅ · TASK-272 ✅ | **완료 (2026-09-04)** — `d13fb63`, 5개 완료기준 전부 검증·닫힘. `ManifestCmd.CanonicalName`/schema_version 1.5 존재, TASK-256은 이제 필드를 새로 만들지 않고 kubectl/ktl 마커만 채운다 |
-| TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **착수 가능** |
+| TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **모델 결정됨(2026-09-04) + 상세 계약 동결(2026-09-04)** — 단방향 root-aggregation 채택, 완료기준 1-5 체크. 자동 LIFO rollback을 신규 도입하되 `--no-rollback` opt-out을 사전 승인(2026-09-04 사용자 결정). 완료기준 6(독립 리뷰 + 구현 계획 카드 생성)만 남아 별도 라운드로 이관 |
 | TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
 
 **갱신 (2026-09-04):** 위 표의 `needs-human` 결정 카드 넷(255·257·263·272) 중 사람 판단 자체는
