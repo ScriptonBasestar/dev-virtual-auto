@@ -53,7 +53,7 @@ root와 child 또는 서로 다른 child의 모양만 같은 plan을 중복으�
 수집하고 TASK-263이 address/exposure를 사람 결정으로 닫은 뒤, TASK-260이 composition 의미만 결정한다.
 Manifest가 canonical/compatibility route를 표현할 schema가 필요하다고 TASK-254·255·257에서 판정되면
 bounded child를 먼저 만들며 TASK-256·258 안에서 ad-hoc schema를 추가하지 않는다. TASK-254가 2026-09-03에
-이 조건을 판정했다. `ManifestCmd`는 `description`/`type`/`options`/`subcommands` 네 필드뿐이고
+이 조건을 판정했고, TASK-255가 2026-09-03에 `kubectl` canonical 승격을 확정하면서 두 이름 공존이 실제로 발생해 이 조건이 가정이 아니라 현실이 됐다. `ManifestCmd`는 `description`/`type`/`options`/`subcommands` 네 필드뿐이고
 `static_commands`는 이름 하나로 keying되므로 두 route가 같은 command라는 사실을 표현할 수단이 없으며,
 측정된 manifest는 `subcommands`를 `skill`에만 채워서 TASK-257이 선택 대상으로 삼는 `config validate`
 자체가 문서에 없다. 따라서 [TASK-272](../todo/272-freeze-manifest-route-identity.md)을 만들고 같은
@@ -144,11 +144,11 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 
 | 카드 | 선행 | 상태 |
 | --- | --- | --- |
-| TASK-255 | TASK-254 ✅ | **착수 가능** |
+| TASK-255 | TASK-254 ✅ | **방향 판정됨 (2026-09-03)** — `kubectl` canonical 승격. 사람 결정은 끝났고 완료기준 1·3·4·5·6·7이 남아 카드는 열려 있다 |
 | TASK-257 | TASK-254 ✅ | **착수 가능** |
-| TASK-272 | TASK-254 ✅ | **착수 가능** — 닫히면 TASK-256·258이 함께 열린다 |
+| TASK-272 | TASK-254 ✅ | **착수 가능 · 우선순위 상승** — TASK-255가 두 이름 공존을 확정해 route identity 표현이 선택이 아니라 필수가 됐다. 닫히면 TASK-256·258이 함께 열린다 |
 | TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **착수 가능** — 닫히면 TASK-260이 열린다 |
-| TASK-256 | TASK-255 · TASK-272 | 대기 |
+| TASK-256 | TASK-255 · TASK-272 | 대기 — 두 선행 모두 열려 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
 | TASK-258 | TASK-257 · TASK-272 | 대기 |
 | TASK-260 | TASK-262 ✅ · TASK-263 | TASK-263 대기 |
 | TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
