@@ -210,18 +210,15 @@ var composeAbsenceWarningRE = regexp.MustCompile(
 		`|compose file ".*" is configured by dva\.yml but does not exist`,
 )
 
-// serviceOrchestrationOverlayWarningRE is the one further warning service-orchestration.yml
-// still carries. It is a distinct defect — how the example models compose overlays, not a
-// missing file — owned by TASK-288 and out of TASK-276's scope per its Non-goals. Scoping
-// the exemption to this one file keeps it from silencing an unrelated future warning
-// elsewhere in the corpus.
-var serviceOrchestrationOverlayWarningRE = regexp.MustCompile(`can run in the same invocation set`)
-
 // TestExamplesStrictCleanExceptComposeAbsence proves every examples/*.yml file is clean
 // under `dva config validate --strict` except for the compose-absence warnings the corpus is
-// exempted for (and, on service-orchestration.yml alone, the TASK-288 overlay warning). The
-// exemption lives here, in the corpus gate, not in --strict itself — see
-// TestStrictStillWarnsOnMissingComposeOutsideCorpus for the other half of that boundary.
+// exempted for. service-orchestration.yml carried one further warning here — the
+// overlay-split warning firing on its compose "service subsets" shape — until TASK-288
+// narrowed the warning's predicate to stop treating a disjoint services: split as an
+// overlay; no exemption is needed for it anymore, and its reappearance here would mean that
+// fix regressed. The remaining exemption lives here, in the corpus gate, not in --strict
+// itself — see TestStrictStillWarnsOnMissingComposeOutsideCorpus for the other half of that
+// boundary.
 func TestExamplesStrictCleanExceptComposeAbsence(t *testing.T) {
 	bin := strictValidateBinary(t)
 
@@ -263,9 +260,6 @@ func TestExamplesStrictCleanExceptComposeAbsence(t *testing.T) {
 					continue
 				}
 				if composeAbsenceWarningRE.MatchString(line) {
-					continue
-				}
-				if rel == "service-orchestration.yml" && serviceOrchestrationOverlayWarningRE.MatchString(line) {
 					continue
 				}
 				t.Errorf("unexpected strict warning: %s", line)
