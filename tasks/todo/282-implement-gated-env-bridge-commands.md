@@ -40,7 +40,10 @@ TASK-281이 동결한 계약대로 `env_bridge` 게이트와 `dva config env sea
   만들지 않는다.
 - `bridgeGOOS` 주입 패턴을 따라, 게이트가 꺼진 분기와 platform 분기 모두 CI가 실제로 실행하는
   테스트를 갖는다. 실행되지 않는 fail-closed 분기는 아무도 확인하지 않은 분기다.
-- key-set 비교는 이름 집합만 다룬다. 값은 비교 대상도, 로그 대상도, 오류 메시지 대상도 아니다.
+- **key-set 비교 로직은 구현하지 않는다.** TASK-281 §3-3이 `seal`을 create-only로 동결해
+  lost-update 경로를 제거했으므로, 기존 source를 복호해 키를 비교하는 단계가 없다.
+  seal이 다루는 키 이름은 평문 target에서 읽어 확인용으로 제시하는 목록 하나뿐이며,
+  값은 제시 대상도, 로그 대상도, 오류 메시지 대상도 아니다.
 
 ## Completion Criteria
 
@@ -48,7 +51,7 @@ TASK-281이 동결한 계약대로 `env_bridge` 게이트와 `dva config env sea
 - [ ] Prove a config without `env_bridge` is byte-identical through load, merge, `config show`, and `validate` against the pre-change binary | verify: `make test`
 - [ ] Implement the gate's origin and merge rule, including a test that a subproject cannot enable the parent's gate | verify: `make test`
 - [ ] Implement `seal` with no key or provider arguments, failing closed when `.sops.yaml` declares no creation rule for the source | verify: `make test`
-- [ ] Implement the frozen lost-update defense and cover every row of the TASK-281 `seal` matrix, asserting the existing source is byte-identical after each failure | verify: `make test`
+- [ ] Cover every row of the TASK-281 §3-3-1 `seal` matrix, asserting no source file is created on any refusal row and that an existing source is never opened for write | verify: `make test`
 - [ ] Implement `show` on the frozen output stream, failing closed when it cannot be opened, and assert no decrypted value reaches debug log, stderr, error envelope, JSON, or any temp filename in any failure path | verify: `make test`
 - [ ] Implement the frozen agent-exposure controls with no bypass flag, and assert the disabled, no-terminal, and advisory refusals resolve to one deterministic code each | verify: `make test`
 - [ ] Implement disabled-state rejection for both commands ahead of every other preflight step, with the frozen codes and exit 1 | verify: `make test`
