@@ -362,5 +362,5 @@ Found a bug in an example or have a suggestion for a new one? Please open an iss
 
 ---
 
-**Version**: 0.1.44
-**Last Updated**: March 2026
+**Minimum DVA version**: 0.1.44 — the compatibility floor these examples target (`version:`), not the release that last edited them
+**Last Updated**: September 2026

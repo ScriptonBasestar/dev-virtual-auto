@@ -8,7 +8,8 @@ exec-tier: standard
 created-at: 2026-09-03T00:17:00+09:00
 source: "Docs audit of README.md, examples/*.md, examples/*.yml, and internal/config/examples_schema_test.go at HEAD 5eb1af5"
 scope: "README.md destructive-teardown confirmation claim, examples/MAKEFILE.md CLI and provision errors, examples/*.md sweep, examples_schema_test.go markdown coverage, examples corpus --strict compliance"
-status: todo
+status: done
+closed-at: 2026-09-03T23:22:27+09:00
 decision-status: decided
 decided-at: 2026-09-03T21:30:00+09:00
 depends-on: []
@@ -95,14 +96,14 @@ edit them even though nothing now blocks the rest.
 
 ## Completion Criteria
 
-- [ ] The README Lifecycle bullet states that only `--purge` (not `-v` alone) triggers the confirmation prompt, matching `confirmDestruction`'s single `--purge`-gated call site | verify: `human — read the bullet against confirmDestruction's call site; the sentence must not leave a reader believing bare -v is guarded`
+- [x] The README Lifecycle bullet states that only `--purge` (not `-v` alone) triggers the confirmation prompt, matching `confirmDestruction`'s single `--purge`-gated call site | verify: `human — read the bullet against confirmDestruction's call site; the sentence must not leave a reader believing bare -v is guarded`
 - [x] `examples/MAKEFILE.md` uses `dva version` in place of the non-existent `dva --version` flag | verify: `! /usr/bin/grep -q -- 'dva --version' examples/MAKEFILE.md`
-- [ ] `examples/MAKEFILE.md`'s `provision:` example is rewritten as a mapping (`default_profile` plus a flat `<profile>: [ProvisionItem, ...]` list, or a bare `<profile-name>:` key holding the list) that unmarshals against `ProvisionConfig.UnmarshalYAML` | verify: human — reviewer copies the corrected block into a scratch `dva.yml` and confirms `dva config validate` does not reject it as unparseable
+- [x] `examples/MAKEFILE.md`'s `provision:` example is rewritten as a mapping (`default_profile` plus a flat `<profile>: [ProvisionItem, ...]` list, or a bare `<profile-name>:` key holding the list) that unmarshals against `ProvisionConfig.UnmarshalYAML` | verify: human — reviewer copies the corrected block into a scratch `dva.yml` and confirms `dva config validate` does not reject it as unparseable
 - [x] `internal/config/examples_schema_test.go` (or a sibling test) extracts fenced YAML code blocks from `examples/*.md` and validates each against the same schema/semantic path used for `examples/*.yml`, so a defect like item 3 fails a test instead of shipping silently | verify: `go test ./internal/config -count=1`
-- [ ] Every file in `examples/*.yml` passes `dva config validate --strict` with **zero warnings other than the two documented compose-absence strings** (`compose.files is ... but detected root compose files are (none)` and `compose file "..." is configured by dva.yml but does not exist`), which the ruling below exempts as a property of a fragment corpus rather than a defect in it | verify: `/usr/bin/grep -Eq '^func TestExamplesStrictCleanExceptComposeAbsence\(' internal/config/examples_schema_test.go && go test ./internal/config -count=1 -run TestExamplesStrictCleanExceptComposeAbsence`
-- [ ] The exemption lives in the corpus test, not in `validate --strict` itself — running `dva config validate --strict` on a real project that names a missing compose file still warns | verify: `/usr/bin/grep -Eq '^func TestStrictStillWarnsOnMissingComposeOutsideCorpus\(' internal/config/validate_test.go && go test ./internal/config -count=1 -run TestStrictStillWarnsOnMissingComposeOutsideCorpus`
-- [ ] `examples/README.md`'s `**Last Updated**` footer states the file's actual last-change date instead of `March 2026` | verify: `! /usr/bin/grep -q 'Last Updated.*March 2026' examples/README.md`
-- [ ] `examples/README.md`'s ambiguous `**Version**: 0.1.44` footer is relabelled to say which claim it makes, so no future sweep has to guess between "docs describe 0.1.44" and "these configs require at least 0.1.44" | verify: `! /usr/bin/grep -Eq '^\*\*Version\*\*: 0\.1\.44' examples/README.md`
+- [x] Every file in `examples/*.yml` passes `dva config validate --strict` with **zero warnings other than the two documented compose-absence strings** (`compose.files is ... but detected root compose files are (none)` and `compose file "..." is configured by dva.yml but does not exist`), which the ruling below exempts as a property of a fragment corpus rather than a defect in it | verify: `/usr/bin/grep -Eq '^func TestExamplesStrictCleanExceptComposeAbsence\(' internal/config/examples_schema_test.go && go test ./internal/config -count=1 -run TestExamplesStrictCleanExceptComposeAbsence`
+- [x] The exemption lives in the corpus test, not in `validate --strict` itself — running `dva config validate --strict` on a real project that names a missing compose file still warns | verify: `/usr/bin/grep -Eq '^func TestStrictStillWarnsOnMissingComposeOutsideCorpus\(' internal/config/validate_test.go && go test ./internal/config -count=1 -run TestStrictStillWarnsOnMissingComposeOutsideCorpus`
+- [x] `examples/README.md`'s `**Last Updated**` footer states the file's actual last-change date instead of `March 2026` | verify: `! /usr/bin/grep -q 'Last Updated.*March 2026' examples/README.md`
+- [x] `examples/README.md`'s ambiguous `**Version**: 0.1.44` footer is relabelled to say which claim it makes, so no future sweep has to guess between "docs describe 0.1.44" and "these configs require at least 0.1.44" | verify: `! /usr/bin/grep -Eq '^\*\*Version\*\*: 0\.1\.44' examples/README.md`
 - [x] Repository gates pass | verify: `make lint && make test && make doc-check`
 
 ## Non-goals

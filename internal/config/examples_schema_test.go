@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
+	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -160,5 +163,113 @@ func TestExampleMarkdownValidateAgainstSchema(t *testing.T) {
 				validateExampleSchema(t, blockPath)
 			})
 		}
+	}
+}
+
+var (
+	strictBinaryOnce sync.Once
+	strictBinaryPath string
+	strictBinaryErr  error
+)
+
+// strictValidateBinary builds cmd/dva once and returns the binary path.
+//
+// The compose-drift check that "dva config validate --strict" reports lives in
+// internal/cli (detectConfigDriftWarnings), which this package cannot import — cli already
+// imports config, and importing it back would cycle. The built binary is the only way to
+// exercise that real code path from a config package test, matching the pattern already
+// used by internal/integration's dvaBinary helper.
+func strictValidateBinary(t *testing.T) string {
+	t.Helper()
+	strictBinaryOnce.Do(func() {
+		dir, err := os.MkdirTemp("", "dva-strict-bin-")
+		if err != nil {
+			strictBinaryErr = err
+			return
+		}
+		strictBinaryPath = filepath.Join(dir, "dva")
+		cmd := exec.Command("go", "build", "-o", strictBinaryPath, "./cmd/dva")
+		cmd.Dir = filepath.Dir(examplesDir())
+		if out, buildErr := cmd.CombinedOutput(); buildErr != nil {
+			strictBinaryErr = fmt.Errorf("go build ./cmd/dva: %w\n%s", buildErr, out)
+		}
+	})
+	if strictBinaryErr != nil {
+		t.Fatalf("building cmd/dva: %v", strictBinaryErr)
+	}
+	return strictBinaryPath
+}
+
+// composeAbsenceWarningRE matches the two config-drift warnings TASK-276's ruling exempts
+// for this corpus: no example under examples/ has ever shipped the compose file it
+// references, and examples/README.md documents that the reader supplies it, so the warning
+// is a property of a fragment corpus rather than a defect in one. Any other [warn] line
+// fails the test.
+var composeAbsenceWarningRE = regexp.MustCompile(
+	`compose\.files is .* but detected root compose files are \(none\)` +
+		`|compose file ".*" is configured by dva\.yml but does not exist`,
+)
+
+// serviceOrchestrationOverlayWarningRE is the one further warning service-orchestration.yml
+// still carries. It is a distinct defect — how the example models compose overlays, not a
+// missing file — owned by TASK-288 and out of TASK-276's scope per its Non-goals. Scoping
+// the exemption to this one file keeps it from silencing an unrelated future warning
+// elsewhere in the corpus.
+var serviceOrchestrationOverlayWarningRE = regexp.MustCompile(`can run in the same invocation set`)
+
+// TestExamplesStrictCleanExceptComposeAbsence proves every examples/*.yml file is clean
+// under `dva config validate --strict` except for the compose-absence warnings the corpus is
+// exempted for (and, on service-orchestration.yml alone, the TASK-288 overlay warning). The
+// exemption lives here, in the corpus gate, not in --strict itself — see
+// TestStrictStillWarnsOnMissingComposeOutsideCorpus for the other half of that boundary.
+func TestExamplesStrictCleanExceptComposeAbsence(t *testing.T) {
+	bin := strictValidateBinary(t)
+
+	// Top-level examples/*.yml only, matching the glob the completion criterion names and
+	// the corpus the ruling measured (16 files) — not the recursive examples/modules/ tree,
+	// which demonstrates the module-import feature rather than standing in for a project's
+	// own dva.yml.
+	entries, err := os.ReadDir(examplesDir())
+	if err != nil {
+		t.Fatalf("read examples dir: %v", err)
+	}
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() || filepath.Ext(e.Name()) != ".yml" {
+			continue
+		}
+		names = append(names, e.Name())
+	}
+	sort.Strings(names)
+
+	for _, rel := range names {
+		path := filepath.Join(examplesDir(), rel)
+		t.Run(rel, func(t *testing.T) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", rel, err)
+			}
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, "dva.yml"), data, 0o644); err != nil {
+				t.Fatalf("write scratch dva.yml: %v", err)
+			}
+
+			cmd := exec.Command(bin, "config", "validate", "--strict")
+			cmd.Dir = dir
+			out, _ := cmd.CombinedOutput()
+
+			for line := range strings.SplitSeq(string(out), "\n") {
+				if !strings.HasPrefix(line, "[warn]") {
+					continue
+				}
+				if composeAbsenceWarningRE.MatchString(line) {
+					continue
+				}
+				if rel == "service-orchestration.yml" && serviceOrchestrationOverlayWarningRE.MatchString(line) {
+					continue
+				}
+				t.Errorf("unexpected strict warning: %s", line)
+			}
+		})
 	}
 }
