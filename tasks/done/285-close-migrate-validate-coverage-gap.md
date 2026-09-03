@@ -89,11 +89,11 @@ fixing they belong on their own card against the walker, not here.
 
 ## Completion Criteria
 
-- [ ] `migrate` no longer implies it covered declarations it never read — its output or its doc comment states that the report is scoped to the document it parsed | verify: `go test ./internal/config -count=1`
-- [ ] A module-declared `interaction.*.env_file` is either reported by `migrate` or explicitly described as out of its reach; it is not silently absent from "Left for you" | verify: `go test ./internal/config -count=1`
-- [ ] The CHANGELOG names `dva config validate --strict` as a surface whose exit code changes in 0.1.48 | verify: `human — read the 0.1.48 CHANGELOG entry and confirm --strict is named`
-- [ ] A test pins the module-declared case so the gap cannot close and silently reopen | verify: `go test ./internal/config -count=1`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+- [x] `migrate` no longer implies it covered declarations it never read — its output or its doc comment states that the report is scoped to the document it parsed | verify: `go test ./internal/config -count=1`
+- [x] A module-declared `interaction.*.env_file` is either reported by `migrate` or explicitly described as out of its reach; it is not silently absent from "Left for you" | verify: `go test ./internal/config -count=1`
+- [x] The CHANGELOG names `dva config validate --strict` as a surface whose exit code changes in 0.1.48 | verify: `human — read the 0.1.48 CHANGELOG entry and confirm --strict is named`
+- [x] A test pins the module-declared case so the gap cannot close and silently reopen | verify: `go test ./internal/config -count=1`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 

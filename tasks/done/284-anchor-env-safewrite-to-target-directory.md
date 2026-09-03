@@ -120,17 +120,17 @@ keep certifying this class of defect as passing.
 
 ## Completion Criteria
 
-- [ ] The temp for a target with a directory component is created in that target's directory, not at the config root | verify: `go test ./internal/cli -count=1`
-- [ ] A rename whose directory component was swapped for an in-root symlink after preflight is refused, not committed into the swapped directory | verify: `go test ./internal/cli -run PathSwap -count=1`
-- [ ] `TestConfigEnvRejectsPathSwap` fails when the write is not rejected — it no longer accepts either outcome | verify: `go test ./internal/cli -run PathSwap -count=1`
-- [ ] `fakeGit` records the path it was asked about, and a test asserts the guard was asked about the directory the bytes actually land in | verify: `go test ./internal/cli -count=1`
-- [ ] `syncDir` flushes the directory the rename landed in for a subdirectory target | verify: `go test ./internal/cli -count=1`
-- [ ] A `kill -9` between temp creation and rename leaves no plaintext file that `git status` reports as untracked-and-not-ignored | verify: `human — create the temp, kill the process, run git status --porcelain in the fixture repo and confirm the temp is absent or ignored`
-- [ ] A dotenv line over the scanner limit is reported as an oversized line with its line number, not as a malformed file at line 0 | verify: `go test ./internal/config -count=1`
-- [ ] A post-rename failure is either impossible or reported in a way that does not claim the target is unchanged | verify: `go test ./internal/cli -count=1`
-- [ ] The `newTemp` and `newSafeWriter` doc comments describe where the temp is actually created | verify: `human — read both comments against tempName and the newSafeWriter call site`
-- [ ] The eight §7-4 secrecy constraints still hold after the change — plaintext never enters a DVA buffer, temp names carry nothing derived from content, sops stderr stays bounded and unechoed | verify: `human — re-read the §7-4 checklist against the new temp and rename path`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+- [x] The temp for a target with a directory component is created in that target's directory, not at the config root | verify: `go test ./internal/cli -count=1`
+- [x] A rename whose directory component was swapped for an in-root symlink after preflight is refused, not committed into the swapped directory | verify: `go test ./internal/cli -run PathSwap -count=1`
+- [x] `TestConfigEnvRejectsPathSwap` fails when the write is not rejected — it no longer accepts either outcome | verify: `go test ./internal/cli -run PathSwap -count=1`
+- [x] `fakeGit` records the path it was asked about, and a test asserts the guard was asked about the directory the bytes actually land in | verify: `go test ./internal/cli -count=1`
+- [x] `syncDir` flushes the directory the rename landed in for a subdirectory target | verify: `go test ./internal/cli -count=1`
+- [x] A `kill -9` between temp creation and rename leaves no plaintext file that `git status` reports as untracked-and-not-ignored | verify: `human — create the temp, kill the process, run git status --porcelain in the fixture repo and confirm the temp is absent or ignored`
+- [x] A dotenv line over the scanner limit is reported as an oversized line with its line number, not as a malformed file at line 0 | verify: `go test ./internal/config -count=1`
+- [x] A post-rename failure is either impossible or reported in a way that does not claim the target is unchanged | verify: `go test ./internal/cli -count=1`
+- [x] The `newTemp` and `newSafeWriter` doc comments describe where the temp is actually created | verify: `human — read both comments against tempName and the newSafeWriter call site`
+- [x] The eight §7-4 secrecy constraints still hold after the change — plaintext never enters a DVA buffer, temp names carry nothing derived from content, sops stderr stays bounded and unechoed | verify: `human — re-read the §7-4 checklist against the new temp and rename path`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 
