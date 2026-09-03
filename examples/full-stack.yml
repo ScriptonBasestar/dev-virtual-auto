@@ -14,9 +14,6 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env
-
 vars:
   RAILS_ENV: development
   NODE_ENV: development
@@ -26,6 +23,9 @@ vars:
   APP_PORT: ${PORT:-3000}
   ENABLE_WEB_CONSOLE: "true"
   WORKER_CONCURRENCY: "4"
+
+env_file:
+  - .env
 
 stack:
   core-infra:
@@ -78,6 +78,45 @@ stack:
           - k8s/web.yaml
           - k8s/worker.yaml
 
+plans:
+  local-dev:
+    description: Local full-stack development
+    environment: dev
+    site: local
+    entries:
+      - name: core-infra
+        runner: compose
+        order: 10
+        services: [db, redis]
+      - name: web
+        runner: native
+        order: 20
+        depends_on: [core-infra]
+      - name: frontend
+        runner: native
+        order: 30
+        depends_on: [web]
+
+  remote-stg:
+    description: Remote staging-like environment
+    environment: stg
+    site: remote
+    entries:
+      - name: core-infra
+        runner: compose
+        order: 10
+        services: [db, redis]
+      - name: web
+        runner: docker
+        order: 20
+        depends_on: [core-infra]
+      - name: frontend
+        runner: docker
+        order: 30
+        depends_on: [web]
+
+default_plan: local-dev
+
 environments:
   dev:
     environment:
@@ -115,43 +154,6 @@ sites:
     entry_overrides:
       web:
         runner: kubectl
-
-plans:
-  local-dev:
-    description: Local full-stack development
-    environment: dev
-    site: local
-    entries:
-      - name: core-infra
-        runner: compose
-        order: 10
-        services: [db, redis]
-      - name: web
-        runner: native
-        order: 20
-        depends_on: [core-infra]
-      - name: frontend
-        runner: native
-        order: 30
-        depends_on: [web]
-
-  remote-stg:
-    description: Remote staging-like environment
-    environment: stg
-    site: remote
-    entries:
-      - name: core-infra
-        runner: compose
-        order: 10
-        services: [db, redis]
-      - name: web
-        runner: docker
-        order: 20
-        depends_on: [core-infra]
-      - name: frontend
-        runner: docker
-        order: 30
-        depends_on: [web]
 
 interaction:
   rails:

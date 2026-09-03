@@ -4,13 +4,13 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env
-
 vars:
   RAILS_ENV: development
   DATABASE_HOST: postgres
   DATABASE_PORT: "5432"
+
+env_file:
+  - .env
 
 stack:
   rails-compose:
@@ -19,16 +19,6 @@ stack:
       compose:
         files:
           - docker-compose.yml
-
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
 
 plans:
   local-dev:
@@ -39,6 +29,16 @@ plans:
         runner: compose
         order: 10
         services: [web, postgres]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   rails:

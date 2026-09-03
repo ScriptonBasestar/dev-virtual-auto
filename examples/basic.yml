@@ -14,12 +14,12 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env
-
 vars:
   RAILS_ENV: development
   DATABASE_URL: postgres://user:password@db:5432/myapp_development
+
+env_file:
+  - .env
 
 stack:
   rails-compose:
@@ -31,16 +31,6 @@ stack:
           - docker-compose.yml
         project_name: myapp
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   local-dev:
     description: Basic local development environment
@@ -51,6 +41,16 @@ plans:
         runner: compose
         order: 10
         services: [web, db]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   shell:

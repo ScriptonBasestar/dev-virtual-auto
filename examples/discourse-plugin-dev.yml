@@ -4,13 +4,13 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env
-
 vars:
   RUBY_VERSION: "3.2"
   RAILS_ENV: development
   DISCOURSE_HOSTNAME: localhost
+
+env_file:
+  - .env
 
 stack:
   discourse-compose:
@@ -22,16 +22,6 @@ stack:
           - docker-compose.yml
         project_name: gorisa-discourse
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   local-discourse:
     description: Local Discourse plugin development
@@ -42,6 +32,16 @@ plans:
         runner: compose
         order: 10
         services: [discourse, postgres, redis]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   rails:

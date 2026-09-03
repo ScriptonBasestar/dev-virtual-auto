@@ -94,11 +94,11 @@ edit them even though nothing now blocks the rest.
 ## Completion Criteria
 
 - [ ] The README Lifecycle bullet states that only `--purge` (not `-v` alone) triggers the confirmation prompt, matching `confirmDestruction`'s single `--purge`-gated call site | verify: `human — read the bullet against confirmDestruction's call site; the sentence must not leave a reader believing bare -v is guarded`
-- [ ] `examples/MAKEFILE.md` uses `dva version` in place of the non-existent `dva --version` flag | verify: `! /usr/bin/grep -q -- 'dva --version' examples/MAKEFILE.md`
+- [x] `examples/MAKEFILE.md` uses `dva version` in place of the non-existent `dva --version` flag | verify: `! /usr/bin/grep -q -- 'dva --version' examples/MAKEFILE.md`
 - [ ] `examples/MAKEFILE.md`'s `provision:` example is rewritten as a mapping (`default_profile` plus a flat `<profile>: [ProvisionItem, ...]` list, or a bare `<profile-name>:` key holding the list) that unmarshals against `ProvisionConfig.UnmarshalYAML` | verify: human — reviewer copies the corrected block into a scratch `dva.yml` and confirms `dva config validate` does not reject it as unparseable
-- [ ] `internal/config/examples_schema_test.go` (or a sibling test) extracts fenced YAML code blocks from `examples/*.md` and validates each against the same schema/semantic path used for `examples/*.yml`, so a defect like item 3 fails a test instead of shipping silently | verify: `go test ./internal/config -count=1`
+- [x] `internal/config/examples_schema_test.go` (or a sibling test) extracts fenced YAML code blocks from `examples/*.md` and validates each against the same schema/semantic path used for `examples/*.yml`, so a defect like item 3 fails a test instead of shipping silently | verify: `go test ./internal/config -count=1`
 - [ ] Every file in `examples/*.yml` passes `dva config validate --strict` cleanly (reorder sections to `canonicalSectionOrder` and either ship the referenced compose files or adjust the examples so config-drift warnings do not fire) | verify: human — reviewer runs `dva config validate --strict` from each example's directory (with its referenced compose files present, or the example adjusted not to reference missing ones) and confirms zero warnings for all 16 files
-- [ ] Repository gates pass | verify: `make lint && make test && make doc-check`
+- [x] Repository gates pass | verify: `make lint && make test && make doc-check`
 
 ## Non-goals
 
@@ -127,3 +127,54 @@ edit them even though nothing now blocks the rest.
   these examples. This mirrors how the tracked corpus actually ships (no sibling compose
   files exist under `examples/`), so the drift warnings are not an artifact of the
   measurement method.
+- Symptom: text-preserving reorder of top-level `examples/*.yml` sections silently dropped
+  blank lines between sections. Cause: first script split the file via `text.split("\n")`
+  and rejoined section slices with `"\n".join(...)`, which loses the separating blank line
+  that belonged to neither slice. Fix: rewrote the reorder step to operate on raw text with
+  `re.finditer` + character-offset slicing instead of a line-list join, preserving whitespace
+  byte-for-byte; re-verified via `diff` against the pre-edit file. ~20 min.
+- Symptom: fixing `applications.yml`'s "interaction.db has subcommands but is not directly
+  callable" warning by adding both `service:` and `command:` to the parent `db:` node
+  introduced a new "subcommand.shell.command is identical to parent; subcommand is
+  redundant" warning. Cause: the added parent `command:` exactly matched the `shell`
+  subcommand's `command:`. Fix: kept only `service: postgres` on the parent (confirmed via
+  `hasExecutionTarget()` in `internal/config/validate_warnings.go` that a bare `service:` is
+  sufficient to count as an execution target), dropping the duplicate `command:`. ~10 min.
+- Not fixed, by design: compose-file-existence drift warnings remain on 14/16
+  `examples/*.yml` files (all but `kubernetes.yml`/`stack-source.yml`), because no tracked
+  example ships its referenced compose file. Considered three fixes and rejected all: (1)
+  flat sidecar files collide on the shared name `docker-compose.yml` across examples: (2)
+  uniquely-named sidecars aren't recognized by `detectComposeFilesInDir`'s naming
+  heuristic, so the mismatch warning persists anyway; (3) per-example subdirectories would
+  be a structural repo change touching paths referenced by README.md, DISCOURSE.md, runner
+  tests, and other concurrently-edited cards — out of this card's scope. Left unresolved
+  with this reasoning recorded for the next card that wants to pick it up.
+- Not fixed, by design: `service-orchestration.yml` still reports a "merge infra-compose and
+  frontend into one entry" warning because both reference the same compose file. The
+  suggested merge would collapse `frontend`'s `order: 40`/`depends_on: [api]` into
+  `infra-compose`'s `order: 10`, changing the ordered-startup behavior the example exists to
+  demonstrate. Left unresolved rather than mechanically applying a fix that changes what the
+  example teaches.
+
+## Orchestrator measurement (2026-09-03, batch run)
+
+Criterion 5 (`examples/*.yml` strict-clean) was measured rather than accepted from the
+implementer's report. Each `examples/*.yml` was copied into its own scratch directory as
+`dva.yml` and validated there, since `dva config validate` takes no file flag and reads the
+`dva.yml` in its working directory:
+
+```
+clean=2 dirty=14 total=16   # 14 files exit 1 with 2-4 warnings each
+```
+
+Only `kubernetes.yml` and `stack-source.yml` are clean. The criterion demands zero warnings
+for all 16, so it is **not met** and this card stays in `todo`.
+
+A first measurement attempt used `dva config validate --strict -f <file>` and reported
+`clean=16`. That was a false pass: `-f` is not a registered flag, every invocation exited 1
+with `unknown shorthand flag: 'f'`, and the warning-count grep found nothing in the error
+text. Recorded because the same shape — a grep count over output from a command that never
+ran — will pass any criterion bound this way.
+
+Criteria 2, 4 and 6 were executed and pass. Criteria 1 and 3 are human-bound and carry the
+implementer's assertion, not an orchestrator verification.

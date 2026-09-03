@@ -15,16 +15,6 @@ stack:
         files:
           - docker-compose.yml
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   local-rails:
     environment: dev
@@ -34,6 +24,16 @@ plans:
         runner: compose
         order: 10
         services: [web, db]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   shell:

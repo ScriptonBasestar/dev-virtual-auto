@@ -4,15 +4,15 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env.defaults
-  - .env
-  - .env.local
-
 vars:
   RAILS_ENV: development
   LOG_LEVEL: info
   DATABASE_HOST: postgres
+
+env_file:
+  - .env.defaults
+  - .env
+  - .env.local
 
 stack:
   compose-bundle:
@@ -21,6 +21,15 @@ stack:
       compose:
         files:
           - docker-compose.yml
+
+plans:
+  local-priority:
+    environment: dev
+    site: local
+    entries:
+      - name: compose-bundle
+        runner: compose
+        order: 10
 
 environments:
   dev:
@@ -31,15 +40,6 @@ sites:
   local:
     vars:
       DVA_SITE: local
-
-plans:
-  local-priority:
-    environment: dev
-    site: local
-    entries:
-      - name: compose-bundle
-        runner: compose
-        order: 10
 
 interaction:
   rails:

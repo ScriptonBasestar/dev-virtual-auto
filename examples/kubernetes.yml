@@ -26,16 +26,6 @@ stack:
           - k8s/worker.yaml
           - k8s/postgres.yaml
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   k8s-dev:
     description: Kubernetes development environment
@@ -45,6 +35,16 @@ plans:
       - name: cluster-app
         runner: kubectl
         order: 10
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   k8s:

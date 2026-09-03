@@ -17,16 +17,6 @@ stack:
           - docker-compose.yml
         project_name: myapp
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   local-make:
     environment: dev
@@ -36,6 +26,16 @@ plans:
         runner: compose
         order: 10
         services: [app, postgres]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   rails:

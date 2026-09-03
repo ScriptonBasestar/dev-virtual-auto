@@ -4,14 +4,14 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env
-
 vars:
   NODE_ENV: development
   MONGODB_URL: mongodb://mongo:27017/myapp_development
   REDIS_URL: redis://redis:6379/0
   PORT: ${PORT:-3000}
+
+env_file:
+  - .env
 
 stack:
   node-compose:
@@ -23,16 +23,6 @@ stack:
           - docker-compose.yml
         project_name: myapp_node
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   node-local:
     environment: dev
@@ -42,6 +32,16 @@ plans:
         runner: compose
         order: 10
         services: [node, mongo, redis]
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   shell:

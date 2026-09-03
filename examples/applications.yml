@@ -13,13 +13,13 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env.example
-  - .env
-
 vars:
   DATABASE_URL: "postgres://dev:dev@localhost:15432/myapp"
   REDIS_URL: "redis://localhost:16379"
+
+env_file:
+  - .env.example
+  - .env
 
 stack:
   infra:
@@ -68,40 +68,6 @@ stack:
         image: myorg/web-ui:dev
         run: docker run --rm --name web-ui myorg/web-ui:dev
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-      LOG_LEVEL: debug
-
-  stg:
-    environment:
-      APP_ENV: stg
-      LOG_LEVEL: info
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-    entry_overrides:
-      api:
-        runner: native
-      worker:
-        runner: native
-      web:
-        runner: native
-
-  docker-host:
-    vars:
-      DVA_SITE: docker-host
-    entry_overrides:
-      api:
-        runner: docker
-      worker:
-        runner: docker
-      web:
-        runner: docker
-
 plans:
   local-backend:
     description: Infra + API + worker
@@ -143,9 +109,46 @@ plans:
         order: 40
         depends_on: [api]
 
+default_plan: local-full
+
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+      LOG_LEVEL: debug
+
+  stg:
+    environment:
+      APP_ENV: stg
+      LOG_LEVEL: info
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
+    entry_overrides:
+      api:
+        runner: native
+      worker:
+        runner: native
+      web:
+        runner: native
+
+  docker-host:
+    vars:
+      DVA_SITE: docker-host
+    entry_overrides:
+      api:
+        runner: docker
+      worker:
+        runner: docker
+      web:
+        runner: docker
+
 interaction:
   db:
     description: Database management
+    service: postgres
     subcommands:
       shell:
         description: PostgreSQL interactive console

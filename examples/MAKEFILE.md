@@ -39,9 +39,10 @@ interaction:
     command: bundle exec rspec
 
 provision:
-  - dva compose up -d postgres redis
-  - dva bundle install
-  - dva rails db:setup
+  default:
+    - dva compose up -d postgres redis
+    - dva bundle install
+    - dva rails db:setup
 ```
 
 ### 3. Add Makefile Targets
@@ -157,7 +158,7 @@ test-env:
 
 ```bash
 # Check if dva is installed
-dva --version
+dva version
 
 # If not, install it
 go install github.com/ScriptonBasestar/dva/cmd/dva@latest

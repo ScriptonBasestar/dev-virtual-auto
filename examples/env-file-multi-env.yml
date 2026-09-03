@@ -4,14 +4,14 @@
 
 version: "0.1.44"
 
-env_file:
-  - .env.${ENV:-development}
-  - .env.local
-
 vars:
   NODE_ENV: ${ENV:-development}
   RAILS_ENV: ${ENV:-development}
   APP_NAME: myapp
+
+env_file:
+  - .env.${ENV:-development}
+  - .env.local
 
 stack:
   compose-bundle:
@@ -21,6 +21,15 @@ stack:
         files:
           - docker-compose.yml
           - docker-compose.${ENV:-development}.yml
+
+plans:
+  env-aware:
+    environment: ${ENV:-development}
+    site: local
+    entries:
+      - name: compose-bundle
+        runner: compose
+        order: 10
 
 environments:
   development:
@@ -37,15 +46,6 @@ sites:
   local:
     vars:
       DVA_SITE: local
-
-plans:
-  env-aware:
-    environment: ${ENV:-development}
-    site: local
-    entries:
-      - name: compose-bundle
-        runner: compose
-        order: 10
 
 interaction:
   rails:

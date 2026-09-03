@@ -15,6 +15,15 @@ stack:
         files:
           - docker-compose.yml
 
+plans:
+  local-steps:
+    environment: dev
+    site: local
+    entries:
+      - name: rails-compose
+        runner: compose
+        order: 10
+
 environments:
   dev:
     environment:
@@ -24,15 +33,6 @@ sites:
   local:
     vars:
       DVA_SITE: local
-
-plans:
-  local-steps:
-    environment: dev
-    site: local
-    entries:
-      - name: rails-compose
-        runner: compose
-        order: 10
 
 interaction:
   shell:

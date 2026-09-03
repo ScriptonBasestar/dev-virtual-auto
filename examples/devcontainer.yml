@@ -18,16 +18,6 @@ stack:
           - docker-compose.yml
         project_name: myapp
 
-environments:
-  dev:
-    environment:
-      APP_ENV: dev
-
-sites:
-  local:
-    vars:
-      DVA_SITE: local
-
 plans:
   local-devcontainer:
     description: DevContainer-oriented local environment
@@ -39,26 +29,15 @@ plans:
         order: 10
         services: [app, db, redis]
 
-devcontainer:
-  enabled: true
-  name: My Rails App Development
-  service: app
-  workspaceFolder: /workspace
-  remoteUser: vscode
-  features:
-    docker-in-docker: {}
-    github-cli:
-      version: latest
-    git: {}
-  customizations:
-    vscode:
-      extensions:
-        - rebornix.ruby
-        - castwide.solargraph
-        - kaiwood.endwise
-        - ms-azuretools.vscode-docker
-  forwardPorts: [3000, 5432, 6379]
-  postCreateCommand: bundle install && rails db:setup
+environments:
+  dev:
+    environment:
+      APP_ENV: dev
+
+sites:
+  local:
+    vars:
+      DVA_SITE: local
 
 interaction:
   shell:
@@ -80,3 +59,23 @@ provision:
       run: dva bundle install
     - step: Setting up database
       run: dva rails db:create db:migrate db:seed
+devcontainer:
+  enabled: true
+  name: My Rails App Development
+  service: app
+  workspaceFolder: /workspace
+  remoteUser: vscode
+  features:
+    docker-in-docker: {}
+    github-cli:
+      version: latest
+    git: {}
+  customizations:
+    vscode:
+      extensions:
+        - rebornix.ruby
+        - castwide.solargraph
+        - kaiwood.endwise
+        - ms-azuretools.vscode-docker
+  forwardPorts: [3000, 5432, 6379]
+  postCreateCommand: bundle install && rails db:setup
