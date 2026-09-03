@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-03T19:40:00+09:00
 source: "TASK-281 §3-6 — the runtime layer is the only one that knows its caller is an LLM"
 scope: "canonical deny list, per-runtime projection targets, install/status/uninstall ownership model, drift verification, init integration boundary"
-status: todo
+status: done
 depends-on: [TASK-281]
 ---
 

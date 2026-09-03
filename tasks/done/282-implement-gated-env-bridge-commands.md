@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-03T18:10:00+09:00
 source: "TASK-281 frozen contract"
 scope: "env_bridge schema and config plumbing, dva config env seal, dva config env show, gate preflight, error codes, fixtures, USAGE/CHANGELOG"
-status: todo
+status: done
 depends-on: [TASK-281]
 ---
 

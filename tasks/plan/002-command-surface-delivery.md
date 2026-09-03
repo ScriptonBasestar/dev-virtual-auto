@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 75
+progress: 88
 total-tasks: 16
-completed-tasks: 12
+completed-tasks: 14
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285, TASK-286]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -38,12 +38,12 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 
 ## Current status and recommended order (2026-09-04)
 
-16장 중 12장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
-TASK-248(`b23780e`), TASK-250(`4cc0fdc`), TASK-265, TASK-284(`bbe3db1`), TASK-285,
-TASK-252(결정), TASK-251(N/A 종료), TASK-281(결정 + 종결). TASK-249는 결정만 끝났고
-(`decision-status: decided`, 2026-09-03) 카드 자체는 엔지니어링 후속 항목 때문에 `todo/`에
-남는다 — 위 목록에 포함하지 않는다. 위 표의 링크가 `../todo/`를 가리키는 카드도 이미
-`tasks/done/`에 있다 — doccheck가
+16장 중 14장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
+TASK-248(`b23780e`), TASK-250(`4cc0fdc`), TASK-265, TASK-282(`70ad560`), TASK-284(`bbe3db1`),
+TASK-285, TASK-286(`feaec5a`), TASK-252(결정), TASK-251(N/A 종료), TASK-281(결정 + 종결).
+TASK-249는 결정만 끝났고 (`decision-status: decided`, 2026-09-03) 카드 자체는 엔지니어링
+후속 항목 때문에 `todo/`에 남는다 — 위 목록에 포함하지 않는다. 위 표의 링크가 `../todo/`를
+가리키는 카드도 이미 `tasks/done/`에 있다 — doccheck가
 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라 카드
 front-matter에서 읽는다.
 
@@ -53,22 +53,18 @@ front-matter에서 읽는다.
 TASK-251(P0/L)이 코드 한 줄 없이 N/A로 닫혔다. 승격 재개는 이 카드들을 되살리는 것이 아니라
 새 카드로 한다.
 
-남은 3장과 각각의 착수 조건 (TASK-281은 2026-09-03 완료기준 9개 전부 충족으로 종결,
-TASK-249는 결정 완료 후 `todo/`에 남는 별도 항목이라 이 표에서 제외):
+**TASK-282, TASK-286 모두 닫혔다.** 두 카드 모두 다른 세션의 WIP였다는 이전 기록은 stale하다
+— TASK-282는 `70ad560`으로, TASK-286은 `feaec5a`(선행 lint 수정은 `4f3051f`)로 각각 통합됐고
+전체 게이트가 초록이다. 남은 1장과 그 착수 조건 (TASK-281은 2026-09-03 완료기준 9개 전부
+충족으로 종결, TASK-249는 결정 완료 후 `todo/`에 남는 별도 항목이라 이 표에서 제외):
 
 | Task | 상태 | 착수 조건 |
 | --- | --- | --- |
 | TASK-266 | todo, Stage A 완료 | Stage B는 0.1.48 릴리스 대기 |
-| TASK-282 | todo, 진행 중 | 다른 세션이 워크트리에서 구현 중(커밋 전 WIP) — 새로 착수하지 않는다 |
-| TASK-286 | todo, 진행 중 | 다른 세션이 워크트리에서 구현 중(커밋 전 WIP) — 새로 착수하지 않는다 |
 
-다음 순서를 권장한다.
-
-1. **TASK-282, TASK-286은 각각 다른 세션이 이미 작업 중이다.** 두 워크트리 모두 커밋되지
-   않은 변경이 있어 새 세션이 같은 카드에 착수하면 충돌한다. 완료·통합될 때까지 대기한다.
-2. **TASK-266 Stage B는 릴리스가 연다.** Stage A는 `c6aa64b`으로 통합됐고, 카드의 Constraint가
-   "Stage B must not start before 0.1.48 has shipped"를 못박는다. 현재 태그는 `v0.1.47`이므로
-   착수 조건은 코드가 아니라 릴리스다.
+**TASK-266 Stage B는 릴리스가 연다.** Stage A는 `c6aa64b`으로 통합됐고, 카드의 Constraint가
+"Stage B must not start before 0.1.48 has shipped"를 못박는다. 현재 태그는 `v0.1.47`이므로
+착수 조건은 코드가 아니라 릴리스다.
 
 이 계획의 출시 blocker는 남아 있지 않다.
 
