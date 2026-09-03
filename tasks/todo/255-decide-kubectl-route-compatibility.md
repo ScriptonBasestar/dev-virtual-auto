@@ -107,11 +107,39 @@ unexplained dynamic invocations **stop a rename decision**"이다. 코퍼스는 
    수단이 없다. 완료기준 5는 이 경우 "TASK-254에서 산출된 bounded child를 구현 전에
    요구한다"고 이미 규정하고 있으며, 그 child가 TASK-272다. 즉 완료기준 5는 TASK-272의
    판정으로 닫힌다.
-3. **`reserved.go`가 24 → 25로 바뀌면 여덟 곳의 "24" 서술이 전부 틀린다** — `USAGE.md:1148`,
-   `internal/cli/library_reference.txt:40,210`, `skills/dva-config/references/schema-
-   reference.md:17`, `skills/dva/references/commands.md:318`, `agent-mesh-flows/shared/
-   library/shared-guardrails.md:38`, `docs/43:12`, `docs/51:77`. 일부는 생성 대상이므로
-   `make generate`와 `make check-generate`가 그 변경의 일부이지 후속 정리가 아니다.
+3. **`reserved.go`가 24 → 25로 바뀌면 "24" 서술이 여러 곳에서 틀린다. 다만 대부분은 손으로
+   고치면 안 된다.** 결정 제시 시점에 제시된 목록은 생성물과 원본을 구분하지 않아 부정확했고,
+   생성 그래프를 추적해 아래로 교정한다.
+
+   `tools/libgen/main.go:36-41,66-70`이 `config.ReservedCommands()`를 실제로 읽어
+   `renderReserved`에서 `len(reserved)`로 개수를 산출하고 `reserved_commands` 블록을
+   `agent-mesh-flows/shared/library/shared-guardrails.md`에 다시 쓴다. Makefile `generate`가
+   그 library를 `internal/cli/library_reference.txt`로 합치고, flowgen이 flow YAML에
+   인라인한다. 즉 **생성 경로의 개수는 자기 유지된다** — 손대면 `make check-generate`가 막는다.
+
+   손으로 고쳐야 하는 곳은 5개 파일 6개 지점뿐이다.
+
+   | 위치 | 비고 |
+   | --- | --- |
+   | `skills/dva-config/references/schema-reference.md:17` | canonical source. `agent-mesh-flows/shared/library/dva-schema.md`가 이 파일로의 **심볼릭 링크**라 한 번 고치면 `library_reference.txt:210`·`dva-improve.yaml:1039`·`dva-improve-guided/30-configure.yaml:332`로 전파된다 |
+   | `skills/dva-config/references/schema-reference.md:147-152` | 같은 파일 안의 **두 번째 목록**. YAML 주석 형태로 `# (24 names.`로 끝난다. L17만 고치면 여기가 남는다 |
+   | `skills/dva/references/commands.md:318` | 개수 없이 이름만 나열 — **grep할 숫자가 없다** |
+   | `USAGE.md:1148` | 바로 아래 ASCII 표 `:1150-1153`도 함께 |
+   | `docs/43-command-surface-restructure.md:12` | |
+   | `docs/51-flowcheck-rules.md:77` | |
+
+   **손대면 안 되는 함정 두 곳.** `CHANGELOG.md:244`는 "27개 → 23개; 같은 릴리스에서
+   `dva skill`이 추가되어 이 릴리스의 예약어는 24개입니다"라는 릴리스 서술이고,
+   `tasks/plan/002:178,197`은 "현재 구현을 24개 baseline으로 삼되"라는 결정 시점 사실이다.
+   둘 다 24로 남아야 하며 일괄 치환은 이것들을 깬다.
+
+   `make generate`와 `make check-generate`는 여전히 그 변경의 일부다 — 다만 나머지를
+   갱신하기 위한 것이지, 위 6개 지점을 대신해 주지는 않는다.
+
+   **부수 결함 — TASK-256에서 함께 처리할 후보.** `renderReserved`가 개수를 파생시키는데
+   `schema-reference.md`는 같은 사실을 산문으로 두 번 하드코딩한다. 이 파일은 생성기의
+   *입력*이면서 생성기가 이미 유도하는 값을 다시 적고 있어, 255의 결과와 무관하게 다음
+   예약어 변경에서 조용히 어긋난다. 수동 갱신보다 libgen 마커를 씌우는 편이 맞다.
 4. **`docs/42-migration-and-compatibility.md:157`은 오늘 옳고 이 판정으로 틀려진다.**
    `dva kubectl`을 interaction 예시로 가르치고 있다. 완료기준 6의 "documentation migration"에
    포함된다. 저장소 내 `examples/`는 영향받지 않는다 — `kubernetes.yml:49`와
