@@ -9,6 +9,8 @@ created-at: 2026-09-03T00:17:00+09:00
 source: "Docs audit of README.md, examples/*.md, examples/*.yml, and internal/config/examples_schema_test.go at HEAD 5eb1af5"
 scope: "README.md destructive-teardown confirmation claim, examples/MAKEFILE.md CLI and provision errors, examples/*.md sweep, examples_schema_test.go markdown coverage, examples corpus --strict compliance"
 status: todo
+decision-status: decided
+decided-at: 2026-09-03T21:30:00+09:00
 depends-on: []
 ---
 
@@ -97,7 +99,10 @@ edit them even though nothing now blocks the rest.
 - [x] `examples/MAKEFILE.md` uses `dva version` in place of the non-existent `dva --version` flag | verify: `! /usr/bin/grep -q -- 'dva --version' examples/MAKEFILE.md`
 - [ ] `examples/MAKEFILE.md`'s `provision:` example is rewritten as a mapping (`default_profile` plus a flat `<profile>: [ProvisionItem, ...]` list, or a bare `<profile-name>:` key holding the list) that unmarshals against `ProvisionConfig.UnmarshalYAML` | verify: human — reviewer copies the corrected block into a scratch `dva.yml` and confirms `dva config validate` does not reject it as unparseable
 - [x] `internal/config/examples_schema_test.go` (or a sibling test) extracts fenced YAML code blocks from `examples/*.md` and validates each against the same schema/semantic path used for `examples/*.yml`, so a defect like item 3 fails a test instead of shipping silently | verify: `go test ./internal/config -count=1`
-- [ ] Every file in `examples/*.yml` passes `dva config validate --strict` cleanly (reorder sections to `canonicalSectionOrder` and either ship the referenced compose files or adjust the examples so config-drift warnings do not fire) | verify: human — reviewer runs `dva config validate --strict` from each example's directory (with its referenced compose files present, or the example adjusted not to reference missing ones) and confirms zero warnings for all 16 files
+- [ ] Every file in `examples/*.yml` passes `dva config validate --strict` with **zero warnings other than the two documented compose-absence strings** (`compose.files is ... but detected root compose files are (none)` and `compose file "..." is configured by dva.yml but does not exist`), which the ruling below exempts as a property of a fragment corpus rather than a defect in it | verify: `/usr/bin/grep -Eq '^func TestExamplesStrictCleanExceptComposeAbsence\(' internal/config/examples_schema_test.go && go test ./internal/config -count=1 -run TestExamplesStrictCleanExceptComposeAbsence`
+- [ ] The exemption lives in the corpus test, not in `validate --strict` itself — running `dva config validate --strict` on a real project that names a missing compose file still warns | verify: `/usr/bin/grep -Eq '^func TestStrictStillWarnsOnMissingComposeOutsideCorpus\(' internal/config/validate_test.go && go test ./internal/config -count=1 -run TestStrictStillWarnsOnMissingComposeOutsideCorpus`
+- [ ] `examples/README.md`'s `**Last Updated**` footer states the file's actual last-change date instead of `March 2026` | verify: `! /usr/bin/grep -q 'Last Updated.*March 2026' examples/README.md`
+- [ ] `examples/README.md`'s ambiguous `**Version**: 0.1.44` footer is relabelled to say which claim it makes, so no future sweep has to guess between "docs describe 0.1.44" and "these configs require at least 0.1.44" | verify: `! /usr/bin/grep -Eq '^\*\*Version\*\*: 0\.1\.44' examples/README.md`
 - [x] Repository gates pass | verify: `make lint && make test && make doc-check`
 
 ## Non-goals
@@ -117,7 +122,10 @@ edit them even though nothing now blocks the rest.
 - No change to `ProvisionConfig.UnmarshalYAML` or any other runtime type — corpus and docs are
   brought into agreement with the existing parser, not the other way around.
 - No new example files beyond what's needed to demonstrate a corrected provision shape in
-  `examples/MAKEFILE.md`.
+  `examples/MAKEFILE.md`. In particular, the fourteen absent compose files are **not** authored
+  here — see the ruling above.
+- `service-orchestration.yml`'s overlay-modelling warning is owned by
+  [TASK-288](288-model-compose-overlays-in-service-orchestration-example.md) and is out of scope.
 
 ## Troubleshooting Log
 
@@ -218,6 +226,45 @@ entry) would collapse the ordered startup the example exists to demonstrate.
 Framing credit: raised by a peer session reviewing the same corpus; the discriminator
 (has any example ever shipped a compose file / does any doc promise runnability) is theirs,
 the measurement is this session's.
+
+## 판정: examples는 실행 트리가 아니라 예시 조각이다 (2026-09-03)
+
+바로 위 절이 "이 카드가 실제로 필요한 것은 대신 서 있던 결정이다 — examples는 illustrative
+fragment인가 runnable tree인가"라고 물었다. **fragment로 확정한다.** 세 개의 독립 증거가 같은
+방향을 가리키고 반대 증거가 없다:
+
+1. `examples/` 아래에 compose 파일이 존재한 적이 **한 번도 없다** — 전 히스토리 대상
+   `git log --all --name-only -- examples` 결과가 dva.yml 샘플, `modules/.sb/dva/` 모듈,
+   markdown 문서뿐이다.
+2. `examples/README.md`가 스스로 "Using These Examples" 워크플로를 copy → customize →
+   validate로 서술하며, customize 단계에서 "Service names in docker-compose.yml"을 **독자의
+   몫**으로 명시한다. compose 파일은 독자가 공급한다.
+3. README step 3의 walkthrough(`DVA_FILE=examples/basic.yml dva validate`)는 수정하지 않은
+   예시를 검증만 하고 **실행하지 않는다**. 문서화된 수명주기가 `validate`에서 끝난다.
+
+증거가 이미 사실을 확정하고 있으므로 이 항목을 `needs-human`으로 올리지 않는다. 사람이
+고를 것이 남아 있으려면 두 답이 모두 살아 있어야 하는데, "runnable"을 뒷받침하는 증거가
+저장소 어디에도 없다.
+
+### 따라서 무엇을 고치는가 — 검증기가 아니라 corpus 측정 방식
+
+카드가 제시한 두 갈래는 둘 다 기각한다. compose 파일 14개를 저자하는 것은 validator를
+달래려고만 존재하는 파일을 만드는 일이고, `compose.files:` 참조를 지우는 것은 compose 예시의
+존재 이유를 지우는 일이다.
+
+세 번째 선택지를 택한다: **`--strict`의 compose-absence 경고는 그대로 두고, corpus 게이트만
+그 두 문자열을 예외 처리한다.** 근거는 그 경고가 **실제 프로젝트에서는 옳기 때문이다** —
+존재하지 않는 compose 파일을 가리키는 dva.yml은 진짜 결함이다. 경고가 틀린 것은 오직 템플릿에
+대해서일 뿐이다. validator를 약화시키면 fragment corpus 하나를 통과시키려고 모든 사용자의
+진짜 경고를 끈다. 그래서 예외는 사용자 표면이 아니라 측정 쪽에 둔다. 새 기준 두 줄이 그 경계를
+양방향으로 못박는다 — corpus는 예외를 받고, corpus 밖은 계속 경고한다.
+
+### 남는 하나는 이 카드의 것이 아니다
+
+`service-orchestration.yml`의 semantic 경고(네 compose 엔트리가 같은 invocation set에 들어가
+overlay가 다른 엔트리를 patch하지 못한다)는 파일 부재와 무관한 별개 결함이고, 기계적 수정
+(엔트리 병합)은 예시가 가르치려는 순서 있는 기동을 무너뜨린다. [TASK-288](288-model-compose-overlays-in-service-orchestration-example.md)로
+분리했다. 이 카드는 그것을 기다리지 않는다.
 
 ## Trap for the examples/*.md sweep: `version:` is a floor, not a stamp
 

@@ -3,10 +3,10 @@ id: PLAN-004
 title: "Restore documentation truth across skills, flows, and the example corpus"
 type: plan
 scope: "CLI advice strings, agent-mesh flow prompt claims, skill reference fictions, example corpus defects, and the markdown-YAML validation gap"
-progress: 80
-total-tasks: 5
+progress: 67
+total-tasks: 6
 completed-tasks: 4
-children: [TASK-273, TASK-274, TASK-275, TASK-276, TASK-283]
+children: [TASK-273, TASK-274, TASK-275, TASK-276, TASK-283, TASK-288]
 target-date: "2026-11-30"
 created: 2026-09-03
 ---
@@ -42,7 +42,8 @@ question 2가 소유한다.
 | CLI 조언 문자열이 실행 불가능한 명령을 제안 | **완료 (`206918a` → `20d0f67`)** — 잔존 다섯 입력을 TASK-283이 닫음 | [TASK-273](../done/273-repair-misleading-cli-guidance.md) → [TASK-283](../done/283-repair-plan-route-flag-guidance.md) |
 | flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | **완료 (`159bf1b`)** | [TASK-274](../done/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | **완료** | [TASK-275](../done/275-correct-skill-reference-fictions.md) |
-| example corpus 결함 + markdown-YAML 게이트 공백 | 15/16 파일 `--strict` 실패 측정 | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
+| example corpus 결함 + markdown-YAML 게이트 공백 | **범위 판정 완료 (2026-09-03)** — examples는 fragment corpus | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
+| `service-orchestration.yml` overlay 모델링 경고 | TASK-276에서 분리 — 결함 주체 미정 | [TASK-288](../todo/288-model-compose-overlays-in-service-orchestration-example.md) |
 
 ## 권장 순서 (2026-09-03)
 
@@ -82,7 +83,7 @@ question 2가 소유한다.
    세션은 이 카드의 diff에서 전파 경로를 먼저 읽는 것이 가장 빠르다.
 4. **TASK-275 — 완료.** skill reference. `reference-examples.md`가 단일 소스이고 생성 사본이
    셋이므로 TASK-274에서 확인한 generate 경로를 그대로 재사용했다.
-5. **TASK-276 — 남은 유일한 카드.** 게이트를 추가하는 카드이므로 앞의 세 장이 남긴 결함이 없는 상태에서
+5. **TASK-276.** 게이트를 추가하는 카드이므로 앞의 세 장이 남긴 결함이 없는 상태에서
    켜야 새 게이트가 기존 부채로 즉시 빨간불이 되지 않는다. 이 카드가 켜는 `validate --strict`
    게이트는 [TASK-277](../done/277-repair-nondeterministic-env-interpolation.md)의 `MergeVars`
    비결정성 위에서는 간헐 실패했을 것이므로 선행 조건이었으나, 해당 카드가 `e9ce4e6`으로
@@ -96,6 +97,34 @@ Stage A(`c6aa64b`)가 정리했다 — `examples/env-file-priority.yml`에는 ro
 건드린다. 선언을 남겨두면 릴리스가 나갈 때까지 TASK-276 전체가 차단된 것처럼 읽히므로,
 실질적으로 충족된 의존을 해제하고 그 두 파일은 TASK-276의 Non-goals에서 계속 범위 밖으로
 못박아 둔다.
+
+
+## TASK-276 범위 판정 (2026-09-03)
+
+TASK-276의 기준 5는 "`examples/*.yml` 16개 전부 `--strict` 무경고"였고 14개가 실패했다. 그
+14개가 열네 개의 결함이 아니라 **하나의 범위 질문**이라는 것이 측정으로 드러났고 — 13개가
+동일한 compose-부재 경고 쌍 — 그 질문을 판정했다: **examples는 실행 트리가 아니라 예시
+조각이다.** 근거 셋은 TASK-276에 기록돼 있으며 요지는 `examples/` 아래에 compose 파일이
+존재한 적이 한 번도 없고, `examples/README.md`가 스스로 copy → customize → validate
+워크플로를 서술하며 compose 파일을 독자의 몫으로 명시한다는 것이다.
+
+**수정 위치가 판정의 핵심이다.** compose-부재 경고는 실제 프로젝트에서는 옳으므로
+`validate --strict`를 약화시키지 않는다. 예외는 corpus 테스트 쪽에만 둔다. TASK-276의 새
+기준 두 줄이 그 경계를 양방향으로 못박는다 — corpus는 예외를 받고, corpus 밖은 계속 경고한다.
+이것은 이 계획의 "문서를 코드에 맞춘다, 그 반대가 아니다" 원칙의 직접 적용이다: 코퍼스가
+검증기를 바꾸게 두지 않는다.
+
+남은 한 경고(`service-orchestration.yml` overlay)는 파일 부재와 무관한 별개 결함이라
+[TASK-288](../todo/288-model-compose-overlays-in-service-orchestration-example.md)로 분리했고
+이 계획의 자식으로 편입했다.
+
+## 계획 밖으로 분리한 카드
+
+[TASK-287](../todo/287-gate-task-card-status-against-its-zone.md) — `tasks/done/` 여덟 장이
+`status: todo`로 남아 있던 드리프트를 잡는 게이트 카드다. 이 계획의 근본 원인 절이 지적한
+것과 **같은 종류의 사각지대**(게이트가 형식은 보고 사실은 묻지 않는다)이지만, 대상이
+사용자·에이전트가 읽는 출시 표면이 아니라 task 큐 메타데이터라 이 계획의 선언된 scope 밖이다.
+TASK-279와 같은 방식으로 참조만 하고 자식으로 편입하지 않는다.
 
 ## Open questions
 
