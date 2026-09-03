@@ -36,12 +36,16 @@ type Result struct {
 	ArchiveFilesSeen       int
 	ArchiveCards           int
 	ArchiveMissing         int
+	CardsSeen              int
+	CardsChecked           int
+	StatusMismatches       int
 	Errors                 []string
 	BrokenDetail           []string
 	OversizedDetail        []string
 	UnmatchedRunDetail     []string
 	PortabilityDetail      []string
 	ArchiveDetail          []string
+	CardStatusDetail       []string
 }
 
 // Check validates repository-wide relative markdown links against the git
@@ -193,6 +197,13 @@ func Check(in CheckInput) Result {
 	res.ArchiveDetail = archiveMsgs
 	res.Errors = append(res.Errors, archiveErrs...)
 
+	cardsSeen, checked, mismatches, statusMsgs, statusErrs := checkCardStatus(in.Root, in.Inventory)
+	res.CardsSeen = cardsSeen
+	res.CardsChecked = checked
+	res.StatusMismatches = mismatches
+	res.CardStatusDetail = statusMsgs
+	res.Errors = append(res.Errors, statusErrs...)
+
 	if res.LinksChecked == 0 {
 		res.Errors = append(res.Errors, "vacuous: zero links checked")
 	}
@@ -239,6 +250,16 @@ func Check(in CheckInput) Result {
 	// actual reason, and a rollup that asserted "neither field" would be false about that one.
 	if res.ArchiveMissing > 0 {
 		res.Errors = append(res.Errors, fmt.Sprintf("%d archived card(s) rejected by the archive frontmatter guard", res.ArchiveMissing))
+	}
+	// Files resolved to a card zone but none read as a card means the sweep stopped reaching
+	// them — the same "walk broke, not clean" distinction ArchiveFilesSeen/ArchiveCards draws
+	// above. Gated on CardsSeen, unlike "zero links checked": a tree with no tasks/ directory at
+	// all (any fixture built by this package's other tests) is a legitimate state (TASK-287).
+	if res.CardsSeen > 0 && res.CardsChecked == 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("vacuous: %d file(s) resolved to a task-card zone, zero read as cards", res.CardsSeen))
+	}
+	if res.StatusMismatches > 0 {
+		res.Errors = append(res.Errors, fmt.Sprintf("%d task card(s) with status: not permitted in their zone", res.StatusMismatches))
 	}
 
 	res.OK = len(res.Errors) == 0

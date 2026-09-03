@@ -196,8 +196,8 @@ func TestLinks_resolvesMovedTaskLink(t *testing.T) {
 	root := t.TempDir()
 	referrer := "tasks/_archive/113-old.md"
 	moved := "tasks/done/153-app-up.md"
-	writeFile(t, root, referrer, "---\nid: TASK-113\n---\n\n# 113\n\nSee [153](../todo/153-app-up.md).\n")
-	writeFile(t, root, moved, "# 153\n")
+	writeFile(t, root, referrer, "---\nid: TASK-113\nstatus: done\n---\n\n# 113\n\nSee [153](../todo/153-app-up.md).\n")
+	writeFile(t, root, moved, "---\nid: TASK-153\nstatus: done\n---\n\n# 153\n")
 	inv := mustInventory(t, root, referrer, moved)
 
 	res := Check(CheckInput{Root: root, Inventory: inv})
@@ -248,8 +248,8 @@ func TestLinks_resolvesMovedInlineCodeTaskPath(t *testing.T) {
 	root := t.TempDir()
 	referrer := "tasks/todo/100-ref.md"
 	moved := "tasks/done/153-app-up.md"
-	writeFile(t, root, referrer, "# 100\n\n[self](100-ref.md)\n\nverify: `grep -c x tasks/todo/153-app-up.md`\n")
-	writeFile(t, root, moved, "# 153\n")
+	writeFile(t, root, referrer, "---\nid: TASK-100\nstatus: todo\n---\n\n# 100\n\n[self](100-ref.md)\n\nverify: `grep -c x tasks/todo/153-app-up.md`\n")
+	writeFile(t, root, moved, "---\nid: TASK-153\nstatus: done\n---\n\n# 153\n")
 	inv := mustInventory(t, root, referrer, moved)
 
 	res := Check(CheckInput{Root: root, Inventory: inv})
@@ -305,8 +305,8 @@ func TestLinks_movedTaskLinkAnchorCheckedAgainstResolved(t *testing.T) {
 	root := t.TempDir()
 	referrer := "tasks/_archive/113-old.md"
 	moved := "tasks/done/153-app-up.md"
-	writeFile(t, root, referrer, "---\nid: TASK-113\n---\n\n# 113\n\nSee [153 section](../todo/153-app-up.md#the-heading).\n")
-	writeFile(t, root, moved, "# 153\n\n## The Heading\n")
+	writeFile(t, root, referrer, "---\nid: TASK-113\nstatus: done\n---\n\n# 113\n\nSee [153 section](../todo/153-app-up.md#the-heading).\n")
+	writeFile(t, root, moved, "---\nid: TASK-153\nstatus: done\n---\n\n# 153\n\n## The Heading\n")
 	inv := mustInventory(t, root, referrer, moved)
 
 	if res := Check(CheckInput{Root: root, Inventory: inv}); !res.OK {

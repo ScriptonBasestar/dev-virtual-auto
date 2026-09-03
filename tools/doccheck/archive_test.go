@@ -206,12 +206,14 @@ func TestArchiveFrontmatter_sweepsTheRealCorpus(t *testing.T) {
 // `rc=0 Skipped: archived` — true, and the only reason it gives; `--all` does not walk the
 // archive either.
 //
-// The assertions are split because inside dva the failure is reported twice, and a Check-level
-// assertion cannot tell which pass produced it. The link scan reads every non-symlink markdown
-// candidate in the inventory and formats its read failures identically (check.go), so `res.OK`
-// stays false even with the archive guard's error deleted — measured, by deleting it. The direct
-// call is therefore the assertion that can fail; the Check-level count pins the duplication as a
-// measured fact rather than an assumption, and will fail loudly if either source stops reporting.
+// The assertions are split because inside dva the failure is reported three times, and a
+// Check-level assertion cannot tell which pass produced it. The link scan, the archive guard, and
+// the card zone/status guard (TASK-287) each read every non-symlink markdown candidate under
+// tasks/_archive/ independently and format their read failures identically (check.go, archive.go,
+// cardstatus.go), so `res.OK` stays false even with the archive guard's error deleted — measured,
+// by deleting it. The direct call is therefore the assertion that can fail; the Check-level count
+// pins the duplication as a measured fact rather than an assumption, and will fail loudly if any
+// source stops reporting.
 //
 // A readable card sits beside the broken one deliberately. Alone, the unreadable card would also
 // trip the `zero read as cards` vacuity guard, and this test would pass on that error while the
@@ -234,8 +236,8 @@ func TestArchiveFrontmatter_reportsAnUnreadableCard(t *testing.T) {
 	)
 	root := t.TempDir()
 	writeFile(t, root, "docs/a.md", "# A\n\nSee [self](a.md).\n")
-	writeFile(t, root, intact, "---\nid: TASK-206\n---\n\n# Readable\n")
-	writeFile(t, root, broken, "---\nid: TASK-206\n---\n\n# Unreadable\n")
+	writeFile(t, root, intact, "---\nid: TASK-206\nstatus: done\n---\n\n# Readable\n")
+	writeFile(t, root, broken, "---\nid: TASK-206\nstatus: done\n---\n\n# Unreadable\n")
 
 	full := filepath.Join(root, filepath.FromSlash(broken))
 	if err := os.Chmod(full, 0o000); err != nil {
@@ -274,8 +276,8 @@ func TestArchiveFrontmatter_reportsAnUnreadableCard(t *testing.T) {
 			n++
 		}
 	}
-	if n != 2 {
-		t.Errorf("%d error(s) name the read failure on %s, want 2 — the link scan and the archive guard each report it; if one stopped, the other is now the only reporter and this gate has half the coverage it reads as having", n, broken)
+	if n != 3 {
+		t.Errorf("%d error(s) name the read failure on %s, want 3 — the link scan, the archive guard, and the card zone/status guard each report it; if one stopped, this gate has less coverage than it reads as having", n, broken)
 	}
 	if res.OK {
 		t.Error("Check reported OK over an archive holding an unreadable card")

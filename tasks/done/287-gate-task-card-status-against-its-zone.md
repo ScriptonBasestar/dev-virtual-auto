@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-03T21:30:00+09:00
 source: "Queue audit 2026-09-03: eight cards under tasks/done/ carried status: todo and no gate noticed"
 scope: "doccheck zone/status consistency check for tasks/{todo,done,issue,_archive}, its vacuous-run guard, and the Makefile doc-check path"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -64,21 +64,21 @@ completed. A card whose `status:` is absent entirely is an error under every zon
 
 ## Completion Criteria
 
-- [ ] `doccheck` resolves each task card's zone by longest matching path prefix — never by
+- [x] `doccheck` resolves each task card's zone by longest matching path prefix — never by
       splitting on `/` and indexing a segment — so `tasks/_archive/done/` classifies as archive
       rather than as done | verify: `/usr/bin/grep -Eq '^func TestZoneResolvesArchiveDoneAsArchive\(' tools/doccheck/cardstatus_test.go && go test ./tools/doccheck -count=1`
-- [ ] `doccheck` reports a card whose `status:` is not permitted in its zone, naming the file,
+- [x] `doccheck` reports a card whose `status:` is not permitted in its zone, naming the file,
       the found status, and the permitted set, and exits 1 | verify: `/usr/bin/grep -Eq '^func TestCardStatusMismatchFailsWithNamedFile\(' tools/doccheck/cardstatus_test.go && go test ./tools/doccheck -count=1`
-- [ ] A card missing `status:` in a card zone is an error; a file under `tasks/plan/` is skipped
+- [x] A card missing `status:` in a card zone is an error; a file under `tasks/plan/` is skipped
       without being counted as a card | verify: `/usr/bin/grep -Eq '^func TestMissingStatusIsErrorAndPlansAreSkipped\(' tools/doccheck/cardstatus_test.go && go test ./tools/doccheck -count=1`
-- [ ] The check fails on a vacuous run — zero cards swept means the walk broke, not that the
+- [x] The check fails on a vacuous run — zero cards swept means the walk broke, not that the
       repository is clean — matching the exit-1-on-vacuous rule the rest of `doccheck` already
       holds | verify: `/usr/bin/grep -Eq '^func TestZeroCardsSweptIsFailure\(' tools/doccheck/cardstatus_test.go && go test ./tools/doccheck -count=1`
-- [ ] `doccheck`'s printed report gains a `cards_checked` / `status_mismatches` pair so a passing
+- [x] `doccheck`'s printed report gains a `cards_checked` / `status_mismatches` pair so a passing
       run states how much it swept, and `main.go`'s header comment lists this check alongside the
       others it enumerates | verify: `go run ./tools/doccheck | /usr/bin/grep -Eq '^cards_checked:'`
-- [ ] The whole repository passes the new check with no exemption list | verify: `make doc-check`
-- [ ] Repository gates pass | verify: `make test && make doc-check && make commit-check`
+- [x] The whole repository passes the new check with no exemption list | verify: `make doc-check`
+- [x] Repository gates pass | verify: `make test && make doc-check && make commit-check`
 
 ## Non-goals
 

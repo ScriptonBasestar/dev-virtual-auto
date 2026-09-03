@@ -16,11 +16,18 @@
 //     postdates it; fixed ce skips the archive before reading it and reports
 //     nothing there. Neither build asserts this property — only this does, and
 //     the upgrade widens its remit rather than retiring it (TASK-206)
+//   - card zone/status: every task card's `status:` is permitted in the zone
+//     (tasks/todo|done|issue|_archive/) it physically sits in, resolved by
+//     longest matching path prefix rather than by indexing a path segment; a
+//     card zone missing `status:` entirely is an error; tasks/plan/ files are
+//     skipped, since plans carry no `status:` field (TASK-287)
 //
 // Exit 1 on vacuous runs (zero candidates, zero links, _test.go files that yield
-// no test names, or archive files that yield no cards), broken links, oversized
-// size-enforced docs, -run patterns selecting nothing, or archived cards missing
-// both detection fields. Stdlib only — no third-party packages.
+// no test names, archive files that yield no cards, or task files that yield no
+// zone-checked cards), broken links, oversized size-enforced docs, -run patterns
+// selecting nothing, archived cards missing both detection fields, or task cards
+// whose status: is not permitted in their zone. Stdlib only — no third-party
+// packages.
 package main
 
 import (
@@ -66,6 +73,8 @@ func printReport(res Result) {
 	fmt.Printf("bare_tool_bindings: %d\n", res.BareToolBindings)
 	fmt.Printf("archive_cards:       %d (from %d file(s) under %s)\n", res.ArchiveCards, res.ArchiveFilesSeen, archivePrefix)
 	fmt.Printf("archive_missing:     %d\n", res.ArchiveMissing)
+	fmt.Printf("cards_checked:       %d\n", res.CardsChecked)
+	fmt.Printf("status_mismatches:   %d\n", res.StatusMismatches)
 	for _, d := range res.OversizedDetail {
 		fmt.Printf("  OVERSIZE %s\n", d)
 	}
@@ -80,6 +89,9 @@ func printReport(res Result) {
 	}
 	for _, d := range res.ArchiveDetail {
 		fmt.Printf("  ARCHIVE  %s\n", d)
+	}
+	for _, d := range res.CardStatusDetail {
+		fmt.Printf("  STATUS   %s\n", d)
 	}
 	for _, e := range res.Errors {
 		fmt.Printf("  ERROR    %s\n", e)
