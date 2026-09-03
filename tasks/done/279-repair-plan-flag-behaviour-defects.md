@@ -111,13 +111,13 @@ An implementer should not mix directions across the defects without saying why i
 
 ## Completion Criteria
 
-- [ ] `dva restart <plan> --force` and `dva restart <plan>` are distinguishable — either the flag reaches the orchestrator, or it is rejected on this route | verify: `go test ./internal/cli -count=1`
-- [ ] Restart no longer force-recreates on behalf of a user who did not ask for it, or the manifest states that restart always force-recreates | verify: `go test ./internal/cli -count=1`
-- [ ] `--no-wait` on `stop`/`down` either reaches the orchestrator or is rejected; it is not silently absorbed | verify: `go test ./internal/cli -count=1`
-- [ ] `build` either honours `--env`/`--tag`/`--exclude-tag` or rejects them; in particular `--env NAME` against a config with no `environments:` does not stay silent on the build route while failing on the stack route | verify: `go test ./internal/cli -count=1`
-- [ ] A regression test pins the chosen behaviour for all four routes, so a later refactor cannot quietly restore the discard | verify: `go test ./internal/cli -count=1`
-- [ ] `optForce`'s manifest text matches what every route actually does with the flag | verify: `human — read optForce against the up and restart call sites: the description must hold on both routes, not only on up`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+- [x] `dva restart <plan> --force` and `dva restart <plan>` are distinguishable — either the flag reaches the orchestrator, or it is rejected on this route | verify: `go test ./internal/cli -count=1`
+- [x] Restart no longer force-recreates on behalf of a user who did not ask for it, or the manifest states that restart always force-recreates | verify: `go test ./internal/cli -count=1`
+- [x] `--no-wait` on `stop`/`down` either reaches the orchestrator or is rejected; it is not silently absorbed | verify: `go test ./internal/cli -count=1`
+- [x] `build` either honours `--env`/`--tag`/`--exclude-tag` or rejects them; in particular `--env NAME` against a config with no `environments:` does not stay silent on the build route while failing on the stack route | verify: `go test ./internal/cli -count=1`
+- [x] A regression test pins the chosen behaviour for all four routes, so a later refactor cannot quietly restore the discard | verify: `go test ./internal/cli -count=1`
+- [x] `optForce`'s manifest text matches what every route actually does with the flag | verify: `human — read optForce against the up and restart call sites: the description must hold on both routes, not only on up`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 
