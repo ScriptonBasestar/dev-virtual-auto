@@ -60,6 +60,7 @@ func Migrate(src []byte) ([]byte, MigrationReport, error) {
 
 	report.Blocked = append(report.Blocked, ReportInteractionEnvFile(out)...)
 	report.Blocked = append(report.Blocked, ScaffoldModes(out)...)
+	report.Blocked = append(report.Blocked, ReportModuleScope(out)...)
 	return out, report, nil
 }
 
@@ -130,6 +131,15 @@ func ScaffoldModes(src []byte) []string {
 // It reads the document rather than a loaded Config because that is what every other step
 // here does — the report describes the file the author will edit, including the sections a
 // later load-time merge would have flattened away.
+//
+// Scope: `src` is the one document `Migrate` was handed — the config file itself, never a
+// module. A declaration written inside a file named under `modules:` lives in a document
+// this function never opens, so it is invisible here, including to the "Left for you" list
+// `dva config migrate` prints: nothing walks the merged view this check's raw-node approach
+// deliberately avoids. `dva config validate` is the only surface that sees it, because it
+// runs on the loaded, merged `Config` — and even there the warning names the merged dotted
+// path, not the module file the author has to open. ReportModuleScope names that gap instead
+// of leaving it silent. TASK-285 §1.
 func ReportInteractionEnvFile(src []byte) []string {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(src, &doc); err != nil {
@@ -175,6 +185,40 @@ func ReportInteractionEnvFile(src []byte) []string {
 // `migrate` lists an edit the author has to make by hand, so it opens with the action and
 // leaves the release number to the validate channel and the CHANGELOG.
 const InteractionEnvFileBlockedMessage = "remove it — declare shared inputs in the top-level 'env_file:', or inline command-local values under 'environment:'"
+
+// ReportModuleScope names the modules a config declares, so a report built only from this
+// document does not read as though it covered them too.
+//
+// It does not open the module files: doing so would mean re-deriving which of their
+// declarations are load-bearing on this side of the merge, which is the same "which file
+// does the edit land in" question TASK-285's direction refuses to answer as a side effect of
+// a coverage-gap repair. Naming the gap is the honest minimum — the reader is pointed at
+// `dva config validate`, which does load the merge, for what this command cannot see.
+func ReportModuleScope(src []byte) []string {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil {
+		return nil
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	modules := mapValue(doc.Content[0], "modules")
+	if modules == nil || modules.Kind != yaml.SequenceNode || len(modules.Content) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(modules.Content))
+	for _, n := range modules.Content {
+		names = append(names, n.Value)
+	}
+	return []string{fmt.Sprintf(
+		"modules: %s — declared here but not read by this command; a deprecation inside one "+
+			"of them (an interaction env_file among them) is invisible to this report. Run "+
+			"'dva config validate', which loads the merged config, to see it — it will name the "+
+			"merged dotted path rather than the module file to edit",
+		strings.Join(names, ", "),
+	)}
+}
 
 // sortedBlocked returns blocked entries in a stable order for reporting.
 func sortedBlocked(blocked []string) []string {

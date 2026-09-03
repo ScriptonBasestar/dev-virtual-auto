@@ -117,7 +117,11 @@ All notable changes to DVA are documented here.
   **0.1.49에서 schema가 이 필드를 거부합니다.** 대체 수단은 두 가지입니다 — 여러 곳이
   공유하는 입력은 최상위 `env_file:`에, 커맨드 하나에만 필요한 값은 그 커맨드의
   `environment:`에 적습니다. 런타임 동작은 이번 릴리스에서 바뀌지 않습니다(필드는 여전히
-  아무 일도 하지 않습니다) ([USAGE.md](USAGE.md#interaction의-환경변수-입력))
+  아무 일도 하지 않습니다) — `dva run`, lifecycle 동사, `doctor`, `show`는 구조적으로
+  영향받지 않습니다. **단, `dva config validate --strict`는 예외입니다**: 이 경고가 유일한
+  문제인 config에서도 `--strict`는 설계상 경고를 실패로 취급하므로 0.1.48부터 exit 0에서
+  exit 1로 바뀝니다. CI에서 `--strict`를 쓰고 있다면 위 대체 수단으로 옮기거나 0.1.49 전에
+  대응하세요 ([USAGE.md](USAGE.md#interaction의-환경변수-입력))
 
 ## [0.1.47] - 2026-08-31
 

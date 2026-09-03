@@ -166,3 +166,58 @@ interaction:
 		}
 	}
 }
+
+// TestMigrateNamesModuleScopeGap pins TASK-285 §1: a module declared under `modules:` is a
+// separate file `Migrate` never opens, so an `interaction.*.env_file` written inside it is
+// invisible to ReportInteractionEnvFile. The gap cannot be closed without reading the module
+// file (out of scope here, TASK-285's direction), so this pins that the config is instead
+// named in "Left for you" — the reader is told the coverage stops at this document rather
+// than being left to assume "no blocked entries" means "no deprecations".
+func TestMigrateNamesModuleScopeGap(t *testing.T) {
+	src := `version: "0.1.44"
+modules:
+  - extra
+interaction:
+  clean:
+    command: echo clean
+`
+
+	_, report, err := Migrate([]byte(src))
+	if err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+
+	found := false
+	for _, b := range report.Blocked {
+		if strings.Contains(b, "modules:") && strings.Contains(b, "extra") {
+			found = true
+			if !strings.Contains(b, "dva config validate") {
+				t.Errorf("module-scope entry must point at 'dva config validate' for the merged view: %q", b)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("Blocked does not name the modules declared, so a module-declared env_file "+
+			"would be silently absent from \"Left for you\":\n%s", strings.Join(report.Blocked, "\n"))
+	}
+}
+
+// TestMigrateSkipsModuleScopeGapWithoutModules guards the counterpart: a config declaring no
+// `modules:` must not grow a phantom entry pointing at nothing.
+func TestMigrateSkipsModuleScopeGapWithoutModules(t *testing.T) {
+	src := `version: "0.1.44"
+interaction:
+  clean:
+    command: echo clean
+`
+
+	_, report, err := Migrate([]byte(src))
+	if err != nil {
+		t.Fatalf("Migrate() error = %v", err)
+	}
+	for _, b := range report.Blocked {
+		if strings.Contains(b, "modules:") {
+			t.Errorf("no modules declared, so no module-scope entry is expected: %q", b)
+		}
+	}
+}
