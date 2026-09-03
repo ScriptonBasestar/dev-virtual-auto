@@ -246,7 +246,10 @@ func (f *sopsFixture) noResidue() {
 		f.t.Fatal(err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), ".dva-env-") {
+		// TASK-284 moved the marker from the front of the name to the middle:
+		// a temp now carries its target's name first, so that a stray one falls
+		// under the same ignore rule the target does.
+		if strings.Contains(e.Name(), ".dva-env-") && strings.HasSuffix(e.Name(), ".tmp") {
 			f.t.Errorf("temporary artifact left behind: %s", e.Name())
 		}
 	}

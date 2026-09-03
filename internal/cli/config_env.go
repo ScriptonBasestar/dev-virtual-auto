@@ -120,6 +120,10 @@ func init() {
 type resolvedEntry struct {
 	entry config.EnvFileConfig
 	root  *envRoot
+	// anchor is the handle on the target's own directory. Every byte of the
+	// write — temp create, recovery sweep, rename, fsync — goes through it, so
+	// no component of the declared path is re-resolved after preflight.
+	anchor *targetAnchor
 	// targetExists distinguishes "created" from "replaced" in the success
 	// document. It is recorded during preflight rather than re-stat'ed after the
 	// write, when the answer would always be yes.
@@ -203,15 +207,34 @@ func preflight(c *config.Config, target string, force bool) (*resolvedEntry, err
 		return nil, bridgeErr(codeTargetParentMissing, "the directory for %s does not exist", entry.Path)
 	}
 
+	// The parent is known to exist and to be free of symlinked components, so
+	// this is the moment to take the handle on it. Everything after this point —
+	// the git question included — is asked about the directory the bytes will
+	// actually land in, not about a name that could be re-resolved later.
+	anchor, err := root.openTargetAnchor(entry.Path)
+	if err != nil {
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			return nil, bridgeErr(codeTargetParentMissing, "the directory for %s does not exist", entry.Path)
+		case errors.Is(err, fs.ErrPermission):
+			return nil, bridgeErr(codePermissionDenied, "permission denied writing %s", entry.Path)
+		}
+		return nil, err
+	}
+	defer func() {
+		if !ok {
+			anchor.Close()
+		}
+	}()
+
 	// 8. target kind
 	if tgtState == pathPresent && !tgtInfo.Mode().IsRegular() {
 		return nil, bridgeErr(codeTargetNotRegular, "%s is not a regular file", entry.Path)
 	}
 
 	// 9. git
-	targetDir := filepath.Dir(root.abs(entry.Path))
 	outside := false
-	switch classifyGitTarget(targetDir, filepath.Base(entry.Path)) {
+	switch classifyGitTarget(anchor.dir.dir, anchor.leaf) {
 	case gitTracked:
 		return nil, bridgeErr(codeTargetTracked, "%s is tracked by git; a decrypted file must never be tracked", entry.Path)
 	case gitUntrackedNotIgnored:
@@ -228,7 +251,13 @@ func preflight(c *config.Config, target string, force bool) (*resolvedEntry, err
 	}
 
 	ok = true
-	return &resolvedEntry{entry: entry, root: root, targetExists: tgtState == pathPresent, outsideRepo: outside}, nil
+	return &resolvedEntry{
+		entry:        entry,
+		root:         root,
+		anchor:       anchor,
+		targetExists: tgtState == pathPresent,
+		outsideRepo:  outside,
+	}, nil
 }
 
 func runEnvUnseal(target string, force bool) error {
@@ -242,10 +271,12 @@ func runEnvUnseal(target string, force bool) error {
 		return err
 	}
 	defer resolved.root.Close()
+	defer resolved.anchor.Close()
 
 	// Recovery runs after preflight, not before: a command that is going to
-	// refuse should not also mutate the directory it refused to write in.
-	resolved.root.reclaimStaleTemps(time.Now())
+	// refuse should not also mutate the directory it refused to write in. It
+	// sweeps the anchor, which is where this command's temps live.
+	resolved.anchor.dir.reclaimStaleTemps(time.Now())
 
 	// 11. sops presence, checked separately from a failed run so "not installed"
 	// never reads as "your key is wrong".
@@ -254,7 +285,7 @@ func runEnvUnseal(target string, force bool) error {
 	}
 
 	// 12. decrypt into a temp we own, validate, then replace.
-	w, err := resolved.root.newTemp()
+	w, err := resolved.anchor.newTemp()
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			return bridgeErr(codePermissionDenied, "permission denied writing %s", resolved.entry.Path)
@@ -275,7 +306,13 @@ func runEnvUnseal(target string, force bool) error {
 		return err
 	}
 
-	if err := w.Commit(resolved.entry.Path); err != nil {
+	if err := w.Commit(); err != nil {
+		// A post-rename failure is passed through verbatim. Mapping it onto
+		// permission_denied would hand the user a code whose whole meaning is
+		// "nothing was written", when the target has in fact been replaced.
+		if _, isPostRename := errors.AsType[*postRenameError](err); isPostRename {
+			return err
+		}
 		if errors.Is(err, fs.ErrPermission) {
 			return bridgeErr(codePermissionDenied, "permission denied writing %s", resolved.entry.Path)
 		}
@@ -313,7 +350,7 @@ func runEnvUnseal(target string, force bool) error {
 func validateDecrypted(r *resolvedEntry, w *safeWriter) error {
 	// Reopened by name through the same handle rather than rewound, because the
 	// write descriptor is open write-only.
-	f, err := r.root.root.Open(w.name)
+	f, err := r.anchor.dir.root.Open(w.name)
 	if err != nil {
 		return err
 	}
@@ -330,6 +367,13 @@ func validateDecrypted(r *resolvedEntry, w *safeWriter) error {
 		return bridgeErr(codeEmptyOutput, "sops produced no output for %s", r.entry.SopsSource)
 	}
 	if _, line, err := config.ValidateDotenvStream(f); err != nil {
+		if errors.Is(err, config.ErrDotenvLineTooLong) {
+			// Named separately from a syntax failure because the file is not
+			// malformed: the line is well formed and larger than DVA reads, and
+			// telling the user to go hunting for a typo on it would be wrong.
+			return bridgeErr(codeInvalidDotenv,
+				"decrypted output has a line longer than %d bytes at line %d", config.MaxDotenvLineBytes, line)
+		}
 		if line > 0 {
 			return bridgeErr(codeInvalidDotenv, "decrypted output is not valid dotenv at line %d", line)
 		}

@@ -117,7 +117,7 @@ func unsealFaultRows() []unsealFaultRow {
 			name: "target is tracked by git",
 			build: func(t *testing.T) *bridgeFixture {
 				f := existingTargetFixture(t)
-				f.git = fakeGit{inside: true, available: true, tracked: true}
+				f.git = &fakeGit{inside: true, available: true, tracked: true}
 				return f
 			},
 			force: true,
@@ -127,7 +127,7 @@ func unsealFaultRows() []unsealFaultRow {
 			name: "target is untracked but not ignored",
 			build: func(t *testing.T) *bridgeFixture {
 				f := defaultFixture(t)
-				f.git = fakeGit{inside: true, available: true}
+				f.git = &fakeGit{inside: true, available: true}
 				return f
 			},
 			want: codeTargetNotIgnored,
@@ -136,7 +136,7 @@ func unsealFaultRows() []unsealFaultRow {
 			name: "inside a repository with no git binary",
 			build: func(t *testing.T) *bridgeFixture {
 				f := defaultFixture(t)
-				f.git = fakeGit{inside: true}
+				f.git = &fakeGit{inside: true}
 				return f
 			},
 			want: codeGitUnavailable,

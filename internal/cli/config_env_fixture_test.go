@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 
@@ -81,16 +81,57 @@ func (f *fakeSops) Edit(source string) error {
 
 func okSops() *fakeSops { return &fakeSops{available: true} }
 
-type fakeGit struct{ inside, available, tracked, ignored bool }
+// gitAsk is one question the guard put to git.
+//
+// Recording the arguments is not bookkeeping: §5-4 refuses a target that git
+// tracks or does not ignore, and that refusal is only worth anything if the
+// question was asked about the directory the plaintext actually lands in. A fake
+// that discarded its arguments made that unobservable, so a guard asking about
+// `real/` while the bytes went to `decoy/` passed the suite (TASK-284 §1).
+type gitAsk struct{ method, dir, target string }
 
-func (g fakeGit) InsideRepo(string) bool   { return g.inside }
-func (g fakeGit) Available() bool          { return g.available }
-func (g fakeGit) Tracked(_, _ string) bool { return g.tracked }
-func (g fakeGit) Ignored(_, _ string) bool { return g.ignored }
+type fakeGit struct {
+	inside, available, tracked, ignored bool
+
+	// mu guards asked. The concurrency test drives several commands at once
+	// through one probe.
+	mu    sync.Mutex
+	asked []gitAsk
+}
+
+func (g *fakeGit) record(method, dir, target string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.asked = append(g.asked, gitAsk{method: method, dir: dir, target: target})
+}
+
+// askedAbout returns a copy so a caller can read it while writers still run.
+func (g *fakeGit) askedAbout() []gitAsk {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]gitAsk(nil), g.asked...)
+}
+
+func (g *fakeGit) InsideRepo(dir string) bool {
+	g.record("InsideRepo", dir, "")
+	return g.inside
+}
+
+func (g *fakeGit) Available() bool { return g.available }
+
+func (g *fakeGit) Tracked(dir, target string) bool {
+	g.record("Tracked", dir, target)
+	return g.tracked
+}
+
+func (g *fakeGit) Ignored(dir, target string) bool {
+	g.record("Ignored", dir, target)
+	return g.ignored
+}
 
 // okGit is the state a correctly configured project is in: inside a repository,
 // git present, target ignored and untracked.
-func okGit() fakeGit { return fakeGit{inside: true, available: true, ignored: true} }
+func okGit() *fakeGit { return &fakeGit{inside: true, available: true, ignored: true} }
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -99,7 +140,7 @@ type bridgeFixture struct {
 	dir  string
 	cfg  *config.Config
 	sops *fakeSops
-	git  gitProbe
+	git  *fakeGit
 }
 
 // newBridgeFixture writes a config directory and loads it. Paths are resolved
@@ -165,6 +206,25 @@ func (f *bridgeFixture) install(wantJSON bool) {
 
 func (f *bridgeFixture) path(rel string) string { return filepath.Join(f.dir, rel) }
 
+// anchorFor opens the config root and the target anchor the way preflight does,
+// and closes both when the test ends. Tests that drive the safe writer directly
+// need the pair, because a writer is created through the anchor and validated
+// against the config root it was opened from.
+func (f *bridgeFixture) anchorFor(declared string) *targetAnchor {
+	f.t.Helper()
+	root, err := openEnvRoot(f.dir)
+	if err != nil {
+		f.t.Fatalf("openEnvRoot: %v", err)
+	}
+	f.t.Cleanup(root.Close)
+	a, err := root.openTargetAnchor(declared)
+	if err != nil {
+		f.t.Fatalf("openTargetAnchor(%s): %v", declared, err)
+	}
+	f.t.Cleanup(a.Close)
+	return a
+}
+
 // readTarget reads the declared plaintext target. Every fixture in the suite
 // declares the same one; a row that needs a different path reads it directly.
 func (f *bridgeFixture) readTarget() string {
@@ -176,8 +236,7 @@ func (f *bridgeFixture) readTarget() string {
 	return string(b)
 }
 
-// names lists the config directory, which is how residue assertions are made:
-// success and failure alike must leave no `.dva-env-*.tmp` behind.
+// names lists the config directory.
 func (f *bridgeFixture) names() []string {
 	f.t.Helper()
 	entries, err := os.ReadDir(f.dir)
@@ -192,13 +251,46 @@ func (f *bridgeFixture) names() []string {
 	return out
 }
 
+// assertNoTempResidue walks the whole fixture, not just its top level: since
+// TASK-284 a temp is created beside its target, so a `sub/.env` entry leaves its
+// residue in `sub` and a top-level scan would report success for a directory it
+// never looked in.
 func (f *bridgeFixture) assertNoTempResidue() {
 	f.t.Helper()
-	for _, name := range f.names() {
-		if strings.HasPrefix(name, envTempPrefix) {
-			f.t.Errorf("temporary artifact left behind: %s", name)
+	err := filepath.WalkDir(f.dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && isOwnedTemp(d.Name()) {
+			f.t.Errorf("temporary artifact left behind: %s", path)
+		}
+		return nil
+	})
+	if err != nil {
+		f.t.Fatalf("walk %s: %v", f.dir, err)
+	}
+}
+
+// ownedTempsIn lists the temporaries DVA recognizes as its own in one directory.
+// A missing directory reads as empty, so a caller can ask about a location the
+// implementation should never have created anything in.
+func ownedTempsIn(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		t.Fatalf("ReadDir %s: %v", dir, err)
+	}
+	var out []string
+	for _, e := range entries {
+		if isOwnedTemp(e.Name()) {
+			out = append(out, e.Name())
 		}
 	}
+	sort.Strings(out)
+	return out
 }
 
 // requireCode asserts the exact frozen code. Matching the message instead would

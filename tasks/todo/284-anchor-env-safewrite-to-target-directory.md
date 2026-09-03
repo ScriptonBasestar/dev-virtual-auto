@@ -140,3 +140,8 @@ keep certifying this class of defect as passing.
   [TASK-282](282-implement-gated-env-bridge-commands.md).
 - No change to `reclaimStaleTemps`' one-hour rule (§8-5), which exists so a concurrent run's
   temp is never a candidate.
+
+## Troubleshooting Log
+
+- 증상: 길이 정확히 `bufio.MaxScanTokenSize`인 줄이 통과할 것으로 기대한 테스트가 실패 / 원인: `bufio.Scanner`가 반환하는 최대 토큰은 버퍼 크기가 아니라 그보다 1 작음(65535 OK, 65536 거부) / 해결: `MaxDotenvLineBytes = bufio.MaxScanTokenSize - 1`로 "실제 허용 길이"를 이름 붙이고 메시지도 그 값으로 고침 / 25분
+- 증상: post-rename fsync 실패가 `permission_denied`("아무것도 쓰이지 않았다")로 뒤바뀌어 보고될 수 있음 / 원인: `postRenameError.Unwrap()` 때문에 `errors.Is(err, fs.ErrPermission)`가 참이 되어 먼저 매칭됨 / 해결: `runEnvUnseal`에서 `errors.AsType[*postRenameError]` 검사를 permission 매핑보다 앞에 두고, 그 전제를 테스트로 고정 / 20분

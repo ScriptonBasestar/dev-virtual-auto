@@ -280,7 +280,7 @@ func TestConfigEnvSuccessOutput(t *testing.T) {
 
 	t.Run("a target outside any repository gets a stderr notice, not a json key", func(t *testing.T) {
 		f := defaultFixture(t)
-		f.git = fakeGit{available: true}
+		f.git = &fakeGit{available: true}
 		f.install(true)
 
 		stdout, stderr := captureStreams(t, func() {

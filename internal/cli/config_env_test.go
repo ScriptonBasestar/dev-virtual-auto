@@ -179,10 +179,17 @@ func TestConfigEnvRejectsPathSwap(t *testing.T) {
 		}
 	})
 
-	// The target's parent directory is swapped for another directory mid-run. The
-	// handle refers to the original inode, so the write must follow the inode and
-	// not the name — and whatever the outcome, it must never be a reported success
-	// over a partial file.
+	// The target's parent directory is swapped for another directory mid-run.
+	//
+	// This row used to accept either outcome and assert only that whatever it
+	// found was intact, which is how TASK-284 §1 stayed green for a release: it
+	// documented the behaviour instead of pinning the property. The property is
+	// that the commit is refused. The anchor handle already guarantees the bytes
+	// cannot reach the swapped-in directory, but landing in the original one is
+	// not good enough either — the §5-4 git guard and the §5-3 symlink gate were
+	// both answered for `sub` as the name read at preflight, and after the swap
+	// that name means something else. Writing anywhere would be writing to a
+	// location nothing has vetted.
 	t.Run("target parent directory swapped mid-run", func(t *testing.T) {
 		f := newBridgeFixture(t, simpleBridgeYAML("sub/.env", "secrets.env.enc"),
 			map[string]string{"secrets.env.enc": "ENC", "sub/.keep": ""})
@@ -204,16 +211,50 @@ func TestConfigEnvRejectsPathSwap(t *testing.T) {
 
 		var err error
 		captureStreams(t, func() { err = runEnvUnseal("", false) })
-		if err != nil {
-			// A refusal is an acceptable outcome; a silent wrong-directory write
-			// or a truncated file is not.
-			t.Logf("commit refused after the parent swap: %v", err)
+		if err == nil {
+			t.Fatal("the commit was not refused after the target's directory was swapped")
 		}
-		for _, dir := range []string{originalSub, moved} {
-			if b, readErr := os.ReadFile(filepath.Join(dir, ".env")); readErr == nil && string(b) != bridgePayload() {
-				t.Errorf("%s/.env is not the complete payload: %q", dir, string(b))
+		for _, dir := range []string{originalSub, moved, decoy} {
+			if _, statErr := os.Lstat(filepath.Join(dir, ".env")); statErr == nil {
+				t.Errorf("%s/.env exists; the refused write left bytes behind", dir)
 			}
 		}
+		f.assertNoTempResidue()
+	})
+
+	// TASK-284 §1 exactly: the directory component is replaced by a symlink to
+	// another in-root directory after every preflight gate has passed. os.Root
+	// follows it — it only blocks escapes — so nothing but the explicit gate,
+	// re-run against the name immediately before the rename, refuses this.
+	//
+	// The swap is a rename rather than an rmdir because the temp already lives in
+	// the directory being replaced, which is itself part of the repair: the
+	// attacker cannot empty a directory DVA is holding a file open in.
+	t.Run("target parent replaced by an in-root symlink mid-run", func(t *testing.T) {
+		f := newBridgeFixture(t, simpleBridgeYAML("real/.env", "secrets.env.enc"),
+			map[string]string{"secrets.env.enc": "ENC", "real/.keep": "", "decoy/.keep": ""})
+		realDir, decoy, moved := f.path("real"), f.path("decoy"), f.path("real-moved")
+		f.sops.decrypt = func(_ string, out *os.File) error {
+			if err := os.Rename(realDir, moved); err != nil {
+				return err
+			}
+			if err := os.Symlink(decoy, realDir); err != nil {
+				return err
+			}
+			_, err := out.WriteString(bridgePayload())
+			return err
+		}
+		f.install(false)
+
+		var err error
+		captureStreams(t, func() { err = runEnvUnseal("", false) })
+		requireCode(t, err, codePathComponentSymlnk)
+		for _, dir := range []string{decoy, moved} {
+			if _, statErr := os.Lstat(filepath.Join(dir, ".env")); statErr == nil {
+				t.Errorf("%s/.env exists; the refused write left bytes behind", dir)
+			}
+		}
+		f.assertNoTempResidue()
 	})
 }
 
@@ -299,7 +340,7 @@ func TestConfigEnvAtomicWriteFaultMatrix(t *testing.T) {
 	t.Run("owned stale temporaries are reclaimed and nothing else is", func(t *testing.T) {
 		f := defaultFixture(t)
 		old := time.Now().Add(-2 * staleTempAge)
-		stale, fresh, staleDir := tempName(1234, "aaaa"), tempName(1234, "bbbb"), tempName(1234, "cccc")
+		stale, fresh, staleDir := tempName(".env", 1234, "aaaa"), tempName(".env", 1234, "bbbb"), tempName(".env", 1234, "cccc")
 		const foreign = "editor-backup.tmp"
 
 		writeFixtureFiles(t, f.dir, map[string]string{stale: "x", fresh: "x", foreign: "x"})
@@ -345,20 +386,16 @@ func TestConfigEnvAtomicWriteFaultMatrix(t *testing.T) {
 func TestConfigEnvConcurrentWriters(t *testing.T) {
 	t.Run("O_EXCL prevents two writers from sharing a temporary", func(t *testing.T) {
 		f := defaultFixture(t)
-		root, err := openEnvRoot(f.dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer root.Close()
+		anchor := f.anchorFor(".env")
 
-		name := tempName(os.Getpid(), "fixed")
-		w, err := root.newSafeWriter(name)
+		name := tempName(".env", os.Getpid(), "fixed")
+		w, err := anchor.newSafeWriter(name)
 		if err != nil {
 			t.Fatalf("first writer: %v", err)
 		}
 		defer w.Abort()
 
-		if _, err := root.newSafeWriter(name); err == nil {
+		if _, err := anchor.newSafeWriter(name); err == nil {
 			t.Fatal("a second writer claimed a temporary that was already held")
 		}
 	})
@@ -374,7 +411,7 @@ func TestConfigEnvConcurrentWriters(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			n := tempName(os.Getpid(), token)
+			n := tempName(".env", os.Getpid(), token)
 			if seen[n] {
 				t.Fatalf("temporary name collision: %s", n)
 			}
@@ -384,11 +421,7 @@ func TestConfigEnvConcurrentWriters(t *testing.T) {
 
 	t.Run("a taken temporary name is retried, not reported", func(t *testing.T) {
 		f := defaultFixture(t)
-		root, err := openEnvRoot(f.dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer root.Close()
+		anchor := f.anchorFor(".env")
 
 		var writers []*safeWriter
 		t.Cleanup(func() {
@@ -397,7 +430,7 @@ func TestConfigEnvConcurrentWriters(t *testing.T) {
 			}
 		})
 		for i := range 16 {
-			w, err := root.newTemp()
+			w, err := anchor.newTemp()
 			if err != nil {
 				t.Fatalf("newTemp %d: %v", i, err)
 			}
@@ -604,12 +637,18 @@ func TestConfigEnvNeverEmitsSecretSentinel(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		name := tempName(4242, token)
+		name := tempName(".env", 4242, token)
 		if strings.Contains(name, bridgeSecretKey) || strings.Contains(name, bridgeSecretValue) {
 			t.Fatalf("temporary name derived from content: %s", name)
 		}
-		if !strings.HasPrefix(name, envTempPrefix) || !strings.HasSuffix(name, envTempSuffix) {
+		if !isOwnedTemp(name) {
 			t.Fatalf("temporary name %q is outside the owned namespace recovery recognizes", name)
+		}
+		// The leaf is the point of the new naming rule: a stray temp has to fall
+		// under the same ignore glob the target does, and it cannot do that
+		// unless it starts with the target's own name.
+		if !strings.HasPrefix(name, ".env") {
+			t.Fatalf("temporary name %q does not carry the target's name", name)
 		}
 	})
 }

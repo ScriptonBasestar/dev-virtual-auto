@@ -2,6 +2,7 @@ package config
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -9,6 +10,20 @@ import (
 )
 
 var envLineRegex = regexp.MustCompile(`^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
+
+// MaxDotenvLineBytes is the longest single line the dotenv reader accepts.
+//
+// It is one below bufio.Scanner's buffer ceiling, which is the longest token the
+// scanner actually returns: a line of exactly MaxScanTokenSize bytes is the first
+// one it refuses. Naming the accepted length rather than the buffer size is what
+// lets a message say "exceeds N bytes" and be true.
+const MaxDotenvLineBytes = bufio.MaxScanTokenSize - 1
+
+// ErrDotenvLineTooLong reports a line the reader could not hold. It is a distinct
+// sentinel rather than another syntax error because the two ask different things
+// of the reader: a syntax error means "fix line N", this one means "line N is
+// well formed and larger than this tool reads".
+var ErrDotenvLineTooLong = errors.New("dotenv line too long")
 
 // EnvFileConfig represents a single .env file configuration.
 //
@@ -74,7 +89,8 @@ func normalizeEnvFileConfig(config any) []EnvFileConfig {
 // non-comment line that is not an assignment.
 //
 // The returned line number is the discriminator the caller switches on: a
-// non-zero line means "line N is not valid dotenv" (malformed), while a zero
+// non-zero line means "line N is not valid dotenv" (malformed, or — when the
+// error is ErrDotenvLineTooLong — longer than the reader accepts), while a zero
 // line with a non-nil error means the scanner itself failed (a read fault).
 // Before TASK-248 an unrecognized line was silently skipped, which let a typo
 // like `PORT 8080` reach the runtime as a missing variable instead of an error.
@@ -112,6 +128,15 @@ func parseEnvFileStrict(f *os.File) (map[string]string, int, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			// The scanner stops on the line it could not hold, so the failing
+			// line is the one after the last it counted. Reporting it as a
+			// scanner fault would surface as "malformed at line 0", which reads
+			// as a corrupt file and sends the reader looking for a syntax error
+			// that is not there — the line is well formed, just too long.
+			return nil, lineNo + 1, fmt.Errorf("%w: line %d exceeds the %d-byte limit",
+				ErrDotenvLineTooLong, lineNo+1, MaxDotenvLineBytes)
+		}
 		return nil, 0, err
 	}
 	return vars, 0, nil

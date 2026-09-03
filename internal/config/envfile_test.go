@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -450,4 +451,67 @@ func TestEnvFileOriginTracksTheMergeWinner(t *testing.T) {
 			t.Fatalf("origin = %+v, want an unwritable unknown origin", origin)
 		}
 	})
+}
+
+// TestValidateDotenvStreamOversizedLine pins TASK-284 §4.
+//
+// A line the reader cannot hold used to surface as bufio's own scanner error,
+// which carries no line number, so the caller reported "not valid dotenv" at
+// line 0 — a corrupt-file diagnosis for a file whose only problem is one long
+// line. The env bridge shows this message for decrypted output nobody can look
+// at, which is exactly where a wrong diagnosis costs the most.
+func TestValidateDotenvStreamOversizedLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "big.env")
+	content := "SMALL=1\n# a comment\nBIG=" + strings.Repeat("x", MaxDotenvLineBytes+1) + "\nTAIL=2\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+
+	count, line, err := ValidateDotenvStream(f)
+	if err == nil {
+		t.Fatal("an oversized line was accepted")
+	}
+	if !errors.Is(err, ErrDotenvLineTooLong) {
+		t.Errorf("error = %v, want it to wrap ErrDotenvLineTooLong", err)
+	}
+	if line != 3 {
+		t.Errorf("line = %d, want 3 — the oversized line's own number", line)
+	}
+	if count != 0 {
+		t.Errorf("count = %d, want 0 on failure", count)
+	}
+	if !strings.Contains(err.Error(), "line 3") {
+		t.Errorf("message %q does not name the line", err.Error())
+	}
+}
+
+// A line at the limit is still readable, so the boundary is not reported as an
+// error one byte early.
+func TestValidateDotenvStreamLineAtTheLimit(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "edge.env")
+	// Exactly MaxDotenvLineBytes, terminator excluded: the longest line the
+	// reader accepts, not one byte less.
+	if err := os.WriteFile(path, []byte("BIG="+strings.Repeat("x", MaxDotenvLineBytes-4)+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+
+	count, line, err := ValidateDotenvStream(f)
+	if err != nil {
+		t.Fatalf("a line at the limit was refused: %v (line %d)", err, line)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1", count)
+	}
 }
