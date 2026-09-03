@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-02T10:09:00+09:00
 source: "PLAN-003 public route compatibility decision"
 scope: "validate usage evidence, canonical route, parity, deprecation, rollback, and independent review"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 decided-at: 2026-09-04T00:05:00+09:00
@@ -174,3 +174,12 @@ TASK-272가 이미 동결한 대로 TASK-256/TASK-258 중 먼저 착수하는 �
 내용은 무효화되지 않는다. TASK-258이 시작되기 전까지 코드·스키마 변경은 없다. Top-level route의
 장래 제거 검토는 이 카드를 재오픈하지 않고 별도의 새 결정 카드로 다룬다(완료기준 5 참조) — 그
 새 카드가 나오기 전까지는 실질적으로 아무것도 바뀌지 않는다.
+
+## Completion Evidence (2026-09-04)
+
+독립 재검증(작성 세션의 자기 보고만으로 닫지 않음): 6개 완료기준 전부 체크됨, Decision Record가
+교차세션 불일치(canonical route vs deprecation 정책)를 명시적으로 정정한 경위까지 포함해 근거를
+남겼다. `go test ./internal/cli -run 'TestRootValidateMatchesConfigValidate' -v` → 두 테스트
+모두 PASS(parity 그대로 유지 확인). `make doc-check` → OK. 코퍼스 gap(핀 고정 외부 consumer
+미스캔)은 기록대로 남아 있으나, 이번 결정이 어느 route도 제거·숨기지 않으므로 완료기준 1의
+verify 조건("제거·숨김을 막는다")과 충돌하지 않는다.

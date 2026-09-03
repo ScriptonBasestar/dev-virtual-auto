@@ -28,11 +28,11 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 | help group과 discovery 설명 | 기존 contract 안에서 개선 완료 | [TASK-253](../_archive/done/253-align-help-groups-and-discovery-descriptions.md) |
 | command metadata 중복 | 구현 전 소유권 조사 | [TASK-254](../done/254-discover-command-metadata-registry.md) |
 | `ktl`/`kubectl` route | evidence decision 후 구현 | [TASK-255](../todo/255-decide-kubectl-route-compatibility.md) → [TASK-256](../todo/256-implement-kubectl-route-decision.md) |
-| `validate` route | evidence decision 후 구현 | [TASK-257](../todo/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
-| manifest route identity | TASK-254 증거로 조건 발생, 구현 전 사람 결정 | [TASK-272](../todo/272-freeze-manifest-route-identity.md) |
+| `validate` route | evidence decision 후 구현 | [TASK-257](../done/257-decide-validate-route-compatibility.md) → [TASK-258](../todo/258-implement-validate-route-decision.md) |
+| manifest route identity | TASK-254 증거로 조건 발생, 구현 전 사람 결정 | [TASK-272](../done/272-freeze-manifest-route-identity.md) |
 | imported plan 실행 | advertised contract 복구 완료 | [TASK-262](../_archive/done/262-restore-imported-plan-execution.md) |
 | imported interaction/provision 실행 | owner 복구 완료 | [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) |
-| qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../done/259-discover-qualified-project-addressing.md) → [TASK-263](../todo/263-decide-qualified-project-addressing.md) |
+| qualified project addressing | discovery와 사람 결정을 분리 | [TASK-259](../done/259-discover-qualified-project-addressing.md) → [TASK-263](../done/263-decide-qualified-project-addressing.md) |
 | cross-project composition | 기존 import와 address contract 이후 판단 | [TASK-260](../todo/260-freeze-cross-project-plan-composition.md) |
 | vNext vocabulary | 앞선 evidence를 모은 최종 결정 | [TASK-261](../todo/261-decide-vnext-vocabulary-and-migration.md) |
 
@@ -145,9 +145,9 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 | 카드 | 선행 | 상태 |
 | --- | --- | --- |
 | TASK-255 | TASK-254 ✅ | **방향 판정됨 (2026-09-03)** — `kubectl` canonical 승격. 사람 결정은 끝났고 완료기준 1·3·4·5·6·7이 남아 카드는 열려 있다 |
-| TASK-257 | TASK-254 ✅ | **결정됨 (2026-09-04)** — `config validate` canonical, top-level `validate`는 지금 당장 제거·deprecation 없이 유지하되 장래 제거 검토 경로는 열어둔다(실제 제거는 별도 카드 필요). 완료기준 1·3·4·5 사실관계까지 닫혔다. 닫히면 TASK-258이 열린다 |
-| TASK-272 | TASK-254 ✅ | **결정됨 (2026-09-03)** — coverage 보강 + canonical 마커 1개 채택, schema_version 1.4→1.5, TASK-256/258이 각자 자기 route에만 적용. 닫히면 TASK-256·258이 함께 열린다 |
-| TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **결정됨 (2026-09-03)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
+| TASK-257 | TASK-254 ✅ | **완료 (2026-09-04)** — `config validate` canonical, top-level `validate`는 지금 당장 제거·deprecation 없이 유지하되 장래 제거 검토 경로는 열어둔다(실제 제거는 별도 카드 필요). 완료기준 1·3·4·5 사실관계까지 닫혔다. 닫히면 TASK-258이 열린다 |
+| TASK-272 | TASK-254 ✅ | **완료 (2026-09-04)** — coverage 보강 + canonical 마커 1개 채택, schema_version 1.4→1.5, TASK-256/258이 각자 자기 route에만 적용. 닫히면 TASK-256·258이 함께 열린다 |
+| TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **완료 (2026-09-04)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
 | TASK-256 | TASK-255 · TASK-272 ✅ | 대기 — TASK-255가 남아 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
 | TASK-258 | TASK-257 ✅ · TASK-272 ✅ | **완료 (2026-09-04)** — `d13fb63`, 5개 완료기준 전부 검증·닫힘. `ManifestCmd.CanonicalName`/schema_version 1.5 존재, TASK-256은 이제 필드를 새로 만들지 않고 kubectl/ktl 마커만 채운다 |
 | TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **모델 결정됨(2026-09-04) + 상세 계약 동결(2026-09-04)** — 단방향 root-aggregation 채택, 완료기준 1-5 체크. 자동 LIFO rollback을 신규 도입하되 `--no-rollback` opt-out을 사전 승인(2026-09-04 사용자 결정). 완료기준 6(독립 리뷰 + 구현 계획 카드 생성)만 남아 별도 라운드로 이관 |

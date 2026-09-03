@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-03T09:00:00+09:00
 source: "TASK-254 evidence — the manifest schema cannot express a canonical/compatibility route pair"
 scope: "manifest consumers, static_commands subcommand coverage, route-identity representation, schema versioning, and the implementation split across TASK-256 and TASK-258"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 depends-on: [TASK-254]
@@ -356,3 +356,10 @@ validate/config validate 마커를 적용한다. 구조체 필드 추가(`Manife
 help group/reserved-name 변경 없음, ktl-vs-kubectl·validate-vs-config-validate 자체
 선택 없음, 명령 레지스트리 리팩터 없음)는 그대로 유지된다 — 이 판정은 표현 방식만
 정했다.
+
+## Completion Evidence (2026-09-04)
+
+독립 재검증: 4개 완료기준 전부 체크됨. Option B(`canonical_name` 마커)가 TASK-258 구현
+(`internal/cli/manifest.go`, commit `d13fb63`/현재 master `09a10f4`)에 그대로 반영돼 schema_version
+1.5, validate 엔트리 마커까지 일치함을 확인 — 이 카드가 얼린 표현과 실제 구현이 정확히 일치한다.
+`make doc-check` → OK.

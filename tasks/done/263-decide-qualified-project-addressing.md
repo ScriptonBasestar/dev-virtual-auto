@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-02T11:20:00+09:00
 source: "PLAN-003 separation of addressing from composition"
 scope: "interaction machine route and shorthand, imported item names, exposure, collision precedence, discovery surfaces, migration, and rollback"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 depends-on: [TASK-259, TASK-264]
@@ -146,3 +146,11 @@ automatic registration의 상위집합 문제이고 PLAN-003이 이미 child-sta
 이 카드의 비목표는 "route, schema, resolver, completion 구현 없음"이다. §3의 신규 결정
 (a)·(b)를 실제로 강제하려면 새 구현 카드가 필요하다 — 존재하지 않는다. TASK-260을 여는
 것 외에, 이 두 항목을 담을 카드를 만드는 것이 다음 groom에서 다뤄야 할 일이다.
+
+## Completion Evidence (2026-09-04)
+
+독립 재검증: 6개 완료기준 전부 체크됨, TASK-259 실측 비교(§4)와 일치하는 Decision Record.
+의존 카드 TASK-259(`tasks/done/259-discover-qualified-project-addressing.md`)·TASK-264
+(`tasks/_archive/done/264-restore-imported-command-ownership.md`) 둘 다 완료 확인. §8이 명시한
+후속 구현 카드(예약어 subproject 거부, 부모 경유 도달성 통일) 2건은 별도 groom에서 신규 카드로
+다뤄야 한다 — 이 카드 자체의 완료기준은 아니다. `make doc-check` → OK.
