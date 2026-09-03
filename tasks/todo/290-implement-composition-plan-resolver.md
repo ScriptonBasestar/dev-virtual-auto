@@ -36,17 +36,10 @@ documented override, the same mechanism `PlanEntry.Vars` already uses.
 
 ## Completion Criteria
 
-- [ ] A `CompositionPlan` type resolves a `composes:` plan's entries into wave-numbered children using
-  the existing `CalculateWaves`, without a second ordering algorithm | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanCalculatesWavesFromCalculateWaves\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
-- [ ] Each resolved child `ExecutionPlan` uses its owning project's effective config (environment, site,
-  env_file, vars, hooks, endpoints, readiness) exactly as TASK-262 already guarantees for a direct or
-  imported-plan invocation; only `CompositionEntry.Vars` may override, and it overrides rather than merges
-  (TASK-260 §3.6) | verify: `/usr/bin/grep -Eq '^func TestCompositionChildResolvesAgainstOwnConfig\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
-- [ ] `default_plan` and the "exactly one declared plan" auto-selection rule treat a composition plan
-  identically to a leaf plan — no special-casing (TASK-260 §3.5) | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanParticipatesInDefaultPlanSelection\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
-- [ ] A resolved `CompositionPlan` (and its resolved children) is immutable for the remainder of a single
-  invocation — a config reload mid-run does not change an already-resolved wave assignment or child
-  owner (TASK-260 §3.9, mirrors existing `ExecutionPlan` immutability) | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanResolutionIsImmutablePerInvocation\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
+- [ ] A `CompositionPlan` type resolves a `composes:` plan's entries into wave-numbered children using the existing `CalculateWaves`, without a second ordering algorithm | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanCalculatesWavesFromCalculateWaves\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
+- [ ] Each resolved child `ExecutionPlan` uses its owning project's effective config (environment, site, env_file, vars, hooks, endpoints, readiness) exactly as TASK-262 already guarantees for a direct or imported-plan invocation; only `CompositionEntry.Vars` may override, and it overrides rather than merges (TASK-260 §3.6) | verify: `/usr/bin/grep -Eq '^func TestCompositionChildResolvesAgainstOwnConfig\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
+- [ ] `default_plan` and the "exactly one declared plan" auto-selection rule treat a composition plan identically to a leaf plan — no special-casing (TASK-260 §3.5) | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanParticipatesInDefaultPlanSelection\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
+- [ ] A resolved `CompositionPlan` (and its resolved children) is immutable for the remainder of a single invocation — a config reload mid-run does not change an already-resolved wave assignment or child owner (TASK-260 §3.9, mirrors existing `ExecutionPlan` immutability) | verify: `/usr/bin/grep -Eq '^func TestCompositionPlanResolutionIsImmutablePerInvocation\(' internal/lifecycle/composition_resolver_test.go && go test ./internal/lifecycle -count=1`
 - [ ] Repository gates pass | verify: `make lint && make test && make commit-check`
 
 ## Non-goals

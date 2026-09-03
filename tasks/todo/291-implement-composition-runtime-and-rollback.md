@@ -48,23 +48,12 @@ Produce the partial-state report shape TASK-260 §5.3 specifies (`outcome`, `chi
 
 ## Completion Criteria
 
-- [ ] `up` on a composition plan executes children sequentially by wave, waits for per-child readiness
-  between waves unless `--no-wait`, and never runs two children concurrently even within one wave
-  (TASK-260 §4.1, §4.5) | verify: `/usr/bin/grep -Eq '^func TestCompositionUpExecutesWavesSequentially\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] On a mid-wave child failure, every already-succeeded child is torn down via plain `down` in strict
-  LIFO order before the command returns; no further child is started (TASK-260 §5.2) | verify: `/usr/bin/grep -Eq '^func TestCompositionUpRollsBackSucceededChildrenOnFailure\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] When a rollback `down` itself fails, the reported primary error is the original failure unchanged,
-  and the rollback failure appears only as a secondary diagnostic naming the affected child (TASK-260
-  §5.2's "original-error preservation") | verify: `/usr/bin/grep -Eq '^func TestCompositionRollbackFailurePreservesOriginalError\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] `--no-rollback` skips the automatic teardown entirely, leaving succeeded children running, and is
-  accepted on every lifecycle verb per the propagate-to-all rule (TASK-260 §4.4, "Open question —
-  resolved 2026-09-04") | verify: `/usr/bin/grep -Eq '^func TestCompositionNoRollbackFlagSkipsTeardown\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] `down`/`stop` on a composition plan always tear down in reverse-wave order, and re-invoking `down`
-  after a failed automatic rollback re-queries live child state rather than relying on a cached record
-  (TASK-260 §4.3, §5.4, §6.3) | verify: `/usr/bin/grep -Eq '^func TestCompositionDownIsLIFOAndReentrant\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] The partial-state report (`outcome`/`children[].state`/`rollback.*`/`error`) matches TASK-260 §5.3's
-  shape on both the success and failure paths, and single-project `Up`'s existing no-rollback behavior is
-  unchanged by this task (regression fixture required) | verify: `/usr/bin/grep -Eq '^func TestCompositionPartialStateReportShape\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] `up` on a composition plan executes children sequentially by wave, waits for per-child readiness between waves unless `--no-wait`, and never runs two children concurrently even within one wave (TASK-260 §4.1, §4.5) | verify: `/usr/bin/grep -Eq '^func TestCompositionUpExecutesWavesSequentially\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] On a mid-wave child failure, every already-succeeded child is torn down via plain `down` in strict LIFO order before the command returns; no further child is started (TASK-260 §5.2) | verify: `/usr/bin/grep -Eq '^func TestCompositionUpRollsBackSucceededChildrenOnFailure\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] When a rollback `down` itself fails, the reported primary error is the original failure unchanged, and the rollback failure appears only as a secondary diagnostic naming the affected child (TASK-260 §5.2's "original-error preservation") | verify: `/usr/bin/grep -Eq '^func TestCompositionRollbackFailurePreservesOriginalError\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] `--no-rollback` skips the automatic teardown entirely, leaving succeeded children running, and is accepted on every lifecycle verb per the propagate-to-all rule (TASK-260 §4.4, "Open question — resolved 2026-09-04") | verify: `/usr/bin/grep -Eq '^func TestCompositionNoRollbackFlagSkipsTeardown\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] `down`/`stop` on a composition plan always tear down in reverse-wave order, and re-invoking `down` after a failed automatic rollback re-queries live child state rather than relying on a cached record (TASK-260 §4.3, §5.4, §6.3) | verify: `/usr/bin/grep -Eq '^func TestCompositionDownIsLIFOAndReentrant\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
+- [ ] The partial-state report (`outcome`/`children[].state`/`rollback.*`/`error`) matches TASK-260 §5.3's shape on both the success and failure paths, and single-project `Up`'s existing no-rollback behavior is unchanged by this task (regression fixture required) | verify: `/usr/bin/grep -Eq '^func TestCompositionPartialStateReportShape\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
 - [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
