@@ -49,8 +49,8 @@ func render() string {
 		for i, p := range command.Patterns() {
 			patterns[i] = "`" + p + "`"
 		}
-		b.WriteString(fmt.Sprintf("| `%s` | `%s` | %s | %s | %s |\n",
-			command.ID, command.Argv, strings.Join(patterns, "<br>"), command.Reason, command.Source))
+		fmt.Fprintf(&b, "| `%s` | `%s` | %s | %s | %s |\n",
+			command.ID, command.Argv, strings.Join(patterns, "<br>"), command.Reason, command.Source)
 	}
 	b.WriteString(coverageTable)
 	b.WriteString(honestLimits)
