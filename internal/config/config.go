@@ -19,6 +19,7 @@ type Config struct {
 	Vars             map[string]string              `yaml:"vars"`
 	Environment      map[string]string              `yaml:"environment"`
 	EnvFile          any                            `yaml:"env_file"`
+	EnvBridge        *EnvBridgeConfig               `yaml:"env_bridge"`
 	Interaction      map[string]*InteractionCommand `yaml:"interaction"`
 	Provision        ProvisionConfig                `yaml:"provision"`
 	Infra            map[string]InfraConfig         `yaml:"infra"`
@@ -44,6 +45,10 @@ type Config struct {
 	// Unexported like filePath so `config show` — which marshals this struct and
 	// reads it back — gains no new key (TASK-245 §5-2).
 	envFileOrigin EnvFileOrigin
+	// envBridgeOrigin records which file most recently declared env_bridge, for
+	// the TASK-281 §3-2 origin check. Unexported for the same reason as
+	// envFileOrigin.
+	envBridgeOrigin EnvBridgeOrigin
 }
 
 // DoctorCheck defines a single environment check for `dva doctor`.
@@ -736,6 +741,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 	}
 	cfg.filePath = filePath
 	cfg.setEnvFileOrigin(cfg.EnvFile, EnvOriginRoot, filePath)
+	cfg.setEnvBridgeOrigin(cfg.EnvBridge, EnvBridgeOriginRoot, filePath)
 
 	if !o.skipVersionCheck {
 		if err := checkConfigVersion(cfg); err != nil {
@@ -764,6 +770,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 				return nil, fmt.Errorf("merging module %q: %w", mod, err)
 			}
 			cfg.setEnvFileOrigin(modCfg.EnvFile, EnvOriginModule, modFile)
+			cfg.setEnvBridgeOrigin(modCfg.EnvBridge, EnvBridgeOriginModule, modFile)
 		}
 	}
 
@@ -779,6 +786,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 			return nil, fmt.Errorf("merging override: %w", err)
 		}
 		cfg.setEnvFileOrigin(overCfg.EnvFile, EnvOriginOverride, overrideFile)
+		cfg.setEnvBridgeOrigin(overCfg.EnvBridge, EnvBridgeOriginOverride, overrideFile)
 	}
 
 	applyConfigDefaults(cfg)

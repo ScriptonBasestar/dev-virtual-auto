@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -38,6 +39,10 @@ type fakeSops struct {
 	// decrypt defaults to writing the sentinel payload into out.
 	decrypt func(source string, out *os.File) error
 	edit    func(source string) error
+	// encrypt defaults to copying in verbatim into out — the fake's "cipher"
+	// is the identity function, since the seal fault matrix cares about what
+	// DVA does around the child, not about what sops itself computes.
+	encrypt func(destination string, in, out *os.File) error
 
 	// mu guards calls. The concurrency test runs several commands at once
 	// through one runner, so the recorder itself has to be safe — a fake that
@@ -77,6 +82,19 @@ func (f *fakeSops) Edit(source string) error {
 		return f.edit(source)
 	}
 	return nil
+}
+
+func (f *fakeSops) Encrypt(destination string, in, out *os.File) error {
+	f.record("encrypt " + destination)
+	if f.encrypt != nil {
+		return f.encrypt(destination, in, out)
+	}
+	b, err := io.ReadAll(in)
+	if err != nil {
+		return err
+	}
+	_, err = out.Write(b)
+	return err
 }
 
 func okSops() *fakeSops { return &fakeSops{available: true} }
@@ -156,7 +174,12 @@ func newBridgeFixture(t *testing.T, yaml string, files map[string]string) *bridg
 	if err := os.WriteFile(filepath.Join(dir, config.FileName), []byte(yaml), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	c, err := config.Load(dir)
+	// SkipVersionCheck: EnvBridgeIntroducedVersion (0.1.48) targets the release
+	// this feature ships in, which is ahead of the dev build's own
+	// config.Version until that release is cut. The fixtures need `version:`
+	// to reach EnvBridgeVersionSatisfied's own comparison, not fail earlier
+	// at ordinary load-time compatibility checking.
+	c, err := config.Load(dir, config.SkipVersionCheck())
 	if err != nil {
 		t.Fatalf("config.Load: %v", err)
 	}
@@ -189,10 +212,27 @@ func defaultFixture(t *testing.T) *bridgeFixture {
 		map[string]string{"secrets.env.enc": "ENC"})
 }
 
+// bridgeEnabledYAML and sopsCreationRuleYAML live in
+// config_env_fixture_unix_test.go alongside the fixtures that use them: seal
+// and show are both linux/darwin-only (supportedBridgePlatforms), and every
+// caller of these two is confined to that same build-tagged pair of files.
+
+// defaultSealFixture and defaultShowFixture live in
+// config_env_fixture_unix_test.go alongside withTTY and ttyPipe: seal and show
+// are both linux/darwin-only (supportedBridgePlatforms), and every caller of
+// these two is confined to that same build-tagged pair of test files.
+
 // install swaps the package globals for the duration of the test.
+//
+// Two seams beyond unseal's own (bridgeSops, bridgeGit, bridgeGOOS) exist only
+// for seal/show: bridgeOpenTTY and the agent-detection env vars. Both default
+// to the closed state — no controlling terminal, no agent signal present — so
+// a row not specifically about either behaves the same on a developer's real
+// terminal as it does in CI, where CLAUDECODE is in fact set (this suite runs
+// under Claude Code itself) and there usually is no /dev/tty at all.
 func (f *bridgeFixture) install(wantJSON bool) {
 	f.t.Helper()
-	oldSops, oldGit, oldGOOS := bridgeSops, bridgeGit, bridgeGOOS
+	oldSops, oldGit, oldGOOS, oldOpenTTY := bridgeSops, bridgeGit, bridgeGOOS, bridgeOpenTTY
 	bridgeSops, bridgeGit = f.sops, f.git
 	if !supportedBridgePlatforms[bridgeGOOS] {
 		// The suite must run identically on a developer machine and in CI; a row
@@ -200,8 +240,22 @@ func (f *bridgeFixture) install(wantJSON bool) {
 		// unsupported branch because of where the test happens to run.
 		bridgeGOOS = "linux"
 	}
+	bridgeOpenTTY = func() (*os.File, error) {
+		return nil, fmt.Errorf("no controlling terminal (test default)")
+	}
+	for _, name := range bridgeAgentEnvVars {
+		old, wasSet := os.LookupEnv(name)
+		_ = os.Unsetenv(name)
+		f.t.Cleanup(func() {
+			if wasSet {
+				_ = os.Setenv(name, old)
+			}
+		})
+	}
 	withEnvPolicyGlobals(f.t, f.cfg, wantJSON)
-	f.t.Cleanup(func() { bridgeSops, bridgeGit, bridgeGOOS = oldSops, oldGit, oldGOOS })
+	f.t.Cleanup(func() {
+		bridgeSops, bridgeGit, bridgeGOOS, bridgeOpenTTY = oldSops, oldGit, oldGOOS, oldOpenTTY
+	})
 }
 
 func (f *bridgeFixture) path(rel string) string { return filepath.Join(f.dir, rel) }

@@ -196,3 +196,44 @@ func ValidateDotenvStream(f *os.File) (count int, line int, err error) {
 	}
 	return len(vars), 0, nil
 }
+
+// DotenvKeyNames parses a dotenv stream and returns the variable names it
+// declares, in first-seen order with duplicates removed — never their values.
+//
+// `seal` presents this list for a plaintext-target confirmation prompt
+// (TASK-281 §3-3): the question a human can safely answer is "are these the
+// right keys", not "are these the right secrets", so the values must never
+// leave the file. This is a dedicated scan rather than a wrapper over
+// parseEnvFileStrict for that reason — it never builds a value string at all,
+// which is a stronger guarantee than trusting a caller to discard one.
+func DotenvKeyNames(f *os.File) ([]string, error) {
+	scanner := bufio.NewScanner(f)
+	lineNo := 0
+	seen := make(map[string]bool)
+	var names []string
+
+	for scanner.Scan() {
+		lineNo++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		matches := envLineRegex.FindStringSubmatch(line)
+		if matches == nil {
+			return nil, fmt.Errorf("invalid dotenv syntax at line %d", lineNo)
+		}
+		key := matches[1]
+		if !seen[key] {
+			seen[key] = true
+			names = append(names, key)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			return nil, fmt.Errorf("%w: line %d exceeds the %d-byte limit",
+				ErrDotenvLineTooLong, lineNo+1, MaxDotenvLineBytes)
+		}
+		return nil, err
+	}
+	return names, nil
+}

@@ -4,6 +4,7 @@ package integration
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,7 +48,18 @@ func dvaBinary(t *testing.T) string {
 			return
 		}
 		dvaBinaryPath = filepath.Join(dir, "dva")
-		cmd := exec.Command("go", "build", "-o", dvaBinaryPath, "./cmd/dva")
+		// EnvBridgeIntroducedVersion (0.1.48) is above config.Version's compiled
+		// default (0.1.47 as of this writing), so any dva.yml that satisfies
+		// EnvBridgeVersionSatisfied would otherwise fail checkConfigVersion
+		// against this test binary before env_bridge is ever reached — the same
+		// deadlock TestConfigEnvGatedCommandsRealBinary's doc comment describes.
+		// Injecting a newer Version here, exactly the way the real release build
+		// injects Commit/BuildDate, unblocks that combination for tests without
+		// bumping the global compiled default or touching the Makefile's release
+		// build.
+		cmd := exec.Command("go", "build",
+			"-ldflags", "-X github.com/ScriptonBasestar/dva/internal/config.Version=0.1.48",
+			"-o", dvaBinaryPath, "./cmd/dva")
 		cmd.Dir = repoRoot()
 		if out, err := cmd.CombinedOutput(); err != nil {
 			dvaBinaryErr = err
@@ -161,7 +173,97 @@ func newSopsFixture(t *testing.T, plaintext string) *sopsFixture {
 			"  - {path: .env, sops_source: secrets.env.enc}\n",
 		".gitignore": ".env\nage-identity.txt\n",
 	})
-	initRepo(t, git, dir)
+	initRepo(t, git, dir, "dva.yml", ".gitignore", "secrets.env.enc")
+
+	return &sopsFixture{
+		t: t, dir: dir, keyFile: keyFile,
+		path: toolPATH(t, map[string]string{"sops": sops, "git": git}),
+	}
+}
+
+// newSopsFixtureWithEnvBridge is newSopsFixture's counterpart for seal/show:
+// the same real age identity, real sops-encrypted source and git repository,
+// but dva.yml also declares env_bridge and a matching .sops.yaml creation
+// rule. version is the config's own declared version: string, taken as a
+// parameter rather than baked in — TestConfigEnvGatedCommandsRealBinary needs
+// one that leaves EnvBridgeVersionSatisfied false without also tripping
+// checkConfigVersion against the running dva's own compiled-in version.
+func newSopsFixtureWithEnvBridge(t *testing.T, plaintext, version string, allowSeal, allowShow bool) *sopsFixture {
+	t.Helper()
+	sops, keygen, git := realTool(t, "sops"), realTool(t, "age-keygen"), realTool(t, "git")
+
+	dir := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	keyFile := filepath.Join(dir, "age-identity.txt")
+
+	out, err := exec.Command(keygen, "-o", keyFile).CombinedOutput()
+	if err != nil {
+		t.Fatalf("age-keygen: %v: %s", err, out)
+	}
+	pub := agePublicKey(t, string(out))
+
+	plainFile := filepath.Join(dir, "plain.env")
+	if err := os.WriteFile(plainFile, []byte(plaintext), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	enc, err := exec.Command(sops, "encrypt", "--input-type", "dotenv",
+		"--output-type", "dotenv", "--age", pub, plainFile).Output()
+	if err != nil {
+		t.Fatalf("sops encrypt: %v", err)
+	}
+	if err := os.Remove(plainFile); err != nil {
+		t.Fatal(err)
+	}
+
+	writeAll(t, dir, map[string]string{
+		"secrets.env.enc": string(enc),
+		"dva.yml": fmt.Sprintf("version: %q\nenv_bridge:\n  allow_seal: %t\n  allow_show: %t\n"+
+			"env_file:\n  - {path: .env, sops_source: secrets.env.enc}\n", version, allowSeal, allowShow),
+		".sops.yaml": fmt.Sprintf("creation_rules:\n  - path_regex: \\.enc$\n    age: %s\n", pub),
+		".gitignore": ".env\nage-identity.txt\n",
+	})
+	initRepo(t, git, dir, "dva.yml", ".gitignore", "secrets.env.enc")
+
+	return &sopsFixture{
+		t: t, dir: dir, keyFile: keyFile,
+		path: toolPATH(t, map[string]string{"sops": sops, "git": git}),
+	}
+}
+
+// newSealFixture is newSopsFixtureWithEnvBridge's counterpart for seal itself:
+// seal is create-only (codeSourceExists, no --force — see config_env_seal.go),
+// so its fixture must start with a plaintext target ready to encrypt and no
+// source yet, the reverse of every other sopsFixture constructor here, which
+// all start from an already-encrypted source. version is a parameter for the
+// same reason newSopsFixtureWithEnvBridge takes one: the caller picks a value
+// that satisfies EnvBridgeVersionSatisfied without also tripping
+// checkConfigVersion against the running dva's own compiled-in version.
+func newSealFixture(t *testing.T, plaintext, version string, allowSeal, allowShow bool) *sopsFixture {
+	t.Helper()
+	sops, keygen, git := realTool(t, "sops"), realTool(t, "age-keygen"), realTool(t, "git")
+
+	dir := t.TempDir()
+	if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+		dir = resolved
+	}
+	keyFile := filepath.Join(dir, "age-identity.txt")
+
+	out, err := exec.Command(keygen, "-o", keyFile).CombinedOutput()
+	if err != nil {
+		t.Fatalf("age-keygen: %v: %s", err, out)
+	}
+	pub := agePublicKey(t, string(out))
+
+	writeAll(t, dir, map[string]string{
+		".env": plaintext,
+		"dva.yml": fmt.Sprintf("version: %q\nenv_bridge:\n  allow_seal: %t\n  allow_show: %t\n"+
+			"env_file:\n  - {path: .env, sops_source: secrets.env.enc}\n", version, allowSeal, allowShow),
+		".sops.yaml": fmt.Sprintf("creation_rules:\n  - path_regex: \\.enc$\n    age: %s\n", pub),
+		".gitignore": ".env\nage-identity.txt\n",
+	})
+	initRepo(t, git, dir, "dva.yml", ".gitignore", ".sops.yaml")
 
 	return &sopsFixture{
 		t: t, dir: dir, keyFile: keyFile,
@@ -193,14 +295,17 @@ func writeAll(t *testing.T, dir string, files map[string]string) {
 
 // initRepo makes the fixture a real repository so the git guard is decided by
 // git itself. The identity is set locally because a runner with no global
-// git config would otherwise fail at commit time.
-func initRepo(t *testing.T, git, dir string) {
+// git config would otherwise fail at commit time. tracked names the files to
+// commit — callers whose source does not exist yet (seal's fixture) pass a
+// set that omits it, since `git add` on a missing path is itself a fatal
+// error, not a no-op.
+func initRepo(t *testing.T, git, dir string, tracked ...string) {
 	t.Helper()
 	for _, args := range [][]string{
 		{"init", "--quiet"},
 		{"config", "user.email", "dva-test@example.invalid"},
 		{"config", "user.name", "dva test"},
-		{"add", "dva.yml", ".gitignore", "secrets.env.enc"},
+		append([]string{"add"}, tracked...),
 		{"commit", "--quiet", "-m", "fixture"},
 	} {
 		cmd := exec.Command(git, args...)

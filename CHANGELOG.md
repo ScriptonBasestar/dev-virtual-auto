@@ -18,6 +18,17 @@ All notable changes to DVA are documented here.
   해제합니다. 지원 플랫폼은 linux와 darwin이며 그 외에서는 fail-closed입니다. 모든 실패는
   exit 1이고(sops의 128/200을 전달하지 않음) `--json` 실패 문서에 `error.code`가 추가됩니다
   ([USAGE.md](USAGE.md#암호화된-소스-브리지-dva-config-env))
+- **`dva config env seal`/`show` — 게이트된 평문 암호화·표시 커맨드** (TASK-281/TASK-282):
+  `dva.yml`에 `env_bridge:`를 선언하고 `allow_seal`/`allow_show`를 각각 켜야만 동작하며,
+  **기본값은 둘 다 꺼짐**입니다. `seal`은 평문 target을 `sops_source` 자리에 새로
+  암호화하는 생성 전용 커맨드로, `unseal`과 동일한 원자적 쓰기 경로를 재사용하고 `--yes`
+  없이는 암호화할 키 이름을 보여준 뒤 확인을 받습니다. `show`는 `sops_source`를 복호화해
+  **제어 터미널(`/dev/tty`)에만** 씁니다 — stdout·stderr·`--json` 문서 어디에도 값이
+  나타나지 않고, 제어 터미널이 없으면 sops를 호출하지도 않고 거절합니다. `--json`은 두
+  커맨드 모두 지원하지 않으며, `show`는 알려진 자동화 에이전트 환경변수를 보조 신호로만
+  사용해 거절합니다(우회 불가능한 보안 경계가 아니며 우회 플래그도 없습니다). `env_bridge:`는
+  루트 dva.yml에서만 유효하고 `EnvBridgeIntroducedVersion` 이상의 `version:`을 요구합니다
+  ([USAGE.md](USAGE.md#게이트된-sealshow))
 
 ### Fixed
 - **agent-mesh flow 프롬프트가 더 이상 유효한 config를 거절하거나 무동작 config를 만들도록

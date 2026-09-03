@@ -2,8 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
+	"strings"
 )
 
 // sopsRunner is the injectable child-process seam. The fault matrix drives every
@@ -17,7 +19,20 @@ type sopsRunner interface {
 	Decrypt(source string, out *os.File) error
 	// Edit runs an interactive editing session on the encrypted source.
 	Edit(source string) error
+	// Encrypt reads plaintext dotenv from in and writes encrypted dotenv to out.
+	// destination is the source path as dva.yml declares it — never opened by
+	// this call — passed only so sops' `.sops.yaml` creation-rule matching
+	// evaluates against the file being created rather than /dev/stdin. Returns
+	// errSopsCreationRuleMismatch when sops' own diagnostic identifies a missing
+	// or non-matching creation rule (seal §3-3 folds this into the same code as
+	// a missing `.sops.yaml`, since DVA does not reimplement rule matching).
+	Encrypt(destination string, in *os.File, out *os.File) error
 }
+
+// errSopsCreationRuleMismatch is a sentinel a sopsRunner.Encrypt implementation
+// returns (wrapped or bare) when sops refused because no creation rule matches
+// the destination path, distinct from every other encryption failure.
+var errSopsCreationRuleMismatch = errors.New("sops: no matching creation rule")
 
 // sopsStderrLimit caps what is read from the child. sops stderr is never echoed
 // (§7-4), but an unbounded read of a misbehaving child is still a way to spend
@@ -59,6 +74,32 @@ func (realSops) Edit(source string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+// Encrypt runs sops by argv with no shell, reading plaintext from /dev/stdin
+// rather than a real path so the only file sops is ever told to touch is the
+// destination it is about to create. `--filename-override` is what makes
+// `.sops.yaml`'s creation_rules match against that destination instead of the
+// literal "/dev/stdin" — seal never has a plaintext path that already carries
+// the destination's name, since the plaintext is the *target*, not the source.
+//
+// sops' stderr is captured, capped, and never echoed (§7-4): DVA does not
+// reimplement `.sops.yaml` rule matching, so a missing-rule failure is
+// recognized only by pattern-matching sops' own diagnostic text — a heuristic,
+// not a re-derivation, and the reason a false negative here still fails closed
+// as codeEncryptFailed rather than silently succeeding.
+func (realSops) Encrypt(destination string, in *os.File, out *os.File) error {
+	cmd := exec.Command("sops", "encrypt", "--input-type", "dotenv", "--output-type", "dotenv",
+		"--filename-override", destination, "/dev/stdin")
+	cmd.Stdin = in
+	cmd.Stdout = out
+	var stderr bytes.Buffer
+	cmd.Stderr = &limitedWriter{w: &stderr, remaining: sopsStderrLimit}
+	err := cmd.Run()
+	if err != nil && strings.Contains(strings.ToLower(stderr.String()), "creation rule") {
+		return errSopsCreationRuleMismatch
+	}
+	return err
 }
 
 // limitedWriter discards past a cap instead of failing, so a chatty child cannot

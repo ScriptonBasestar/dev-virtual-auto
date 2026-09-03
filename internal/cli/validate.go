@@ -152,6 +152,14 @@ See USAGE.md's "config validate" section for the full list of semantic checks.`,
 			return report.fail(err)
 		}
 
+		// env_bridge's origin and version rules (TASK-281 §3-2) report only from
+		// here and from `dva config env seal/show` — never from an ordinary
+		// lifecycle command, so a policy declaration about the secret surface
+		// cannot brick `dva up`.
+		if err := checkEnvBridgeOriginAndVersion(c); err != nil {
+			return report.fail(err)
+		}
+
 		// A hard failure rather than a warning. The schema accepts this config, and then
 		// every compose runner rejects it at the moment it tries to run — so `dva validate`
 		// exiting 0 here is the whole defect: a green check that is evidence about the

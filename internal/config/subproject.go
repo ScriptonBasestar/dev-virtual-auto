@@ -32,6 +32,13 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ..
 		// including the ones its own modules and override contribute below. The
 		// bridge refuses to write any of them from the parent session (§5-1).
 		cfg.setEnvFileOrigin(cfg.EnvFile, EnvOriginSubproject, subCfgPath)
+		// A subproject's own env_bridge is real for a session run directly inside
+		// that subproject's directory, but has no representation from the parent's
+		// side at all: subCfg here is never merged into the parent Config (see
+		// resolveSubprojectImports, which imports only named plans), so nothing the
+		// parent reads can observe it. TASK-281 §3-2 calls this "ignored", and this
+		// is what makes it true structurally rather than by a check somewhere else.
+		cfg.setEnvBridgeOrigin(cfg.EnvBridge, EnvBridgeOriginRoot, subCfgPath)
 		if !o.skipVersionCheck {
 			if err := checkConfigVersion(cfg); err != nil {
 				return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)

@@ -74,6 +74,7 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 | `dva config docs` | 프로젝트 AI 파트너용 CLAUDE.md/AGENTS.md 생성/갱신 |
 | `dva config migrate` | legacy compose 선언을 `runners` 형태로 재작성 |
 | `dva config env edit/unseal` | `env_file` 엔트리의 sops 암호화 소스를 편집/복호화 |
+| `dva config env seal/show` | `env_bridge:` 게이트 활성화 시에만: 평문을 암호화/터미널에 표시 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
 | `dva manifest` | 자동화용 구조화 command manifest 출력 |
@@ -299,6 +300,8 @@ flag metadata를 소비하는 자동화는 `manifest`를 사용합니다.
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
 | `dva config env edit` | `env_file` 엔트리의 `sops_source`를 sops로 편집 |
 | `dva config env unseal` | `sops_source`를 복호화해 평문 target 작성 |
+| `dva config env seal` | (게이트) 평문 target을 `sops_source`로 암호화 — 신규 생성 전용 |
+| `dva config env show` | (게이트) `sops_source`를 복호화해 제어 터미널에만 출력 |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
@@ -1091,6 +1094,62 @@ sops와 DVA는 dotenv 한 줄을 조금 다르게 읽습니다. sops는 `API_TOK
 ```dotenv
 API_TOKEN="tok-123 # 이 부분까지 값"
 ```
+
+##### 게이트된 seal/show
+
+`edit`/`unseal`과 달리 `seal`/`show`는 기본적으로 꺼져 있습니다. dva.yml에
+`env_bridge:`를 선언하고 각 커맨드를 명시적으로 켜야만 동작합니다.
+
+```yaml
+version: "0.1.48"       # env_bridge는 이 버전 이상을 요구합니다
+env_bridge:
+  allow_seal: true       # dva config env seal 허용
+  allow_show: true       # dva config env show 허용
+env_file:
+  - {path: .env, sops_source: .env.enc}
+```
+
+`env_bridge:`는 **루트 dva.yml에서만** 유효합니다. 선언 위치에 따라 결과가 다릅니다:
+
+- **루트 dva.yml**: 유효합니다 — 위 예시처럼 선언합니다.
+- **module (`.sb/dva/<mod>.yml`) 또는 `dva.override.yml`**: 로드 자체가
+  `env_bridge_origin_not_root` 에러로 즉시 실패합니다. 이 둘은 무시되는 게 아니라
+  거절됩니다.
+- **subproject**: 조용히 무시됩니다 — 부모의 게이트를 켜지도, 로드를 실패시키지도
+  않습니다.
+
+게이트가 꺼진 채로 커맨드를 실행하면 sops를 아예 호출하지 않고
+`seal_not_enabled`/`show_not_enabled`로 즉시 거절합니다.
+
+| Command | 하는 일 |
+|---------|---------|
+| `dva config env seal [TARGET] [--yes]` | 평문 target을 읽어 `sops_source` 자리에 **새로** 암호화합니다. 이미 있는 `sops_source`를 덮어쓰거나 병합하지 않습니다 — 생성 전용입니다 |
+| `dva config env show [TARGET]` | `sops_source`를 복호화해 **제어 터미널에만** 씁니다 |
+
+```bash
+dva config env seal            # 확인 프롬프트에 키 이름을 보여주고 y/N로 진행
+dva config env seal --yes      # 이미 검토했다는 명시적 선언 — 프롬프트 생략
+dva config env show            # 복호화 결과를 터미널에 표시
+```
+
+- **`seal`은 암호화되는 키 이름을 보여주고 확인을 받습니다.** `--yes`는 우회 플래그가
+  아니라 "이미 검토했다"는 명시적 선언입니다 — 값 자체를 노출하지도, 게이트가 주지
+  않은 권한을 열지도 않습니다.
+- **`show`는 값을 stdout/stderr/`--json`으로 절대 출력하지 않습니다.** 복호화된 내용은
+  `/dev/tty`로만 나갑니다. 제어 터미널이 없으면(파이프, CI, 스크립트 등) sops를
+  호출하지도 않고 거절합니다.
+- **`--json`은 `seal`/`show` 둘 다 지원하지 않습니다.** 평문이 관련된 자동화 출력
+  경로 자체를 만들지 않기 위한 설계이며, `--json`을 붙이면 게이트 통과 여부와
+  무관하게 즉시 거절합니다.
+- **자동화 에이전트 환경 감지는 보조 신호일 뿐, 보안 경계가 아닙니다.** `show`는
+  `CLAUDECODE` 등 알려진 에이전트 환경변수가 보이면 거절하지만, 이는 우회 불가능한
+  방어가 아니라 실수 방지용 힌트입니다. 우회 플래그는 없습니다.
+- **DVA는 키를 소유하지 않습니다.** `seal`도 `unseal`과 마찬가지로 age/KMS 해석은
+  전적으로 sops에 위임하며, `.sops.yaml`의 creation rule이 없으면 sops 호출 전에
+  거절합니다.
+- **쓰기 안전성은 `unseal`과 동일한 원자적 쓰기 경로를 재사용합니다** — 대상 디렉토리에
+  임시 파일을 만들고 fsync한 뒤 rename하며, 실패 시 기존 파일은 바이트 단위로
+  그대로입니다.
 
 #### 컨테이너로 전달되는 환경변수
 

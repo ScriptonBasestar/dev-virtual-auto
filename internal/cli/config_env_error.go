@@ -70,6 +70,27 @@ const (
 	codeEmptyOutput         = "empty_decrypted_output"
 	codeInvalidDotenv       = "invalid_dotenv_output"
 	codeUnsupportedPlatform = "unsupported_platform"
+
+	// The 16 codes TASK-281 §3-7 adds for the gated seal/show commands. Seal and
+	// show reuse every code above that already names their condition (platform,
+	// origin, selector, path shape, source state, sops presence...); these are
+	// only the conditions that have no existing member.
+	codeSealNotEnabled          = "seal_not_enabled"
+	codeShowNotEnabled          = "show_not_enabled"
+	codeEnvBridgeOriginNotRoot  = "env_bridge_origin_not_root"
+	codeEnvBridgeRequiresVer    = "env_bridge_requires_version"
+	codeJSONUnsupportedForSeal  = "json_unsupported_for_seal"
+	codeJSONUnsupportedForShow  = "json_unsupported_for_show"
+	codeSourceExists            = "source_exists"
+	codeSourceParentMissing     = "source_parent_missing"
+	codeSealTargetMissing       = "target_missing"
+	codeInvalidDotenvInput      = "invalid_dotenv_input"
+	codeEmptyPlaintextInput     = "empty_plaintext_input"
+	codeSopsCreationRuleMissing = "sops_creation_rule_missing"
+	codeEncryptFailed           = "encrypt_failed"
+	codeConfirmationRequired    = "confirmation_required"
+	codeNoControllingTerminal   = "no_controlling_terminal"
+	codeAgentEnvironmentDetect  = "agent_environment_detected"
 )
 
 // envBridgeCodes is the closed set as data, for the drift test.
@@ -82,4 +103,8 @@ var envBridgeCodes = []string{
 	codeTargetParentMissing, codePermissionDenied, codeGitUnavailable,
 	codeSopsNotFound, codeDecryptFailed, codeEmptyOutput, codeInvalidDotenv,
 	codeUnsupportedPlatform,
+	codeSealNotEnabled, codeShowNotEnabled, codeEnvBridgeOriginNotRoot, codeEnvBridgeRequiresVer,
+	codeJSONUnsupportedForSeal, codeJSONUnsupportedForShow, codeSourceExists, codeSourceParentMissing,
+	codeSealTargetMissing, codeInvalidDotenvInput, codeEmptyPlaintextInput, codeSopsCreationRuleMissing,
+	codeEncryptFailed, codeConfirmationRequired, codeNoControllingTerminal, codeAgentEnvironmentDetect,
 }

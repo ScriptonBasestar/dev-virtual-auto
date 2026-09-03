@@ -1026,6 +1026,24 @@
     "env_file": {
       "$ref": "#/definitions/env_file"
     },
+    "env_bridge": {
+      "type": "object",
+      "description": "Gates the 'dva config env seal' and 'dva config env show' commands, both off by default. Valid only at the config root: a module or override file declaring this is rejected, and an imported subproject's own declaration has no effect on the parent. Declaring this section requires 'version' to be at least the release that introduced it. See USAGE.md, 'config env'.",
+      "additionalProperties": false,
+      "properties": {
+        "allow_seal": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enables 'dva config env seal', which bootstraps a new encrypted source from an existing plaintext env_file target. It never overwrites an existing source."
+        },
+        "allow_show": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enables 'dva config env show', which prints a decrypted env_file entry to the controlling terminal only. Refused in a detected agent environment and when --json is passed."
+        }
+      },
+      "examples": [{ "allow_seal": true, "allow_show": false }]
+    },
     "modules": {
       "type": "array",
       "items": {

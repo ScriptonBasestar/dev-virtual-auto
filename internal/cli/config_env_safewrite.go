@@ -231,20 +231,19 @@ func isOwnedTemp(name string) bool {
 // resembles a temp, or belongs to a run still in flight, is left alone. Errors
 // are ignored on purpose: recovery is best-effort housekeeping and must never
 // turn a valid unseal into a failure.
-func (r *envRoot) reclaimStaleTemps(now time.Time) int {
+func (r *envRoot) reclaimStaleTemps(now time.Time) {
 	// Listed through the handle, not by name: the candidate set must come from
 	// the same directory the removals land in, or a repointed symlink could
 	// choose which of this directory's files get considered.
 	d, err := r.root.Open(".")
 	if err != nil {
-		return 0
+		return
 	}
 	entries, err := d.ReadDir(-1)
 	_ = d.Close()
 	if err != nil {
-		return 0
+		return
 	}
-	removed := 0
 	for _, e := range entries {
 		name := e.Name()
 		if !isOwnedTemp(name) {
@@ -257,11 +256,8 @@ func (r *envRoot) reclaimStaleTemps(now time.Time) int {
 		if now.Sub(info.ModTime()) < staleTempAge {
 			continue
 		}
-		if err := r.root.Remove(name); err == nil {
-			removed++
-		}
+		_ = r.root.Remove(name)
 	}
-	return removed
 }
 
 // tempName is derived from the target's own file name, the process and a random
