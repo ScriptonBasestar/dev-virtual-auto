@@ -57,10 +57,7 @@ func validateExampleSchema(t *testing.T, path string) {
 var yamlFenceRE = regexp.MustCompile("(?s)```yaml\\r?\\n(.*?)```")
 
 // rootSchemaPropertyKeys reads the embedded schema.json and returns the top-level property
-// names it declares. A markdown-embedded YAML block whose top-level keys are all members of
-// this set is a dva.yml sample (whole file or a section fragment); a block with a foreign
-// top-level key (e.g. docker-compose's "services") is some other tool's config caught in the
-// same fence and is not a dva.yml sample to validate.
+// names it declares. isDvaSample below decides membership from this set.
 func rootSchemaPropertyKeys(t *testing.T) map[string]bool {
 	t.Helper()
 	raw, err := embeddedSchema.ReadFile("schema.json")
@@ -80,6 +77,29 @@ func rootSchemaPropertyKeys(t *testing.T) map[string]bool {
 		keys[k] = true
 	}
 	return keys
+}
+
+// isDvaSample reports whether a markdown-embedded YAML mapping is a dva.yml sample (whole
+// file or a section fragment) rather than some other tool's config caught in the same fence.
+//
+// It decides by majority: more top-level keys the root schema declares than keys it does not.
+// The obvious rule — every key must be known — cannot be used, because the root schema sets
+// additionalProperties:false, so an unknown root key IS the defect class this test exists to
+// catch. Under "all keys known", a sample whose only fault is `plan:` for `plans:` is
+// reclassified as a foreign block and skipped silently, and the test passes by not looking.
+//
+// Majority keeps the foreign blocks out for the reason they were out before: examples/
+// DISCOURSE.md's docker-compose fragment is `services:` plus service names, none of them root
+// keys, and even compose's own `version:` — the one name the two schemas share — leaves such a
+// block in the minority.
+func isDvaSample(top map[string]any, rootKeys map[string]bool) bool {
+	known := 0
+	for key := range top {
+		if rootKeys[key] {
+			known++
+		}
+	}
+	return known*2 > len(top)
 }
 
 // TestExampleMarkdownValidateAgainstSchema extracts every ```yaml fenced block from
@@ -127,14 +147,7 @@ func TestExampleMarkdownValidateAgainstSchema(t *testing.T) {
 				continue
 			}
 
-			isDvaSample := true
-			for key := range top {
-				if !rootKeys[key] {
-					isDvaSample = false
-					break
-				}
-			}
-			if !isDvaSample {
+			if !isDvaSample(top, rootKeys) {
 				continue
 			}
 
