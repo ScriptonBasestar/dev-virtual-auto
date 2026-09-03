@@ -41,7 +41,7 @@ Ignore된 `tmp/` 자료는 역사적 입력일 뿐 clean checkout에서 필요�
 TASK-262는 imported plan lifecycle을 복구했고 TASK-253은 help discovery를 정렬했다. TASK-247 caller
 audit에서 interaction/provision owner 결함이 확인되어 TASK-264를 추가했고 복구는 완료됐다.
 저장소 전체의 다음은 PLAN-002 TASK-265→248이며, 그 뒤 TASK-254로 복귀한다. 이어서 P0 critical path인
-TASK-259→263→260을 진행한다. TASK-255·257은 TASK-254 뒤에 시작한다.
+TASK-259→263(결정됨)→260을 진행한다. TASK-255·257은 TASK-254 뒤에 시작한다.
 
 TASK-262를 추가한 역사적 이유는 문서가 지원한다고 설명한 imported plan이 normal child stack에서
 실패했기 때문이다. 당시 loader는 child plan만 parent `Plans`에 clone하고 resolver는 parent `Stack`에서
@@ -147,10 +147,10 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 | TASK-255 | TASK-254 ✅ | **방향 판정됨 (2026-09-03)** — `kubectl` canonical 승격. 사람 결정은 끝났고 완료기준 1·3·4·5·6·7이 남아 카드는 열려 있다 |
 | TASK-257 | TASK-254 ✅ | **착수 가능** |
 | TASK-272 | TASK-254 ✅ | **착수 가능 · 우선순위 상승** — TASK-255가 두 이름 공존을 확정해 route identity 표현이 선택이 아니라 필수가 됐다. 닫히면 TASK-256·258이 함께 열린다 |
-| TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **착수 가능** — 닫히면 TASK-260이 열린다 |
+| TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **결정됨 (2026-09-03)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
 | TASK-256 | TASK-255 · TASK-272 | 대기 — 두 선행 모두 열려 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
 | TASK-258 | TASK-257 · TASK-272 | 대기 |
-| TASK-260 | TASK-262 ✅ · TASK-263 | TASK-263 대기 |
+| TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **착수 가능** |
 | TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
 
 **착수 가능한 네 장은 전부 `needs-human` decision card다.** §4가 정하듯 세션은 evidence와 option
