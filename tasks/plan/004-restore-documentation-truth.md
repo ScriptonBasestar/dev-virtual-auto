@@ -39,7 +39,7 @@ question 2가 소유한다.
 
 | Workstream | 판정 | 작업 |
 | --- | --- | --- |
-| CLI 조언 문자열이 실행 불가능한 명령을 제안 | **부분 완료 (`206918a`)** — 독립 리뷰에서 다섯 입력이 잔존 확인 | [TASK-273](../done/273-repair-misleading-cli-guidance.md) → [TASK-283](../todo/283-repair-plan-route-flag-guidance.md) |
+| CLI 조언 문자열이 실행 불가능한 명령을 제안 | **완료 (`206918a` → `20d0f67`)** — 잔존 다섯 입력을 TASK-283이 닫음 | [TASK-273](../done/273-repair-misleading-cli-guidance.md) → [TASK-283](../done/283-repair-plan-route-flag-guidance.md) |
 | flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | **완료 (`159bf1b`)** | [TASK-274](../done/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | 소스 대조 완료 | [TASK-275](../todo/275-correct-skill-reference-fictions.md) |
 | example corpus 결함 + markdown-YAML 게이트 공백 | 15/16 파일 `--strict` 실패 측정 | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
@@ -66,9 +66,17 @@ question 2가 소유한다.
    재현했다. 그중 하나는 개선이 아니라 **후퇴**다 — `dva up --tag app --dry-run`의 제안에서
    `--dry-run`이 사라져, 미리보기를 요청한 사용자가 실제로 실행되는 명령을 안내받는다.
    수정 전에는 같은 입력이 rc=1로 실패하며 아무것도 실행하지 않았다. 후속은
-   [TASK-283](../todo/283-repair-plan-route-flag-guidance.md)이며, TASK-279와 달리 조언
-   문자열을 고치는 카드이므로 PLAN-004의 자식으로 둔다. 이 행이 닫히기 전까지 TASK-273의
-   워크스트림은 완료로 읽으면 안 된다.
+   [TASK-283](../done/283-repair-plan-route-flag-guidance.md)이며, TASK-279와 달리 조언
+   문자열을 고치는 카드이므로 PLAN-004의 자식으로 둔다.
+
+   **닫힘 (`20d0f67`).** TASK-283이 다섯 입력을 모두 처리했고 후퇴했던 `--dry-run` 보존도
+   회복했다. 이 카드가 세운 성질은 문자열을 하나씩 고친 것이 아니라 **검증되지 않은 제안을
+   출력하지 않는다**는 것이다 — 가드가 규칙을 자체적으로 재유도하는 대신 실제 파서
+   (`parsePlanFlags`)에게 되물어, 제안이 실행 가능함을 확인한 뒤에만 출력한다. 손으로 유도한
+   규칙은 두 번의 측정에서 두 번 다 틀렸고, 그것이 위임의 근거다. 이 설계는 리베이스에서
+   검증됐다: TASK-279가 파서를 verb 인식으로 바꾸자 `dva stop --tag --no-wait`에 대한 조언이
+   가드 규칙을 한 줄도 고치지 않은 채 올바르게 따라 움직였다. 이제 TASK-273의 워크스트림을
+   완료로 읽어도 된다.
 3. **TASK-274 — 완료 (`159bf1b`).** flow 프롬프트. `make generate` 전파 경로를 여기서 한 번
    확인해두면 TASK-275의 동일 경로 작업이 단순해진다고 적었고, 그대로 됐다 — TASK-275를 맡는
    세션은 이 카드의 diff에서 전파 경로를 먼저 읽는 것이 가장 빠르다.
