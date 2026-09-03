@@ -3,10 +3,10 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 55
-total-tasks: 11
+progress: 46
+total-tasks: 13
 completed-tasks: 6
-children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266]
+children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282]
 target-date: "2026-12-31"
 created: 2026-09-01
 ---
@@ -79,7 +79,9 @@ TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 �
 - D6: 합의된 plan 선언 필드의 equality-only non-fatal warning
 - D7: 다중 plan + `default_plan` 부재의 non-fatal warning, 단일 plan 제외
 - sops/age 소유권 유지, DVA는 호출만 함
-- 복호값 stdout 금지, lifecycle auto-unseal 금지
+- 복호값 stdout 금지, lifecycle auto-unseal 금지 — 앞 절반은 [TASK-281](../todo/281-freeze-gated-env-bridge-commands.md)의
+  `env_bridge.allow_show` 게이트가 켜졌을 때 `show`의 stdout 하나에 대해서만 열린다. 게이트가 없거나
+  꺼진 상태, 그리고 log/error/JSON/temp filename은 예외 없이 금지다. lifecycle auto-unseal 금지는 불변
 - sops 미발견·복호 실패 exit 1
 
 D6 fingerprint는 plan의 `environment`, `site`, `vars`, `endpoint_tags`와 각 entry의 `name`,
@@ -231,6 +233,9 @@ TASK-245가 exact schema/argv를 고르더라도 다음은 완화하지 않는�
 - fake-sops fault injection과 pinned real-sops integration
 - 오류 안내는 해당 release에 실제 존재하는 command만 가리킴
 
+이 조건은 게이트 뒤에 추가되는 `seal`/`show`에도 그대로 적용된다. 게이트는 명령이 켜지는 조건을
+바꿀 뿐 위 보증을 완화하지 않는다.
+
 ## 5. Promotion evidence contract
 
 TASK-251의 gate artifact는 최소 다음을 고정한다.
@@ -290,7 +295,9 @@ TASK-245가 여러 OS를 지원한다고 결정했다면 TASK-246이 그 OS를 �
 - lifecycle 동사 재배치 또는 plan flag화
 - 닫힌 plan vocabulary와 plan key 강제
 - D6 warning의 canonical name/삭제 대상 권고
-- `dva env show` 또는 lifecycle auto-unseal
+- 게이트 없는 `config env show`, top-level `dva env show`, lifecycle auto-unseal
+  (기본 비활성 + `env_bridge` opt-in은 [TASK-281](../todo/281-freeze-gated-env-bridge-commands.md)이 소유하며,
+  [TASK-245](../done/245-freeze-env-bridge-contract.md) §11의 무조건 기각을 그만큼 supersede한다)
 - DVA의 age/provider/key management 재구현
 - fixed archetype/3-plan scaffold
 - `--force`의 tracked/symlink/path safety 우회
@@ -317,5 +324,7 @@ release candidate는 최소 `make lint`, `make test`, `make test-integration`, `
 - TASK-252 — decide whether top-level env promotion is safer than keeping config env
 - TASK-265 — decide the interaction-level env_file compatibility contract
 - TASK-266 — deprecate then reject the inert interaction env_file field
+- TASK-281 — freeze the gate-guarded seal and show contract for the config env bridge
+- TASK-282 — implement the gated seal and show commands behind the env_bridge switch
 
 Cross-plan prerequisite: PLAN-003의 TASK-264가 TASK-248보다 먼저 imported interaction/provision owner를 복구한다.
