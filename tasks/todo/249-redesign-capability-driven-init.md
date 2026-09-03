@@ -56,3 +56,48 @@ Do not generate a fixed three-plan template merely because those names are commo
 corpus. Frequency is input evidence, not proof that a particular repository has those capabilities.
 Capability evidence can justify a plan's existence, but does not by itself justify one of the three
 rejected labels.
+
+## Known Contradiction — TASK-233 (기록만, 판정 아님)
+
+이 카드는 결정되기 전에 알려져야 할 사실 하나를 빠뜨리고 있다. **완료기준 4는 이미 닫힌
+결정과 충돌한다.**
+
+완료기준 4는 `local-infra`·`local-dev`·`full-stack`을 "D8을 명시적으로 재개하는 추적된
+결정이 없는 한" 생성 기본값에서 배제하라고 요구한다. 그런데
+`tasks/_archive/233-capability-driven-plan-presets.md`의 `## Decision`(L54)은 이렇게 말한다.
+
+> Use `local-infra` as the preferred generated default only when all selected providers are
+> local, verified, and non-destructive.
+
+TASK-233은 `status: done`, `verification-status: verified`다. 즉 완료기준 4가 요구하는
+"추적된 결정"이 반대 방향으로 이미 존재한다. 이 카드는 D8과 세 label은 언급하지만 그 label을
+의무화한 결정도, 그것을 고정한 테스트도 이름을 대지 않는다. 그 누락 자체가 결함이다.
+
+### 충돌의 정확한 범위 — 코퍼스도 테스트 pin도 아니다
+
+`internal/config/plan_preset_corpus_test.go`의 `TestPlanPresetPolicyShipsInPromptCorpus`는
+`required` 슬라이스에 리터럴 `"default_plan: local-infra"`를 담고
+`agent-mesh-flows/shared/library/naming-presets.md`와 `internal/cli/library_reference.txt`
+양쪽에 존재하는지 검사한다. 이것이 충돌 지점으로 보이기 쉬우나 아니다.
+
+- 그 pin은 **코퍼스 내용에 대한 문자열 단언**이고, `naming-presets.md:139`는 예시 YAML
+  블록 안에 있다.
+- 완료기준 3이 정확히 그 이음매를 이미 갈라 놓았다 — "an existing `local-infra` ... example
+  must not become generator evidence merely because it already exists in a projection."
+- 따라서 코퍼스는 그 문자열을 예시로 계속 가르칠 수 있고, canonical generator를 만들어도
+  pin은 그대로 산다. 완료기준 4와 7은 코퍼스를 생성기 출력으로 읽을 때만 충돌하며,
+  완료기준 3이 그 독법을 금지한다.
+
+살아남지 못하는 것은 **TASK-233의 Decision 문장 하나**뿐이다. 그것은 예시가 아니라 생성
+규칙("preferred generated default")이기 때문이다.
+
+### 재개는 새 카드로만 가능하다
+
+TASK-233은 `tasks/_archive/`에 있다. 완료기준 4를 채택하면서 233의 Decision을 무효화하려면
+done 카드를 제자리에서 수정하는 것이 아니라 명시적으로 supersede하는 새 카드가 필요하다.
+이 절은 그 판단을 내리지 않는다 — 판단자가 233의 존재를 모른 채 결정하는 일만 막는다.
+
+**따라서 이 카드를 결정할 때 먼저 답해야 할 좁은 질문:** D8은 Go `init` 생성기만 구속하는가,
+아니면 `am` 프리셋 코퍼스까지 구속하는가. 전자라면 완료기준 4와 233은 서로 다른 표면을
+말하므로 공존하고, 이 카드는 완료기준 9(호환성 매트릭스 동결)로 축소된다. 후자라면 233을
+supersede하는 카드가 같은 변경에 포함돼야 한다.
