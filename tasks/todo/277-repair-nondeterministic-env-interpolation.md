@@ -75,6 +75,49 @@ B = "second-derived", want interpolation against the value in scope when it was 
 semantics — "interpolation against the value in scope when it was declared" — and the
 implementation only satisfies them by luck.
 
+### The blast radius is wider than the one flaking test
+
+`MergeVars` is the shared merge primitive, not an `env_file`-only helper. Non-test call
+sites, measured on `c6aa64b`:
+
+```
+grep -rn 'MergeVars(' --include='*.go' . | grep -v _test
+```
+
+21 matching lines, of which one is the declaration (`internal/config/environment.go:71`)
+and one is a comment reference (`internal/lifecycle/resolver.go:382`) — **19 real call
+sites**. They span `internal/config/envinput.go:247`, `internal/config/environment.go:52`,
+six in `internal/lifecycle/orchestrator.go`, four in `internal/cli/compose.go`, and
+`internal/cli/build.go:123`, `internal/cli/run.go:84`/`:140`,
+`internal/cli/validate.go:409`/`:446`, `internal/cli/plan_runtime.go:47`,
+`internal/cli/root.go:469`.
+
+`interpolateEnvVars` has exactly **one** non-test call site — `internal/config/envinput.go:250`,
+immediately after the `ApplyEnvFiles` merge loop:
+
+```
+grep -rn 'interpolateEnvVars(' --include='*.go' . | grep -v _test
+```
+
+That asymmetry changes what the defect is. `Interpolate` returns the literal `${VAR}` match
+when the name is not in scope (`internal/config/environment.go`, the `// Return original if
+not found` branch), so a value that loses the map-iteration race is stored **unresolved**.
+On the `env_file` path the trailing `interpolateEnvVars(env)` pass repairs it — badly, by
+resolving against the final merged map instead of declaration scope, which is the (A)/(B)
+divergence above. On the other 18 call sites there is no repair pass at all: plan `vars`,
+entry `vars`, mode `environment`, and exports that reference a sibling key declared in the
+same batch keep the literal `${VAR}` **permanently**.
+
+So the observable failure is not "the value is sometimes one thing and sometimes the other".
+On most paths one of the two outcomes is an uninterpolated string handed to a child process.
+
+Independent reproduction on clean `master`: 40 runs → 5 failures (a second session), against
+the 30 runs → 3 failures recorded above. Both sample the same defect.
+
+Consequence for the fix: whichever semantics is chosen, fixing only `ApplyEnvFiles` leaves
+the other 18 call sites nondeterministic. The repair has to land in `MergeVars` itself, or
+`MergeVars` has to stop being handed an unordered map.
+
 ## Decision required before implementing
 
 The test names one semantics; the code implements two, nondeterministically. Fixing this
