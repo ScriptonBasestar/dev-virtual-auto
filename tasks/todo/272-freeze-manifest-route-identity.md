@@ -14,7 +14,7 @@ decision-status: pending
 depends-on: [TASK-254]
 ---
 
-# Task 268: freeze manifest route identity
+# Task 272: freeze manifest route identity
 
 ## Summary
 

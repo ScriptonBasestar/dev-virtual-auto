@@ -48,16 +48,22 @@ question 2가 소유한다.
 
 카드 간 코드 의존은 없지만 아래 순서가 재작업을 최소화한다.
 
-1. **[TASK-267](../todo/267-repair-subproject-exposure-defects.md) 먼저** — PLAN-003 소속이지만
-   `internal/cli`의 같은 영역(오류·힌트 문자열)을 건드린다. TASK-273보다 먼저 끝내면 두 카드가
-   같은 파일에서 충돌하지 않는다.
-2. **TASK-273** — 가장 작고(effort S) 코드 전용. 나머지 세 장은 문서 전용이라 여기서 분리된다.
+1. **[TASK-267](../done/267-repair-subproject-exposure-defects.md) — 완료 (`517dd11`).**
+   PLAN-003 소속이지만 `internal/cli`의 같은 영역(오류·힌트 문자열)을 건드리므로 TASK-273보다
+   먼저 끝내도록 배치했고, 그대로 처리됐다. 두 카드가 같은 파일에서 충돌할 위험은 해소됐다.
+2. **TASK-273** — 코드 전용이라 나머지 세 장(문서 전용)과 여기서 분리된다. 처음에는 effort S로
+   적었으나, 측정 결과 `--tag`/`--exclude-tag`/`--mode`/`--env`가 죽은 옵션이 아니라 stack
+   경로에서만 동작하는 경로 조건부 옵션임이 드러나 범위가 manifest·정적 테스트·help 산문까지
+   넓어졌고 **effort M**으로 상향됐다. 순서상 위치는 그대로다.
 3. **TASK-274** — flow 프롬프트. `make generate` 전파 경로를 여기서 한 번 확인해두면 TASK-275의
    동일 경로 작업이 단순해진다.
 4. **TASK-275** — skill reference. `reference-examples.md`가 단일 소스이고 생성 사본이 셋이므로
    TASK-274에서 확인한 generate 경로를 그대로 재사용한다.
 5. **TASK-276** — 마지막. 게이트를 추가하는 카드이므로 앞의 세 장이 남긴 결함이 없는 상태에서
-   켜야 새 게이트가 기존 부채로 즉시 빨간불이 되지 않는다.
+   켜야 새 게이트가 기존 부채로 즉시 빨간불이 되지 않는다. 이 카드가 켜는 `validate --strict`
+   게이트는 [TASK-277](../done/277-repair-nondeterministic-env-interpolation.md)의 `MergeVars`
+   비결정성 위에서는 간헐 실패했을 것이므로 선행 조건이었으나, 해당 카드가 `e9ce4e6`으로
+   완료되어 더 이상 막지 않는다.
 
 TASK-276은 [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md)과 `examples/`
 파일을 공유하므로 `depends-on: [TASK-266]`을 선언한다. TASK-266이 소유한
@@ -70,8 +76,10 @@ TASK-276은 [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md)
    다시 쌓이는 것을 막지 못한다. 청산 후 손으로 쓴 사실 블록이 둘 이상 남는다면, 그 블록들을
    AUTOGEN 경계 안으로 옮기거나 대조 게이트를 추가하는 후속 카드를 발행한다.
    **273~276 완료 전에는 발행하지 않는다** — 남는 블록의 수와 위치가 그때 결정된다.
-   ID는 발행 시점에 미사용 번호를 취한다: 이 계획을 열 때 잠정적으로 적어둔 277번은 다른
-   세션이 무관한 결함으로 먼저 가져갔으므로 예약된 번호가 아니다.
+   ID는 발행 시점에 미사용 번호를 취한다: 이 계획을 열 때 잠정적으로 적어둔 277번은 예약된
+   번호가 아니며, 무관한 결함을 다루는
+   [TASK-277](../done/277-repair-nondeterministic-env-interpolation.md)이 이미 그 번호를
+   사용했다.
 
 ## 검토 종료된 항목
 
