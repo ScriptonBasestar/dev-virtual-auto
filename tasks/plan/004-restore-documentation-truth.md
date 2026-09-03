@@ -3,9 +3,9 @@ id: PLAN-004
 title: "Restore documentation truth across skills, flows, and the example corpus"
 type: plan
 scope: "CLI advice strings, agent-mesh flow prompt claims, skill reference fictions, example corpus defects, and the markdown-YAML validation gap"
-progress: 25
+progress: 50
 total-tasks: 4
-completed-tasks: 1
+completed-tasks: 2
 children: [TASK-273, TASK-274, TASK-275, TASK-276]
 target-date: "2026-11-30"
 created: 2026-09-03
@@ -40,7 +40,7 @@ question 2가 소유한다.
 | Workstream | 판정 | 작업 |
 | --- | --- | --- |
 | CLI 조언 문자열이 실행 불가능한 명령을 제안 | **완료 (`206918a`)** | [TASK-273](../done/273-repair-misleading-cli-guidance.md) |
-| flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | 스키마 대조 완료 | [TASK-274](../todo/274-repair-flow-prompt-config-claims.md) |
+| flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | **완료 (`159bf1b`)** | [TASK-274](../done/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | 소스 대조 완료 | [TASK-275](../todo/275-correct-skill-reference-fictions.md) |
 | example corpus 결함 + markdown-YAML 게이트 공백 | 15/16 파일 `--strict` 실패 측정 | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
 
@@ -60,8 +60,9 @@ question 2가 소유한다.
    파싱 지점에서 버리는 것 — 은 의도적으로 남겨
    [TASK-279](../todo/279-repair-plan-flag-behaviour-defects.md)로 분리했다. TASK-279는
    PLAN-004 소속이 아니며(문서가 아니라 런타임을 바꾼다) 이 계획의 자식 수에 포함되지 않는다.
-3. **TASK-274** — flow 프롬프트. `make generate` 전파 경로를 여기서 한 번 확인해두면 TASK-275의
-   동일 경로 작업이 단순해진다.
+3. **TASK-274 — 완료 (`159bf1b`).** flow 프롬프트. `make generate` 전파 경로를 여기서 한 번
+   확인해두면 TASK-275의 동일 경로 작업이 단순해진다고 적었고, 그대로 됐다 — TASK-275를 맡는
+   세션은 이 카드의 diff에서 전파 경로를 먼저 읽는 것이 가장 빠르다.
 4. **TASK-275** — skill reference. `reference-examples.md`가 단일 소스이고 생성 사본이 셋이므로
    TASK-274에서 확인한 generate 경로를 그대로 재사용한다.
 5. **TASK-276** — 마지막. 게이트를 추가하는 카드이므로 앞의 세 장이 남긴 결함이 없는 상태에서
