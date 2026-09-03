@@ -440,6 +440,14 @@ func buildManifest(c *config.Config) *Manifest {
 					},
 				},
 			},
+			"agent-deny": {
+				Type: "meta",
+				Subcommands: map[string]ManifestCmd{
+					"install":   {Type: "mutation"},
+					"status":    {Type: "query"},
+					"uninstall": {Type: "mutation"},
+				},
+			},
 			"status": {Type: "query"},
 			"show":   {Type: "query"},
 			"doctor": {Type: "query"},
@@ -464,7 +472,7 @@ func buildManifest(c *config.Config) *Manifest {
 			"init": {Type: "config"},
 			"help": {Type: "meta"},
 			// completion and help are registered by cobra inside Execute(), not by an AddCommand
-			// call, so a reader grepping for rootCmd.AddCommand finds 22 and this table lists 24.
+			// call, so a reader grepping for rootCmd.AddCommand finds 23 and this table lists 25.
 			"completion": {Type: "meta"},
 		},
 		Runners: map[string]ManifestRunner{

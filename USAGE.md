@@ -84,6 +84,7 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 | `dva status [NAME]` | 실행 상태 표시 |
 | `dva version` | 버전 표시 |
 | `dva skill install/status/uninstall/backup` | 내장 AI 스킬 설치 상태 관리 |
+| `dva agent-deny install/status/uninstall` | 에이전트 런타임 deny 규칙 배포 (secret 노출 명령 차단) |
 
 `dva run`은 생략 가능합니다. `dva shell`은 `dva run shell`과 동일합니다.
 `namespace:command` 문법도 지원합니다 (예: `dva engine:test`).

@@ -107,6 +107,7 @@ func init() {
 	consoleCmd.GroupID = "advanced"
 	provisionCmd.GroupID = "advanced"
 	skillCmd.GroupID = "advanced"
+	agentDenyCmd.GroupID = "advanced"
 
 	rootCmd.AddCommand(showCmd)
 	rootCmd.AddCommand(versionCmd)
@@ -125,6 +126,7 @@ func init() {
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(consoleCmd)
 	rootCmd.AddCommand(skillCmd)
+	rootCmd.AddCommand(agentDenyCmd)
 
 	// Wrap hookable lifecycle commands with before/replace/after hook execution.
 	// hookableCommands (config.HookableCommands) is the single source of truth;

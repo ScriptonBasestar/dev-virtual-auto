@@ -357,13 +357,15 @@ generate:
 	@go run ./tools/flowgen
 	@echo "Generating platform skill artifacts from skills/..."
 	@go run ./tools/skillgen
+	@echo "Rendering agent-runtime deny-rule coverage doc from internal/agentdeny..."
+	@go run ./tools/agentdenygen
 
 ## check-generate: Verify generated files are up-to-date
 check-generate:
 	@set -e; \
-		before=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		before=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills docs/agent-deny-rules.md | git hash-object --stdin); \
 		$(MAKE) generate; \
-		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills | git hash-object --stdin); \
+		after=$$(git diff --binary --no-ext-diff -- $(GEN_LIBRARY) $(WF_LIBRARY)/shared-guardrails.md $(WF_PUBLIC_FLOWS) AGENTS.md .agents/skills claude-plugin/skills docs/agent-deny-rules.md | git hash-object --stdin); \
 		[ "$$before" = "$$after" ] || { echo "ERROR: generated files are stale — run 'make generate' and commit"; exit 1; }
 
 ## doc-check: Enforce doc size limits, markdown links, CI labels and flow decision gates (TASK-090) (CI)
