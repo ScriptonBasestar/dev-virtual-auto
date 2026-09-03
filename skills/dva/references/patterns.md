@@ -31,12 +31,18 @@ Use this reference when creating, reviewing, or migrating `dva.yml` files. Keep 
 Use this order for readability and stable review diffs:
 
 ```text
-version -> vars -> environment -> env_file -> stack -> plans -> environments -> sites -> checks -> suggestion_ignore -> health_checks -> interaction -> provision -> subprojects -> endpoints
+version -> vars -> environment -> env_file -> stack -> plans -> default_plan -> environments -> sites -> checks -> default_mode -> suggestion_ignore -> modes -> health_checks -> interaction -> provision -> modules -> subprojects -> endpoints -> infra -> ssh -> devcontainer
 ```
+
+This mirrors `canonicalSectionOrder` (`internal/config/validate_warnings.go`) — that variable is the
+source of truth if the two ever drift.
 
 Use `interaction`, not `interactions`, for the current schema.
 
-For current `0.1.44` validation, use `environments.<name>.environment` for environment-specific variables. The newer design documents describe this concept as `vars`; keep that terminology in reasoning, but emit schema-valid YAML until the config type is fully migrated.
+For current validation, use `environments.<name>.environment` for environment-specific variables (the
+current schema version lives in `internal/config/version.go`, not hardcoded here). The newer design
+documents describe this concept as `vars`; keep that terminology in reasoning, but emit schema-valid
+YAML until the config type is fully migrated.
 
 ## Naming Conventions
 

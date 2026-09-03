@@ -59,10 +59,7 @@ full rewrite is intentional.
 ```bash
 dva config init                  # auto-detect project structure
 dva config init -t node          # use template (minimal, rails, node, python, go)
-dva config init -p               # output LLM prompt instead of creating file
-dva config init --ai             # auto-generate via Claude Code CLI
-dva config init --ai --no-ai-docs  # skip agent docs during AI generation
-dva config init -v               # verbose progress during AI generation
+dva config init --recursive      # also scaffold dva.yml in detected sub-projects
 dva config init --devcontainer   # include .devcontainer/devcontainer.json
 dva config init --all            # enable all detected features
 ```
@@ -78,7 +75,7 @@ Start services via stack plugins.
 ```bash
 dva up local-infra            # execute a named plan
 dva up local-dev              # execute compose + native runners selected by the plan
-dva up local-dev --force      # ignore health checks, force restart
+dva up local-dev --force      # force-recreate compose services
 dva up local-dev --no-wait    # return immediately (skip wait)
 ```
 
@@ -86,7 +83,7 @@ Automatic skip: if all services are already running and healthy, `dva up` displa
 
 | Flag | Alias | Description |
 |------|-------|-------------|
-| `--force` | | Ignore health, force restart |
+| `--force` | | Force-recreate compose services (`--force-recreate`) |
 | `--no-wait` | | Return immediately |
 | `--var KEY=VAL` | | Override a plan variable |
 | `--dry-run` | | Preview without mutation |
@@ -138,7 +135,7 @@ dva build compose web     # compose entry, single service
 ### `dva logs [PLAN] [ENTRY] [SERVICE...]`
 
 View a plan's output. Compose entries pass through to `docker compose logs`; process and
-script entries read `.dva/logs/<name>.log`.
+script entries read `.sb/dva/logs/<name>.log`.
 
 ```bash
 dva logs                  # the default plan's entries
@@ -318,10 +315,10 @@ dva completion fish       # fish completions
 
 These built-in commands cannot be overridden by interaction commands:
 
-`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `clean`, `run`, `provision`, `validate`, `manifest`, `ktl`, `ssh`, `infra`, `console`, `completion`, `init`, `status`, `config`, `logs`, `restart`, `show`, `doctor`, `app`, `stack`
+`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `run`, `provision`, `validate`, `manifest`, `ktl`, `ssh`, `console`, `completion`, `init`, `status`, `config`, `logs`, `restart`, `show`, `doctor`, `skill`
 
 ## Hookable Lifecycle Commands
 
-These 7 commands support `before:`, `after:`, and `replace:` hooks in the `interaction:` section:
+These 6 commands support `before:`, `after:`, and `replace:` hooks in the `interaction:` section:
 
-`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`
+`up`, `down`, `stop`, `restart`, `build`, `logs`

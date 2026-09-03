@@ -361,9 +361,9 @@ interaction:
       - step: "Tail compose logs"
         run: "docker compose logs -f"
 
-  # --- Clean (reserved) ---
+  # --- Clean (not hookable — plain command, not before/replace/after) ---
   clean:
-    replace:
+    steps:
       - step: "Clean artifacts and volumes"
         run: "cd {workspace} && cargo clean && docker compose down -v"
 ```

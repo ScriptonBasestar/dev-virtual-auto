@@ -305,20 +305,20 @@ interaction:
 
 ## Lifecycle Hooks
 
-The 7 hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `clean`, `logs`) support hooks defined in the `interaction:` section:
+The 6 hookable lifecycle commands (`up`, `down`, `stop`, `restart`, `build`, `logs`) support hooks defined in the `interaction:` section:
 
 ```yaml
 interaction:
   build:
     before:
       - step: "Generate code"
-        command: "make generate"
+        run: "make generate"
     replace:
       - step: "Custom build"
-        command: "make build-all"
+        run: "make build-all"
     after:
       - step: "Verify build"
-        command: "make check"
+        run: "make check"
 ```
 
 | Hook | Timing | Behavior |
@@ -327,7 +327,7 @@ interaction:
 | `after:` | After the lifecycle command | Verification or cleanup |
 | `replace:` | Instead of the lifecycle command | Completely override default behavior |
 
-Each hook step has `step:` (description) and `command:` (shell command) fields.
+Each hook step has `step:` (description) and `run:` (shell command) fields.
 
 ## Health Checks
 
@@ -414,21 +414,16 @@ One-time setup scripts organized into named profiles:
 
 ```yaml
 provision:
-  default: setup
-  profiles:
-    setup:
-      description: "Initial project setup"
-      steps:
-        - step: "Install dependencies"
-          command: "npm install"
-        - step: "Run migrations"
-          command: "dva compose exec app rails db:migrate"
-          parallel: false
-    reset:
-      description: "Reset development data"
-      steps:
-        - step: "Drop and recreate"
-          command: "dva compose exec app rails db:reset"
+  default_profile: setup
+  setup:
+    - step: "Install dependencies"
+      run: "npm install"
+    - step: "Run migrations"
+      run: "dva compose exec app rails db:migrate"
+      parallel: false
+  reset:
+    - step: "Drop and recreate"
+      run: "dva compose exec app rails db:reset"
 ```
 
 Steps with `parallel: true` execute concurrently within their batch.
