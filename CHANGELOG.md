@@ -4,6 +4,21 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Added
+- **`dva config env` — 암호화된 소스에서 `env_file`을 만드는 명시적 브리지** (TASK-245/TASK-246):
+  `env_file` 엔트리에 `sops_source`를 선언하면 그 평문 파일이 어느 sops 암호화 파일에서
+  나오는지 기록됩니다. `dva config env unseal`이 복호화해 평문 target을 쓰고,
+  `dva config env edit`은 암호화 소스만 엽니다.
+  `sops_source`는 **로딩에 관여하지 않는 선언 메타데이터**입니다 — 선언 순서, `required`
+  의미, 우선순위, `dva config show` 출력은 이 필드가 있든 없든 동일하고, lifecycle 커맨드는
+  복호화하지 않으며 복호화된 값을 stdout에 내보내는 커맨드는 없습니다.
+  쓰기는 같은 디렉토리의 0600 임시 파일을 거쳐 원자적으로 교체되므로 **어떤 실패든 기존
+  target은 바이트 단위로 보존**됩니다. git 추적/미ignore target, 심볼릭 링크 경로 요소,
+  설정 루트 밖 경로는 복호화 전에 거절하고, `--force`는 "이미 존재하는 target" 한 가지만
+  해제합니다. 지원 플랫폼은 linux와 darwin이며 그 외에서는 fail-closed입니다. 모든 실패는
+  exit 1이고(sops의 128/200을 전달하지 않음) `--json` 실패 문서에 `error.code`가 추가됩니다
+  ([USAGE.md](USAGE.md#암호화된-소스-브리지-dva-config-env))
+
 ### Fixed
 - **`dva manifest`가 `down`의 `--purge`/`--force`를 노출합니다**: manifest만 조회하는
   에이전트도 두 플래그를 발견할 수 있습니다 (`--force`는 down에서 `--purge` 확인

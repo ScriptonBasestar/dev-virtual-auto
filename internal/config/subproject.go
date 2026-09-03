@@ -28,6 +28,10 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ..
 			return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)
 		}
 		cfg.filePath = subCfgPath
+		// Every declaration reachable from an imported child is subproject-owned,
+		// including the ones its own modules and override contribute below. The
+		// bridge refuses to write any of them from the parent session (§5-1).
+		cfg.setEnvFileOrigin(cfg.EnvFile, EnvOriginSubproject, subCfgPath)
 		if !o.skipVersionCheck {
 			if err := checkConfigVersion(cfg); err != nil {
 				return nil, fmt.Errorf("loading subproject %q (%s): %w", name, subCfgPath, err)
@@ -54,6 +58,7 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ..
 				if err := cfg.mergeFrom(modCfg); err != nil {
 					return nil, fmt.Errorf("merging subproject %q module %q: %w", name, mod, err)
 				}
+				cfg.setEnvFileOrigin(modCfg.EnvFile, EnvOriginSubproject, modFile)
 			}
 		}
 
@@ -68,6 +73,11 @@ func LoadSubprojects(parentDir string, subs map[string]SubprojectConfig, opts ..
 			if err := cfg.mergeFrom(overCfg); err != nil {
 				return nil, fmt.Errorf("merging subproject %q override: %w", name, err)
 			}
+			cfg.setEnvFileOrigin(overCfg.EnvFile, EnvOriginSubproject, overrideFile)
+		}
+
+		if err := validateEnvSourceDeclarations(cfg); err != nil {
+			return nil, fmt.Errorf("subproject %q: %w", name, err)
 		}
 
 		result[name] = cfg

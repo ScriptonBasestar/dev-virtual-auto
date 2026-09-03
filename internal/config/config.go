@@ -40,6 +40,10 @@ type Config struct {
 
 	// Internal fields
 	filePath string
+	// envFileOrigin records which file's env_file declaration survived the merge.
+	// Unexported like filePath so `config show` — which marshals this struct and
+	// reads it back — gains no new key (TASK-245 §5-2).
+	envFileOrigin EnvFileOrigin
 }
 
 // DoctorCheck defines a single environment check for `dva doctor`.
@@ -715,6 +719,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		return nil, fmt.Errorf("loading %s: %w", filePath, err)
 	}
 	cfg.filePath = filePath
+	cfg.setEnvFileOrigin(cfg.EnvFile, EnvOriginRoot, filePath)
 
 	if !o.skipVersionCheck {
 		if err := checkConfigVersion(cfg); err != nil {
@@ -742,6 +747,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 			if err := cfg.mergeFrom(modCfg); err != nil {
 				return nil, fmt.Errorf("merging module %q: %w", mod, err)
 			}
+			cfg.setEnvFileOrigin(modCfg.EnvFile, EnvOriginModule, modFile)
 		}
 	}
 
@@ -756,6 +762,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		if err := cfg.mergeFrom(overCfg); err != nil {
 			return nil, fmt.Errorf("merging override: %w", err)
 		}
+		cfg.setEnvFileOrigin(overCfg.EnvFile, EnvOriginOverride, overrideFile)
 	}
 
 	applyConfigDefaults(cfg)
@@ -827,6 +834,10 @@ func finalizeLoadedConfig(cfg *Config) ([]string, error) {
 		if err := validateEntrySource(name, entry, cfg.FileDir()); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := validateEnvSourceDeclarations(cfg); err != nil {
+		return nil, err
 	}
 
 	cfg.ResolveEndpoints()

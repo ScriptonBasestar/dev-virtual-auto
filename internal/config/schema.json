@@ -193,7 +193,7 @@
         "cloud_init": { "type": "string" }
       }
     },
-    "env_file": {
+    "env_file_plain": {
       "oneOf": [
         {
           "type": "string",
@@ -233,6 +233,84 @@
                         "properties": {
                           "path": { "type": "string" },
                           "required": { "type": "boolean", "default": false }
+                        },
+                        "required": ["path"],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "required": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether env files are required to exist"
+            }
+          },
+          "required": ["files"],
+          "additionalProperties": false
+        }
+      ],
+      "examples": [
+        ".env",
+        [".env.defaults", ".env", ".env.local"],
+        {
+          "files": [".env.defaults", ".env"],
+          "required": false
+        }
+      ]
+    },
+    "env_file": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "Path to a single .env file"
+        },
+        {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "required": { "type": "boolean", "default": false },
+                  "sops_source": {
+                    "type": "string",
+                    "description": "Encrypted file that produces this target, unsealed on demand by `dva config env unseal`. Declaration metadata only: it never affects loading, never triggers decryption, and is accepted only in the top-level env_file",
+                    "examples": ["secrets.env.enc"]
+                  }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "description": "Array of .env file paths (later files override earlier)"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "files": {
+              "oneOf": [
+                { "type": "string" },
+                {
+                  "type": "array",
+                  "items": {
+                    "oneOf": [
+                      { "type": "string" },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "required": { "type": "boolean", "default": false },
+                          "sops_source": {
+                            "type": "string",
+                            "description": "Encrypted file that produces this target, unsealed on demand by `dva config env unseal`. Declaration metadata only: it never affects loading, never triggers decryption, and is accepted only in the top-level env_file",
+                            "examples": ["secrets.env.enc"]
+                          }
                         },
                         "required": ["path"],
                         "additionalProperties": false
@@ -386,7 +464,7 @@
           "$ref": "#/definitions/environment_vars"
         },
         "env_file": {
-          "$ref": "#/definitions/env_file"
+          "$ref": "#/definitions/env_file_plain"
         },
         "compose": {
           "type": "object",

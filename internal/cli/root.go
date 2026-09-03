@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -192,6 +193,7 @@ func Execute() {
 	// (init file order is alphabetical, so a call from config_dump.go would miss later
 	// subcommands). SuggestionsFor needs the full set (TASK-148).
 	setGroupParentBehavior(configCmd)
+	setGroupParentBehavior(configEnvCmd)
 	setGroupParentBehavior(sshCmd)
 
 	args := os.Args[1:]
@@ -212,7 +214,7 @@ func Execute() {
 
 	if err := rootCmd.Execute(); err != nil {
 		errMsg := err.Error()
-		emitFailureJSON(errMsg)
+		emitFailureJSONFor(err)
 		fmt.Fprintf(os.Stderr, "\nERROR: %s\n", errMsg)
 
 		// Cobra already prints its own "Did you mean this?" block for an unknown command, so dva
@@ -381,16 +383,28 @@ func loadConfig() (*config.Config, error) {
 // Its error is dropped deliberately: the map below holds only strings and an int and
 // cannot fail to marshal, and both callers print the same message to stderr and exit 1
 // immediately after, so there is no path where dropping it loses the failure.
-func emitFailureJSON(message string) {
+func emitFailureJSON(message string) { emitFailureJSONFor(errors.New(message)) }
+
+// emitFailureJSONFor is the same envelope with one optional addition: a stable
+// machine code, when the failure carries one.
+//
+// TASK-245 §7-1 chose an added key over a second envelope precisely so that
+// `.error.message` and `.error.exit_code` keep meaning what they meant. A
+// consumer that never looks for `.error.code` sees no change at all; one that
+// does can branch on a frozen identifier instead of matching prose that is
+// allowed to be reworded.
+func emitFailureJSONFor(err error) {
 	if !jsonOutput || output.StdoutHasDocument() {
 		return
 	}
-	_ = output.PrintJSON(map[string]any{
-		"error": map[string]any{
-			"message":   message,
-			"exit_code": 1,
-		},
-	})
+	envelope := map[string]any{
+		"message":   err.Error(),
+		"exit_code": 1,
+	}
+	if code := errorCode(err); code != "" {
+		envelope["code"] = code
+	}
+	_ = output.PrintJSON(map[string]any{"error": envelope})
 }
 
 func mustLoadConfig() *config.Config {

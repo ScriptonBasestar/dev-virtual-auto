@@ -73,6 +73,7 @@ Linux에서도 같은 절차로 해당 archive를 선택하고 `sha256sum -c`를
 | `dva config init` | 현재 디렉토리에 `dva.yml` 생성 (`dva init` alias 지원) |
 | `dva config docs` | 프로젝트 AI 파트너용 CLAUDE.md/AGENTS.md 생성/갱신 |
 | `dva config migrate` | legacy compose 선언을 `runners` 형태로 재작성 |
+| `dva config env edit/unseal` | `env_file` 엔트리의 sops 암호화 소스를 편집/복호화 |
 | `dva run CMD [ARGS]` | `dva.yml`에 정의된 interaction 커맨드 실행 |
 | `dva ls` | 실행 가능한 이름과 interaction 목록 표시 |
 | `dva manifest` | 자동화용 구조화 command manifest 출력 |
@@ -273,6 +274,8 @@ flag metadata를 소비하는 자동화는 `manifest`를 사용합니다.
 |---------|-------------|
 | `dva show` | 선언된 워크스페이스 설정 요약 표시 |
 | `dva config show` | 최종 병합된 설정 출력 (modules + override 적용 후) |
+| `dva config env edit` | `env_file` 엔트리의 `sops_source`를 sops로 편집 |
+| `dva config env unseal` | `sops_source`를 복호화해 평문 target 작성 |
 
 ```bash
 dva show                  # 등록된 설정 전체 요약
@@ -707,7 +710,7 @@ interaction:
 | `version` | 최소 DVA 버전 |
 | `vars` | 글로벌 환경변수 |
 | `environment` | 환경변수 체인의 최하위 레이어 — `env_file`보다 먼저 적용되고 이후 덮어써짐 (`environment:` < `env_file` < OS 환경 변수). 복수형 `environments`(환경 프리셋)와는 다른 키 |
-| `env_file` | .env 파일 로딩 |
+| `env_file` | .env 파일 로딩 (엔트리별 `sops_source`로 암호화 출처 선언) |
 | `stack` | 재사용 가능한 실행 대상 선언 |
 | `plans` | 실제 실행 가능한 이름 |
 | `default_plan` | 플랜 이름 미지정 시 적용할 기본 `plans` 엔트리 (여러 plan 중 기본 선택) |
@@ -966,6 +969,96 @@ plan·interaction·provision을 막지 않고, 반대로 child의 실패도 root
 > 실행했습니다. dotenv 문법이 아닌 줄을 조용히 무시하던 파일은 이제 명시적 오류이므로
 > 해당 줄을 고쳐야 합니다. 선택 파일 부재, 정상 경로의 우선순위, 설정 조회 계열
 > 명령의 동작은 그대로입니다.
+
+#### 암호화된 소스 브리지 (`dva config env`)
+
+`env_file` 엔트리에 `sops_source`를 선언하면, 그 평문 파일이 **어느 암호화 파일에서
+나오는지**를 dva.yml이 기록합니다.
+
+```yaml
+env_file:
+  - path: .env            # 로드되는 평문 파일 (git ignore 대상)
+    sops_source: .env.enc # 그 평문을 만들어내는 sops 암호화 파일 (커밋 대상)
+    required: true
+```
+
+`sops_source`는 **선언일 뿐 로딩에 관여하지 않습니다**. 설정을 읽을 때 DVA는 이 필드를
+쳐다보지도 않습니다 — 로드되는 것은 언제나 `path`뿐이고, 선언 순서, `required` 의미,
+우선순위, `dva config show` 출력은 이 필드가 있든 없든 완전히 동일합니다. 즉 기존
+`env_file` 동작에 대한 변경이 아니라, 평문 옆에 출처를 적어두는 메타데이터입니다.
+
+##### 두 개의 명시적 커맨드
+
+| Command | 하는 일 |
+|---------|---------|
+| `dva config env edit [TARGET]` | `sops_source`를 sops 편집 세션으로 엽니다. 평문 target은 만들지도 읽지도 않습니다 |
+| `dva config env unseal [TARGET]` | `sops_source`를 복호화해 평문 target을 씁니다 |
+
+```bash
+dva config env unseal                 # sops_source를 선언한 엔트리가 하나일 때
+dva config env unseal .env.staging    # 여러 개일 때는 엔트리의 path를 그대로 지정
+dva config env unseal --force         # 이미 있는 평문 target을 교체
+dva config env edit                   # 암호화 소스 편집 (target은 그대로 stale)
+```
+
+`[TARGET]`은 dva.yml에 적힌 `path` 문자열 그대로입니다. `sops_source`를 선언한 엔트리가
+여럿이면 생략할 수 없습니다 — 하나를 골라 추측하지 않고 에러로 멈춥니다.
+
+##### 복호화는 언제나 사용자가 시킬 때만
+
+- **lifecycle 커맨드는 복호화하지 않습니다.** `dva up`, `dva run`, `dva down`은
+  `sops_source`를 보지 않습니다. 평문 target이 없으면 그것은 `env_file`이 없는 상황일
+  뿐이고, 위 [환경 입력이 불완전할 때](#환경-입력이-불완전할-때) 규칙이 그대로
+  적용됩니다. 필요한 복호화는 `dva config env unseal`을 직접 실행해야 합니다.
+- **복호화된 값을 stdout에 출력하는 커맨드는 없습니다.** `unseal`이 쓰는 곳은 0600
+  권한의 target 파일 하나뿐이고, sops가 만들어낸 평문은 DVA의 버퍼를 거치지 않고 그
+  파일의 파일 디스크립터로 직접 들어갑니다. `dva config show`도 값이 아니라 선언을
+  출력합니다.
+- **DVA는 키를 소유하지 않습니다.** age/KMS 키 해석은 전적으로 sops가 하며, DVA는
+  암호화 파일을 만들어주지도 않습니다. 최초 `.env.enc`는 `sops encrypt`로 직접
+  만듭니다.
+
+##### 쓰기 전에 확인하는 것
+
+`unseal`은 복호화하기 **전에** 아래를 순서대로 검사하고, 하나라도 걸리면 sops를 아예
+실행하지 않습니다. 거절당할 쓰기 때문에 복호화가 일어나는 일은 없습니다.
+
+- **플랫폼**: linux와 darwin에서만 동작합니다. 그 외에서는 fail-closed로 거절합니다.
+- **경로**: `path`와 `sops_source` 모두 상대 경로여야 하고, dva.yml이 있는 디렉토리
+  밖으로 나갈 수 없습니다. 경로를 이루는 어떤 요소도 심볼릭 링크일 수 없습니다 —
+  target 자신도, 그 부모 디렉토리도 마찬가지입니다.
+- **Git**: 평문 target이 git에 **추적 중이면 거절**합니다. 추적되지 않지만
+  `.gitignore`에도 없으면 역시 거절합니다 — 다음 `git add .`로 커밋될 파일이기
+  때문입니다. `.gitignore`에 있으면 진행합니다. 저장소 밖이면 진행하되 stderr로
+  알립니다.
+- **기존 파일**: 평문 target이 이미 있으면 `--force` 없이는 덮어쓰지 않습니다.
+  `--force`는 이 경우 **하나만** 해제하며, 위의 git·심볼릭 링크·경로·플랫폼 가드는
+  통과시키지 않습니다.
+
+##### 실패했을 때
+
+쓰기는 원자적입니다. 같은 디렉토리에 0600 임시 파일을 만들어 sops 출력을 받고, dotenv로
+파싱되는지 검증한 뒤에야 target 자리로 rename합니다. 그래서 **어떤 실패든 기존 target은
+바이트 단위로 그대로**이고, 성공이든 실패든 임시 파일은 남지 않습니다.
+
+- 실패는 모두 exit 1입니다. sops 자신의 종료 코드(키 실패 시 128, 편집 취소 시 200)는
+  그대로 전달되지 않습니다.
+- `--json`을 쓰면 실패 문서에 `error.code`가 함께 나옵니다 (`decrypt_failed`,
+  `target_tracked`, `sops_not_found` 등). 문구가 아니라 이 값으로 분기하세요.
+- 프로세스가 SIGKILL이나 전원 차단으로 죽어 `.dva-env-*.tmp`가 남은 경우, 다음
+  `unseal` 실행이 **1시간 이상 지난** 자기 소유 임시 파일만 골라 정리합니다. 그보다
+  빨리 치우고 싶으면 해당 파일을 직접 지우면 됩니다. target은 어차피 손상되지 않았으므로
+  별도의 복구 커맨드는 없습니다.
+
+##### dotenv 인용 주의
+
+sops와 DVA는 dotenv 한 줄을 조금 다르게 읽습니다. sops는 `API_TOKEN=tok-123 # comment`를
+값 전체로 보존하지만, DVA의 `env_file` 파서는 따옴표 없는 값에서 ` #` 앞까지만 값으로
+취급합니다. 값에 ` #`가 들어간다면 암호화 소스에서 **따옴표로 감싸세요**.
+
+```dotenv
+API_TOKEN="tok-123 # 이 부분까지 값"
+```
 
 #### 컨테이너로 전달되는 환경변수
 

@@ -84,6 +84,83 @@ jobs:
             exit 1
           fi
 
+  # The env bridge is the one feature whose guarantees — 0600 restricting other
+  # users, replace-over-an-open-file, directory fsync, and sops' own exit codes —
+  # were measured per platform rather than assumed. TASK-245 §8-6 declares linux
+  # and darwin supported and nothing else, so the declared matrix is the matrix
+  # that runs; every other platform takes the fail-closed path, which the unit
+  # suite exercises everywhere by injecting GOOS.
+  config-env-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Unit suite
+        run: go test ./internal/cli ./internal/config -count=1
+
+      # Pinned by version *and* by digest, and to the same versions .mise.toml
+      # pins locally. A real-sops test that silently ran a different sops in CI
+      # than on a developer machine would be reporting on two binaries while
+      # claiming to report on one. An arch this step has no digest for is an
+      # error rather than a fallback: an unpinned download is exactly what the
+      # pinning is for.
+      - name: Install pinned sops and age
+        run: |
+          set -euo pipefail
+          case "${{ runner.os }}-${{ runner.arch }}" in
+            Linux-X64)
+              sops_asset=sops-v3.13.1.linux.amd64
+              sops_sha=620a9d7e3352ababeca6908cea24a6e8b14ce89a448ddbd3f94f1ef3398f470a
+              age_asset=age-v1.3.1-linux-amd64.tar.gz
+              age_sha=bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377
+              ;;
+            macOS-ARM64)
+              sops_asset=sops-v3.13.1.darwin.arm64
+              sops_sha=a2c0dd37eb031068af6ef213b78cfa67b7f1afd76c2e5cc404257f42bbc8367d
+              age_asset=age-v1.3.1-darwin-arm64.tar.gz
+              age_sha=01120ea2cbf0463d4c6bd767f99f3271bbed1cdc8a9aa718a76ba1fe4f01998b
+              ;;
+            *)
+              echo "ERROR: no pinned sops/age digest for ${{ runner.os }}-${{ runner.arch }}."
+              exit 1
+              ;;
+          esac
+
+          mkdir -p "$HOME/.dva-tools"
+          cd "$RUNNER_TEMP"
+
+          curl -fsSL -o sops "https://github.com/getsops/sops/releases/download/v3.13.1/$sops_asset"
+          echo "$sops_sha  sops" | shasum -a 256 -c -
+          install -m 0755 sops "$HOME/.dva-tools/sops"
+
+          curl -fsSL -o age.tar.gz "https://github.com/FiloSottile/age/releases/download/v1.3.1/$age_asset"
+          echo "$age_sha  age.tar.gz" | shasum -a 256 -c -
+          tar -xzf age.tar.gz
+          install -m 0755 age/age age/age-keygen "$HOME/.dva-tools/"
+
+          echo "$HOME/.dva-tools" >> "$GITHUB_PATH"
+
+      # The test skips when sops is absent, which is right for a developer
+      # machine and wrong for this job: the whole point of the job is that the
+      # real binary ran. Assert the tools resolve before the suite decides.
+      - name: Verify the pinned toolchain resolves
+        run: |
+          set -euo pipefail
+          command -v sops
+          command -v age-keygen
+          sops --version 2>&1 | head -1
+
+      - name: Integration Test
+        run: make test-integration
+
   goreleaser-snapshot:
     runs-on: ubuntu-latest
     steps:

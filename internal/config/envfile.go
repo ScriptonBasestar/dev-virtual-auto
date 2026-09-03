@@ -11,10 +11,21 @@ import (
 var envLineRegex = regexp.MustCompile(`^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(.*)$`)
 
 // EnvFileConfig represents a single .env file configuration.
+//
+// SopsSource is declaration metadata only. TASK-245 §2-1 freezes it as invisible
+// to the load path: LoadEnvFile never reads it, never decrypts anything, and
+// never changes what Required means. It exists so `dva config env` can prove
+// which encrypted file produces this plaintext target without a second source of
+// truth alongside env_file.
 type EnvFileConfig struct {
-	Path     string
-	Required bool
+	Path       string
+	Required   bool
+	SopsSource string
 }
+
+// Encrypted reports whether this entry names an encrypted source, which is the
+// one property that makes it a candidate for a bridge write.
+func (e EnvFileConfig) Encrypted() bool { return e.SopsSource != "" }
 
 // LoadEnvFile loads environment variables from .env file(s).
 // The config can be: string, []any, or map with files/required keys.
@@ -42,7 +53,8 @@ func normalizeEnvFileConfig(config any) []EnvFileConfig {
 			case map[string]any:
 				path, _ := it["path"].(string)
 				required, _ := it["required"].(bool)
-				result = append(result, EnvFileConfig{Path: path, Required: required})
+				source, _ := it["sops_source"].(string)
+				result = append(result, EnvFileConfig{Path: path, Required: required, SopsSource: source})
 			}
 		}
 		return result
@@ -141,4 +153,21 @@ func interpolateEnvVars(env *Environment) {
 			break
 		}
 	}
+}
+
+// ValidateDotenvStream reports how many assignments a dotenv stream holds and,
+// on a syntax failure, which line broke.
+//
+// It returns a count and a line number and nothing else, by design. The bridge
+// validates decrypted plaintext before replacing a target (TASK-245 §7-4), and a
+// validator that handed back the parsed map would put every secret key and value
+// into the caller's memory for no purpose the caller has. parseEnvFileStrict's
+// map is discarded here, at the package boundary, rather than trusted not to
+// leak on the far side of it.
+func ValidateDotenvStream(f *os.File) (count int, line int, err error) {
+	vars, line, err := parseEnvFileStrict(f)
+	if err != nil {
+		return 0, line, err
+	}
+	return len(vars), 0, nil
 }

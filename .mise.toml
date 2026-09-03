@@ -3,8 +3,16 @@
 # cannot hit the "built with an older Go than the target" version gate.
 # gopls is pinned so `make lint` can catch the modernize-analyzer divergence
 # golangci-lint's vendored copy misses (TASK-130).
+#
+# sops and age are pinned because `make test-integration` runs the real binary
+# (TestConfigEnvRealSOPS): the fake runner in internal/cli can only prove what
+# DVA does around the child, never that the argv DVA builds is the argv sops
+# accepts. CI installs these same versions, so a local run and a CI run exercise
+# one binary, not two.
 [tools]
 go = "1.26.5"
+sops = "3.13.1"
+age = "1.3.1"
 golangci-lint = "2.12.2"
 goreleaser = "2.12.7"
 "go:golang.org/x/tools/gopls" = "0.22.0"
