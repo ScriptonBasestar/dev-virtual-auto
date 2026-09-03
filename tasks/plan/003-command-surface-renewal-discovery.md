@@ -145,11 +145,11 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 | 카드 | 선행 | 상태 |
 | --- | --- | --- |
 | TASK-255 | TASK-254 ✅ | **방향 판정됨 (2026-09-03)** — `kubectl` canonical 승격. 사람 결정은 끝났고 완료기준 1·3·4·5·6·7이 남아 카드는 열려 있다 |
-| TASK-257 | TASK-254 ✅ | **착수 가능** |
+| TASK-257 | TASK-254 ✅ | **결정됨 (2026-09-04)** — `config validate` canonical, top-level `validate`는 지금 당장 제거·deprecation 없이 유지하되 장래 제거 검토 경로는 열어둔다(실제 제거는 별도 카드 필요). 완료기준 1·3·4·5 사실관계까지 닫혔다. 닫히면 TASK-258이 열린다 |
 | TASK-272 | TASK-254 ✅ | **결정됨 (2026-09-03)** — coverage 보강 + canonical 마커 1개 채택, schema_version 1.4→1.5, TASK-256/258이 각자 자기 route에만 적용. 닫히면 TASK-256·258이 함께 열린다 |
 | TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **결정됨 (2026-09-03)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
 | TASK-256 | TASK-255 · TASK-272 ✅ | 대기 — TASK-255가 남아 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
-| TASK-258 | TASK-257 · TASK-272 ✅ | TASK-257 대기 |
+| TASK-258 | TASK-257 ✅ · TASK-272 ✅ | **착수 가능** |
 | TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **착수 가능** |
 | TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
 
