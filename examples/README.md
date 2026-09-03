@@ -110,7 +110,6 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
   - Multiple .env files with layering
   - before_environment vs after_environment priority
   - Per-file required flags
-  - Command-specific env_file
   - Use when: Complex multi-environment setups
 
 - **[env-file-multi-env.yml](env-file-multi-env.yml)** - Multi-environment support

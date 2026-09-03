@@ -579,6 +579,22 @@ const InertStepMessage = "nothing ran — this item is a label with no 'run:'. A
 // and dropped. TASK-140.
 const IgnoredParallelMessage = "'parallel:' is ignored here — interaction steps always run sequentially. It is honoured under 'provision:'."
 
+// InteractionEnvFileMessage is what `dva config validate` prints for an `env_file:`
+// declared on an interaction command or subcommand.
+//
+// The field is schema-valid, decoded, merged and carried through subproject import, and
+// then read by nothing: no runner and no CLI path consults it. A config can write
+// `required: true` under it and run with nothing enforced, which is the failure mode that
+// makes silence unacceptable — unlike an inert step, the declaration produces no symptom
+// at all, so only this line tells the author the file was never loaded.
+//
+// It names the rejecting release because TASK-265 §4 chose a two-release contract over
+// immediate removal: announce in 0.1.48, reject in 0.1.49. `version:` is a minimum-DVA
+// declaration rather than a schema selector, so the schema cannot branch on it and the two
+// halves have to be different releases. If the shipped tags ever diverge from these
+// numbers, this string, the CHANGELOG entry and TASK-266 change together.
+const InteractionEnvFileMessage = "'env_file' is inert and will be rejected in 0.1.49 — declare shared inputs in the top-level 'env_file:', or inline command-local values under this command's 'environment:'"
+
 // StepsIgnoreParallel reports whether a step list asks for concurrency the executor will not
 // give it, so both executors decide to warn from one place.
 //

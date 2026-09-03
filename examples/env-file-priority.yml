@@ -46,15 +46,11 @@ interaction:
     description: Run Rails commands
     service: web
     command: bundle exec rails
-    env_file: .env.rails
     environment:
       RAILS_LOG_TO_STDOUT: "true"
   rspec:
     description: Run tests
     service: web
     command: bundle exec rspec
-    env_file:
-      - .env.test
-      - .env.test.local
     environment:
       RAILS_ENV: test

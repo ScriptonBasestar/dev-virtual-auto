@@ -58,6 +58,7 @@ func Migrate(src []byte) ([]byte, MigrationReport, error) {
 		report.merge(stepReport)
 	}
 
+	report.Blocked = append(report.Blocked, ReportInteractionEnvFile(out)...)
 	report.Blocked = append(report.Blocked, ScaffoldModes(out)...)
 	return out, report, nil
 }
@@ -115,6 +116,65 @@ func ScaffoldModes(src []byte) []string {
 	}
 	return out
 }
+
+// ReportInteractionEnvFile lists every `env_file:` declared on an interaction command or
+// subcommand, as a blocked entry.
+//
+// Blocked rather than converted, and deliberately so: the field is inert, so there is no
+// value to preserve and nothing to move it to that a tool could derive. The two honest
+// destinations are the top-level `env_file:`, which changes the scope from one command to
+// the whole config, and the command's own `environment:`, which needs the values a file was
+// supposed to supply. Both are decisions about intent, and a migration that guessed either
+// would silently widen a config's environment or drop inputs. TASK-265 §4.
+//
+// It reads the document rather than a loaded Config because that is what every other step
+// here does — the report describes the file the author will edit, including the sections a
+// later load-time merge would have flattened away.
+func ReportInteractionEnvFile(src []byte) []string {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil {
+		return nil
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil
+	}
+	interaction := mapValue(doc.Content[0], "interaction")
+	if interaction == nil || interaction.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	var out []string
+	// Recursive for the reason the validate-time check is: `subcommands` nests without a
+	// depth limit, so a walk that stopped at the first level would report the shallow
+	// declaration and stay silent on the identical nested one.
+	var walk func(path string, cmd *yaml.Node)
+	walk = func(path string, cmd *yaml.Node) {
+		if cmd == nil || cmd.Kind != yaml.MappingNode {
+			return
+		}
+		if mapValue(cmd, "env_file") != nil {
+			out = append(out, fmt.Sprintf("%s.env_file: %s", path, InteractionEnvFileBlockedMessage))
+		}
+		subs := mapValue(cmd, "subcommands")
+		if subs == nil || subs.Kind != yaml.MappingNode {
+			return
+		}
+		for i := 0; i+1 < len(subs.Content); i += 2 {
+			walk(path+".subcommands."+subs.Content[i].Value, subs.Content[i+1])
+		}
+	}
+	for i := 0; i+1 < len(interaction.Content); i += 2 {
+		walk("interaction."+interaction.Content[i].Value, interaction.Content[i+1])
+	}
+	return out
+}
+
+// InteractionEnvFileBlockedMessage is the migrate-side wording of
+// InteractionEnvFileMessage. It is a separate string because the two surfaces answer
+// different questions: `validate` explains why the declaration is a problem, while
+// `migrate` lists an edit the author has to make by hand, so it opens with the action and
+// leaves the release number to the validate channel and the CHANGELOG.
+const InteractionEnvFileBlockedMessage = "remove it — declare shared inputs in the top-level 'env_file:', or inline command-local values under 'environment:'"
 
 // sortedBlocked returns blocked entries in a stable order for reporting.
 func sortedBlocked(blocked []string) []string {

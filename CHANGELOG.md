@@ -62,6 +62,17 @@ All notable changes to DVA are documented here.
   표기는 `am run dva-improve param.mode=rewrite`에서 `am run dva-improve -p mode=rewrite`로
   바뀌었습니다
 
+### Deprecated
+- **interaction의 `env_file:`이 폐기 예고됐습니다** (TASK-265/TASK-266):
+  `interaction.<name>.env_file`과 `subcommands.*.env_file`은 schema를 통과하고 파싱까지
+  됐지만 **읽는 러너도 CLI 경로도 없었습니다** — `required: true`를 적어도 아무것도 강제되지
+  않습니다. 0.1.48부터 `dva config validate`가 선언 위치마다 semantic 경고를 내고
+  `dva config migrate`가 손으로 고칠 항목으로 보고합니다(파일은 고치지 않습니다).
+  **0.1.49에서 schema가 이 필드를 거부합니다.** 대체 수단은 두 가지입니다 — 여러 곳이
+  공유하는 입력은 최상위 `env_file:`에, 커맨드 하나에만 필요한 값은 그 커맨드의
+  `environment:`에 적습니다. 런타임 동작은 이번 릴리스에서 바뀌지 않습니다(필드는 여전히
+  아무 일도 하지 않습니다) ([USAGE.md](USAGE.md#interaction의-환경변수-입력))
+
 ## [0.1.47] - 2026-08-31
 
 ### Added

@@ -1268,6 +1268,18 @@ interaction:
       bundle exec rails db:seed
 ```
 
+### interaction의 환경변수 입력
+
+interaction 커맨드에는 **파일에서 환경변수를 읽는 필드가 없습니다**. 커맨드 하나에만
+필요한 값은 그 커맨드의 `environment:`에 직접 적고, 여러 곳이 공유하는 입력은 최상위
+`env_file:`에 선언합니다.
+
+`interaction.<name>.env_file:`(그리고 `subcommands.*.env_file:`)은 schema를 통과하고
+파싱·병합까지 되지만 **읽는 곳이 없습니다**. 증상이 전혀 없는 것이 이 필드의 문제입니다 —
+`required: true`를 적어도 아무것도 강제되지 않고, 실행은 그 파일을 읽은 것처럼 조용히
+끝납니다. 0.1.48부터 `dva config validate`가 선언 위치마다 semantic 경고를 내고
+`dva config migrate`가 손으로 고칠 항목으로 보고하며, **0.1.49에서 schema가 거부합니다.**
+
 ### interaction.subcommands (`default_args` 상속)
 
 `subcommands:`의 자식은 부모의 필드를 물려받습니다. 대부분은 "자식이 선언하면 자식 값,

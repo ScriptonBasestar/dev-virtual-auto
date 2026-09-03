@@ -42,12 +42,23 @@ the release that ships must not disagree.
 
 ### Stage A — 0.1.48 (announce)
 
-- [ ] Add one semantic warning per declaring node through the existing `eachInteractionNode` walker, carrying the exact text frozen in TASK-265 §4 and reported only through the existing `[warn] semantic:` channel and `semantic` JSON category of `dva config validate`; no new category, flag, route or file read | verify: `go test ./internal/config ./internal/cli -count=1`
-- [ ] Keep exit codes unchanged — default `dva config validate` stays 0 and `--strict` fails only through the pre-existing semantic-warning rule; `dva run`, lifecycle verbs, `doctor` and `show` stay silent | verify: `go test ./internal/cli -count=1`
-- [ ] Add a `dva config migrate` step that reports the declaration in `MigrationReport.Blocked` with the frozen text and never rewrites the file | verify: `go test ./internal/config -count=1`
-- [ ] Remove both interaction declarations from `examples/env-file-priority.yml` and the "Command-specific env_file" entry from `examples/README.md`; add the USAGE.md line stating `env_file` is not an interaction field and a CHANGELOG `### Deprecated` entry naming the rejecting release and both replacements | verify: `make doc-check`
+- [x] Add one semantic warning per declaring node through the existing `eachInteractionNode` walker, carrying the exact text frozen in TASK-265 §4 and reported only through the existing `[warn] semantic:` channel and `semantic` JSON category of `dva config validate`; no new category, flag, route or file read | verify: `go test ./internal/config ./internal/cli -count=1`
+- [x] Keep exit codes unchanged — default `dva config validate` stays 0 and `--strict` fails only through the pre-existing semantic-warning rule; `dva run`, lifecycle verbs, `doctor` and `show` stay silent | verify: `go test ./internal/cli -count=1`
+- [x] Add a `dva config migrate` step that reports the declaration in `MigrationReport.Blocked` with the frozen text and never rewrites the file | verify: `go test ./internal/config -count=1`
+- [x] Remove both interaction declarations from `examples/env-file-priority.yml` and the "Command-specific env_file" entry from `examples/README.md`; add the USAGE.md line stating `env_file` is not an interaction field and a CHANGELOG `### Deprecated` entry naming the rejecting release and both replacements | verify: `make doc-check`
 
 ### Stage B — 0.1.49 (reject), only after 0.1.48 ships
+
+**릴리스 게이트로 보류 중 (2026-09-03).** 현재 태그는 `v0.1.47`이고
+`internal/config/version.go`의 `Version`도 `"0.1.47"`입니다. 카드의 Constraint가
+"Stage B must not start before 0.1.48 has shipped"라고 못박고 있으므로 착수하지
+않았습니다. 0.1.48이 나가면 이 카드를 그대로 이어서 처리하면 됩니다.
+
+Stage B가 물려받는 별건: TASK-245 §2-4의 `#/definitions/env_file_plain` 정리.
+`env_file_plain`은 `interaction_command`가 `sops_source`를 거부하도록 두려고 만든
+정의인데, Stage B가 `interaction_command.properties.env_file`을 통째로 지우면
+참조가 사라지므로 그때 함께 삭제합니다.
+
 
 - [ ] Delete `definitions.interaction_command.properties.env_file` from the schema plus `InteractionCommand.EnvFile`, its `UnmarshalYAML` twin and assignment, and the `EnvFile` branch in `mergeInteractionCommand` | verify: `go test ./internal/config ./internal/cli ./internal/runner -count=1`
 - [ ] Add a path-scoped removed-key map beside `removedRootKeys`, consulted only when the schema error field names an interaction node, carrying the frozen guidance; the root `env_file` error and the generator corpus stay untouched | verify: `go test ./internal/config -count=1`
