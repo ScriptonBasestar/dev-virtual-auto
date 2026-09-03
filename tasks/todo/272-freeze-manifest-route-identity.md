@@ -10,7 +10,7 @@ source: "TASK-254 evidence — the manifest schema cannot express a canonical/co
 scope: "manifest consumers, static_commands subcommand coverage, route-identity representation, schema versioning, and the implementation split across TASK-256 and TASK-258"
 status: todo
 needs-human: true
-decision-status: pending
+decision-status: decided
 depends-on: [TASK-254]
 ---
 
@@ -35,10 +35,10 @@ entry — not a parallel route table — so a consumer that ignores it still rea
 
 ## Completion Criteria
 
-- [ ] Record every tracked consumer of the command manifest and what each reads from `static_commands`; state exactly which facts about a two-name route the current schema can and cannot carry | verify: human — the account must cite tracked paths and the measured manifest, and must distinguish a missing field from a missing entry
-- [ ] Compare subcommand-coverage-only, canonical/compatibility fields on the static command entry, an invocation-keyed route list, and no change; state schema-version, legacy-consumer, completion and help consequences for each | verify: human — no option may be selected only because it is the smallest diff
-- [ ] Freeze the representation, the `schema_version` policy for it, the meaning legacy fields keep, and which of TASK-256 and TASK-258 may implement which part | verify: human — an implementation task may not extend the representation beyond what is frozen here
-- [ ] Append an approved `## Decision Record` to this card and change `decision-status` from `pending` to `decided` before TASK-256 or TASK-258 touches the manifest | verify: `make doc-check`
+- [x] Record every tracked consumer of the command manifest and what each reads from `static_commands`; state exactly which facts about a two-name route the current schema can and cannot carry | verify: human — the account must cite tracked paths and the measured manifest, and must distinguish a missing field from a missing entry
+- [x] Compare subcommand-coverage-only, canonical/compatibility fields on the static command entry, an invocation-keyed route list, and no change; state schema-version, legacy-consumer, completion and help consequences for each | verify: human — no option may be selected only because it is the smallest diff
+- [x] Freeze the representation, the `schema_version` policy for it, the meaning legacy fields keep, and which of TASK-256 and TASK-258 may implement which part | verify: human — an implementation task may not extend the representation beyond what is frozen here
+- [x] Append an approved `## Decision Record` to this card and change `decision-status` from `pending` to `decided` before TASK-256 or TASK-258 touches the manifest | verify: `make doc-check`
 
 ## Non-goals
 
@@ -270,3 +270,89 @@ on exactly the `validate`/`config validate` pair. Neither implementation task sh
 `ManifestCmd` struct itself if the struct change is made once, here or in a shared follow-up, before either
 starts — the struct change is a single shared edit, not something either route decision should carry
 individually.
+
+> **참고 (2026-09-03):** 위 §1–6 실측은 doc-consistency-fixes 세션이 이 카드에 병렬로 준비한 증거이며 판정을 내리지 않은 상태로 남겨져 있었다. 사용자가 이 아래 Decision Record의 세 질문에 답하는 시점에는 이 증거를 갖고 있지 않았지만, 답변 근거로 제시된 kubectl/ktl·validate/config validate 비교와 위 §4 옵션 비교가 방향(옵션 (a)+(b))에서 일치한다 — 서로 다른 증거 경로가 같은 결론에 도달했다. 위 §2가 추가로 밝힌 `init`/`config init` 쌍(같은 문제가 오늘 이미 살아있는 두 번째 사례)은 아래 결정의 §3 표현 정의에 그대로 적용된다: `canonical_of` 마커는 `kubectl`/`ktl`, `validate`/`config validate` 두 쌍에만 적용하기로 좁혔지만, 같은 필드로 `init`/`config init`도 표현 가능하다 — 다만 그 세 번째 쌍에 마커를 실제로 채우는 것은 이 카드의 범위가 아니며 별도 카드가 필요하다 (TASK-256/258 어느 쪽 범위도 아니다).
+
+## Decision Record (2026-09-03)
+
+**Coverage 보강과 canonical 마커 1개를 함께 채택한다. `schema_version`은 1.4→1.5로
+올린다. 구현은 TASK-256이 kubectl/ktl에, TASK-258이 config 계열에 각자 자기 route만
+적용하는 방식으로 분담한다.**
+
+### 1. 완료기준 1 — 추적된 소비자와 오늘 표현 가능한/불가능한 사실
+
+Manifest(`dva manifest -f json`) 를 참조하는 추적 경로를 실측했다:
+
+- **agent-mesh flow 3건** (`agent-mesh-flows/dva-improve.yaml:450-451`,
+  `dva-improve-guided/00-analyze.yaml:110`, `30-configure.yaml`) — 런타임에
+  `dva manifest -f json`을 실행해 파싱한다. 그러나 이들이 실제로 읽는 것은
+  `dynamic_commands`(프로젝트별 interaction/plan 탐지)이지 `static_commands`가 아니다.
+  예약어 24개 목록은 이 파일들에 **하드코딩된 prose**로 존재하며(`reserved.go`를
+  직접 읽지 않는다) manifest의 `static_commands`를 통해 유도되지 않는다.
+- **skills/dva/SKILL.md:57** — "Read the `dynamic_commands` section ... to identify
+  project-specific commands" — 명시적으로 `static_commands`가 아니라
+  `dynamic_commands`를 읽으라고 가르친다.
+- **skills/dva/references/commands.md:277** — manifest 최상위 필드 이름을 나열하는
+  문서 문장 하나. `static_commands`의 내부 구조(엔트리 필드)는 언급하지 않는다.
+- **docs/43, docs/53, docs/54, USAGE.md** — 전부 "`dva manifest`로 탐색하라"는
+  안내 수준이고, route identity(두 이름이 한 명령)를 다루는 문장은 없다.
+
+**핵심 사실: 오늘 어떤 추적 소비자도 `static_commands`의 route-identity를 실제로
+파싱하지 않는다.** TASK-254가 측정한 대로 `ManifestCmd`(`manifest.go:105-110`)는
+`description`/`type`/`options`/`subcommands` 4개 필드뿐이고, `subcommands`는 `skill`
+외에는 채워지지 않으며, `config validate`는 manifest에 아예 없다. 표현을 바꿔도
+기존 소비자를 깨뜨릴 근거 있는 사례가 없다 — coverage 결손과 identity 결손을 나눠
+가장 작은 답을 택할 수 있다는 카드의 recommended direction이 실측으로 확인됐다.
+
+### 2. 완료기준 2 — 옵션 비교
+
+- **A. Coverage-only (기각, 단독으로는 불충분)** — `config`/`ssh`/`console`
+  자식을 `skill`처럼 `subcommands`에 채운다. 스키마 변경 없음. 노출 결손은
+  고치지만 kubectl/ktl 같은 **같은 레벨 두 엔트리 간** 관계는 여전히 표현
+  못 한다 — `subcommands`는 부모-자식 포함관계이지 별칭 관계가 아니다.
+- **B. Coverage + canonical 마커 1개 (채택)** — A를 포함하고, compatibility
+  엔트리에 선택적 필드(`canonical_name` 형태, 예: `ktl` 엔트리가
+  `canonical_name: "kubectl"`을 가짐)를 추가한다. 이 필드를 모르는 소비자는
+  여전히 두 개의 독립된 유효 명령으로 읽는다 — 그냥 관계 정보 하나를 놓칠 뿐,
+  잘못 읽지 않는다(fail-open이 안전한 방향).
+- **C. Invocation-keyed route 목록 (기각)** — `static_commands`와 별개로
+  `routes: [{name, canonical, aliases}]` 최상위 배열을 신설한다. §1 실측대로
+  오늘 어떤 소비자도 이런 관계를 요구하지 않는데, 가장 큰 스키마 표면을 새로
+  만드는 것은 필요보다 큰 답을 미리 확정하는 것이다. 소비자가 두 구조(정적
+  엔트리 + 라우트 목록)를 대조해야 해서 완결성 위험(둘이 어긋나는 상태)도
+  새로 생긴다.
+- **D. 현행 유지 (기각)** — TASK-254가 이 카드를 만든 이유 자체가 "스키마가
+  표현 못 한다"는 실측이었다. 변경 없음을 택하면 TASK-256/258이 각자 표현을
+  발명해야 하고, 그것이 TASK-272를 만든 이유를 해소하지 못한다.
+
+### 3. 완료기준 3 — 표현·schema_version·legacy 필드·분담 동결
+
+**표현**: Option B. `ManifestCmd`에 선택적 문자열 필드(예: `canonical_name`,
+compatibility 엔트리에만 채움, canonical 엔트리·관계 없는 엔트리는 생략 또는 빈
+문자열)를 추가하고, `config`/`ssh`/`console`은 `subcommands`를 채운다. 정확한
+필드명·JSON 태그는 구현 카드(TASK-256/258)가 코드 컨벤션에 맞춰 정하되, 의미는
+"이 엔트리를 대신 쓸 수 있는 canonical 이름"으로 고정한다 — 별도 route 테이블이나
+양방향 별칭 그래프를 만들지 않는다.
+
+**schema_version**: 1.4 → 1.5로 올린다. 이 저장소의 실측 이력(`685344f` subproject
+도입 1.2→1.3, `17a74b9` lifecycle 마이그레이션 1.3→1.4)은 필드가 backward-compatible한
+추가였는지와 무관하게 매 구조 변경마다 minor를 올려왔다 — 이 판정은 그 선례를 따른다.
+
+**Legacy 필드 의미**: 기존 4개 필드(`description`/`type`/`options`/`subcommands`)는
+의미가 바뀌지 않는다. 새 마커 필드가 없는(zero-value) 엔트리는 "다른 canonical
+이름이 없다"는 뜻이지 "canonical이다"라는 긍정 선언이 아니다 — 오늘 마커를 모르는
+소비자와 동일하게 읽힌다.
+
+**TASK-256/258 분담**: 각자 자기 route에만 적용한다 — TASK-256이 kubectl/ktl 두
+엔트리에 마커를 적용하고, TASK-258이 `config` 자식 `subcommands` coverage와
+validate/config validate 마커를 적용한다. 구조체 필드 추가(`ManifestCmd`에 신규
+필드 선언, `manifest.go`의 `SchemaVersion` 상수 1.5로 갱신) 자체는 먼저 착수하는
+카드가 하고, 두 카드 모두 그 위에 자기 route만 채운다 — 이 카드는 그 분담 원칙만
+얼린다.
+
+### 4. 완료기준 4
+
+`decision-status`를 `pending` → `decided`로 변경한다(아래). Non-goals(route/alias/
+help group/reserved-name 변경 없음, ktl-vs-kubectl·validate-vs-config-validate 자체
+선택 없음, 명령 레지스트리 리팩터 없음)는 그대로 유지된다 — 이 판정은 표현 방식만
+정했다.
