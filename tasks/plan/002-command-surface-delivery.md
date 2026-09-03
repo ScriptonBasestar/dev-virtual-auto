@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 27
+progress: 55
 total-tasks: 11
-completed-tasks: 3
+completed-tasks: 6
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -34,26 +34,39 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
 | top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |
 
-## Current status and recommended order (2026-09-02)
+## Current status and recommended order (2026-09-03)
 
-TASK-247은 사용자 승인, 독립 review와 repository gate를 거쳐 required-env route 계약을 확정했다.
-나머지 9개 task는 `todo`이며 TASK-249·252가 `decision-status: pending`으로 남아 있다. TASK-265는
-versioned rejection으로 `decided`이며 구현은 TASK-266이, TASK-245는 Option A로 `decided`이며 구현은
-TASK-246이 소유한다. 다음 순서를 권장한다.
+11장 중 6장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
+TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에
+있다 — doccheck가 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라
+카드 front-matter에서 읽는다.
 
-1. TASK-264가 imported interaction/provision owner를 복구했고 TASK-265가 inert interaction
-   `env_file`을 versioned rejection으로 닫았다. TASK-248에서 warning-and-continue를 제거한다.
-   TASK-266은 TASK-248과 독립이며 release 경계를 사이에 둔 두 stage를 소유한다.
-2. TASK-245가 secret write contract를 Option A로 확정했다. 수정된 loader contract 위에서 TASK-246을 구현한다.
-3. TASK-244를 완료한 뒤 TASK-249 결정과 함께 TASK-250 init 구현의 입력으로 사용한다.
-4. TASK-246·248이 모두 통합된 뒤 TASK-252에서 먼저 `config env` 영구 유지와 promotion 조사 계속을
-   비교한다. 권장안인 영구 유지를 선택하면 TASK-251은 N/A 근거를 기록하고 종료한다. Promotion의
-   제품 가치가 evidence-gate 비용을 정당화한다고 사람이 선택한 경우에만 TASK-251을 실행하고, 같은
-   TASK-252를 재개해 pinned evidence로 최종 판정한다. 두 task는 검증된 bridge 출시 blocker가 아니다.
+남은 5장과 각각의 착수 조건:
 
-이 순서는 required file 오류를 삼키는 기존 위험을 새 bridge보다 뒤로 미루지 않고, init이 아직 존재하지
-않는 D6/D7 검사를 통과했다고 주장하는 것도 막는다. 각 선택의 권장안은 해당 decision card에 기록하며,
-권장안은 사람 승인을 대신하지 않는다.
+| Task | 상태 | 착수 조건 |
+| --- | --- | --- |
+| TASK-249 | `decision-status: pending` | 사람 결정 필요. TASK-244가 닫혀 입력은 갖춰졌다 |
+| TASK-250 | todo | TASK-249 결정 이후 |
+| TASK-251 | todo | TASK-252가 promotion evidence를 요구한다고 판정한 경우에만 |
+| TASK-252 | `decision-status: pending` | 착수 가능 — 선행 TASK-246·248이 모두 통합됐다 |
+| TASK-266 | todo, Stage A 완료 | Stage B는 릴리스 게이트 대기 |
+
+다음 순서를 권장한다.
+
+1. **TASK-252 먼저.** 선행 조건이 이미 충족된 유일한 카드다. `config env` 영구 유지와 promotion
+   조사 계속을 비교한다. 권장안인 영구 유지를 선택하면 TASK-251은 N/A 근거를 기록하고 종료하므로,
+   이 결정 하나가 남은 5장 중 2장의 운명을 정한다. Promotion의 제품 가치가 evidence-gate 비용을
+   정당화한다고 사람이 선택한 경우에만 TASK-251을 실행하고, 같은 TASK-252를 재개해 pinned
+   evidence로 최종 판정한다.
+2. **TASK-249 결정 → TASK-250 구현.** TASK-244가 D6/D7 경고를 구현하며 닫혔으므로 init 재설계가
+   기다리던 입력은 존재한다. 남은 것은 사람 결정뿐이다.
+3. **TASK-266 Stage B는 릴리스가 연다.** Stage A는 `c6aa64b`으로 통합됐고, 카드의 Constraint가
+   "Stage B must not start before 0.1.48 has shipped"를 못박는다. 현재 태그는 `v0.1.47`이므로
+   착수 조건은 코드가 아니라 릴리스다. 0.1.48이 나가면 그 시점에 이어서 처리한다.
+
+이 계획의 출시 blocker는 남아 있지 않다. 남은 5장 중 3장이 사람 결정 또는 릴리스를 기다리고 있고,
+에이전트가 지금 진행할 수 있는 순수 구현 작업은 없다. 각 선택의 권장안은 해당 decision card에
+기록하며, 권장안은 사람 승인을 대신하지 않는다.
 
 ## 1. 비판적 검토 결과
 
@@ -260,15 +273,14 @@ TASK-265 decision ──> TASK-266 deprecate then reject interaction env_file
 TASK-244 + TASK-249  init redesign ──> TASK-250 init implementation
 ```
 
-남은 작업 중 TASK-244, TASK-248, TASK-249는 독립 착수 가능하다. TASK-246은 TASK-245 결정이 닫혔어도
-`depends-on`의 TASK-248이 아직 열려 있어 착수 조건을 만족하지 않는다. 구현과 independent review는 분리한다.
-TASK-264는 닫힌 cross-plan prerequisite고 TASK-265는 닫힌 compatibility decision이다. TASK-248이
-current-loader safety를 구현하고, TASK-266이 그 결정의 deprecation·rejection을 별도로 소유한다. TASK-246은 TASK-245 결정과
-TASK-248 loader contract 위에서 시작한다. TASK-252는 bridge와 propagation 뒤 먼저 시작한다. Promotion
-evidence가 필요하다는 중간 판정을 기록한 경우에만 TASK-251을 실행하고 TASK-252를 재개한다. TASK-245가 여러 OS를 지원한다고
-결정하면 TASK-246은 그 OS를 지속 검증하는 CI matrix까지 소유해야 한다. 범위가 TASK-246에 안전하게
-들어가지 않으면 TASK-245를 닫는 변경에서 bounded CI child와 dependency를 먼저 만든다. 그 전까지
-검증되지 않은 OS는 fail closed한다.
+위 그래프의 간선 중 TASK-244→TASK-250, TASK-245→TASK-246, TASK-247→TASK-248,
+TASK-265→TASK-266은 좌변이 모두 닫히면서 해소됐다. 남은 미해소 간선은 TASK-249→TASK-250
+(사람 결정)과 TASK-252→TASK-251(조건부 실행)뿐이다. 구현과 independent review는 계속 분리한다.
+
+TASK-245가 여러 OS를 지원한다고 결정했다면 TASK-246이 그 OS를 지속 검증하는 CI matrix까지 소유해야
+한다는 조건이 걸려 있었다. TASK-246은 `cccb310`으로 닫혔으므로, 이 조건은 그 카드의 완료 근거에서
+확인할 문제이지 남은 작업의 착수 조건이 아니다. 검증되지 않은 OS를 fail closed로 두는 원칙은
+그대로 유효하다.
 
 세션 경계, 모델 라우팅, 서브에이전트 역할과 재사용 시작 프롬프트는
 [Command Surface 작업의 에이전트 실행 런북](../../docs/53-command-surface-agent-execution.md)이 소유한다.
