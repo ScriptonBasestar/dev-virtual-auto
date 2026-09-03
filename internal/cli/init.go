@@ -27,6 +27,10 @@ Use --recursive to also scaffold dva.yml in detected sub-projects.
 After scaffolding, run 'am run dva-discover' to inspect the project, then
 'am run dva-improve' to let an AI agent optimize the existing configuration.
 Use 'am run dva-improve -p mode=rewrite' only when a full rewrite is intentional.`,
+	Example: `  dva init                  # Scaffold dva.yml in the current directory
+  dva init --template node  # Scaffold using the node template
+  dva init --recursive      # Also scaffold dva.yml in detected sub-projects
+  dva init --devcontainer   # Also write .devcontainer/devcontainer.json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		created, err := scaffoldDvaYml(".", initTemplate)
 		if err != nil {
@@ -83,11 +87,12 @@ func init() {
 
 	// Keep a top-level alias for backward compatibility: dva init → dva config init
 	initAliasCmd := &cobra.Command{
-		Use:    "init",
-		Short:  initCmd.Short,
-		Long:   initCmd.Long,
-		RunE:   initCmd.RunE,
-		Hidden: false, // visible alias so existing scripts just work
+		Use:     "init",
+		Short:   initCmd.Short,
+		Long:    initCmd.Long,
+		Example: initCmd.Example,
+		RunE:    initCmd.RunE,
+		Hidden:  false, // visible alias so existing scripts just work
 	}
 	initAliasCmd.Flags().StringVarP(&initTemplate, "template", "t", "", "Template to use (minimal, rails, node, python, go)")
 	initAliasCmd.Flags().BoolVar(&initRecursive, "recursive", false, "Also scaffold dva.yml in detected sub-projects")

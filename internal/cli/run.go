@@ -36,6 +36,10 @@ interaction tree and runs it against that subproject's effective config — its 
 environment, and env_file, rooted at the subproject's directory rather than the parent's.
 
 See USAGE.md's "run" section for worked examples.`,
+	Example: `  dva run shell               # Run the 'shell' interaction
+  dva shell                   # Same command, using the omittable 'run' prefix
+  dva run -p 8080:80 web      # Publish a container port while running
+  dva run --project api test  # Run 'test' in the 'api' subproject`,
 	DisableFlagParsing: false,
 	Args:               cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

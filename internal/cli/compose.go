@@ -107,6 +107,11 @@ Stack flags:
 
 Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
   --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
+	Example: `  dva up                            # Start default_plan, or the only plan, or the whole stack
+  dva up local-dev                  # Start a named plan
+  dva up local-dev --force          # Force-recreate a named plan
+  dva up local-dev --var PORT=8080  # Override a plan variable
+  dva up --dry-run                  # Print what would run without executing`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -380,6 +385,10 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
   --volumes, -v             Also remove volumes. Rejected off the plan path.
   --purge                   Also remove volumes, locally built images and provision
                             markers. Rejected off the plan path.`,
+	Example: `  dva down                            # Tear down default_plan, or the only plan, or the whole stack
+  dva down local-dev                  # Tear down a named plan
+  dva down local-dev -v               # Also remove volumes
+  dva down local-dev --purge --force  # Remove volumes, images and provision markers; skip the prompt`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -455,6 +464,9 @@ Stack flags:
 
 Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
   --var KEY=VAL             Override a plan variable. Ignored off the plan path.`,
+	Example: `  dva stop                      # Stop default_plan, or the only plan, or the whole stack
+  dva stop local-dev            # Stop a named plan without removing resources
+  dva stop local-dev --dry-run  # Print what would stop, without executing`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -543,6 +555,10 @@ Stack flags:
   --env, -E ENV             Use a named environment from dva.yml environments section
   --tag, -T TAG[,TAG]       Include only lifecycle entries matching any of the given tags
   --exclude-tag TAG[,TAG]   Exclude lifecycle entries matching any of the given tags`,
+	Example: `  dva restart              # Restart default_plan, or the only plan, or the whole stack
+  dva restart local-dev    # Restart a named plan
+  dva restart api web      # Restart only these stack entries (no plan route)
+  dva restart -- --oddname # Everything after -- is read as a name, never a flag`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -728,6 +744,10 @@ so name the entry first.
 
 Without plans, or when the first argument is not a plan name, this stays a
 mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
+	Example: `  dva build                # Build default_plan, or the only plan, or every declared entry
+  dva build local-dev      # Build every entry of a named plan that has something to build
+  dva build local-dev api  # Build one entry of a plan
+  dva build api --no-cache # Compose passthrough: build the api service`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {
@@ -821,6 +841,10 @@ follow, so those take no extra arguments.
 
 Without plans, or when the first argument is not a plan name, this stays a
 compose passthrough: 'dva logs api' still means the 'api' service.`,
+	Example: `  dva logs                # Logs for default_plan, or the only plan, or the whole stack
+  dva logs local-dev      # Logs for a named plan's log-producing entry
+  dva logs local-dev api  # Logs for one entry of a plan
+  dva logs api -f         # Compose passthrough: follow the api service's logs`,
 	DisableFlagParsing: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if helpRequested(args) {

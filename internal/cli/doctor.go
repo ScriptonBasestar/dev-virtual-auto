@@ -71,6 +71,10 @@ code stays 0, because most built-ins diagnose transient or environmental state
 (Docker not running) rather than the configuration. Pass --strict to make every
 failing check count toward the exit code, so CI fails when, for example, the
 compose files do not parse.`,
+	Example: `  dva doctor          # Check environment prerequisites (Docker, compose files, .env, ...)
+  dva doctor --fix    # Automatically resolve fixable issues
+  dva doctor --json   # JSON output
+  dva doctor --strict # Count every failing check toward the exit code`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		c := mustLoadConfig()
 
