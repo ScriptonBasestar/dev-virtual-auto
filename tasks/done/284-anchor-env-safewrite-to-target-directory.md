@@ -8,7 +8,8 @@ exec-tier: strong
 created-at: 2026-09-03T19:45:00+09:00
 source: "Independent review of TASK-246 (`cccb310`) by a reviewer that did not write it; root cause re-read and the symlink bypass independently reproduced with a standalone os.Root program"
 scope: "internal/cli/config_env_safewrite.go newTemp/newSafeWriter/Commit/syncDir, the temp naming rule, internal/cli/config_env_test.go TestConfigEnvRejectsPathSwap and its fakeGit"
-status: todo
+status: done
+closed-at: 2026-09-03T14:27:42+09:00
 depends-on: []
 ---
 

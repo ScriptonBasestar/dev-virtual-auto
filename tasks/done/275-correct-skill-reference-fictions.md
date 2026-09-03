@@ -8,7 +8,8 @@ exec-tier: standard
 created-at: 2026-09-03T00:17:00+09:00
 source: "Docs audit of skills/dva/references/* and agent-mesh-flows/shared/library/reference-examples.md at HEAD 5eb1af5"
 scope: "reference-examples.md clean hook example, skills/dva/references/commands.md flag and hook-count fictions, skills/dva/references/advanced.md hookable-count claim + hook-step command: key + provision example, skills/dva/references/patterns.md version and section-order claims"
-status: todo
+status: done
+closed-at: 2026-09-03T13:55:33+09:00
 ---
 
 # Task 275: correct skill reference fictions

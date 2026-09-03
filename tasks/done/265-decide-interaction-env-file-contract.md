@@ -8,7 +8,8 @@ exec-tier: strong
 created-at: 2026-09-02T15:50:45+09:00
 source: "TASK-247 full env-input audit"
 scope: "interaction and subcommand env_file schema, inert runtime behavior, precedence and owner options, compatibility evidence, diagnostics, migration and implementation handoff"
-status: todo
+status: done
+closed-at: 2026-09-03T00:33:44+09:00
 needs-human: true
 decision-status: decided
 depends-on: [TASK-247]

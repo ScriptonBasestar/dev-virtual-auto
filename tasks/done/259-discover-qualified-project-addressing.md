@@ -8,7 +8,8 @@ exec-tier: strong
 created-at: 2026-09-02T10:11:00+09:00
 source: "PLAN-003 cross-project discovery"
 scope: "current routing grammar, namespace identity, reachability options, corpus evidence, and decision dossier"
-status: todo
+status: done
+closed-at: 2026-09-03T00:33:44+09:00
 ---
 
 # Task 259: discover qualified project addressing

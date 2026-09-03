@@ -8,7 +8,8 @@ exec-tier: standard
 created-at: 2026-09-03T19:55:00+09:00
 source: "Independent review of TASK-266 Stage A (`c6aa64b`) by a reviewer that did not write it; both findings re-measured by the TASK-266 implementer against a fresh `make build` of master at 916b07e"
 scope: "internal/config/migrate_report.go coverage and its doc comment, the CHANGELOG and commit-message claim that Stage A changes no runtime behaviour"
-status: todo
+status: done
+closed-at: 2026-09-03T14:27:42+09:00
 depends-on: []
 ---
 

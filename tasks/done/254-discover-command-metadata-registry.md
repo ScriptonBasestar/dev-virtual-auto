@@ -8,7 +8,8 @@ exec-tier: strong
 created-at: 2026-09-02T10:06:00+09:00
 source: "PLAN-003 command discovery ownership investigation"
 scope: "command metadata inventory, derivation matrix, consistency gates, and implementation recommendation"
-status: todo
+status: done
+closed-at: 2026-09-03T01:18:15+09:00
 ---
 
 # Task 254: discover command metadata ownership

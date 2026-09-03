@@ -8,7 +8,8 @@ exec-tier: strong
 created-at: 2026-09-01T19:21:00+09:00
 source: "PLAN-002 env bridge decision gate"
 scope: "env_file source-target model, exact CLI grammar, Git/path safety, output contract, cross-platform replace spike"
-status: todo
+status: done
+closed-at: 2026-09-03T00:53:27+09:00
 needs-human: true
 decision-status: decided
 ---

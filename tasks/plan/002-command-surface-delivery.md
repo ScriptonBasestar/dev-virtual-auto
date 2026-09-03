@@ -3,9 +3,9 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 38
+progress: 62
 total-tasks: 16
-completed-tasks: 6
+completed-tasks: 10
 children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285, TASK-286]
 target-date: "2026-12-31"
 created: 2026-09-01
@@ -33,47 +33,49 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../done/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
 | migrate/validate 커버리지 차이 + Stage A exit-code 서술 | 리뷰에서 확인, 재현됨 | [TASK-285](../todo/285-close-migrate-validate-coverage-gap.md) |
 | 고정 3-plan `init` | 거부·재설계 | [TASK-249](../todo/249-redesign-capability-driven-init.md) → [TASK-250](../todo/250-implement-capability-driven-init.md) |
-| migration gate | bridge 이후 | [TASK-251](../todo/251-build-env-migration-evidence-gate.md) |
-| top-level `env` 예약 | 승인되지 않음 | [TASK-252](../todo/252-decide-top-level-env-promotion.md) |
+| migration gate | **N/A 종료** — TASK-252가 승격을 기각해 소비처가 사라짐 | [TASK-251](../_archive/251-build-env-migration-evidence-gate.md) |
+| top-level `env` 예약 | **거부 확정 (2026-09-03)** — `config env`가 영구 canonical surface | [TASK-252](../done/252-decide-top-level-env-promotion.md) |
 
 ## Current status and recommended order (2026-09-03)
 
-16장 중 6장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
-TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에
-있다 — doccheck가 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라
-카드 front-matter에서 읽는다.
+16장 중 10장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
+TASK-248(`b23780e`), TASK-265, TASK-284(`bbe3db1`), TASK-285, TASK-252(결정), TASK-251(N/A
+종료). 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에 있다 — doccheck가
+basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라 카드
+front-matter에서 읽는다.
 
-남은 10장과 각각의 착수 조건:
+**TASK-252가 이 계획의 최대 분기를 닫았다.** top-level `env` 승격을 거부하고 `config env`를
+영구 canonical surface로 확정했다. 되돌리기 비대칭성이 근거다 — `config env`는 나중에 승격할
+수 있지만 예약한 reserved name은 남의 config를 깨지 않고 회수할 수 없다. 이 결정 하나로
+TASK-251(P0/L)이 코드 한 줄 없이 N/A로 닫혔다. 승격 재개는 이 카드들을 되살리는 것이 아니라
+새 카드로 한다.
+
+남은 6장과 각각의 착수 조건:
 
 | Task | 상태 | 착수 조건 |
 | --- | --- | --- |
 | TASK-249 | `decision-status: pending` | 사람 결정 필요. TASK-244가 닫혀 입력은 갖춰졌다 |
 | TASK-250 | todo | TASK-249 결정 이후 |
-| TASK-251 | todo | TASK-252가 promotion evidence를 요구한다고 판정한 경우에만 |
-| TASK-252 | `decision-status: pending` | 착수 가능 — 선행 TASK-246·248이 모두 통합됐다 |
-| TASK-266 | todo, Stage A 완료 | Stage B는 릴리스 게이트 대기 |
-| TASK-284 | todo | 착수 가능 — 계약 재결정 없이 구현이 이미 선언된 §5-3/§5-4/§8-1을 충족하게 만드는 카드다 |
-| TASK-285 | todo | 착수 가능 — Stage B 릴리스 게이트와 무관하다 |
-| TASK-281 | `decision-status: pending` | 사람 결정 필요. 선행 TASK-246이 통합돼 입력은 갖춰졌다 |
-| TASK-282 | todo | TASK-281 결정 이후 |
-| TASK-286 | todo | TASK-281이 게이트 대상 명령 집합을 확정한 이후 |
+| TASK-266 | todo, Stage A 완료 | Stage B는 0.1.48 릴리스 대기 |
+| TASK-281 | `decision-status: decided` (2026-09-03) | 결정 완료 — 구현으로 넘어간다 |
+| TASK-282 | todo | **착수 가능** — TASK-281이 계약을 동결했다 |
+| TASK-286 | todo | **착수 가능** — TASK-281 §3-6이 게이트 대상과 pty 구멍을 넘겼다 |
 
 다음 순서를 권장한다.
 
-1. **TASK-252 먼저.** 선행 조건이 이미 충족된 유일한 카드다. `config env` 영구 유지와 promotion
-   조사 계속을 비교한다. 권장안인 영구 유지를 선택하면 TASK-251은 N/A 근거를 기록하고 종료하므로,
-   이 결정 하나가 남은 5장 중 2장의 운명을 정한다. Promotion의 제품 가치가 evidence-gate 비용을
-   정당화한다고 사람이 선택한 경우에만 TASK-251을 실행하고, 같은 TASK-252를 재개해 pinned
-   evidence로 최종 판정한다.
-2. **TASK-249 결정 → TASK-250 구현.** TASK-244가 D6/D7 경고를 구현하며 닫혔으므로 init 재설계가
-   기다리던 입력은 존재한다. 남은 것은 사람 결정뿐이다.
-3. **TASK-266 Stage B는 릴리스가 연다.** Stage A는 `c6aa64b`으로 통합됐고, 카드의 Constraint가
+1. **TASK-282 구현.** TASK-281이 16개 오류 코드, 29행 `seal` 상태 매트릭스, `show` 순서,
+   비활성 상태 argv 표까지 동결했으므로 남은 판단이 없다. 이 계획에서 에이전트가 지금 바로
+   진행할 수 있는 유일한 순수 구현 카드다.
+2. **TASK-286.** TASK-281 §3-6이 advisory agent detection의 한계(pty 우회)를 명시적으로
+   넘겼다. 프로젝트 수준 deny rule은 그 구멍을 코드가 아닌 정책으로 막는다. TASK-282와
+   파일이 겹치지 않아 병렬 진행할 수 있다.
+3. **TASK-249 결정 → TASK-250 구현.** 남은 유일한 사람 결정이다. TASK-244가 D6/D7 경고를
+   구현하며 닫혔으므로 init 재설계가 기다리던 입력은 존재한다.
+4. **TASK-266 Stage B는 릴리스가 연다.** Stage A는 `c6aa64b`으로 통합됐고, 카드의 Constraint가
    "Stage B must not start before 0.1.48 has shipped"를 못박는다. 현재 태그는 `v0.1.47`이므로
-   착수 조건은 코드가 아니라 릴리스다. 0.1.48이 나가면 그 시점에 이어서 처리한다.
+   착수 조건은 코드가 아니라 릴리스다.
 
-이 계획의 출시 blocker는 남아 있지 않다. 남은 5장 중 3장이 사람 결정 또는 릴리스를 기다리고 있고,
-에이전트가 지금 진행할 수 있는 순수 구현 작업은 없다. 각 선택의 권장안은 해당 decision card에
-기록하며, 권장안은 사람 승인을 대신하지 않는다.
+이 계획의 출시 blocker는 남아 있지 않다.
 
 ## 1. 비판적 검토 결과
 

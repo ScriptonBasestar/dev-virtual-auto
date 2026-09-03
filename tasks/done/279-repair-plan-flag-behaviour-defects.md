@@ -8,7 +8,8 @@ exec-tier: standard
 created-at: 2026-09-03T12:55:00+09:00
 source: "TASK-273 audit — surfaced as evidence there, excluded from its scope as behaviour rather than guidance defects; §3 added from the TASK-273 implementer's measurement"
 scope: "internal/cli/plan_lifecycle.go restart/stop/down plan routes, the build route in internal/cli/compose.go, internal/lifecycle StopOptions/DownOptions"
-status: todo
+status: done
+closed-at: 2026-09-03T13:56:31+09:00
 depends-on: []
 ---
 
