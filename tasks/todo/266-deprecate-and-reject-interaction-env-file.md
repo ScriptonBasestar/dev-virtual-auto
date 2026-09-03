@@ -54,6 +54,22 @@ the release that ships must not disagree.
 "Stage B must not start before 0.1.48 has shipped"라고 못박고 있으므로 착수하지
 않았습니다. 0.1.48이 나가면 이 카드를 그대로 이어서 처리하면 됩니다.
 
+게이트 확인 방법 (착수 전 두 가지가 모두 참이어야 한다):
+
+```bash
+git tag --list 'v0.1.48*'            # 비어 있으면 아직 아님
+/usr/bin/grep -n 'Version =' internal/config/version.go   # 0.1.47이면 아직 아님
+```
+
+둘 중 하나라도 아니면 Stage B를 시작하지 않는다. Constraint가 말하듯, 경고 문구가 이름 댄
+릴리스와 실제로 나가는 릴리스가 어긋나면 사용자에게 한 약속이 깨진다.
+
+Stage A는 이미 완료됐고 (`c6aa64b`), 그 결과
+[TASK-276](276-correct-example-corpus-and-close-md-yaml-gap.md)은 더 이상 이 카드를 기다리지
+않는다 — 두 카드가 공유하던 `examples/` 파일을 Stage A가 정리했으므로 2026-09-03에 해당
+`depends-on` 선언을 해제했다. Stage B는 스키마와 Go 타입만 건드리므로 `examples/`에서 다시
+충돌하지 않는다.
+
 Stage B가 물려받는 별건: TASK-245 §2-4의 `#/definitions/env_file_plain` 정리.
 `env_file_plain`은 `interaction_command`가 `sops_source`를 거부하도록 두려고 만든
 정의인데, Stage B가 `interaction_command.properties.env_file`을 통째로 지우면

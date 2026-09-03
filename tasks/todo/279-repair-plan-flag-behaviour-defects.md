@@ -3,7 +3,7 @@ id: TASK-279
 title: "Repair lifecycle flags that are accepted and then discarded"
 type: bug
 priority: P2
-effort: S
+effort: M
 exec-tier: standard
 created-at: 2026-09-03T12:55:00+09:00
 source: "TASK-273 audit — surfaced as evidence there, excluded from its scope as behaviour rather than guidance defects; §3 added from the TASK-273 implementer's measurement"
@@ -21,6 +21,12 @@ Three lifecycle routes parse a flag and then throw the value away. `restart` ove
 or not it was typed. `stop` and `down` accept `--no-wait` and pass it to option structs with no
 field to receive it. `build` discards `--env`, `--tag` and `--exclude-tag` at the parse call
 itself. Every one of them answers exit 0, which reads as "your flag was honoured".
+
+Opened at effort S, when the card held only §1 and §2 and both looked like one-line repairs.
+Raised to **M** once §3 landed: the three defects sit on three different routes, the direction
+choice below is not the same on all of them, and the last criterion asks for a regression test
+covering all four routes at once. Treat the estimate as covering the decision, not just the
+edits.
 
 ## Problem
 
@@ -61,6 +67,25 @@ itself. Every one of them answers exit 0, which reads as "your flag was honoured
    parser is more permissive than the advertised surface — the flag is neither documented nor
    rejected, just absorbed.
 
+3. **`build` discards `--env`, `--tag` and `--exclude-tag` at the parse site.**
+   `buildCmd`'s `RunE` calls `mode, _, _, _, remaining, err := parseDvaFlags(args)`
+   (`/usr/bin/grep -n 'mode, _, _, _, remaining, err' internal/cli/compose.go`). The four
+   selectors are all parsed — which is why none of them leaks through to docker — but only
+   `mode` is bound to a name. The env, include-tag and exclude-tag return values go to `_`.
+
+   This is worse than a no-op in one specific way: on the stack path `dva up --env prod` against
+   a config declaring no `environments:` *fails* with `env 'prod' not found`, because the parsed
+   value is looked up. On the build route the same flag is silently accepted, because the value
+   never reaches a lookup. The same flag on two routes of the same tool gives an error on one and
+   silence on the other.
+
+   Measured by the TASK-273 implementer on a plan fixture: `dva build local-dev --exclude-tag app`
+   still built the entry tagged `app`, and `--env prod` did not fail against a config declaring no
+   `environments:`. The code reading above is the reason.
+
+   `--mode` is not affected — it is bound and used, which is why TASK-273 could give it an
+   accurate manifest qualifier while the other three could not be described honestly at all.
+
 ## Direction
 
 Two directions, and the card does not prejudge which:
@@ -94,30 +119,15 @@ An implementer should not mix directions across the defects without saying why i
 - [ ] `optForce`'s manifest text matches what every route actually does with the flag | verify: `human — read optForce against the up and restart call sites: the description must hold on both routes, not only on up`
 - [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
-3. **`build` discards `--env`, `--tag` and `--exclude-tag` at the parse site.**
-   `buildCmd`'s `RunE` calls `mode, _, _, _, remaining, err := parseDvaFlags(args)`
-   (`/usr/bin/grep -n 'mode, _, _, _, remaining, err' internal/cli/compose.go`). The four
-   selectors are all parsed — which is why none of them leaks through to docker — but only
-   `mode` is bound to a name. The env, include-tag and exclude-tag return values go to `_`.
-
-   This is worse than a no-op in one specific way: on the stack path `dva up --env prod` against
-   a config declaring no `environments:` *fails* with `env 'prod' not found`, because the parsed
-   value is looked up. On the build route the same flag is silently accepted, because the value
-   never reaches a lookup. The same flag on two routes of the same tool gives an error on one and
-   silence on the other.
-
-   Measured by the TASK-273 implementer on a plan fixture: `dva build local-dev --exclude-tag app`
-   still built the entry tagged `app`, and `--env prod` did not fail against a config declaring no
-   `environments:`. The code reading above is the reason.
-
-   `--mode` is not affected — it is bound and used, which is why TASK-273 could give it an
-   accurate manifest qualifier while the other three could not be described honestly at all.
-
 ## Non-goals
 
 - No change to `up`, which already passes `Force` and `Wait` faithfully.
 - No change to which flags `parsePlanFlags` accepts beyond the ones named here.
-  `--tag`/`--exclude-tag`/`--mode`/`--env` are path-conditional and owned by
-  [TASK-273](273-repair-misleading-cli-guidance.md).
+  `--tag`/`--exclude-tag`/`--mode`/`--env` are path-conditional, and their *guidance* — what
+  help text, the manifest and error strings say about them — was settled by
+  [TASK-273](273-repair-misleading-cli-guidance.md), which closed as `206918a`. What that card
+  deliberately left behind is the *behaviour* on the build route, which is §3 here. Read its
+  landed diff before starting: it fixed the descriptions, so a description that now looks
+  wrong is more likely to be §3's behaviour showing through than a missed string.
 - No change to the `--purge` confirmation gate, which was reviewed and closed in
   [PLAN-004](../plan/004-restore-documentation-truth.md).

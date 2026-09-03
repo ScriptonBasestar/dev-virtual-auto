@@ -9,7 +9,7 @@ created-at: 2026-09-03T00:17:00+09:00
 source: "Docs audit of README.md, examples/*.md, examples/*.yml, and internal/config/examples_schema_test.go at HEAD 5eb1af5"
 scope: "README.md destructive-teardown confirmation claim, examples/MAKEFILE.md CLI and provision errors, examples/*.md sweep, examples_schema_test.go markdown coverage, examples corpus --strict compliance"
 status: todo
-depends-on: [TASK-266]
+depends-on: []
 ---
 
 # Task 276: correct example corpus and close the markdown/YAML gate gap
@@ -22,6 +22,18 @@ destroying data; and the schema test that is supposed to catch this class of def
 walks `*.yml` files, so none of the errors embedded in markdown were ever caught. This task
 fixes the confirmed corpus defects and extends the gate so the same class of defect cannot
 recur silently.
+
+**This card is startable now.** It declared `depends-on: [TASK-266]` because both cards touch
+`examples/`, and TASK-266 is still open on its Stage B release gate — which made this one read
+as blocked for as long as 0.1.48 has not shipped. The dependency was only ever about the shared
+files, and TASK-266 **Stage A** already cleared them in `c6aa64b`: `examples/env-file-priority.yml`
+now declares `env_file:` at the root only, with no interaction-level copy, and the
+"Command-specific env_file" section is gone from `examples/README.md`
+(verify: `/usr/bin/grep -n env_file examples/env-file-priority.yml` and
+`/usr/bin/grep -c 'Command-specific' examples/README.md`). Stage B touches the schema and the Go
+types, not `examples/`. The declaration was therefore dropped on 2026-09-03; the Non-goals below
+still hold and still mark those two files out of scope, so a session working this card must not
+edit them even though nothing now blocks the rest.
 
 ## Problem
 

@@ -3,9 +3,9 @@ id: PLAN-003
 title: "Renew command discovery and prepare composition contracts"
 type: plan
 scope: "help and machine discovery, kubectl and validate route compatibility, project addressing, cross-project composition, and vNext vocabulary decisions"
-progress: 36
+progress: 43
 total-tasks: 14
-completed-tasks: 5
+completed-tasks: 6
 children: [TASK-253, TASK-254, TASK-255, TASK-256, TASK-257, TASK-258, TASK-259, TASK-260, TASK-261, TASK-262, TASK-263, TASK-264, TASK-267, TASK-272]
 target-date: "2027-03-31"
 created: 2026-09-02
@@ -134,6 +134,32 @@ route를 고르게 되므로 TASK-264도 함께 닫혀야 한다. TASK-255·257�
 후속 public contract를 구현하지 않는다. TASK-256·258은 앞선 결정이 현재 route 유지로 닫히면 불필요한
 alias를 만들지 않고, 결정이 요구한 문서·검증 정리만 수행한 뒤 완료할 수 있다. TASK-260은 TASK-262와
 TASK-263이 모두 완료된 뒤 시작한다.
+
+## 3-1. 착수 가능 상태 (2026-09-03)
+
+위 graph는 시작 조건을 규칙으로 적었을 뿐 지금 무엇이 열려 있는지는 말하지 않는다. 선행 카드의
+현재 위치를 실제로 조회해 정리한 결과는 다음과 같다 (`find tasks -name '<id>-*.md'` — 완료 카드
+일부는 `tasks/_archive/done/`에 있어 `tasks/todo`·`tasks/done`만 보면 존재하지 않는 것처럼 읽힌다.
+TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보관된 카드다).
+
+| 카드 | 선행 | 상태 |
+| --- | --- | --- |
+| TASK-255 | TASK-254 ✅ | **착수 가능** |
+| TASK-257 | TASK-254 ✅ | **착수 가능** |
+| TASK-272 | TASK-254 ✅ | **착수 가능** — 닫히면 TASK-256·258이 함께 열린다 |
+| TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **착수 가능** — 닫히면 TASK-260이 열린다 |
+| TASK-256 | TASK-255 · TASK-272 | 대기 |
+| TASK-258 | TASK-257 · TASK-272 | 대기 |
+| TASK-260 | TASK-262 ✅ · TASK-263 | TASK-263 대기 |
+| TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
+
+**착수 가능한 네 장은 전부 `needs-human` decision card다.** §4가 정하듯 세션은 evidence와 option
+matrix를 재현 가능한 형태로 완성할 수 있지만, 사람이 선택을 기록하기 전에는 후속 public contract를
+구현하지 않는다. 즉 세션 혼자 끝까지 닫을 수 있는 카드는 이 계획에 지금 없다 — 넷 다 "증거를
+갖추고 선택을 대기 상태로 남기는" 것이 완료 지점이다.
+
+병렬성 관점에서 TASK-272를 먼저 닫는 것이 회수가 가장 크다. 혼자서 구현 카드 두 장(256·258)을
+동시에 gate하고 있고, 나머지 세 장 중 유일하게 다른 카드의 선행이면서 route 결정 자체는 아니다.
 
 ## 4. 실행 규칙
 

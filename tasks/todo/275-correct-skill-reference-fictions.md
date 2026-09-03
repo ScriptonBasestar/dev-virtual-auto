@@ -7,7 +7,7 @@ effort: M
 exec-tier: standard
 created-at: 2026-09-03T00:17:00+09:00
 source: "Docs audit of skills/dva/references/* and agent-mesh-flows/shared/library/reference-examples.md at HEAD 5eb1af5"
-scope: "reference-examples.md clean hook example, skills/dva/references/commands.md flag and hook-count fictions, skills/dva/references/advanced.md provision example, skills/dva/references/patterns.md version and section-order claims"
+scope: "reference-examples.md clean hook example, skills/dva/references/commands.md flag and hook-count fictions, skills/dva/references/advanced.md hookable-count claim + hook-step command: key + provision example, skills/dva/references/patterns.md version and section-order claims"
 status: todo
 ---
 
@@ -22,6 +22,12 @@ path, a hookable-command count that includes a removed command, a provision exam
 that cannot unmarshal, and a stated schema version that is behind the binary's actual
 version. An agent following any of these produces a config that fails validation or a
 command line that errors.
+
+Two of the defects appear in more than one file — the hookable-command count in both
+`commands.md` and `advanced.md`, and the `command:`-for-`run:` field confusion in two separate
+`advanced.md` examples. Close each **claim**, not each line: fixing the first occurrence and
+stopping is how the third copy of the hookable list survived until [TASK-280](../done/280-name-the-live-hookable-set-in-the-schema.md)
+found it in `schema.json`.
 
 ## Problem
 
@@ -77,7 +83,42 @@ command line that errors.
      `skill`, which the map does reserve. The list should be the 24 names in
      `reservedCommands`, not a hand-maintained copy that has drifted from it.
 
-3. `skills/dva/references/advanced.md` (around line 411-432) documents a provision example:
+3. `skills/dva/references/advanced.md` carries three defects. Two of them sit together in the
+   "Lifecycle Hooks" section and were added to this card on 2026-09-03, after the original
+   audit; the third is the provision example the audit found.
+
+   **3a — the same hookable-count fiction as item 2, in a second file.** Anchor:
+   `/usr/bin/grep -n 'The 7 hookable lifecycle commands' skills/dva/references/advanced.md`.
+   The line reads "The 7 hookable lifecycle commands (`up`, `down`, `stop`, `restart`,
+   `build`, `clean`, `logs`)". `hookableCommands` has six and excludes `clean`, exactly as
+   item 2 establishes for `commands.md`. **Fixing `commands.md` alone leaves this one
+   standing** — a sweep for the claim, not for the file, is what closes it. There were three
+   copies of this list; the third was `schema.json`'s `interaction_command.before`
+   description, corrected under [TASK-280](../done/280-name-the-live-hookable-set-in-the-schema.md),
+   which also left `TestSchemaDescriptionNamesTheLiveHookableCommands` behind — a test that
+   derives the expected list from `HookableCommandList()` rather than restating it. The two
+   copies in this card's scope remain hand-written and ungated; see PLAN-004 open question 1
+   for who owns closing that.
+
+   **3b — hook steps in the same section use a key the schema rejects.** The example directly
+   under 3a's sentence writes:
+   ```yaml
+   interaction:
+     build:
+       before:
+         - step: "Generate code"
+           command: "make generate"
+   ```
+   `before`/`replace`/`after` items are `#/definitions/provision_item` refs, whose object
+   branch sets `"additionalProperties": false` over exactly
+   `compose_exec, compose_run, compose_up, note, parallel, run, step` — no `command`. Verified
+   by running that config through `validateYAMLSchema`: it is **rejected**, not silently
+   ignored, so a reader who copies this block gets a hard schema failure. Three steps in the
+   block use `command:`; all three take `run:`. This is the same field confusion as 3c below,
+   which is why both live in this item.
+
+   **3c — the provision example does not unmarshal.** `skills/dva/references/advanced.md`
+   (around line 411-432) documents:
    ```yaml
    provision:
      default: setup
@@ -125,6 +166,8 @@ files.
 - [ ] `commands.md` states the log path under the real dot-dir root | verify: `! /usr/bin/grep -q '\.dva/logs' skills/dva/references/commands.md`
 - [ ] `commands.md` states the hookable command count as 6 and drops `clean` from that list | verify: `! /usr/bin/grep -q 'These 7 commands' skills/dva/references/commands.md`
 - [ ] `commands.md`'s Reserved Command Names list matches `reservedCommands` in `internal/config/reserved.go` — 24 names, no `clean`/`app`/`stack`/`infra`, includes `skill` | verify: `human — diff the doc list against the map literal name by name; a count match alone is not evidence`
+- [ ] `advanced.md` states the hookable command count as 6 and drops `clean` from that list, so no copy of the claim survives this card | verify: `! /usr/bin/grep -rq 'The 7 hookable' skills/`
+- [ ] No hook step example anywhere in `skills/dva/references/` uses `command:` where `provision_item` requires `run:` | verify: `human — for each 'step:' item in a before/replace/after block, confirm the sibling key is run/note/parallel/compose_*, never command; interaction.<name>.command and checks.*.command are different fields and stay as they are`
 - [ ] `skills/dva/references/advanced.md`'s provision example parses against `ProvisionConfig.UnmarshalYAML` (`default_profile` plus flat `<profile>: [items]` keys, `run:` not `command:`, no `profiles:`/`steps:`/`description:` wrapper) | verify: human — reviewer copies the example's `provision:` block into a scratch `dva.yml` and confirms `dva config validate` does not reject it as unparseable
 - [ ] `patterns.md`'s Canonical Section Order line includes `default_plan` in the position `canonicalSectionOrder` places it | verify: `/usr/bin/grep -q 'plans -> default_plan' skills/dva/references/patterns.md`
 - [ ] `patterns.md` no longer presents `MinScaffoldVersion` as the current version | verify: `! /usr/bin/grep -qE 'For current .0\.1\.44' skills/dva/references/patterns.md`

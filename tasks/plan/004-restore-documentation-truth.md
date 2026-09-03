@@ -3,9 +3,9 @@ id: PLAN-004
 title: "Restore documentation truth across skills, flows, and the example corpus"
 type: plan
 scope: "CLI advice strings, agent-mesh flow prompt claims, skill reference fictions, example corpus defects, and the markdown-YAML validation gap"
-progress: 0
+progress: 25
 total-tasks: 4
-completed-tasks: 0
+completed-tasks: 1
 children: [TASK-273, TASK-274, TASK-275, TASK-276]
 target-date: "2026-11-30"
 created: 2026-09-03
@@ -39,7 +39,7 @@ question 2가 소유한다.
 
 | Workstream | 판정 | 작업 |
 | --- | --- | --- |
-| CLI 조언 문자열이 실행 불가능한 명령을 제안 | 재현 확인, 즉시 수정 가능 | [TASK-273](../todo/273-repair-misleading-cli-guidance.md) |
+| CLI 조언 문자열이 실행 불가능한 명령을 제안 | **완료 (`206918a`)** | [TASK-273](../done/273-repair-misleading-cli-guidance.md) |
 | flow 프롬프트가 유효한 config를 거부하거나 무효한 config를 생성 | 스키마 대조 완료 | [TASK-274](../todo/274-repair-flow-prompt-config-claims.md) |
 | skill reference가 존재하지 않는 동작을 서술 | 소스 대조 완료 | [TASK-275](../todo/275-correct-skill-reference-fictions.md) |
 | example corpus 결함 + markdown-YAML 게이트 공백 | 15/16 파일 `--strict` 실패 측정 | [TASK-276](../todo/276-correct-example-corpus-and-close-md-yaml-gap.md) |
@@ -51,10 +51,15 @@ question 2가 소유한다.
 1. **[TASK-267](../done/267-repair-subproject-exposure-defects.md) — 완료 (`517dd11`).**
    PLAN-003 소속이지만 `internal/cli`의 같은 영역(오류·힌트 문자열)을 건드리므로 TASK-273보다
    먼저 끝내도록 배치했고, 그대로 처리됐다. 두 카드가 같은 파일에서 충돌할 위험은 해소됐다.
-2. **TASK-273** — 코드 전용이라 나머지 세 장(문서 전용)과 여기서 분리된다. 처음에는 effort S로
-   적었으나, 측정 결과 `--tag`/`--exclude-tag`/`--mode`/`--env`가 죽은 옵션이 아니라 stack
-   경로에서만 동작하는 경로 조건부 옵션임이 드러나 범위가 manifest·정적 테스트·help 산문까지
-   넓어졌고 **effort M**으로 상향됐다. 순서상 위치는 그대로다.
+2. **TASK-273 — 완료 (`206918a`).** 코드 전용이라 나머지 세 장(문서 전용)과 여기서 분리됐다.
+   처음에는 effort S로 적었으나, 측정 결과 `--tag`/`--exclude-tag`/`--mode`/`--env`가 죽은
+   옵션이 아니라 stack 경로에서만 동작하는 경로 조건부 옵션임이 드러나 범위가 manifest·정적
+   테스트·help 산문까지 넓어졌고 **effort M**으로 상향됐다.
+   이 카드는 조언 문자열만 고쳤고 그 아래 **동작** 결함 — `restart`가 `--force`를 버리고,
+   `stop`/`down`이 `--no-wait`를 흡수하며, `build`가 `--env`/`--tag`/`--exclude-tag`를
+   파싱 지점에서 버리는 것 — 은 의도적으로 남겨
+   [TASK-279](../todo/279-repair-plan-flag-behaviour-defects.md)로 분리했다. TASK-279는
+   PLAN-004 소속이 아니며(문서가 아니라 런타임을 바꾼다) 이 계획의 자식 수에 포함되지 않는다.
 3. **TASK-274** — flow 프롬프트. `make generate` 전파 경로를 여기서 한 번 확인해두면 TASK-275의
    동일 경로 작업이 단순해진다.
 4. **TASK-275** — skill reference. `reference-examples.md`가 단일 소스이고 생성 사본이 셋이므로
@@ -66,9 +71,13 @@ question 2가 소유한다.
    완료되어 더 이상 막지 않는다.
 
 TASK-276은 [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md)과 `examples/`
-파일을 공유하므로 `depends-on: [TASK-266]`을 선언한다. TASK-266이 소유한
-`examples/env-file-priority.yml`의 interaction `env_file` 선언과 `examples/README.md`의
-"Command-specific env_file" 절은 TASK-276 범위에서 명시적으로 제외했다.
+파일을 공유하므로 처음에 `depends-on: [TASK-266]`을 선언했다. **2026-09-03에 해제했다.**
+TASK-266은 Stage B가 0.1.48 릴리스 게이트에 걸려 열려 있지만, 공유하던 파일은 이미 끝난
+Stage A(`c6aa64b`)가 정리했다 — `examples/env-file-priority.yml`에는 root `env_file:`만 남았고
+`examples/README.md`의 "Command-specific env_file" 절은 사라졌다. Stage B는 스키마와 Go 타입만
+건드린다. 선언을 남겨두면 릴리스가 나갈 때까지 TASK-276 전체가 차단된 것처럼 읽히므로,
+실질적으로 충족된 의존을 해제하고 그 두 파일은 TASK-276의 Non-goals에서 계속 범위 밖으로
+못박아 둔다.
 
 ## Open questions
 
@@ -80,6 +89,42 @@ TASK-276은 [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md)
    번호가 아니며, 무관한 결함을 다루는
    [TASK-277](../done/277-repair-nondeterministic-env-interpolation.md)이 이미 그 번호를
    사용했다.
+
+   **사전 조사 완료 (2026-09-03).** 발행 조건은 그대로지만 — 275가 닫히기 전에는 발행하지
+   않는다 — 그때 필요한 측정은 미리 끝내 두었으므로, 다음 세션은 조사부터 다시 시작할 필요가
+   없다.
+
+   *(1) 손으로 쓴 사실 블록은 세 종류뿐이고, 셋 다 이미 Go에서 생성되고 있다.*
+   `tools/libgen`은 `agent-mesh-flows/shared/library/shared-guardrails.md` 한 파일에만
+   주입하며 마커는 셋이다 — `version_rule`, `reserved_commands`(예약 24 + hookable 6을 한
+   블록에서 함께 출력), `section_order`(정규 22개 순서). 즉 **메커니즘도 소스도 이미
+   존재하고, 적용 범위만 한 파일이다.**
+
+   *(2) `skills/` 트리에는 AUTOGEN 커버리지가 전혀 없다.* 같은 세 사실을 손으로 다시 적은
+   사본의 현재 위치와 상태:
+
+   | 파일 | 사본 | 상태 |
+   | --- | --- | --- |
+   | `skills/dva-config/references/schema-reference.md` | 예약 24, hookable 6, 정규 순서 22 | **정확함** — docs/43 이후 손으로 맞춰졌다. 게이트가 없을 뿐 값은 맞다 |
+   | `skills/dva/references/commands.md` | 예약 목록, hookable 개수 | 낡음 — TASK-275 item 2가 소유 |
+   | `skills/dva/references/patterns.md` | 정규 순서 | 낡음 (`default_plan` 누락 등) — TASK-275 item 4가 소유 |
+   | `skills/dva/references/advanced.md` | hookable 개수 | 낡음 — TASK-275 item 3a가 소유 |
+
+   `agent-mesh-flows/` 안의 사본들은 전부 flowgen이 `shared-guardrails.md`에서 복사한
+   생성물이므로 손으로 쓴 블록이 아니다 (`tools/flowgen/main.go`의 target 표).
+
+   *(3) 따라서 후속 카드의 범위는 "게이트를 새로 설계한다"가 아니라 "이미 있는 세 마커를
+   `skills/` 파일들에 설치하고 libgen의 대상 목록을 한 파일에서 표로 넓힌다"이다.* libgen은
+   현재 `guardrailsPath` 단일 경로를 하드코딩하고 있어 flowgen과 같은 target 표로 바꾸는 것이
+   실제 작업의 대부분이다. TASK-275가 값을 먼저 고쳐야 하는 이유도 여기 있다 — 마커를 먼저
+   설치하면 낡은 값이 생성물로 덮여 사라지고, 무엇이 왜 틀렸는지 기록이 남지 않는다.
+
+   *(4) 선례:* [TASK-280](../done/280-name-the-live-hookable-set-in-the-schema.md)은 같은
+   hookable 목록의 네 번째 사본을 `internal/config/schema.json`에서 찾아 고쳤다. JSON은 Go
+   헬퍼를 호출할 수 없어 AUTOGEN 대신 **파생 테스트**를 썼다 —
+   `TestSchemaDescriptionNamesTheLiveHookableCommands`가 기대값을 `HookableCommandList()`에서
+   가져온다. 마커를 넣을 수 없는 표면에는 이 패턴을 재사용한다. TASK-280은 이 계획을 연 뒤에
+   발견된 건이라 children에 넣지 않았지만 근본 원인은 같다.
 
 ## 검토 종료된 항목
 
