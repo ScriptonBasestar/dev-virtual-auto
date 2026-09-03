@@ -25,7 +25,11 @@ TASK-281이 동결한 계약대로 `env_bridge` 게이트와 `dva config env sea
 - `env_bridge`를 선언하지 않은 `dva.yml`은 load/merge/show/validate 결과가 오늘과 동일하다.
 - 게이트가 꺼진 상태가 기본이므로, 이 릴리스를 설치한 기존 사용자에게 새로 열리는 동작은 없다.
 - DVA는 age/KMS/PGP 키를 소유하지 않는다. `seal`은 키 인자를 받지 않고 `.sops.yaml`에 의존한다.
-- 복호값은 `show`의 stdout 외 어디에도 나타나지 않는다 — log, error, JSON, temp filename 포함.
+- 복호값은 `show`가 사람에게 내보내는 스트림 외 어디에도 나타나지 않는다 — log, error, JSON,
+  temp filename 포함. TASK-281 §3-4가 그 스트림을 `/dev/tty`로 동결하면 stdout도 그 "어디에도"에
+  포함된다.
+- 호출자 신원 판정은 하지 않는다. advisory 감지를 구현하더라도 보안 경계로 문서화하지 않으며,
+  우회 플래그를 만들지 않는다 (TASK-281 §3-6).
 
 ## Implementation notes
 
@@ -45,7 +49,8 @@ TASK-281이 동결한 계약대로 `env_bridge` 게이트와 `dva config env sea
 - [ ] Implement the gate's origin and merge rule, including a test that a subproject cannot enable the parent's gate | verify: `make test`
 - [ ] Implement `seal` with no key or provider arguments, failing closed when `.sops.yaml` declares no creation rule for the source | verify: `make test`
 - [ ] Implement the frozen lost-update defense and cover every row of the TASK-281 `seal` matrix, asserting the existing source is byte-identical after each failure | verify: `make test`
-- [ ] Implement `show` and assert no decrypted value reaches debug log, stderr, error envelope, JSON, or any temp filename in any failure path | verify: `make test`
+- [ ] Implement `show` on the frozen output stream, failing closed when it cannot be opened, and assert no decrypted value reaches debug log, stderr, error envelope, JSON, or any temp filename in any failure path | verify: `make test`
+- [ ] Implement the frozen agent-exposure controls with no bypass flag, and assert the disabled, no-terminal, and advisory refusals resolve to one deterministic code each | verify: `make test`
 - [ ] Implement disabled-state rejection for both commands ahead of every other preflight step, with the frozen codes and exit 1 | verify: `make test`
 - [ ] Cover the real-sops path for both commands with the pinned sops/age integration job that already exists for `unseal` | verify: `make test-integration`
 - [ ] Assert `edit` and `unseal` outputs, codes, and exits are unchanged by this card | verify: `make test`

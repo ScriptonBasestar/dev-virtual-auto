@@ -3,10 +3,10 @@ id: PLAN-002
 title: "Deliver the command-surface proposal through evidence-gated tasks"
 type: plan
 scope: "D6/D7 diagnostics, secure env bridge, required-env and interaction env-file policy, capability-driven init, and optional env promotion"
-progress: 46
-total-tasks: 15
+progress: 38
+total-tasks: 16
 completed-tasks: 6
-children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285]
+children: [TASK-244, TASK-245, TASK-246, TASK-247, TASK-248, TASK-249, TASK-250, TASK-251, TASK-252, TASK-265, TASK-266, TASK-281, TASK-282, TASK-284, TASK-285, TASK-286]
 target-date: "2026-12-31"
 created: 2026-09-01
 ---
@@ -38,12 +38,12 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 
 ## Current status and recommended order (2026-09-03)
 
-11장 중 6장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
+16장 중 6장이 닫혔다: TASK-244(`cb4d598`), TASK-245, TASK-246(`cccb310`), TASK-247,
 TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 카드도 이미 `tasks/done/`에
 있다 — doccheck가 basename으로 해소하므로(TASK-143) 링크는 유효하며, 상태 판정은 링크 경로가 아니라
 카드 front-matter에서 읽는다.
 
-남은 7장과 각각의 착수 조건:
+남은 10장과 각각의 착수 조건:
 
 | Task | 상태 | 착수 조건 |
 | --- | --- | --- |
@@ -54,6 +54,9 @@ TASK-248(`b23780e`), TASK-265. 위 표의 링크가 `../todo/`를 가리키는 �
 | TASK-266 | todo, Stage A 완료 | Stage B는 릴리스 게이트 대기 |
 | TASK-284 | todo | 착수 가능 — 계약 재결정 없이 구현이 이미 선언된 §5-3/§5-4/§8-1을 충족하게 만드는 카드다 |
 | TASK-285 | todo | 착수 가능 — Stage B 릴리스 게이트와 무관하다 |
+| TASK-281 | `decision-status: pending` | 사람 결정 필요. 선행 TASK-246이 통합돼 입력은 갖춰졌다 |
+| TASK-282 | todo | TASK-281 결정 이후 |
+| TASK-286 | todo | TASK-281이 게이트 대상 명령 집합을 확정한 이후 |
 
 다음 순서를 권장한다.
 
@@ -330,5 +333,6 @@ release candidate는 최소 `make lint`, `make test`, `make test-integration`, `
 - TASK-266 — deprecate then reject the inert interaction env_file field
 - TASK-281 — freeze the gate-guarded seal and show contract for the config env bridge
 - TASK-282 — implement the gated seal and show commands behind the env_bridge switch
+- TASK-286 — project agent-runtime deny rules for the commands agents must not run
 
 Cross-plan prerequisite: PLAN-003의 TASK-264가 TASK-248보다 먼저 imported interaction/provision owner를 복구한다.

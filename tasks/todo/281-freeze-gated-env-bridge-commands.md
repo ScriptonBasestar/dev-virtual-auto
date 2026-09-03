@@ -111,9 +111,14 @@ secret sentinel 금지, exit code 비전파 — 은 **전부 유지되며 `seal`
 
 ### 3-4. `show` 계약
 
-`show`는 복호값을 stdout에 낸다. 이 저장소가 지금까지 절대 금지로 다뤄온 유일한 동작이므로
+`show`는 복호값을 사람에게 보여준다. 이 저장소가 지금까지 절대 금지로 다뤄온 유일한 동작이므로
 예외의 경계를 좁게 판정한다.
 
+- **출력 경로.** 권장은 **stdout이 아니라 controlling terminal(`/dev/tty`) 전용**이다. 열 수
+  없으면 fail-closed(`no_controlling_terminal`). 이유는 §3-6이 소유한다 — 요약하면, 캡처
+  가능한 스트림으로 secret을 내보내지 않는 것은 호출자가 누구인지 판정하지 않고도 성립하는
+  유일한 방어다. `isTerminal`은 이미 `internal/cli/root.go:562`에 있다.
+  파일이 필요한 사용처는 `unseal`이 이미 소유하므로 `show`가 리다이렉션을 지원할 이유가 없다.
 - **`--json` 지원 여부.** 권장은 거부(`json_unsupported_for_show`)다. envelope에 secret을 넣으면
   기계 소비 파이프라인과 로그로 흘러드는 경로가 기본값이 된다.
 - 게이트가 여는 것은 **`show`의 stdout 하나뿐**이다. debug log, error message, temp filename,
@@ -138,13 +143,46 @@ error code로 표현한다. 새 code 후보: `seal_not_enabled`, `show_not_enabl
 게이트 검사는 preflight **1단계보다 앞**에 온다 — 꺼진 명령이 platform이나 config 상태에 따라
 다른 오류를 내면 게이트가 무슨 일을 하는지 설명할 수 없게 된다.
 
+### 3-6. 에이전트 노출 통제
+
+`env_bridge.allow_show`를 켠 저장소에서 LLM 에이전트가 `show`를 실행하면 복호값이 그대로
+대화 트랜스크립트와 공급자 로그로 들어간다. 이 카드는 그 노출을 줄이는 수단을 판정한다.
+
+**전제: 호출자가 LLM인지 판정하는 것은 불가능하다.** CLI에는 인증된 호출자 신원이 없다.
+`CLAUDECODE`, `AI_AGENT`, `CLAUDE_CODE_ENTRYPOINT` 같은 신호는 전부 호출자 자신의 환경변수이고
+`env -u`로 사라진다. 부모 프로세스 검사도 셸이 겹치면 무너진다. HTTP `User-Agent`로 접근제어를
+하지 않는 것과 같은 이유이므로, **어떤 탐지도 보안 경계로 선언하지 않는다.** 선언하면 막히지
+않은 것을 막혔다고 믿게 된다.
+
+따라서 문제를 바꾼다 — "호출자가 LLM인지 알아낸다"가 아니라 **"LLM이 값을 가져갈 수 없게 한다"**.
+앞은 탐지 문제라 불가능하고 뒤는 배관 문제라 성립한다.
+
+| 층 | 수단 | 성격 | 소유 |
+| --- | --- | --- | --- |
+| DVA 배관 | §3-4의 `/dev/tty` 전용 출력 | **구조적** — 탐지하지 않음 | 이 카드 |
+| DVA advisory | 에이전트 환경변수 감지 시 거부 | 사고 방지 | 이 카드 |
+| 에이전트 런타임 | 저장소가 배포하는 deny 규칙 | 런타임이 강제 | TASK-286 |
+| 팀 정책 | `allow_show: false` 유지 | 가장 강함 | 사용자 |
+
+판정할 것:
+
+- **Advisory 감지 채택 여부와 신호 목록.** 채택한다면 **우회 플래그를 만들지 않는다.**
+  `--i-am-human` 류를 두는 순간 오류 메시지가 우회 설명서가 되고 에이전트가 그것을 읽고
+  재시도한다. 문서에는 반드시 advisory라고 적고 보안 경계라고 적지 않는다.
+- `/dev/tty` 전용 출력이 남기는 구멍의 기록. 에이전트가 pty를 할당하면(`script -q /dev/null …`)
+  뚫린다. 이것은 이미 우회 의도이며 CLI 계층이 막을 수 있는 종류가 아니라는 사실을 카드에
+  남긴다 — 그 지점부터는 런타임 deny 규칙(TASK-286)의 영역이다.
+- Advisory 거부와 `no_controlling_terminal`이 **같은 상황에서 서로 다른 code를 내지 않도록**
+  순서를 고정한다. 에이전트는 TTY도 없는 것이 보통이므로 두 조건이 거의 항상 함께 참이다.
+
 ## Completion Criteria
 
 - [ ] Freeze the `env_bridge` schema, its accepted declaration locations, and the exact behaviour of a config that omits it | verify: human — accepted and rejected YAML examples must be recorded for every declaration location
 - [ ] Freeze the gate's origin provenance and multi-origin merge rule, including the subproject case | verify: human — a subproject must not be able to enable the parent's gate, and the conflicting-declaration outcome must be named
 - [ ] Freeze the `seal` contract with no key or provider arguments, an explicit missing-creation-rule failure, and a decided defense for the lost-update scenario recorded in this card | verify: human — the chosen defense must be deterministic without a TTY, and key names must never be compared by value
 - [ ] Freeze the full `seal` state matrix across source existence, target state, key-set delta, and flags, reusing TASK-245's atomic-write and containment guarantees | verify: human — the matrix must cover every Cartesian branch and name one code per branch
-- [ ] Freeze the `show` contract and state precisely which TASK-245 redaction rule the gate opens and which remain absolute | verify: human — only `show`'s own stdout may be excepted; log, error, JSON and filename rules must be restated as unchanged
+- [ ] Freeze the `show` contract, its output stream, and precisely which TASK-245 redaction rule the gate opens and which remain absolute | verify: human — only `show`'s own human-facing output may be excepted; log, error, JSON and filename rules must be restated as unchanged
+- [ ] Decide the agent-exposure controls, recording that no caller-identity test is claimed as a security boundary and that any advisory refusal ships without a bypass flag | verify: human — the residual pty hole must be recorded and handed to TASK-286 rather than left implied
 - [ ] Freeze disabled-state behaviour, help visibility, and the new error codes, placing the gate check before every other preflight step | verify: human — the argv table must show text and exit for both disabled commands
 - [ ] Record the compatibility consequence of adding a top-level key under `additionalProperties: false`, including which DVA versions reject such a config outright | verify: human — the version boundary and any scaffold/version policy change must be named
 - [ ] Update PLAN-002 §1-1 and §7 to the narrowed wording, record that TASK-245 §11 is superseded without editing that done card, and create the implementation child before closing | verify: `make doc-check`
