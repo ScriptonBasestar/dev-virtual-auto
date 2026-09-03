@@ -10,7 +10,8 @@ source: "PLAN-002 tracked D8-compatible scaffold ruling"
 scope: "init discovery contract, capability preset integration, plan naming/default rules, human-agent parity, census ownership"
 status: todo
 needs-human: true
-decision-status: pending
+decision-status: decided
+decided-at: 2026-09-03T21:35:00+09:00
 ---
 
 # Task 249: redesign capability-driven init
@@ -101,3 +102,57 @@ done 카드를 제자리에서 수정하는 것이 아니라 명시적으로 sup
 아니면 `am` 프리셋 코퍼스까지 구속하는가. 전자라면 완료기준 4와 233은 서로 다른 표면을
 말하므로 공존하고, 이 카드는 완료기준 9(호환성 매트릭스 동결)로 축소된다. 후자라면 233을
 supersede하는 카드가 같은 변경에 포함돼야 한다.
+
+## Decision Record (2026-09-03)
+
+**좁은 질문(D8의 구속 범위)에 대한 답: D8은 Go `dva init` 생성기만 구속한다. `am` 프리셋
+코퍼스는 별도 표면이다.** 이에 따라 완료기준 4는 TASK-233의 Decision과 충돌하지 않고 공존하며,
+233을 supersede하는 새 카드는 필요 없다. `## Recommended direction`에 기술된 방향을 그대로
+채택한다.
+
+### 판단 권한과 근거 — 두 층위를 구분
+
+이 카드는 두 가지 서로 다른 승인을 필요로 했고, 둘의 권한 형태가 다르다.
+
+1. **"권장안을 Decision Record로 기록하라"는 실행 지시**는 2026-09-03 사용자가 이전 라운드
+   보고서에서 `AskUserQuestion`으로 제시받은 실행 범위 선택지("TASK-249 카드에 권장안을
+   Decision Record로 기록")를 선택함으로써 승인됐다. TASK-257과 동일한 형태의 권한이다.
+2. **D8의 구속 범위(좁은 질문)는 그 실행 범위 선택지에 포함되지 않았다.** 이 카드는
+   `needs-human: true`이고, 카드 자신의 `## Known Contradiction` 절이 "이 카드를 결정할 때
+   먼저 답해야 할 좁은 질문"이라고 명시적으로 결정 게이트를 걸어 두었다. 이 질문은 이전
+   라운드에 사용자에게 별도 선택지로 제시된 적이 없었으므로, 실행 범위 승인을 이 질문의
+   답으로 취급하는 것은 TASK-252 commit `e6949ac`가 이미 한 번 정정한 것과 같은
+   추론된-권한(inferred-authority) 오류가 된다. 따라서 이 좁은 질문은 별도의
+   `AskUserQuestion`으로 2026-09-03 사용자에게 두 선택지(Go init 생성기만 구속 / am 코퍼스까지
+   구속)와 각각의 근거·비용을 제시했고, 사용자가 **"Go init 생성기만 구속"**을 직접 선택했다.
+
+이 카드를 재론할 때는 이 두 승인을 하나로 뭉뚱그리지 말 것 — 실행 지시는 간접(선택지 승인),
+D8 범위 답은 직접(별도 질문에 대한 명시적 응답)이다.
+
+### 완료기준 번호 오류 정정
+
+`## Known Contradiction` 절(L100-103)은 "전자라면... 이 카드는 완료기준 9(호환성 매트릭스
+동결)로 축소된다"고 적었으나, 이 카드의 실제 완료기준 목록에서 backward-compatibility matrix는
+**완료기준 8**이다(완료기준 9는 census owner/cadence). 이 정정을 반영해 다시 쓰면: 좁은 질문이
+"Go init 생성기만 구속"으로 풀리면서, 이 카드에 **추가로 필요했던 것**(233을 supersede하는 새
+카드)은 사라지고 완료기준 8(backward-compatibility matrix 동결)에 "TASK-233과의 표면 분리"를
+명시적으로 한 줄 기록하는 것으로 충분해진다 — 카드 전체의 나머지 완료기준(1·2·3·5·6·7·9·10)이
+사라지거나 자동으로 충족되는 것은 아니다. 모두 여전히 미체크 상태로 남는다.
+
+### 완료기준 4 — 233과의 공존을 명시
+
+`local-infra`·`local-dev`·`full-stack`을 Go init 생성기의 생성 기본값에서 배제하는 것은 이
+결정으로 확정된다. `tasks/_archive/233-capability-driven-plan-presets.md`의 Decision("Use
+`local-infra` as the preferred generated default...")은 `am` 프리셋 코퍼스 표면에 대한
+것이므로 무효화되지 않고 그대로 유효하다. 두 카드는 서로 다른 생성기(Go init 바이너리 vs. `am`
+flow 기반 preset)를 가리키므로 같은 이름이 한쪽에서 배제되고 다른 쪽에서 허용되는 것은
+모순이 아니다.
+
+### 나머지 완료기준은 여전히 열려 있다
+
+이 판정은 D8 범위 질문과 완료기준 4의 233-공존만 확정한다. 완료기준 1(discovery evidence
+fixture 정의), 2(capability-driven preset 재사용), 3(라벨-증거 분리 인벤토리), 5(single-plan
+vs `default_plan`), 6(no-overwrite/preview/idempotence), 7(canonical generator 통합), 8(호환성
+매트릭스 — 위 233 분리 기록 포함), 9(census owner/cadence), 10(이 카드 자체의 기록)은 이
+Decision Record 이후에도 별도 엔지니어링 작업으로 남는다. `decision-status: decided`는 사람이
+답할 방향 질문이 끝났다는 뜻이지, 카드가 완료됐다는 뜻이 아니다 — 카드는 `todo/`에 남는다.
