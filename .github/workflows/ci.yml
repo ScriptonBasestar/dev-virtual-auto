@@ -37,6 +37,26 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+  commit-subjects:
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 is load-bearing. commitcheck pins a baseline commit and walks
+      # baseline..HEAD; in the default shallow clone that baseline is absent, the range
+      # resolves to nothing, and a gate that matched nothing reads exactly like a gate that
+      # passed. commitcheck exits 2 in that case rather than pass, so a shallow checkout here
+      # turns this job permanently red instead of silently useless — either way it stops
+      # being a check. Do not remove this.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Commit Subjects
+        run: make commit-check
+
   lint:
     runs-on: ubuntu-latest
     steps:

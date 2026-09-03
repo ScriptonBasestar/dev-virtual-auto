@@ -1,0 +1,39 @@
+#!/bin/bash
+# commit-msg: Reject a commit subject that violates the format SSOT, before the object exists.
+# Purpose: `make commit-check` can only report a violation that already happened. Once a bad
+#          subject is pushed it cannot be rewritten under this repository's git policy, so the
+#          only remaining move is a waiver in tools/commitcheck. This hook is the point at
+#          which the answer is still "edit this line". Five waivers were added on 2026-09-03
+#          because no such point existed.
+# Usage:   installed by `make install-hooks`; git invokes it as commit-msg <message-file>
+set -euo pipefail
+
+if [ $# -lt 1 ]; then
+    echo "commit-msg: no message file argument" >&2
+    exit 2
+fi
+
+root="$(git rev-parse --show-toplevel)"
+
+# Exit 2, never 0. A hook that cannot run its check has not approved the commit -- passing
+# here would reintroduce exactly the silence this hook exists to remove.
+if ! command -v go >/dev/null 2>&1; then
+    echo "commit-msg: go is not on PATH, so the subject could not be checked" >&2
+    echo "            install Go, or commit with --no-verify and fix the subject yourself" >&2
+    exit 2
+fi
+
+# `go run` appends its own "exit status 1" line to stderr when the checked program fails.
+# In a commit-msg hook that reads as a hook malfunction rather than as the verdict, so the
+# check's own stderr is captured and that one line is dropped before it reaches the author.
+# `go run` also collapses every nonzero program exit to 1, so commitcheck's exit 2 ("could
+# not read the message") arrives here as 1. Git aborts the commit on any nonzero status, so
+# the block holds either way; only the reason is carried by the message text, not the code.
+err="$(mktemp)"
+trap 'rm -f "$err"' EXIT
+
+status=0
+go run "$root/tools/commitcheck" -message-file "$1" 2>"$err" || status=$?
+/usr/bin/grep -v '^exit status [0-9][0-9]*$' "$err" >&2 || true
+
+exit "$status"

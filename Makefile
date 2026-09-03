@@ -25,7 +25,7 @@ WF_PUBLIC_FLOWS := agent-mesh-flows/dva-diagnose.yaml \
 	agent-mesh-flows/dva-improve-guided/00-analyze.yaml \
 	agent-mesh-flows/dva-improve-guided/30-configure.yaml
 
-.PHONY: build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check release-preflight release-clean release-postflight dogfood-skill-install
+.PHONY: install-hooks build install install-binary test test-integration test-skill-dogfood lint clean fmt fmt-check vet help generate check-generate doc-check commit-check release-check release-preflight release-clean release-postflight dogfood-skill-install
 
 ## build: Build the dva binary (CI)
 build: generate
@@ -372,15 +372,28 @@ doc-check:
 	go run ./tools/cilabels
 	go run ./tools/flowcheck
 
-## commit-check: Hold commit subjects since the gate's baseline to the format SSOT
+## commit-check: Hold commit subjects since the gate's baseline to the format SSOT (CI)
 commit-check:
-	@# Deliberately not labelled (CI) and deliberately absent from ci.yml. The check reads
-	@# git history, and CI clones are routinely shallow — there the pinned baseline is
-	@# simply not present and the range would resolve to zero commits, which prints
-	@# identically to a clean repository. commitcheck exits 2 rather than pass in that
-	@# case, so wiring it into CI would trade a real local gate for a red build that says
-	@# nothing about the commits. Run it locally and before integrating.
+	@# This was deliberately absent from ci.yml, because the check reads git history and CI
+	@# clones are routinely shallow — there the pinned baseline is simply not present, the
+	@# range would resolve to zero commits, and commitcheck exits 2 rather than reporting a
+	@# clean run. That objection was about the clone, not the check: the ci.yml job that runs
+	@# this target checks out with fetch-depth: 0, so the baseline is reachable and the range
+	@# is real. Do not add it to a job that checks out shallowly.
+	@#
+	@# CI is the backstop, not the gate. It runs after a push, and this repository's branches
+	@# integrate straight to master, so by the time CI speaks the subject is already published
+	@# and unfixable. The gate that can still be acted on is the commit-msg hook — see
+	@# install-hooks.
 	go run ./tools/commitcheck
+
+## install-hooks: Point this clone's git hooks at .githooks (subject gate; run once per clone)
+install-hooks:
+	@# Not automatic, because git will not let a repository install its own hooks — that is a
+	@# code-execution boundary, and it is the reason this cannot be guaranteed by checkout
+	@# alone. One command per clone; worktrees created from it inherit the setting.
+	git config core.hooksPath .githooks
+	@echo "hooks: core.hooksPath = .githooks (commit-msg enforces the subject format SSOT)"
 
 ## release-check: Build and verify GoReleaser snapshot archives and checksums (CI)
 release-check: build

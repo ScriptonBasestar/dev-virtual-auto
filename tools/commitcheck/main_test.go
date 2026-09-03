@@ -1,7 +1,9 @@
 package main
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -104,6 +106,11 @@ func TestGrandfatheredCommitsAreTheExactHistoricalObjects(t *testing.T) {
 	}{
 		{"d7976538a9f68dad0c7873ce8c256fb7c60212a0", "feat: add deterministic skill installer"},
 		{"c6ed4eab2750ec4e6aca3e130dfcad61abc3fc6f", "fix: harden skill installation transactions"},
+		{"095f525ba1c71624b9ad4b7198b1f33013d229ad", "docs: repair drift across core documents"},
+		{"6ab9c64333f54e6ef97bc81e123e75fc4173f141", "docs: align CLI surface facts with shipped commands"},
+		{"a6666c1a48d9fa27411831f16da201bb9c5ba6a0", "docs: restore README quick-start role and align environments vocabulary"},
+		{"6e3f581447748b465808d73270900d356aaca5b8", "docs(tasks): widen TASK-273 to the manifest that advertises the dead flags"},
+		{"7ce7c1469fe9ad42248b9f52c19cd27e85a0bb6b", "docs(tasks): correct TASK-273 \u2014 the four options are path-conditional, not dead"},
 	}
 	if len(grandfatheredCommits) != len(want) {
 		t.Fatalf("grandfathered commit count = %d, want %d", len(grandfatheredCommits), len(want))
@@ -147,5 +154,51 @@ func TestSuccessMessageNamesTheExceptionBoundary(t *testing.T) {
 	const want = "commitcheck: OK -- every non-exempt subject since the baseline matches the format SSOT"
 	if successMessage != want {
 		t.Errorf("success message = %q, want %q", successMessage, want)
+	}
+}
+
+func TestEveryWaiverRecordsWhyItCouldNotBeRepaired(t *testing.T) {
+	// A waiver without a reason is indistinguishable from one added to make the build green.
+	// The reason is the only part a reviewer can weigh, so its absence is a test failure
+	// rather than a style note.
+	for _, c := range grandfatheredCommits {
+		if strings.TrimSpace(c.reason) == "" {
+			t.Errorf("waiver %s has no reason", c.sha[:8])
+		}
+	}
+}
+
+func TestMessageFileModeRejectsWhatTheHistorySweepWouldHaveCaught(t *testing.T) {
+	cases := []struct {
+		name    string
+		message string
+		want    int
+	}{
+		{"conforming", "fix(cli): repair the plan flag parser\n", 0},
+		{"scope missing", "docs: repair drift across core documents\n", 1},
+		{"over the limit", "docs(tasks): " + strings.Repeat("x", maxSubject) + "\n", 1},
+		{"unknown type", "wibble(cli): do a thing\n", 1},
+		{"comments and blanks skipped", "\n# please enter the commit message\nfix(cli): repair the parser\n", 0},
+		{"generated merge subject", "Merge branch 'x' into master\n", 0},
+		{"generated revert subject", "Revert \"fix(cli): repair the parser\"\n", 0},
+		{"empty message is git's business", "\n# only comments\n", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "COMMIT_EDITMSG")
+			if err := os.WriteFile(path, []byte(tc.message), 0o600); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			if got := checkMessageFile(path); got != tc.want {
+				t.Errorf("checkMessageFile = %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestMessageFileModeFailsLoudlyWhenTheFileIsMissing(t *testing.T) {
+	// Exit 2, not 0. A hook that cannot read the message has not approved it.
+	if got := checkMessageFile(filepath.Join(t.TempDir(), "absent")); got != 2 {
+		t.Errorf("missing file exit = %d, want 2", got)
 	}
 }
