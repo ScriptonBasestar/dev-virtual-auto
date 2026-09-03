@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/cobra"
+
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
@@ -339,5 +341,262 @@ func TestDetectInfraComposeFiles_MultipleFiles(t *testing.T) {
 	files := detectInfraComposeFiles()
 	if len(files) != 2 {
 		t.Errorf("expected 2 files, got %d: %v", len(files), files)
+	}
+}
+
+// TestInitPublicSurfaceCompatibility pins TASK-250's canonical-path contract:
+// all five templates, the four scaffolding flags, `config init`, and the
+// top-level `init` alias all resolve through scaffoldDvaYml/generateConfigIn,
+// and TASK-249's compose-only / native-only / hybrid / no-discovery discovery
+// outcomes behave as decided.
+func TestInitPublicSurfaceCompatibility(t *testing.T) {
+	t.Run("five templates remain selectable and produce valid compose-only configs", func(t *testing.T) {
+		for _, tmpl := range []string{"minimal", "rails", "node", "python", "go"} {
+			t.Run(tmpl, func(t *testing.T) {
+				tmpDir := t.TempDir()
+				oldDir, _ := os.Getwd()
+				os.Chdir(tmpDir)
+				defer os.Chdir(oldDir)
+
+				os.WriteFile("docker-compose.yml", []byte("services:\n  app:\n    image: busybox\n"), 0644)
+
+				created, err := scaffoldDvaYml(".", tmpl)
+				if err != nil || !created {
+					t.Fatalf("scaffoldDvaYml(%q) = (%v, %v), want (true, nil)", tmpl, created, err)
+				}
+				cfg, err := config.Load(tmpDir)
+				if err != nil {
+					t.Fatalf("Load: %v", err)
+				}
+				if err := cfg.Validate(); err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("four flags are registered on both config init and the top-level alias", func(t *testing.T) {
+		for _, cmd := range []*cobra.Command{initCmd, initAliasCmd} {
+			for _, flag := range []string{"template", "recursive", "devcontainer", "all"} {
+				if cmd.Flags().Lookup(flag) == nil {
+					t.Errorf("%s: missing --%s flag", cmd.CommandPath(), flag)
+				}
+			}
+		}
+		if initCmd.Flags().ShorthandLookup("t") == nil {
+			t.Error("config init: missing -t shorthand for --template")
+		}
+	})
+
+	t.Run("config init is registered under config and init remains a visible top-level alias", func(t *testing.T) {
+		found := false
+		for _, c := range configCmd.Commands() {
+			if c.Name() == "init" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected 'init' registered under 'config'")
+		}
+		if initAliasCmd.Hidden {
+			t.Error("top-level 'init' alias must stay visible for backward compatibility")
+		}
+		topFound := false
+		for _, c := range rootCmd.Commands() {
+			if c.Name() == "init" {
+				topFound = true
+			}
+		}
+		if !topFound {
+			t.Error("expected top-level 'init' alias registered on rootCmd")
+		}
+	})
+
+	t.Run("config init and the top-level alias invoke the same canonical RunE", func(t *testing.T) {
+		dirA := t.TempDir()
+		dirB := t.TempDir()
+		os.WriteFile(filepath.Join(dirA, "docker-compose.yml"), []byte(""), 0644)
+		os.WriteFile(filepath.Join(dirB, "docker-compose.yml"), []byte(""), 0644)
+
+		origWd, _ := os.Getwd()
+		defer os.Chdir(origWd)
+
+		savedTemplate, savedRecursive, savedDevcontainer, savedAll := initTemplate, initRecursive, initDevcontainer, initAll
+		defer func() {
+			initTemplate, initRecursive, initDevcontainer, initAll = savedTemplate, savedRecursive, savedDevcontainer, savedAll
+		}()
+		initTemplate, initRecursive, initDevcontainer, initAll = "node", false, false, false
+
+		// initAliasCmd.RunE is literally the same function value as
+		// initCmd.RunE (see init.go's initAliasCmd construction) — invoking
+		// both here exercises that shared function, not just two direct
+		// scaffoldDvaYml calls standing in for command-level equivalence.
+		if err := os.Chdir(dirA); err != nil {
+			t.Fatalf("chdir dirA: %v", err)
+		}
+		if err := initCmd.RunE(initCmd, nil); err != nil {
+			t.Fatalf("initCmd.RunE: %v", err)
+		}
+		if err := os.Chdir(dirB); err != nil {
+			t.Fatalf("chdir dirB: %v", err)
+		}
+		if err := initAliasCmd.RunE(initAliasCmd, nil); err != nil {
+			t.Fatalf("initAliasCmd.RunE: %v", err)
+		}
+
+		a, _ := os.ReadFile(filepath.Join(dirA, config.FileName))
+		b, _ := os.ReadFile(filepath.Join(dirB, config.FileName))
+		if string(a) != string(b) {
+			t.Fatalf("expected identical output from the shared RunE, got:\nA:\n%s\nB:\n%s", a, b)
+		}
+	})
+
+	t.Run("compose-only: Compose file present, no language manifest", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(""), 0644)
+
+		outcome, composeFiles, nativeLang := classifyDiscovery(tmpDir)
+		if outcome != outcomeComposeOnly {
+			t.Fatalf("expected outcomeComposeOnly, got %v", outcome)
+		}
+		if len(composeFiles) == 0 || nativeLang != "" {
+			t.Fatalf("compose-only classification carried unexpected evidence: files=%v lang=%q", composeFiles, nativeLang)
+		}
+	})
+
+	t.Run("native-only: language manifest present, no Compose file, no guessed runner", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte("module example.com/x\n"), 0644)
+
+		outcome, composeFiles, nativeLang := classifyDiscovery(tmpDir)
+		if outcome != outcomeNativeOnly {
+			t.Fatalf("expected outcomeNativeOnly, got %v", outcome)
+		}
+		if len(composeFiles) != 0 || nativeLang != "go" {
+			t.Fatalf("native-only classification mismatch: files=%v lang=%q", composeFiles, nativeLang)
+		}
+
+		created, err := scaffoldDvaYml(tmpDir, "")
+		if err != nil || !created {
+			t.Fatalf("scaffoldDvaYml native-only = (%v, %v), want (true, nil)", created, err)
+		}
+		data, _ := os.ReadFile(filepath.Join(tmpDir, config.FileName))
+		content := string(data)
+		if !strings.Contains(content, "native") {
+			// documentation comment should at least mention how to add one
+			t.Errorf("native-only output should document how to add a native runner manually, got:\n%s", content)
+		}
+		cfg, err := config.Load(tmpDir)
+		if err != nil {
+			t.Fatalf("Load native-only config: %v", err)
+		}
+		if len(cfg.Stack) != 0 {
+			t.Errorf("native-only output must not author a stack entry without verified evidence, got: %+v", cfg.Stack)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate native-only config: %v", err)
+		}
+	})
+
+	t.Run("hybrid: both Compose file and language manifest present prefers Compose", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(""), 0644)
+		os.WriteFile(filepath.Join(tmpDir, "package.json"), []byte("{}"), 0644)
+
+		outcome, composeFiles, nativeLang := classifyDiscovery(tmpDir)
+		if outcome != outcomeHybrid {
+			t.Fatalf("expected outcomeHybrid, got %v", outcome)
+		}
+		if len(composeFiles) == 0 || nativeLang != "node" {
+			t.Fatalf("hybrid classification mismatch: files=%v lang=%q", composeFiles, nativeLang)
+		}
+
+		created, err := scaffoldDvaYml(tmpDir, "")
+		if err != nil || !created {
+			t.Fatalf("scaffoldDvaYml hybrid = (%v, %v), want (true, nil)", created, err)
+		}
+		data, _ := os.ReadFile(filepath.Join(tmpDir, config.FileName))
+		if !strings.Contains(string(data), "stack:") {
+			t.Errorf("hybrid output should still generate the verified Compose stack, got:\n%s", data)
+		}
+	})
+
+	t.Run("no-discovery: neither Compose file nor language manifest rejects and writes nothing", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		outcome, _, _ := classifyDiscovery(tmpDir)
+		if outcome != outcomeNoDiscovery {
+			t.Fatalf("expected outcomeNoDiscovery, got %v", outcome)
+		}
+
+		// This is a plain error return, not a preview/dry-run mechanism — DVA
+		// has no preview feature. Ambiguous/no evidence means scaffoldDvaYml
+		// refuses outright and writes nothing; it does not stage a preview.
+		created, err := scaffoldDvaYml(tmpDir, "")
+		if created || err == nil {
+			t.Fatalf("scaffoldDvaYml no-discovery = (%v, %v), want (false, non-nil)", created, err)
+		}
+		if _, statErr := os.Stat(filepath.Join(tmpDir, config.FileName)); !os.IsNotExist(statErr) {
+			t.Fatalf("no-discovery must not write dva.yml, stat err = %v", statErr)
+		}
+	})
+
+	t.Run("no-overwrite and idempotence: an existing dva.yml is never modified", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		os.WriteFile(filepath.Join(tmpDir, "docker-compose.yml"), []byte(""), 0644)
+
+		existing := "version: \"0.0.1\"\n# hand-authored\n"
+		os.WriteFile(filepath.Join(tmpDir, config.FileName), []byte(existing), 0644)
+
+		created, err := scaffoldDvaYml(tmpDir, "node")
+		if err != nil {
+			t.Fatalf("scaffoldDvaYml: %v", err)
+		}
+		if created {
+			t.Fatal("scaffoldDvaYml must not overwrite an existing dva.yml")
+		}
+		data, _ := os.ReadFile(filepath.Join(tmpDir, config.FileName))
+		if string(data) != existing {
+			t.Fatalf("existing dva.yml content changed:\nwant:\n%s\ngot:\n%s", existing, data)
+		}
+
+		// Calling again is idempotent: still a no-op, still unchanged.
+		created2, err2 := scaffoldDvaYml(tmpDir, "node")
+		if created2 || err2 != nil {
+			t.Fatalf("second scaffoldDvaYml call = (%v, %v), want (false, nil)", created2, err2)
+		}
+		data2, _ := os.ReadFile(filepath.Join(tmpDir, config.FileName))
+		if string(data2) != existing {
+			t.Fatalf("existing dva.yml content changed on second call")
+		}
+	})
+}
+
+// TestInitDoesNotAuthorRejectedPlanLabels guards TASK-250 completion criterion 5:
+// the Go `dva init` generator must never author the rejected plan labels
+// local-infra, local-dev, or full-stack as a default, across every discovery
+// outcome and template. (TASK-233's `am` preset corpus is a separate surface
+// and is explicitly out of scope for this guard — see the TASK-249 Decision
+// Record's "Go init generator only" ruling.)
+func TestInitDoesNotAuthorRejectedPlanLabels(t *testing.T) {
+	rejected := []string{"local-infra", "local-dev", "full-stack"}
+
+	check := func(t *testing.T, label, content string) {
+		t.Helper()
+		for _, r := range rejected {
+			if strings.Contains(content, r) {
+				t.Errorf("%s: generated content must never author rejected plan label %q, got:\n%s", label, r, content)
+			}
+		}
+	}
+
+	for _, tmpl := range []string{"minimal", "rails", "node", "python", "go"} {
+		content := generateConfigIn(".", tmpl)
+		check(t, "compose-only template="+tmpl, content)
+	}
+
+	for _, lang := range []string{"", "go", "node", "python", "rails"} {
+		content := generateNativeOnlyConfigIn(lang)
+		check(t, "native-only lang="+lang, content)
 	}
 }

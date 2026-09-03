@@ -804,7 +804,7 @@ interaction:
     description: "Open shell"
     service: app
     command: /bin/bash
-  console:
+  rails-console:
     description: "Rails console"
     service: app
     command: bundle exec rails console

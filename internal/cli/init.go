@@ -18,6 +18,11 @@ var initRecursive bool
 var initDevcontainer bool
 var initAll bool
 
+// initAliasCmd is the top-level `dva init` backward-compatibility alias for
+// `dva config init`. It is a package-level var (rather than local to init())
+// so tests can assert its registration and flags directly.
+var initAliasCmd *cobra.Command
+
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Scaffold a new 'dva.yml' configuration in the current directory",
@@ -86,7 +91,7 @@ func init() {
 	configCmd.AddCommand(initCmd)
 
 	// Keep a top-level alias for backward compatibility: dva init → dva config init
-	initAliasCmd := &cobra.Command{
+	initAliasCmd = &cobra.Command{
 		Use:     "init",
 		Short:   initCmd.Short,
 		Long:    initCmd.Long,
@@ -277,7 +282,7 @@ interaction:
     description: "Open Bash shell in app container"
     service: app
     command: /bin/bash
-  console:
+  rails-console:
     description: "Open Rails console"
     service: app
     command: bundle exec rails console
@@ -370,7 +375,7 @@ interaction:
     description: "Open shell in app container"
     service: app
     command: /bin/sh
-  run:
+  dev:
     description: "Run the Go application"
     service: app
     command: go run .
@@ -378,7 +383,7 @@ interaction:
     description: "Run tests"
     service: app
     command: go test ./...
-  build:
+  build-app:
     description: "Build the application"
     service: app
     command: go build -o /app/bin/app .

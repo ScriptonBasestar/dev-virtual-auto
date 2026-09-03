@@ -196,6 +196,27 @@ dva config init --all            # 가능한 모든 기능 통합 활성화 (dev
 개선하려면 `am run dva-improve`를 사용하고, 전체 재작성은 명시적으로
 `am run dva-improve -p mode=rewrite`를 지정한 경우에만 실행하세요.
 
+**생성 근거와 생략 (TASK-250)**: `dva init`은 사람과 agent가 공유하는 하나의 canonical
+생성 경로를 거칩니다. 디렉터리에서 검증 가능한 근거만 사용합니다:
+
+- **Compose 파일**이 있으면 그 파일을 참조하는 `stack:` 항목 하나를 생성합니다 (`compose-only`).
+- **언어 매니페스트**(`go.mod`, `package.json`, `requirements.txt`/`Pipfile`/`pyproject.toml`,
+  `Gemfile`)만 있고 Compose 파일이 없으면 `stack:` 항목을 생성하지 않습니다 (`native-only`).
+  DVA는 native run/build 커맨드를 추측하지 않으므로, 검증되지 않은 자리표시자를 넣는 대신
+  아예 생략하고 수동으로 `stack.<name>.runners.native`를 채우는 방법을 주석으로 안내합니다.
+- 둘 다 있으면 (`hybrid`) Compose 쪽을 검증된 근거로 사용하고, 언어 매니페스트는 정보 제공에만
+  씁니다.
+- 둘 다 없으면 (`no-discovery`) 아무 파일도 쓰지 않고 `am run dva-discover` 안내만 출력합니다.
+
+기존 `dva.yml`은 절대 덮어쓰지 않으며, 다시 실행해도 같은 상태면 아무 것도 바뀌지 않습니다
+(idempotent). 단일 검증된 closure에는 `plans:` 없이 bare lifecycle 기본값을 그대로 쓰고,
+서로 독립된 closure가 2개 이상 검증됐을 때만 명시적 `default_plan`을 기록합니다 — 지금의
+detector는 디렉터리당 검증 가능한 closure를 최대 하나만 식별하므로 이 저장소가 생성하는
+`default_plan`은 현재 없습니다. 말뭉치에서 흔한 이름이라는 이유만으로 `local-infra`,
+`local-dev`, `full-stack` 같은 이름을 기본값으로 만들지 않습니다 — corpus 빈도는 detector
+개선의 입력일 뿐 생성 계약이 아닙니다. 생성된 값은 항상 직접 편집할 수 있는 시작점이며
+고정된 스키마 어휘가 아닙니다.
+
 #### docs (config docs)
 
 ```bash
