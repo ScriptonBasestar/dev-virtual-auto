@@ -302,7 +302,16 @@ func rejectUpPositionalArg(c *config.Config, args []string) error {
 	return rejectUnknownPlanArg(c, args)
 }
 
-func parsePlanFlags(args []string) (planRunFlags, error) {
+// waitApplicableVerbs are the plan verbs where --no-wait changes anything. up waits for
+// health checks after starting entries and restart ends in that same Up phase, so Wait
+// reaches a plugin on both. stop and down tear entries down: neither builds a PluginContext
+// with Wait set, and nothing downstream reads StopOptions/DownOptions for it, because
+// "wait for readiness" has no meaning once the direction is teardown rather than startup.
+// parsePlanFlags rejects --no-wait on those two verbs instead of parsing it into a field
+// that cannot receive it (TASK-279 §2).
+var waitApplicableVerbs = map[string]bool{"up": true, "restart": true}
+
+func parsePlanFlags(verb string, args []string) (planRunFlags, error) {
 	flags := planRunFlags{
 		cliVars: map[string]string{},
 		wait:    true,
@@ -316,6 +325,9 @@ func parsePlanFlags(args []string) (planRunFlags, error) {
 		case a == "--force":
 			flags.force = true
 		case a == "--no-wait":
+			if !waitApplicableVerbs[verb] {
+				return flags, fmt.Errorf("unsupported plan flag: %s", a)
+			}
 			flags.wait = false
 		case a == "-v" || a == "--volumes":
 			flags.volumes = true
@@ -377,7 +389,7 @@ func setPlanVar(dst map[string]string, kv string) error {
 }
 
 func runPlanUp(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
-	flags, err := parsePlanFlags(extraArgs)
+	flags, err := parsePlanFlags("up", extraArgs)
 	if err != nil {
 		return err
 	}
@@ -445,7 +457,7 @@ func runPlanUp(c *config.Config, el *envLoad, planName string, extraArgs []strin
 }
 
 func runPlanDown(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
-	flags, err := parsePlanFlags(extraArgs)
+	flags, err := parsePlanFlags("down", extraArgs)
 	if err != nil {
 		return err
 	}
@@ -510,7 +522,7 @@ func runPlanDown(c *config.Config, el *envLoad, planName string, extraArgs []str
 }
 
 func runPlanStop(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
-	flags, err := parsePlanFlags(extraArgs)
+	flags, err := parsePlanFlags("stop", extraArgs)
 	if err != nil {
 		return err
 	}
@@ -546,8 +558,15 @@ func runPlanStop(c *config.Config, el *envLoad, planName string, extraArgs []str
 	})
 }
 
+// runPlanRestart stops then starts a plan's entries. Force is threaded from flags.force,
+// faithfully mirroring runPlanUp rather than hardcoding true: before TASK-279 every restart
+// force-recreated regardless of what was typed, so `dva restart <plan> --force` and
+// `dva restart <plan>` were the same command, and a user who did not ask for
+// --force-recreate got it anyway on the compose plugin. optForce ("Compose only: pass
+// --force-recreate; other plugins ignore it") now describes this call site exactly as it
+// already described up's.
 func runPlanRestart(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
-	flags, err := parsePlanFlags(extraArgs)
+	flags, err := parsePlanFlags("restart", extraArgs)
 	if err != nil {
 		return err
 	}
@@ -578,7 +597,7 @@ func runPlanRestart(c *config.Config, el *envLoad, planName string, extraArgs []
 	}
 	return orch.Restart(context.Background(), lifecycle.UpOptions{
 		DryRun: effectiveDryRun,
-		Force:  true,
+		Force:  flags.force,
 		Wait:   flags.wait,
 		Names:  planEntryNames(plan),
 		Env:    plan.EnvironmentName,

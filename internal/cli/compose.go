@@ -761,9 +761,23 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 		// remaining is docker's argv from here on — `dva build --no-cache` has to reach
 		// docker, so nothing downstream can tell a malformed DVA flag from a valid docker
 		// one. parseDvaFlags is the last code that can, and now does. TASK-172.
-		mode, _, _, _, remaining, err := parseDvaFlags(args)
+		mode, envName, includeTags, excludeTags, remaining, err := parseDvaFlags(args)
 		if err != nil {
 			return err
+		}
+		// envName/includeTags/excludeTags used to go to _, _, _ here: parseDvaFlags still
+		// consumed the three selectors off argv (that is why none of them ever leaked into
+		// docker's), but nothing bound the values, so `dva build --exclude-tag app` and
+		// `dva build --env prod` against a config with no environments: both answered exit 0
+		// having done nothing with what they parsed — silence in both directions where the
+		// stack path's `dva up --env prod` fails with "env 'prod' not found" (TASK-279 §3).
+		// build's mode-aware compose shortcut has no notion of an environment or a tag filter
+		// to apply them to, so binding the values only to fail on them (rather than pretending
+		// to honour a filter this route cannot act on) is the fix: the flag is rejected here
+		// instead of being silently absorbed, matching how the plan path already answers an
+		// unsupported plan flag.
+		if bad := unsupportedBuildSelectors(envName, includeTags, excludeTags); bad != "" {
+			return fmt.Errorf("'dva build' does not support %s — it selects among dva.yml's modes via --mode only; docker's own flags and service names still reach it unchanged", bad)
 		}
 		// Consume build's own leading separator before plan detection. The shared helper below
 		// deliberately consumes only the plan-name slot; a second terminator remains backend
@@ -883,6 +897,24 @@ compose passthrough: 'dva logs api' still means the 'api' service.`,
 		// plans and still works — and rejecting it would break that to catch a misspelling.
 		return execComposePassthrough(e, c, append([]string{config.LogsDirName}, args...))
 	},
+}
+
+// unsupportedBuildSelectors names which of --env/--tag/--exclude-tag buildCmd was given, in a
+// stable order, for the error that stops it discarding them at the parse call (TASK-279 §3).
+// build reads only --mode out of parseDvaFlags' return; empty here means none were passed and
+// the (undocumented, but harmless) all-empty case that build already handled correctly.
+func unsupportedBuildSelectors(envName string, includeTags, excludeTags []string) string {
+	var bad []string
+	if envName != "" {
+		bad = append(bad, "--env")
+	}
+	if len(includeTags) > 0 {
+		bad = append(bad, "--tag")
+	}
+	if len(excludeTags) > 0 {
+		bad = append(bad, "--exclude-tag")
+	}
+	return strings.Join(bad, ", ")
 }
 
 // parseDvaFlags extracts --mode/-M, --env/-E, --tags/-T, and --exclude-tags from args.

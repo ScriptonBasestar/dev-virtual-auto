@@ -131,3 +131,25 @@ An implementer should not mix directions across the defects without saying why i
   wrong is more likely to be §3's behaviour showing through than a missed string.
 - No change to the `--purge` confirmation gate, which was reviewed and closed in
   [PLAN-004](../plan/004-restore-documentation-truth.md).
+
+## Troubleshooting Log
+
+- 2026-09-03 — 증상: `internal/cli/compose.go`에 §3 수정(`unsupportedBuildSelectors` 추가)을
+  적용하자 파일 크기 검증 hook이 500 code-line 초과 경고를 띄움 / 원인: `git show
+  HEAD:internal/cli/compose.go | wc -l`로 확인한 결과 편집 전에도 이미 829 code lines로
+  임계값을 넘어선 상태였고, 이번 편집은 829→842로 13줄만 늘린 것 — 파일이 이미 이 카드
+  범위 밖의 선행 조건으로 초과 상태였음 / 해결: 근본 원인이 이번 변경과 무관함을 확인하고
+  분리 없이 그대로 진행 — `compose.go` 분할은 이 카드의 세 결함 수리와 무관한 별도의 큰
+  리팩터이므로 범위에 포함하지 않음 / 걸린시간: 약 10분
+
+- 2026-09-03 — 발견(수리 아님): 전체-스택 경로(`internal/cli/compose.go`의
+  `restartCmd.RunE`, `NewOrchestrator` 사용)에도 §1과 동일한 모양의 `Force: true, Wait:
+  true` 하드코딩이 남아있음. 다만 이 경로에서는 `--force`가애초에 `stackSelectorFlags`
+  허용 목록에 없어 미지원 플래그로 거부되므로 "받고 버림"이 아니라 "애초에 받지 않음"이라
+  이 카드의 결함 형태(수용 후 폐기)와 다르고, scope 필드도 "plan routes"로 명시했으므로
+  손대지 않음 — 향후 리뷰어가 같은 코드를 다시 발견하고 놀라지 않도록 기록. 같은 이유로
+  restart의 `manifest.go` Options 목록에는 `force` 키가 아예 없음(`optForce`가 나열되지
+  않음) — up과 달리 restart는 이번 수정 전까지 `--force`가 있으나 없으나 결과가 같았기
+  때문으로 보이며, criterion 6의 검증 방식(콜사이트를 직접 읽는 human 검증)은 통과하지만
+  `--help` 상에는 여전히 문서화되지 않은 채로 남음 — manifest.go는 이 카드의 선언된
+  scope 밖이라 추가하지 않음.
