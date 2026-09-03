@@ -33,10 +33,10 @@ compatibility route로 유지한다. 제거 날짜는 미리 약속하지 않고
 
 - [ ] Build a secret-free invocation corpus across tracked DVA documentation, skills, scripts and pinned canonical consumer repositories; record repository IDs, revisions, scanned paths, literal matches, unresolved dynamic calls, and scanner limitations | verify: human — missing canonical repositories, unpinned revisions, or unexplained dynamic invocations stop a rename decision
 - [x] Compare `ktl` canonical, `kubectl` canonical with compatibility, and no-change options for discoverability, typing cost, script compatibility, interaction collisions, completion, and support burden | verify: human — all three options and rejected reasons must be recorded
-- [ ] If names coexist, freeze which name is canonical, whether the other is a hidden or visible compatibility route, how both names remain reserved, and parity across root flags, entry selection, passthrough argv, help, manifest, completion, debug output, exit status, signals, and process replacement | verify: human — no unspecified alias behavior may reach implementation
-- [ ] Preserve the current collision matrix unless a separate approved contract changes it: config load warning, `config validate` error, bare-name built-in precedence, exact interaction reachability through `dva run <name>`, and reserved-prefix namespace rejection must be explicit for every coexisting name | verify: human — fail closed must not be interpreted as removing the explicit `run` escape route
-- [ ] Decide whether manifest represents one canonical command with compatibility routes or coequal routes, including schema versioning and legacy-field meaning; if current schema cannot express the decision, require the bounded child produced from TASK-254 before implementation | verify: human — TASK-256 must not invent route-identity fields ad hoc
-- [ ] Freeze deprecation warning channel, minimum compatibility releases, removal evidence gate, rollback route, and documentation migration; absence of sufficient evidence selects the current `ktl` route | verify: human — deprecation and removal must be separate decisions
+- [x] If names coexist, freeze which name is canonical, whether the other is a hidden or visible compatibility route, how both names remain reserved, and parity across root flags, entry selection, passthrough argv, help, manifest, completion, debug output, exit status, signals, and process replacement | verify: human — no unspecified alias behavior may reach implementation
+- [x] Preserve the current collision matrix unless a separate approved contract changes it: config load warning, `config validate` error, bare-name built-in precedence, exact interaction reachability through `dva run <name>`, and reserved-prefix namespace rejection must be explicit for every coexisting name | verify: human — fail closed must not be interpreted as removing the explicit `run` escape route
+- [x] Decide whether manifest represents one canonical command with compatibility routes or coequal routes, including schema versioning and legacy-field meaning; if current schema cannot express the decision, require the bounded child produced from TASK-254 before implementation | verify: human — TASK-256 must not invent route-identity fields ad hoc
+- [x] Freeze deprecation warning channel, minimum compatibility releases, removal evidence gate, rollback route, and documentation migration; absence of sufficient evidence selects the current `ktl` route | verify: human — deprecation and removal must be separate decisions
 - [ ] Obtain independent compatibility review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided` before TASK-256 begins | verify: `make doc-check`
 
 ## Non-goals
@@ -77,8 +77,9 @@ unexplained dynamic invocations **stop a rename decision**"이다. 코퍼스는 
   코퍼스는 영영 불필요했다. 승격을 고른 결과로 필수가 됐다.
 
 따라서 `decision-status`는 `decided`로 바꾸되 카드는 `todo/`에 남는다. 사람이 답할 것은
-없고, 남은 것은 목표가 고정된 엔지니어링 작업이다. **TASK-256은 완료기준 1·3·4·5·6·7이
-닫히기 전에는 시작하지 않는다.**
+없고, 남은 것은 목표가 고정된 엔지니어링 작업이다. **TASK-256은 완료기준 1·7이 닫히기
+전에는 시작하지 않는다** — 3·4·5·6은 2026-09-04 상세 계약 동결로 닫혔다(아래
+"완료기준 3·4·5·6" 절 참고).
 
 ### 완료기준 2 — 세 선택지 비교 (이 절로 충족)
 
@@ -149,3 +150,80 @@ unexplained dynamic invocations **stop a rename decision**"이다. 코퍼스는 
    거부가 명시돼야 한다. 특히 `dva run kubectl`이라는 escape route는 제거되지 않는다.
 6. **제거 날짜는 약속하지 않는다.** `ktl`은 visible compatibility route이며, deprecation과
    removal은 완료기준 6이 규정한 대로 별개 결정이다. 이 판정은 removal을 승인하지 않는다.
+
+### 완료기준 3·4·5·6 — 상세 계약 동결 (2026-09-04)
+
+위 "후속 구속" 절의 산문을 각 완료기준의 verify 조항에 맞춰 formal하게 얼린다. 새로운
+product 판단은 없다 — 이미 존재하는 `ktlCmd` 구현(`internal/cli/kubectl.go`)과 TASK-257이
+세운 `CanonicalName` 선례(`internal/cli/manifest.go:407-409`, `validate`/`config validate`
+쌍)를 그대로 두 번째 이름 쌍에 적용한 것뿐이다.
+
+**완료기준 3 — parity 명세.** `kubectl`과 `ktl`은 같은 기저 명령의 두 이름이므로, 아래 표에
+없는 차이는 전부 금지된다(= "unspecified alias behavior"는 존재하지 않는다).
+
+| 표면 | 명세 |
+| --- | --- |
+| root 플래그 | 동일. 둘 다 `consumeRootPersistentFlags`를 거친다(`kubectl.go`가 이미 그렇다) |
+| entry 선택 | 동일 로직 재사용 — 단일 kubectl entry면 생략 가능, 복수면 첫 인자가 entry 이름 |
+| passthrough argv | 동일 — entry 이후 인자를 그대로 하위 `kubectl` 바이너리에 전달 |
+| help | `kubectl --help`가 canonical 설명을 보여주고, `ktl --help`는 같은 본문에 "compatibility name for `kubectl`" 한 줄을 덧붙인다 |
+| manifest | 아래 "완료기준 5" 절 참고 |
+| completion | 코드 변경 없이 cobra 등록만으로 두 이름 모두 자동 생성(TASK-254 §5 실측과 일치) |
+| debug 출력 | 동일 — 어느 이름으로 불렀든 실행되는 하위 프로세스는 문자열 그대로 `"kubectl"`이다(`ExecReplace(e, "kubectl", ...)`, 이름 인자가 아니라 상수) |
+| exit status | 동일 — `ExecReplace`가 프로세스를 대체하므로 종료 코드는 실행된 `kubectl` 바이너리의 것이다 |
+| signals | 동일 — 대체된 프로세스가 직접 시그널을 받는다(`dva`는 관여하지 않는다) |
+| process replacement | 동일 — 두 이름 모두 `dvaexec.ExecReplace`를 그대로 호출한다. 이 사실 자체가 "두 이름이 같은 명령"이라는 이 판정의 핵심 전제를 코드 수준에서 보증한다 |
+
+**완료기준 4 — 충돌 매트릭스 보존.** "후속 구속" 5번 그대로 확정한다: config load 경고,
+`config validate` 오류, bare-name 우선, `dva run <name>` 도달 경로, reserved-prefix 거부를
+`kubectl`·`ktl` 둘 다에 대해 변경 없이 유지한다. `dva run kubectl` escape route는 제거되지
+않는다. 이 완료기준은 "바꾸지 않는다"가 결정 내용이므로 별도 신규 명세가 필요 없다.
+
+**완료기준 5 — manifest 표현.** TASK-272(2026-09-04 종결, `canonical_name` 마커 채택)가
+정확히 이 자리에 쓰라고 얼린 필드를 그대로 적용한다.
+
+```go
+"kubectl": {Type: "passthrough"},
+"ktl":     {Type: "passthrough", CanonicalName: "kubectl"},
+```
+
+`validate`/`config validate` 쌍(`internal/cli/manifest.go:407-409`)과 정확히 같은 형태 —
+호환 경로(`ktl`)가 자신의 canonical 이름을 가리키고, canonical 쪽(`kubectl`)은 이 필드를
+비운다. schema_version은 이미 1.5로 올라 있어(TASK-258) 추가 마이그레이션이 없다.
+
+**완료기준 6 — deprecation/rollback 동결.** 완료기준 자체의 fallback 조항("absence of
+sufficient evidence selects the current `ktl` route")을 문자 그대로 적용한다 — 아직
+deprecation을 정당화할 usage evidence가 없으므로(완료기준 1이 아직 코퍼스를 만들지
+않았다), **이번 라운드에서는 `ktl`을 deprecate하지 않는다.**
+
+- deprecation 경고 채널: 없음(이번 릴리스에서 deprecate하지 않으므로 발동시킬 경고 자체가 없다)
+- 최소 호환 유지 릴리스 수: 무기한 — 제거를 계획하지 않는다
+- removal evidence gate: 이 판정으로 열리지 않는다. `ktl` 제거는 이 카드가 만든 게이트가
+  아니라 별도의 새 승인된 결정을 요구한다
+- rollback route: `ktl`이 이미 살아있는 visible compatibility route이므로 "롤백"은 곧
+  현재 상태 유지다 — 되돌릴 별도 기제가 필요 없다
+- documentation migration: `docs/42-migration-and-compatibility.md:157`(“후속 구속” 4번)이
+  유일한 갱신 대상이며, 실제 문구 수정은 TASK-256 구현 범위다 — 이 카드는 어디를 고칠지만
+  얼린다
+
+### 완료기준 1 — 여전히 hard stop, 진행 없음 (2026-09-04)
+
+이 저장소 안에서 "pinned canonical consumer repositories" 코퍼스를 뒷받침할 기존 목록이나
+스캔 기제가 있는지 확인했다.
+
+```
+grep -rn "pinned.*consumer\|canonical consumer\|consumer repositor" --include="*.md" docs/ tasks/ USAGE.md
+```
+
+결과는 이 완료기준 자신과 TASK-261의 같은 문구뿐이었다 — 이 저장소에는 pinned consumer
+repository를 식별·스캔하는 기존 메커니즘이 없다. `${XDG_CONFIG_HOME:-$HOME/.config}/ce/
+workbook.toml`이 가리키는 포트폴리오 워크북이 그런 목록의 후보지만, 이번 세션은 그 목록을
+만드는 권한이나 근거를 갖고 있지 않다 — "pinned canonical consumer"의 정의(어떤 저장소가
+해당하는지, 어떤 revision을 고정하는지) 자체가 코퍼스 작업 시작 전에 별도로 확정돼야
+한다. 이 완료기준은 그 정의와 실제 스캔 둘 다 아직 없는 채로 남는다.
+
+이 카드 자신의 Decision Record가 이미 명시했듯("완료기준 1의 코퍼스가 필수 선행 작업이
+됐다"), 이는 exemptable gap이 아니다 — TASK-257처럼 "이 결정이 route를 제거·숨기지 않는다"는
+논리로 건너뛸 수 없다. `kubectl`을 새 top-level reserved name으로 승격하는 것 자체가 이
+완료기준이 막으려는 행동이기 때문이다. **완료기준 1은 미해결로 남고, TASK-256은 이 코퍼스와
+완료기준 7(독립 리뷰) 없이는 시작하지 않는다.**

@@ -144,11 +144,11 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 
 | 카드 | 선행 | 상태 |
 | --- | --- | --- |
-| TASK-255 | TASK-254 ✅ | **방향 판정됨 (2026-09-03)** — `kubectl` canonical 승격. 사람 결정은 끝났고 완료기준 1·3·4·5·6·7이 남아 카드는 열려 있다 |
+| TASK-255 | TASK-254 ✅ | **방향 판정됨(2026-09-03) + 상세 계약 동결(2026-09-04)** — `kubectl` canonical 승격, parity/충돌매트릭스/manifest(`CanonicalName` 마커)/deprecation 동결(완료기준 3·4·5·6 체크). 완료기준 1(pinned consumer 코퍼스 — 이 저장소에 기존 메커니즘 없음, hard stop 유지)과 7(독립 리뷰)만 남아 카드는 열려 있다 |
 | TASK-257 | TASK-254 ✅ | **완료 (2026-09-04)** — `config validate` canonical, top-level `validate`는 지금 당장 제거·deprecation 없이 유지하되 장래 제거 검토 경로는 열어둔다(실제 제거는 별도 카드 필요). 완료기준 1·3·4·5 사실관계까지 닫혔다. 닫히면 TASK-258이 열린다 |
 | TASK-272 | TASK-254 ✅ | **완료 (2026-09-04)** — coverage 보강 + canonical 마커 1개 채택, schema_version 1.4→1.5, TASK-256/258이 각자 자기 route에만 적용. 닫히면 TASK-256·258이 함께 열린다 |
 | TASK-263 | TASK-259 ✅ · TASK-264 ✅ | **완료 (2026-09-04)** — 현행 혼합 문법 동결(Option A + explicit import), 예약어 subproject는 `config validate`에서 거부, 자식 validator가 거부하는 키는 부모 qualified route로도 거부. 신규 거부 규칙 2건은 별도 구현 카드가 필요하다. 닫히면 TASK-260이 열린다 |
-| TASK-256 | TASK-255 · TASK-272 ✅ | 대기 — TASK-255가 남아 있다. TASK-255 완료기준 1(호출 corpus)이 rename의 hard stop이다 |
+| TASK-256 | TASK-255 · TASK-272 ✅ | 대기 — TASK-255 완료기준 1(pinned consumer 호출 corpus)만 hard stop으로 남았다. manifest 표현은 이미 `kubectl`: passthrough / `ktl`: passthrough+CanonicalName("kubectl")로 동결됨 |
 | TASK-258 | TASK-257 ✅ · TASK-272 ✅ | **완료 (2026-09-04)** — `d13fb63`, 5개 완료기준 전부 검증·닫힘. `ManifestCmd.CanonicalName`/schema_version 1.5 존재, TASK-256은 이제 필드를 새로 만들지 않고 kubectl/ktl 마커만 채운다 |
 | TASK-260 | TASK-262 ✅ · TASK-263 ✅ | **모델 결정됨(2026-09-04) + 상세 계약 동결(2026-09-04)** — 단방향 root-aggregation 채택, 완료기준 1-5 체크. 자동 LIFO rollback을 신규 도입하되 `--no-rollback` opt-out을 사전 승인(2026-09-04 사용자 결정). 완료기준 6(독립 리뷰 + 구현 계획 카드 생성)만 남아 별도 라운드로 이관 |
 | TASK-261 | TASK-254 ✅ · TASK-256 · TASK-258 · TASK-260 | 대기 (이 계획의 마지막 카드) |
@@ -161,8 +161,9 @@ TASK-262·264가 그 경우이며, 실종된 카드가 아니라 완료 후 보�
 체크박스를 닫는 것)으로 마저 닫는 것 — 단 방향 자체를 재론하거나 뒤집는 것은 여전히 `needs-human`
 이다.
 
-TASK-256은 TASK-255가 완료기준 1(호출 corpus)을 닫기 전까지 hard stop이므로, 지금 병렬성 관점에서
-회수가 가장 큰 일은 TASK-255의 남은 완료기준을 닫아 TASK-256을 여는 것이다. TASK-261은 TASK-256·
+TASK-256은 TASK-255가 완료기준 1(pinned consumer 호출 corpus)을 닫기 전까지 hard stop이다 —
+2026-09-04에 완료기준 3·4·5·6은 닫혔으나 1은 이 저장소에 그 코퍼스를 만들 기존 메커니즘이
+없어 진행하지 못했다(별도 포트폴리오/워크북 권한이 필요할 수 있다). TASK-261은 TASK-256·
 258·260이 모두 닫혀야 시작되는 이 계획의 마지막 카드다.
 
 ## 4. 실행 규칙
