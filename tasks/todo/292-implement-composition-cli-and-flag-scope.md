@@ -83,15 +83,29 @@ codes stay flat 0/1 (TASK-260 §5.6) — do not add a new exit-code taxonomy.
   nothing was ever started) and a vacuous "nothing starts on rejection" check (asserted
   `build-order` absent after a rejected `down`, which `down` never writes regardless of whether
   the rejection is even correct) — both rewritten to assert the true, falsifiable behavior.
-- **TASK-291 dependency gap**: `up`/`down`/`stop`/`restart` on a composition plan run flag-scope
-  validation to completion and then return a fixed stub error naming TASK-291
-  (`errCompositionRuntimeNotImplemented`) instead of executing wave/LIFO/rollback logic, because
-  TASK-291 (the actual composition execution runtime) is being implemented concurrently by another
-  agent and was not available in this worktree. This matches the coordinator's explicit process
-  instruction that the runtime call is a stub integration point and out of scope here. `build`,
-  `logs`, and `status` are fully implemented (not stubbed) since they only aggregate existing
-  single-plan behavior (`runPlanBuild`/`runPlanLogs`/plan status query) and do not depend on
-  TASK-291's new orchestration.
+- **TASK-291 dependency gap closed (commit 2cffbd8)**: `up`/`down`/`stop`/`restart` on a
+  composition plan now build a real `*lifecycle.CompositionOrchestrator` (TASK-291, frozen) and
+  execute it instead of returning the `errCompositionRuntimeNotImplemented` stub. Notable design
+  decisions made while wiring, none of which required touching the frozen orchestrator:
+  - **`--force` per-child scoping**: `lifecycle.PlanChildExecutor.Force` is a flat bool, but
+    TASK-260 §4.4 requires `--force` to apply only to the `--project`-scoped child. Solved with a
+    small `compositionExecutor` wrapper in `composition_flags.go` holding a `forced` and an
+    `unforced` `*PlanChildExecutor`, dispatching per child by name match — the orchestrator's
+    `CompositionChildExecutor` interface is satisfied without any change to its contract.
+  - **`restart` has no orchestrator-level verb**: `CompositionOrchestrator` exposes `Up`/`Down`/
+    `Stop`/`Status` but no `Restart`. `runCompositionRestart` composes `Stop` then `Up` on the same
+    orchestrator instance (mirroring `lifecycle.Orchestrator.Restart`'s single-plan pattern),
+    short-circuiting on a failed `Stop`.
+  - **`--project` scope on `down` narrows destructive options, not which children come down**:
+    the frozen `teardown()` walks all composed children in reverse-wave order and tears down every
+    child the executor's `IsUp` reports as running, regardless of `--project`; the flag only
+    selects which child's `ChildDownOptions` carries `Volumes`/`RemoveImages` in
+    `CompositionDownOptions.Destructive`. Confirmed by reading `composition_orchestrator.go`
+    directly (not guessed) and covered by `TestCompositionUpDownExecuteRealOrchestrator` (proves
+    real teardown of every up child) plus `TestCompositionDestructiveOptionsScopePerChild` (proves
+    per-child options scoping in isolation).
+  `build`, `logs`, and `status` were already fully implemented before this commit and are
+  unchanged.
 - **`--purge` "unsupported child" sub-case unimplemented**: TASK-260 §4.4 and the card's own
   Completion Criteria call for rejecting `--project <child>` scoping onto a child that "does not
   support" a destructive flag (e.g., no purge target). No capability distinction of this kind
