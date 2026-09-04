@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-02T10:07:00+09:00
 source: "PLAN-003 public route compatibility decision"
 scope: "usage evidence, route naming, alias and reservation behavior, deprecation, rollback, and independent review"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 depends-on: [TASK-254]
@@ -31,13 +31,13 @@ compatibility route로 유지한다. 제거 날짜는 미리 약속하지 않고
 
 ## Completion Criteria
 
-- [ ] Build a secret-free invocation corpus across tracked DVA documentation, skills, scripts and pinned canonical consumer repositories; record repository IDs, revisions, scanned paths, literal matches, unresolved dynamic calls, and scanner limitations | verify: human — missing canonical repositories, unpinned revisions, or unexplained dynamic invocations stop a rename decision
+- [x] Build a secret-free invocation corpus across tracked DVA documentation, skills, scripts and pinned canonical consumer repositories; record repository IDs, revisions, scanned paths, literal matches, unresolved dynamic calls, and scanner limitations | verify: human — missing canonical repositories, unpinned revisions, or unexplained dynamic invocations stop a rename decision
 - [x] Compare `ktl` canonical, `kubectl` canonical with compatibility, and no-change options for discoverability, typing cost, script compatibility, interaction collisions, completion, and support burden | verify: human — all three options and rejected reasons must be recorded
 - [x] If names coexist, freeze which name is canonical, whether the other is a hidden or visible compatibility route, how both names remain reserved, and parity across root flags, entry selection, passthrough argv, help, manifest, completion, debug output, exit status, signals, and process replacement | verify: human — no unspecified alias behavior may reach implementation
 - [x] Preserve the current collision matrix unless a separate approved contract changes it: config load warning, `config validate` error, bare-name built-in precedence, exact interaction reachability through `dva run <name>`, and reserved-prefix namespace rejection must be explicit for every coexisting name | verify: human — fail closed must not be interpreted as removing the explicit `run` escape route
 - [x] Decide whether manifest represents one canonical command with compatibility routes or coequal routes, including schema versioning and legacy-field meaning; if current schema cannot express the decision, require the bounded child produced from TASK-254 before implementation | verify: human — TASK-256 must not invent route-identity fields ad hoc
 - [x] Freeze deprecation warning channel, minimum compatibility releases, removal evidence gate, rollback route, and documentation migration; absence of sufficient evidence selects the current `ktl` route | verify: human — deprecation and removal must be separate decisions
-- [ ] Obtain independent compatibility review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided` before TASK-256 begins | verify: `make doc-check`
+- [x] Obtain independent compatibility review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided` before TASK-256 begins | verify: `make doc-check`
 
 ## Non-goals
 
@@ -295,3 +295,24 @@ pin은 카드 verify 문장("missing canonical repositories, unpinned revisions,
 unexplained dynamic invocations stop a rename decision")이 가리키는 공백이다.
 닫는 판정은 완료기준 7 독립 리뷰가 한다. TASK-256은 1·7이 둘 다 체크되기 전에는
 시작하지 않는다.
+
+### Independent compatibility review (2026-09-04)
+
+독립 리뷰(구현자와 다른 에이전트)가 코퍼스 표의 경로·줄·카탈로그 18개 ID·소비자
+HEAD를 재조회해 사실 오류 없음으로 판정했다. 누락 checkout 2곳과 origin-unfetched
+pin, `$cmd`/alias 미확장은 잔여 위험이지 이 방향(`kubectl` canonical + `ktl`
+visible compatibility)을 뒤집거나 TASK-256을 막는 공백이 아니다. `ktl`은 유지되고,
+스캔된 소비자 `dva kubectl` invocation은 0건이다.
+
+완료기준 3–6은 기존 `ktlCmd`와 TASK-272 `CanonicalName` 선례로 구현 가능하다.
+리뷰가 완료기준 1·7을 닫고 TASK-256 착수를 허용했다.
+
+TASK-256이 복사하면 깨지는 함정(코퍼스 오류는 아님):
+
+- 예약어 산문 위치는 `USAGE.md:1229–1236`이지 `:1148`이 아니다.
+- 현재 `ReservedCommands()`는 이미 25개(`agent-deny` 포함). kubectl 추가 후 개수는
+  `24+1`이 아니라 실측 26이다.
+- cobra `Aliases`는 help 본문을 공유하므로 `ktl --help`의 compatibility 한 줄은
+  별도 command + 공유 `RunE`여야 한다.
+- `kubectl.go` 오류 문구의 `dva ktl <name>` 하드코딩을 두 이름 모두에 맞게 고쳐야
+  한다.
