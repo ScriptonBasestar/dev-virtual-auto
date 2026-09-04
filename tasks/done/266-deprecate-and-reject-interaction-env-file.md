@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-02T20:30:00+09:00
 source: "TASK-265 decision record, section 4"
 scope: "interaction/subcommand env_file deprecation warning, config migrate guidance, tracked examples and docs, path-scoped schema rejection, rollback"
-status: todo
+status: done
 depends-on: [TASK-265]
 ---
 
@@ -49,10 +49,9 @@ the release that ships must not disagree.
 
 ### Stage B — 0.1.49 (reject), only after 0.1.48 ships
 
-**릴리스 게이트로 보류 중 (2026-09-03).** 현재 태그는 `v0.1.47`이고
-`internal/config/version.go`의 `Version`도 `"0.1.47"`입니다. 카드의 Constraint가
-"Stage B must not start before 0.1.48 has shipped"라고 못박고 있으므로 착수하지
-않았습니다. 0.1.48이 나가면 이 카드를 그대로 이어서 처리하면 됩니다.
+**릴리스 게이트 통과 (2026-09-04).** `v0.1.48`이
+`40a35f8f79031f4ddb02c7317f8c8c461684901b`에서 공개됐다. Stage B는 그 이후에
+착수했다.
 
 게이트 확인 방법 (착수 전 두 가지가 모두 참이어야 한다):
 
@@ -76,10 +75,10 @@ Stage B가 물려받는 별건: TASK-245 §2-4의 `#/definitions/env_file_plain`
 참조가 사라지므로 그때 함께 삭제합니다.
 
 
-- [ ] Delete `definitions.interaction_command.properties.env_file` from the schema plus `InteractionCommand.EnvFile`, its `UnmarshalYAML` twin and assignment, and the `EnvFile` branch in `mergeInteractionCommand` | verify: `go test ./internal/config ./internal/cli ./internal/runner -count=1`
-- [ ] Add a path-scoped removed-key map beside `removedRootKeys`, consulted only when the schema error field names an interaction node, carrying the frozen guidance; the root `env_file` error and the generator corpus stay untouched | verify: `go test ./internal/config -count=1`
-- [ ] Drop the Stage A semantic warning, which schema rejection makes unreachable, and keep the `config migrate` blocked line as the remaining guidance path for a rejected config | verify: `go test ./internal/config ./internal/cli -count=1`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
+- [x] Delete `definitions.interaction_command.properties.env_file` from the schema plus `InteractionCommand.EnvFile`, its `UnmarshalYAML` twin and assignment, and the `EnvFile` branch in `mergeInteractionCommand` | verify: `go test ./internal/config ./internal/cli ./internal/runner -count=1`
+- [x] Add a path-scoped removed-key map beside `removedRootKeys`, consulted only when the schema error field names an interaction node, carrying the frozen guidance; the root `env_file` error and the generator corpus stay untouched | verify: `go test ./internal/config -count=1`
+- [x] Drop the Stage A semantic warning, which schema rejection makes unreachable, and keep the `config migrate` blocked line as the remaining guidance path for a rejected config | verify: `go test ./internal/config ./internal/cli -count=1`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make doc-check && make commit-check`
 
 ## Non-goals
 
