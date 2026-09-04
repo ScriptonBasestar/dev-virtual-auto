@@ -156,6 +156,21 @@ func validateCompositionFlagScope(comp *lifecycle.CompositionPlan, planName, ver
 		}
 	}
 
+	// --purge and --volumes are down-only, mirroring plan_lifecycle.go's rejectDownOnlyFlags:
+	// accepting either on any other verb and then silently not acting on it (because the
+	// verb has nothing to remove) is the one outcome that must not happen — the operator
+	// would have no way to tell whether the removal it asked for actually ran. This is
+	// checked before the --project scope requirement below so a scoped-but-wrong-verb
+	// invocation is still refused, not merely a missing-scope one.
+	if verb != "down" {
+		switch {
+		case flags.purge:
+			return flags, fmt.Errorf("composition plan %q: --purge is only supported by down", planName)
+		case flags.volumes:
+			return flags, fmt.Errorf("composition plan %q: --volumes is only supported by down", planName)
+		}
+	}
+
 	if flags.force || flags.volumes || flags.purge {
 		if !hasProject {
 			return flags, fmt.Errorf("composition plan %q: --force/--volumes/--purge require --project <child> naming one composed child; refusing before any child starts", planName)
@@ -279,9 +294,11 @@ func runCompositionLogs(c *config.Config, el *envLoad, planName string, extraArg
 // compositionChildStatus and compositionStatusReport are TASK-260 §5.3's frozen JSON shape,
 // reused by §5.5 for status's success case too (outcome "up", every child "up"). up/down/
 // stop/restart do not populate this today — see errCompositionRuntimeNotImplemented — so
-// Rollback is always the empty-but-present shape §5.3 shows, and State is only ever "up" or
-// "failed" here; "rolled_back"/"rollback_failed"/"not_started" belong to the TASK-291
-// rollback orchestrator this task does not implement.
+// Rollback is always the empty-but-present shape §5.3 shows. State is derived from each
+// child's real queried status (lifecycle.AnyServiceRunning): "up" when at least one service
+// looks running, "not_started" when the query succeeded but nothing is running, or "failed"
+// when the child could not be queried at all (unrunnable). "rolled_back"/"rollback_failed"
+// belong to the TASK-291 rollback orchestrator this task does not implement.
 type compositionChildStatus struct {
 	Project string `json:"project"`
 	Plan    string `json:"plan"`
@@ -326,28 +343,39 @@ func runCompositionStatus(c *config.Config, el *envLoad, planName string) error 
 	}
 
 	failed := false
+	allUp := true
 	for _, entry := range comp.Entries {
 		childName := entry.ChildPlan.Name
 		cs := compositionChildStatus{
 			Project: compositionChildProject(childName),
 			Plan:    compositionChildPlanPart(childName),
 			Wave:    entry.Wave,
-			State:   "up",
 		}
 
-		if childErr := queryCompositionChildStatus(c, el, childName); childErr != nil {
+		childStatus, childErr := queryCompositionChildStatus(c, el, childName)
+		switch {
+		case childErr != nil:
 			cs.State = "failed"
 			cs.Error = childErr.Error()
 			failed = true
+			allUp = false
+		case lifecycle.AnyServiceRunning(childStatus):
+			cs.State = "up"
+		default:
+			cs.State = "not_started"
+			allUp = false
 		}
 		report.Children = append(report.Children, cs)
 	}
 
-	if failed {
+	switch {
+	case failed:
 		report.Outcome = "failed"
 		report.Error = fmt.Sprintf("composition plan %q: one or more composed children are unrunnable", planName)
-	} else {
+	case allUp:
 		report.Outcome = "up"
+	default:
+		report.Outcome = "not_started"
 	}
 
 	if jsonOutput {
@@ -365,27 +393,33 @@ func runCompositionStatus(c *config.Config, el *envLoad, planName string) error 
 }
 
 // queryCompositionChildStatus runs one child through the same resolve-runtime + orchestrator
-// Status path runPlanStatus uses for a directly named plan, returning nil only when the child
-// resolved, its environment inputs were complete, and every one of its entries queried clean.
-func queryCompositionChildStatus(c *config.Config, el *envLoad, childName string) error {
+// Status path runPlanStatus uses for a directly named plan, returning the child's real
+// AggregatedStatus so the caller can classify it (TASK-260 §5.3's "up"/"not_started"/"failed")
+// instead of assuming a clean query means "up". A non-nil error means the child could not be
+// queried at all (unrunnable / incomplete environment) — that is always "failed", and the
+// returned status is nil in that case.
+func queryCompositionChildStatus(c *config.Config, el *envLoad, childName string) (*lifecycle.AggregatedStatus, error) {
 	runtime, err := resolvePlanRuntime(c, el, childName, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if runtime.report.Incomplete() {
-		return fmt.Errorf("environment inputs incomplete for %q", childName)
+		return nil, fmt.Errorf("environment inputs incomplete for %q", childName)
 	}
 
 	orch, err := lifecycle.NewPlanOrchestrator(runtime.config, runtime.env, runtime.plan)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	status, err := orch.Status(context.Background())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	status = filterStatusByNames(status, planEntryNames(runtime.plan))
-	return lifecycle.StatusExitError(status)
+	if err := lifecycle.StatusExitError(status); err != nil {
+		return status, err
+	}
+	return status, nil
 }
 
 func printCompositionStatusText(report compositionStatusReport) {

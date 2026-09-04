@@ -59,6 +59,30 @@ codes stay flat 0/1 (TASK-260 §5.6) — do not add a new exit-code taxonomy.
 
 ## Deviations from literal card text
 
+- **Post-review fixes (independent review round 1)**: an independent reviewer found two real bugs
+  after the initial implementation, fixed in a follow-up commit on this same branch:
+  1. `runCompositionStatus`/`queryCompositionChildStatus` originally hardcoded every child's
+     `state` to `"up"` and only downgraded to `"failed"` on a query error — so a composition
+     whose children were never started still reported `outcome: "up"` / every child `"up"`.
+     Fixed by having `queryCompositionChildStatus` return the child's real `*lifecycle.
+     AggregatedStatus` instead of discarding it, and classifying each child's state via a new
+     exported `lifecycle.AnyServiceRunning` helper (reusing the orchestrator's existing
+     `serviceLooksRunning` classification): `"up"` when a service looks running, `"not_started"`
+     when the query succeeded but nothing is running, `"failed"` when the child could not be
+     queried at all. `outcome` follows the same logic (`up` only when every child is up).
+     Verified against the real `bin/dva status release --json` binary, not just unit tests.
+  2. The composition flag validator had no equivalent of the single-plan path's
+     `rejectDownOnlyFlags` guard, so `--purge`/`--volumes` passed validation on `up`/`stop`/
+     `restart`/`build`/`logs` and would silently no-op once TASK-291 lands (a destructive flag
+     accepted-and-ignored, which `plan_lifecycle.go`'s existing comment says must never happen).
+     Fixed by adding the same down-only rejection to `validateCompositionFlagScope`, checked
+     before the `--project` scope requirement. Verified against the real binary
+     (`dva up release --purge --project api` now rejects with "only supported by down").
+  Both fixes have dedicated test coverage in `composition_flags_test.go`; the previous version of
+  that file had a test that locked in bug #1 (asserted `state == "up"` against a fixture where
+  nothing was ever started) and a vacuous "nothing starts on rejection" check (asserted
+  `build-order` absent after a rejected `down`, which `down` never writes regardless of whether
+  the rejection is even correct) — both rewritten to assert the true, falsifiable behavior.
 - **TASK-291 dependency gap**: `up`/`down`/`stop`/`restart` on a composition plan run flag-scope
   validation to completion and then return a fixed stub error naming TASK-291
   (`errCompositionRuntimeNotImplemented`) instead of executing wave/LIFO/rollback logic, because

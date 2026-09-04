@@ -49,6 +49,27 @@ func StatusExitError(status *AggregatedStatus) error {
 	return fmt.Errorf("%d stack entry(ies) unrunnable", n)
 }
 
+// AnyServiceRunning reports whether any service across status's entries currently looks
+// running, reusing the exact classification the orchestrator already applies to decide whether
+// an out-of-plan service is "still running" (serviceLooksRunning in orchestrator.go). A
+// composition plan's aggregate status (internal/cli/composition_flags.go) calls this to decide
+// a composed child's TASK-260 §5.3 state ("up" vs "not_started") from real per-entry status
+// instead of assuming success means "up" — status.Error is a separate, already-covered "failed"
+// case (see StatusExitError) and is not considered here.
+func AnyServiceRunning(status *AggregatedStatus) bool {
+	if status == nil {
+		return false
+	}
+	for _, entry := range status.Entries {
+		for _, s := range entry.Services {
+			if serviceLooksRunning(s.State) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // PrintStatus prints the aggregated lifecycle status to stderr.
 func PrintStatus(status *AggregatedStatus, configDir string) {
 	if len(status.Entries) == 0 {

@@ -199,14 +199,42 @@ func TestCompositionDestructiveFlagsRequireProjectScope(t *testing.T) {
 		}
 	})
 
+	t.Run("purge and volumes are down-only, even with a valid --project scope", func(t *testing.T) {
+		for _, verb := range []string{"up", "stop", "restart", "build", "logs"} {
+			for _, flag := range []string{"--purge", "--volumes"} {
+				_, err := validateCompositionFlagScope(comp, "release", verb, []string{flag, "--project", "a-plan"})
+				if err == nil {
+					t.Fatalf("verb %s flag %s: expected rejection (down-only), got nil", verb, flag)
+				}
+				if !strings.Contains(err.Error(), "only supported by down") {
+					t.Errorf("verb %s flag %s: error = %q, want it to say 'only supported by down'", verb, flag, err)
+				}
+			}
+		}
+	})
+
+	t.Run("purge and volumes remain valid on down with a scope", func(t *testing.T) {
+		for _, flag := range []string{"--purge", "--volumes"} {
+			if _, err := validateCompositionFlagScope(comp, "release", "down", []string{flag, "--project", "a-plan"}); err != nil {
+				t.Errorf("flag %s on down: unexpected rejection: %v", flag, err)
+			}
+		}
+	})
+
 	t.Run("nothing starts on rejection", func(t *testing.T) {
 		el := planEnv(config.NewEnvironment(nil, "", ""))
 		c := compositionFixtureConfigLoaded(t)
-		if err := runCompositionDown(c, el, "release", []string{"--purge"}); err == nil {
-			t.Fatal("expected rejection, got nil")
+		// build is fully implemented (unlike up/down/stop/restart, which are TASK-291
+		// stubs and touch nothing regardless of validation outcome) and would append to
+		// build-order for every composed child if the down-only guard let --purge reach
+		// the build loop. This is a genuinely falsifiable check of "rejected before any
+		// child starts" — unlike asserting build-order is absent after a rejected `down`,
+		// which passes trivially since `down` never writes build-order at all.
+		if err := runCompositionBuild(c, el, "release", []string{"--purge"}); err == nil {
+			t.Fatal("expected --purge to be rejected on build (down-only flag), got nil")
 		}
 		if _, statErr := os.Stat(filepath.Join(c.FileDir(), "build-order")); !os.IsNotExist(statErr) {
-			t.Fatal("a child appears to have run despite the missing --project scope")
+			t.Fatal("a child appears to have run despite the rejected --purge flag")
 		}
 	})
 }
@@ -258,7 +286,10 @@ func TestCompositionAggregateLogsStatusBuild(t *testing.T) {
 		}
 	})
 
-	t.Run("status text output", func(t *testing.T) {
+	t.Run("status text output reports not_started honestly", func(t *testing.T) {
+		// Nothing in this fixture was ever started (up is a TASK-291 stub, so no child's
+		// process was launched) — status must say so via TASK-260 §5.3's "not_started"
+		// state rather than assuming a clean query means "up".
 		c := loadTestConfig(t, compositionFixtureConfig)
 		el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
 
@@ -272,12 +303,18 @@ func TestCompositionAggregateLogsStatusBuild(t *testing.T) {
 		if !strings.Contains(out, "a-plan") || !strings.Contains(out, "b-plan") {
 			t.Errorf("text status missing both children:\n%s", out)
 		}
-		if !strings.Contains(out, "outcome: up") {
-			t.Errorf("text status missing outcome:\n%s", out)
+		if !strings.Contains(out, "not_started") {
+			t.Errorf("text status must report not_started for children that were never up:\n%s", out)
+		}
+		if strings.Contains(out, ": up\n") {
+			t.Errorf("text status must not claim a never-started child is up:\n%s", out)
+		}
+		if !strings.Contains(out, "outcome: not_started") {
+			t.Errorf("text status outcome must be not_started, not up:\n%s", out)
 		}
 	})
 
-	t.Run("status --json reuses TASK-260 §5.3's shape", func(t *testing.T) {
+	t.Run("status --json reuses TASK-260 §5.3's shape and reports honest per-child state", func(t *testing.T) {
 		c := loadTestConfig(t, compositionFixtureConfig)
 		el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
 
@@ -303,8 +340,11 @@ func TestCompositionAggregateLogsStatusBuild(t *testing.T) {
 		if report.Kind != "composition" {
 			t.Errorf("kind = %q, want composition", report.Kind)
 		}
-		if report.Outcome != "up" {
-			t.Errorf("outcome = %q, want up", report.Outcome)
+		// Nothing was ever started in this fixture (up is a TASK-291 stub) — the real
+		// per-entry status is "stopped" for every native/process child, so outcome and
+		// every child's state must say "not_started", never "up".
+		if report.Outcome != "not_started" {
+			t.Errorf("outcome = %q, want not_started (nothing in this fixture was ever started)", report.Outcome)
 		}
 		if report.DvaVersion != config.Version {
 			t.Errorf("dva_version = %q, want %q", report.DvaVersion, config.Version)
@@ -317,8 +357,8 @@ func TestCompositionAggregateLogsStatusBuild(t *testing.T) {
 			if wantPlan, ok := wantProjects[child.Project]; !ok || child.Plan != wantPlan {
 				t.Errorf("unexpected child %+v", child)
 			}
-			if child.State != "up" {
-				t.Errorf("child %s state = %q, want up", child.Project, child.State)
+			if child.State != "not_started" {
+				t.Errorf("child %s state = %q, want not_started (fixture never ran anything)", child.Project, child.State)
 			}
 		}
 		if report.Rollback.Attempted == nil || report.Rollback.Succeeded == nil || report.Rollback.Failed == nil {
