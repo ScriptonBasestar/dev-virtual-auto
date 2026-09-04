@@ -391,6 +391,16 @@ func evaluateDockerSocket(dockerHost string, daemonOK func() bool) DoctorResult 
 		if _, err := os.Stat(path); err == nil {
 			f, err := os.Open(path)
 			if err != nil {
+				// Same agreement as a missing default path (TASK-180): docker CLI
+				// can still reach the daemon when this file is leftover, root-only,
+				// or otherwise unopenable. Fail on the permission finding only
+				// when the daemon probe also fails.
+				if daemonOK != nil && daemonOK() {
+					return DoctorResult{
+						Name:   "Docker socket permissions",
+						Passed: true,
+					}
+				}
 				return DoctorResult{
 					Name:    "Docker socket permissions",
 					Finding: fmt.Sprintf("%s exists but this user cannot open it", path),

@@ -13,7 +13,13 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 is load-bearing. make test runs tools/commitcheck tests
+      # that git-cat-file the pinned baseline and the grandfathered objects. A
+      # shallow clone makes those tests fail on every push while commit-subjects
+      # (which already fetches the full history) still passes.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:

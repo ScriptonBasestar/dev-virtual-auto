@@ -96,6 +96,44 @@ func TestEvaluateDockerSocket_DefaultPathMissingFallsThroughToDaemon(t *testing.
 	}
 }
 
+func TestEvaluateDockerSocket_UnopenableFallsThroughWhenDaemonReachable(t *testing.T) {
+	dir := t.TempDir()
+	sock := filepath.Join(dir, "docker.sock")
+	if err := os.WriteFile(sock, []byte{}, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sock, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := os.Open(sock); err == nil {
+		_ = f.Close()
+		t.Skip("this user can open a 000 file; unopenable branch is not reachable")
+	}
+
+	daemonCalled := false
+	res := evaluateDockerSocket("unix://"+sock, func() bool {
+		daemonCalled = true
+		return true
+	})
+	if !res.Passed {
+		t.Fatalf("passed=false finding=%q, want pass when the socket is unopenable but the daemon is reachable", res.Finding)
+	}
+	if !daemonCalled {
+		t.Fatal("daemon probe must run when the resolved socket exists but cannot be opened")
+	}
+
+	res = evaluateDockerSocket("unix://"+sock, func() bool { return false })
+	if res.Passed {
+		t.Fatal("want fail when the socket is unopenable and the daemon is unreachable")
+	}
+	if !strings.Contains(res.Finding, sock) {
+		t.Errorf("finding = %q, want it to name the unopenable path", res.Finding)
+	}
+	if !strings.Contains(res.Finding, "cannot open") {
+		t.Errorf("finding = %q, want the permission finding", res.Finding)
+	}
+}
+
 func TestEvaluateDockerSocket_NonUnixDOCKER_HOSTUsesDaemon(t *testing.T) {
 	res := evaluateDockerSocket("tcp://127.0.0.1:2375", func() bool { return true })
 	if !res.Passed {
@@ -112,8 +150,9 @@ func TestEvaluateDockerSocket_NonUnixDOCKER_HOSTUsesDaemon(t *testing.T) {
 }
 
 // Opposite-verdict guard: when the portable probe says the daemon is up, docker_socket
-// must not fail solely because the default path is missing. That is the Colima/Desktop
-// shape that made doctor print one pass and one fail for the same daemon (TASK-180).
+// must not fail solely because the default path is missing or unopenable. That is the
+// Colima/Desktop/GitHub-hosted-Linux shape that made doctor print one pass and one fail
+// for the same daemon (TASK-180).
 func TestDockerSocketAndDaemonAgreeWhenDaemonReachable(t *testing.T) {
 	if !lifecycle.DockerDaemonReachable(nil) {
 		t.Skip("docker info failed; cannot assert agreement on a live daemon")
