@@ -42,7 +42,7 @@ lifecycle의 implicit default를 사용하고, 실제 evidence가 둘 이상의 
 
 - [x] Define expected discovery evidence and generated output for compose-only, native-only, hybrid, and no-discovery fixtures | verify: human — each fixture must list detected facts, unverified facts, generated entries/plans, and explicit omissions
 - [x] Reuse the repository's capability-driven preset policy: generate only self-contained closure from verified providers and omit plans that lack evidence | verify: human — no output may depend on a role label inferred only by a person
-- [ ] Inventory existing preset, flow and generated-library labels and separate human-facing example names from verified provider facts before reusing them in the generator | verify: human — an existing `local-infra`, `local-dev`, or `full-stack` example must not become generator evidence merely because it already exists in a projection
+- [x] Inventory existing preset, flow and generated-library labels and separate human-facing example names from verified provider facts before reusing them in the generator | verify: human — an existing `local-infra`, `local-dev`, or `full-stack` example must not become generator evidence merely because it already exists in a projection
 - [x] Keep `local-infra`, `local-dev`, and `full-stack` out of generated defaults unless a future tracked decision explicitly reopens D8; preserve an existing user-declared name, otherwise derive a name mechanically from verified entry/provider identity or require explicit user choice | verify: human — the decision must contain no generator-authored exception for the three rejected labels
 - [x] Decide single-plan implicit default versus explicit `default_plan`, and prove generated multi-plan output never lacks a default | verify: human — selection must align with bare lifecycle behavior
 - [x] Define no-overwrite, preview/dry-run, idempotence, and invalid partial-discovery behavior | verify: human — mutation must not begin from unresolved or conflicting evidence
@@ -209,4 +209,83 @@ TASK-250(`tasks/done/250-implement-capability-driven-init.md`, `status: done`, c
   있다. `make doc-check`는 이 워크트리에서 통과했다(아래 게이트 결과 참고).
 
 남은 미체크 항목(3, 9)은 TASK-250의 구현 범위에 포함되지 않은, 별도의 사람 판단이 필요한
-엔지니어링/거버넌스 작업이며 이 카드는 여전히 `todo/`에 남는다.
+엔지니어링/거버넌스 작업이며 이 카드는 여전히 `todo/`에 남는다. (기준 3은 아래 `## 완료기준
+3 — 라벨/증거 인벤토리 (2026-09-04)` 절에서 별도 세션이 완료했다. 기준 9는 여전히 열려
+있다.)
+
+## 완료기준 3 — 라벨/증거 인벤토리 (2026-09-04)
+
+Scope: 저장소 전체에서 `local-infra`/`local-dev`/`full-stack` 문자열이 등장하는 모든 위치를
+`grep -rn`으로 수집하고(`agent-mesh-flows/`, `skills/`, `internal/cli/library_reference.txt`,
+`docs/`), 각 위치가 가리키는 실제 canonical source(symlink 포함)까지 추적해 분류했다. 목적은
+Go `dva init` 생성기(`internal/cli/init_scaffold.go`, `internal/cli/init.go`)가 이 세 라벨을
+"이미 어느 투영본에 존재한다"는 이유만으로 생성 증거로 재사용하지 않는지 확인하는 것이다.
+
+### 분류 기준
+
+- **A (verified policy fact)** — `am` preset 생성 정책의 일부로 명시적으로 작성된 규칙/예시.
+  TASK-233의 결정("Use `local-infra` as the preferred generated default...")이 구속하는
+  표면이며, Go init 생성기가 아니라 `am` flow(`dva-improve`/`dva-improve-guided`/
+  `dva-diagnose`)가 소비한다.
+- **B (human-facing example)** — CLI 사용법이나 일반 문서에서 예시 plan 이름으로만 등장하며
+  생성 정책을 진술하지 않는다.
+
+### 인벤토리 (canonical source 기준으로 그룹화)
+
+| Canonical source (실제 파일) | 내용 | 분류 | 투영 대상 |
+|---|---|---|---|
+| `agent-mesh-flows/shared/library/naming-presets.md` | Deterministic Plan Matrix, Capability Closure, Canonical Hybrid Example | A | `dva-improve.yaml`, `dva-improve-guided/00-analyze.yaml`, `dva-improve-guided/30-configure.yaml` (flowgen `AUTOGEN:dva_flow_naming`), `internal/cli/library_reference.txt` (Makefile `cat`) |
+| `agent-mesh-flows/shared/library/shared-guardrails.md` | "Plans: local-infra, local-dev, full-stack..." 개요 줄 + "Prefer `default_plan: local-infra`... never generate `full-stack`" 규칙 | A | `dva-diagnose.yaml`, `dva-improve.yaml`, `dva-improve-guided/00-analyze.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_guardrails`), `library_reference.txt` |
+| `agent-mesh-flows/shared/library/reference-examples.md` | "Capability-driven named plans" 예시 블록 + mode 표 `full-stack`/`full-stack-tools` 행 | A | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_examples`), `library_reference.txt` |
+| `agent-mesh-flows/shared/library/shared-checklist.md` | 세 라벨을 이름 댄 self-review 체크리스트 항목 | A | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_checklist`), `library_reference.txt` |
+| `agent-mesh-flows/shared/guardrails/guardrails-rewrite.md` | Mode: Rewrite `full-stack:` YAML 예시 | A | `dva-improve.yaml` (`AUTOGEN:dva_flow_mode_rewrite`) |
+| `skills/dva-config/references/devbox-apply.md` (symlink: `agent-mesh-flows/shared/library/devbox-apply.md`) | "Default names: `local-infra`..., `local-dev`..." 규칙 문장 | A | `dva-improve.yaml`, `dva-improve-guided/00-analyze.yaml` (`AUTOGEN:dva_flow_devbox_apply`); `skills/dva-config` 스킬 자체도 같은 파일을 직접 참조(symlink이므로 사본이 아니라 동일 파일) |
+| `skills/dva-config/references/schema-reference.md` (symlink: `agent-mesh-flows/shared/library/dva-schema.md`) | legacy `modes:`/`default_mode` 기능 문서의 `full-stack`/`full-stack-tools` 예시 | A (별개 기능인 legacy `modes:` 스키마 문서이지 plan preset 정책이 아님) | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_schema`), `library_reference.txt` |
+| `skills/dva/SKILL.md`, `skills/dva/references/commands.md`, `skills/dva/references/advanced.md` | `dva up local-dev` 등 CLI 사용 예시 | B | 없음 — 독립 판, 다른 파일로 투영되지 않음 |
+| `skills/dva/assets/templates/migrate-modes-to-plans.yml`, `skills/dva/assets/templates/root-devbox-plan.yml` | legacy `modes:` → `plans:` 마이그레이션 예시 템플릿 | B | 없음 |
+| `skills/dva/references/patterns.md` | "Use `default_plan: local-infra` only when... Never make `full-stack` the generated default" — `naming-presets.md`의 정책을 독립적으로 재진술 | A (정책 재진술이지만 별도 저작) | 없음 — `skills/dva` 자체 소비만 |
+| `docs/30-config-merge-examples.md`, `docs/30-config-merge-semantics.md`, `docs/31-execution-plan-resolution.md`, `docs/40-declarative-stack-and-plans.md`, `docs/41-execution-plans-and-cli.md`, `docs/42-migration-and-compatibility.md` | `local-dev`(및 `backend/local-dev`)를 plan 이름 문법 설명의 예시로만 사용 | B | 없음 |
+
+### Go init 생성기와의 결합 확인
+
+`internal/cli/init_scaffold.go`와 `internal/cli/init.go`는 위 표의 어떤 파일도 읽지 않는다
+(`grep -n "library_reference\|agent-mesh-flows\|naming-presets\|local-infra\|local-dev\|
+full-stack\|skills/" internal/cli/init_scaffold.go internal/cli/init.go` → 0건). `library_reference.txt`
+를 소비하는 유일한 Go 코드는 `internal/config/*_test.go`의 코퍼스 assertion 테스트들이고
+(`grep -rln library_reference --include=*.go .` → `corpus_urls_test.go`, `version_rule_test.go`,
+`library_corpus_test.go`, `plan_preset_corpus_test.go`, `removed_keys_test.go`), 전부 코퍼스
+내용을 검증하는 테스트이지 생성기 입력이 아니다. Go 생성기 쪽은 별도로
+`internal/cli/init_test.go`의 `TestInitDoesNotAuthorRejectedPlanLabels`가 다섯 template ×
+discovery 시나리오 전체에서 세 라벨이 생성 출력에 등장하지 않음을 직접 어설션한다(주석이
+이미 이 카드의 Decision Record를 "Go init 생성기만 구속" 근거로 인용하고 있다).
+
+### `TestPlanPresetPolicyShipsInPromptCorpus` 대조
+
+이 테스트는 `naming-presets.md`와 `library_reference.txt` 양쪽에 `"default_plan: local-infra"`
+문자열이 존재하는지만 확인한다 — `am` 코퍼스가 스스로의 정책 문구를 잃지 않게 고정하는
+회귀 방지 pin이며, Go 생성기가 이 문자열을 읽는다는 의미가 아니다. 위 결합 확인과 함께
+읽으면 이 pin은 criterion 3이 우려하는 "코퍼스에 있다는 이유만으로 생성기 증거가 되는" 경로와
+무관하다.
+
+### TASK-233과의 "generated default" 주장 전수 대조
+
+`grep -rln "generated default\|preferred default\|preferred generated default"` 전체
+결과는 이 카드(249)와 233 자신, `agent-mesh-flows/dva-improve*.yaml`/
+`dva-improve-guided/{00-analyze,30-configure}.yaml`(전부 `naming-presets.md`의 투영본),
+그리고 `skills/dva/references/patterns.md` 뿐이다. `naming-presets.md` 계열은 TASK-233이
+이름 댄 바로 그 표면이므로 새로운 주장이 아니다. `skills/dva/references/patterns.md`는
+독립 저작이며 이 Decision Record의 "Go init 생성기 대 am 코퍼스"라는 이분법에 이름이 없던
+**세 번째 표면**(skills/dva 상호작용 스킬)에서 같은 정책을 재진술한다. 이것은 모순은
+아니다 — 내용이 TASK-233과 일치하고, Go init 생성기를 전혀 참조하지 않는다(위 결합 확인).
+다만 Decision Record의 표면 지도에는 이름이 없었으므로, 완료기준 9(census owner/cadence)
+작업 시 "skills/dva도 같은 정책을 독립적으로 유지한다"는 사실을 표면 목록에 추가해 두도록
+기록만 남긴다 — 지금 당장 고칠 것은 없다.
+
+### 판정
+
+Criterion 3이 요구하는 검증 조건("an existing `local-infra`, `local-dev`, or `full-stack`
+example must not become generator evidence merely because it already exists in a
+projection")은 충족된다. Go init 생성기는 위 표의 어떤 파일도 읽지 않으며, 세 라벨을 생성
+출력에 쓰지 않음이 테스트로 고정돼 있다(`TestInitDoesNotAuthorRejectedPlanLabels`). 인벤토리에서
+발견한 유일한 "새 사실"(`skills/dva/references/patterns.md`의 독립 재진술)은 D8이나 233을
+위반하지 않고 Go 생성기에도 닿지 않으므로 이 completion criterion을 막지 않는다.
