@@ -12,6 +12,27 @@ status: done
 closed-at: 2026-09-03T00:53:27+09:00
 needs-human: true
 decision-status: decided
+parent: PLAN-002
+completed-at: 2026-09-03T00:53:27+09:00
+completion-summary: "Froze Option A: entry-level sops_source, a config-relative target selector, split edit/unseal ownership, three writable top-level origins, a 23-row unseal matrix, one additive .error.code envelope, and a linux/darwin-only support declaration."
+verification-status: verified
+verification-evidence:
+  - kind: human
+    command-or-step: "2026-09-03 user approval of Option A and the four open questions in section 13"
+    result: "approved as recommended; decision-status moved to decided in the same session"
+  - kind: automated
+    command-or-step: "make doc-check"
+    result: "passed; 710 links, 0 broken, 0 status mismatches"
+quality-review: pass
+quality-reviewed-at: 2026-09-05T07:25:46+09:00
+quality-review-evidence:
+  - "independent re-review mapped all eight acceptance criteria to card content: section 2 covers every existing env_file shape with accepted and rejected YAML for both schema locations, section 3-1 gives the argv table with text/JSON/exit, section 4-1 gives the 23-row unseal matrix plus a fixed 12-step check order, section 5 names a resolution or fail-closed code for every origin, anchor, path and Git state, section 6 and 11 bound --force, section 8 reports the spike, and section 7 freezes the output contract"
+  - "re-ran the one machine binding: make doc-check exit 0 (doc-check OK, cilabels OK, flowcheck OK)"
+  - "contract is live in code: all 27 frozen error codes exist in internal/cli/config_env_error.go, envFileOrigin is the unexported provenance field required by section 5-2, emitFailureJSONFor adds .error.code to the single root envelope per section 7-1, and the config-env-platform job in .github/workflows/ci.yml runs the frozen [ubuntu-latest, macos-latest] matrix, so the Conditional platform rule needed no CI enablement child"
+  - "no blocker or major finding; the Windows spike was not run and section 8-3 excludes Windows fail-closed on Go source evidence, which the 2026-09-03 approval accepted"
+archived-at: 2026-09-05T07:25:46+09:00
+verified-at: 2026-09-05T07:25:46+09:00
+verification-summary: "The frozen env bridge contract is decision-complete and already governs the shipped implementation; TASK-281/282 supersede only the section 11 rejection of gated env show/seal."
 ---
 
 # Task 245: freeze the env bridge contract
@@ -44,7 +65,7 @@ Base/module/override가 합쳐져 provenance가 모호하거나 여러 origin이
 
 ## Decision (승인됨)
 
-[런북 §5](../../docs/53-command-surface-agent-execution.md)에 따라 에이전트는 결정을 준비만 하고
+[런북 §5](../../../docs/53-command-surface-agent-execution.md)에 따라 에이전트는 결정을 준비만 하고
 확정하지 않는다. 아래 option, 근거, matrix, fixture, 기각 대안은 그 준비 단계에서 작성됐고,
 `decision-status`는 사용자가 Option을 고르기 전까지 `pending`이었다.
 

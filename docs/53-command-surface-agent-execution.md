@@ -44,7 +44,7 @@ diff와 명령 결과를 다시 확인한다.
 
 | Wave | Task | 세션 종료 조건 |
 | --- | --- | --- |
-| 완료 | [TASK-245](../tasks/done/245-freeze-env-bridge-contract.md) | Option A 결정 승인 완료 |
+| 완료 | [TASK-245](../tasks/_archive/done/245-freeze-env-bridge-contract.md) | Option A 결정 승인 완료 |
 | 완료 | [TASK-247](../tasks/_archive/done/247-freeze-required-env-command-policy.md) | 결정·검증·통합 완료 |
 | 1 | [TASK-249](../tasks/todo/249-redesign-capability-driven-init.md) | init contract 사용자 결정이 기록·검증됨 |
 | 1 | [TASK-244](../tasks/todo/244-validate-plan-declaration-drift.md) | D6/D7 구현·독립 review·통합 완료 |

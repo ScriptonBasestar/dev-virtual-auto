@@ -27,7 +27,7 @@ compatibility가 미정인 부분은 evidence gate가 닫히기 전까지 구현
 | --- | --- | --- |
 | lifecycle 7동사, plan 위치 인자 | 유지 | 변경 없음 |
 | D6/D7 validate 경고 | 구현 가능 | [TASK-244](../_archive/done/244-validate-plan-declaration-drift.md) |
-| `config env` bridge | Option A 확정 | [TASK-245](../done/245-freeze-env-bridge-contract.md) → [TASK-246](../done/246-implement-secure-config-env-bridge.md) |
+| `config env` bridge | Option A 확정 | [TASK-245](../_archive/done/245-freeze-env-bridge-contract.md) → [TASK-246](../done/246-implement-secure-config-env-bridge.md) |
 | env bridge safe write가 target 디렉토리에 고정되지 않음 | 리뷰에서 확인, 재현됨 | [TASK-284](../done/284-anchor-env-safewrite-to-target-directory.md) |
 | required env 오류 전파 | owner 복구 완료·env_file 결정 필요 | [TASK-247](../_archive/done/247-freeze-required-env-command-policy.md) → [TASK-264](../_archive/done/264-restore-imported-command-ownership.md) → [TASK-248](../done/248-enforce-required-env-command-policy.md) |
 | interaction-level `env_file` | versioned rejection 결정됨 | [TASK-265](../done/265-decide-interaction-env-file-contract.md) → [TASK-266](../todo/266-deprecate-and-reject-interaction-env-file.md) |
@@ -297,7 +297,7 @@ TASK-245가 여러 OS를 지원한다고 결정했다면 TASK-246이 그 OS를 �
 - D6 warning의 canonical name/삭제 대상 권고
 - 게이트 없는 `config env show`, top-level `dva env show`, lifecycle auto-unseal
   (기본 비활성 + `env_bridge` opt-in은 [TASK-281](../done/281-freeze-gated-env-bridge-commands.md)이 소유하며,
-  [TASK-245](../done/245-freeze-env-bridge-contract.md) §11의 무조건 기각을 그만큼 supersede한다)
+  [TASK-245](../_archive/done/245-freeze-env-bridge-contract.md) §11의 무조건 기각을 그만큼 supersede한다)
 - DVA의 age/provider/key management 재구현
 - fixed archetype/3-plan scaffold
 - `--force`의 tracked/symlink/path safety 우회
