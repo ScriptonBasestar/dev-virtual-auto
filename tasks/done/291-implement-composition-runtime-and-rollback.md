@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-04T10:00:00+09:00
 source: "PLAN-005 implementation of TASK-260's frozen composition contract"
 scope: "wave-sequential cross-project execution for every lifecycle verb, automatic LIFO rollback with original-error preservation, the --no-rollback opt-out, and partial-state reporting"
-status: todo
+status: done
 depends-on: [TASK-290]
 ---
 
@@ -86,6 +86,22 @@ Four places where the literal criterion text meets this card's own non-goals, re
    (`waitEntriesReady` is a new method used only by the composition path). The child that failed
    readiness is reported `failed` and is not itself rolled back, matching §5.2, which rolls back the
    children that *succeeded*.
+
+## Review findings (follow-ups, not blocking)
+
+Independent review (opus, adversarial) confirmed READY TO INTEGRATE, with two findings:
+
+- **F1 — rollback outliving cancellation.** Fixed in this same branch (`ce34746`): the rollback
+  teardown loop now runs on `context.WithoutCancel(ctx)` so a SIGINT that caused the failure does not
+  also kill every rollback `down` call. Wave execution still honors the caller's context. Covered by a
+  new subtest in `TestCompositionUpRollsBackSucceededChildrenOnFailure`, confirmed non-vacuous by
+  reverting the fix and observing the test fail.
+- **F2 — a readiness-gate failure is reported `failed` while the child may still be fully up**, with
+  no "may still be up, manual verification required" marker (unlike a failed rollback `down`, which
+  does get that marker). Not state corruption — `up` is idempotent and an explicit `down` re-queries
+  live state — but a purely cosmetic reporting gap. Deferred as a small follow-up rather than blocking
+  this task; TASK-292 (or a new card) should add the same "may still be up" diagnostic language to the
+  readiness-failure path.
 
 ## Non-goals
 
