@@ -537,6 +537,9 @@ func mergePlanConfig(base, other *PlanConfig) *PlanConfig {
 	if other.Entries != nil {
 		base.Entries = other.Entries
 	}
+	if other.Composes != nil {
+		base.Composes = other.Composes
+	}
 	return base
 }
 

@@ -604,6 +604,25 @@
                 },
                 "required": ["name"]
               }
+            },
+            "composes": {
+              "type": "array",
+              "description": "Ordered list of composed plan references (root-aggregation composition, TASK-260 §3). Mutually exclusive with 'entries' on the same plan — a composition plan has no stack entries of its own and cannot declare environment/site/top-level vars.",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "plan": { "type": "string", "description": "Local leaf plan name, or an already-imported canonical/alias plan name (subprojects.<name>.import.plans)" },
+                  "order": { "type": "integer", "description": "Execution order within this composition" },
+                  "depends_on": { "type": "array", "items": { "type": "string" }, "description": "Other composes[].plan values in this same list that must complete first" },
+                  "vars": {
+                    "type": "object",
+                    "description": "Override applied to this composed plan invocation only",
+                    "additionalProperties": { "type": ["string", "boolean", "number"] }
+                  }
+                },
+                "required": ["plan"]
+              }
             }
           },
           "examples": [{

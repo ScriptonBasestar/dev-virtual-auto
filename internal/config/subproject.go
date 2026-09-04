@@ -136,6 +136,14 @@ func resolveSubprojectImports(cfg *Config, opts ...LoadOption) error {
 			if !ok {
 				return fmt.Errorf("subproject %q plan %q not found", subprojectName, name)
 			}
+			// TASK-260 §3.3's second enforcement point: a child's composition
+			// plan must not become importable, so an ancestor project never
+			// needs to know the child composed it. The direct check in
+			// validateCompositionPlans (composition_plan.go) alone would only
+			// catch this once some root's composes: actually referenced it.
+			if len(plan.Composes) > 0 {
+				return fmt.Errorf("subproject %q plan %q is a composition plan (composes:) and cannot be imported", subprojectName, name)
+			}
 
 			canonicalName := subprojectName + "/" + name
 			if _, exists := cfg.Plans[canonicalName]; exists {

@@ -70,12 +70,13 @@ type SubprojectConfig struct {
 
 // PlanConfig defines a named executable plan.
 type PlanConfig struct {
-	Description  string            `yaml:"description"`
-	Environment  string            `yaml:"environment"`
-	Site         string            `yaml:"site"`
-	EndpointTags []string          `yaml:"endpoint_tags"`
-	Vars         map[string]string `yaml:"vars"`
-	Entries      []PlanEntry       `yaml:"entries"`
+	Description  string             `yaml:"description"`
+	Environment  string             `yaml:"environment"`
+	Site         string             `yaml:"site"`
+	EndpointTags []string           `yaml:"endpoint_tags"`
+	Vars         map[string]string  `yaml:"vars"`
+	Entries      []PlanEntry        `yaml:"entries"`
+	Composes     []CompositionEntry `yaml:"composes"`
 
 	SubprojectPath string `yaml:"-"`
 
@@ -861,6 +862,14 @@ func finalizeLoadedConfig(cfg *Config) ([]string, error) {
 	}
 
 	if err := validateEnvSourceDeclarations(cfg); err != nil {
+		return nil, err
+	}
+
+	// Runs after any subproject imports already resolved into cfg.Plans (root
+	// path) or against cfg's own local plans only (subproject path — see
+	// resolveSubprojectImports, which finalizes each subCfg before importing
+	// from it and never recursively resolves a subCfg's own subprojects).
+	if err := validateCompositionPlans(cfg); err != nil {
 		return nil, err
 	}
 
