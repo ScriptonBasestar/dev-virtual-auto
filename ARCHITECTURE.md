@@ -147,6 +147,33 @@ CLI와 orchestrator는 같은 child config directory를 runner 파일, process s
 endpoint와 readiness의 기준으로 사용한다. Parent의 같은 이름 선언은 imported plan에
 섞이지 않으며 CLI `--var`처럼 문서화된 호출 입력만 추가된다.
 
+### Composed lifecycle
+
+```text
+dva up/down/stop/status <composition plan>
+    → config load and validation (composes:/entries: 상호 배타, composition-of-composition 거부)
+    → ResolveCompositionPlan (CalculateWaves 재사용, composed child마다 ExecutionPlan)
+    → CompositionOrchestrator.Up: wave 순서·wave 내부 선언 순서로 순차 실행
+    → 실패 시 이미 성공한 child를 LIFO로 자동 rollback (plain teardown, --no-rollback로 opt-out)
+    → CompositionReport (project 단위 집계, state: up/failed/rolled_back/rollback_failed/not_started)
+```
+
+Composition plan(`composes:`)은 이미 import된 child plan(또는 로컬 leaf plan)만 참조할 수
+있고, child의 `stack`을 root로 flatten하거나 child `env_file`을 root에 merge하지 않는다.
+각 composed child는 Named lifecycle과 동일하게 자신의 owning child effective config(자신의
+environment/site/vars/env_file)로 실행되며, root가 개입하는 유일한 지점은
+`ComposeEntry.Vars`(문서화된 override, merge 아님)다. `CompositionChildExecutor`가 orchestration
+(순서·rollback·리포트)과 child 도달 방식을 분리한다 — 실제 구현(`PlanChildExecutor`)은 Named
+lifecycle과 동일한 `Orchestrator`를 child마다 하나씩 재사용하므로, 단독 호출과 composition 안에서
+호출된 동작이 동일하다.
+
+*Before(composition 없이)*: `dva up api/deploy && dva up web/deploy`처럼 import된 이름을 순서대로
+직접 호출.
+*After*: root가 `release: {composes: [{plan: api/deploy, order: 0}, {plan: web/deploy, order: 1,
+depends_on: ["api/deploy"]}]}`를 선언하면 `dva up release` 한 번으로 같은 순서를 실행하고 실패 시
+자동 LIFO rollback을 얻는다 — 기존 `dva up api/deploy` 단독 호출은 `release`의 존재와 무관하게
+계속 동일하게 동작한다.
+
 ### Interaction
 
 ```text

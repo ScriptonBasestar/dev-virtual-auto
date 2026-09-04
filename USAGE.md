@@ -1470,6 +1470,60 @@ readiness를 사용합니다. Parent의 같은 이름 선언은 섞이지 않으
 
 Subproject `path`는 absolute path나 parent 밖을 가리키는 `../` path도 사용할 수 있습니다.
 
+### composes (cross-project plan composition)
+
+Root plan이 이미 import된 child plan들을 순서대로 실행합니다. `composes:`가 있는 plan은
+자신의 `entries:`를 가질 수 없고(상호 배타), 다른 composition plan을 다시 compose할 수도
+없습니다 — recursion과 composition-of-composition을 구조적으로 거부합니다.
+
+```yaml
+subprojects:
+  api:
+    path: ../api
+    import:
+      plans:
+        - name: deploy
+  web:
+    path: ../web
+    import:
+      plans:
+        - name: deploy
+plans:
+  release:
+    composes:
+      - plan: api/deploy
+        order: 0
+      - plan: web/deploy
+        order: 1
+        depends_on: ["api/deploy"]
+```
+
+*Before(composition 없이)* — 사용자가 수동으로 두 명령을 순서대로 실행:
+
+```bash
+dva up api/deploy
+dva up web/deploy
+```
+
+*After(위 `release` composition plan 추가 후)*:
+
+```bash
+dva up release
+```
+
+한 번의 호출로 wave 순서(`api/deploy` → `web/deploy`, `depends_on`이 강제하는 순서)를
+지키며 실행되고, 실패 시 이미 성공한 child를 LIFO 순서로 자동 rollback합니다(plain
+teardown, `--no-rollback`으로 끌 수 있습니다). 기존 `dva up api/deploy` 단독 호출은
+`release`의 존재와 무관하게 계속 동일하게 동작합니다 — composition은 기존 이름 위에 새
+selector(composition plan 이름)를 추가할 뿐입니다.
+
+`dva status release`는 project 단위(`api`, `web`)로 집계된 상태를 보고합니다. Rollback
+자체가 실패하면(예: child가 외부에서 이미 지워진 경우) 원래 실패의 에러 메시지는 그대로
+유지되고, rollback이 실패한 child는 `rollback_failed`로 표시됩니다 — 그 상태에서 같은
+`dva up release`를 다시 실행하면 root가 새로 resolve해 각 child의 실제 상태를 다시
+물어보므로, 이미 up인 child는 child 자신의 idempotent up으로 통과하고 실패했던 child만
+재시도됩니다(새 플래그나 저장된 상태 파일 없이).
+
 ### 특수 변수
 
 | Variable | Description |
