@@ -212,10 +212,13 @@ dogfood-skill-install:
 	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --expected-sha256 "$(DVA_SHA256)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
-# Do not close stdin here. On GitHub Actions the runner multiplexes the
-# step over fd 0; `exec </dev/null` in this recipe produced a 30–45m
-# lost-communication abort with no logs. Tests that must not inherit
-# stdin are gated in ExecSubprocess via testing.Testing().
+# Two GitHub Actions constraints live outside this recipe:
+# 1. Do not close stdin here. The runner multiplexes the step over fd 0;
+#    `exec </dev/null` produced a silent 30–45m lost-communication abort.
+#    Tests that must not inherit stdin are gated in ExecSubprocess via
+#    testing.Testing().
+# 2. The CI Test / Integration Test steps set GOMAXPROCS=1 so -race cannot
+#    saturate a 2-core hosted runner and starve its heartbeat.
 test:
 	go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...
 
