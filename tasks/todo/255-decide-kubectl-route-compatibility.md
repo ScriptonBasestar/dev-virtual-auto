@@ -206,24 +206,92 @@ deprecation을 정당화할 usage evidence가 없으므로(완료기준 1이 아
   유일한 갱신 대상이며, 실제 문구 수정은 TASK-256 구현 범위다 — 이 카드는 어디를 고칠지만
   얼린다
 
-### 완료기준 1 — 여전히 hard stop, 진행 없음 (2026-09-04)
+### 완료기준 1 — invocation corpus (2026-09-04)
 
-이 저장소 안에서 "pinned canonical consumer repositories" 코퍼스를 뒷받침할 기존 목록이나
-스캔 기제가 있는지 확인했다.
+스캔 범위는 사용자 권장 작업 순서 승인으로 아래처럼 고정했다. DVA CLI 저장소 자체는
+포트폴리오 카탈로그에 ID가 없다. canonical consumer는 `portfolio/catalog.yaml`에서
+`manifests[].path == dva.yml`인 항목이다.
 
-```
-grep -rn "pinned.*consumer\|canonical consumer\|consumer repositor" --include="*.md" docs/ tasks/ USAGE.md
-```
+| Source | Pin | Note |
+| --- | --- | --- |
+| workbook `ce-workbook` | `870d89792e6622f537106be74989a33c88595474` (`master`) | `uv run python scripts/portfolio-catalog check` PASS |
+| producer `ScriptonBasestar/dva` | `40a35f8f79031f4ddb02c7317f8c8c461684901b` | uncatalogued; scanned this checkout |
+| 18 catalog consumers | local `HEAD` at scan time (table below) | not origin-fetched |
 
-결과는 이 완료기준 자신과 TASK-261의 같은 문구뿐이었다 — 이 저장소에는 pinned consumer
-repository를 식별·스캔하는 기존 메커니즘이 없다. `${XDG_CONFIG_HOME:-$HOME/.config}/ce/
-workbook.toml`이 가리키는 포트폴리오 워크북이 그런 목록의 후보지만, 이번 세션은 그 목록을
-만드는 권한이나 근거를 갖고 있지 않다 — "pinned canonical consumer"의 정의(어떤 저장소가
-해당하는지, 어떤 revision을 고정하는지) 자체가 코퍼스 작업 시작 전에 별도로 확정돼야
-한다. 이 완료기준은 그 정의와 실제 스캔 둘 다 아직 없는 채로 남는다.
+**포함 경로.** producer: `docs/`, `skills/`, `examples/`, `agent-mesh-flows/`,
+`workflows/`, `assets/`, `USAGE.md`, `README.md`, `AGENTS.md`, `CLAUDE.md`,
+`PRODUCT.md`, `ARCHITECTURE.md`, `CHANGELOG.md`, `Makefile`. consumers: 같은
+텍스트 확장자 + `dva.yml`.
 
-이 카드 자신의 Decision Record가 이미 명시했듯("완료기준 1의 코퍼스가 필수 선행 작업이
-됐다"), 이는 exemptable gap이 아니다 — TASK-257처럼 "이 결정이 route를 제거·숨기지 않는다"는
-논리로 건너뛸 수 없다. `kubectl`을 새 top-level reserved name으로 승격하는 것 자체가 이
-완료기준이 막으려는 행동이기 때문이다. **완료기준 1은 미해결로 남고, TASK-256은 이 코퍼스와
-완료기준 7(독립 리뷰) 없이는 시작하지 않는다.**
+**포함 패턴.** `dva ktl`, `dva kubectl`, `dva run ktl`, `dva run kubectl`만
+invocation으로 센다. `runners.kubectl`(plugin 타입)과 bare `kubectl` 바이너리는
+제외한다.
+
+**제외.** `.env*`(`.env.example` 제외), `*.sops`, `ENC[` ciphertext, `token=`/
+`password=` 줄, 400KB 초과 파일, `node_modules`/`vendor`/`dist`/`tmp`.
+
+#### Producer invocations (`dva ktl` / `dva kubectl`)
+
+| File | Line | Match |
+| --- | --- | --- |
+| `docs/43-command-surface-restructure.md` | 106 | `dva ktl ...` escape hatch |
+| `docs/42-migration-and-compatibility.md` | 157 | `` `dva kubectl` `` as an interaction example — TASK-256 must rewrite this |
+| `skills/dva/SKILL.md` | 163 | `dva ktl <args>` |
+| `skills/dva/references/commands.md` | 245, 250–252 | `dva ktl` help and examples |
+| `USAGE.md` | 604 | `` `dva ktl ARGS` `` |
+
+`dva kubectl` as a CLI invocation appears once, and only as that now-invalid
+interaction example. Live passthrough docs all say `dva ktl`.
+
+#### Catalog consumers
+
+`portfolio-catalog check` 통과 시점의 18개 `dva.yml` 소비자. SHA는 이 워크스테이션
+checkout의 `HEAD`이며 origin을 fetch하지 않았다.
+
+| ID | catalog branch | observed HEAD | files | `dva ktl` | `dva kubectl` |
+| --- | --- | --- | --- | --- | --- |
+| resume-devbox | master | *checkout missing* | — | — | — |
+| flow-task-automator-devbox | develop | *checkout missing* | — | — | — |
+| flow-taskchain-devbox | develop | `6eed51487cd323095fa8017074061da9d2404b2a` | 1672 | 0 | 0 |
+| flow-agent-mesh-devbox | master | `81053099aad4de4fe0d953714cbea66a96923a65` | 827 | 0 | 0 |
+| flow-pipechain-devbox | develop | `9341e9c12f94c8671f07ce2a67388457d261aab0` | 805 | 0 | 0 |
+| flow-knowchain-devbox | develop | `f45c8e6aef71e2f54e003585c6600d96ce84c40e` | 985 | 1 | 0 |
+| flow-observechain-devbox | develop | `56a2aa0ce454ae5701092d7970cda198a6c6a1d4` | 299 | 0 | 0 |
+| gorisa-devbox | *(undeclared)* | `e10fe3c2af736a40de781c5f5ef8f130bac94619` | 682 | 2 | 0 |
+| gorisa-rails | master | `c38539845fa7988fafe5b4778e122ad868fdb86b` | 99 | 0 | 0 |
+| gizzahub-devbox | develop | `ab995ecfb88a07337f38c0faef7e297b21b7c058` | 1542 | 0 | 0 |
+| cwrapper-devbox | develop | `5cd5c6f9fba56f6cf911560560854b09e547df31` | 1125 | 0 | 0 |
+| cwrapper-engine-py | develop | `8d025e19baa8e7461b2d90387d777bc1311ac837` | 207 | 0 | 0 |
+| cwrapper-ranch-workers | develop | `07367cf175bc0c65f16ff77cccbc402d39e9df5d` | 293 | 0 | 0 |
+| cloud-script-transformer | develop | `2962f582995e7ca3e7d6a7b85c80c5595128ca94` | 61 | 0 | 0 |
+| dripter-devbox | develop | `c6352f9ea6003078fbc05b9633a864d35ee1e64a` | 565 | 0 | 0 |
+| dripter-engine-ktor | develop | `1f9f7a985b87a7eb2ba22db26ffe4f058408151f` | 152 | 0 | 0 |
+| dripter-frontend-astro | develop | `6cb87cb3a83a93942e925484f86f42555c46720f` | 114 | 0 | 0 |
+| matdosa-devbox | master | `1cc592857978c10e55f698276639d99395f637d7` | 114 | 0 | 0 |
+
+Consumer literal matches (no secrets; kubeconfig path is a local filename only):
+
+- `flow-knowchain-devbox` `docs/dva-guide.md:128` — `dva ktl <args>` (guide copy)
+- `gorisa-devbox` `deploy/kustomize/operations/forum-data-backfill/README.md:88` —
+  `dva ktl -n data get services ...` (read-only evidence command)
+- `gorisa-devbox` `docs/60-deployment/forum-data-rehearsal.md:85` — same
+  `dva ktl -n data get services ...` invocation in rehearsal notes
+
+**스캔된 소비자에서 `dva kubectl` invocation은 0건이다.** 살아있는 소비자 호출은 전부
+`dva ktl`이다.
+
+#### Scanner limitations (unresolved, not guessed)
+
+- Two catalog consumers had no local checkout: `resume-devbox`,
+  `flow-task-automator-devbox`. Their invocations are unknown.
+- Revisions are workstation `HEAD`, not `git fetch` + `origin/<source_branch>`.
+- `gorisa-devbox` has no catalog `source_branch`.
+- No expansion of `dva $cmd`, shell aliases, or ignored files.
+- Producer Go sources and tests were not scanned; this corpus is invocation
+  docs/scripts, not command registration.
+
+완료기준 1 체크박스는 이 코퍼스만으로 닫지 않는다. 누락 checkout 2곳과 unfetched
+pin은 카드 verify 문장("missing canonical repositories, unpinned revisions, or
+unexplained dynamic invocations stop a rename decision")이 가리키는 공백이다.
+닫는 판정은 완료기준 7 독립 리뷰가 한다. TASK-256은 1·7이 둘 다 체크되기 전에는
+시작하지 않는다.
