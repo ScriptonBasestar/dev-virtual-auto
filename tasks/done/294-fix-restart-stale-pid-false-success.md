@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "TASK-292 independent review round 3 (review-task292), non-blocking item 3"
 scope: "process plugin restart path only (native runner), both single-plan `dva restart` and composition restart"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -59,17 +59,17 @@ the same entry, not just the `Restart` code path, and needs no new option thread
 
 ## Completion Criteria
 
-- [ ] A regression test reproduces the bug against pre-fix code (i.e. is genuinely falsifiable, not
+- [x] A regression test reproduces the bug against pre-fix code (i.e. is genuinely falsifiable, not
       just descriptive): stop a process-plugin entry via the plan orchestrator's `Restart`, and assert
       the entry is actually running afterward (e.g. via a live PID check or the plugin's own `Status`),
       not just that `Restart` returned a nil error | verify: `/usr/bin/grep -Eq '^func TestProcessPlugin_Restart_LeavesProcessRunning\(' internal/lifecycle/process_test.go && go test ./internal/lifecycle -count=1`
-- [ ] `dva restart <plan>` and composition `restart` both leave the process-plugin entry genuinely
+- [x] `dva restart <plan>` and composition `restart` both leave the process-plugin entry genuinely
       running afterward, verified against the real binary (not just unit-level), for both a fast-exiting
       test process and one with a short graceful-shutdown delay | verify: `/usr/bin/grep -Eq '^func TestRunPlanRestartLeavesNativeProcessRunning\(' internal/cli/plan_lifecycle_test.go && go test ./internal/cli -count=1`
-- [ ] No change to `Down`/`removeProcess`/`Stop`'s existing preserved-PID-file semantics for the
+- [x] No change to `Down`/`removeProcess`/`Stop`'s existing preserved-PID-file semantics for the
       non-restart stop case (`dva stop <plan>` alone must still leave the PID file in place per the
       existing "Vagrant halt semantics" comment) | verify: `go test ./internal/lifecycle -run TestProcessPlugin_StopProcess_NoPidFile -count=1 -v`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
 

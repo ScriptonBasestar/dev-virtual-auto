@@ -1,15 +1,20 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
+	"github.com/ScriptonBasestar/dva/internal/lifecycle"
 )
 
 func TestRequirePlanSelection_MultiplePlansRequireName(t *testing.T) {
@@ -76,6 +81,84 @@ plans:
 	if _, err := os.Stat(pidFile); err != nil {
 		t.Fatalf("plan restart dry-run removed PID state: %v", err)
 	}
+}
+
+// TestRunPlanRestartLeavesNativeProcessRunning is the CLI/real-binary counterpart of
+// TASK-294's TestProcessPlugin_Restart_LeavesProcessRunning (internal/lifecycle): it drives
+// `dva restart <plan>` through the same runPlanUp/runPlanRestart entry points the `restart`
+// command uses, against a genuine native process, for both a process that dies immediately on
+// SIGTERM and one with a short graceful-shutdown delay — the case most likely to lose the
+// stop/up PID-file race.
+func TestRunPlanRestartLeavesNativeProcessRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process plugin requires Unix process groups")
+	}
+
+	for _, tc := range []struct {
+		name    string
+		command string
+	}{
+		{"fast-exiting", "sleep 999"},
+		{"graceful-shutdown-delay", "trap 'sleep 0.3; exit 0' TERM; while true; do sleep 0.05; done"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := loadTestConfig(t, fmt.Sprintf(`version: "0.1.44"
+stack:
+  api:
+    default_runner: native
+    runners:
+      native:
+        run: %q
+plans:
+  local-dev:
+    entries:
+      - name: api
+        runner: native
+`, tc.command))
+			e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+			t.Cleanup(func() {
+				_ = runPlanDown(c, planEnv(e), "local-dev", nil)
+			})
+
+			if err := runPlanUp(c, planEnv(e), "local-dev", nil); err != nil {
+				t.Fatalf("plan up failed: %v", err)
+			}
+
+			pidFile := filepath.Join(c.FileDir(), config.DotDirName, config.PidsDirName, "api.pid")
+			origPID := readTestPID(t, pidFile)
+			if !lifecycle.IsProcessRunning(origPID) {
+				t.Fatalf("process not running after up (pid %d)", origPID)
+			}
+
+			if err := runPlanRestart(c, planEnv(e), "local-dev", nil); err != nil {
+				t.Fatalf("plan restart failed: %v", err)
+			}
+
+			// Give a process with a graceful-shutdown delay time to actually finish exiting,
+			// so a false "already running" report from up's PID-file check isn't masked by
+			// the original process still being alive when this check runs.
+			time.Sleep(500 * time.Millisecond)
+
+			newPID := readTestPID(t, pidFile)
+			if !lifecycle.IsProcessRunning(newPID) {
+				t.Fatalf("restart left the entry stopped: pid %d recorded in %s (was %d before restart) is not running",
+					newPID, pidFile, origPID)
+			}
+		})
+	}
+}
+
+func readTestPID(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pid file %s: %v", path, err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("parse pid file %s: %v", path, err)
+	}
+	return pid
 }
 
 const planStackConfig = `version: "0.1.0"

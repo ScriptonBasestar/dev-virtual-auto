@@ -5,8 +5,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -145,6 +148,82 @@ func TestProcessPlugin_StopProcess_NoPidFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stopping non-existent process should not error: %v", err)
 	}
+}
+
+// TestProcessPlugin_Restart_LeavesProcessRunning reproduces TASK-294: Orchestrator.Restart
+// (Stop then Up) stopping a process-plugin entry and reporting success while the entry is
+// actually left stopped, because Up's "already running" PID-file check can observe the
+// original process mid-shutdown and skip starting a replacement.
+//
+// The stack entry traps SIGTERM and takes ~0.3s to actually exit, faithfully modeling a
+// process with a short graceful-shutdown delay — the case the bug report identifies as most
+// likely to lose the race. Pre-fix, Restart returns almost immediately without waiting for
+// the original process to exit, so by the time this test's fixed delay elapses the original
+// process is dead and no replacement was ever started, leaving a dead PID on record. Post-fix
+// this always observes a live process, because Stop/haltProcess now blocks until the original
+// process has actually exited before Up runs.
+func TestProcessPlugin_Restart_LeavesProcessRunning(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process plugin requires Unix process groups")
+	}
+
+	dir := t.TempDir()
+	writeImportedPlanConfig(t, dir, `
+version: "0.1.0"
+stack:
+  api:
+    default_runner: process
+    runners:
+      process:
+        command: "trap 'sleep 0.3; exit 0' TERM; while true; do sleep 0.05; done"
+`)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	env := config.NewEnvironment(nil, cfg.FileDir(), cfg.FileDir())
+	orch := NewOrchestrator(cfg, env)
+	ctx := context.Background()
+	t.Cleanup(func() { _ = orch.Down(ctx, DownOptions{}) })
+
+	if err := orch.Up(ctx, UpOptions{}); err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+
+	pidFile := filepath.Join(cfg.FileDir(), config.DotDirName, config.PidsDirName, "api.pid")
+	origPID := readPIDFile(t, pidFile)
+	if !IsProcessRunning(origPID) {
+		t.Fatalf("process not running after Up (pid %d)", origPID)
+	}
+
+	if err := orch.Restart(ctx, UpOptions{}); err != nil {
+		t.Fatalf("Restart: %v", err)
+	}
+
+	// Give the original process (which takes ~0.3s to honor SIGTERM) time to actually
+	// finish exiting, so a false "already running" report from Up's PID-file check isn't
+	// masked by the original process still being alive when this check runs.
+	time.Sleep(500 * time.Millisecond)
+
+	newPID := readPIDFile(t, pidFile)
+	if !IsProcessRunning(newPID) {
+		t.Fatalf("restart left the entry stopped: pid %d recorded in %s (was %d before restart) is not running",
+			newPID, pidFile, origPID)
+	}
+}
+
+func readPIDFile(t *testing.T, path string) int {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pid file %s: %v", path, err)
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		t.Fatalf("parse pid file %s: %v", path, err)
+	}
+	return pid
 }
 
 func TestIsProcessRunning(t *testing.T) {

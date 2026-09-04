@@ -9,9 +9,41 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
+
+// haltExitTimeout bounds how long haltProcess waits for a SIGTERM'd process to actually
+// exit before returning. Without this wait, Up's already-running check (same PID file, same
+// IsProcessRunning probe) can observe the process mid-shutdown and skip starting a
+// replacement — the entry is left stopped while restart/up report it as running. The wait
+// makes Stop's return synchronous with the process actually being gone, matching the
+// semantics Down/removeProcess already get for free by deleting the PID file.
+const (
+	haltExitTimeout      = 5 * time.Second
+	haltExitPollInterval = 50 * time.Millisecond
+)
+
+// waitForProcessExit polls until pid is no longer running, ctx is cancelled, or timeout
+// elapses. It returns false (not true) on cancellation or timeout so the caller can decide
+// whether to warn rather than assume the process is gone.
+func waitForProcessExit(ctx context.Context, pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !IsProcessRunning(pid) {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(haltExitPollInterval):
+		}
+	}
+}
 
 // EntryDir resolves an entry's declared directory against the config directory.
 //
@@ -95,7 +127,7 @@ func (p *ProcessPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 		pctx.Logger.Info("dry-run", "action", "stop process", "name", pctx.Entry.Name)
 		return nil
 	}
-	return p.haltProcess(pctx)
+	return p.haltProcess(ctx, pctx)
 }
 
 func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
@@ -113,7 +145,12 @@ func (p *ProcessPlugin) Status(ctx context.Context, pctx *PluginContext) ([]Serv
 
 // haltProcess sends SIGTERM but preserves the PID file so the process
 // can be restarted quickly via `dva stack up` (Vagrant halt semantics).
-func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
+//
+// It waits (bounded by haltExitTimeout) for the process to actually exit before returning,
+// so a caller that immediately re-checks or re-starts this same entry — e.g. Orchestrator's
+// Restart, which is Stop followed by Up — never observes the still-shutting-down process
+// through Up's "already running" PID-file check and mistakenly skips starting a replacement.
+func (p *ProcessPlugin) haltProcess(ctx context.Context, pctx *PluginContext) error {
 	name := pctx.Entry.Name
 	pidFile := filepath.Join(pctx.ConfigDir, config.DotDirName, config.PidsDirName, name+".pid")
 
@@ -137,6 +174,9 @@ func (p *ProcessPlugin) haltProcess(pctx *PluginContext) error {
 	if pid > 0 && IsProcessRunning(pid) {
 		if err := terminateProcessGroup(pid); err == nil {
 			fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
+			if !waitForProcessExit(ctx, pid, haltExitTimeout) {
+				fmt.Fprintf(os.Stderr, "[warn] %s (pid %d) did not exit within %s of stop\n", name, pid, haltExitTimeout)
+			}
 		} else if errors.Is(err, errProcessGroupsUnsupported) {
 			return fmt.Errorf("stop %s: %w", name, err)
 		}
