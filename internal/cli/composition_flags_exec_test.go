@@ -405,3 +405,103 @@ func TestCompositionDownDryRunPerformsNoRealTeardown(t *testing.T) {
 		}
 	}
 }
+
+// compositionRestartHaltFixtureConfig extends compositionRestartFixtureConfig (in
+// composition_flags_test.go) with a third child, svc-late (wave 2, depending on bad-plan),
+// whose stop/up scripts create late-order if they ever run.
+// TestCompositionRestartHaltsAfterFailedChild uses this to prove restart's fail-fast halt
+// (TASK-260 §5.2 step 1, "그 실패한 child 이후의 child는 시작하지 않는다"): once svc-bad's
+// restart fails, svc-late must never be touched at all, not merely left un-restarted.
+const compositionRestartHaltFixtureConfig = `version: "0.1.0"
+stack:
+  svc-good:
+    default_runner: script
+    runners:
+      script:
+        up: echo good-up >> good-order
+        down: echo good-down >> good-order
+        stop: echo good-stop >> good-order
+  svc-bad:
+    default_runner: script
+    runners:
+      script:
+        up: test ! -f up-bad-marker && touch up-bad-marker || exit 1
+        stop: "true"
+  svc-late:
+    default_runner: script
+    runners:
+      script:
+        up: echo late-up >> late-order
+        stop: echo late-stop >> late-order
+plans:
+  good-plan:
+    entries:
+      - name: svc-good
+  bad-plan:
+    entries:
+      - name: svc-bad
+  late-plan:
+    entries:
+      - name: svc-late
+  release:
+    composes:
+      - plan: good-plan
+        order: 0
+      - plan: bad-plan
+        order: 1
+        depends_on: ["good-plan"]
+      - plan: late-plan
+        order: 2
+        depends_on: ["bad-plan"]
+`
+
+// TestCompositionRestartHaltsAfterFailedChild proves TASK-260 §5.2 step 1's wave-halt rule
+// applies to restart the same way it applies to up: once a child's restart fails, every
+// not-yet-restarted child — the rest of its wave and every later wave — must not be touched
+// at all, not merely left un-restarted. Restart has no rollback to unwind an already-restarted
+// child (TASK-298 gap A), so proceeding into later waves would restart svc-late against a
+// dependency (svc-bad) this call just found broken.
+func TestCompositionRestartHaltsAfterFailedChild(t *testing.T) {
+	c := loadTestConfig(t, compositionRestartHaltFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp: %v", err)
+	}
+
+	// svc-late's up script legitimately runs once during this initial `up` (release starts
+	// every child for the first time), so late-order already exists before restart is ever
+	// attempted. Snapshot its content here and assert it is unchanged after restart, instead
+	// of asserting mere existence — svc-late's up script appends ("echo late-up >> late-order"),
+	// so a second, wrongly-permitted invocation during restart would add a second line.
+	lateOrderPath := filepath.Join(c.FileDir(), "late-order")
+	before, err := os.ReadFile(lateOrderPath)
+	if err != nil {
+		t.Fatalf("read late-order after initial up: %v", err)
+	}
+
+	restartErr := runCompositionRestart(c, el, "release", nil)
+	if restartErr == nil {
+		t.Fatal("expected restart to fail: svc-bad's up script only succeeds once")
+	}
+
+	after, err := os.ReadFile(lateOrderPath)
+	if err != nil {
+		t.Fatalf("read late-order after restart: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("late-order changed by restart (got %q, want unchanged %q): svc-late was touched, restart must halt before reaching svc-late", after, before)
+	}
+
+	c2 := lifecycleCompositionErrorFrom(t, restartErr)
+	byPlan := map[string]string{}
+	for _, child := range c2.Report.Children {
+		byPlan[child.Plan] = child.State
+	}
+	if byPlan["bad-plan"] != lifecycle.ChildStateFailed {
+		t.Errorf("bad-plan state = %q, want %q", byPlan["bad-plan"], lifecycle.ChildStateFailed)
+	}
+	if byPlan["late-plan"] != lifecycle.ChildStateNotStarted {
+		t.Errorf("late-plan state = %q, want %q (must remain untouched after the halt)", byPlan["late-plan"], lifecycle.ChildStateNotStarted)
+	}
+}

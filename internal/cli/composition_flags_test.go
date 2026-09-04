@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -443,3 +444,159 @@ func TestCompositionExitCodesStayFlat(t *testing.T) {
 // (fire-and-forget, Status always empty — see lifecycle.ScriptPlugin.Status) or a command
 // that exits immediately (this same package's compositionFixtureConfig's `run: "true"`,
 // which is gone from its pidfile by the time a follow-up down would query it).
+
+// compositionRestartFixtureConfig composes svc-good (wave 0, script runner: every verb
+// succeeds and appends a marker so restart's stop-then-up order is observable) ahead of
+// svc-bad (wave 1: its up script succeeds exactly once — the first time it runs, via an
+// up-bad-marker file it creates and then checks for — so a plain `dva up` succeeds but a
+// later restart's second `up` attempt on the same child fails deterministically). This lets
+// a test bring the whole composition up for real, then restart it and observe that svc-bad's
+// restart fails while svc-good's restart still ran (and was not rolled back).
+const compositionRestartFixtureConfig = `version: "0.1.0"
+stack:
+  svc-good:
+    default_runner: script
+    runners:
+      script:
+        up: echo good-up >> good-order
+        down: echo good-down >> good-order
+        stop: echo good-stop >> good-order
+  svc-bad:
+    default_runner: script
+    runners:
+      script:
+        up: test ! -f up-bad-marker && touch up-bad-marker || exit 1
+        stop: "true"
+plans:
+  good-plan:
+    entries:
+      - name: svc-good
+  bad-plan:
+    entries:
+      - name: svc-bad
+  release:
+    composes:
+      - plan: good-plan
+        order: 0
+      - plan: bad-plan
+        order: 1
+        depends_on: ["good-plan"]
+`
+
+// TestCompositionRestartAllowsNoRollback proves TASK-298 gap A's fix: composition restart
+// no longer performs a whole-composition Stop followed by a whole-composition Up (which would
+// carry `up`'s mandatory, inescapable automatic rollback and tear down every child that DID
+// come back up when a different child's half failed). Despite its name — inherited from the
+// card's verify binding, written before the true-per-child-restart direction was chosen over
+// "allow --no-rollback on restart" — this asserts the actual adopted behavior: each composed
+// child restarts independently (TASK-260 §4.3), so svc-bad's restart failure must not roll
+// back or otherwise touch svc-good, which already restarted successfully. --no-rollback itself
+// stays rejected for restart (TestCompositionPropagateAllFlags's "restart" case), since there
+// is no whole-composition rollback left to opt out of.
+func TestCompositionRestartAllowsNoRollback(t *testing.T) {
+	c := loadTestConfig(t, compositionRestartFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp: %v", err)
+	}
+
+	err := runCompositionRestart(c, el, "release", nil)
+	if err == nil {
+		t.Fatal("expected restart to fail: svc-bad's up script only succeeds once")
+	}
+	if !strings.Contains(err.Error(), "bad-plan") {
+		t.Errorf("restart error = %q, want it to name the failing child bad-plan", err.Error())
+	}
+
+	goodOrder, readErr := os.ReadFile(filepath.Join(c.FileDir(), "good-order"))
+	if readErr != nil {
+		t.Fatalf("read good-order: %v", readErr)
+	}
+	// "good-up\ngood-stop\ngood-up\n": one up from the initial `dva up`, then restart's own
+	// stop followed by its own up. No "good-down" line must appear anywhere — that line only
+	// ever comes from a rollback teardown, and svc-good's restart must never trigger one.
+	got := strings.Fields(string(goodOrder))
+	want := []string{"good-up", "good-stop", "good-up"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("good-order = %v, want %v (svc-good restarted once, no rollback teardown)", got, want)
+	}
+
+	c2 := lifecycleCompositionErrorFrom(t, err)
+	if len(c2.Report.Rollback.Attempted) != 0 {
+		t.Errorf("Rollback.Attempted = %v, want empty: per-child restart has no whole-composition rollback to attempt", c2.Report.Rollback.Attempted)
+	}
+	// Keyed by child.Plan, not child.Project: a local leaf plan with no "/" in its name has
+	// an empty Project column (lifecycle.splitChildLabel's convention, shared via
+	// lifecycle.NewCompositionReportSkeleton with every other composition verb's report).
+	byPlan := map[string]string{}
+	for _, child := range c2.Report.Children {
+		if child.Project != "" {
+			t.Errorf("child %q: Project = %q, want empty (fixture uses unqualified local plan names)", child.Plan, child.Project)
+		}
+		byPlan[child.Plan] = child.State
+	}
+	if byPlan["good-plan"] != lifecycle.ChildStateUp {
+		t.Errorf("good-plan state = %q, want %q (restarted successfully, left up)", byPlan["good-plan"], lifecycle.ChildStateUp)
+	}
+	if byPlan["bad-plan"] != lifecycle.ChildStateFailed {
+		t.Errorf("bad-plan state = %q, want %q", byPlan["bad-plan"], lifecycle.ChildStateFailed)
+	}
+}
+
+// TestCompositionRestartSurfacesRollbackDiagnostics proves TASK-298 gap B's fix on the
+// restart verb specifically: when restarting a child leaves it in a state an operator cannot
+// infer from the structured report alone (here, svc-bad's stop half succeeds but its up half
+// fails, so it ends up down when it was up before the restart started), the resulting
+// *lifecycle.CompositionError's Diagnostics carries a "manual verification required" sentence
+// naming the child and its resulting state — and renderCompositionReport's human-output path
+// (the same renderer composition `up`'s own rollback-failure diagnostics go through) actually
+// prints it, rather than that sentence being reachable only through direct field access in a
+// test, as it was before this fix.
+func TestCompositionRestartSurfacesRollbackDiagnostics(t *testing.T) {
+	c := loadTestConfig(t, compositionRestartFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp: %v", err)
+	}
+
+	var restartErr error
+	out := captureStdout(t, func() {
+		restartErr = runCompositionRestart(c, el, "release", nil)
+	})
+	if restartErr == nil {
+		t.Fatal("expected restart to fail: svc-bad's up script only succeeds once")
+	}
+
+	if !strings.Contains(out, "manual verification required") {
+		t.Errorf("output missing the manual-verification diagnostic sentence:\n%s", out)
+	}
+	if !strings.Contains(out, "bad-plan") {
+		t.Errorf("output missing the failing child's name (bad-plan):\n%s", out)
+	}
+	if !strings.Contains(out, "diagnostic:") {
+		t.Errorf("output missing the diagnostic: line printCompositionDiagnostics adds:\n%s", out)
+	}
+
+	c2 := lifecycleCompositionErrorFrom(t, restartErr)
+	if len(c2.Diagnostics) != 1 {
+		t.Fatalf("Diagnostics = %v, want exactly one entry for the single failing child", c2.Diagnostics)
+	}
+	if !strings.Contains(c2.Diagnostics[0], "manual verification required") {
+		t.Errorf("Diagnostics[0] = %q, want it to contain the manual-verification sentence", c2.Diagnostics[0])
+	}
+}
+
+// lifecycleCompositionErrorFrom unwraps a run*Composition* error into the
+// *lifecycle.CompositionError renderCompositionReport and its callers already handle via
+// errors.As, failing the test loudly if the error is not that shape (every composition verb's
+// real-failure path returns one).
+func lifecycleCompositionErrorFrom(t *testing.T, err error) *lifecycle.CompositionError {
+	t.Helper()
+	var compErr *lifecycle.CompositionError
+	if !errors.As(err, &compErr) {
+		t.Fatalf("error %v is not a *lifecycle.CompositionError", err)
+	}
+	return compErr
+}

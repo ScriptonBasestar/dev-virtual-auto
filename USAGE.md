@@ -1522,7 +1522,20 @@ selector(composition plan 이름)를 추가할 뿐입니다.
 유지되고, rollback이 실패한 child는 `rollback_failed`로 표시됩니다 — 그 상태에서 같은
 `dva up release`를 다시 실행하면 root가 새로 resolve해 각 child의 실제 상태를 다시
 물어보므로, 이미 up인 child는 child 자신의 idempotent up으로 통과하고 실패했던 child만
-재시도됩니다(새 플래그나 저장된 상태 파일 없이).
+재시도됩니다(새 플래그나 저장된 상태 파일 없이). Rollback 실패 시 원래 에러 메시지 뒤에
+"rollback of X failed ... manual verification required" 진단 문장이 `diagnostic:` 줄로
+함께 출력됩니다(사람이 읽는 출력 한정, `--json`은 기존 `rollback.failed` 필드만 그대로
+유지합니다).
+
+`dva restart release`는 `up`처럼 전체를 stop한 뒤 다시 up하지 않습니다 — wave 순서대로
+child를 하나씩, 그 child 자신의 restart(stop 후 up)로 재시작하고, root는 child 단위로만
+순서를 줍니다. 따라서 한 child의 restart 실패가 이미 재시작을 마친 다른 child를 rollback
+하지 않습니다(composition 전체를 되돌릴 rollback 자체가 없으므로 `--no-rollback`은 `up`
+에서만 의미가 있고 `restart`에서는 계속 거부됩니다). Stop이 실패한 child는 그 child의
+up을 건너뛰고, up까지는 성공했지만 뒤이은 readiness 체크가 실패한 child는 실패로
+표시됩니다 — 두 경우 모두 "manual verification required" 진단 문장으로 어떤 child가
+어떤 상태로 남았는지(재시작 전 상태를 그대로 유지하는지, 내려간 채로 남았는지)를
+사람이 읽는 출력에 알려줍니다.
 
 ### 특수 변수
 

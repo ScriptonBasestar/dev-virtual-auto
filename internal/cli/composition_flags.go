@@ -294,8 +294,26 @@ func renderCompositionReport(report *lifecycle.CompositionReport, runErr error) 
 		}
 	} else {
 		printCompositionReportText(report)
+		printCompositionDiagnostics(runErr)
 	}
 	return runErr
+}
+
+// printCompositionDiagnostics prints *lifecycle.CompositionError.Diagnostics on the
+// human-output path (TASK-298 gap B). The "rollback of X failed ... manual verification
+// required" sentence composition_orchestrator.go's Up rollback loop builds, and the
+// analogous restart-specific sentences restartCompositionChildren builds, were previously
+// reachable only through direct field access in tests — this is the one place every
+// composition verb's human-readable report already funnels through, so it is where an
+// operator running a real invocation actually sees them.
+func printCompositionDiagnostics(runErr error) {
+	var compErr *lifecycle.CompositionError
+	if !errors.As(runErr, &compErr) {
+		return
+	}
+	for _, d := range compErr.Diagnostics {
+		fmt.Printf("diagnostic: %s\n", d)
+	}
 }
 
 func printCompositionReportText(report *lifecycle.CompositionReport) {
@@ -390,39 +408,6 @@ func runCompositionStop(c *config.Config, el *envLoad, planName string, extraArg
 	}
 	report, runErr := orch.Stop(context.Background())
 	return renderCompositionReport(report, runErr)
-}
-
-// runCompositionRestart stops then brings the composition back up, mirroring
-// lifecycle.Orchestrator.Restart's own stop-then-up pattern at the single-plan level:
-// lifecycle.CompositionOrchestrator has no Restart of its own — TASK-291's frozen surface is
-// Up/Down/Stop/Status only (composition_orchestrator.go; not to be widened here). A failed
-// stop returns immediately without attempting the up half, the same short-circuit
-// lifecycle.Orchestrator.Restart uses for a single plan.
-func runCompositionRestart(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
-	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
-	if err != nil {
-		return err
-	}
-	flags, err := validateCompositionFlagScope(comp, planName, "restart", extraArgs)
-	if err != nil {
-		return err
-	}
-
-	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, scopedChildName(flags)))
-	if err != nil {
-		return err
-	}
-
-	stopReport, stopErr := orch.Stop(context.Background())
-	if stopErr != nil {
-		return renderCompositionReport(stopReport, stopErr)
-	}
-
-	upReport, upErr := orch.Up(context.Background(), lifecycle.CompositionUpOptions{
-		NoWait:     flags.noWait,
-		NoRollback: flags.noRollback,
-	})
-	return renderCompositionReport(upReport, upErr)
 }
 
 // runCompositionBuild builds every composed child in wave order (§4.3: same order as up, no

@@ -366,18 +366,28 @@ func (o *CompositionOrchestrator) Status(ctx context.Context) (*CompositionRepor
 // newReport seeds one row per composed child, in wave order, every child "not_started" —
 // the state TASK-260 §5.3 gives a child no verb reached.
 func (o *CompositionOrchestrator) newReport(outcome string) *CompositionReport {
+	return NewCompositionReportSkeleton(o.plan, outcome)
+}
+
+// NewCompositionReportSkeleton seeds one row per composed child, in wave order, every child
+// "not_started" — the state TASK-260 §5.3 gives a child no verb reached. Exported so callers
+// that build a report without going through CompositionOrchestrator (e.g. composition
+// `restart`'s per-child loop in internal/cli, which deliberately has no Restart method on
+// this orchestrator per TASK-291's frozen surface) still get the same §5.3 project/plan
+// label split as Up/Down/Stop/Status, instead of a second, independently-maintained split.
+func NewCompositionReportSkeleton(plan *CompositionPlan, outcome string) *CompositionReport {
 	report := &CompositionReport{
-		Plan:     o.plan.Name,
+		Plan:     plan.Name,
 		Kind:     "composition",
 		Outcome:  outcome,
-		Children: make([]CompositionChildReport, 0, len(o.plan.Entries)),
+		Children: make([]CompositionChildReport, 0, len(plan.Entries)),
 		Rollback: CompositionRollbackReport{Attempted: []string{}, Succeeded: []string{}, Failed: []string{}},
 	}
-	for _, entry := range o.plan.Entries {
-		project, plan := splitChildLabel(entry.ChildPlan.Name)
+	for _, entry := range plan.Entries {
+		project, planPart := splitChildLabel(entry.ChildPlan.Name)
 		report.Children = append(report.Children, CompositionChildReport{
 			Project: project,
-			Plan:    plan,
+			Plan:    planPart,
 			Wave:    entry.Wave,
 			State:   ChildStateNotStarted,
 		})
