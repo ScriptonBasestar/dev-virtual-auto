@@ -2,6 +2,8 @@ package lifecycle
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -318,6 +320,53 @@ func TestDown_ReverseOrder(t *testing.T) {
 	err := orch.Down(context.Background(), DownOptions{DryRun: true})
 	if err != nil {
 		t.Fatalf("dry-run down failed: %v", err)
+	}
+}
+
+// TestOrchestratorDownReturnsErrorOnEntryFailure guards TASK-295: a per-entry
+// plugin.Down failure must surface from Orchestrator.Down instead of being logged and
+// swallowed. It also proves teardown keeps going after the failing entry (the marker
+// file from the entry ordered after the failing one must still exist).
+func TestOrchestratorDownReturnsErrorOnEntryFailure(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "second-down-ran")
+
+	entries := map[string]*config.LifecycleEntry{
+		"first":  {Order: 1, Script: &config.ScriptPluginConfig{Down: "exit 1"}},
+		"second": {Order: 2, Script: &config.ScriptPluginConfig{Down: "touch " + marker}},
+	}
+
+	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
+
+	err := orch.Down(context.Background(), DownOptions{})
+	if err == nil {
+		t.Fatal("expected Down to return an error when an entry's plugin.Down fails")
+	}
+	if !strings.Contains(err.Error(), `entry "first" down failed`) {
+		t.Errorf("error = %q, want it to name the failing entry", err.Error())
+	}
+
+	if _, statErr := os.Stat(marker); statErr != nil {
+		t.Errorf("expected 'second' entry to still run its down script after 'first' failed: %v", statErr)
+	}
+}
+
+// TestOrchestratorStopReturnsErrorOnEntryFailure mirrors the Down fix for Stop, which
+// warn-and-continues on plugin.Stop failure via the same pattern (TASK-295's
+// "Recommended direction" flagged Stop for the identical unconditional-nil-return defect).
+func TestOrchestratorStopReturnsErrorOnEntryFailure(t *testing.T) {
+	entries := map[string]*config.LifecycleEntry{
+		"only": {Order: 1, Script: &config.ScriptPluginConfig{Stop: "exit 1"}},
+	}
+
+	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
+
+	err := orch.Stop(context.Background(), StopOptions{})
+	if err == nil {
+		t.Fatal("expected Stop to return an error when an entry's plugin.Stop fails")
+	}
+	if !strings.Contains(err.Error(), `entry "only" stop failed`) {
+		t.Errorf("error = %q, want it to name the failing entry", err.Error())
 	}
 }
 

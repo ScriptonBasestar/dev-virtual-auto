@@ -5,7 +5,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,75 +50,6 @@ func compositionEnvironmentFor(root *config.Config) func(child *lifecycle.Execut
 		}
 		return owner, config.NewEnvironment(nil, owner.FileDir(), owner.FileDir()), nil
 	}
-}
-
-// realDownExecutor wraps the real lifecycle.PlanChildExecutor (Up/WaitReady/Stop/IsUp are
-// promoted unchanged) and replaces only Down with a version that surfaces a child
-// script's real down-command failure as a returned error.
-//
-// This works around a genuine bug found while writing this fixture, not a design choice:
-// lifecycle.Orchestrator.Down (orchestrator.go) only warns and continues on a per-entry
-// plugin.Down failure ("[warn] entry %q down failed: %v") and unconditionally returns nil
-// at the end — filterEntries/stopModeProcesses/NewPlugin are the only paths that can make
-// it return a non-nil error, and none of them fail for an ordinary script entry. Because
-// lifecycle.PlanChildExecutor.Down (composition_orchestrator.go) does nothing but call
-// orch.Down(...) and return its error, CompositionOrchestrator.Up's rollback loop — which
-// depends entirely on exec.Down returning a non-nil error to mark a child
-// ChildStateRollbackFailed — can never observe a rollback-down failure through the real,
-// production executor. TASK-260 §5.2's rollback-failure branch is therefore fully
-// implemented and unit-tested against the *fake* executor in
-// internal/lifecycle/composition_orchestrator_test.go, but unreachable in production. See
-// this task's report to team-lead for the full writeup; fixing Orchestrator.Down itself is
-// out of TASK-293's non-goals ("no new runtime behavior").
-//
-// To still prove CompositionOrchestrator's own §5.2 contract against genuine (not mocked)
-// child execution, this executor calls the same exported building blocks
-// Orchestrator.Down uses per entry (config.LifecycleEntry.DetectPlugin, lifecycle.NewPlugin,
-// lifecycle.PluginContext, and the plugin's own real Down method) without swallowing the
-// result.
-type realDownExecutor struct {
-	lifecycle.PlanChildExecutor
-}
-
-func (e *realDownExecutor) Down(ctx context.Context, child *lifecycle.ExecutionPlan, _ lifecycle.ChildDownOptions) error {
-	cfg, env, err := e.Environment(child)
-	if err != nil {
-		return err
-	}
-	for _, resolved := range child.Entries {
-		if resolved.StackEntry == nil {
-			return fmt.Errorf("child %q entry %q: stack entry is nil", child.Name, resolved.Name)
-		}
-		entry := *resolved.StackEntry
-		entry.Name = resolved.Name
-		// The resolver keeps the runner config resolved for this plan invocation in
-		// resolved.RunnerConfig, not necessarily in StackEntry.Script — the same
-		// remapping lifecycle.materializeResolvedEntry (unexported) performs for the
-		// production orchestrator. Only the script plugin is needed here.
-		if runner, ok := resolved.RunnerConfig.(*config.ScriptPluginConfig); ok {
-			entry.Plugin = "script"
-			entry.Script = runner
-		}
-
-		pluginType := entry.DetectPlugin()
-		plugin, err := lifecycle.NewPlugin(pluginType)
-		if err != nil {
-			return fmt.Errorf("child %q entry %q: %w", child.Name, entry.Name, err)
-		}
-
-		entryEnv := env.Clone()
-		entryEnv.MergeVars(resolved.Vars)
-		pctx := &lifecycle.PluginContext{
-			Entry:     &entry,
-			Env:       entryEnv,
-			ConfigDir: cfg.FileDir(),
-			Logger:    slog.Default(),
-		}
-		if err := plugin.Down(ctx, pctx); err != nil {
-			return fmt.Errorf("entry %q down failed: %w", entry.Name, err)
-		}
-	}
-	return nil
 }
 
 // TestCompositionFixtureTwoProjectSuccess is TASK-260 §3's accepted fixture (an api/web
@@ -294,14 +224,13 @@ plans:
 // failed. The primary error must stay web-server's original failure message unchanged
 // ("original-error preservation"), and api/deploy must be reported rollback_failed.
 //
-// See realDownExecutor's doc comment: this uses a test-local executor to surface the
-// real script down-command failure, working around a swallow bug in
-// lifecycle.Orchestrator.Down that makes this state unreachable through the production
-// lifecycle.PlanChildExecutor today.
+// Drives the real lifecycle.PlanChildExecutor (TASK-295 fixed Orchestrator.Down to
+// surface per-entry teardown failures instead of warning and swallowing them, so this no
+// longer needs a test-local Down override to observe the rollback failure).
 func TestCompositionFixtureRollbackFailurePreservesError(t *testing.T) {
 	cfg, compPlan := rollbackFailureFixture(t)
 
-	exec := &realDownExecutor{lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg)}}
+	exec := &lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg)}
 	orch, err := lifecycle.NewCompositionOrchestrator(compPlan, exec)
 	if err != nil {
 		t.Fatalf("NewCompositionOrchestrator: %v", err)
@@ -358,7 +287,7 @@ func TestCompositionFixtureResumesAfterRollbackFailure(t *testing.T) {
 	cfg, compPlan := rollbackFailureFixture(t)
 	root := cfg.FileDir()
 
-	exec := &realDownExecutor{lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg)}}
+	exec := &lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg)}
 	orch, err := lifecycle.NewCompositionOrchestrator(compPlan, exec)
 	if err != nil {
 		t.Fatalf("NewCompositionOrchestrator: %v", err)
@@ -388,7 +317,7 @@ func TestCompositionFixtureResumesAfterRollbackFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveCompositionPlan (resume): %v", err)
 	}
-	exec2 := &realDownExecutor{lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg2)}}
+	exec2 := &lifecycle.PlanChildExecutor{Environment: compositionEnvironmentFor(cfg2)}
 	orch2, err := lifecycle.NewCompositionOrchestrator(compPlan2, exec2)
 	if err != nil {
 		t.Fatalf("NewCompositionOrchestrator (resume): %v", err)

@@ -160,6 +160,34 @@ func TestPlanDownDryRunPrintsResolution(t *testing.T) {
 	}
 }
 
+// TestPlanDownExitsNonZeroOnEntryDownFailure guards TASK-295 at the CLI layer: a plan
+// whose entry teardown script genuinely fails must make `dva down <plan>` return a
+// non-nil error (and so a non-zero process exit), not silently report success the way
+// Orchestrator.Down used to by warning and swallowing every per-entry failure.
+func TestPlanDownExitsNonZeroOnEntryDownFailure(t *testing.T) {
+	c := loadTestConfig(t, `version: "0.1.44"
+stack:
+  demo:
+    default_runner: script
+    runners:
+      script:
+        up: "true"
+        down: "exit 1"
+plans:
+  demo:
+    entries:
+      - name: demo
+`)
+	e := config.NewEnvironment(nil, c.FileDir(), c.FileDir())
+
+	var err error
+	captureBothStreams(t, func() { err = runPlanDown(c, planEnv(e), "demo", nil) })
+
+	if err == nil {
+		t.Fatal("expected plan down to fail when the entry's teardown script exits non-zero")
+	}
+}
+
 func TestPlanStopDryRunPrintsResolution(t *testing.T) {
 	c := loadTestConfig(t, planResolutionConfig)
 	e := planResolutionEnv(t, c)

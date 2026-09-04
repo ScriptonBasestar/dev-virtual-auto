@@ -182,6 +182,7 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}
 
+	var downErrs []error
 	for _, entry := range filtered {
 		pluginType := entry.DetectPlugin()
 		plugin, err := NewPlugin(pluginType)
@@ -216,11 +217,13 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 
 		if err := plugin.Down(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q down failed: %v\n", entry.Name, err)
-			// Continue with other entries — don't abort on single failure during teardown
+			// Continue with other entries — don't abort on single failure during teardown —
+			// but still report the failure to the caller instead of swallowing it.
+			downErrs = append(downErrs, fmt.Errorf("entry %q down failed: %w", entry.Name, err))
 		}
 	}
 
-	return nil
+	return errors.Join(downErrs...)
 }
 
 // Stop stops all matching lifecycle entries in reverse order without removing resources.
@@ -238,6 +241,7 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 		filtered[i], filtered[j] = filtered[j], filtered[i]
 	}
 
+	var stopErrs []error
 	for _, entry := range filtered {
 		pluginType := entry.DetectPlugin()
 		plugin, err := NewPlugin(pluginType)
@@ -270,10 +274,13 @@ func (o *Orchestrator) Stop(ctx context.Context, opts StopOptions) error {
 
 		if err := plugin.Stop(ctx, pctx); err != nil {
 			fmt.Fprintf(os.Stderr, "[warn] entry %q stop failed: %v\n", entry.Name, err)
+			// Continue with other entries — don't abort on single failure — but still
+			// report the failure to the caller instead of swallowing it.
+			stopErrs = append(stopErrs, fmt.Errorf("entry %q stop failed: %w", entry.Name, err))
 		}
 	}
 
-	return nil
+	return errors.Join(stopErrs...)
 }
 
 // Restart stops then starts all matching entries.

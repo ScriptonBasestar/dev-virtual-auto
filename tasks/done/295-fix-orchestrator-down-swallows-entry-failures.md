@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "TASK-293 implementation and independent review (impl-task293, review-task293) — found while building composition rollback-failure fixtures"
 scope: "internal/lifecycle/orchestrator.go Orchestrator.Down only — both the plain single-project down path and the composition rollback path that calls through it"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -66,16 +66,16 @@ and should stay):
 
 ## Completion Criteria
 
-- [ ] `Orchestrator.Down` returns a non-nil error when at least one entry's `plugin.Down` fails, while
+- [x] `Orchestrator.Down` returns a non-nil error when at least one entry's `plugin.Down` fails, while
       still attempting teardown of every other filtered entry (no early abort) | verify: `/usr/bin/grep -Eq '^func TestOrchestratorDownReturnsErrorOnEntryFailure\(' internal/lifecycle/orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] `lifecycle.PlanChildExecutor.Down` now genuinely surfaces a real per-entry down failure (no more
+- [x] `lifecycle.PlanChildExecutor.Down` now genuinely surfaces a real per-entry down failure (no more
       need for `realDownExecutor`-style workarounds) — confirm by pointing
       `internal/integration/composition_fixture_test.go`'s `TestCompositionFixtureRollbackFailurePreservesError`
       and `TestCompositionFixtureResumesAfterRollbackFailure` fixtures at the real `PlanChildExecutor`
       instead of `realDownExecutor` and confirming they still pass | verify: `go test ./internal/integration -tags=integration -count=1`
-- [ ] `dva down <plan>` exits non-zero when a real entry teardown fails, verified against the real
+- [x] `dva down <plan>` exits non-zero when a real entry teardown fails, verified against the real
       binary, not just unit-level | verify: `go test ./internal/cli -run TestPlanDown -count=1 -v`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
 
@@ -85,3 +85,28 @@ and should stay):
   orchestrator loop that calls them, not the plugins' own error handling.
 - Does not itself require removing `realDownExecutor` from TASK-293's fixture file — that's a natural
   follow-up once this lands, worth doing for cleanliness, but not a blocking requirement of this card.
+
+## Completion evidence
+
+`Orchestrator.Down` and `Orchestrator.Stop` (`internal/lifecycle/orchestrator.go`) now collect each
+per-entry `plugin.Down`/`plugin.Stop` failure into a slice and return `errors.Join(...)` at the end,
+instead of only warning and unconditionally returning `nil`. The "keep tearing down every other entry"
+behavior is unchanged — the failure is appended, not returned early. `Stop` was fixed alongside `Down`
+because it carried the identical unconditional-nil-return defect (confirmed by reading it, per this
+card's "Recommended direction"), not a scope expansion beyond what this card already asked to check.
+
+`internal/integration/composition_fixture_test.go`'s `realDownExecutor` workaround (documented at
+length in TASK-293) is removed: `TestCompositionFixtureRollbackFailurePreservesError` and
+`TestCompositionFixtureResumesAfterRollbackFailure` now construct a plain `&lifecycle.PlanChildExecutor{...}`
+and observe the real rollback-down failure through production code, confirmed by re-running both under
+`-tags=integration`.
+
+New tests: `TestOrchestratorDownReturnsErrorOnEntryFailure` and
+`TestOrchestratorStopReturnsErrorOnEntryFailure` (`internal/lifecycle/orchestrator_test.go`),
+`TestPlanDownExitsNonZeroOnEntryDownFailure` (`internal/cli/plan_resolution_test.go`, calls
+`runPlanDown` directly — the CLI layer whose returned error becomes the process exit code — rather than
+spawning a subprocess).
+
+Gates run clean: `make lint && make test && make test-integration` and `go test ./internal/lifecycle`,
+`go test ./internal/cli -run TestPlanDown -v`, `go test ./internal/integration -tags=integration -run
+TestCompositionFixture -v` individually.
