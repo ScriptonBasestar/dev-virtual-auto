@@ -626,3 +626,114 @@ func TestCompositionUpRollbackAndNoRollback(t *testing.T) {
 		}
 	})
 }
+
+// TestCompositionStatusReportsFailedChild closes a coverage gap noted in review: the "failed"
+// per-child state and outcome (composition_flags.go's queryCompositionChildStatus/
+// runCompositionStatus, TASK-260 §5.3) had no test, because every prior fixture that made a
+// child unrunnable made the whole root config fail to load first — never reaching status
+// classification at all. A composed child owned by a SEPARATE subproject config can be
+// unrunnable on its own (a required env_file that does not exist) while the root config, the
+// composition resolve, and the sibling local child all load and query cleanly — the one path
+// that reaches queryCompositionChildStatus's `resolvePlanRuntime`-incomplete branch without
+// the fixture ever failing to load.
+func TestCompositionStatusReportsFailedChild(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, config.FileName), `version: "0.1.0"
+stack:
+  local:
+    default_runner: script
+    runners:
+      script:
+        up: touch up-local
+plans:
+  local-plan:
+    entries:
+      - name: local
+  release:
+    composes:
+      - plan: local-plan
+        order: 0
+      - plan: backend/deploy
+        order: 1
+subprojects:
+  backend:
+    path: backend
+    import:
+      plans:
+        - name: deploy
+`)
+	writeFile(t, filepath.Join(root, "backend", config.FileName), `version: "0.1.0"
+env_file:
+  files: missing.env
+  required: true
+stack:
+  api:
+    default_runner: script
+    runners:
+      script:
+        up: touch up-api
+plans:
+  deploy:
+    entries:
+      - name: api
+`)
+
+	c, err := config.Load(root)
+	if err != nil {
+		t.Fatalf("config.Load: %v (backend's missing required env_file must not fail the root load)", err)
+	}
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+	var statusErr error
+	out := captureStdout(t, func() {
+		statusErr = runCompositionStatus(c, el, "release")
+	})
+	if statusErr == nil {
+		t.Fatal("expected runCompositionStatus to report an error: backend/deploy is unrunnable")
+	}
+	if !strings.Contains(out, "outcome: failed") {
+		t.Errorf("text status outcome must be failed:\n%s", out)
+	}
+
+	oldJSON := jsonOutput
+	jsonOutput = true
+	defer func() { jsonOutput = oldJSON }()
+
+	out = captureStdout(t, func() {
+		statusErr = runCompositionStatus(c, el, "release")
+	})
+	if statusErr == nil {
+		t.Fatal("expected runCompositionStatus --json to report an error: backend/deploy is unrunnable")
+	}
+
+	var report compositionStatusReport
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("json.Unmarshal(%q): %v", out, err)
+	}
+	if report.Outcome != "failed" {
+		t.Errorf("outcome = %q, want failed", report.Outcome)
+	}
+	if len(report.Children) != 2 {
+		t.Fatalf("children = %d, want 2", len(report.Children))
+	}
+	for _, child := range report.Children {
+		switch child.Plan {
+		case "local-plan":
+			if child.State != "not_started" {
+				t.Errorf("local-plan state = %q, want not_started (it was never up, but it IS runnable)", child.State)
+			}
+		case "deploy":
+			if child.State != "failed" {
+				t.Errorf("backend/deploy state = %q, want failed", child.State)
+			}
+			if child.Error == "" {
+				t.Errorf("backend/deploy must carry a non-empty error explaining why it is unrunnable")
+			}
+			if child.Project != "backend" {
+				t.Errorf("backend/deploy project = %q, want backend", child.Project)
+			}
+		default:
+			t.Errorf("unexpected child %+v", child)
+		}
+	}
+}
