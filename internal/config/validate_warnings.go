@@ -1315,6 +1315,27 @@ func (c *Config) warnUnreachableCommands() []string {
 	return warnings
 }
 
+// hasUnsupportedBracedOperator reports whether v contains a `${NAME<op>...}` form whose
+// operator the expander does not handle, i.e. anything after the name other than `}`,
+// `:-` or `-`.
+func hasUnsupportedBracedOperator(v string) bool {
+	for i := 0; i+1 < len(v); i++ {
+		if v[i] != '$' || v[i+1] != '{' {
+			continue
+		}
+		name := scanVarName(v[i+2:])
+		rest := v[i+2+len(name):]
+		if name == "" || rest == "" {
+			continue
+		}
+		if rest[0] == '}' || rest[0] == '-' || strings.HasPrefix(rest, ":-") {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
 // warnUnresolvedEnvVars checks if any variables in the environment block remain unresolved
 // after config and OS interpolation, indicating a possible typo or missing variable.
 //
@@ -1332,7 +1353,7 @@ func (c *Config) warnUnresolvedEnvVars(env *Environment, envFilesDeclared bool) 
 	for k, v := range c.Environment {
 		finalVal := env.Interpolate(v)
 		// Extract all remaining `${VAR}` or `$VAR` patterns
-		matches := varRegex.FindAllString(finalVal, -1)
+		matches := findVarRefs(finalVal)
 		if len(matches) > 0 {
 			warnings = append(warnings,
 				fmt.Sprintf("environment.%s: contains unresolved variable reference %v; verify variable name",
@@ -1345,16 +1366,18 @@ func (c *Config) warnUnresolvedEnvVars(env *Environment, envFilesDeclared bool) 
 }
 
 // warnSuspiciousEnvPatterns warns when users try to use shell-specific interpolation semantics
-// like ${VAR:-default} or $#, which are not natively supported by the config parser.
+// that the config expander does not implement: `$#`, `${VAR:=x}`, `${VAR:+x}`, `${VAR:?x}`
+// and the like. `${VAR:-default}` and `${VAR-default}` are supported (TASK-303) and are
+// not reported.
 //
 // Severity: Semantic Warning
 func (c *Config) warnSuspiciousEnvPatterns() []string {
 	var warnings []string
 
 	for k, v := range c.Environment {
-		if strings.Contains(v, "$#") || (strings.Contains(v, "${") && strings.Contains(v, ":")) {
+		if strings.Contains(v, "$#") || hasUnsupportedBracedOperator(v) {
 			warnings = append(warnings,
-				fmt.Sprintf("environment.%s: contains shell-specific syntax that is not supported; use plain $VAR or ${VAR}", k))
+				fmt.Sprintf("environment.%s: contains shell-specific syntax that is not supported; use $VAR, ${VAR} or ${VAR:-default}", k))
 		}
 	}
 

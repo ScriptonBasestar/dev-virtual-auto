@@ -78,6 +78,9 @@ read.
 		if bytes.Equal(out, src) {
 			fmt.Printf("%s: nothing to convert.\n", path)
 			printMigrationReport(os.Stdout, report)
+			if hint := renameHint(path); hint != "" {
+				fmt.Println(hint)
+			}
 			// Conversion covers the shapes with a mechanical target. 'dva validate'
 			// knows about deprecations that have none, so "nothing to convert" is
 			// not "nothing to do".
@@ -98,6 +101,9 @@ read.
 			fmt.Print(string(out))
 			fmt.Fprintln(os.Stderr)
 			printMigrationReport(os.Stderr, report)
+			if hint := renameHint(path); hint != "" {
+				fmt.Fprintln(os.Stderr, hint)
+			}
 			fmt.Fprintf(os.Stderr, "%s: not written (--write to apply)\n", path)
 			return nil
 		}
@@ -107,6 +113,9 @@ read.
 		}
 		fmt.Printf("%s: migrated\n", path)
 		printMigrationReport(os.Stdout, report)
+		if hint := renameHint(path); hint != "" {
+			fmt.Println(hint)
+		}
 		// A config that could not load was never schema-checked past the first
 		// error, so migration routinely uncovers unrelated problems that were
 		// masked rather than absent. Say so instead of implying it is now clean.
@@ -156,11 +165,24 @@ func resolveConfigPath(target string) (string, error) {
 	if !info.IsDir() {
 		return target, nil
 	}
-	path := filepath.Join(target, config.FileName)
-	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("no %s in %s", config.FileName, target)
+	path, ok := config.ConfigFileInDir(target)
+	if !ok {
+		return "", fmt.Errorf("no %s (or %s) in %s", config.FileName, config.FileNameAlt, target)
 	}
 	return path, nil
+}
+
+// renameHint returns the line telling the operator that path uses the legacy file name,
+// or "" when it is already canonical. Migration is the moment a legacy project is being
+// brought up to date, so it is also the natural moment to mention the file name — the
+// converter does not rename the file itself, because the project's own scripts, docs and
+// CI may refer to it.
+func renameHint(path string) string {
+	if filepath.Base(path) != config.FileNameAlt {
+		return ""
+	}
+	return fmt.Sprintf("%s: legacy file name — rename to %s (canonical); DVA still loads %s but warns on every run",
+		path, config.FileName, config.FileNameAlt)
 }
 
 func init() {

@@ -181,3 +181,75 @@ func TestWithHookDepthDoesNotMutateSource(t *testing.T) {
 func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
+
+// TestInterpolateDefaultSyntax pins shell-style `${VAR:-default}` and `${VAR-default}`
+// semantics (TASK-303). The previous regex-based expander treated the closing brace as
+// optional, so `${POSTGRES_USER:-gorisa}` with POSTGRES_USER=gorisa became
+// `gorisa:-gorisa}` — the value was replaced but the operator and default were left behind.
+func TestInterpolateDefaultSyntax(t *testing.T) {
+	t.Setenv("DVA_TEST_UNSET_303", "")
+	os.Unsetenv("DVA_TEST_UNSET_303")
+
+	env := NewEnvironment(map[string]string{
+		"SET":   "gorisa",
+		"EMPTY": "",
+		"HOST":  "db",
+	}, "/tmp", "/tmp")
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		// set: default is discarded, nothing of the operator survives
+		{"${SET:-fallback}", "gorisa"},
+		{"${SET-fallback}", "gorisa"},
+		// unset: default is used
+		{"${DVA_TEST_UNSET_303:-fallback}", "fallback"},
+		{"${DVA_TEST_UNSET_303-fallback}", "fallback"},
+		// empty: `:-` substitutes, `-` keeps the empty value (shell semantics)
+		{"${EMPTY:-fallback}", "fallback"},
+		{"${EMPTY-fallback}", ""},
+		// empty default, colon-containing default, adjacent references
+		{"${DVA_TEST_UNSET_303:-}", ""},
+		{"${DVA_TEST_UNSET_303:-localhost:5432}", "localhost:5432"},
+		{"${SET:-a}${SET:-b}", "gorisagorisa"},
+		{"${DVA_TEST_UNSET_303:-x}${SET}", "xgorisa"},
+		// default itself is interpolated, including a nested braced reference
+		{"${DVA_TEST_UNSET_303:-${HOST}}", "db"},
+		{"${DVA_TEST_UNSET_303:-${HOST}:5432}", "db:5432"},
+		{"${DVA_TEST_UNSET_303:-$HOST/x}", "db/x"},
+		// embedded in a larger value
+		{"postgres://${SET:-u}@${DVA_TEST_UNSET_303:-${HOST}}:5432/app", "postgres://gorisa@db:5432/app"},
+		// plain forms are unchanged
+		{"${SET}", "gorisa"},
+		{"$SET", "gorisa"},
+		{"${DVA_TEST_UNSET_303}", "${DVA_TEST_UNSET_303}"},
+		// malformed: no closing brace is left literally
+		{"${SET", "${SET"},
+		{"${SET:-x", "${SET:-x"},
+	}
+
+	for _, tt := range tests {
+		if got := env.Interpolate(tt.input); got != tt.want {
+			t.Errorf("Interpolate(%q) = %q, want %q", tt.input, got, tt.want)
+		}
+	}
+}
+
+// TestMergeVarsDefaultSyntax checks the default operator through the batch resolver, where
+// the sibling lookup rather than Environment.lookup answers the reference.
+func TestMergeVarsDefaultSyntax(t *testing.T) {
+	os.Unsetenv("DVA_TEST_UNSET_303")
+	env := NewEnvironment(nil, "/tmp", "/tmp")
+	env.MergeVars(map[string]string{
+		"POSTGRES_USER": "gorisa",
+		"DB_URL":        "postgres://${POSTGRES_USER:-app}@${DVA_TEST_UNSET_303:-localhost}/db",
+		"REGION":        "${DVA_TEST_UNSET_303:-kr}",
+	})
+	if got := env.Vars["DB_URL"]; got != "postgres://gorisa@localhost/db" {
+		t.Errorf("DB_URL = %q", got)
+	}
+	if got := env.Vars["REGION"]; got != "kr" {
+		t.Errorf("REGION = %q", got)
+	}
+}

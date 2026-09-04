@@ -220,3 +220,76 @@ stack:
 		t.Errorf("the written config does not load: %v\n%s", err, after)
 	}
 }
+
+// TestConfigMigrateAcceptsDvaYaml covers TASK-304: a project that still uses the legacy
+// dva.yaml file name is exactly the kind of project migrate exists for, yet the command
+// used to look for dva.yml only and fail with "no dva.yml in <dir>". The lookup now
+// follows the loader's rule (dva.yml preferred, dva.yaml accepted) and the run mentions
+// the canonical name.
+func TestConfigMigrateAcceptsDvaYaml(t *testing.T) {
+	src := `version: "0.1.44"
+stack:
+  core:
+    plugin: compose
+    files: [compose.yml]
+`
+	tmpDir := t.TempDir()
+	altPath := filepath.Join(tmpDir, config.FileNameAlt)
+	if err := os.WriteFile(altPath, []byte(src), 0o644); err != nil {
+		t.Fatalf("write %s: %v", config.FileNameAlt, err)
+	}
+
+	out := runConfigMigrate(t, tmpDir)
+
+	if !strings.Contains(out, altPath+": not written") {
+		t.Errorf("preview did not report the dva.yaml path:\n%s", out)
+	}
+	if !strings.Contains(out, "rename to "+config.FileName) {
+		t.Errorf("preview did not hint at the canonical file name:\n%s", out)
+	}
+	if after, _ := os.ReadFile(altPath); string(after) != src {
+		t.Fatalf("the preview rewrote the file:\n%s", after)
+	}
+
+	configMigrateWrite = true
+	defer func() { configMigrateWrite = false }()
+	out = runConfigMigrate(t, tmpDir)
+	if !strings.Contains(out, altPath+": migrated") {
+		t.Errorf("--write did not report the dva.yaml path:\n%s", out)
+	}
+	after, err := os.ReadFile(altPath)
+	if err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if string(after) == src {
+		t.Fatal("--write left dva.yaml unchanged")
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, config.FileName)); err == nil {
+		t.Fatal("migrate must not create dva.yml beside dva.yaml on its own")
+	}
+}
+
+// TestConfigMigratePrefersDvaYml pins the tie-break when both names exist: the loader
+// reads dva.yml, so migrate must convert that one and not the file DVA ignores.
+func TestConfigMigratePrefersDvaYml(t *testing.T) {
+	tmpDir := t.TempDir()
+	writeConfigMigrateFixture(t, tmpDir, "version: \"0.1.44\"\n")
+	if err := os.WriteFile(filepath.Join(tmpDir, config.FileNameAlt), []byte("version: \"0.1.44\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := runConfigMigrate(t, tmpDir)
+	if !strings.Contains(out, filepath.Join(tmpDir, config.FileName)+": nothing to convert") {
+		t.Errorf("expected dva.yml to be chosen:\n%s", out)
+	}
+	if strings.Contains(out, "rename to") {
+		t.Errorf("canonical file must not get the rename hint:\n%s", out)
+	}
+}
+
+// TestResolveConfigPathMissing pins the error naming both accepted file names.
+func TestResolveConfigPathMissing(t *testing.T) {
+	_, err := resolveConfigPath(t.TempDir())
+	if err == nil || !strings.Contains(err.Error(), "dva.yml (or dva.yaml)") {
+		t.Fatalf("err = %v", err)
+	}
+}

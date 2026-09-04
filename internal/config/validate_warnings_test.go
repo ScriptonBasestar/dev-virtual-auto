@@ -1213,19 +1213,23 @@ func TestWarnUnresolvedEnvVars(t *testing.T) {
 func TestWarnSuspiciousEnvPatterns(t *testing.T) {
 	c := &Config{
 		Environment: map[string]string{
-			"DEFAULT": "${VAR:-default}",
-			"OP":      "${VAR:=ok}",
-			"SPECIAL": "count is $#",
-			"GOOD":    "${VAR} and $VAR2",
+			"DEFAULT":  "${VAR:-default}",
+			"DEFAULT2": "${VAR-default}",
+			"NESTED":   "${VAR:-${OTHER}:5432}",
+			"ALT":      "${VAR:+alt}",
+			"OP":       "${VAR:=ok}",
+			"SPECIAL":  "count is $#",
+			"GOOD":     "${VAR} and $VAR2",
 		},
 	}
 
 	warnings := c.warnSuspiciousEnvPatterns()
-	// Should warn for DEFAULT, OP, SPECIAL
+	// `${VAR:-default}` and `${VAR-default}` are supported since TASK-303 and must not be
+	// reported; ALT, OP and SPECIAL still are.
 	if len(warnings) != 3 {
-		t.Fatalf("expected 3 warnings, got %d", len(warnings))
+		t.Fatalf("expected 3 warnings, got %d: %v", len(warnings), warnings)
 	}
-	if !strings.Contains(warnings[0], "environment.DEFAULT:") {
+	if !strings.Contains(warnings[0], "environment.ALT:") {
 		t.Errorf("unexpected warning text: %s", warnings[0])
 	}
 	if !strings.Contains(warnings[1], "environment.OP:") {

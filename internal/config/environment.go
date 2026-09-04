@@ -6,13 +6,10 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
 )
-
-var varRegex = regexp.MustCompile(`\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?`)
 
 // Environment manages environment variables and interpolation.
 type Environment struct {
@@ -147,22 +144,178 @@ func (e *Environment) lookup(name string) (string, bool) {
 	return os.LookupEnv(name)
 }
 
-// interpolateWith expands $VAR and ${VAR} using lookup, leaving a reference written
-// literally when lookup reports the name is out of scope.
+// interpolateWith expands `$VAR`, `${VAR}`, `${VAR:-default}` and `${VAR-default}` using
+// lookup, leaving a reference written literally when lookup reports the name is out of scope
+// and the reference carries no default.
 //
 // Leaving the match in place rather than emptying it is what lets ApplyEnvFiles run a repair
 // pass over the merged result: an unresolved reference is still recognizable as one on the
 // next pass. It is also why MergeVars resolves its own batch instead of deferring — only the
 // `env_file` path has such a pass, so anywhere else an unresolved reference would reach a
 // child process verbatim and stay that way.
+//
+// The default operators follow POSIX shell: `:-` substitutes when the variable is unset or
+// empty, `-` only when it is unset. The default text is itself interpolated, so
+// `${A:-${B}:5432}` nests. This used to be a single regex with an optional closing brace;
+// that regex matched `${POSTGRES_USER` out of `${POSTGRES_USER:-gorisa}` and left
+// `:-gorisa}` behind, so a *set* variable produced `gorisa:-gorisa}` (TASK-303).
 func interpolateWith(value string, lookup func(name string) (string, bool)) string {
-	return varRegex.ReplaceAllStringFunc(value, func(match string) string {
-		name := varRegex.FindStringSubmatch(match)[1]
-		if v, ok := lookup(name); ok {
-			return v
+	if !strings.Contains(value, "$") {
+		return value
+	}
+	var b strings.Builder
+	b.Grow(len(value))
+	for i := 0; i < len(value); {
+		if value[i] != '$' || i+1 >= len(value) {
+			b.WriteByte(value[i])
+			i++
+			continue
 		}
-		return match
-	})
+		if value[i+1] == '{' {
+			ref, end, ok := parseBracedRef(value, i)
+			if !ok {
+				// Malformed (no closing brace): keep the text literally.
+				b.WriteString(value[i:])
+				break
+			}
+			b.WriteString(ref.expand(lookup))
+			i = end
+			continue
+		}
+		name := scanVarName(value[i+1:])
+		if name == "" {
+			b.WriteByte('$')
+			i++
+			continue
+		}
+		if v, ok := lookup(name); ok {
+			b.WriteString(v)
+		} else {
+			b.WriteString(value[i : i+1+len(name)])
+		}
+		i += 1 + len(name)
+	}
+	return b.String()
+}
+
+// varRef is one parsed `${...}` reference.
+type varRef struct {
+	name    string
+	op      string // "", ":-" or "-"
+	def     string // raw default text, interpolated on use
+	literal string // the source text, returned when unresolved and without a default
+}
+
+func (r varRef) expand(lookup func(name string) (string, bool)) string {
+	v, ok := lookup(r.name)
+	switch r.op {
+	case ":-":
+		if !ok || v == "" {
+			return interpolateWith(r.def, lookup)
+		}
+		return v
+	case "-":
+		if !ok {
+			return interpolateWith(r.def, lookup)
+		}
+		return v
+	}
+	if ok {
+		return v
+	}
+	return r.literal
+}
+
+// scanVarName returns the leading identifier of s, or "" when s does not start with one.
+func scanVarName(s string) string {
+	n := 0
+	for n < len(s) && isVarByte(s[n], n == 0) {
+		n++
+	}
+	return s[:n]
+}
+
+func isVarByte(c byte, first bool) bool {
+	if c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') {
+		return true
+	}
+	return !first && c >= '0' && c <= '9'
+}
+
+// parseBracedRef parses the `${...}` reference beginning at value[start] (which must be
+// `$`). It returns the reference and the index just past the closing brace. ok is false
+// when the reference has no matching closing brace or no valid name; braces inside the
+// default text nest, so `${A:-${B}}` closes at the second `}`.
+func parseBracedRef(value string, start int) (varRef, int, bool) {
+	i := start + 2 // past "${"
+	name := scanVarName(value[i:])
+	if name == "" {
+		return varRef{}, 0, false
+	}
+	i += len(name)
+	if i >= len(value) {
+		return varRef{}, 0, false
+	}
+	ref := varRef{name: name}
+	switch {
+	case value[i] == '}':
+		ref.literal = value[start : i+1]
+		return ref, i + 1, true
+	case strings.HasPrefix(value[i:], ":-"):
+		ref.op = ":-"
+		i += 2
+	case value[i] == '-':
+		ref.op = "-"
+		i++
+	default:
+		// `${NAME` followed by something that is neither `}` nor a supported operator
+		// (e.g. `${A:+x}`, `${A:?x}`, `${A.b}`) is not a reference we expand.
+		return varRef{}, 0, false
+	}
+	depth := 0
+	for j := i; j < len(value); j++ {
+		switch {
+		case value[j] == '$' && j+1 < len(value) && value[j+1] == '{':
+			depth++
+		case value[j] == '}' && depth > 0:
+			depth--
+		case value[j] == '}':
+			ref.def = value[i:j]
+			ref.literal = value[start : j+1]
+			return ref, j + 1, true
+		}
+	}
+	return varRef{}, 0, false
+}
+
+// findVarRefs returns the source text of every variable reference in value that this
+// package's expander recognizes, in order of appearance. It is the read-only counterpart of
+// interpolateWith, used by validation to report references that survived expansion.
+func findVarRefs(value string) []string {
+	var refs []string
+	for i := 0; i < len(value); {
+		if value[i] != '$' || i+1 >= len(value) {
+			i++
+			continue
+		}
+		if value[i+1] == '{' {
+			ref, end, ok := parseBracedRef(value, i)
+			if !ok {
+				i++
+				continue
+			}
+			refs = append(refs, ref.literal)
+			i = end
+			continue
+		}
+		if name := scanVarName(value[i+1:]); name != "" {
+			refs = append(refs, value[i:i+1+len(name)])
+			i += 1 + len(name)
+			continue
+		}
+		i++
+	}
+	return refs
 }
 
 // WithHookDepth returns a copy of e whose Vars carry the hook recursion guard, so that

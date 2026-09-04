@@ -1537,6 +1537,21 @@ up을 건너뛰고, up까지는 성공했지만 뒤이은 readiness 체크가 �
 어떤 상태로 남았는지(재시작 전 상태를 그대로 유지하는지, 내려간 채로 남았는지)를
 사람이 읽는 출력에 알려줍니다.
 
+### 변수 참조 문법
+
+`environment:`, `env_file`, `vars`, interaction `command` 등 문자열 값 안에서 다음 형식을
+확장합니다.
+
+| 형식 | 동작 |
+|------|------|
+| `$VAR`, `${VAR}` | 값으로 치환. 미정의면 원문 그대로 남김 |
+| `${VAR:-default}` | VAR가 **미정의 또는 빈 문자열**이면 `default` 사용 (POSIX 셸과 동일) |
+| `${VAR-default}` | VAR가 **미정의**일 때만 `default` 사용 (빈 문자열은 그대로) |
+
+`default` 부분도 다시 확장되므로 `${DB_HOST:-${HOST}:5432}`처럼 중첩할 수 있습니다.
+`${VAR:+alt}`, `${VAR:=x}`, `${VAR:?msg}`, `$#`는 지원하지 않으며 `dva validate`가
+경고합니다.
+
 ### 특수 변수
 
 | Variable | Description |

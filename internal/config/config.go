@@ -892,19 +892,13 @@ func findConfig(workDir string) (string, error) {
 	}
 
 	for {
-		// Prefer dva.yml (canonical name)
-		candidate := filepath.Join(dir, FileName)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-		// Fallback: accept dva.yaml with deprecation warning (once per process)
-		altCandidate := filepath.Join(dir, FileNameAlt)
-		if _, err := os.Stat(altCandidate); err == nil {
-			if !yamlDeprecationWarned {
+		if candidate, ok := ConfigFileInDir(dir); ok {
+			if filepath.Base(candidate) == FileNameAlt && !yamlDeprecationWarned {
+				// Fallback: accept dva.yaml with deprecation warning (once per process)
 				yamlDeprecationWarned = true
-				fmt.Fprintf(os.Stderr, "⚠  Found %s — consider renaming to dva.yml (canonical name)\n", altCandidate)
+				fmt.Fprintf(os.Stderr, "⚠  Found %s — consider renaming to dva.yml (canonical name)\n", candidate)
 			}
-			return altCandidate, nil
+			return candidate, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -1307,4 +1301,19 @@ func (c *Config) ResolveEndpoints() {
 		}
 		c.Endpoints[name] = ep
 	}
+}
+
+// ConfigFileInDir returns the config file in dir, preferring the canonical dva.yml and
+// accepting dva.yaml as the legacy alternative. Every command that looks for a project's
+// config in one directory — the loader, `config migrate`, `config docs` — must share this
+// rule; `config migrate` once checked only dva.yml and so refused exactly the legacy
+// projects that needed it most (TASK-304).
+func ConfigFileInDir(dir string) (string, bool) {
+	for _, name := range []string{FileName, FileNameAlt} {
+		candidate := filepath.Join(dir, name)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate, true
+		}
+	}
+	return "", false
 }

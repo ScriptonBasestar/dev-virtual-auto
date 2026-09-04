@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -31,12 +30,8 @@ with the latest DVA command reference. Does not modify dva.yml.`,
 
 // dvaConfigExists checks whether dva.yml or dva.yaml exists in the current directory only.
 func dvaConfigExists() bool {
-	for _, name := range []string{config.FileName, config.FileNameAlt} {
-		if _, err := os.Stat(name); err == nil {
-			return true
-		}
-	}
-	return false
+	_, ok := config.ConfigFileInDir(".")
+	return ok
 }
 
 func init() {
