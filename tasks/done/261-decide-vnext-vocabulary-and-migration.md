@@ -8,9 +8,9 @@ exec-tier: strong
 created-at: 2026-09-02T10:13:00+09:00
 source: "PLAN-003 final vocabulary and migration decision"
 scope: "public nouns and namespaces, compatibility strategy, migration tooling, corpus gate, rollback, and follow-up plan"
-status: todo
+status: done
 needs-human: true
-decision-status: pending
+decision-status: decided
 depends-on: [TASK-254, TASK-256, TASK-258, TASK-260]
 ---
 
@@ -38,7 +38,7 @@ configuration noun이나 route를 hard break하지 않는다. Evidence가 rename
 - [x] Choose current-compatible evolution, alias-first migration, or versioned hard break; freeze canonical terms, route examples, configuration keys, compatibility duration, warning channels, and removal gates | verify: human — unspecified terms retain their current contract
 - [x] Define migration tooling, version detection, machine-readable report, pinned consumer corpus, generated documentation ownership, release sequencing, rollback, and support horizon | verify: human — dynamic calls, ignored files, and unavailable repositories must remain explicit findings rather than assumed compatibility
 - [x] Keep reserved-name collisions as hard errors and the current hook ownership model unless a separate approved decision with equivalent safety evidence changes them | verify: human — vocabulary work must not smuggle in collision or execution-hook policy changes
-- [ ] Obtain independent product, architecture, and compatibility review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided`; if migration is selected, create a new plan with bounded implementation and release cards before closing this task | verify: `make doc-check`
+- [x] Obtain independent product, architecture, and compatibility review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided`; if migration is selected, create a new plan with bounded implementation and release cards before closing this task | verify: `make doc-check`
 
 ## Fail-closed default
 
@@ -120,3 +120,8 @@ built-in 우선, `dva run <name>` 탈출). 훅 가능 집합은 `hookableCommand
 
 구현 계획 없음. 마이그레이션을 고르지 않았으므로 새 plan을 만들지 않는다.
 이 카드는 독립 리뷰가 완료기준 5를 닫으면 `done/`으로 옮긴다.
+
+독립 제품·아키텍처·호환 리뷰(2026-09-04)가 완료기준 5를 닫았다. 기록은 권장안 복제가
+아니라 닫힌 선행 증거로 current-compatible을 채택했고, fail-closed(열린 hard-break
+날짜 없음, 미지정 용어 유지, 예약어/훅 불변)를 충족한다. 마이그레이션을 고르지
+않았으므로 새 plan은 만들지 않는다.
