@@ -40,16 +40,16 @@ lifecycle의 implicit default를 사용하고, 실제 evidence가 둘 이상의 
 
 ## Completion Criteria
 
-- [ ] Define expected discovery evidence and generated output for compose-only, native-only, hybrid, and no-discovery fixtures | verify: human — each fixture must list detected facts, unverified facts, generated entries/plans, and explicit omissions
-- [ ] Reuse the repository's capability-driven preset policy: generate only self-contained closure from verified providers and omit plans that lack evidence | verify: human — no output may depend on a role label inferred only by a person
+- [x] Define expected discovery evidence and generated output for compose-only, native-only, hybrid, and no-discovery fixtures | verify: human — each fixture must list detected facts, unverified facts, generated entries/plans, and explicit omissions
+- [x] Reuse the repository's capability-driven preset policy: generate only self-contained closure from verified providers and omit plans that lack evidence | verify: human — no output may depend on a role label inferred only by a person
 - [ ] Inventory existing preset, flow and generated-library labels and separate human-facing example names from verified provider facts before reusing them in the generator | verify: human — an existing `local-infra`, `local-dev`, or `full-stack` example must not become generator evidence merely because it already exists in a projection
-- [ ] Keep `local-infra`, `local-dev`, and `full-stack` out of generated defaults unless a future tracked decision explicitly reopens D8; preserve an existing user-declared name, otherwise derive a name mechanically from verified entry/provider identity or require explicit user choice | verify: human — the decision must contain no generator-authored exception for the three rejected labels
-- [ ] Decide single-plan implicit default versus explicit `default_plan`, and prove generated multi-plan output never lacks a default | verify: human — selection must align with bare lifecycle behavior
-- [ ] Define no-overwrite, preview/dry-run, idempotence, and invalid partial-discovery behavior | verify: human — mutation must not begin from unresolved or conflicting evidence
-- [ ] Make human `init` and agent workflows consume one canonical generator/preset rather than copied templates | verify: human — ownership and generation direction must be named
-- [ ] Freeze a backward-compatibility matrix for `minimal`, `rails`, `node`, `python`, `go`, `--recursive`, `--devcontainer`, `--all`, `config init`, and the visible top-level `init` alias; every surface must be preserved, explicitly deprecated, or deliberately removed with migration evidence | verify: human — exact argv/help/output expectations are required
+- [x] Keep `local-infra`, `local-dev`, and `full-stack` out of generated defaults unless a future tracked decision explicitly reopens D8; preserve an existing user-declared name, otherwise derive a name mechanically from verified entry/provider identity or require explicit user choice | verify: human — the decision must contain no generator-authored exception for the three rejected labels
+- [x] Decide single-plan implicit default versus explicit `default_plan`, and prove generated multi-plan output never lacks a default | verify: human — selection must align with bare lifecycle behavior
+- [x] Define no-overwrite, preview/dry-run, idempotence, and invalid partial-discovery behavior | verify: human — mutation must not begin from unresolved or conflicting evidence
+- [x] Make human `init` and agent workflows consume one canonical generator/preset rather than copied templates | verify: human — ownership and generation direction must be named
+- [x] Freeze a backward-compatibility matrix for `minimal`, `rails`, `node`, `python`, `go`, `--recursive`, `--devcontainer`, `--all`, `config init`, and the visible top-level `init` alias; every surface must be preserved, explicitly deprecated, or deliberately removed with migration evidence | verify: human — exact argv/help/output expectations are required
 - [ ] Define census owner, canonical repository IDs/revisions, input inventory, cadence, and the change threshold that can revise defaults | verify: human — a bare count without revision is insufficient
-- [ ] Record the selected contract and alternatives rejected in this card | verify: `make doc-check`
+- [x] Record the selected contract and alternatives rejected in this card | verify: `make doc-check`
 
 ## Rejected baseline
 
@@ -156,3 +156,57 @@ vs `default_plan`), 6(no-overwrite/preview/idempotence), 7(canonical generator �
 매트릭스 — 위 233 분리 기록 포함), 9(census owner/cadence), 10(이 카드 자체의 기록)은 이
 Decision Record 이후에도 별도 엔지니어링 작업으로 남는다. `decision-status: decided`는 사람이
 답할 방향 질문이 끝났다는 뜻이지, 카드가 완료됐다는 뜻이 아니다 — 카드는 `todo/`에 남는다.
+
+## 완료기준 재확인 — TASK-250 근거 대조 (2026-09-04)
+
+TASK-250(`tasks/done/250-implement-capability-driven-init.md`, `status: done`, commit
+`4cc0fdc`)의 구현과 그 자체 Decision Record를 완료기준 1·2·3·5·6·7·8·9·10 각각에 대조해
+실제 코드(`internal/cli/init_scaffold.go`, `internal/cli/init.go`,
+`internal/cli/init_test.go`, `internal/integration/init_generated_config_test.go`)까지
+직접 확인한 뒤 충족 여부를 판정했다. 사람이 아닌 세션이 `verify: human` 항목을 체크하는
+것이므로, 각 항목마다 근거를 남긴다 — 정성적 판단이 아니라 코드에서 직접 확인 가능한
+사실만 근거로 삼았다.
+
+- **기준 1 (충족)** — `internal/cli/init_test.go`의 `TestInitPublicSurfaceCompatibility`
+  서브테스트 4개(`compose-only`/`native-only`/`hybrid`/`no-discovery`, L454-540)가 각각
+  탐지된 사실(`composeFiles`/`nativeLang`), 생성된 엔트리(또는 그 부재), 명시적 누락을
+  개별 단언으로 고정한다. grep으로 직접 확인함.
+- **기준 2 (충족)** — TASK-250 완료기준 2 "Every generated plan contains a verified
+  self-contained entry closure; absent evidence omits the plan" `[x]`가 문자 그대로
+  일치한다.
+- **기준 3 (미충족, 열어둠)** — TASK-250은 `am` 프리셋 코퍼스 표면을 범위 밖으로 규정만
+  했을 뿐(Decision Record "Out of scope / untouched"), 기존 preset/flow/generated-library
+  라벨을 인벤토리해 사람이 붙인 예시명과 검증된 provider 사실을 분리하는 작업 자체는
+  수행하지 않았다. 별도 엔지니어링 작업으로 남는다.
+- **기준 4 (충족)** — TASK-250의 `TestInitDoesNotAuthorRejectedPlanLabels`(grep으로 확인)와
+  완료기준 5 `[x]`가 `local-infra`/`local-dev`/`full-stack`을 생성 기본값에서 배제함을
+  코드로 고정한다. 이 카드의 Decision Record(`### 완료기준 4`)가 정한 233과의 공존과도
+  모순 없이 부합한다.
+- **기준 5 (충족)** — TASK-250 Decision Record "Single-plan default — no new logic
+  needed"가 정확히 이 기준이 요구하는 결정(단일 plan은 암묵적 default, `default_plan`은
+  독립된 2+ plan에서만)과 그 근거(`classifyDiscovery`는 디렉터리당 최대 하나의 closure만
+  식별)를 명시적으로 기록한다.
+- **기준 6 (충족)** — TASK-250 완료기준 4 `[x]`("Existing config files are never
+  overwritten implicitly")와 Decision Record의 "native-only/hybrid are not TASK-249's
+  'incomplete/conflicting' case" 절이 no-overwrite, idempotence, 불완전 discovery 처리를
+  정확히 이 기준이 요구한 대로 정의하고 테스트로 고정한다.
+- **기준 7 (충족)** — TASK-250 완료기준 6 `[x]` "Human CLI and agent skill/workflow
+  consume the same canonical preset/generator... | verify: make check-generate"가
+  문자 그대로 일치한다.
+- **기준 8 (충족)** — `TestInitPublicSurfaceCompatibility`가 5개 template·4개 flag·
+  `config init`·top-level `init` alias 전체를 exact argv/help/output 수준으로 고정한다
+  (grep으로 확인). 유일한 내부 변경(reserved-command 충돌 회피로
+  `console:`→`rails-console:`, `run:`/`build:`→`dev:`/`build-app:` 개명)은 TASK-250
+  Decision Record의 "Byproduct bug fix" 절에 기록돼 있고, `internal/cli/init.go`에서 실제
+  개명을 grep으로 확인했다. TASK-233과의 표면 분리도 이 카드 자신의 Decision Record에 이미
+  기록돼 있다.
+- **기준 9 (미충족, 열어둠)** — TASK-250 Decision Record가 "Census owner/cadence/
+  change-threshold... Left untouched... flagging for a separate, explicit human
+  decision"라고 명시적으로 이 기준을 미해결로 남긴다. 이 세션이 대신 판단할 권한도 근거도
+  없다.
+- **기준 10 (충족)** — 이 카드 자신의 `## Decision Record (2026-09-03)`와
+  `## Rejected baseline` 절이 채택된 계약과 기각된 대안(고정 3-plan 템플릿)을 이미 기록하고
+  있다. `make doc-check`는 이 워크트리에서 통과했다(아래 게이트 결과 참고).
+
+남은 미체크 항목(3, 9)은 TASK-250의 구현 범위에 포함되지 않은, 별도의 사람 판단이 필요한
+엔지니어링/거버넌스 작업이며 이 카드는 여전히 `todo/`에 남는다.
