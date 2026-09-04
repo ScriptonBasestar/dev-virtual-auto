@@ -12,9 +12,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # Job timeout is GitHub's control plane. A silent -race compile used to
-    # starve the runner until the ~45m lost-communication abort; the Makefile
-    # now streams that compile. 30m covers a cold race build plus the suite.
+    # Job timeout is GitHub's control plane. Step timeout-minutes is
+    # runner-enforced and does not fire once the runner loses communication.
     timeout-minutes: 30
     steps:
       # fetch-depth: 0 is load-bearing. make test runs tools/commitcheck tests
@@ -38,10 +37,20 @@ jobs:
       - name: Skill Installer Dogfood
         run: make test-skill-dogfood
 
+      # Not a make target: if this step logs and the next does not, the
+      # failure is `make test` itself rather than -race.
+      - name: Race smoke
+        timeout-minutes: 5
+        env:
+          GOMAXPROCS: "1"
+        run: go test -timeout 3m -race -count=1 ./internal/output
+
       # cilabels matches only `run: make <target>` on one line. Keep this form.
+      # GOMAXPROCS=1 leaves a core for the runner heartbeat on 2-core hosts.
       - name: Test
         timeout-minutes: 25
         env:
+          GOMAXPROCS: "1"
           GOTESTFLAGS: -v
         run: make test
 

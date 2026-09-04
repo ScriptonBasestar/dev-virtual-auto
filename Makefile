@@ -212,26 +212,12 @@ dogfood-skill-install:
 	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --expected-sha256 "$(DVA_SHA256)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
-# GitHub-hosted Linux is 2 cores. `go test -race ./...` saturates both, so the
-# runner cannot heartbeat and GitHub reports lost communication (~45m, no
-# logs). Leave one core free (GOMAXPROCS=1, -p 1), stream compile with -v,
-# and print a heartbeat so a hang still produces logs. stdin is /dev/null
-# because the runner pipe never EOFs.
+# Do not close stdin here. On GitHub Actions the runner multiplexes the
+# step over fd 0; `exec </dev/null` in this recipe produced a 30–45m
+# lost-communication abort with no logs. Tests that must not inherit
+# stdin are gated in ExecSubprocess via testing.Testing().
 test:
-	set -eu; \
-	if [ -n "$${GITHUB_ACTIONS}" ]; then \
-		exec </dev/null; \
-		export GOMAXPROCS=1; \
-		( while sleep 20; do printf 'make test: heartbeat %s\n' "$$(date -u +%H:%M:%S)" >&2; done ) & \
-		hb=$$!; \
-		trap 'kill $$hb 2>/dev/null || true' EXIT; \
-		printf 'make test: race-compile\n' >&2; \
-		go build -race -p 1 -v $(GOFLAGS) ./... >&2; \
-		printf 'make test: run\n' >&2; \
-		go test -timeout 5m -p 1 -race -cover $(GOTESTFLAGS) ./...; \
-	else \
-		go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...; \
-	fi
+	go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...
 
 ## test-skill-dogfood: Run the built executable through a hermetic skill-installer round-trip (CI)
 test-skill-dogfood: build
