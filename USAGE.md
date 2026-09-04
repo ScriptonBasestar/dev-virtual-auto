@@ -253,6 +253,22 @@ stack:                          stack:
 유지됩니다. `--write` 전에 결과를 메모리에서 먼저 로드해 검증하므로 DVA가 읽을 수
 없는 상태로 파일이 남지 않습니다.
 
+`modes:` 중 `description` / `stack` / `compose_services` / `endpoint_tags`만 가진 mode는
+같은 이름의 plan으로 옮깁니다. `--mode <name>`이 하던 일을 `dva up <name>`이 그대로 하도록
+`stack`은 `entries[].name`이 되고, `compose_services`는 선택된 stack 안의 유일한 compose
+엔트리에 `services`로 붙습니다. `default_mode`가 변환된 mode를 가리키면 `default_plan`으로
+바뀝니다. 그 밖의 필드를 가진 mode, compose 엔트리가 둘 이상이어서 `services`를 붙일 곳이
+모호한 mode, 같은 이름의 plan이 이미 있는 mode는 `Left for you`에 사유와 함께 남습니다.
+
+```yaml
+modes:                          plans:
+  full:                           full:
+    description: "all"     ->       description: "all"
+    stack: [compose, api]           entries:
+                                      - name: compose
+                                      - name: api
+```
+
 `tags`는 옮기지 않고 **양쪽에 복사**합니다. `LifecycleEntry.Tags`는 stack 항목
 필터링에, `ComposePluginConfig.Tags`는 compose 서비스 필터 기본값에 쓰이는데
 legacy 형태에서는 한 키가 두 역할을 겸했기 때문입니다.

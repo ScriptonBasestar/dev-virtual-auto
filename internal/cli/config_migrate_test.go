@@ -82,8 +82,11 @@ stack:
 
 // TestConfigMigrateNoOpStillReportsWhatNeedsHands.
 //
-// 'modes' has no mechanical target, so a file of nothing but modes is a no-op rewrite —
-// and the least useful thing the command could do is print "nothing to convert" over it.
+// A mode carrying a field a plan cannot express (compose_profiles here) has no mechanical
+// target, so a file of nothing but such modes is a no-op rewrite — and the least useful
+// thing the command could do is print "nothing to convert" over it. (Modes made only of
+// description/stack/compose_services/endpoint_tags are converted by MigrateModes instead;
+// see internal/config/migrate_modes_test.go.)
 // The guidance is also what replaced TASK-069's hand-maintained list of deprecated
 // section names: it is derived from the modes the config actually declares, so it cannot
 // fall out of step with the sections the code knows about.
@@ -101,11 +104,12 @@ modes:
     description: "local development"
     stack: [core]
     compose_services: [db]
+    compose_profiles: [debug]
 `)
 
 	output := runConfigMigrate(t, tmpDir)
 
-	for _, want := range []string{"modes.dev", "plans.dev", "entries[<compose entry>].services"} {
+	for _, want := range []string{"modes.dev: not converted", "compose_profiles has no plan equivalent", "modes.dev: split by hand", "plans.dev", "entries[<compose entry>].services"} {
 		if !strings.Contains(output, want) {
 			t.Errorf("the mode's split must be spelled out; missing %q in: %q", want, output)
 		}

@@ -49,6 +49,7 @@ func Migrate(src []byte) ([]byte, MigrationReport, error) {
 	for _, step := range []func([]byte) ([]byte, MigrationReport, error){
 		MigrateApplications,
 		MigrateStackOrder,
+		MigrateModes,
 	} {
 		next, stepReport, err := step(out)
 		if err != nil {
@@ -66,10 +67,12 @@ func Migrate(src []byte) ([]byte, MigrationReport, error) {
 
 // modeFieldTargets says where each field of a mode ends up once the mode is split.
 //
-// The list is the whole reason `modes` is not converted automatically: one mode spreads
+// The list is the reason most `modes` are not converted automatically: one mode spreads
 // across plans, environments and the entries' own runners, and which plan a given mode
-// becomes is a naming decision rather than a derivation. Printing the split for the
-// modes actually declared is the most a tool can do without inventing the answer. (D3)
+// becomes is a naming decision rather than a derivation. MigrateModes converts the
+// subclass where no such decision exists (description/stack/compose_services/
+// endpoint_tags only); printing the split for the modes that remain is the most a tool
+// can do for the rest without inventing the answer. (D3, TASK-306)
 var modeFieldTargets = []struct{ key, target string }{
 	{"description", "plans.<name>.description"},
 	{"stack", "plans.<name>.entries[].name — the declarations this mode selected"},
@@ -84,9 +87,10 @@ var modeFieldTargets = []struct{ key, target string }{
 	{"provision", "no equivalent — a provision profile is chosen explicitly, not by mode"},
 }
 
-// ScaffoldModes describes how each declared mode splits across the new model.
+// ScaffoldModes describes how each mode still declared splits across the new model.
 //
-// It converts nothing. A mode carries a stack filter, an environment, a build strategy
+// It runs after MigrateModes, so it sees only the modes that step could not convert. It
+// converts nothing. A mode carries a stack filter, an environment, a build strategy
 // and an application strategy in one name, and the split needs a decision per mode about
 // which of those become which plan — so the useful output is the operator's own modes
 // with each field pointed at its destination, not a guessed rewrite.

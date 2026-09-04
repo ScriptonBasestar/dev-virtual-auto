@@ -207,9 +207,9 @@ interactions:
 - legacy compose 선언을 `stack.<name>.runners.compose`로 이동
 - `applications` 선언을 native runner를 가진 `stack` 선언으로 이동
 - `stack.*.order`를 해당 선언을 참조하는 `plans.*.entries[].order`로 이동
+- stack 선택만 하는 mode를 같은 이름의 plan으로 이동
 
-불가능한 선언은 `Left for you` 아래에 남긴다. mode가
-어떤 plan 이름이 될지는 도출할 수 없으므로 `modes`는 대상 위치와 함께 보고만 한다.
+불가능한 선언은 `Left for you` 아래에 남긴다. 그 밖의 `modes`는 사유와 대상 위치만 보고한다.
 `stack.*.order`는 참조 plan entry가 없으면 삭제하지 않는다. plan 없는 설정에서는 이
 값이 기존 stack 실행 순서를 결정하므로, 사람이 named plan과 해당 entries를 선언한 뒤
 다시 `dva config migrate`를 실행해야 한다. 이는 수동 한계다. 이 경우
