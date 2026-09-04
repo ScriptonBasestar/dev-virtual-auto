@@ -3,7 +3,7 @@ id: PLAN-005
 title: "Implement cross-project plan composition"
 type: plan
 scope: "composition plan schema and validation, cross-project resolver identity, wave-sequential runtime with LIFO rollback, CLI flag-scope enforcement and aggregate output, and compatibility fixtures"
-progress: 0
+progress: 20
 total-tasks: 5
 completed-tasks: 0
 children: [TASK-289, TASK-290, TASK-291, TASK-292, TASK-293]
@@ -26,7 +26,7 @@ Non-goals나 아래 "## Open questions" 절에 기록하고 조용히 다르게 
 
 | Workstream | TASK-260 근거 | 작업 |
 | --- | --- | --- |
-| Composition plan schema | §3 (identity·cycle·duplicate·merge·override·depends_on·order·immutability) | [TASK-289](../todo/289-implement-composition-plan-schema.md) |
+| Composition plan schema | §3 (identity·cycle·duplicate·merge·override·depends_on·order·immutability) | [TASK-289](../done/289-implement-composition-plan-schema.md) — 완료 (`1420ed4`) |
 | Cross-project resolver | §3.2·3.5·3.8·3.9 (identity 참조·default 선택·wave 계산·불변성) | [TASK-290](../todo/290-implement-composition-plan-resolver.md) |
 | Wave 실행과 rollback runtime | §4·§5 (verb별 동작·flag 전파·LIFO rollback·`--no-rollback`·partial-state·exit code) | [TASK-291](../todo/291-implement-composition-runtime-and-rollback.md) |
 | CLI flag-scope와 aggregate 출력 | §4.4(flag 표)·§4.3(logs/status/build)·§5.3(JSON) | [TASK-292](../todo/292-implement-composition-cli-and-flag-scope.md) |

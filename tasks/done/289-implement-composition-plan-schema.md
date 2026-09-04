@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T10:00:00+09:00
 source: "PLAN-005 implementation of TASK-260's frozen composition contract"
 scope: "PlanConfig composes field, config validation, and import-time composition-of-composition rejection"
-status: todo
+status: done
 depends-on: [TASK-260]
 ---
 
