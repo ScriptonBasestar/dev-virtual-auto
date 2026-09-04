@@ -162,8 +162,9 @@ that are genuinely running and fail to tear down.
 ## Completion evidence
 
 `HelmPlugin.Stop` (`internal/lifecycle/helm.go`) now probes `releaseInstalled` — a new
-helper that runs `helm status <release> -o json` and treats any error as "not installed",
-mirroring `HelmPlugin.Status`'s existing not-found handling — before delegating to `Down`
+helper that runs `helm status <release> -o json` under the caller's context and the entry's
+configured environment, reporting "not installed" only for helm's own not-found signal and
+returning every other probe failure as a real error — before delegating to `Down`
 (`helm uninstall`). When the release is not installed (and the call is not a dry run), Stop
 returns `nil` immediately instead of surfacing helm's "release: not found" as a teardown
 failure. Dry-run calls are untouched: they still flow through `Down`'s existing
@@ -181,9 +182,9 @@ Both new tests use a `helmNotInstalledShim` test helper (`internal/lifecycle/hel
 that puts a fake `helm` executable first on `PATH` — mirroring the existing
 `installShims`/`kubectlShim` pattern in this package (`docker_daemon_test.go`,
 `internal/runner/kubectl_steps_test.go`) rather than requiring a real helm binary or
-cluster: `helm status`/`helm uninstall` exit 1 (not-found), `helm upgrade --install` exits
-0, and `PATH` is replaced (not prepended) so a real helm on the machine cannot decide the
-result.
+cluster: `helm status` exits 1 with helm's own `Error: release: not found` on stderr,
+`helm uninstall` exits 1, `helm upgrade --install` exits 0, and `PATH` is replaced (not
+prepended) so a real helm on the machine cannot decide the result.
 
 - `TestHelmPlugin_Stop_ReleaseNotInstalled` (`internal/lifecycle/helm_test.go`) — calls
   `HelmPlugin.Stop` directly against a release the shim reports as not found and asserts it
@@ -197,9 +198,10 @@ result.
 ### Files changed
 
 - `internal/lifecycle/helm.go` — `HelmPlugin.Stop` gains the not-installed no-op check;
-  new `HelmPlugin.releaseInstalled` helper.
-- `internal/lifecycle/helm_test.go` — new `helmNotInstalledShim` helper and
-  `TestHelmPlugin_Stop_ReleaseNotInstalled`.
+  new `HelmPlugin.releaseInstalled` and `helmReportsReleaseNotFound` helpers.
+- `internal/lifecycle/helm_test.go` — new `helmShim`/`helmNotInstalledShim`/
+  `helmStopContext` helpers, `TestHelmPlugin_Stop_ReleaseNotInstalled`, and the three
+  post-review tests listed below.
 - `internal/lifecycle/orchestrator_test.go` — new
   `TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled`.
 
@@ -218,3 +220,67 @@ and
 Existing helm/orchestrator tests (including `TestHelmPlugin_Stop_NilConfig`,
 `TestHelmPlugin_DryRun_Down`, `TestOrchestratorStopReturnsErrorOnEntryFailure`,
 `TestOrchestratorDownReturnsErrorOnEntryFailure`) remain unaffected.
+
+### Post-review fix (MAJOR-1: probe misclassification)
+
+Independent review of the first implementation, before integration, rejected the original
+`releaseInstalled` on two counts. Both are fixed here; the decision to adopt option (a) is
+unchanged.
+
+**What was wrong.** The first version ran `exec.Command(cmd, args...).Output()` and did
+`return err == nil` — every failure meant "not installed". Two consequences:
+
+1. *Over-broad classification.* An auth failure, an unreachable cluster, a bad kube
+   context, or a malformed release name all exit non-zero, so `Stop` returned `nil` and
+   reported a teardown that never happened as a success. That is precisely the class of
+   silently-swallowed teardown failure TASK-295 closed, reopened one layer down, and it
+   contradicts this card's non-goal of not weakening error aggregation for entries that
+   are genuinely running.
+2. *Environment mismatch.* `Up`/`Down` shell out via `dvaexec.ExecSubprocess`, which sets
+   `c.Env = pctx.Env.EnvSlice()` — `os.Environ()` plus the config's `vars`. dva never
+   exports config vars into its own process, so a bare `exec.Command` probe could not see
+   a `KUBECONFIG` supplied through `dva.yml` that the `helm uninstall` it gates *would*
+   see. The probe would then find no release and skip a teardown that was genuinely
+   needed. The reviewer demonstrated this with a throwaway repro rather than arguing it.
+
+**What changed.** `releaseInstalled(ctx, pctx) (bool, error)` now runs under
+`exec.CommandContext(ctx, ...)` with `c.Env = pctx.Env.EnvSlice()`, checks `ctx.Err()`
+first so a cancelled or timed-out probe is a real error (helm's stderr is empty on a kill,
+so it cannot be classified by message), and otherwise reports not-installed only when an
+`*exec.ExitError`'s stderr matches the new `helmReportsReleaseNotFound` — `release: not
+found` or `no release found`, case-insensitively. Anything else is wrapped and returned,
+and `Stop` propagates it instead of collapsing to `nil`.
+
+Note on the review instruction to reuse an existing not-found helper: there is none.
+`HelmPlugin.Status` keys on nothing — a bare `if err != nil` mapping every failure to
+`"stopped"` — so `helmReportsReleaseNotFound` is a single new helper rather than a second
+copy of anything. `Status`'s own breadth is deliberately left alone: it is a read-only
+display path outside this card's scope, and narrowing it would change reported state.
+Worth a follow-up card, not a drive-by here.
+
+`helmNotInstalledShim` had to change with the implementation: its `helm status` now emits
+helm's real `Error: release: not found` on stderr. Under the narrowed classification a
+shim that merely exited non-zero no longer models a not-installed release at all, so
+`TestHelmPlugin_Stop_ReleaseNotInstalled` and
+`TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled` would have been testing the
+wrong thing. Both still pass, unmodified, against the corrected shim.
+
+Three tests were added, each verified to fail when its own implementation change is
+reverted:
+
+- `TestHelmPlugin_Stop_ProbeFailureIsNotTreatedAsNotInstalled` — the shim's `helm status`
+  fails with `Kubernetes cluster unreachable`; asserts `Stop` returns an error naming the
+  failed probe. Fails (`got nil`) if the classification is widened back to any-error.
+- `TestHelmPlugin_Stop_ProbeUsesConfiguredEnv` — `KUBECONFIG` is supplied only through the
+  entry's `vars`, and the shim's `status` succeeds only when it sees that value; asserts
+  the gated `uninstall` actually runs. Fails if `c.Env` is dropped.
+- `TestHelmPlugin_Stop_ProbeRespectsCancellation` — a pre-cancelled context; asserts `Stop`
+  returns an error wrapping `context.Canceled` and never runs `uninstall`. Fails
+  (`got nil`) if the probe stops honouring `ctx`.
+
+The two marker-file shims write with the `:` redirect builtin rather than `touch`: the shim
+replaces `PATH` outright, so no external binary is resolvable from inside it, and `touch`
+would fail silently — making the cancellation test's negative assertion vacuous.
+
+All six gates were re-run clean after these changes: `make build`, `make lint`
+(`0 issues`), `make test`, `make test-integration`, `make doc-check`, `make commit-check`.

@@ -2,35 +2,59 @@ package lifecycle
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 // helmNotInstalledShim puts a fake `helm` first on PATH that reports every release as
-// not installed: `helm status` exits non-zero (mirroring helm's real "release: not
-// found" behavior) and `helm uninstall` also exits non-zero, so a test relying on this
+// not installed: `helm status` exits non-zero on stderr with helm's own "release: not
+// found" wording, and `helm uninstall` also exits non-zero, so a test relying on this
 // shim only passes if Stop never reaches uninstall for a not-installed release. `helm
 // upgrade --install` exits 0 so Up can still succeed. Mirrors installShims in
 // docker_daemon_test.go: PATH is replaced, not prepended, so a real helm on the machine
 // cannot decide the result.
+//
+// The exact stderr wording matters: Stop only treats a probe failure as
+// nothing-to-tear-down when helm says the release is missing, so a shim that merely
+// exited non-zero would no longer model the not-installed case at all.
 func helmNotInstalledShim(t *testing.T) {
+	t.Helper()
+	helmShim(t, "  status) echo \"Error: release: not found\" >&2; exit 1 ;;\n"+
+		"  uninstall) exit 1 ;;\n")
+}
+
+// helmShim writes a fake `helm` whose `case "$1"` body is the caller's, with every
+// unlisted subcommand (notably `upgrade --install`) exiting 0, and replaces PATH with
+// its directory.
+func helmShim(t *testing.T, cases string) {
 	t.Helper()
 
 	dir := t.TempDir()
-	script := "#!/bin/sh\n" +
-		"case \"$1\" in\n" +
-		"  status) exit 1 ;;\n" +
-		"  uninstall) exit 1 ;;\n" +
-		"  *) exit 0 ;;\n" +
-		"esac\n"
+	script := "#!/bin/sh\ncase \"$1\" in\n" + cases + "  *) exit 0 ;;\nesac\n"
 	if err := os.WriteFile(filepath.Join(dir, "helm"), []byte(script), 0o755); err != nil {
 		t.Fatalf("write helm shim: %v", err)
 	}
 	t.Setenv("PATH", dir)
+}
+
+// helmStopContext builds the PluginContext the Stop tests below drive, pointed at
+// release and carrying vars as the dva.yml-supplied environment.
+func helmStopContext(release string, vars map[string]string) *PluginContext {
+	return &PluginContext{
+		Entry: &config.LifecycleEntry{
+			Name: "svc",
+			Helm: &config.HelmPluginConfig{Chart: "bitnami/redis", Release: release},
+		},
+		Env:       config.NewEnvironment(vars, "/tmp", "/tmp"),
+		ConfigDir: "/project",
+		Logger:    slog.Default(),
+	}
 }
 
 func TestHelmPlugin_Name(t *testing.T) {
@@ -317,5 +341,69 @@ func TestHelmPlugin_Stop_ReleaseNotInstalled(t *testing.T) {
 
 	if err := p.Stop(context.Background(), pctx); err != nil {
 		t.Fatalf("Stop on a not-installed release should be a no-op success, got: %v", err)
+	}
+}
+
+// TestHelmPlugin_Stop_ProbeFailureIsNotTreatedAsNotInstalled is the negative half of
+// TASK-300, added after independent review. The not-installed no-op is keyed on helm's
+// own "release: not found" message, not on "the probe exited non-zero": an unreachable
+// cluster, an auth failure or a bad kube-context also exit 1, and classifying those as
+// not-installed would skip the uninstall of a release that IS deployed and hand
+// Orchestrator.Stop a success for a teardown that never ran — reopening the swallowed-
+// teardown-failure class of bug TASK-295 closed. The shim's uninstall exits 0 here, so
+// this fails loudly if Stop ever silently returns nil.
+func TestHelmPlugin_Stop_ProbeFailureIsNotTreatedAsNotInstalled(t *testing.T) {
+	helmShim(t, "  status) echo \"Error: Kubernetes cluster unreachable\" >&2; exit 1 ;;\n")
+
+	err := (&HelmPlugin{}).Stop(context.Background(), helmStopContext("really-installed", nil))
+	if err == nil {
+		t.Fatal("Stop must surface a probe failure that is not helm's not-found signal, got nil")
+	}
+	if !strings.Contains(err.Error(), "helm status") {
+		t.Errorf("error = %q, want it to name the failed probe", err)
+	}
+}
+
+// TestHelmPlugin_Stop_ProbeUsesConfiguredEnv pins the probe to the same environment the
+// uninstall it gates runs under. dva.yml's `environment:` vars reach helm through
+// dvaexec.ExecSubprocess (which sets Env from the config environment) but are never
+// exported into dva's own process, so a probe reading only os.Environ() would miss a
+// KUBECONFIG supplied that way, fail, and silently skip tearing down an installed
+// release. The shim's status only succeeds when it sees that KUBECONFIG.
+func TestHelmPlugin_Stop_ProbeUsesConfiguredEnv(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "uninstall-ran")
+	helmShim(t, "  status) [ \"$KUBECONFIG\" = \"/from/dva/yml\" ] && exit 0 || exit 1 ;;\n"+
+		"  uninstall) : > "+marker+"; exit 0 ;;\n")
+
+	pctx := helmStopContext("really-installed", map[string]string{"KUBECONFIG": "/from/dva/yml"})
+	if err := (&HelmPlugin{}).Stop(context.Background(), pctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	if _, err := os.Stat(marker); err != nil {
+		t.Fatal("Stop returned success without running `helm uninstall`: the probe did not " +
+			"see the dva.yml-supplied KUBECONFIG that the uninstall itself would have seen")
+	}
+}
+
+// TestHelmPlugin_Stop_ProbeRespectsCancellation covers the cancellation half of the same
+// rule: a probe that never completed says nothing about whether the release exists, so a
+// cancelled or timed-out context must surface as an error rather than be read as
+// not-installed and skip the teardown.
+func TestHelmPlugin_Stop_ProbeRespectsCancellation(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "uninstall-ran")
+	helmShim(t, "  uninstall) : > "+marker+"; exit 0 ;;\n")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := (&HelmPlugin{}).Stop(ctx, helmStopContext("really-installed", nil))
+	if err == nil {
+		t.Fatal("Stop must surface a cancelled probe as an error, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("error = %q, want it to wrap context.Canceled", err)
+	}
+	if _, statErr := os.Stat(marker); statErr == nil {
+		t.Error("Stop ran `helm uninstall` under a cancelled context")
 	}
 }

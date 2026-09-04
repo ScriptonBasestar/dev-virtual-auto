@@ -3,6 +3,7 @@ package lifecycle
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -84,21 +85,61 @@ func (p *HelmPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
 	// missing PID file, rather than surfacing helm's "release: not found" as
 	// a teardown failure. DryRun keeps going through Down, which already
 	// no-ops (and logs) without touching the cluster.
-	if pctx.Entry.Helm != nil && !pctx.DryRun && !p.releaseInstalled(pctx) {
-		return nil
+	//
+	// Only helm's own not-found signal counts as nothing-to-stop. Every other probe
+	// failure propagates, because a probe that could not be completed is not evidence
+	// the release is absent: returning nil there would report a teardown that never
+	// happened as a success, and Orchestrator.Stop can only aggregate what this returns
+	// (TASK-295).
+	if pctx.Entry.Helm != nil && !pctx.DryRun {
+		installed, err := p.releaseInstalled(ctx, pctx)
+		if err != nil {
+			return err
+		}
+		if !installed {
+			return nil
+		}
 	}
 	return p.Down(ctx, pctx)
 }
 
-// releaseInstalled reports whether helm currently knows about the release,
-// probing with `helm status` and treating any error the same way Status does:
-// as "not found".
-func (p *HelmPlugin) releaseInstalled(pctx *PluginContext) bool {
+// releaseInstalled reports whether helm currently knows about the release, probing with
+// `helm status`. A clean exit means installed and helm's not-found message means not
+// installed; anything else is returned as an error rather than guessed at.
+//
+// The probe runs under ctx and with pctx.Env — the same environment
+// dvaexec.ExecSubprocess gives the `helm uninstall` this gates. A KUBECONFIG supplied
+// through dva.yml reaches that uninstall but not the ambient process environment, so a
+// probe reading only os.Environ() would fail to find an installed release and skip a real
+// teardown.
+func (p *HelmPlugin) releaseInstalled(ctx context.Context, pctx *PluginContext) (bool, error) {
 	cfg := pctx.Entry.Helm
 	statusArgs := []string{"status", cfg.Release, "-o", "json"}
 	cmd, cmdArgs := p.buildArgs(pctx, statusArgs)
-	_, err := exec.Command(cmd, cmdArgs...).Output()
-	return err == nil
+
+	c := exec.CommandContext(ctx, cmd, cmdArgs...)
+	c.Env = pctx.Env.EnvSlice()
+	if _, err := c.Output(); err != nil {
+		// A cancelled or timed-out probe reports nothing about the release; helm's
+		// stderr on a kill is empty anyway, so classify it explicitly.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return false, fmt.Errorf("helm status %s: %w", cfg.Release, ctxErr)
+		}
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && helmReportsReleaseNotFound(exitErr.Stderr) {
+			return false, nil
+		}
+		return false, fmt.Errorf("helm status %s: %w", cfg.Release, err)
+	}
+	return true, nil
+}
+
+// helmReportsReleaseNotFound recognizes helm's own "this release does not exist" report.
+// Helm exits 1 for a missing release and for an unreachable cluster alike, so the exit
+// code cannot separate them — the message is the only signal.
+func helmReportsReleaseNotFound(stderr []byte) bool {
+	msg := strings.ToLower(string(stderr))
+	return strings.Contains(msg, "release: not found") || strings.Contains(msg, "no release found")
 }
 
 func (p *HelmPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
