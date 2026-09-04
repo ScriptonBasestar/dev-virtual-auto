@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -145,11 +146,19 @@ exit code; without it those are reported but do not fail validation.
 
 See USAGE.md's "config validate" section for the full list of semantic checks.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		c := mustLoadConfig()
+		c := loadConfigForValidate()
 		report := newValidateReport(c)
 
+		// Hard errors are collected, not returned, so one malformed entry does not hide
+		// the next one or the warnings below it. Every hard error is printed together at
+		// the end (TASK-305); the exit code is unchanged.
+		var hard []error
+		for _, p := range c.LoadProblems() {
+			hard = append(hard, errors.New(p))
+		}
+
 		if err := c.Validate(); err != nil {
-			return report.fail(err)
+			hard = append(hard, err)
 		}
 
 		// env_bridge's origin and version rules (TASK-281 §3-2) report only from
@@ -157,7 +166,7 @@ See USAGE.md's "config validate" section for the full list of semantic checks.`,
 		// lifecycle command, so a policy declaration about the secret surface
 		// cannot brick `dva up`.
 		if err := checkEnvBridgeOriginAndVersion(c); err != nil {
-			return report.fail(err)
+			hard = append(hard, err)
 		}
 
 		// A hard failure rather than a warning. The schema accepts this config, and then
@@ -168,7 +177,7 @@ See USAGE.md's "config validate" section for the full list of semantic checks.`,
 			for _, p := range problems {
 				fmt.Fprintf(os.Stderr, "[error] compose: %s\n", p)
 			}
-			return report.fail(fmt.Errorf("%d compose runner command(s) contain no command word", len(problems)))
+			hard = append(hard, fmt.Errorf("%d compose runner command(s) contain no command word", len(problems)))
 		}
 
 		notice := validateNoticeWriter()
@@ -210,6 +219,10 @@ See USAGE.md's "config validate" section for the full list of semantic checks.`,
 		printConfigSuggestionWarnings(notice, suggestionWarnings)
 		report.add("config_suggestion", suggestionWarnings...)
 
+		if err := failValidation(&report, dedupeErrors(hard)); err != nil {
+			return err
+		}
+
 		if validateStrict && (len(driftWarnings) > 0 || len(semanticWarnings) > 0 || len(collisionWarnings) > 0) {
 			return report.fail(fmt.Errorf("config warnings detected; review warnings above or run 'am run dva-improve'"))
 		}
@@ -239,6 +252,80 @@ See USAGE.md's "config validate" section for the full list of semantic checks.`,
 		return nil
 	},
 }
+
+// loadConfigForValidate loads the config the way every other command does, and when that
+// fails on a stack-entry shape problem, loads it again recording those problems instead
+// (config.CollectEntryProblems) so the rest of the diagnostics still run. A file that
+// cannot be parsed at all, or fails a check the lenient load does not defer, exits
+// through mustLoadConfig's path exactly as before.
+func loadConfigForValidate() *config.Config {
+	c, err := loadConfig()
+	if err == nil {
+		return c
+	}
+	cfg = nil
+	lenient, lenientErr := config.Load(".", config.CollectEntryProblems())
+	if lenientErr != nil {
+		return mustLoadConfig()
+	}
+	cfg = lenient
+	checkGitignoreForWarning(lenient.FileDir())
+	return lenient
+}
+
+// dedupeErrors flattens joined errors (config.Validate returns one ValidationErrors for
+// all its findings) so each finding is its own numbered item, and drops repeated
+// messages: the lenient load and Validate both run validateEntrySource, so a missing
+// source would otherwise be listed twice.
+func dedupeErrors(errs []error) []error {
+	seen := make(map[string]bool, len(errs))
+	var out []error
+	var walk func([]error)
+	walk = func(list []error) {
+		for _, err := range list {
+			if joined, ok := err.(interface{ Unwrap() []error }); ok {
+				walk(joined.Unwrap())
+				continue
+			}
+			if seen[err.Error()] {
+				continue
+			}
+			seen[err.Error()] = true
+			out = append(out, err)
+		}
+	}
+	walk(errs)
+	return out
+}
+
+// failValidation returns the failing error, or nil when there are none. Several hard
+// errors come back as one numbered list (validationFailure) so root's single "ERROR:"
+// line shows every problem after the warnings, and `--json` still gets each member
+// through Unwrap.
+func failValidation(report *validateReport, hard []error) error {
+	switch len(hard) {
+	case 0:
+		return nil
+	case 1:
+		return report.fail(hard[0])
+	}
+	return report.fail(validationFailure(hard))
+}
+
+// validationFailure renders several hard errors as a numbered list with a count, so a
+// twelve-line schema error and a one-line hook error next to it read as two items.
+type validationFailure []error
+
+func (v validationFailure) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d errors found in this config:", len(v))
+	for i, err := range v {
+		fmt.Fprintf(&b, "\n\n[%d] %s", i+1, err.Error())
+	}
+	return b.String()
+}
+
+func (v validationFailure) Unwrap() []error { return v }
 
 func init() {
 	addValidateFlags(validateCmd)

@@ -146,6 +146,16 @@ func newValidateWarning(category, text string) validateWarning {
 // --strict's warning error — yields a single pathless entry, which is why the fallback is
 // not an error case.
 func parseValidateErrors(err error) []validateError {
+	// A joined error (TASK-305) is parsed one member at a time, so a schema list and a
+	// plain-message error next to it each keep their own shape instead of the plain one
+	// vanishing because some other line matched the schema pattern.
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		var out []validateError
+		for _, member := range joined.Unwrap() {
+			out = append(out, parseValidateErrors(member)...)
+		}
+		return out
+	}
 	var out []validateError
 	for line := range strings.SplitSeq(err.Error(), "\n") {
 		if m := schemaErrorPattern.FindStringSubmatch(line); m != nil {

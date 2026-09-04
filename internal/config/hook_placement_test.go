@@ -185,16 +185,21 @@ interaction:
 `
 	cfg := loadConfigForSchemaTest(t, t.TempDir(), content)
 
-	first := cfg.validateHookPlacement()
+	first := joinValidationErrors(cfg.validateHookPlacement())
 	if first == nil {
 		t.Fatal("expected an error from a config with two nested hooks")
 	}
 	for i := range 50 {
-		if got := cfg.validateHookPlacement(); got.Error() != first.Error() {
+		if got := joinValidationErrors(cfg.validateHookPlacement()); got.Error() != first.Error() {
 			t.Fatalf("run %d differs from run 0:\n first: %v\n got:   %v", i+1, first, got)
 		}
 	}
-	if !strings.Contains(first.Error(), "interaction.alpha.subcommands.one") {
+	// Both problems are reported (TASK-305), alpha first because the list is sorted.
+	lines := strings.Split(first.Error(), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected both nested hooks reported on one line each, got %d lines:\n%s", len(lines), first)
+	}
+	if !strings.Contains(lines[0], "interaction.alpha.subcommands.one") || !strings.Contains(lines[1], "interaction.zulu.subcommands.two") {
 		t.Errorf("sorted order should report alpha before zulu, got %v", first)
 	}
 }

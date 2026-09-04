@@ -146,7 +146,38 @@ func validateYAMLSchema(yamlBytes []byte) error {
 	return nil
 }
 
-// Validate validates the dva.yml against the JSON schema.
+// ValidationErrors is every hard error Validate found, in check order. It renders as
+// one message per line so the person fixing a config sees the whole list at once
+// (TASK-305) instead of one error per edit-and-rerun cycle. A single error keeps its
+// exact message, so callers matching on one failure see no change.
+type ValidationErrors []error
+
+func (v ValidationErrors) Error() string {
+	parts := make([]string, 0, len(v))
+	for _, err := range v {
+		parts = append(parts, err.Error())
+	}
+	return strings.Join(parts, "\n")
+}
+
+// Unwrap lets errors.Is/errors.As and JSON reporters walk the individual errors.
+func (v ValidationErrors) Unwrap() []error { return v }
+
+// joinValidationErrors returns nil, the sole error unchanged, or a ValidationErrors.
+func joinValidationErrors(errs []error) error {
+	switch len(errs) {
+	case 0:
+		return nil
+	case 1:
+		return errs[0]
+	}
+	return ValidationErrors(errs)
+}
+
+// Validate validates the dva.yml against the JSON schema and the semantic rules that
+// must hold for any command to run. Every independent check runs and every failure is
+// returned (see ValidationErrors); only the checks that cannot proceed without the
+// config file stop early.
 func (c *Config) Validate() error {
 	if c.filePath == "" {
 		return fmt.Errorf("config file path is not set")
@@ -156,36 +187,43 @@ func (c *Config) Validate() error {
 	if err != nil {
 		return fmt.Errorf("reading config: %w", err)
 	}
+
+	var errs []error
 	if err := validateYAMLSchema(yamlBytes); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	// Check for reserved command conflicts in interaction section
 	if conflicts := ValidateReservedCommands(c.Interaction); len(conflicts) > 0 {
-		var errs []string
+		var lines []string
 		for _, conflict := range conflicts {
 			// ConflictAdvice, not a hint built here: this error and the warning logged on every
 			// config load describe one condition, and the reader who sees both must not have to
 			// reconcile two accounts of which invocation reaches their command.
-			errs = append(errs, fmt.Sprintf("  - interaction.%s: %s", conflict.Name, ConflictAdvice(conflict.Name)))
+			lines = append(lines, fmt.Sprintf("  - interaction.%s: %s", conflict.Name, ConflictAdvice(conflict.Name)))
 		}
 		// No filename: config is the merge of modules: and subprojects:, so the file that
 		// declares the conflicting key is not knowable from the merged config.
-		return fmt.Errorf("reserved command conflict in this config:\n%s", strings.Join(errs, "\n"))
+		errs = append(errs, fmt.Errorf("reserved command conflict in this config:\n%s", strings.Join(lines, "\n")))
 	}
 
-	if err := c.validateHookPlacement(); err != nil {
-		return err
-	}
+	errs = append(errs, c.validateHookPlacement()...)
 
-	for entryName, entry := range c.Stack {
+	// Stack is a map: sort so two problems are reported in the same order on every run.
+	entryNames := make([]string, 0, len(c.Stack))
+	for name := range c.Stack {
+		entryNames = append(entryNames, name)
+	}
+	sort.Strings(entryNames)
+	for _, entryName := range entryNames {
+		entry := c.Stack[entryName]
 		for runnerName := range entry.Runners {
 			if strings.TrimSpace(runnerName) != runnerName {
-				return fmt.Errorf("stack.%s.runners.%q: runner names must not include leading or trailing whitespace", entryName, runnerName)
+				errs = append(errs, fmt.Errorf("stack.%s.runners.%q: runner names must not include leading or trailing whitespace", entryName, runnerName))
 			}
 		}
 		if err := validateEntrySource(entryName, entry, c.FileDir()); err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
 
@@ -197,9 +235,10 @@ func (c *Config) Validate() error {
 				available = append(available, k)
 			}
 			if len(available) == 0 {
-				return fmt.Errorf("default_mode '%s' is set but no modes are defined", c.DefaultMode)
+				errs = append(errs, fmt.Errorf("default_mode '%s' is set but no modes are defined", c.DefaultMode))
+			} else {
+				errs = append(errs, fmt.Errorf("default_mode '%s' not found in modes. Available: %s", c.DefaultMode, strings.Join(available, ", ")))
 			}
-			return fmt.Errorf("default_mode '%s' not found in modes. Available: %s", c.DefaultMode, strings.Join(available, ", "))
 		}
 	}
 
@@ -211,13 +250,14 @@ func (c *Config) Validate() error {
 				available = append(available, k)
 			}
 			if len(available) == 0 {
-				return fmt.Errorf("default_plan '%s' is set but no plans are defined", c.DefaultPlanName)
+				errs = append(errs, fmt.Errorf("default_plan '%s' is set but no plans are defined", c.DefaultPlanName))
+			} else {
+				errs = append(errs, fmt.Errorf("default_plan '%s' not found in plans. Available: %s", c.DefaultPlanName, strings.Join(available, ", ")))
 			}
-			return fmt.Errorf("default_plan '%s' not found in plans. Available: %s", c.DefaultPlanName, strings.Join(available, ", "))
 		}
 	}
 
-	return nil
+	return joinValidationErrors(errs)
 }
 
 // validateHookPlacement rejects before/replace/after wherever they cannot execute.
@@ -252,7 +292,7 @@ func (c *Config) Validate() error {
 // Not fixed by making nested hooks execute: that is a runner change, not a validation one,
 // and it would give `before:` a second meaning at depth before anyone has asked for one.
 // Rejecting where it cannot run keeps the door open for that to be added deliberately.
-func (c *Config) validateHookPlacement() error {
+func (c *Config) validateHookPlacement() []error {
 	var problems []string
 
 	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
@@ -302,10 +342,15 @@ func (c *Config) validateHookPlacement() error {
 	if len(problems) == 0 {
 		return nil
 	}
-	// c.Interaction is a map, so without this a config with two violations names a different
-	// one on each run. First-only matches how the rest of Validate reports. TASK-128.
+	// c.Interaction is a map, so without this a config with two violations lists them in a
+	// different order on each run (TASK-128). All of them are returned, not just the first,
+	// so Validate can report every dead hook in one pass (TASK-305).
 	sort.Strings(problems)
-	return errors.New(problems[0])
+	errs := make([]error, 0, len(problems))
+	for _, p := range problems {
+		errs = append(errs, errors.New(p))
+	}
+	return errs
 }
 
 // ComposeNameWarning holds details about a compose file project name mismatch.

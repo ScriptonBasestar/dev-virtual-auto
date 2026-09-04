@@ -687,6 +687,12 @@ dva config validate --fix    # compose 파일 project name 불일치 자동 수�
 dva config validate --strict # drift 경고 시에도 검증 실패 처리
 ```
 
+hard error(스키마 위반, legacy compose 선언, 실행 불가능한 훅 위치, 잘못된
+`default_plan` 등)가 하나 있어도 거기서 멈추지 않습니다. 가능한 진단을 끝까지 수행한 뒤
+경고를 먼저, hard error를 번호 목록으로 한 번에 출력하고 exit 1로 종료합니다. YAML 자체를
+파싱할 수 없는 경우만 즉시 종료합니다. `--json`에서는 `errors[]`에 각 에러가 개별 항목으로
+들어갑니다.
+
 스키마 검증 외에 20개 시맨틱 경고를 검사합니다:
 - 중복 stack order, 다중 compose 엔트리 분할 권고
 - 실행 계획 누락 또는 과도하게 무거운 기본 실행 구성 경고

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,11 @@ type Config struct {
 
 	// Internal fields
 	filePath string
+
+	// deferEntryProblems and loadProblems back the CollectEntryProblems load option:
+	// entry-shape errors that a strict load would return are recorded here instead.
+	deferEntryProblems bool
+	loadProblems       []string
 	// envFileOrigin records which file's env_file declaration survived the merge.
 	// Unexported like filePath so `config show` — which marshals this struct and
 	// reads it back — gains no new key (TASK-245 §5-2).
@@ -651,6 +657,10 @@ func (c *Config) FilePath() string {
 	return c.filePath
 }
 
+// LoadProblems returns the stack-entry shape errors a load made with
+// CollectEntryProblems recorded instead of failing. Empty for a strict load.
+func (c *Config) LoadProblems() []string { return c.loadProblems }
+
 // FileDir returns the directory containing the config file.
 func (c *Config) FileDir() string {
 	return filepath.Dir(c.filePath)
@@ -710,7 +720,21 @@ func copyStringMap(m map[string]string) map[string]string {
 type LoadOption func(*loadOptions)
 
 type loadOptions struct {
-	skipVersionCheck bool
+	skipVersionCheck     bool
+	collectEntryProblems bool
+}
+
+// CollectEntryProblems returns a LoadOption that records stack-entry shape errors
+// (legacy compose declarations, unresolvable plugins, missing sources) on the loaded
+// Config instead of failing the load. Only `dva validate` uses it (TASK-305): the
+// diagnostics that follow the load are worth running even when one entry is malformed,
+// and the recorded problems are reported as hard errors at the end. Lifecycle commands
+// keep the strict load, so a malformed entry never reaches a runner. The option applies
+// to the root file only; imported subprojects are still finalized strictly.
+func CollectEntryProblems() LoadOption {
+	return func(o *loadOptions) {
+		o.collectEntryProblems = true
+	}
 }
 
 // SkipVersionCheck returns a LoadOption that disables version compatibility checking.
@@ -738,6 +762,7 @@ func Load(workDir string, opts ...LoadOption) (*Config, error) {
 		return nil, fmt.Errorf("loading %s: %w", filePath, err)
 	}
 	cfg.filePath = filePath
+	cfg.deferEntryProblems = o.collectEntryProblems
 	cfg.setEnvFileOrigin(cfg.EnvFile, EnvOriginRoot, filePath)
 	cfg.setEnvBridgeOrigin(cfg.EnvBridge, EnvBridgeOriginRoot, filePath)
 
@@ -848,13 +873,28 @@ func finalizeLoadedConfig(cfg *Config) ([]string, error) {
 		return nil, err
 	}
 
-	for name, entry := range cfg.Stack {
+	// Sorted so deferred problems (and the first-error path) name entries in a stable
+	// order across runs; cfg.Stack is a map.
+	entryNames := make([]string, 0, len(cfg.Stack))
+	for name := range cfg.Stack {
+		entryNames = append(entryNames, name)
+	}
+	sort.Strings(entryNames)
+	for _, name := range entryNames {
+		entry := cfg.Stack[name]
 		entry.Name = name
 		if err := entry.ResolvePluginFromName(); err != nil {
-			return nil, err
+			if !cfg.deferEntryProblems {
+				return nil, err
+			}
+			cfg.loadProblems = append(cfg.loadProblems, err.Error())
+			continue
 		}
 		if err := validateEntrySource(name, entry, cfg.FileDir()); err != nil {
-			return nil, err
+			if !cfg.deferEntryProblems {
+				return nil, err
+			}
+			cfg.loadProblems = append(cfg.loadProblems, err.Error())
 		}
 	}
 
