@@ -1,97 +1,67 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 )
 
-// TestWarnInertInteractionEnvFile pins the shape TASK-265 §4 froze: one warning per
-// declaring node, at the node's own dotted path, carrying the exact announced text.
-//
-// The fixture declares at three depths deliberately. Depth 1 is what a check written
-// before the walker existed would have found on its own; the two nested declarations are
-// what a non-recursive check would silently pass, which is the failure mode
-// warnInertProvisionSteps already records for the same tree.
-func TestWarnInertInteractionEnvFile(t *testing.T) {
-	c := &Config{
-		Interaction: map[string]*InteractionCommand{
-			"rails": {
-				Command: "bundle exec rails",
-				EnvFile: ".env.rails",
-				Subcommands: map[string]*InteractionCommand{
-					"db": {
-						EnvFile: []any{".env.db"},
-						Subcommands: map[string]*InteractionCommand{
-							"migrate": {
-								Command: "db:migrate",
-								EnvFile: map[string]any{"path": ".env.migrate", "required": true},
-							},
-							"seed": {Command: "db:seed"},
-						},
-					},
-					"console": {Command: "console"},
-				},
-			},
-			"clean": {Command: "echo clean"},
-		},
-	}
+const interactionEnvFileRemovedGuidance = "removed from interaction: declare shared inputs in the top-level 'env_file:', or inline command-local values under this command's 'environment:'"
 
-	got := c.warnInertInteractionEnvFile()
-	want := []string{
-		"interaction.rails.subcommands.db.subcommands.migrate: " + InteractionEnvFileMessage,
-		"interaction.rails.subcommands.db: " + InteractionEnvFileMessage,
-		"interaction.rails: " + InteractionEnvFileMessage,
+func validateYAML(t *testing.T, body string) error {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, FileName)
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if len(got) != len(want) {
-		t.Fatalf("expected %d warnings, got %d:\n%s", len(want), len(got), strings.Join(got, "\n"))
+	return (&Config{filePath: path}).Validate()
+}
+
+// TestSchemaRejectsInteractionEnvFileWithPathScopedGuidance is Stage B: the field is
+// gone from the schema, and the additional-property error names the frozen replacement.
+func TestSchemaRejectsInteractionEnvFileWithPathScopedGuidance(t *testing.T) {
+	err := validateYAML(t, `version: "0.1.44"
+interaction:
+  rails:
+    command: bundle exec rails
+    env_file: .env.rails
+    subcommands:
+      db:
+        command: db:migrate
+        env_file:
+          - path: .env.db
+            required: true
+`)
+	if err == nil {
+		t.Fatal("Validate() succeeded, want schema rejection of interaction env_file")
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("warning %d:\n got  %s\n want %s", i, got[i], want[i])
-		}
+	got := err.Error()
+	if !strings.Contains(got, "env_file") {
+		t.Errorf("error does not name env_file:\n%s", got)
+	}
+	if !strings.Contains(got, interactionEnvFileRemovedGuidance) {
+		t.Errorf("error missing path-scoped removal guidance:\n%s", got)
+	}
+	if strings.Contains(got, "inert and will be rejected") {
+		t.Errorf("Stage A warning leaked into Stage B schema rejection:\n%s", got)
 	}
 }
 
-// TestWarnInertInteractionEnvFileIgnoresNonDeclaringConfigs guards the two shapes that must
-// stay quiet: a config with no interaction section at all, and one whose only `env_file:` is
-// the top-level declaration the field is being redirected to. Warning on the latter would
-// tell the author to move a declaration that is already where it belongs.
-func TestWarnInertInteractionEnvFileIgnoresNonDeclaringConfigs(t *testing.T) {
-	for name, c := range map[string]*Config{
-		"no interaction": {EnvFile: []any{".env"}},
-		"root env_file only": {
-			EnvFile: []any{".env"},
-			Interaction: map[string]*InteractionCommand{
-				"rails": {
-					Command:     "bundle exec rails",
-					Environment: map[string]string{"RAILS_ENV": "test"},
-					Subcommands: map[string]*InteractionCommand{"db": {Command: "db:migrate"}},
-				},
-			},
-		},
-	} {
-		if got := c.warnInertInteractionEnvFile(); len(got) != 0 {
-			t.Errorf("%s: expected no warnings, got:\n%s", name, strings.Join(got, "\n"))
-		}
-	}
-}
-
-// TestWarnInertInteractionEnvFileReachesValidateWarnings proves the check is registered.
-// A warning function nobody calls passes its own unit test and reports nothing to a user,
-// which is exactly the failure this deprecation exists to avoid repeating.
-func TestWarnInertInteractionEnvFileReachesValidateWarnings(t *testing.T) {
-	c := &Config{
-		Interaction: map[string]*InteractionCommand{
-			"rails": {Command: "bundle exec rails", EnvFile: ".env.rails"},
-		},
-	}
-
-	want := "interaction.rails: " + InteractionEnvFileMessage
-	got := c.ValidateWarnings()
-	if !slices.Contains(got, want) {
-		t.Errorf("ValidateWarnings() does not carry the interaction env_file warning:\n%s",
-			strings.Join(got, "\n"))
+// TestSchemaKeepsRootEnvFileWithoutInteractionGuidance is why the map is path-scoped:
+// a valid top-level env_file must not grow the interaction-removal sentence.
+func TestSchemaKeepsRootEnvFileWithoutInteractionGuidance(t *testing.T) {
+	err := validateYAML(t, `version: "0.1.44"
+env_file:
+  - .env
+interaction:
+  rails:
+    command: bundle exec rails
+`)
+	if err != nil {
+		t.Fatalf("valid root env_file must validate: %v", err)
 	}
 }
 

@@ -4,6 +4,13 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Removed
+- **interaction의 `env_file:`이 schema에서 거부됩니다** (TASK-266 Stage B):
+  `interaction.<name>.env_file`과 `subcommands.*.env_file`은 additional-property 오류이며,
+  path-scoped 안내가 최상위 `env_file:`과 커맨드 `environment:`로 옮기라고 지시합니다.
+  0.1.48의 semantic 경고는 도달 불가가 되어 제거했습니다. `dva config migrate`의
+  Blocked 보고는 그대로입니다.
+
 ### Added
 - **`dva kubectl`이 kubectl 패스스루의 canonical 이름입니다** (TASK-255/TASK-256):
   `dva ktl`은 같은 명령을 가리키는 visible compatibility 이름이며 이 릴리스에서

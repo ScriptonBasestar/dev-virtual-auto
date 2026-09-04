@@ -333,16 +333,6 @@ func TestConfigEnvSourceMetadataScope(t *testing.T) {
 			yaml:  base + "env_file:\n  - {path: .env, sops_source: .env}\n",
 			token: "source_is_target",
 		},
-		{
-			name:  "interaction env_file",
-			yaml:  base + "interaction:\n  api:\n    command: npm start\n    env_file:\n      - {path: .env, sops_source: secrets.env.enc}\n",
-			token: "sops_source is accepted only in the top-level env_file",
-		},
-		{
-			name:  "nested subcommand env_file",
-			yaml:  base + "interaction:\n  api:\n    command: npm\n    subcommands:\n      db:\n        command: psql\n        env_file:\n          - {path: .env, sops_source: secrets.env.enc}\n",
-			token: "sops_source is accepted only in the top-level env_file",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := writeEnvSourceFixture(t, map[string]string{FileName: tt.yaml})

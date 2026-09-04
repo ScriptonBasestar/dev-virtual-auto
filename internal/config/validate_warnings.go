@@ -69,7 +69,6 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnUnreachableCommands()...)
 	warnings = append(warnings, c.warnInertProvisionSteps()...)
 	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
-	warnings = append(warnings, c.warnInertInteractionEnvFile()...)
 	warnings = append(warnings, c.warnDuplicatePlanDeclarations()...)
 	warnings = append(warnings, c.warnMultiplePlansWithoutDefault()...)
 
@@ -256,35 +255,6 @@ func (c *Config) warnIgnoredParallelSteps() []string {
 		collect(path+".before", cmd.Before)
 		collect(path+".replace", cmd.Replace)
 		collect(path+".after", cmd.After)
-	})
-
-	sort.Strings(warnings)
-	return warnings
-}
-
-// warnInertInteractionEnvFile flags `env_file:` declared on an interaction command or one
-// of its subcommands, which parses and is then read by nothing.
-//
-// The walk is recursive for the reason the checks above it record — `subcommands` nests to
-// unbounded depth and examples/full-stack.yml already ships three levels — but the field is
-// read off the raw node rather than the inherited view, and that is deliberate. inheritedExec
-// exists for checks asking "what will this node run under", where the answer comes from
-// mergeInteraction copying execution fields parent → child. This check asks a different
-// question: which YAML location does the author have to edit. A child that inherits nothing
-// and declares nothing has no line to fix, and reporting the parent's declaration once at the
-// parent is both accurate and the only actionable form.
-//
-// A warning rather than an error only for this release. TASK-265 §4 froze a two-release
-// contract, and TASK-266 Stage B deletes the field from the schema in 0.1.49, at which point
-// this check becomes unreachable and goes with it.
-func (c *Config) warnInertInteractionEnvFile() []string {
-	var warnings []string
-
-	eachInteractionNode(c.Interaction, func(path string, cmd *InteractionCommand, _ inheritedExec) {
-		if cmd.EnvFile == nil {
-			return
-		}
-		warnings = append(warnings, fmt.Sprintf("%s: %s", path, InteractionEnvFileMessage))
 	})
 
 	sort.Strings(warnings)

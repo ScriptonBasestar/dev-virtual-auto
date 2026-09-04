@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 )
 
@@ -115,10 +114,7 @@ func validateEnvSourceDeclarations(c *Config) error {
 	if _, wrapper := envFileSopsSites(c.EnvFile); wrapper {
 		return fmt.Errorf("env_file: source_not_on_entry: sops_source belongs on a single entry object, not on the files wrapper")
 	}
-	if err := validateEnvSourceEntries(c.AllEnvFileConfigs()); err != nil {
-		return err
-	}
-	return validateNoSopsSourceInInteractions(c.Interaction, "interaction")
+	return validateEnvSourceEntries(c.AllEnvFileConfigs())
 }
 
 // validateEnvSourceEntries closes TASK-245 §2-3 R2 through R5 on the effective
@@ -153,40 +149,6 @@ func validateEnvSourceEntries(entries []EnvFileConfig) error {
 		sources[e.SopsSource] = true
 		if targets[e.SopsSource] > 0 {
 			return fmt.Errorf("env_file: env_source_is_target: %q is declared as another entry's target, so unsealing it would overwrite its own input", e.SopsSource)
-		}
-	}
-	return nil
-}
-
-// validateNoSopsSourceInInteractions rejects encrypted-source metadata anywhere
-// under interaction:, at any subcommand depth.
-//
-// The schema splits env_file from env_file_plain to reject this at parse time,
-// but not every path into a Config goes through schema validation — a merged
-// module is normalized straight from YAML. A silently ignored sops_source would
-// read as a working declaration while nothing ever unseals it, so the normalizer
-// side has to refuse as loudly as the schema does (TASK-245 §2-4).
-func validateNoSopsSourceInInteractions(commands map[string]*InteractionCommand, prefix string) error {
-	names := make([]string, 0, len(commands))
-	for name := range commands {
-		names = append(names, name)
-	}
-	// Sorted so a config with several offending commands always names the same
-	// one; map order would make the error text depend on the run.
-	sort.Strings(names)
-
-	for _, name := range names {
-		cmd := commands[name]
-		if cmd == nil {
-			continue
-		}
-		path := prefix + "." + name
-		entry, wrapper := envFileSopsSites(cmd.EnvFile)
-		if entry || wrapper {
-			return fmt.Errorf("%s.env_file: sops_source is accepted only in the top-level env_file; see USAGE.md `dva config env`", path)
-		}
-		if err := validateNoSopsSourceInInteractions(cmd.Subcommands, path+".subcommands"); err != nil {
-			return err
 		}
 	}
 	return nil

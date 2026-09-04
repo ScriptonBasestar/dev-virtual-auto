@@ -237,7 +237,6 @@ type InteractionCommand struct {
 	User        string                         `yaml:"user"`
 	DefaultArgs string                         `yaml:"default_args"`
 	Environment map[string]string              `yaml:"environment"`
-	EnvFile     any                            `yaml:"env_file"`
 	Compose     *ComposeOptions                `yaml:"compose"`
 	Shell       *bool                          `yaml:"shell"`
 	Entrypoint  string                         `yaml:"entrypoint"`
@@ -374,7 +373,6 @@ func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
 		User        string                         `yaml:"user"`
 		DefaultArgs string                         `yaml:"default_args"`
 		Environment map[string]string              `yaml:"environment"`
-		EnvFile     any                            `yaml:"env_file"`
 		Compose     *ComposeOptions                `yaml:"compose"`
 		Shell       *bool                          `yaml:"shell"`
 		Entrypoint  string                         `yaml:"entrypoint"`
@@ -400,7 +398,6 @@ func (c *InteractionCommand) UnmarshalYAML(node *yaml.Node) error {
 	c.User = p.User
 	c.DefaultArgs = p.DefaultArgs
 	c.Environment = p.Environment
-	c.EnvFile = p.EnvFile
 	c.Compose = p.Compose
 	c.Shell = p.Shell
 	c.Entrypoint = p.Entrypoint

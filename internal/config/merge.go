@@ -397,9 +397,6 @@ func mergeInteractionCommand(base, other *InteractionCommand) (*InteractionComma
 	if other.Compose != nil {
 		base.Compose = other.Compose
 	}
-	if other.EnvFile != nil {
-		base.EnvFile = other.EnvFile
-	}
 
 	// List replace
 	if other.Tags != nil {

@@ -63,6 +63,31 @@ var removedRootKeys = map[string]string{
 	"lifecycle": "removed: renamed — use 'stack:'",
 }
 
+// removedInteractionKeys is path-scoped: the property name is still valid at the
+// document root (`env_file:`), so it must not join removedSchemaKeys. Guidance
+// attaches only when the schema error names an interaction command node.
+var removedInteractionKeys = map[string]string{
+	"env_file": "removed from interaction: declare shared inputs in the top-level 'env_file:', or inline command-local values under this command's 'environment:'",
+}
+
+// isInteractionCommandField reports whether field is an interaction command node
+// (`interaction.<name>` or nested `.subcommands.<name>`), not a child property.
+func isInteractionCommandField(field string) bool {
+	if field == "" || field == rootField {
+		return false
+	}
+	parts := strings.Split(field, ".")
+	if len(parts) < 2 || parts[0] != "interaction" {
+		return false
+	}
+	for i := 2; i < len(parts); i += 2 {
+		if parts[i-1] != "subcommands" {
+			return false
+		}
+	}
+	return len(parts)%2 == 0
+}
+
 // validateYAMLSchema checks raw config bytes against the embedded JSON schema.
 //
 // Shared by Config.Validate (on-disk path) and VerifyMigrated (in-memory rewrite):
@@ -105,6 +130,9 @@ func validateYAMLSchema(yamlBytes []byte) error {
 					guidance, removed := removedSchemaKeys[prop]
 					if !removed && desc.Field() == rootField {
 						guidance, removed = removedRootKeys[prop]
+					}
+					if !removed && isInteractionCommandField(desc.Field()) {
+						guidance, removed = removedInteractionKeys[prop]
 					}
 					if removed {
 						line += "\n      " + guidance
