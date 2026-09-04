@@ -4,6 +4,12 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+### Added
+- **`dva kubectl`이 kubectl 패스스루의 canonical 이름입니다** (TASK-255/TASK-256):
+  `dva ktl`은 같은 명령을 가리키는 visible compatibility 이름이며 이 릴리스에서
+  deprecate하거나 제거하지 않습니다. 두 이름은 예약어이고, manifest는
+  `ktl.canonical_name: kubectl`로 호환 경로임을 표시합니다.
+
 ## [0.1.48] - 2026-09-04
 
 ### Added

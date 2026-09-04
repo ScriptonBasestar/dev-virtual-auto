@@ -14,7 +14,7 @@
 5. **Port conventions** — Never use common default ports as host ports: 2181, 3000, 3306, 5432, 6379, 8080, 8443, 9090, 9092, 9200, 15672, 27017. Pick a project-specific range instead (e.g. 11100-11199).
 6. **`stack:` NOT top-level `compose:`** — Infrastructure compose MUST be declared under `stack.<entry>.runners.compose`.
 7. **`runner: local` for host commands** — Interaction commands that run on the host (not inside containers) MUST use `runner: local`. Never wrap host commands in `echo 'Run: ...'`.
-8. **Complete reserved command list** — These 24 DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `help`, `compose`, `validate`, `manifest`, `ktl`, `ssh`, `skill`, `completion`, `init`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: build/down/logs/restart/stop/up) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). `stack`, `app`, `infra`, and `clean` left this list with the commands themselves (docs/43) and are now ordinary interaction keys. Canonical source: `internal/config/reserved.go`.
+8. **Complete reserved command list** — These 26 DVA command names are ALL reserved and MUST NOT appear as plain interaction commands: `up`, `down`, `stop`, `restart`, `build`, `logs`, `status`, `show`, `ls`, `run`, `config`, `doctor`, `provision`, `version`, `console`, `help`, `compose`, `validate`, `manifest`, `kubectl`, `ktl`, `ssh`, `skill`, `completion`, `init`, `agent-deny`. If the project needs a similar function, either use `replace:` hooks (for hookable ones: build/down/logs/restart/stop/up) or rename (e.g., `service-status` instead of `status`, `app-show` instead of `show`). `stack`, `app`, `infra`, and `clean` left this list with the commands themselves (docs/43) and are now ordinary interaction keys. Canonical source: `internal/config/reserved.go`.
 9. **Health check URLs: literal values only** — Health check `url:` and `address:` fields must use literal port numbers (e.g., `http://localhost:14000/health`), NOT `${VAR:-DEFAULT}` shell variable patterns. DVA resolves environment separately; shell variables in URLs will not be interpolated.
 10. **`stack.<entry>.runners.compose.tags: [infra]`** — The compose-level `tags:` field MUST be present on the primary compose runner. This sets default tags for all services under that entry. Typically `tags: [infra]` for the main infrastructure compose.
 11. **Stack compose.files: verify existence** — Every file listed in `stack.{entry}.runners.compose.files` MUST actually exist in the TARGET project. Do NOT assume overlay files exist.
@@ -147,8 +147,8 @@ interaction:
   # ALL reserved DVA commands (MUST NOT use as plain interaction keys):
   #   up, down, stop, restart, build, logs, status, show, ls, run,
   #   config, doctor, provision, version, console,
-  #   help, compose, validate, manifest, ktl, ssh, skill, completion, init
-  # (24 names. `stack`, `app`, `infra`, and `clean` were removed in docs/43 and are now
+  #   help, compose, validate, manifest, kubectl, ktl, ssh, skill, completion, init, agent-deny
+  # (26 names. `stack`, `app`, `infra`, and `clean` were removed in docs/43 and are now
   #  ordinary interaction keys — `dva down <plan> --purge` replaces `clean`.)
   # Hookable subset (supports before/replace/after): build, down, logs, restart, stop, up
   # Non-hookable (rename if needed): status→service-status, show→app-show, ls→app-ls

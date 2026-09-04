@@ -409,7 +409,8 @@ func buildManifest(c *config.Config) *Manifest {
 			// The config.validate subcommand entry below is the canonical side and omits it.
 			"validate": {Type: "config", CanonicalName: "config validate"},
 			"manifest": {Type: "meta"},
-			"ktl":      {Type: "passthrough"},
+			"kubectl":  {Type: "passthrough"},
+			"ktl":      {Type: "passthrough", CanonicalName: "kubectl"},
 			"version":  {Type: "info"},
 
 			"ssh":  {Type: "lifecycle"},

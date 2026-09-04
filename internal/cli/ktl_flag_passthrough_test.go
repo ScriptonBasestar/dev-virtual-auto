@@ -17,8 +17,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/ScriptonBasestar/dva/internal/config"
 )
 
 const (
@@ -243,4 +246,68 @@ func ktlArgvFrom(out string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// TestKubectlCompatibilityRouteParity pins the TASK-255 contract: kubectl is the
+// canonical passthrough, ktl is a visible compatibility name sharing one RunE,
+// neither is an alias of the other, and manifest marks only ktl with canonical_name.
+func TestKubectlCompatibilityRouteParity(t *testing.T) {
+	canonical := mustFindCommand(t, []string{"kubectl"})
+	compat := mustFindCommand(t, []string{"ktl"})
+
+	if got := canonical.CommandPath(); got != "dva kubectl" {
+		t.Errorf("kubectl CommandPath = %q, want %q", got, "dva kubectl")
+	}
+	if got := compat.CommandPath(); got != "dva ktl" {
+		t.Errorf("ktl CommandPath = %q, want %q", got, "dva ktl")
+	}
+
+	if reflect.ValueOf(canonical.RunE).Pointer() != reflect.ValueOf(compat.RunE).Pointer() {
+		t.Error("kubectl and ktl RunE differ; want the shared runKubectlPassthrough pointer")
+	}
+
+	if canonical.Hidden {
+		t.Error("kubectl is hidden, want visible canonical route")
+	}
+	if compat.Hidden {
+		t.Error("ktl is hidden, want visible compatibility route")
+	}
+	if canonical.GroupID != "integration" || compat.GroupID != "integration" {
+		t.Errorf("group IDs kubectl=%q ktl=%q, want integration", canonical.GroupID, compat.GroupID)
+	}
+	if len(canonical.Aliases) != 0 {
+		t.Errorf("kubectl aliases = %v, want none (separate command, not cobra Aliases)", canonical.Aliases)
+	}
+	if len(compat.Aliases) != 0 {
+		t.Errorf("ktl aliases = %v, want none", compat.Aliases)
+	}
+	if !strings.Contains(compat.Long, "compatibility name for kubectl") {
+		t.Errorf("ktl Long missing compatibility sentence:\n%s", compat.Long)
+	}
+
+	if !config.IsReservedCommand("kubectl") {
+		t.Error(`"kubectl" is not reserved`)
+	}
+	if !config.IsReservedCommand("ktl") {
+		t.Error(`"ktl" is not reserved`)
+	}
+
+	manifest := buildManifest(&config.Config{})
+	kubectlEntry, ok := manifest.StaticCommands["kubectl"]
+	if !ok {
+		t.Fatal(`manifest static_commands is missing "kubectl"`)
+	}
+	if kubectlEntry.Type != "passthrough" {
+		t.Errorf(`static_commands["kubectl"].type = %q, want passthrough`, kubectlEntry.Type)
+	}
+	if kubectlEntry.CanonicalName != "" {
+		t.Errorf(`static_commands["kubectl"].canonical_name = %q, want empty`, kubectlEntry.CanonicalName)
+	}
+	ktlEntry, ok := manifest.StaticCommands["ktl"]
+	if !ok {
+		t.Fatal(`manifest static_commands is missing "ktl"`)
+	}
+	if ktlEntry.CanonicalName != "kubectl" {
+		t.Errorf(`static_commands["ktl"].canonical_name = %q, want "kubectl"`, ktlEntry.CanonicalName)
+	}
 }

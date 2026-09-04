@@ -242,15 +242,17 @@ dva compose exec api sh   # exec into container
 dva compose pull          # pull images
 ```
 
-### `dva ktl <args>`
+### `dva kubectl <args>`
 
 Kubectl pass-through. Forward raw kubectl commands.
 
 ```bash
-dva ktl get pods          # list pods
-dva ktl logs pod-name     # view pod logs
-dva ktl exec -it pod sh   # exec into pod
+dva kubectl get pods          # list pods
+dva kubectl logs pod-name     # view pod logs
+dva kubectl exec -it pod sh   # exec into pod
 ```
+
+`dva ktl` is a visible compatibility name for the same command.
 
 ### `dva ssh <action>`
 
@@ -315,7 +317,7 @@ dva completion fish       # fish completions
 
 These built-in commands cannot be overridden by interaction commands:
 
-`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `run`, `provision`, `validate`, `manifest`, `ktl`, `ssh`, `console`, `completion`, `init`, `status`, `config`, `logs`, `restart`, `show`, `doctor`, `skill`
+`help`, `version`, `ls`, `compose`, `up`, `stop`, `down`, `build`, `run`, `provision`, `validate`, `manifest`, `kubectl`, `ktl`, `ssh`, `console`, `completion`, `init`, `status`, `config`, `logs`, `restart`, `show`, `doctor`, `skill`, `agent-deny`
 
 ## Hookable Lifecycle Commands
 

@@ -232,7 +232,7 @@ func TestDirectHelpDoesNotExecuteManualFlagCommands(t *testing.T) {
 	commands := []*cobra.Command{
 		composeCmd,
 		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
-		ktlCmd,
+		kubectlCmd, ktlCmd,
 	}
 
 	for _, command := range commands {

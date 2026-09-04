@@ -85,7 +85,7 @@ dva manifest        # LLM용 전체 커맨드 매니페스트 출력
 - **Core**: `run` — interaction 실행 (`dva shell` = `dva run shell`, run 생략 가능) · `ls` — 커맨드 목록 · `manifest` — LLM용 커맨드 매니페스트 · `version`
 - **Project Management**: `show` — 설정 요약 · `config` — `init`/`docs`/`migrate`/`show`/`validate` 서브커맨드 (`dva init`은 top-level alias) · `doctor` — 환경 사전조건 진단
 - **Lifecycle**: `up`/`down`/`stop`/`restart`/`status`/`logs`/`build` — 전부 `dva <verb> <plan>` 형태. `down --purge`는 확인 프롬프트를 거칩니다 (`--force`로 생략); `-v`만 붙인 경우는 프롬프트 없이 즉시 볼륨을 삭제합니다
-- **Integration Tools**: `compose` — raw Docker Compose passthrough (escape hatch) · `ktl` — kubectl passthrough · `ssh` — SSH agent 컨테이너 관리
+- **Integration Tools**: `compose` — raw Docker Compose passthrough (escape hatch) · `kubectl` — kubectl passthrough (`ktl`은 호환 이름) · `ssh` — SSH agent 컨테이너 관리
 - **Advanced Utilities**: `console` — 셸 통합 · `provision` — 프로비저닝 실행 · `skill` — 내장 AI 스킬 설치 관리 · `validate` — dva.yml 검증 (`dva config validate`와 동일)
 
 완전히 인자 없는 lifecycle 동사는 명시된 `default_plan`을, plan이 하나뿐이면 그 plan을

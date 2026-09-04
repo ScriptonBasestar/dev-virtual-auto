@@ -601,7 +601,8 @@ provision 마커는 plan이 아니라 provision 프로파일 단위라서, `--pu
 | Command | Description |
 |---------|-------------|
 | `dva compose ARGS` | raw Docker Compose 패스스루 (escape hatch — 내가 소유한 compose를 직접 실행) |
-| `dva ktl ARGS` | kubectl 패스스루 |
+| `dva kubectl ARGS` | kubectl 패스스루 (정본) |
+| `dva ktl ARGS` | `kubectl`의 visible compatibility 이름 |
 | `dva ssh up/down/status` | SSH agent 컨테이너 관리 |
 
 > `dva infra`는 제거됐습니다 (docs/43). 외부 스택은 stack `source:`가 흡수했으므로
@@ -1226,13 +1227,13 @@ health_checks:
 커맨드와 겹치면 `dva validate`가 exit 1로 실패하고, 설정을 읽을 때마다 경고가 출력됩니다.
 선언이 버려지는 것은 아니며 짧은 형식만 내장 커맨드에게 넘어갑니다 — 아래 규칙을 따릅니다.
 
-**예약어 24개** — 내장 커맨드 이름입니다:
+**예약어 26개** — 내장 커맨드 이름입니다:
 
 ```text
 help  version   ls       compose  up      stop    down   build
-run   provision validate manifest ktl     ssh     console
+run   provision validate manifest kubectl ktl     ssh    console
 completion init  status   config   logs    restart show   doctor
-skill
+skill agent-deny
 ```
 
 **훅 가능 6개** — 예약어 중 `before`/`replace`/`after` 훅을 받는 것:

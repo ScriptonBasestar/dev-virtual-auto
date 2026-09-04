@@ -154,7 +154,7 @@ interactions:
 - `dva logs`
 - `dva db:migrate`
 - `dva test`
-- `dva kubectl`
+- `dva k8s`
 
 권장 원칙:
 

@@ -9,8 +9,8 @@ CLI는 [41-execution-plans-and-cli.md](41-execution-plans-and-cli.md), 마이그
 철학 판단은 [SOUL.md](../SOUL.md), 제품 범위는 [PRODUCT.md](../PRODUCT.md), 구현 경계는
 [ARCHITECTURE.md](../ARCHITECTURE.md)가 각각 소유하며 여기서는 반복하지 않는다.
 
-**구현 상태: 적용 완료.** 예약어는 24개(재구성 당시 23개, 이후 `dva skill` 추가 —
-정본은 `internal/config/reserved.go`), `dva --help`에 `stack`/`app`/`infra`/`clean`이
+**구현 상태: 적용 완료.** 예약어 개수는 `internal/config/reserved.go`가 정본이다
+(재구성 당시 23개, 이후 `skill`·`agent-deny`·`kubectl` 추가). `dva --help`에 `stack`/`app`/`infra`/`clean`이
 없다. §14는 재구성 **이전** 상태의 기록으로 남긴다 — 왜 이렇게 바꿨는지의 근거이므로
 현재형으로 읽지 않는다. 기능 하나가 대체 없이 사라졌다: `applications.<name>.health.required`
 (엄격 준비 상태 게이트). §16 Tier 1 참조.

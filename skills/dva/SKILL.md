@@ -160,7 +160,8 @@ When DVA lacks a direct command for an operation, use pass-through:
 
 ```bash
 dva compose <args>     # pass-through to docker compose
-dva ktl <args>         # pass-through to kubectl
+dva kubectl <args>     # pass-through to kubectl
+dva ktl <args>         # compatibility name for kubectl
 dva ssh up             # SSH agent container
 ```
 

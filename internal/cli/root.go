@@ -101,6 +101,7 @@ func init() {
 	buildCmd.GroupID = "lifecycle"
 
 	composeCmd.GroupID = "integration"
+	kubectlCmd.GroupID = "integration"
 	ktlCmd.GroupID = "integration"
 	sshCmd.GroupID = "integration"
 
@@ -122,6 +123,7 @@ func init() {
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(provisionCmd)
 	rootCmd.AddCommand(manifestCmd)
+	rootCmd.AddCommand(kubectlCmd)
 	rootCmd.AddCommand(ktlCmd)
 	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(consoleCmd)
@@ -155,7 +157,7 @@ func init() {
 	manualFlagCommands := []*cobra.Command{
 		composeCmd,
 		upCmd, downCmd, stopCmd, restartCmd, buildCmd, logsCmd,
-		ktlCmd,
+		kubectlCmd, ktlCmd,
 	}
 	for _, cmd := range manualFlagCommands {
 		wrapDirectHelp(cmd)
