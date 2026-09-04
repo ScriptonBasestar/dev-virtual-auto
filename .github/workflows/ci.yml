@@ -12,6 +12,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Job timeout is enforced by GitHub's control plane. Step timeout-minutes
+    # is enforced by the runner, so a wedged make/go test never dies and the
+    # job sits silent until the ~45m no-output abort.
+    timeout-minutes: 20
     steps:
       # fetch-depth: 0 is load-bearing. make test runs tools/commitcheck tests
       # that git-cat-file the pinned baseline and the grandfathered objects. A
@@ -35,8 +39,8 @@ jobs:
         run: make test-skill-dogfood
 
       # cilabels matches only `run: make <target>` on one line. Keep this form.
-      # stdin is closed in the Makefile recipe; -v streams each test so a hang
-      # names itself instead of looking like a silent 45m runner abort.
+      # The Makefile prints each package to stderr before running it so a hang
+      # names itself when the job-level timeout finally kills the runner.
       - name: Test
         timeout-minutes: 15
         env:

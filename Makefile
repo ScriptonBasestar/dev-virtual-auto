@@ -212,11 +212,16 @@ dogfood-skill-install:
 	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --expected-sha256 "$(DVA_SHA256)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
-# -timeout bounds a stuck package so GitHub Actions cannot sit silent for 45m.
-# stdin is /dev/null: ExecSubprocess used to inherit the runner pipe, which
-# never EOFs, and a child that reads it blocked until the job was killed.
+# Packages run one by one so a hang names itself. stdin is /dev/null because
+# GitHub Actions leaves the runner pipe open without EOF. -timeout is per
+# package; the job also has a control-plane timeout-minutes.
 test:
-	go test -timeout 5m -race -cover $(GOTESTFLAGS) ./... </dev/null
+	set -eu; \
+	exec </dev/null; \
+	for pkg in $$(go list ./...); do \
+		printf '\n==> go test %s\n' "$$pkg" >&2; \
+		go test -timeout 3m -race -cover $(GOTESTFLAGS) "$$pkg"; \
+	done
 
 ## test-skill-dogfood: Run the built executable through a hermetic skill-installer round-trip (CI)
 test-skill-dogfood: build
