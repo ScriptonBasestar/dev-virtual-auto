@@ -11,6 +11,7 @@ of `skills/` — different purpose (see [Relationship to skills/](#relationship-
 | `shared-guardrails.md` | mixed (per rule) | partly hand-authored, partly generated |
 | `shared-checklist.md` | this file | hand-authored |
 | `dva-schema.md` | `skills/dva-config/references/schema-reference.md` (symlink — skills is canonical) | hand-authored |
+| `devbox-apply.md` | `skills/dva-config/references/devbox-apply.md` (symlink — skills is canonical) | hand-authored |
 | `naming-presets.md` | this file | hand-authored |
 | `reference-examples.md` | this file | hand-authored |
 

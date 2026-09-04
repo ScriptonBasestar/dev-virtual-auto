@@ -47,8 +47,13 @@ Resolve each required capability deterministically:
 1. An explicit project provider contract or documented platform-policy opt-out wins.
 2. Preserve mode keeps a working existing lifecycle owner and reports a conflicting binding.
 3. Fresh/rewrite mode applies an accepted portfolio/platform binding before generic inference.
-4. Otherwise use a verified local service already present in the project's Compose model.
-5. If none resolves, report the capability; never invent a service, path, or command.
+4. Otherwise use a verified local service already present in the project's Compose model
+   (root, `compose/`, `ops/*/compose.y*ml`).
+5. If none resolves and local startup requires the capability, scaffold a modular Compose
+   service named after the evidence (see `devbox-apply.md` §D). Do not substitute a
+   template postgres/redis for a different product. If the capability is optional, report
+   it and omit the plan.
+6. Never invent a sibling path, second database, or unverified command.
 
 Rewrite/new generation applies a platform binding only when its target and lifecycle command or
 imported plan are verified. A remote/shared provider is represented as an external dependency or

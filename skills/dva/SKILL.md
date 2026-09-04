@@ -62,7 +62,9 @@ For deep configuration authoring, migration, and defect attribution (ownership
 model, change modes, risk-ordered validation), use the **`dva-config` skill**
 (`dva:dva-config`). This section covers only the quick-start surface.
 
-For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template:
+For repeatable `dva.yml` work, load **`references/patterns.md`** first, then choose a template.
+Devbox-wide apply (Make/npm → DVA, `.gz-git.yaml` children, infra vs app plans, Compose
+scaffold) is **`dva-config` `references/devbox-apply.md`**.
 
 ```text
 assets/templates/root-devbox-plan.yml       # parent devbox: compose-owned full stack + native dev runners

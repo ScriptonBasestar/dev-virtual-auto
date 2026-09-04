@@ -18,32 +18,17 @@ process-health disputes.
 
 ## Decide Configuration Scope
 
-- At a devbox root, read `.gz-git.yaml` when present before deciding scope. Treat every
-  entry in its workspace inventory as a child-repository candidate. Include every locally
-  present candidate in a devbox-wide DVA application by default. Exclude one only when
-  `.gz-git.yaml`, the nearest repository guidance, or its actual location under a
-  generated, vendor, or archive directory explicitly identifies it as out of scope. Keep
-  it in scope when no such evidence exists, and never infer inactivity from its name. Do
-  not clone or sync a missing child merely to complete discovery; report it as unavailable
-  unless the user separately authorizes that operation.
-- Keep two decisions separate: whether a child owns a useful `dva.yml`, and whether the
-  root imports anything from that child. “Do not import child `dva.yml` from the root”
-  controls only `subprojects.*.import`; it does not remove the child repository from the
-  authoring and validation scope. Treat the work as root-only only when the user
-  explicitly forbids child-repository changes, then list the deferred inventory entries
-  and describe the result as partial devbox coverage.
-- Inspect and modify each child in its own repository context. Follow that repository's
-  guidance and Git workflow, including a scoped `git status`. Preserve `.gz-git.yaml`
-  ownership of workspace-wide clone, sync, and aggregate status operations; a parent DVA
-  change must not absorb those responsibilities.
-- Decide whether DVA is useful independently for the workspace root and every
-  active subproject. Parent or sibling usage alone does not justify a child
-  `dva.yml`.
-- Do not create DVA configuration when the project has no reusable orchestration,
-  interaction, provision, or diagnostic surface to own.
-- Keep shared lifecycle at the devbox root and module-native interactions in the
-  active subproject that owns them. Exclude archived, generated, vendor, and
-  guidance-prohibited modules.
+Workspace inventory, child connection, command migration, infra vs app plans, and
+Compose scaffold are defined in [`devbox-apply.md`](devbox-apply.md). This section
+only states diagnosis-time checks against that policy.
+
+- At a devbox root, read `.gz-git.yaml` before deciding scope. Do not clone a
+  missing child without authority.
+- Inspect each child in its own repository context. Preserve `.gz-git.yaml`
+  ownership of clone, sync, and aggregate status; a parent DVA change must not
+  absorb those.
+- Keep shared lifecycle at the root and module-native commands in the owning
+  child. Exclude archived, generated, vendor, and guidance-prohibited modules.
 - When Compose changes, carry forward renamed, added, and removed files; service
   names; profiles; port variables; and environment prerequisites before editing
   DVA references.
@@ -52,8 +37,8 @@ Use these scope outcomes as a regression check:
 
 | Evidence | Required scope decision |
 |---|---|
-| Local inventory child, root imports omitted | Assess independently; author and validate a child config when it has a useful DVA surface. |
-| Local inventory child, no useful DVA surface | Record the assessment; do not create an empty or ceremonial child config. |
+| Local gz-git child with a dev/app surface | Child `dva.yml` plus root `subprojects`; import only names the root listing should show. |
+| Local gz-git child with no executable surface | Record the assessment; do not invent a ceremonial child config. |
 | Inventory child missing locally | Report unavailable; do not clone or sync without authority. |
 | Explicit prohibition on child-repository edits | Change root only; report partial coverage and deferred children. |
 

@@ -16,8 +16,12 @@ configuration, prefer `stack` declarations selected by named `plans`; treat `mod
 `applications` as legacy migration inputs.
 
 Read **`references/diagnosis.md`** when symptoms cross configuration, CLI, project, and environment
-boundaries; when comparing installed/source/candidate DVA builds; when deciding root/subproject DVA
-need; or when validating process ownership and lifecycle migration behavior.
+boundaries; when comparing installed/source/candidate DVA builds; or when validating process
+ownership and lifecycle migration behavior.
+
+Read **`references/devbox-apply.md`** when applying DVA to a devbox, migrating Make/npm/compose
+entrypoints onto DVA, connecting `.gz-git.yaml` children, splitting infra vs app plans, or
+scaffolding Compose for missing local infra.
 
 Read **`references/schema-reference.md`** when authoring or reviewing the `dva.yml` field
 structure, section shapes, critical schema rules, or the canonical section/field ordering.
@@ -88,6 +92,10 @@ not make contradictory output correct.
 
 Never infer rewrite merely because a newer model exists.
 
+Command and lifecycle migration onto DVA uses `apply_mode` / `legacy_surface` from
+`references/devbox-apply.md` (default `propose` + `alias`). `force` applies the same table
+in-run; it is not `dva up --force`.
+
 ### 4. Model Boundaries
 
 - Standardize Compose/ports/env prerequisites before DVA references them.
@@ -95,32 +103,23 @@ Never infer rewrite merely because a newer model exists.
   explicit, behavior-preserving migration is proven.
 - Keep shared lifecycle at the devbox root; keep module-native commands in the owning active
   subproject.
-- For a devbox with `.gz-git.yaml`, a request to apply DVA to the devbox includes the root and every
-  locally present repository listed in its workspace inventory by default. Evaluate and change each
-  repository in its own ownership and Git context; do not treat the parent checkout as owning child
-  files. Exclude an inventory entry only when `.gz-git.yaml`, the nearest repository guidance, or
-  its actual location under a generated/vendor/archive directory says to; keep it in scope when no
-  such evidence exists, and never infer inactivity from its name.
-- Keep child configuration scope separate from root import scope. A request to omit child imports
-  from the root `dva.yml` does not omit creating or improving the child `dva.yml` files. Only an
-  explicit instruction not to modify child repositories narrows the work to root-only; report that
-  result as partial devbox coverage and list the deferred children.
-- Declare a DVA subproject only when its child `dva.yml` exists. If it is missing, choose explicitly
-  between removing the root declaration and adding an owned child configuration; never leave a
-  broken declaration as a placeholder.
+- Apply `references/devbox-apply.md` for `.gz-git.yaml` children, command migration, infra vs app
+  plans, and Compose scaffold. Present children with a dev/app surface must be connected; root
+  `import` only controls what the root `dva ls` lists.
+- Evaluate and change each child in its own ownership and Git context; do not treat the parent
+  checkout as owning child files.
+- Declare a DVA subproject only when its child `dva.yml` exists. If it is missing, add the child
+  config (or report the child as having no executable surface); never leave a broken declaration.
 - Exclude archived, legacy, generated, and guidance-prohibited modules.
 - Keep docs and advertised commands aligned with `dva show`/`dva ls` output.
-- Decide DVA need independently for the root and every inventory child that remains in scope; do not
-  generate a child config merely because a parent or sibling uses DVA. A `.gz-git.yaml` entry
-  establishes discovery and default task scope, not proof that the child has a useful DVA command
-  surface.
 - For run/dev variants, Compose profiles, native port binding, and runtime ownership diagnostics,
   follow `references/diagnosis.md` instead of inferring behavior from configuration alone.
 
 ### 5. Deduplicate Orchestration Ownership
 
 1. Let Compose declare services and dependencies; let DVA stack/plans select lifecycle; let
-   interactions expose one-shot developer commands.
+   interactions expose one-shot developer commands. A DVA-owned action must not keep Make or
+   `docker compose up` as its implementation — see `references/devbox-apply.md`.
 2. Compare custom `checks` with `dva doctor` built-ins. Remove equivalent Docker, Compose-file, and
    environment-file checks instead of accepting duplicate or contradictory results. `dva doctor`
    natively validates that the Compose config resolves — its "Compose config resolves" built-in runs
@@ -177,8 +176,9 @@ Never infer rewrite merely because a newer model exists.
 - Migrating to plans because validation passes while runtime silently ignores resolved fields.
 - Declaring root subprojects before their child `dva.yml` files exist.
 - Reading “no root child imports” as “do not configure child repositories.”
-- Reporting a root-only change as complete devbox coverage when `.gz-git.yaml` children were
-  explicitly deferred.
+- Reporting a root-only change as complete coverage while present `.gz-git.yaml` children have
+  no `dva.yml`.
+- Wrapping `make`/`docker compose` from `dva.yml` and calling that a migration.
 - Applying root rules recursively to archived or independently owned modules.
 - Copying a schema example without checking the installed DVA version.
 - Treating a pidfile, wrapper, or responding port as proof that DVA controls the healthy process.

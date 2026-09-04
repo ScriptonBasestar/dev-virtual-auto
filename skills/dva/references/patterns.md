@@ -12,7 +12,10 @@ Use this reference when creating, reviewing, or migrating `dva.yml` files. Keep 
 
 ## Standard Workflow
 
-1. Discover current surface: `dva config show`, `dva ls`, `dva show`, existing compose files, Makefile/package scripts, and subproject directories.
+1. Discover current surface: `dva config show`, `dva ls`, `dva show`, `.gz-git.yaml`,
+   compose files (root, `compose/`, `ops/*/compose.y*ml`), Makefile/package scripts, and
+   subproject directories. Command migration, gz-git child connection, infra vs app plans,
+   and Compose scaffold: `skills/dva-config/references/devbox-apply.md`.
 2. Classify responsibilities:
    - `stack`: compose bundles, native apps, docker images, kubectl/helm targets.
    - `plans`: executable names such as `local-infra`, `local-dev`, `full-stack`, `observability`, `tools`.
@@ -103,6 +106,8 @@ Fail the review if any of these are true for a root devbox config:
 - `stack.*.order` controls execution.
 - `applications` remains when the app can be a multi-runner `stack` entry.
 - `subprojects.*.path` exists but the child `dva.yml` is missing.
+- A present `.gz-git.yaml` child with a dev/app surface has no `dva.yml` or root `subprojects` entry.
+- A DVA-owned action still has Make/`docker compose` as its implementation.
 - `interaction` uses reserved command names (`logs`, `build`, `status`, `show`, etc.) as plain commands.
 - `.sb/dva/` is not ignored when DVA writes transient state.
 

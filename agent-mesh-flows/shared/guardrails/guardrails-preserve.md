@@ -5,6 +5,9 @@
 
 1. 기존 `dva.yml`을 가능한 한 **최소 변경**으로 개선하되, **누락된 필수 섹션은 반드시 추가**하세요.
 2. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
+   DVA가 소유해야 하는 동작은 `devbox-apply.md`대로 옮기세요. 기본은 옛 이름을
+   DVA를 호출하는 alias로 남기는 것입니다. `command: make …`로 DVA가 Make를
+   다시 부르는 것은 보존이 아닙니다.
 3. **기존 `stack.<entry>.runners.compose` -> `services` 메타데이터(`tags`)를 삭제하지 마세요.** 수정/추가만 허용됩니다.
 4. **`services`는 `tags` 전용입니다.** 예전 스키마에 있던 `ports`/`related`/`hint`는 제거됐고 지금은 `dva validate`가 거부합니다. 기존 파일에 남아 있으면 그대로 두지 말고 옮기세요 — `ports` -> 최상위 `endpoints:`, `hint` -> `health_checks.<name>.start_hint`, `related` -> `tags` 또는 `modes.<name>.compose_services`. 새로 추가하지 마세요.
 5. **기존 `applications:` 섹션은 `stack` 엔트리로 변환하세요.** 이 키는 제거됐고

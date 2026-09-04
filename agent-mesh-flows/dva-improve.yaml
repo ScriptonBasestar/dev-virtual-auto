@@ -36,6 +36,14 @@ parameters:
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings with capability, provider, consumer, ownership, and evidence"
     default: "[]"
+  - name: apply_mode
+    description: "How to apply DVA-owned command/lifecycle migration: propose (table only) or force (apply now). Not the CLI flag dva up --force."
+    default: "propose"
+    enum: [propose, force]
+  - name: legacy_surface
+    description: "After DVA owns an action, keep the old Make/npm/compose entrypoint as a one-line alias to dva, or remove it"
+    default: "alias"
+    enum: [alias, remove]
 interactive:
   confirm_before: [improve]
 
@@ -263,7 +271,8 @@ steps:
       infra_compose: |
         cd '{{param.target}}'
         files=$(ls infra/compose*.y*ml docker/compose*.y*ml compose/compose*.y*ml infrastructure/compose*.y*ml \
-                   compose.*.yaml compose.*.yml docker-compose.*.yml docker-compose.*.yaml 2>/dev/null)
+                   compose.*.yaml compose.*.yml docker-compose.*.yml docker-compose.*.yaml \
+                   ops/*/compose.yml ops/*/compose.yaml 2>/dev/null)
         if [ -z "$files" ]; then echo "None"; exit 0; fi
         # Emit the keys of each top-level block separately. A flat indent grep conflates
         # services with networks/volumes, so a network reads as an undeclared service
@@ -391,6 +400,14 @@ steps:
     type: context
     depends_on: [scaffold]
     context:
+      gz_git: |
+        cd '{{param.target}}'
+        if [ -f '.gz-git.yaml' ]; then
+          echo "=== .gz-git.yaml ==="
+          cat '.gz-git.yaml'
+        else
+          echo "None"
+        fi
       subprojects: |
         cd '{{param.target}}'
         for d in */; do
@@ -479,6 +496,109 @@ steps:
       ## Mode: {{param.mode}}
       적용할 모드의 전용 규칙만 따르세요.
 
+      ## Devbox apply: apply_mode={{param.apply_mode}} legacy_surface={{param.legacy_surface}}
+      <!-- AUTOGEN:dva_flow_devbox_apply:start -->
+      # Devbox Apply Policy
+
+      Canonical rules for applying DVA across a workspace. Skills, diagnosis, plan
+      templates, and `am run dva-improve*` consume this file. Do not copy the lists
+      below into other documents.
+
+      Parameters (flows: `apply_mode`, `legacy_surface`):
+
+      | Parameter | Values | Default |
+      |-----------|--------|---------|
+      | `apply_mode` | `propose` — emit a table, do not mutate until accepted; `force` — apply in this run | `propose` |
+      | `legacy_surface` | `alias` — keep the old name as a one-line handoff to DVA; `remove` — delete it | `alias` |
+
+      `apply_mode=force` is not the CLI flag `dva up --force`.
+
+      ## A. Command migration
+
+      DVA owns every workflow it can express: named-plan lifecycle (`up`/`down`/`stop`/`restart`/`logs`/`build`),
+      `interaction`, `provision`, and `doctor` checks.
+
+      1. Inventory Make targets, package scripts, `ops/**` helpers, and raw
+         `docker compose`/`skaffold` entrypoints.
+      2. If DVA can own the work, the implementation moves into `dva.yml`. Wrapping
+         the old command (`command: make check`, `run: docker compose up`) is not
+         migration.
+      3. Alias direction is old → DVA (`make api-check` → `dva api-check`). Never
+         `dva` → `make` for a DVA-owned action, and never `run: dva …` from provision
+         or Make.
+      4. `propose`: print a table (old command, DVA name, alias or delete, reason).
+         Do not edit until the user accepts, unless `apply_mode=force`.
+      5. `alias`: leave a one-line Make/npm script that calls DVA. `remove`: delete
+         the old entrypoint and point docs at `dva ls`.
+      6. Leave a raw command only when DVA cannot express it; record why
+         (`suggestion_ignore` or the apply table).
+      7. Advertised commands in README, CLAUDE.md, and tasks must match `dva ls` /
+         `dva show`.
+
+      ## B. `.gz-git.yaml` children
+
+      When `.gz-git.yaml` exists, every **locally present** `workspaces:` entry with a
+      dev/app surface (Makefile, package scripts, Compose, language manifest plus a
+      run/test/build command) **must** be connected to DVA.
+
+      1. Child owns `dva.yml` in its repository (interactions/provision and, when it
+         runs a long process, a `native` stack entry). Root does not commit child files.
+      2. Root declares `subprojects.<name>.path`. Do not declare a subproject whose
+         child `dva.yml` is missing.
+      3. Root `import.plans` / `import.interactions` / `import.provision` only for
+         names that should appear in the root `dva ls`. Omitting import hides the
+         name from the root listing; it does not skip connecting the child.
+      4. Same-repo nested configs (`prototype/dva.yml`) are also `subprojects`. Do
+         not leave a second config that `dva` discovers only by changing cwd.
+      5. Missing children: report unavailable; do not clone without authority. Do not
+         skip a present child because of its name.
+      6. Exclude only when `.gz-git.yaml`, nearest repo guidance, or a
+         generated/vendor/archive path says so.
+      7. A present child with **no** executable surface: record that assessment; do
+         not invent an empty ceremonial `dva.yml`.
+
+      Root-only work is allowed only when the user forbids child-repository edits;
+      then list deferred inventory entries and call the result partial coverage.
+
+      ## C. Infra and app plans
+
+      1. Collect capabilities from Compose (including `ops/**/compose.y*ml`),
+         README/Makefile, ADR, and app env: database, cache, object-storage,
+         identity, queue.
+      2. If the app needs a named store (for example RustFS), that provider is a
+         stack entry plus an infra plan. Do not substitute a template postgres/redis
+         for a different product.
+      3. App-dependent DB and middleware live on a plan **separate from apps**.
+         Default names: `local-infra` (verified providers), `local-dev` (`local-infra`
+         plus native apps). Split further when lifecycles differ (`design` is not
+         `rustfs`).
+      4. Design-only Compose (Penpot) is `tools`/`design`, not product infra.
+      5. Native apps are child `native` runners selected by imported root plans.
+         Host ports use a project range; common defaults (8080, 3000, 5432, 6379)
+         are a finding, not a silent keep.
+      6. One lifecycle owner per Compose service. Plans repeat their full closure;
+         they do not inherit.
+
+      ## D. Compose default
+
+      1. Scan root compose files, `compose/`, `infra/`, `docker/`, `infrastructure/`,
+         and `ops/*/compose.y*ml`. Skaffold/k8s evidence selects those runners; it
+         does not replace local Compose when the app runs locally.
+      2. If local infra is required and no Compose (and no verified skaffold/k8s
+         local path) exists, **create modular Compose**:
+         - `compose/infra-<capability>.yaml` (and `compose/app-*.yaml` only for
+           compose-hosted apps)
+         - root `compose.yaml` with `include:`
+         - one DVA stack compose runner pointing at that root file
+         - top-level `name:` matching `project_name`; healthchecks; loopback publish
+      3. If `ops/<name>/compose.yml` already exists, adopt it; do not duplicate.
+         Make/`docker compose` lifecycle becomes an alias or is removed (section A).
+      4. Generate only services the evidence names. Do not add a stock postgres
+         because a template shows one.
+      5. Do not generate skaffold unless the repo already has a skaffold/k8s local
+         workflow.
+      <!-- AUTOGEN:dva_flow_devbox_apply:end -->
+
       ### preserve 모드 전용 규칙
       <!-- AUTOGEN:dva_flow_mode_preserve:start -->
       이미 존재하는 `dva.yml`을 **현재 프로젝트 상태에 맞게 정렬**하세요.
@@ -488,6 +608,9 @@ steps:
 
       1. 기존 `dva.yml`을 가능한 한 **최소 변경**으로 개선하되, **누락된 필수 섹션은 반드시 추가**하세요.
       2. 기존 명령 이름이 이미 팀에 알려져 있다면, 특별한 이유 없이는 유지하세요.
+         DVA가 소유해야 하는 동작은 `devbox-apply.md`대로 옮기세요. 기본은 옛 이름을
+         DVA를 호출하는 alias로 남기는 것입니다. `command: make …`로 DVA가 Make를
+         다시 부르는 것은 보존이 아닙니다.
       3. **기존 `stack.<entry>.runners.compose` -> `services` 메타데이터(`tags`)를 삭제하지 마세요.** 수정/추가만 허용됩니다.
       4. **`services`는 `tags` 전용입니다.** 예전 스키마에 있던 `ports`/`related`/`hint`는 제거됐고 지금은 `dva validate`가 거부합니다. 기존 파일에 남아 있으면 그대로 두지 말고 옮기세요 — `ports` -> 최상위 `endpoints:`, `hint` -> `health_checks.<name>.start_hint`, `related` -> `tags` 또는 `modes.<name>.compose_services`. 새로 추가하지 마세요.
       5. **기존 `applications:` 섹션은 `stack` 엔트리로 변환하세요.** 이 키는 제거됐고
@@ -730,11 +853,12 @@ steps:
       ```text
       {{scan_build.package_json_scripts}}
       ```
-      > **Instruction**: 위 스크립트를 DVA interaction으로 1:1 매핑하세요.
-      > 접두사 기반 그루핑 (`test:*` → `test` subcommands, `build:*` → `build` subcommands).
-      > host 실행은 `runner: local`, 기존 Compose 컨테이너 실행은 `service:` +
-      > `command:` interaction으로 매핑하세요. 같은 작업을 native/docker 양쪽에
-      > 기계적으로 복제하지 마세요.
+      > **Instruction**: DVA가 표현 가능한 스크립트/타깃은 `devbox-apply.md`대로
+      > DVA가 소유한다. `command: make …`로 다시 감싸지 마라. `apply_mode=propose`이면
+      > 표만 출력하고, `force`이면 이 실행에서 옮긴다. 옛 이름은 `legacy_surface`.
+      > 접두사 기반 그루핑 (`test:*` → `test` subcommands). host는 `runner: local`,
+      > 기존 Compose 컨테이너는 `service:` + `command:`. 같은 작업을 native/docker
+      > 양쪽에 복제하지 마라.
 
       ### 4. 환경 변수
       ```text
@@ -743,6 +867,7 @@ steps:
 
       ### 5. 서브프로젝트
       ```text
+      {{scan_subprojects.gz_git}}
       {{scan_subprojects.subprojects}}
       ```
 
@@ -833,7 +958,7 @@ steps:
       Phase 1 탐색 결과와 dva.yml 사이의 드리프트를 찾으세요.
 
       ## 2. Makefile/package.json 매핑
-      핵심 워크플로우만 DVA interaction으로 노출.
+      DVA가 소유할 수 있는 워크플로는 DVA로 옮긴다 (`devbox-apply.md`).
       prefix 기반 subcommand 그루핑 적용.
 
       ## 3. 네이밍 프리셋 준수
@@ -887,8 +1012,13 @@ steps:
       1. An explicit project provider contract or documented platform-policy opt-out wins.
       2. Preserve mode keeps a working existing lifecycle owner and reports a conflicting binding.
       3. Fresh/rewrite mode applies an accepted portfolio/platform binding before generic inference.
-      4. Otherwise use a verified local service already present in the project's Compose model.
-      5. If none resolves, report the capability; never invent a service, path, or command.
+      4. Otherwise use a verified local service already present in the project's Compose model
+         (root, `compose/`, `ops/*/compose.y*ml`).
+      5. If none resolves and local startup requires the capability, scaffold a modular Compose
+         service named after the evidence (see `devbox-apply.md` §D). Do not substitute a
+         template postgres/redis for a different product. If the capability is optional, report
+         it and omit the plan.
+      6. Never invent a sibling path, second database, or unverified command.
 
       Rewrite/new generation applies a platform binding only when its target and lifecycle command or
       imported plan are verified. A remote/shared provider is represented as an external dependency or
@@ -2524,6 +2654,8 @@ steps:
       ### Stack & Compose
       - [ ] `stack.{entry}.runners.compose.tags: [infra]` present on primary compose runner
       - [ ] All files in `stack.{entry}.runners.compose.files` actually exist
+      - [ ] Discovery included `ops/*/compose.y*ml`, not only root compose files
+      - [ ] App-dependent DB/middleware are on an infra plan separate from native app plans
       - [ ] Multi-stack entries do not redundantly list same base compose file
       - [ ] All services have `tags:`
       - [ ] Compose file has top-level `name:` matching `stack.{entry}.runners.compose.project_name`
@@ -2548,6 +2680,7 @@ steps:
       - [ ] Reserved commands use `replace:` hooks
       - [ ] No reserved DVA command names as plain interaction keys
       - [ ] No echo wrapper commands
+      - [ ] DVA-owned actions do not use `command: make …` or raw `docker compose up` as the implementation
 
       ### Provision
       - [ ] No `run: "dva <command>"` calls in provision steps
@@ -2557,7 +2690,9 @@ steps:
       ### Subprojects (if applicable)
       - [ ] Subprojects use `exclude_tags: [infra]`
       - [ ] No `description:` field in subprojects (only `path`, `exclude_tags`, `import`)
-      - [ ] Every imported subproject has its own `dva.yml`; placeholders without import entries (`import` omitted or `import: {}`) may be initialized later
+      - [ ] Every declared subproject has its own `dva.yml`; never a path-only placeholder
+      - [ ] Present `.gz-git.yaml` children with a dev/app surface are declared under `subprojects`
+      - [ ] Nested same-repo `dva.yml` (for example `prototype/`) is a subproject, not a cwd-only config
 
       ### Plans & runner strategy
       - [ ] Plans select only declared runners

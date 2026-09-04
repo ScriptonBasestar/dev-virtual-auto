@@ -20,6 +20,8 @@
 ### Stack & Compose
 - [ ] `stack.{entry}.runners.compose.tags: [infra]` present on primary compose runner
 - [ ] All files in `stack.{entry}.runners.compose.files` actually exist
+- [ ] Discovery included `ops/*/compose.y*ml`, not only root compose files
+- [ ] App-dependent DB/middleware are on an infra plan separate from native app plans
 - [ ] Multi-stack entries do not redundantly list same base compose file
 - [ ] All services have `tags:`
 - [ ] Compose file has top-level `name:` matching `stack.{entry}.runners.compose.project_name`
@@ -44,6 +46,7 @@
 - [ ] Reserved commands use `replace:` hooks
 - [ ] No reserved DVA command names as plain interaction keys
 - [ ] No echo wrapper commands
+- [ ] DVA-owned actions do not use `command: make …` or raw `docker compose up` as the implementation
 
 ### Provision
 - [ ] No `run: "dva <command>"` calls in provision steps
@@ -53,7 +56,9 @@
 ### Subprojects (if applicable)
 - [ ] Subprojects use `exclude_tags: [infra]`
 - [ ] No `description:` field in subprojects (only `path`, `exclude_tags`, `import`)
-- [ ] Every imported subproject has its own `dva.yml`; placeholders without import entries (`import` omitted or `import: {}`) may be initialized later
+- [ ] Every declared subproject has its own `dva.yml`; never a path-only placeholder
+- [ ] Present `.gz-git.yaml` children with a dev/app surface are declared under `subprojects`
+- [ ] Nested same-repo `dva.yml` (for example `prototype/`) is a subproject, not a cwd-only config
 
 ### Plans & runner strategy
 - [ ] Plans select only declared runners

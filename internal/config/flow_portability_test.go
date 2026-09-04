@@ -41,14 +41,17 @@ func TestPublicAgentMeshFlowsContainCurrentCorpus(t *testing.T) {
 		{"agent-mesh-flows/dva-improve.yaml", "agent-mesh-flows/shared/library/dva-schema.md"},
 		{"agent-mesh-flows/dva-improve.yaml", "agent-mesh-flows/shared/library/reference-examples.md"},
 		{"agent-mesh-flows/dva-improve.yaml", "agent-mesh-flows/shared/library/shared-checklist.md"},
+		{"agent-mesh-flows/dva-improve.yaml", "agent-mesh-flows/shared/library/devbox-apply.md"},
 		{"agent-mesh-flows/dva-diagnose.yaml", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 		{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 		{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "agent-mesh-flows/shared/library/naming-presets.md"},
+		{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "agent-mesh-flows/shared/library/devbox-apply.md"},
 		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/dva-schema.md"},
 		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/naming-presets.md"},
 		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/reference-examples.md"},
 		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/shared-checklist.md"},
+		{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "agent-mesh-flows/shared/library/devbox-apply.md"},
 	}
 	for _, check := range checks {
 		flow := readFlowPortabilityFile(t, root, check.flow)

@@ -25,14 +25,17 @@ var injections = []injection{
 	{"agent-mesh-flows/dva-improve.yaml", "dva_flow_schema", "agent-mesh-flows/shared/library/dva-schema.md"},
 	{"agent-mesh-flows/dva-improve.yaml", "dva_flow_examples", "agent-mesh-flows/shared/library/reference-examples.md"},
 	{"agent-mesh-flows/dva-improve.yaml", "dva_flow_checklist", "agent-mesh-flows/shared/library/shared-checklist.md"},
+	{"agent-mesh-flows/dva-improve.yaml", "dva_flow_devbox_apply", "agent-mesh-flows/shared/library/devbox-apply.md"},
 	{"agent-mesh-flows/dva-diagnose.yaml", "dva_flow_guardrails", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 	{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "dva_flow_guardrails", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 	{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "dva_flow_naming", "agent-mesh-flows/shared/library/naming-presets.md"},
+	{"agent-mesh-flows/dva-improve-guided/00-analyze.yaml", "dva_flow_devbox_apply", "agent-mesh-flows/shared/library/devbox-apply.md"},
 	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_guardrails", "agent-mesh-flows/shared/library/shared-guardrails.md"},
 	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_schema", "agent-mesh-flows/shared/library/dva-schema.md"},
 	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_naming", "agent-mesh-flows/shared/library/naming-presets.md"},
 	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_examples", "agent-mesh-flows/shared/library/reference-examples.md"},
 	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_checklist", "agent-mesh-flows/shared/library/shared-checklist.md"},
+	{"agent-mesh-flows/dva-improve-guided/30-configure.yaml", "dva_flow_devbox_apply", "agent-mesh-flows/shared/library/devbox-apply.md"},
 }
 
 func main() {

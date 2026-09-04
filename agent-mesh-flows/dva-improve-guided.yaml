@@ -31,6 +31,14 @@ parameters:
   - name: capability_bindings
     description: "JSON array of portfolio/provider bindings used during discovery"
     default: "[]"
+  - name: apply_mode
+    description: "How to apply DVA-owned command/lifecycle migration: propose or force. Not dva up --force."
+    default: "propose"
+    enum: [propose, force]
+  - name: legacy_surface
+    description: "After DVA owns an action, keep the old entrypoint as a dva alias, or remove it"
+    default: "alias"
+    enum: [alias, remove]
 steps:
   # Always refresh analysis. Reusing a file based only on its existence silently ignores
   # changed capability bindings and project evidence.
@@ -41,6 +49,8 @@ steps:
     pipeline_params:
       target: "{{param.target}}"
       capability_bindings: "{{param.capability_bindings}}"
+      apply_mode: "{{param.apply_mode}}"
+      legacy_surface: "{{param.legacy_surface}}"
 
   - id: approval_context
     type: context
@@ -100,6 +110,8 @@ steps:
     run_pipeline: dva-improve-guided/30-configure
     pipeline_params:
       target: "{{param.target}}"
+      apply_mode: "{{param.apply_mode}}"
+      legacy_surface: "{{param.legacy_surface}}"
 
   # ── Stage 40: Execute ──
   - id: execute
