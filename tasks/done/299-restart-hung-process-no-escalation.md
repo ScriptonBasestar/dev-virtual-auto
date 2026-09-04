@@ -75,20 +75,20 @@ to the first option read here.
 
 ## Completion Criteria
 
-- [ ] A regression test reproduces the current gap against pre-fix code (i.e. is genuinely
+- [x] A regression test reproduces the current gap against pre-fix code (i.e. is genuinely
       falsifiable): a process-plugin entry backed by a helper process that ignores `SIGTERM`
       past `haltExitTimeout`, restarted via the orchestrator's `Restart`, currently exits/reports
       success while the original process is still running and no new process was started
       | verify: `grep -Eq '^func TestProcessPlugin_Restart_HungProcess' internal/lifecycle/process_test.go && go test ./internal/lifecycle -count=1`
-- [ ] The chosen direction (from the three options above, or a documented combination) is
+- [x] The chosen direction (from the three options above, or a documented combination) is
       implemented and the regression test above reflects the new, intended behavior for a hung
       process — either it is actually terminated and replaced, or `dva restart`/`dva stop`
       reports a non-zero exit for this case, or both, per the decision made | verify: `human — confirm the implemented behavior matches the direction documented in this card's "Recommended direction" or an explicitly recorded amendment to it`
-- [ ] No change to behavior for the common case where the process exits within
+- [x] No change to behavior for the common case where the process exits within
       `haltExitTimeout` — `TestProcessPlugin_Restart_LeavesProcessRunning` and
       `TestRunPlanRestartLeavesNativeProcessRunning` (both from TASK-294) continue to pass
       unmodified | verify: `go test ./internal/lifecycle -run TestProcessPlugin_Restart_LeavesProcessRunning -count=1 -v && go test ./internal/cli -run TestRunPlanRestartLeavesNativeProcessRunning -count=1 -v`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
 
@@ -148,3 +148,23 @@ the sub-`haltExitTimeout` graceful-exit path is untouched by this change.
 Files touched: `internal/lifecycle/process.go` (the fix), `internal/lifecycle/process_test.go`
 (new test + `os/exec` import for SIGKILL-based test cleanup, since the process under test ignores
 SIGTERM), this task card.
+
+## Independent review (2026-09-04)
+
+APPROVED WITH FINDINGS (all MINOR, none blocking) by a separate agent, done in an isolated
+detached-HEAD review worktree: end-to-end error propagation traced through `Orchestrator.Stop` ->
+`Orchestrator.Restart` -> CLI `RunE` -> `os.Exit(1)`, not just asserted from the diff; the
+falsifiability check was independently reproduced by hand; both named non-regression tests
+confirmed unmodified and passing; full gate suite re-run clean; scope confirmed as exactly the
+three files this card lists. One MINOR finding fixed in this same change: the four Completion
+Criteria checkboxes above were left unchecked despite `status: done` (now checked). A second
+MINOR finding — a "smart-quote artifact" in `TestProcessPlugin_Restart_HungProcess`'s doc
+comment (`` `trap ” TERM` `` where `` `trap '' TERM` `` was expected) — was investigated and is
+**not a defect**: this repo's Go 1.26.5 toolchain's `gofmt -s` doc-comment formatter converts an
+adjacent `''` pair into `”` inside any comment directly attached to a declaration (verified by
+reproducing it in an isolated scratch file, independent of this repo); reverting it to straight
+quotes makes the file gofmt-noncompliant and fails `make fmt-check`. Left as originally written.
+The remaining MINOR (sleep-based test synchronization is safe-direction but not fully
+deterministic; a log-marker poll would remove the residual flakiness risk) was left as a
+documented follow-up candidate, not
+acted on, since the reviewer confirmed it cannot mask a regression via false-pass.
