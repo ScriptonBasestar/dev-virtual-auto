@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -210,6 +211,84 @@ stack:
 	if !IsProcessRunning(newPID) {
 		t.Fatalf("restart left the entry stopped: pid %d recorded in %s (was %d before restart) is not running",
 			newPID, pidFile, origPID)
+	}
+}
+
+// TestProcessPlugin_Restart_HungProcess reproduces TASK-299: a process-plugin entry that
+// ignores SIGTERM past haltExitTimeout made Orchestrator.Restart (Stop then Up) a silent
+// no-op — haltProcess warned on stderr but returned nil, so Stop "succeeded", Up's
+// already-running PID-file check observed the still-live original process and started
+// nothing, and Restart reported success (nil error, exit code 0) despite doing nothing.
+//
+// Post-fix, haltProcess returns a non-nil error once its bounded wait for SIGTERM expires
+// without the process exiting, so Restart surfaces that error instead of proceeding to Up —
+// the caller sees a real failure rather than false success.
+//
+// The stack entry traps and discards SIGTERM entirely (`trap ” TERM`), so it never exits on
+// its own; the test kills it directly via SIGKILL in cleanup since dva has no escalation path
+// (that is TASK-299's option 1, explicitly not implemented here).
+func TestProcessPlugin_Restart_HungProcess(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("process plugin requires Unix process groups")
+	}
+
+	dir := t.TempDir()
+	writeImportedPlanConfig(t, dir, `
+version: "0.1.0"
+stack:
+  api:
+    default_runner: process
+    runners:
+      process:
+        command: "trap '' TERM; while true; do sleep 0.05; done"
+`)
+
+	cfg, err := config.Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	env := config.NewEnvironment(nil, cfg.FileDir(), cfg.FileDir())
+	orch := NewOrchestrator(cfg, env)
+	ctx := context.Background()
+
+	if err := orch.Up(ctx, UpOptions{}); err != nil {
+		t.Fatalf("Up: %v", err)
+	}
+
+	pidFile := filepath.Join(cfg.FileDir(), config.DotDirName, config.PidsDirName, "api.pid")
+	origPID := readPIDFile(t, pidFile)
+	if !IsProcessRunning(origPID) {
+		t.Fatalf("process not running after Up (pid %d)", origPID)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command("kill", "-9", "-"+strconv.Itoa(origPID)).Run()
+	})
+
+	// Give the shell time to execute its `trap '' TERM` statement before signalling it.
+	// Without this, SIGTERM can race the shell's own startup and arrive before the trap is
+	// registered, in which case the default disposition applies and the process exits
+	// normally — which would make this test pass for the wrong reason (a process that
+	// isn't actually hung) rather than exercising the escalation-free timeout path.
+	time.Sleep(150 * time.Millisecond)
+
+	restartErr := orch.Restart(ctx, UpOptions{})
+	if restartErr == nil {
+		t.Fatal("Restart: expected a non-nil error for a process that ignores SIGTERM past haltExitTimeout, got nil")
+	}
+	if wantSubstr := "did not exit within"; !strings.Contains(restartErr.Error(), wantSubstr) {
+		t.Fatalf("Restart error = %q, want it to mention %q", restartErr.Error(), wantSubstr)
+	}
+
+	// Original process must still be alive — Restart must not have escalated to SIGKILL
+	// (out of scope per TASK-299's chosen option) and must not have raced ahead to Up.
+	if !IsProcessRunning(origPID) {
+		t.Fatalf("original process (pid %d) is no longer running after failed Restart", origPID)
+	}
+
+	// No replacement was started: the PID file still names the original, hung process.
+	newPID := readPIDFile(t, pidFile)
+	if newPID != origPID {
+		t.Fatalf("expected pid file to still record the original hung pid %d, got %d — a replacement was started despite the reported failure", origPID, newPID)
 	}
 }
 

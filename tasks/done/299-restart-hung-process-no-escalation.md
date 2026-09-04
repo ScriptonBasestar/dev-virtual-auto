@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "TASK-294 independent review follow-up — found while confirming the stale-PID restart fix"
 scope: "internal/lifecycle/process.go ProcessPlugin.haltProcess only, and its callers (Stop/Restart) as needed for the exit-code option"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -99,3 +99,52 @@ to the first option read here.
 - Not extending this to the `compose`/`kubectl`/`helm` plugins — their stop/down semantics don't
   go through `haltProcess`; this is process-plugin (native runner) specific, matching TASK-294's
   scope.
+
+## Implementation note
+
+Implemented **option 3 only**: when `haltProcess`'s bounded wait for SIGTERM
+(`waitForProcessExit`, `haltExitTimeout` = 5s) expires without the process exiting,
+`haltProcess` now returns `fmt.Errorf("stop %s: pid %d did not exit within %s", ...)` instead of
+`nil` (`internal/lifecycle/process.go`, in the `if !waitForProcessExit(...)` branch), keeping the
+existing `[warn] ... did not exit within ...` stderr line unchanged. That error already propagates
+correctly with no further wiring needed: `Orchestrator.Stop` collects it via
+`errors.Join(stopErrs...)`, and `Orchestrator.Restart` returns immediately on a non-nil `Stop`
+error without calling `Up` — so a hung process now makes `dva stop`/`dva restart` exit non-zero
+and, for `restart`, also skips starting a (pointless, since the original is still occupying the
+PID-file slot) replacement, rather than silently reporting success.
+
+Chose option 3 over 1 (SIGKILL escalation) and 2 (configurable timeout/escalation) for the reason
+already recorded on this card when the task was assigned: it is the smallest change that directly
+fixes the actual failure mode this card exists for (a caller checking only the exit code believing
+`restart` succeeded when nothing happened), it is non-destructive — it never forces a process that
+might be mid-graceful-shutdown to die — and it does not foreclose adding 1 or 2 later, since
+neither would need to change this error-return point. Options 1 and 2 are deliberately left
+unimplemented as follow-up candidates, not attempted here.
+
+Regression test: `TestProcessPlugin_Restart_HungProcess` (`internal/lifecycle/process_test.go`)
+drives a real `Orchestrator` against a stack entry backed by
+`trap '' TERM; while true; do sleep 0.05; done` — a process that discards SIGTERM outright — and
+asserts `Restart` returns an error mentioning "did not exit within", that the original process is
+still alive afterward (no undocumented SIGKILL escalation snuck in), and that the PID file still
+names the original process (no replacement was started). The test sleeps 150ms after `Up` before
+signalling: without it, SIGTERM can race the shell's own startup and arrive before its `trap`
+statement is registered, in which case the default disposition applies and the process exits
+normally — a false pass for the wrong reason, not exercising the timeout path at all. This was not
+a hypothetical concern; it is what the test did before the sleep was added (see below).
+
+Falsifiability check, done twice — once while the test lived in this form, and once more after
+moving it from a separate `!windows`-tagged file into `process_test.go` to match this card's
+`verify:` command, since that move changed the failure text's file/line: reverted the fix's `return
+fmt.Errorf(...)` line only (kept the stderr warning), ran
+`go test ./internal/lifecycle -run TestProcessPlugin_Restart_HungProcess -v`, and confirmed it
+failed with `Restart: expected a non-nil error for a process that ignores SIGTERM past
+haltExitTimeout, got nil` — the pre-fix log shows `[+] started api` printed a second time (`Up`
+silently starting nothing new, per the `already running` info log naming the same original pid) as
+the observable consequence. Restored the fix and confirmed the same run passes, and that
+`TestProcessPlugin_Restart_LeavesProcessRunning` (`internal/lifecycle`, unmodified) and
+`TestRunPlanRestartLeavesNativeProcessRunning` (`internal/cli`, unmodified) both still pass —
+the sub-`haltExitTimeout` graceful-exit path is untouched by this change.
+
+Files touched: `internal/lifecycle/process.go` (the fix), `internal/lifecycle/process_test.go`
+(new test + `os/exec` import for SIGKILL-based test cleanup, since the process under test ignores
+SIGTERM), this task card.

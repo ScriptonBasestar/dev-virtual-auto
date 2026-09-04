@@ -176,6 +176,12 @@ func (p *ProcessPlugin) haltProcess(ctx context.Context, pctx *PluginContext) er
 			fmt.Fprintf(os.Stderr, "[-] stopped %s (pid %d)\n", name, pid)
 			if !waitForProcessExit(ctx, pid, haltExitTimeout) {
 				fmt.Fprintf(os.Stderr, "[warn] %s (pid %d) did not exit within %s of stop\n", name, pid, haltExitTimeout)
+				// The process ignored SIGTERM past haltExitTimeout and is still running.
+				// Report this as a real failure — not nil/success — so a caller that only
+				// checks the exit code (CI, scripts, or Restart's Stop-then-Up sequencing)
+				// doesn't believe stop/restart worked when the original process is still
+				// alive and no replacement was started.
+				return fmt.Errorf("stop %s: pid %d did not exit within %s", name, pid, haltExitTimeout)
 			}
 		} else if errors.Is(err, errProcessGroupsUnsupported) {
 			return fmt.Errorf("stop %s: %w", name, err)
