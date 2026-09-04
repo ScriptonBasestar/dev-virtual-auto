@@ -223,16 +223,17 @@ func (o *CompositionOrchestrator) Up(ctx context.Context, opts CompositionUpOpti
 		return report, nil
 	}
 
-	// The failing child keeps state "failed" and is not itself rolled back: TASK-260 §5.2
-	// rolls back the children that succeeded, and a child's own partial state after a
-	// failed up stays the child's business (§5.1).
+	// The failing child's report row is marked "failed" regardless of which pass caught
+	// it. For an exec.Up failure, failedAt was never appended to succeeded, so it is
+	// already excluded from rollback below. For a WaitReady failure, its exec.Up did
+	// succeed and it stayed in succeeded — TASK-260 §5.2 requires rollback to tear down
+	// every child whose up succeeded in the affected waves, with no carve-out for the one
+	// whose readiness check is what triggered the rollback, so it is left in succeeded
+	// and rolled back alongside its wave-mates below.
 	report.Outcome = CompositionOutcomeFailed
 	report.Error = primary.Error()
 	report.Children[failedAt].State = ChildStateFailed
 	report.Children[failedAt].Error = primary.Error()
-	// A readiness failure lands on a child whose up already succeeded; it is the failure,
-	// not a rollback target.
-	succeeded = dropIndex(succeeded, failedAt)
 
 	compErr := &CompositionError{Err: primary, Report: report}
 	if opts.NoRollback {
@@ -394,16 +395,6 @@ func splitChildLabel(name string) (project, plan string) {
 		return project, plan
 	}
 	return "", name
-}
-
-func dropIndex(indexes []int, drop int) []int {
-	out := indexes[:0]
-	for _, i := range indexes {
-		if i != drop {
-			out = append(out, i)
-		}
-	}
-	return out
 }
 
 // PlanChildExecutor reaches each composed child through the same per-plan Orchestrator a

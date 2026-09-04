@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "Independent review of TASK-260 composition rollback implementation (reviewer finding, rated MEDIUM)"
 scope: "internal/lifecycle/composition_orchestrator.go CompositionOrchestrator.Up wave-boundary readiness gate only"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -90,16 +90,19 @@ longer needs it to justify anything.
 
 ## Completion Criteria
 
-- [ ] A wave-boundary readiness (`WaitReady`) failure on a child whose `exec.Up` succeeded results in that
+- [x] A wave-boundary readiness (`WaitReady`) failure on a child whose `exec.Up` succeeded results in that
       child being included in the LIFO rollback alongside the rest of its wave's succeeded siblings — not
-      dropped from the rollback list | verify: `/usr/bin/grep -Eq '^func TestCompositionReadinessFailureRollsBackSucceededSiblings\(' internal/lifecycle/composition_orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] The existing `exec.Up`-failure rollback behavior is unchanged — a child whose `up` itself failed is
+      dropped from the rollback list | verify: `/usr/bin/grep -Eq '^func TestCompositionReadinessFailureRollsBackSucceededSiblings\(' internal/lifecycle/composition_orchestrator_readiness_test.go && go test ./internal/lifecycle -count=1`
+      (note: the test landed in a new sibling file `composition_orchestrator_readiness_test.go` rather
+      than the existing `composition_orchestrator_test.go` — the repo's file-size hook blocks that file at
+      600 code lines and it was already at the limit)
+- [x] The existing `exec.Up`-failure rollback behavior is unchanged — a child whose `up` itself failed is
       still not treated as a rollback target (it was never in `succeeded`), confirmed by the pre-existing
       up-failure rollback tests in `composition_orchestrator_test.go` continuing to pass unmodified |
       verify: `go test ./internal/lifecycle -run TestCompositionRollback -count=1`
-- [ ] The `readyErr` hook on `fakeChildExecutor` (composition_orchestrator_test.go:29) is exercised by at
+- [x] The `readyErr` hook on `fakeChildExecutor` (composition_orchestrator_test.go:29) is exercised by at
       least one test, closing the gap noted above | verify: `/usr/bin/grep -Eq 'readyErr\[' internal/lifecycle/composition_orchestrator_test.go`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
 
