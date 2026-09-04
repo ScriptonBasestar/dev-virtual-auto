@@ -109,6 +109,25 @@ plans:
         order: 40
         depends_on: [api]
 
+  docker-stg:
+    description: Everything containerised; the docker-host site picks the docker runner
+    environment: stg
+    site: docker-host
+    entries:
+      - name: infra
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+      - name: api
+        order: 20
+        depends_on: [infra]
+      - name: worker
+        order: 30
+        depends_on: [api]
+      - name: web
+        order: 40
+        depends_on: [api]
+
 default_plan: local-full
 
 environments:
@@ -122,17 +141,12 @@ environments:
       APP_ENV: stg
       LOG_LEVEL: info
 
+# entry_overrides only matter when they change a runner or add vars; api/worker/web
+# already default to native, so the local site carries vars only.
 sites:
   local:
     vars:
       DVA_SITE: local
-    entry_overrides:
-      api:
-        runner: native
-      worker:
-        runner: native
-      web:
-        runner: native
 
   docker-host:
     vars:

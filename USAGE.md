@@ -709,12 +709,19 @@ hard error(스키마 위반, legacy compose 선언, 실행 불가능한 훅 위�
 파싱할 수 없는 경우만 즉시 종료합니다. `--json`에서는 `errors[]`에 각 에러가 개별 항목으로
 들어갑니다.
 
-스키마 검증 외에 20개 시맨틱 경고를 검사합니다:
+스키마 검증 외에 28개 시맨틱 경고를 검사합니다:
 - 중복 stack order, 다중 compose 엔트리 분할 권고
-- 실행 계획 누락 또는 과도하게 무거운 기본 실행 구성 경고
+- 실행 계획 누락 또는 과도하게 무거운 기본 실행 구성 경고, 다중 plan인데 `default_plan` 미설정
 - 미해결 환경변수 (`${MISSING_VAR}`), 비지원 셸 문법 감지
-- 깊은 서브커맨드 중첩 (5단계 초과), 도달 불가능 커맨드
+- 깊은 서브커맨드 중첩 (5단계 초과), 도달 불가능 커맨드, 실행 대상이 없는 빈 커맨드
 - 정규 섹션 순서 검증
+- 참조 무결성: plan `services`가 해당 엔트리의 `runners.compose.services` 맵에 없음,
+  어떤 plan도 선택하지 않는 `environments`/`sites`(`${VAR}`로 선택하면 검사 생략),
+  아무것도 바꾸지 않는 `entry_overrides`(없는 엔트리, 빈 override, `default_runner`와 같은 runner),
+  어떤 mode도 참조하지 않는 최상위 `health_checks`
+- 제거된 CLI 참조: description·note·start_hint·command 문자열 속 `dva stack|app|infra|clean|dev`,
+  `-M`/`--mode` (docs/43). YAML 주석은 로드 시 사라지므로 검사 대상이 아닙니다. 같은 이름의
+  `interaction`을 직접 정의했다면(예: `interaction.clean`) 그 동사는 검사하지 않습니다.
 
 ## Configuration (`dva.yml`)
 

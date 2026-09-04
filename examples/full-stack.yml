@@ -115,6 +115,14 @@ plans:
         order: 30
         depends_on: [web]
 
+  cloud-web:
+    description: Web tier on the cluster; the cloud site switches web to kubectl
+    environment: stg
+    site: cloud
+    entries:
+      - name: web
+        order: 10
+
 default_plan: local-dev
 
 environments:
@@ -129,15 +137,12 @@ environments:
       LOG_LEVEL: info
       DATABASE_URL: postgres://user:password@stg-db:5432/myapp_staging
 
+# entry_overrides only matter when they change a runner or add vars; web/frontend
+# already default to native, so the local site carries vars only.
 sites:
   local:
     vars:
       DVA_SITE: local
-    entry_overrides:
-      web:
-        runner: native
-      frontend:
-        runner: native
 
   remote:
     vars:

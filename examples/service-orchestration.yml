@@ -99,6 +99,16 @@ plans:
         depends_on: [api]
         services: [frontend]
 
+  stg-infra:
+    description: Infrastructure with staging-like settings
+    environment: stg
+    site: local
+    entries:
+      - name: infra-compose
+        runner: compose
+        order: 10
+        services: [postgres, kafka]
+
 default_plan: local-full
 
 environments:
@@ -110,15 +120,12 @@ environments:
       APP_ENV: stg
       ENABLE_AUTH: "true"
 
+# entry_overrides only matter when they change a runner or add vars; api/worker
+# already default to native, so the local site carries vars only.
 sites:
   local:
     vars:
       DVA_SITE: local
-    entry_overrides:
-      api:
-        runner: native
-      worker:
-        runner: native
 
 checks:
   - name: Docker daemon accessible

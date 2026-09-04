@@ -71,6 +71,12 @@ func (c *Config) ValidateWarnings() []string {
 	warnings = append(warnings, c.warnIgnoredParallelSteps()...)
 	warnings = append(warnings, c.warnDuplicatePlanDeclarations()...)
 	warnings = append(warnings, c.warnMultiplePlansWithoutDefault()...)
+	warnings = append(warnings, c.warnPlanServicesNotDeclared()...)
+	warnings = append(warnings, c.warnUnreferencedEnvironmentsAndSites()...)
+	warnings = append(warnings, c.warnNoOpEntryOverrides()...)
+	warnings = append(warnings, c.warnEmptyInteractionCommands()...)
+	warnings = append(warnings, c.warnRemovedCLIReferences()...)
+	warnings = append(warnings, c.warnOrphanHealthChecks()...)
 
 	// Build a contextual environment for accurate interpolation checks.
 	//
