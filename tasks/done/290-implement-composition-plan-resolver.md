@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T10:00:00+09:00
 source: "PLAN-005 implementation of TASK-260's frozen composition contract"
 scope: "resolving composition plans into wave-ordered child ExecutionPlans, default-plan selection, and resolved-plan immutability"
-status: todo
+status: done
 depends-on: [TASK-289]
 ---
 
