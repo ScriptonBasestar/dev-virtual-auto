@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T10:00:00+09:00
 source: "PLAN-005 implementation of TASK-260's frozen composition contract"
 scope: "per-flag propagate/scope/reject enforcement for composition plans, --project scoping for destructive flags, and aggregate status/logs/build/JSON output"
-status: todo
+status: done
 depends-on: [TASK-290]
 ---
 
@@ -123,3 +123,41 @@ codes stay flat 0/1 (TASK-260 §5.6) — do not add a new exit-code taxonomy.
   does not block any of the three required gates: `make lint`, `make test`, and `make commit-check`
   all passed clean in this worktree without any file-size-related failure — the hook only fires as
   an editor-time warning, not a `make`-driven gate.
+
+## Review findings (independent review, 4 rounds)
+
+- **B1 (fixed, `566c711`)**: `--dry-run` was silently swallowed on every composition verb —
+  `parseDvaFlags` consumes it into the package-level `dryRun` global and strips it from
+  `extraArgs` before `validateCompositionFlagScope` ever runs, so `newCompositionExecutor` never
+  threaded it into either `PlanChildExecutor` instance and composition `up`/`down`/`stop`/
+  `restart` executed for real regardless of the flag — including the destructive case
+  `down --project X --purge --force --dry-run`, which really removed volumes/images pre-fix.
+  Fixed by setting `DryRun: dryRun` on both executor instances and gating `runCompositionDown`'s
+  confirmation prompt on `!dryRun` (mirroring `runPlanDown`'s `effectiveDryRun` precedent).
+  Verified against the real binary on all four wired verbs and by the reviewer independently
+  re-running the pre-fix code path to confirm the new tests are genuinely falsifiable (both
+  failed against `566c711^`, one reproducing B1 by actually killing the test's fixture
+  processes).
+- **Failed-state status coverage gap (closed, `a736686`)**: `queryCompositionChildStatus`'s
+  `"failed"` classification had zero test coverage — every fixture that made a child unrunnable
+  made the whole root `config.Load` fail first, so the classifier was never reached. Closed by
+  putting the unrunnable child in a separate subproject with a required-but-missing `env_file`,
+  which fails only that child's `resolvePlanRuntime` while the root config and sibling children
+  still load and query cleanly.
+- **Non-blocking, deferred to backlog (not this card)**:
+  1. `CompositionOrchestrator.Status` (TASK-291) has zero production callers — the CLI `status`
+     verb reimplements the same classification independently via `queryCompositionChildStatus` +
+     `lifecycle.AnyServiceRunning`. Both are correct today (same underlying
+     `serviceLooksRunning` predicate) but it's two implementations of "is this child up" plus two
+     independent definitions of §5.3's report shape (`lifecycle.CompositionReport` vs this file's
+     `compositionStatusReport`). Worth a TASK-291 follow-up note, not a TASK-292 fix.
+  2. TASK-260 §4.4's worked example for `--project` on `down` reads as "the other child is not
+     touched," which is ambiguous against the frozen LIFO-teardown model (`--project` scopes
+     which child gets destructive flags, not which children get torn down — confirmed correct by
+     reading the frozen orchestrator and by binary reproduction). Docs-wording tightening on
+     TASK-260's card, not a code change.
+  3. Pre-existing `restart` bug, not introduced or worsened by this task: on both the single-plan
+     and composition paths, `restart` stops the process, then its "up" half sees the same stale
+     PID as "already running," starts nothing, and reports success (`rc=0`) while the
+     process is actually down. Severe enough to warrant its own card — noted for a follow-up
+     task, out of scope here.
