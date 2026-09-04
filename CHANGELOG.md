@@ -4,6 +4,8 @@ All notable changes to DVA are documented here.
 
 ## [Unreleased]
 
+## [0.1.48] - 2026-09-04
+
 ### Added
 - **`dva config env` — 암호화된 소스에서 `env_file`을 만드는 명시적 브리지** (TASK-245/TASK-246):
   `env_file` 엔트리에 `sops_source`를 선언하면 그 평문 파일이 어느 sops 암호화 파일에서
@@ -29,6 +31,22 @@ All notable changes to DVA are documented here.
   사용해 거절합니다(우회 불가능한 보안 경계가 아니며 우회 플래그도 없습니다). `env_bridge:`는
   루트 dva.yml에서만 유효하고 `EnvBridgeIntroducedVersion` 이상의 `version:`을 요구합니다
   ([USAGE.md](USAGE.md#게이트된-sealshow))
+- **교차 프로젝트 plan composition** (TASK-260/PLAN-005): root `dva.yml`이 child의 exposed
+  plan을 `composes:`로 명시적으로 모아 한 이름으로 `up`/`down`/`stop`/`restart`/`status` 합니다.
+  child stack을 flatten하지 않고, wave 순서와 LIFO rollback을 따르며 `--no-rollback`으로
+  opt-out 합니다. composition 경로는 `--tag`/`--mode` 같은 whole-stack 전용 플래그와
+  `--purge`/`--volumes`를 거절합니다
+  ([USAGE.md](USAGE.md), [ARCHITECTURE.md](ARCHITECTURE.md))
+- **`dva init`이 검증된 capability에서 plan을 만듭니다** (TASK-249/TASK-250): 고정 3-plan
+  템플릿(`local-infra`/`local-dev`/`full-stack`)을 생성하지 않습니다. 탐지된 provider
+  closure가 있을 때만 엔트리와 plan을 쓰고, 충돌하거나 증거가 없으면 파일을 쓰지 않습니다.
+  기존 템플릿 플래그(`minimal`/`rails`/`node`/`python`/`go`, `--recursive`,
+  `--devcontainer`, `--all`)와 `config init` 별칭은 유지됩니다
+- **루트 `dva validate`가 `dva config validate`의 visible compatibility route입니다**
+  (TASK-257/TASK-258): 동작·플래그·exit code는 같고, manifest는 `canonical_name:
+  config validate`로 호환 경로임을 표시합니다. 어느 이름도 이 릴리스에서 숨기거나
+  제거하지 않습니다
+- **중복·누락 plan 선언을 D6/D7 semantic 경고로 알려줍니다** (TASK-244)
 
 ### Fixed
 - **agent-mesh flow 프롬프트가 더 이상 유효한 config를 거절하거나 무동작 config를 만들도록
@@ -118,6 +136,22 @@ All notable changes to DVA are documented here.
   library 내용을 내장해, 저장소 checkout 없이도 `am run dva-*`가 동작합니다. 전체 재작성 opt-in
   표기는 `am run dva-improve param.mode=rewrite`에서 `am run dva-improve -p mode=rewrite`로
   바뀌었습니다
+- **Helm `Stop`은 설치되지 않은 release를 성공한 no-op로 다룹니다** (TASK-300): 없는
+  release를 오류로 올리지 않습니다
+- **process `restart`/`stop`은 SIGTERM이 시간 안에 끝나지 않으면 실패합니다** (TASK-299):
+  멈춘 프로세스를 성공으로 보고하지 않습니다
+- **composition `status`는 dry-run을 강제 해제하고 자식 실패를 집계 종료 코드로 반영합니다**
+  (TASK-297)
+- **composition `restart`는 자식 단위로 멈추고, 실패하면 이후 자식을 진행하지 않으며
+  진단을 남깁니다** (TASK-298)
+- **composition rollback은 취소 시에도 진행됩니다** (TASK-291/TASK-296)
+- **env-bridge 쓰기는 target 파일의 디렉터리에 고정됩니다** (TASK-284)
+- **overlay-split 경고는 compose-file overlay에만 적용됩니다** (TASK-288)
+- **plan 경로가 버린 뒤 무시하던 lifecycle 플래그를 거절합니다** (TASK-279)
+
+### Changed
+- README와 USAGE의 설치 안내를 `v0.1.48`로 고정했습니다. `MinScaffoldVersion`은
+  `0.1.44`입니다 — `dva init`이 내보내는 `version:`은 바뀌지 않습니다.
 
 ### Deprecated
 - **interaction의 `env_file:`이 폐기 예고됐습니다** (TASK-265/TASK-266):

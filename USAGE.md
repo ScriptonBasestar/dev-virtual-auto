@@ -10,7 +10,7 @@
 
 ```bash
 set -euo pipefail
-go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.47
+go install github.com/ScriptonBasestar/dva/cmd/dva@v0.1.48
 go_bin="$(go env GOBIN)"
 test -n "$go_bin" || go_bin="$(go env GOPATH)/bin"
 "$go_bin/dva" version
@@ -21,7 +21,7 @@ test -n "$go_bin" || go_bin="$(go env GOPATH)/bin"
 검증한 버전을 고정해야 같은 바이너리를 다시 설치할 수 있습니다. 이후 `dva`를 직접
 호출하려면 위에서 확인한 `go_bin`을 `PATH`에 추가합니다.
 
-Go toolchain 없이 설치하려면 [v0.1.47 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.47)에서
+Go toolchain 없이 설치하려면 [v0.1.48 Release](https://github.com/ScriptonBasestar/dva/releases/tag/v0.1.48)에서
 현재 플랫폼의 archive와 `checksums.txt`를 내려받습니다.
 
 | OS | Architecture | Asset |
@@ -37,7 +37,7 @@ macOS Apple Silicon 예시:
 
 ```bash
 set -euo pipefail
-version=v0.1.47
+version=v0.1.48
 asset=dva_darwin_arm64.tar.gz
 base=https://github.com/ScriptonBasestar/dva/releases/download/$version
 curl -fLO "$base/$asset"
