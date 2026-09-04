@@ -5,7 +5,7 @@ type: plan
 scope: "composition plan schema and validation, cross-project resolver identity, wave-sequential runtime with LIFO rollback, CLI flag-scope enforcement and aggregate output, and compatibility fixtures"
 progress: 40
 total-tasks: 5
-completed-tasks: 0
+completed-tasks: 2
 children: [TASK-289, TASK-290, TASK-291, TASK-292, TASK-293]
 target-date: "2027-01-31"
 created: 2026-09-04
