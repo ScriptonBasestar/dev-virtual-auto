@@ -245,11 +245,11 @@ unchanged.
 
 **What changed.** `releaseInstalled(ctx, pctx) (bool, error)` now runs under
 `exec.CommandContext(ctx, ...)` with `c.Env = pctx.Env.EnvSlice()`, checks `ctx.Err()`
-first so a cancelled or timed-out probe is a real error (helm's stderr is empty on a kill,
-so it cannot be classified by message), and otherwise reports not-installed only when an
-`*exec.ExitError`'s stderr matches the new `helmReportsReleaseNotFound` — `release: not
-found` or `no release found`, case-insensitively. Anything else is wrapped and returned,
-and `Stop` propagates it instead of collapsing to `nil`.
+first so a cancelled or timed-out probe is reported as the context error it is, and
+otherwise reports not-installed only when an `*exec.ExitError`'s stderr matches the new
+`helmReportsReleaseNotFound` — the `release: not found` substring, case-insensitively.
+Anything else is wrapped and returned, and `Stop` propagates it instead of collapsing to
+`nil`.
 
 Note on the review instruction to reuse an existing not-found helper: there is none.
 `HelmPlugin.Status` keys on nothing — a bare `if err != nil` mapping every failure to
@@ -274,9 +274,11 @@ reverted:
 - `TestHelmPlugin_Stop_ProbeUsesConfiguredEnv` — `KUBECONFIG` is supplied only through the
   entry's `vars`, and the shim's `status` succeeds only when it sees that value; asserts
   the gated `uninstall` actually runs. Fails if `c.Env` is dropped.
-- `TestHelmPlugin_Stop_ProbeRespectsCancellation` — a pre-cancelled context; asserts `Stop`
-  returns an error wrapping `context.Canceled` and never runs `uninstall`. Fails
-  (`got nil`) if the probe stops honouring `ctx`.
+- `TestHelmPlugin_Stop_ProbeRespectsCancellation` — cancels while `helm status` is
+  running; asserts `Stop` returns an error wrapping `context.Canceled` and never runs
+  `uninstall`. Fails (`signal: killed`) if the `ctx.Err()` check is removed. (This test
+  was rewritten in the second review round below; as first written it pre-cancelled and
+  did not pin that behavior.)
 
 The two marker-file shims write with the `:` redirect builtin rather than `touch`: the shim
 replaces `PATH` outright, so no external binary is resolvable from inside it, and `touch`
@@ -284,3 +286,48 @@ would fail silently — making the cancellation test's negative assertion vacuou
 
 All six gates were re-run clean after these changes: `make build`, `make lint`
 (`0 issues`), `make test`, `make test-integration`, `make doc-check`, `make commit-check`.
+
+### Second review round (MINOR: overstated cancellation claim, unverified substring)
+
+A second independent review of the fix above returned APPROVED WITH FINDINGS — no MAJOR;
+the narrowed classification and env parity were both confirmed correct against a real helm
+v4.2.0 and by independent falsification. Two MINORs were corrected here.
+
+**1. The `ctx.Err()` check was real, but its stated justification was not.** The original
+comment claimed the check prevented a cancelled probe from being misclassified as
+not-installed. It cannot: a killed helm writes no stderr, so the not-found match fails with
+or without the check. The reviewer also showed that
+`TestHelmPlugin_Stop_ProbeRespectsCancellation` did not pin the check at all — it
+pre-cancelled the context, and a pre-cancelled `exec.CommandContext` never starts the
+process and returns a bare `context.Canceled`, which satisfies the assertion on its own.
+Removing the check left the test passing.
+
+The check's actual value shows only when the kill lands **mid-flight**: there `Output`
+returns an `*exec.ExitError` (`signal: killed`) that does not unwrap to `context.Canceled`,
+so a caller cannot tell "we gave up on the probe" from "helm rejected it". The comment now
+says that, and the test was rewritten to cancel mid-flight — the shim records that `helm
+status` has started, the test waits for that record before cancelling, and reverting the
+`ctx.Err()` block now fails the test with `error = "helm status really-installed: signal:
+killed", want it to wrap context.Canceled`. The behavior is pinned rather than assumed.
+
+Two mechanics that rewrite depends on, both non-obvious: the shim needs a real `sleep`,
+resolved via `exec.LookPath` *before* `helmShim` replaces `PATH` and symlinked in beside
+the shim, because nothing external is reachable once `PATH` is replaced. And it must
+`exec sleep` rather than run it as a child — otherwise `sleep` survives the kill aimed at
+its parent shell, keeps the inherited stdout pipe open, and `Output` blocks on EOF for the
+full sleep despite the cancellation. That pipe-inheritance behavior is a property of
+`exec.CommandContext` generally, not of this fix; it is left alone here because helm is a
+single binary that does not fork pipe-holding children, but `Cmd.WaitDelay` is the lever if
+a future probe ever needs a hard bound.
+
+**2. `"no release found"` was speculative and dead.** It appears nowhere in the real helm
+v4.2.0 binary (checked with `strings`), and as an OR-arm it could only ever widen the set
+of failures treated as nothing-to-tear-down — never narrow it. Dropped.
+`helmReportsReleaseNotFound` now matches only `release: not found`, the verbatim text of
+helm's `driver.ErrReleaseNotFound`, which `status`, `get`, `uninstall`, and `history` all
+surface. The helper carries a comment saying so, so the single-substring choice is not left
+looking like an oversight.
+
+Rebased onto `master` at `4f1f0f5` (TASK-299) before this round; no conflicts, and the
+incoming `internal/lifecycle/process.go` changes do not interact with the helm probe. All
+six gates re-run clean after these corrections.

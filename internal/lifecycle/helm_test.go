@@ -5,9 +5,11 @@ import (
 	"errors"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -32,7 +34,7 @@ func helmNotInstalledShim(t *testing.T) {
 // helmShim writes a fake `helm` whose `case "$1"` body is the caller's, with every
 // unlisted subcommand (notably `upgrade --install`) exiting 0, and replaces PATH with
 // its directory.
-func helmShim(t *testing.T, cases string) {
+func helmShim(t *testing.T, cases string) string {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -41,6 +43,22 @@ func helmShim(t *testing.T, cases string) {
 		t.Fatalf("write helm shim: %v", err)
 	}
 	t.Setenv("PATH", dir)
+	return dir
+}
+
+// waitForFile blocks until path exists, so a test can act on something the shim has
+// actually done rather than on a delay it hopes is long enough.
+func waitForFile(t *testing.T, path, what string) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", what)
 }
 
 // helmStopContext builds the PluginContext the Stop tests below drive, pointed at
@@ -390,20 +408,56 @@ func TestHelmPlugin_Stop_ProbeUsesConfiguredEnv(t *testing.T) {
 // cancelled or timed-out context must surface as an error rather than be read as
 // not-installed and skip the teardown.
 func TestHelmPlugin_Stop_ProbeRespectsCancellation(t *testing.T) {
-	marker := filepath.Join(t.TempDir(), "uninstall-ran")
-	helmShim(t, "  uninstall) : > "+marker+"; exit 0 ;;\n")
+	// The cancellation has to land while `helm status` is already running. Cancelling
+	// beforehand exercises a different path entirely: exec.CommandContext never starts
+	// the process and returns a bare context.Canceled, which satisfies the assertion
+	// below on its own and so would pass even with releaseInstalled's ctx.Err() check
+	// removed. Only the mid-flight kill produces the *exec.ExitError ("signal: killed")
+	// that check exists to translate.
+	dir := t.TempDir()
+	started := filepath.Join(dir, "probe-started")
+	marker := filepath.Join(dir, "uninstall-ran")
+
+	// Resolved before helmShim replaces PATH, and linked in beside the shim: the shim
+	// script can reach no external binary otherwise.
+	sleepPath, err := exec.LookPath("sleep")
+	if err != nil {
+		t.Skipf("no sleep binary to hold the probe open: %v", err)
+	}
+	// `exec` matters: it replaces the shell with sleep, so the process
+	// exec.CommandContext kills is the one holding the stdout pipe. Left as an ordinary
+	// child, sleep would survive the kill aimed at its parent shell and hold that pipe
+	// open, and Output would block on EOF long past the cancellation.
+	shimDir := helmShim(t, "  status) : > "+started+"; exec sleep 30 ;;\n"+
+		"  uninstall) : > "+marker+"; exit 0 ;;\n")
+	if err := os.Symlink(sleepPath, filepath.Join(shimDir, "sleep")); err != nil {
+		t.Fatalf("link sleep into shim dir: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stopped := make(chan error, 1)
+	go func() {
+		stopped <- (&HelmPlugin{}).Stop(ctx, helmStopContext("really-installed", nil))
+	}()
+
+	waitForFile(t, started, "the probe to start")
 	cancel()
 
-	err := (&HelmPlugin{}).Stop(ctx, helmStopContext("really-installed", nil))
-	if err == nil {
-		t.Fatal("Stop must surface a cancelled probe as an error, got nil")
+	select {
+	case err := <-stopped:
+		if err == nil {
+			t.Fatal("Stop must surface a cancelled probe as an error, got nil")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("error = %q, want it to wrap context.Canceled", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Stop did not return after its probe was cancelled")
 	}
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("error = %q, want it to wrap context.Canceled", err)
-	}
+
 	if _, statErr := os.Stat(marker); statErr == nil {
-		t.Error("Stop ran `helm uninstall` under a cancelled context")
+		t.Error("Stop ran `helm uninstall` after its probe was cancelled")
 	}
 }

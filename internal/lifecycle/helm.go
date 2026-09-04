@@ -120,8 +120,12 @@ func (p *HelmPlugin) releaseInstalled(ctx context.Context, pctx *PluginContext) 
 	c := exec.CommandContext(ctx, cmd, cmdArgs...)
 	c.Env = pctx.Env.EnvSlice()
 	if _, err := c.Output(); err != nil {
-		// A cancelled or timed-out probe reports nothing about the release; helm's
-		// stderr on a kill is empty anyway, so classify it explicitly.
+		// Report a cancelled or timed-out probe as the context error it is. This is
+		// not about misclassification — a killed helm writes no stderr, so the
+		// not-found match below fails either way. It is about the error callers
+		// receive: when the kill lands mid-flight, Output returns an *exec.ExitError
+		// ("signal: killed") that does not unwrap to context.Canceled, leaving a
+		// caller unable to tell "we gave up on the probe" from "helm rejected it".
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return false, fmt.Errorf("helm status %s: %w", cfg.Release, ctxErr)
 		}
@@ -137,9 +141,13 @@ func (p *HelmPlugin) releaseInstalled(ctx context.Context, pctx *PluginContext) 
 // helmReportsReleaseNotFound recognizes helm's own "this release does not exist" report.
 // Helm exits 1 for a missing release and for an unreachable cluster alike, so the exit
 // code cannot separate them — the message is the only signal.
+//
+// One substring, deliberately: "release: not found" is the verbatim text of helm's
+// driver.ErrReleaseNotFound, which status, get, uninstall, and history all surface.
+// Matching anything else would only widen the set of failures silently treated as
+// nothing-to-tear-down, which is the bug this probe exists to avoid.
 func helmReportsReleaseNotFound(stderr []byte) bool {
-	msg := strings.ToLower(string(stderr))
-	return strings.Contains(msg, "release: not found") || strings.Contains(msg, "no release found")
+	return strings.Contains(strings.ToLower(string(stderr)), "release: not found")
 }
 
 func (p *HelmPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
