@@ -496,13 +496,14 @@ func runCompositionLogs(c *config.Config, el *envLoad, planName string, extraArg
 }
 
 // compositionChildStatus and compositionStatusReport are TASK-260 §5.3's frozen JSON shape,
-// reused by §5.5 for status's success case too (outcome "up", every child "up"). up/down/
-// stop/restart do not populate this today — see errCompositionRuntimeNotImplemented — so
-// Rollback is always the empty-but-present shape §5.3 shows. State is derived from each
-// child's real queried status (lifecycle.AnyServiceRunning): "up" when at least one service
-// looks running, "not_started" when the query succeeded but nothing is running, or "failed"
-// when the child could not be queried at all (unrunnable). "rolled_back"/"rollback_failed"
-// belong to the TASK-291 rollback orchestrator this task does not implement.
+// reused by §5.5 for status's success case too (outcome "up", every child "up"). This CLI-side
+// query path is separate from CompositionOrchestrator.Status — see TASK-297 for the known
+// divergence between the two (this path currently reports "not_started" instead of the frozen
+// "failed" outcome for a fully-down composition). State is derived from each child's real
+// queried status (lifecycle.AnyServiceRunning): "up" when at least one service looks running,
+// "not_started" when the query succeeded but nothing is running, or "failed" when the child
+// could not be queried at all (unrunnable). "rolled_back"/"rollback_failed" are set only by
+// the TASK-291 rollback orchestrator (CompositionOrchestrator), not by this status query path.
 type compositionChildStatus struct {
 	Project string `json:"project"`
 	Plan    string `json:"plan"`

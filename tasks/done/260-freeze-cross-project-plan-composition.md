@@ -8,7 +8,7 @@ exec-tier: strong
 created-at: 2026-09-02T10:12:00+09:00
 source: "PLAN-003 composition architecture decision"
 scope: "project identity, plan composition semantics, execution and failure contract, compatibility, fixtures, and implementation boundary"
-status: todo
+status: done
 needs-human: true
 decision-status: decided
 decided-at: 2026-09-04T09:10:00+09:00
@@ -41,7 +41,7 @@ Destructive flag는 root에서 명시한 scope 안에서만 child로 전달하�
 - [x] Freeze execution waves, working directories, every lifecycle verb, per-project scope and propagation or rejection of `--no-wait`, `--var`, tag selectors, `--force`, `--volumes`, and `--purge`, readiness, LIFO rollback, cancellation, retry and idempotence | verify: human — destructive flags require explicit scope and confirmation behavior; no child may receive an unsupported flag silently
 - [x] Freeze partial failure, rollback failure with original-error preservation, partial-state reporting, recovery and retry, aggregate status/logs/build behavior, text/JSON output, diagnostics, and exit codes | verify: human — success and failure fixtures must cover at least two projects, a dependency cycle, a failed rollback, and a resumable partial state
 - [x] Define compatibility and migration for existing local plans and imported item names, plus rollback after a failed rollout; do not silently reinterpret an existing valid configuration | verify: human — before/after configuration and invocation examples must be recorded
-- [ ] Obtain independent architecture and operability review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided`; if composition is selected, create a separate implementation plan with bounded schema, resolver, runtime, CLI, migration, and fixture cards | verify: `make doc-check`
+- [x] Obtain independent architecture and operability review, append an approved `## Decision Record` to this card, and change `decision-status` from `pending` to `decided`; if composition is selected, create a separate implementation plan with bounded schema, resolver, runtime, CLI, migration, and fixture cards | verify: `make doc-check`
 
 ## Non-goals
 
@@ -276,8 +276,12 @@ working directory로 쓴다(root의 CWD가 흘러들어가지 않는다) — com
 | `--mode`, `--env` | **거부**, 기존과 동일 | Whole-stack-path 플래그이며 plan 경로에서는 이미 거부된다(단일 project와 동일 규칙, 변경 없음) |
 
 `--project <child>` scope 문법 예시: `dva down release --project api --volumes` → composition
-`release`의 `api/deploy` 부분만 volume까지 제거하고 `web/deploy`는 건드리지 않는다(단, `release`가
-`api/deploy`를 실제로 참조하지 않으면 "unknown scope" 에러). Scope 없는 `dva down release
+`release`의 모든 child는 여전히 LIFO 순서로 `down`되지만, volume까지 제거하는 파괴적 동작은
+`api/deploy`에만 적용되고 `web/deploy`는 volume을 보존한 채 내려간다(단, `release`가
+`api/deploy`를 실제로 참조하지 않으면 "unknown scope" 에러). 즉 `--project`는 "어느 child를
+내릴지"가 아니라 "파괴적 modifier(`--volumes`/`--purge`/`--force`)를 어느 child에만 적용할지"만
+고른다 — 이 절의 앞 문장이 원래 "web/deploy는 건드리지 않는다"로 잘못 서술되어 있었음을
+독립 리뷰(아래 Decision Record, 2026-09-04)가 발견해 정정한다. Scope 없는 `dva down release
 --volumes`는 §5의 "전체 실행 전 거부" 진단을 낸다.
 
 **4.5 Readiness, LIFO rollback, cancellation, retry, idempotence.**
@@ -454,3 +458,56 @@ output" 원칙과 충돌한다.
    플래그의 이름과 계약(propagate-to-all, opt-out 의미)만 얼리고, 실제 CLI 플래그 파싱·배선
    구현은 비목표로 남긴다 — TASK-260 완료기준 6에서 만들 구현 계획 카드가 이 플래그를 반영해야
    한다.
+
+## Completion evidence — criterion 6 (2026-09-04)
+
+독립 아키텍처/운영성 리뷰를 이 카드를 작성한 세션이 아닌 별도 세션(`review-task260`)이 수행했다.
+리뷰는 §3-§6이 얼린 계약 전체와, 그 계약을 실제로 구현한 코드(schema/resolver/runtime/CLI/fixture,
+`internal/config`·`internal/lifecycle`·`internal/cli`·`internal/integration/composition_fixture_test.go`,
+현재 origin/master HEAD `5243573`)를 직접 읽고 대조해 수행됐고, 카드의 주장을 그대로 받아 적지 않고
+`go build`/`go test ./internal/config/... ./internal/lifecycle/... ./internal/cli/...`/
+`go test -tags=integration -run Composition ./internal/integration/...`를 스스로 재실행해 검증했다.
+
+**판정: APPROVED WITH FINDINGS.** 동결된 계약 자체(§3.3 재귀 금지, §3.2 load 순서, §3.4 duplicate
+alias 처리, §3.6/3.7 ownership 경계, §4.4 fail-closed flag-scope, §4.5 cancellation의
+`context.WithoutCancel`, §6 호환성)는 아키텍처적으로 건전하며 안전하지 않은 기본값·무음 데이터
+손실·복구 불가능한 partial state가 없다고 확인됐다. §5의 4개 fixture 시나리오 모두 실제 코드로
+재현되고 통과한다.
+
+발견된 7건 중 어느 것도 이 freeze를 재론할 근거가 아니며(리뷰 자신이 "재개방 불필요"로 명시),
+모두 "보고하되 고치지 않는다" 원칙에 따라 처리했다:
+
+- **F1**(MEDIUM, readiness-gate 실패 시 성공한 child가 rollback 대상에서 빠짐) →
+  [TASK-296](../todo/296-fix-composition-readiness-gate-rollback-gap.md)로 분리 접수, 통합됨
+  (`59f51fa`).
+- **F2**(LOW-MEDIUM, `dva status`가 `CompositionOrchestrator.Status`와 별개로 구현되어 있어
+  전체 다운 상태에서도 exit 0) →
+  [TASK-297](../todo/297-fix-composition-status-divergent-implementation.md)로 분리 접수, 통합됨
+  (`1c20f23`).
+- **F4**(LOW, composition `restart`가 stop-then-up이며 `--no-rollback` opt-out이 막혀 있음) +
+  **F5**(LOW, rollback 실패 진단 메시지가 계산만 되고 출력되지 않음) →
+  [TASK-298](../todo/298-fix-composition-restart-rollback-and-diagnostics-gaps.md)로 묶어 분리
+  접수, 통합됨(`5243573`).
+- **F3**(LOW, §4.4의 `--project`/`--volumes` 예문이 실제 동작과 반대로 서술됨) → 이 카드 자체의
+  텍스트 오류이므로 위 §4.4 예문을 이번 커밋에서 직접 정정했다(계약을 바꾸지 않고 예시 서술만
+  실제 구현에 맞춤).
+- **F6**(INFORMATIONAL, `dva manifest`가 composition plan을 빈 leaf plan으로 렌더링) → 안전 문제가
+  아니고 리뷰도 강하게 요구하지 않아 별도 카드를 만들지 않는다. 향후 manifest 개선 작업의 후보로만
+  기록해 둔다.
+- **F7**(TRIVIAL, `errCompositionRuntimeNotImplemented`를 가리키는 stale 주석) →
+  `internal/cli/composition_flags.go`의 해당 주석을 이번 커밋에서 직접 정정했다(동작 변경 없음).
+
+리뷰는 별도로, TASK-295(`Orchestrator.Down`이 entry 실패를 삼켜 항상 nil을 반환)가 이 계약의
+§5.2 rollback-실패 분기를 실제 production 바이너리에서는 도달 불가능하게 만든다는 점을 재확인했다
+— §5 시나리오 3 fixture는 이를 우회하는 테스트 전용 `realDownExecutor`로만 증명된다는 이미 알려진
+사실(TASK-293 completion evidence 참고)의 심각도를 재평가하라는 권고다. TASK-295는 이미 접수·통합
+되어 있으므로 이 라운드에서 추가로 만들 카드는 없다.
+
+**Sequencing 메모**: PLAN-005 구현(TASK-289~293)이 이 리뷰보다 먼저 끝났다 — 카드가 의도한 순서
+(리뷰 통과 → 구현 계획 카드 생성)가 뒤바뀌었다. 리뷰 자체의 신뢰성은 훼손되지 않았지만(계약을 먼저
+읽고 코드로 독립 검증했다), F1~F4가 "구현 전 리뷰였다면 계약 모호성으로 먼저 잡혔을 것"이라는 점은
+다음 freeze 카드의 순서 설계에 참고할 사실로 남긴다.
+
+`decision-status`는 이미 `decided`(모델 선택 자체는 §1에서 확정됨)이므로 이번 라운드에서 다시
+바꾸지 않는다. 완료기준 6의 두 하위 조항 — 독립 리뷰 획득과 별도 구현 계획 카드 생성 — 이 모두
+충족되었으므로 아래 체크박스를 체크하고 이 카드를 `done/`으로 옮긴다.
