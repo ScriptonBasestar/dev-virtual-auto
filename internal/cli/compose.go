@@ -122,6 +122,9 @@ Plan-path flags (only when a plan is being run, e.g. 'dva up <plan>'):
 		c := mustLoadConfig()
 		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionUp(c, el, planName, extraArgs)
+			}
 			return runPlanUp(c, el, planName, extraArgs)
 		}
 		// Root-owned route from here: no plan claimed the invocation, so the root's own
@@ -399,6 +402,9 @@ Plan-path flags (only when a plan is being run, e.g. 'dva down <plan>'):
 		c := mustLoadConfig()
 		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionDown(c, el, planName, extraArgs)
+			}
 			return runPlanDown(c, el, planName, extraArgs)
 		}
 		// `dva down --` ≡ `dva down`. TASK-216; the ruling and its cost are at
@@ -477,6 +483,9 @@ Plan-path flags (only when a plan is being run, e.g. 'dva stop <plan>'):
 		c := mustLoadConfig()
 		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionStop(c, el, planName, extraArgs)
+			}
 			return runPlanStop(c, el, planName, extraArgs)
 		}
 		// `dva stop --` ≡ `dva stop`. TASK-216; same ruling, same placement argument, and the
@@ -569,6 +578,9 @@ Whole-stack-path flags (rejected, not ignored, once a plan is named):
 		c := mustLoadConfig()
 		el := rootEnvLoad(c)
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionRestart(c, el, planName, extraArgs)
+			}
 			return runPlanRestart(c, el, planName, extraArgs)
 		}
 		// Root-owned route from here: no plan claimed the invocation, so the root's own
@@ -789,6 +801,9 @@ mode-aware compose passthrough: 'dva build api' still means the 'api' service.`,
 		// consumeRootPersistentFlags at this point instead; here parseDvaFlags has done that
 		// job and more, and calling both would walk the same argv twice.
 		if planName, extraArgs, ok := detectPlanRoute(c, remaining); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionBuild(c, el, planName, extraArgs)
+			}
 			return runPlanBuild(c, el, planName, extraArgs)
 		}
 		// Root-owned route from here: no plan claimed the invocation, so the root's own
@@ -875,6 +890,9 @@ compose passthrough: 'dva logs api' still means the 'api' service.`,
 			return err
 		}
 		if planName, extraArgs, ok := detectPlanRoute(c, args); ok {
+			if isCompositionPlan(c, planName) {
+				return runCompositionLogs(c, el, planName, extraArgs)
+			}
 			return runPlanLogs(c, el, planName, extraArgs)
 		}
 		// Observation, not execution: nothing reaches stdout and no compose child or

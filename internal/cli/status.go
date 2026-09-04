@@ -31,6 +31,9 @@ See USAGE.md's "named execution entry" section for status usage alongside up/dow
 		if err == nil {
 			el := rootEnvLoad(c)
 			if planName, _, ok := detectPlanRoute(c, args); ok {
+				if isCompositionPlan(c, planName) {
+					return runCompositionStatus(c, el, planName)
+				}
 				return runPlanStatus(c, el, planName)
 			}
 			// Whole-stack route: root-owned, so the root report governs. Observation does
