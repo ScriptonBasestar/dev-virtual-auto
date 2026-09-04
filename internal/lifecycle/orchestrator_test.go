@@ -370,6 +370,34 @@ func TestOrchestratorStopReturnsErrorOnEntryFailure(t *testing.T) {
 	}
 }
 
+// TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled covers TASK-300. TASK-295
+// made Orchestrator.Stop return a real error when a plugin's Stop fails, which made
+// Restart's pre-existing "if Stop fails, don't call Up" guard live. HelmPlugin.Stop
+// used to delegate straight to Down (`helm uninstall`), which errors with "release:
+// not found" for a release that was never installed — so `dva restart` on a helm
+// entry that was simply never installed short-circuited before reaching Up. With
+// HelmPlugin.Stop now treating "not installed" as a no-op success, Restart must
+// proceed through to Up instead of aborting.
+func TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled(t *testing.T) {
+	helmNotInstalledShim(t)
+
+	entries := map[string]*config.LifecycleEntry{
+		"svc": {
+			Order: 1,
+			Helm: &config.HelmPluginConfig{
+				Chart:   "bitnami/redis",
+				Release: "never-installed-release",
+			},
+		},
+	}
+
+	orch := NewOrchestrator(newTestConfig(entries), newTestEnv())
+
+	if err := orch.Restart(context.Background(), UpOptions{}); err != nil {
+		t.Fatalf("Restart should proceed to Up when the only helm entry was never installed, got: %v", err)
+	}
+}
+
 func TestStatus_SurfacesUnconstructibleEntry(t *testing.T) {
 	// An entry whose plugin cannot be constructed (DetectPlugin() == "") must still
 	// appear in the status output, marked broken — `up`/`down`/`stop` fail fast on it,

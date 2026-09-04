@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "Independent review of TASK-295 (internal/lifecycle/orchestrator.go Orchestrator.Down/Stop fix)"
 scope: "internal/lifecycle/orchestrator.go Orchestrator.Restart short-circuit behavior and internal/lifecycle/helm.go Plugin.Stop only"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -107,25 +107,22 @@ down — this card is about the not-installed/never-run edge case specifically.
 
 ## Completion Criteria
 
-- [ ] Decision recorded on which direction (a), (b), or (c) above is adopted, with
+- [x] Decision recorded on which direction (a), (b), or (c) above is adopted, with
       rationale, before any implementation change | verify: human — decision documented in
       this card's Completion evidence section
-- [ ] If (a): `HelmPlugin.Stop` returns `nil` (not an error) when the release is not
+- [x] If (a): `HelmPlugin.Stop` returns `nil` (not an error) when the release is not
       installed, verified by a new unit test that stops/downs a `HelmPlugin` pointed at a
       release name helm reports as not found | verify: `/usr/bin/grep -Eq
       '^func TestHelmPlugin_Stop_ReleaseNotInstalled\(' internal/lifecycle/helm_test.go &&
       go test ./internal/lifecycle -count=1`
-- [ ] If (a): `Orchestrator.Restart` proceeds to `Up` when the only "failure" was a helm
+- [x] If (a): `Orchestrator.Restart` proceeds to `Up` when the only "failure" was a helm
       entry that was never installed, verified against the real orchestrator (not a fake)
       | verify: `/usr/bin/grep -Eq
       '^func TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled\('
       internal/lifecycle/orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] If (b): a new test documents and locks in the current short-circuit behavior for a
-      not-installed helm entry, and the surfaced error text distinguishes "never
-      installed" from "teardown failed" | verify: `/usr/bin/grep -Eq
-      '^func TestOrchestratorRestartShortCircuitsOnHelmEntryNotInstalled\('
-      internal/lifecycle/orchestrator_test.go && go test ./internal/lifecycle -count=1`
-- [ ] Repository gates pass | verify: `make lint && make test && make test-integration &&
+- [x] (b) not applicable — (a) was adopted, so no short-circuit-locking test was written for
+      the not-installed case; see Decision Record.
+- [x] Repository gates pass | verify: `make lint && make test && make test-integration &&
       make commit-check`
 
 ## Non-goals
@@ -140,6 +137,84 @@ down — this card is about the not-installed/never-run edge case specifically.
 - Not required to implement all three options in "Recommended direction" — pick one and
   implement it; the others are documented alternatives for the decision record.
 
+## Decision Record
+
+**Adopted: (a)** — make `HelmPlugin.Stop` tolerate a not-installed release as a no-op
+success.
+
+Rationale: this is the actual false-negative in play — an operator's `dva restart` fails
+for no real reason, on an entry that was never even running yet, because
+`Orchestrator.Restart`'s `Stop`-then-`Up` short-circuit (correctly made live by TASK-295)
+cannot tell "teardown genuinely failed" apart from "there was nothing to tear down."
+`HelmPlugin` is the odd one out here: `ProcessPlugin.haltProcess`
+(`internal/lifecycle/process.go`) already treats a missing PID file — its own
+nothing-to-stop signal — as a no-op success rather than an error, so (a) does not invent a
+new idiom, it extends an idiom this codebase already committed to for exactly this class of
+problem. (b) would leave the false-negative in place and just make it easier to diagnose,
+and (c) would either narrow `Restart`'s short-circuit semantics or add best-effort-stop
+behavior scoped to one call path — a larger, more speculative change than the bug warrants.
+(a) is also the most bounded of the three: it touches one plugin method, reuses
+`HelmPlugin.Status`'s existing not-found probe (`helm status <release> -o json`, any error
+treated as not-installed) instead of inventing a second detection mechanism, and leaves
+`Orchestrator.Down`/`Stop`'s TASK-295 error-aggregation completely untouched for entries
+that are genuinely running and fail to tear down.
+
 ## Completion evidence
 
-_(fill in on completion)_
+`HelmPlugin.Stop` (`internal/lifecycle/helm.go`) now probes `releaseInstalled` — a new
+helper that runs `helm status <release> -o json` and treats any error as "not installed",
+mirroring `HelmPlugin.Status`'s existing not-found handling — before delegating to `Down`
+(`helm uninstall`). When the release is not installed (and the call is not a dry run), Stop
+returns `nil` immediately instead of surfacing helm's "release: not found" as a teardown
+failure. Dry-run calls are untouched: they still flow through `Down`'s existing
+`pctx.DryRun` branch, which logs and returns nil without touching the cluster, so
+`releaseInstalled` never shells out to real `helm status` during a dry run. A nil
+`pctx.Entry.Helm` (already-tested case) is guarded explicitly so the no-op check is skipped
+and `Down`'s own nil-config short-circuit handles it, unchanged.
+
+`Orchestrator.Restart` (`internal/lifecycle/orchestrator.go`) required no code change: its
+`Stop`-then-`Up` short-circuit is correct as-is (per this card's non-goals) — it was only
+ever wrong because `HelmPlugin.Stop` reported a false failure for the not-installed case,
+which is now fixed at the source.
+
+Both new tests use a `helmNotInstalledShim` test helper (`internal/lifecycle/helm_test.go`)
+that puts a fake `helm` executable first on `PATH` — mirroring the existing
+`installShims`/`kubectlShim` pattern in this package (`docker_daemon_test.go`,
+`internal/runner/kubectl_steps_test.go`) rather than requiring a real helm binary or
+cluster: `helm status`/`helm uninstall` exit 1 (not-found), `helm upgrade --install` exits
+0, and `PATH` is replaced (not prepended) so a real helm on the machine cannot decide the
+result.
+
+- `TestHelmPlugin_Stop_ReleaseNotInstalled` (`internal/lifecycle/helm_test.go`) — calls
+  `HelmPlugin.Stop` directly against a release the shim reports as not found and asserts it
+  returns `nil`.
+- `TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled`
+  (`internal/lifecycle/orchestrator_test.go`) — builds a real `Orchestrator` (via
+  `NewOrchestrator`, not a fake) with one helm-backed stack entry pointed at a
+  never-installed release, calls `Restart`, and asserts it returns `nil` — proving `Up` is
+  reached rather than the restart aborting after `Stop`.
+
+### Files changed
+
+- `internal/lifecycle/helm.go` — `HelmPlugin.Stop` gains the not-installed no-op check;
+  new `HelmPlugin.releaseInstalled` helper.
+- `internal/lifecycle/helm_test.go` — new `helmNotInstalledShim` helper and
+  `TestHelmPlugin_Stop_ReleaseNotInstalled`.
+- `internal/lifecycle/orchestrator_test.go` — new
+  `TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled`.
+
+### Gates
+
+All run clean in the task worktree: `make build` (generated files already up to date, no
+diff), `make lint` (0 issues), `make test` (`-race -cover ./...`, all packages `ok`,
+`internal/lifecycle` included), `make test-integration` (`ok`), `make doc-check`
+(`oversized_docs: 0`, `status_mismatches: 0`, `doc-check: OK`), `make commit-check` (`OK —
+every non-exempt subject since the baseline matches the format SSOT`). Both literal
+verify-binding commands from this card's Completion Criteria were also run directly and
+pass:
+`/usr/bin/grep -Eq '^func TestHelmPlugin_Stop_ReleaseNotInstalled\(' internal/lifecycle/helm_test.go && go test ./internal/lifecycle -count=1`
+and
+`/usr/bin/grep -Eq '^func TestOrchestratorRestartProceedsWhenHelmEntryNotInstalled\(' internal/lifecycle/orchestrator_test.go && go test ./internal/lifecycle -count=1`.
+Existing helm/orchestrator tests (including `TestHelmPlugin_Stop_NilConfig`,
+`TestHelmPlugin_DryRun_Down`, `TestOrchestratorStopReturnsErrorOnEntryFailure`,
+`TestOrchestratorDownReturnsErrorOnEntryFailure`) remain unaffected.

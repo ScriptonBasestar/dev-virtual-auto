@@ -77,8 +77,28 @@ func (p *HelmPlugin) Down(ctx context.Context, pctx *PluginContext) error {
 }
 
 func (p *HelmPlugin) Stop(ctx context.Context, pctx *PluginContext) error {
-	// Helm has no graceful stop; delegate to Down (uninstall).
+	// Helm has no graceful stop; delegate to Down (uninstall). But a release
+	// that was never installed (first-ever restart, or a manual `helm
+	// uninstall` outside dva) has nothing to tear down — mirror
+	// ProcessPlugin.haltProcess's no-op-on-nothing-to-stop pattern for a
+	// missing PID file, rather than surfacing helm's "release: not found" as
+	// a teardown failure. DryRun keeps going through Down, which already
+	// no-ops (and logs) without touching the cluster.
+	if pctx.Entry.Helm != nil && !pctx.DryRun && !p.releaseInstalled(pctx) {
+		return nil
+	}
 	return p.Down(ctx, pctx)
+}
+
+// releaseInstalled reports whether helm currently knows about the release,
+// probing with `helm status` and treating any error the same way Status does:
+// as "not found".
+func (p *HelmPlugin) releaseInstalled(pctx *PluginContext) bool {
+	cfg := pctx.Entry.Helm
+	statusArgs := []string{"status", cfg.Release, "-o", "json"}
+	cmd, cmdArgs := p.buildArgs(pctx, statusArgs)
+	_, err := exec.Command(cmd, cmdArgs...).Output()
+	return err == nil
 }
 
 func (p *HelmPlugin) Status(ctx context.Context, pctx *PluginContext) ([]ServiceStatus, error) {
