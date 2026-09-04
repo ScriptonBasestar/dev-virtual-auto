@@ -187,45 +187,243 @@ func validateCompositionFlagScope(comp *lifecycle.CompositionPlan, planName, ver
 	return flags, nil
 }
 
-// errCompositionRuntimeNotImplemented is returned by the destructive/state-changing verbs
-// (up/down/stop/restart) once flag scope has validated cleanly. TASK-292's scope is CLI-layer
-// flag enforcement and aggregate read-only/build output only (see the task card's non-goals);
-// the sequential wave execution and LIFO rollback orchestrator that would actually run these
-// verbs across composed children is TASK-291, tracked separately and not yet available. No
-// child is started on this path — validateCompositionFlagScope already refused before this
-// point if anything was out of scope.
-func errCompositionRuntimeNotImplemented(planName, verb string) error {
-	return fmt.Errorf("composition plan %q: %s is not yet implemented — flag scope was validated and no composed child was started; the composition execution runtime lands in TASK-291", planName, verb)
+// compositionChildEnvironment resolves each composed child's owning config/environment the same
+// way queryCompositionChildStatus already does, so lifecycle.PlanChildExecutor can build a
+// per-child *lifecycle.Orchestrator without this file re-deriving that resolution logic.
+func compositionChildEnvironment(c *config.Config, el *envLoad) func(child *lifecycle.ExecutionPlan) (*config.Config, *config.Environment, error) {
+	return func(child *lifecycle.ExecutionPlan) (*config.Config, *config.Environment, error) {
+		runtime, err := resolvePlanRuntime(c, el, child.Name, nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		if runtime.report.Incomplete() {
+			return nil, nil, fmt.Errorf("environment inputs incomplete for %q", child.Name)
+		}
+		return runtime.config, runtime.env, nil
+	}
 }
 
-// runCompositionLifecycleStub resolves and flag-validates a composition invocation for one of
-// the state-changing verbs, then reports the TASK-291 gap. Shared by up/down/stop/restart so
-// the four call sites cannot drift on what gets validated before the stub error.
-func runCompositionLifecycleStub(c *config.Config, planName, verb string, extraArgs []string) error {
+// compositionExecutor implements lifecycle.CompositionChildExecutor by delegating to
+// lifecycle.PlanChildExecutor per child, applying --force to only the --project-scoped child
+// (TASK-260 §4.4: force is require-explicit-scope, not propagate-to-all — but
+// lifecycle.PlanChildExecutor.Force is a single flat bool covering every child it touches, so
+// this wraps two instances and picks between them by child name instead of widening the frozen
+// orchestrator's executor interface).
+type compositionExecutor struct {
+	forced     *lifecycle.PlanChildExecutor
+	unforced   *lifecycle.PlanChildExecutor
+	forceChild string
+}
+
+// newCompositionExecutor never sets PlanChildExecutor.DryRun: --dry-run has no case in
+// validateCompositionFlagScope's switch, so it is already rejected by the default case before
+// any of these run — composition dry-run is out of TASK-260's frozen scope, not a gap.
+func newCompositionExecutor(c *config.Config, el *envLoad, forceChild string) *compositionExecutor {
+	env := compositionChildEnvironment(c, el)
+	return &compositionExecutor{
+		forced:     &lifecycle.PlanChildExecutor{Environment: env, Force: true},
+		unforced:   &lifecycle.PlanChildExecutor{Environment: env, Force: false},
+		forceChild: forceChild,
+	}
+}
+
+func (e *compositionExecutor) pick(child *lifecycle.ExecutionPlan) *lifecycle.PlanChildExecutor {
+	if e.forceChild != "" && child.Name == e.forceChild {
+		return e.forced
+	}
+	return e.unforced
+}
+
+func (e *compositionExecutor) Up(ctx context.Context, child *lifecycle.ExecutionPlan) error {
+	return e.pick(child).Up(ctx, child)
+}
+
+func (e *compositionExecutor) WaitReady(ctx context.Context, child *lifecycle.ExecutionPlan) error {
+	return e.pick(child).WaitReady(ctx, child)
+}
+
+func (e *compositionExecutor) Down(ctx context.Context, child *lifecycle.ExecutionPlan, opts lifecycle.ChildDownOptions) error {
+	return e.pick(child).Down(ctx, child, opts)
+}
+
+func (e *compositionExecutor) Stop(ctx context.Context, child *lifecycle.ExecutionPlan) error {
+	return e.pick(child).Stop(ctx, child)
+}
+
+func (e *compositionExecutor) IsUp(ctx context.Context, child *lifecycle.ExecutionPlan) (bool, error) {
+	return e.pick(child).IsUp(ctx, child)
+}
+
+// scopedChildName returns the --project-scoped child's full name ("api/deploy"), or "" when
+// the invocation carried no destructive scope.
+func scopedChildName(flags compositionFlags) string {
+	if flags.scopedChild == nil {
+		return ""
+	}
+	return flags.scopedChild.ChildPlan.Name
+}
+
+// compositionDestructiveOptions builds the per-child down options a --project-scoped
+// destructive flag applies to (TASK-260 §4.4's worked example: "api/deploy만 volume까지
+// 제거하고 web/deploy는 건드리지 않는다" — only the named child's ChildDownOptions carries
+// Volumes/RemoveImages; every other child that comes down in the same call gets the zero
+// value). --purge implies volume removal in addition to image removal, matching the
+// single-plan path's `Volumes: flags.volumes || flags.purge` (plan_lifecycle.go).
+func compositionDestructiveOptions(flags compositionFlags) map[string]lifecycle.ChildDownOptions {
+	if flags.scopedChild == nil {
+		return nil
+	}
+	return map[string]lifecycle.ChildDownOptions{
+		flags.scopedChild.ChildPlan.Name: {
+			Volumes:      flags.volumes || flags.purge,
+			RemoveImages: flags.purge,
+		},
+	}
+}
+
+// renderCompositionReport prints a *lifecycle.CompositionReport the same way runCompositionStatus
+// renders compositionStatusReport (§5.3's shape, plus dva_version) for --json, or a text summary
+// for the human path. It always returns runErr unchanged — TASK-260 §5.6's flat 0/1 mapping
+// comes from *that* error, not from anything rendering could fail on.
+func renderCompositionReport(report *lifecycle.CompositionReport, runErr error) error {
+	if report == nil {
+		return runErr
+	}
+	if jsonOutput {
+		doc := report.Map()
+		doc["dva_version"] = config.Version
+		if err := output.PrintJSON(doc); err != nil && runErr == nil {
+			return err
+		}
+	} else {
+		printCompositionReportText(report)
+	}
+	return runErr
+}
+
+func printCompositionReportText(report *lifecycle.CompositionReport) {
+	fmt.Printf("Composition plan: %s (dva v%s)\n", report.Plan, config.Version)
+	for _, child := range report.Children {
+		fmt.Printf("\n  [%s] %s (wave %d): %s\n", child.Project, child.Plan, child.Wave, child.State)
+		if child.Error != "" {
+			fmt.Printf("    error: %s\n", child.Error)
+		}
+	}
+	if len(report.Rollback.Attempted) > 0 {
+		fmt.Printf("\nrollback: attempted=%s succeeded=%s failed=%s\n",
+			strings.Join(report.Rollback.Attempted, ", "),
+			strings.Join(report.Rollback.Succeeded, ", "),
+			strings.Join(report.Rollback.Failed, ", "))
+	}
+	fmt.Printf("\noutcome: %s\n", report.Outcome)
+	if report.Error != "" {
+		fmt.Printf("error: %s\n", report.Error)
+	}
+}
+
+func runCompositionUp(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
 	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
 	if err != nil {
 		return err
 	}
-	if _, err := validateCompositionFlagScope(comp, planName, verb, extraArgs); err != nil {
+	flags, err := validateCompositionFlagScope(comp, planName, "up", extraArgs)
+	if err != nil {
 		return err
 	}
-	return errCompositionRuntimeNotImplemented(planName, verb)
+
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, scopedChildName(flags)))
+	if err != nil {
+		return err
+	}
+	report, runErr := orch.Up(context.Background(), lifecycle.CompositionUpOptions{
+		NoWait:     flags.noWait,
+		NoRollback: flags.noRollback,
+	})
+	return renderCompositionReport(report, runErr)
 }
 
-func runCompositionUp(c *config.Config, _ *envLoad, planName string, extraArgs []string) error {
-	return runCompositionLifecycleStub(c, planName, "up", extraArgs)
+func runCompositionDown(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
+	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
+	if err != nil {
+		return err
+	}
+	flags, err := validateCompositionFlagScope(comp, planName, "down", extraArgs)
+	if err != nil {
+		return err
+	}
+
+	// Mirrors runPlanDown (plan_lifecycle.go): only --purge prompts, matching --force's role
+	// as the single waiver both paths recognize. --volumes alone tears down without a prompt
+	// on the single-plan path today too — this is not a new asymmetry TASK-292 introduces.
+	if flags.purge && !flags.force {
+		proceed, err := confirmDestruction(fmt.Sprintf("dva down %s --project %s --purge", planName, scopedChildName(flags)), true, true)
+		if err != nil {
+			return err
+		}
+		if !proceed {
+			return nil
+		}
+	}
+
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, scopedChildName(flags)))
+	if err != nil {
+		return err
+	}
+	report, runErr := orch.Down(context.Background(), lifecycle.CompositionDownOptions{
+		Destructive: compositionDestructiveOptions(flags),
+	})
+	return renderCompositionReport(report, runErr)
 }
 
-func runCompositionDown(c *config.Config, _ *envLoad, planName string, extraArgs []string) error {
-	return runCompositionLifecycleStub(c, planName, "down", extraArgs)
+func runCompositionStop(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
+	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
+	if err != nil {
+		return err
+	}
+	flags, err := validateCompositionFlagScope(comp, planName, "stop", extraArgs)
+	if err != nil {
+		return err
+	}
+
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, scopedChildName(flags)))
+	if err != nil {
+		return err
+	}
+	report, runErr := orch.Stop(context.Background())
+	return renderCompositionReport(report, runErr)
 }
 
-func runCompositionStop(c *config.Config, _ *envLoad, planName string, extraArgs []string) error {
-	return runCompositionLifecycleStub(c, planName, "stop", extraArgs)
-}
+// runCompositionRestart stops then brings the composition back up, mirroring
+// lifecycle.Orchestrator.Restart's own stop-then-up pattern at the single-plan level:
+// lifecycle.CompositionOrchestrator has no Restart of its own — TASK-291's frozen surface is
+// Up/Down/Stop/Status only (composition_orchestrator.go; not to be widened here). A failed
+// stop returns immediately without attempting the up half, the same short-circuit
+// lifecycle.Orchestrator.Restart uses for a single plan.
+func runCompositionRestart(c *config.Config, el *envLoad, planName string, extraArgs []string) error {
+	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
+	if err != nil {
+		return err
+	}
+	flags, err := validateCompositionFlagScope(comp, planName, "restart", extraArgs)
+	if err != nil {
+		return err
+	}
 
-func runCompositionRestart(c *config.Config, _ *envLoad, planName string, extraArgs []string) error {
-	return runCompositionLifecycleStub(c, planName, "restart", extraArgs)
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, scopedChildName(flags)))
+	if err != nil {
+		return err
+	}
+
+	stopReport, stopErr := orch.Stop(context.Background())
+	if stopErr != nil {
+		return renderCompositionReport(stopReport, stopErr)
+	}
+
+	upReport, upErr := orch.Up(context.Background(), lifecycle.CompositionUpOptions{
+		NoWait:     flags.noWait,
+		NoRollback: flags.noRollback,
+	})
+	return renderCompositionReport(upReport, upErr)
 }
 
 // runCompositionBuild builds every composed child in wave order (§4.3: same order as up, no

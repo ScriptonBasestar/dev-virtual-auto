@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -57,8 +58,8 @@ func compositionFixture(t *testing.T) (*config.Config, *lifecycle.CompositionPla
 
 // TestCompositionPropagateAllFlags proves --no-wait and --no-rollback pass validation
 // unchanged (propagate-to-all, TASK-260 §4.4) on every lifecycle verb where they apply, and
-// that a composition invocation carrying only these flags reaches the TASK-291 stub rather
-// than being rejected as an unsupported or out-of-scope flag.
+// that a composition invocation carrying only these flags reaches real orchestrator
+// execution rather than being rejected as an unsupported or out-of-scope flag.
 func TestCompositionPropagateAllFlags(t *testing.T) {
 	_, comp := compositionFixture(t)
 
@@ -97,14 +98,12 @@ func TestCompositionPropagateAllFlags(t *testing.T) {
 		}
 	})
 
-	t.Run("both flags together reach the TASK-291 stub, not a flag rejection", func(t *testing.T) {
-		el := planEnv(config.NewEnvironment(nil, "", ""))
-		err := runCompositionUp(compositionFixtureConfigLoaded(t), el, "release", []string{"--no-wait", "--no-rollback"})
-		if err == nil {
-			t.Fatal("expected the TASK-291 not-implemented stub error, got nil")
-		}
-		if !strings.Contains(err.Error(), "TASK-291") {
-			t.Fatalf("error = %q, want it to name the TASK-291 gap (proves flags propagated through validation instead of being rejected)", err)
+	t.Run("both flags together pass validation and reach real execution, not a flag rejection", func(t *testing.T) {
+		c := compositionFixtureConfigLoaded(t)
+		el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+		err := runCompositionUp(c, el, "release", []string{"--no-wait", "--no-rollback"})
+		if err != nil && (strings.Contains(err.Error(), "unsupported flag") || strings.Contains(err.Error(), "does not accept")) {
+			t.Fatalf("expected --no-wait/--no-rollback to pass validation and reach real execution, got a flag-scope rejection: %v", err)
 		}
 	})
 }
@@ -387,7 +386,12 @@ func TestCompositionExitCodesStayFlat(t *testing.T) {
 	if _, err := validateCompositionFlagScope(comp, "release", "down", []string{"--purge", "--project", "no-such"}); err != nil {
 		errs = append(errs, err)
 	}
-	if err := runCompositionUp(c, el, "release", nil); err != nil {
+	// A rejected flag, not nil: since the orchestrator wiring landed, nil extraArgs would
+	// make this attempt real execution against the native "true" fixture instead of
+	// exercising a deterministic error path — --tag is rejected before any child starts
+	// regardless, keeping this case about runCompositionUp's error type, not its runtime
+	// outcome.
+	if err := runCompositionUp(c, el, "release", []string{"--tag", "x"}); err != nil {
 		errs = append(errs, err)
 	}
 	if err := runCompositionDown(c, el, "release", []string{"--mode", "dev"}); err != nil {
@@ -402,4 +406,223 @@ func TestCompositionExitCodesStayFlat(t *testing.T) {
 			t.Errorf("case %d: error %v carries a custom ExitCode() — composition must stay on the flat os.Exit(1) convention", i, err)
 		}
 	}
+}
+
+// compositionProcessFixtureConfig composes two long-lived native/process children so a real
+// `down` after `up` has something to observably tear down: teardown's IsUp check
+// (composition_orchestrator.go's teardown) only reports a child up while its process is
+// actually alive (ProcessPlugin.Status backed by a live PID), unlike the script runner
+// (fire-and-forget, Status always empty — see lifecycle.ScriptPlugin.Status) or a command
+// that exits immediately (this same package's compositionFixtureConfig's `run: "true"`,
+// which is gone from its pidfile by the time a follow-up down would query it).
+const compositionProcessFixtureConfig = `version: "0.1.0"
+stack:
+  svc-a:
+    default_runner: native
+    runners:
+      native:
+        run: sleep 999
+  svc-b:
+    default_runner: native
+    runners:
+      native:
+        run: sleep 999
+plans:
+  a-plan:
+    entries:
+      - name: svc-a
+  b-plan:
+    entries:
+      - name: svc-b
+  release:
+    composes:
+      - plan: a-plan
+        order: 0
+      - plan: b-plan
+        order: 1
+        depends_on: ["a-plan"]
+`
+
+// killLeftoverCompositionProcess is a t.Cleanup safety net for compositionProcessFixtureConfig
+// tests: it best-effort kills whatever a pid file still names, in case the test fails before
+// its own runCompositionDown call reaps the background `sleep 999`.
+func killLeftoverCompositionProcess(t *testing.T, fileDir, name string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(fileDir, config.DotDirName, config.PidsDirName, name+".pid"))
+	if err != nil {
+		return
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		return
+	}
+	if proc, err := os.FindProcess(pid); err == nil {
+		_ = proc.Kill()
+	}
+}
+
+// TestCompositionUpDownExecuteRealOrchestrator proves up/down on a composition plan now run
+// TASK-291's real orchestrator instead of the former TASK-291-not-implemented stub: up starts
+// every composed child in wave order (observable via a live PID file per child), and down
+// actually tears every up child down (PID files removed), not just validates flags and
+// returns a canned error.
+func TestCompositionUpDownExecuteRealOrchestrator(t *testing.T) {
+	c := loadTestConfig(t, compositionProcessFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+	pidPath := func(name string) string {
+		return filepath.Join(c.FileDir(), config.DotDirName, config.PidsDirName, name+".pid")
+	}
+	t.Cleanup(func() {
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-a")
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-b")
+	})
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp: %v", err)
+	}
+	for _, name := range []string{"svc-a", "svc-b"} {
+		if _, err := os.Stat(pidPath(name)); err != nil {
+			t.Fatalf("expected %s to have a pid file after up: %v", name, err)
+		}
+	}
+
+	// --project a-plan scopes which child's teardown is destructive (TASK-260 §4.4's worked
+	// example), not which children come down: composition_orchestrator.go's teardown walks
+	// every up child in LIFO order regardless of scope. Both children are expected to be torn
+	// down here — compositionDestructiveOptions (unit-tested below) is what actually proves
+	// the scoping itself.
+	if err := runCompositionDown(c, el, "release", []string{"--purge", "--project", "a-plan", "--force"}); err != nil {
+		t.Fatalf("runCompositionDown: %v", err)
+	}
+	for _, name := range []string{"svc-a", "svc-b"} {
+		if _, err := os.Stat(pidPath(name)); !os.IsNotExist(err) {
+			t.Fatalf("expected %s's pid file to be removed after down, stat err = %v", name, err)
+		}
+	}
+}
+
+// TestCompositionDestructiveOptionsScopePerChild unit-tests compositionDestructiveOptions
+// directly: TASK-260 §4.4's worked example ("api/deploy만 volume까지 제거하고 web/deploy는
+// 건드리지 않는다") requires that only the --project-scoped child's ChildDownOptions carries
+// Volumes/RemoveImages — every other composed child that comes down in the same call must get
+// the zero value. This is the part of "--project scoping" that composition_orchestrator.go's
+// frozen teardown actually leaves to the caller to narrow; which children are torn down at all
+// is not scoped (see TestCompositionUpDownExecuteRealOrchestrator).
+func TestCompositionDestructiveOptionsScopePerChild(t *testing.T) {
+	_, comp := compositionFixture(t)
+
+	t.Run("no scope means no destructive options for anyone", func(t *testing.T) {
+		flags, err := validateCompositionFlagScope(comp, "release", "down", nil)
+		if err != nil {
+			t.Fatalf("validateCompositionFlagScope: %v", err)
+		}
+		if got := compositionDestructiveOptions(flags); got != nil {
+			t.Fatalf("compositionDestructiveOptions = %v, want nil", got)
+		}
+	})
+
+	t.Run("--volumes --project a-plan scopes only a-plan", func(t *testing.T) {
+		flags, err := validateCompositionFlagScope(comp, "release", "down", []string{"--volumes", "--project", "a-plan"})
+		if err != nil {
+			t.Fatalf("validateCompositionFlagScope: %v", err)
+		}
+		got := compositionDestructiveOptions(flags)
+		want := map[string]lifecycle.ChildDownOptions{"a-plan": {Volumes: true, RemoveImages: false}}
+		if len(got) != len(want) || got["a-plan"] != want["a-plan"] {
+			t.Fatalf("compositionDestructiveOptions = %+v, want %+v", got, want)
+		}
+		if _, ok := got["b-plan"]; ok {
+			t.Fatalf("compositionDestructiveOptions scoped b-plan too: %+v", got)
+		}
+	})
+
+	t.Run("--purge implies both volumes and image removal for the scoped child only", func(t *testing.T) {
+		flags, err := validateCompositionFlagScope(comp, "release", "down", []string{"--purge", "--project", "b-plan"})
+		if err != nil {
+			t.Fatalf("validateCompositionFlagScope: %v", err)
+		}
+		got := compositionDestructiveOptions(flags)
+		want := map[string]lifecycle.ChildDownOptions{"b-plan": {Volumes: true, RemoveImages: true}}
+		if len(got) != len(want) || got["b-plan"] != want["b-plan"] {
+			t.Fatalf("compositionDestructiveOptions = %+v, want %+v", got, want)
+		}
+		if _, ok := got["a-plan"]; ok {
+			t.Fatalf("compositionDestructiveOptions scoped a-plan too: %+v", got)
+		}
+	})
+}
+
+// compositionRollbackFixtureConfig composes a child that always succeeds (svc-good, wave 0)
+// ahead of one that always fails (svc-bad, wave 1), so composition up is guaranteed to fail
+// after svc-good has already come up — the scenario TASK-260 §5.1's automatic LIFO rollback
+// (and --no-rollback's opt-out, §4.4) exists for. Both use the script runner: the rollback
+// path (CompositionOrchestrator.Up's failure branch) calls exec.Down unconditionally for every
+// succeeded child, with no IsUp gate — unlike the teardown path a real `down` walks — so a
+// fire-and-forget down script is enough to observe it, without a long-lived process.
+const compositionRollbackFixtureConfig = `version: "0.1.0"
+stack:
+  svc-good:
+    default_runner: script
+    runners:
+      script:
+        up: touch up-good
+        down: echo good >> rollback-order
+  svc-bad:
+    default_runner: script
+    runners:
+      script:
+        up: exit 1
+plans:
+  good-plan:
+    entries:
+      - name: svc-good
+  bad-plan:
+    entries:
+      - name: svc-bad
+  release:
+    composes:
+      - plan: good-plan
+        order: 0
+      - plan: bad-plan
+        order: 1
+        depends_on: ["good-plan"]
+`
+
+// TestCompositionUpRollbackAndNoRollback proves composition up's automatic LIFO rollback rolls
+// back an already-succeeded child on a later child's failure by default, that --no-rollback
+// leaves it up instead (TASK-260 §4.4, §5.1), and that both outcomes report as a plain error
+// (exit code reflects Outcome == "failed", TASK-260 §5.6 — no new exit-code taxonomy).
+func TestCompositionUpRollbackAndNoRollback(t *testing.T) {
+	t.Run("default rolls back the already-succeeded child", func(t *testing.T) {
+		c := loadTestConfig(t, compositionRollbackFixtureConfig)
+		el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+		err := runCompositionUp(c, el, "release", nil)
+		if err == nil {
+			t.Fatal("expected up to fail: svc-bad always fails")
+		}
+		data, readErr := os.ReadFile(filepath.Join(c.FileDir(), "rollback-order"))
+		if readErr != nil {
+			t.Fatalf("expected svc-good's rollback down to have run: %v", readErr)
+		}
+		if !strings.Contains(string(data), "good") {
+			t.Fatalf("rollback-order = %q, want it to record svc-good's rollback", data)
+		}
+	})
+
+	t.Run("--no-rollback leaves the already-succeeded child up", func(t *testing.T) {
+		c := loadTestConfig(t, compositionRollbackFixtureConfig)
+		el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+
+		err := runCompositionUp(c, el, "release", []string{"--no-rollback"})
+		if err == nil {
+			t.Fatal("expected up to fail: svc-bad always fails")
+		}
+		if _, statErr := os.Stat(filepath.Join(c.FileDir(), "rollback-order")); !os.IsNotExist(statErr) {
+			t.Fatalf("--no-rollback must not roll back svc-good, but rollback-order exists (stat err = %v)", statErr)
+		}
+		if _, statErr := os.Stat(filepath.Join(c.FileDir(), "up-good")); statErr != nil {
+			t.Fatalf("expected svc-good's up marker to still be present under --no-rollback: %v", statErr)
+		}
+	})
 }
