@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{scripton-dashboard,gzh-cli,flow-station,mansero,lottomaster,scripton-code}.md — TASK-249 evidence"
+source: "docs/dogfood/{scripton-dashboard,gzh-cli,flow-station,mansero,lottomaster,scripton-code}.md — TASK-249 evidence"
 status: todo
 ---
 

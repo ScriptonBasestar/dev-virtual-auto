@@ -6,7 +6,7 @@ priority: P0
 effort: S
 exec-tier: strong
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/gorisa.md (dogfood sweep 2026-09-05)"
+source: "docs/dogfood/gorisa.md (dogfood sweep 2026-09-05)"
 status: done
 ---
 
@@ -19,7 +19,7 @@ matdosa, primeno1, funbricks-elemhant에도 같은 패턴이 잠복.
 
 ## Evidence
 
-- reports/gorisa.md 의 재현 근거 참조 (dva 0.1.48).
+- docs/dogfood/gorisa.md 의 재현 근거 참조 (dva 0.1.48).
 - 재현 픽스처를 먼저 작성해 실패를 확인한 뒤 수정할 것.
 
 ## Completion Criteria
@@ -35,7 +35,7 @@ matdosa, primeno1, funbricks-elemhant에도 같은 패턴이 잠복.
 matched only `${POSTGRES_USER` and the replacement left `:-gorisa}` in place. A *set* variable
 therefore produced `gorisa:-gorisa}`; an unset one left the whole reference literal, which the
 shell then expanded correctly — exactly the "hides on a clean machine, bites once .env exists"
-pattern reports/gorisa.md describes.
+pattern docs/dogfood/gorisa.md describes.
 
 **Fix.** Replaced the regex with a small scanner (`interpolateWith` / `parseBracedRef`) that
 handles `$VAR`, `${VAR}`, `${VAR:-default}` (unset or empty → default) and `${VAR-default}`

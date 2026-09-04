@@ -6,7 +6,7 @@ priority: P1
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{primeno1,sigdock-idp,sadawiki}.md"
+source: "docs/dogfood/{primeno1,sigdock-idp,sadawiki}.md"
 status: done
 ---
 

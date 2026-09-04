@@ -6,7 +6,7 @@ priority: P3
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{flow-knowchain,flow-pipechain,flow-observechain,dripter}.md"
+source: "docs/dogfood/{flow-knowchain,flow-pipechain,flow-observechain,dripter}.md"
 status: done
 ---
 

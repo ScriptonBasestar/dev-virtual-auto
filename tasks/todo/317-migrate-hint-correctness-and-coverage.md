@@ -6,7 +6,7 @@ priority: P1
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{sadawiki,sigdock-idp,scripton-signalhub,familybook,primeno1,scripton-gitrump,scripton-db-orchestrator}.md"
+source: "docs/dogfood/{sadawiki,sigdock-idp,scripton-signalhub,familybook,primeno1,scripton-gitrump,scripton-db-orchestrator}.md"
 status: todo
 ---
 

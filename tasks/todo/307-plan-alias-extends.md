@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{cwrapper,dripter,scripton-nd-stack,gizzahub,matdosa}.md"
+source: "docs/dogfood/{cwrapper,dripter,scripton-nd-stack,gizzahub,matdosa}.md"
 status: todo
 needs-human: true
 ---

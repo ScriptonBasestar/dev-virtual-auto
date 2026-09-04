@@ -6,7 +6,7 @@ priority: P1
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/familybook.md (dogfood sweep 2026-09-05)"
+source: "docs/dogfood/familybook.md (dogfood sweep 2026-09-05)"
 status: done
 ---
 

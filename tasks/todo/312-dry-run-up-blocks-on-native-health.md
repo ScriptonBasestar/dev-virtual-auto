@@ -6,7 +6,7 @@ priority: P1
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{scripton-db-orchestrator,scripton-dns-bridge}.md"
+source: "docs/dogfood/{scripton-db-orchestrator,scripton-dns-bridge}.md"
 status: todo
 ---
 

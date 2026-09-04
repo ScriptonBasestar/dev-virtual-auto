@@ -6,7 +6,7 @@ priority: P2
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{flow-knowchain,scripton-db-orchestrator}.md"
+source: "docs/dogfood/{flow-knowchain,scripton-db-orchestrator}.md"
 status: todo
 ---
 

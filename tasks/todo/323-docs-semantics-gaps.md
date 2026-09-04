@@ -6,7 +6,7 @@ priority: P3
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{gorisa,funbricks-postkit,scripton-nd-stack,matdosa,scripton-db-orchestrator}.md"
+source: "docs/dogfood/{gorisa,funbricks-postkit,scripton-nd-stack,matdosa,scripton-db-orchestrator}.md"
 status: todo
 ---
 
@@ -24,3 +24,4 @@ status: todo
 ## Completion Criteria
 
 - [ ] 각 항목 docs/USAGE 반영, `make generate` 갱신 | verify: `make generate && git diff --stat`
+- (2026-09-05 추가) `endpoints.*.url`/`source`는 `${VAR}`/`${VAR:-default}`를 치환하지 않는다(`dva show`에 원문 출력, internal/cli/endpoints.go는 ep.URL을 그대로 사용). 문서화하거나 치환을 지원해야 한다 — devbox 3곳(sigdock-pass, matdosa, notifire)이 이 때문에 리터럴 포트를 중복 선언 중.

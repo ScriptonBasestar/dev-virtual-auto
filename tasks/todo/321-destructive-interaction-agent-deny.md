@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/scripton-nd-stack.md"
+source: "docs/dogfood/scripton-nd-stack.md"
 status: todo
 needs-human: true
 ---

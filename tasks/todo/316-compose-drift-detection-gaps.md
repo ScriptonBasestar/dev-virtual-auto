@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{gizzahub,sigdock-pass,sigdock-idp,primeno1,flow-knowchain}.md"
+source: "docs/dogfood/{gizzahub,sigdock-pass,sigdock-idp,primeno1,flow-knowchain}.md"
 status: todo
 ---
 

@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{flow-knowchain,scripton-dns-bridge,sigdock-idp,sadawiki}.md"
+source: "docs/dogfood/{flow-knowchain,scripton-dns-bridge,sigdock-idp,sadawiki}.md"
 status: todo
 ---
 

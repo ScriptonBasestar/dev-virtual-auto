@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{gizzahub,matdosa,funbricks-postkit,funbricks-notifire,flow-knowchain,gorisa,sigdock-pass}.md"
+source: "docs/dogfood/{gizzahub,matdosa,funbricks-postkit,funbricks-notifire,flow-knowchain,gorisa,sigdock-pass}.md"
 status: done
 ---
 

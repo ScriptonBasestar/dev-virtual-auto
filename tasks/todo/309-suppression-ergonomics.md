@@ -6,7 +6,7 @@ priority: P3
 effort: M
 exec-tier: standard
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{dripter,flow-taskchain,flow-knowchain}.md"
+source: "docs/dogfood/{dripter,flow-taskchain,flow-knowchain}.md"
 status: todo
 needs-human: true
 ---

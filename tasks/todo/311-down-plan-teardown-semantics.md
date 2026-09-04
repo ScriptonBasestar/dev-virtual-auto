@@ -6,7 +6,7 @@ priority: P1
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{sadawiki,scripton-signalhub,scripton-db-orchestrator,scripton-dns-bridge}.md (dogfood 2026-09-05)"
+source: "docs/dogfood/{sadawiki,scripton-signalhub,scripton-db-orchestrator,scripton-dns-bridge}.md (dogfood 2026-09-05)"
 status: todo
 ---
 

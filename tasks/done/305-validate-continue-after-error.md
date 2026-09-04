@@ -6,7 +6,7 @@ priority: P1
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T09:00:00+09:00
-source: "reports/{familybook,flow-agent-mesh,sadawiki,scripton-signalhub,primeno1}.md"
+source: "docs/dogfood/{familybook,flow-agent-mesh,sadawiki,scripton-signalhub,primeno1}.md"
 status: done
 ---
 

@@ -6,7 +6,7 @@ priority: P2
 effort: M
 exec-tier: strong
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{dripter,scripton-db-orchestrator,primeno1,funbricks-postkit}.md"
+source: "docs/dogfood/{dripter,scripton-db-orchestrator,primeno1,funbricks-postkit}.md"
 status: todo
 needs-human: true
 ---

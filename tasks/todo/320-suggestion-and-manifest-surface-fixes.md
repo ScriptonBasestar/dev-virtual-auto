@@ -6,7 +6,7 @@ priority: P3
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{flow-pipechain,dripter,scripton-nd-stack,funbricks-elemhant}.md"
+source: "docs/dogfood/{flow-pipechain,dripter,scripton-nd-stack,funbricks-elemhant}.md"
 status: todo
 ---
 

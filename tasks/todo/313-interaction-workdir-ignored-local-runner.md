@@ -6,7 +6,7 @@ priority: P1
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/{funbricks-notifire,dripter}.md"
+source: "docs/dogfood/{funbricks-notifire,dripter}.md"
 status: todo
 ---
 

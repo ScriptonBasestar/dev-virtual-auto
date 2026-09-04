@@ -6,7 +6,7 @@ priority: P3
 effort: S
 exec-tier: standard
 created-at: 2026-09-05T10:30:00+09:00
-source: "reports/scripton-db-orchestrator.md"
+source: "docs/dogfood/scripton-db-orchestrator.md"
 status: todo
 ---
 
