@@ -28,3 +28,10 @@ SOUL.md의 선언 단순성 원칙과 대조해 스펙 문서(docs/)부터 작�
 - [ ] 설계 문서 작성 및 승인 | verify: human
 - [ ] 구현 + 순환 참조/미정의 참조 에러 테스트 | verify: `make test`
 - [ ] nd-stack 설정을 alias로 재작성한 예시가 validate 통과 | verify: human — 출력 첨부
+
+## Dogfood evidence (2026-09-05 실행)
+
+- overlay 엔트리 재사용 부재: base+overlay 엔트리를 plan에서 조합하면 TASK-288 경고(validate_warnings.go:893)로 거부되어
+  overlay마다 base 서비스/태그를 재선언해야 함 (primeno1 observability/tracing). 후보: 엔트리 `extends:` 또는 PlanEntry `overlays:`.
+- `plans.<name>.composes`(TASK-260)는 composition plan이 자체 entries를 못 가져 "infra + 추가 서비스"에 못 씀 (dns-bridge: postgres/redis가 8개 plan에 반복).
+- plan 경로에서 `--env` 거부 → "같은 plan, 다른 env" 표현 수단 없음 (matdosa).

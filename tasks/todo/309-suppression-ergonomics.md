@@ -30,3 +30,8 @@ ignore 수단은 침묵 남용으로 이어질 수 있어 설계 검토 필요.
 - [ ] 설계 결정 기록 | verify: human
 - [ ] 구현 + 테스트 | verify: `make test`
 - [ ] dripter/flow-taskchain의 ignore 목록이 유의미하게 축약된 예시 | verify: human
+
+## Dogfood evidence (2026-09-05 실행)
+
+- 의도적 미등록 overlay(test/prod/e2e 픽스처)로 상주 drift warning: flow-knowchain(3), sigdock-idp, familybook(5), db-orchestrator(2). `drift_ignore` 류 선언 필요.
+- suggestion_ignore 규모: gizzahub 184, familybook 194, db-orchestrator ~85(glob), flow-agent-mesh 8패턴으로 정리 사례. 감지 결함은 TASK-316.

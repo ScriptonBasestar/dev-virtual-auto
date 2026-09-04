@@ -64,3 +64,10 @@ plans) was previewed with `bin/dva config migrate <dir>`: rc 0, all 6 modes conv
 `default_mode: full → default_plan: full`; `Left for you` empty. The previewed YAML was
 saved to a scratch dir and `dva validate` loaded it as plans; the only remaining hard error
 is the pre-existing `interaction.clean` hook, which this converter leaves by design.
+
+## Dogfood evidence (2026-09-05 실행)
+
+- 4/4 legacy 프로젝트(sadawiki, signalhub, sigdock-idp, familybook)에서 migrate가 modes를 전혀 변환하지 않았고 전부 수동 전환됨.
+- `modes.*.stack` → plan entries는 1:1 매핑(sigdock-idp), `compose_services` 목록형(sadawiki)도 기계 변환 가능했음.
+- 최상위 health_checks의 `start`/`start_hint`는 stack 엔트리로 옮길 때 `start`를 버려야 하는데 안내 없음 (flow-agent-mesh).
+- 힌트 자체의 오류는 TASK-317로 분리.

@@ -28,3 +28,9 @@ validate가 침묵하는 실증 사례들:
 
 - [ ] 위 각 케이스에 대한 warning 규칙 + 픽스처 테스트 (docs/51-flowcheck-rules.md 갱신 포함) | verify: `make test`
 - [ ] gizzahub/matdosa 설정에서 해당 warning이 실제 출력됨 | verify: human — 출력 첨부
+
+## Dogfood evidence (2026-09-05 실행)
+
+- plan services → stack 미선언 참조: gizzahub 11건 실증 후 복구.
+- 미참조 environments: matdosa `test` 삭제. no-op entry_overrides: postkit·flow-taskchain 삭제.
+- 빈 `command: ""`: sigdock-pass. built-in 동등 replace 훅 경고는 TASK-320.
