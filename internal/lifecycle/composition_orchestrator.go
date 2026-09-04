@@ -325,10 +325,14 @@ func (o *CompositionOrchestrator) teardown(ctx context.Context, verb string, run
 
 // Status reports live child state in the same shape as the execution report
 // (TASK-260 §5.5). Outcome is "up" only when every child is up, matching §5.6's flat
-// "anything short of full success is exit 1".
+// "anything short of full success is exit 1" — so a non-nil *CompositionError is
+// returned whenever Outcome is not "up", the same way Up/teardown already signal
+// failure to their caller (TASK-297: this used to report a non-conforming "not_started"
+// outcome with a nil error, exiting 0 for a fully-down composition).
 func (o *CompositionOrchestrator) Status(ctx context.Context) (*CompositionReport, error) {
 	report := o.newReport(CompositionOutcomeUp)
 	allUp := true
+	var childErrs []string
 
 	for i := range o.plan.Entries {
 		child := o.plan.Entries[i].ChildPlan
@@ -337,6 +341,7 @@ func (o *CompositionOrchestrator) Status(ctx context.Context) (*CompositionRepor
 		case err != nil:
 			report.Children[i].State = ChildStateFailed
 			report.Children[i].Error = err.Error()
+			childErrs = append(childErrs, fmt.Sprintf("%s: %v", child.Name, err))
 			allUp = false
 		case up:
 			report.Children[i].State = ChildStateUp
@@ -345,10 +350,17 @@ func (o *CompositionOrchestrator) Status(ctx context.Context) (*CompositionRepor
 		}
 	}
 
-	if !allUp {
-		report.Outcome = CompositionOutcomeFailed
+	if allUp {
+		return report, nil
 	}
-	return report, nil
+
+	report.Outcome = CompositionOutcomeFailed
+	err := fmt.Errorf("composition %q is not fully up", o.plan.Name)
+	if len(childErrs) > 0 {
+		err = fmt.Errorf("composition %q: %s", o.plan.Name, strings.Join(childErrs, "; "))
+	}
+	report.Error = err.Error()
+	return report, &CompositionError{Err: err, Report: report}
 }
 
 // newReport seeds one row per composed child, in wave order, every child "not_started" —

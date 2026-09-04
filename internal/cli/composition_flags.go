@@ -25,20 +25,13 @@ func isCompositionPlan(c *config.Config, name string) bool {
 	return plan != nil && len(plan.Composes) > 0
 }
 
-// compositionChildProject and compositionChildPlanPart split a composed child's name
-// (lifecycle.CompositionPlanEntry.ChildPlan.Name, e.g. "api/deploy") into the project label
-// and the plan name within it. A child with no "/" is a local plan composed by name, and its
-// project label is its own name — there is no narrower qualifier to strip.
+// compositionChildProject extracts the project label from a composed child's name
+// (lifecycle.CompositionPlanEntry.ChildPlan.Name, e.g. "api/deploy" -> "api"). A child with
+// no "/" is a local plan composed by name, and its project label is its own name — there is
+// no narrower qualifier to strip.
 func compositionChildProject(childName string) string {
 	if i := strings.IndexByte(childName, '/'); i > 0 {
 		return childName[:i]
-	}
-	return childName
-}
-
-func compositionChildPlanPart(childName string) string {
-	if i := strings.IndexByte(childName, '/'); i > 0 {
-		return childName[i+1:]
 	}
 	return childName
 }
@@ -495,145 +488,22 @@ func runCompositionLogs(c *config.Config, el *envLoad, planName string, extraArg
 	return errors.Join(errs...)
 }
 
-// compositionChildStatus and compositionStatusReport are TASK-260 §5.3's frozen JSON shape,
-// reused by §5.5 for status's success case too (outcome "up", every child "up"). This CLI-side
-// query path is separate from CompositionOrchestrator.Status — see TASK-297 for the known
-// divergence between the two (this path currently reports "not_started" instead of the frozen
-// "failed" outcome for a fully-down composition). State is derived from each child's real
-// queried status (lifecycle.AnyServiceRunning): "up" when at least one service looks running,
-// "not_started" when the query succeeded but nothing is running, or "failed" when the child
-// could not be queried at all (unrunnable). "rolled_back"/"rollback_failed" are set only by
-// the TASK-291 rollback orchestrator (CompositionOrchestrator), not by this status query path.
-type compositionChildStatus struct {
-	Project string `json:"project"`
-	Plan    string `json:"plan"`
-	Wave    int    `json:"wave"`
-	State   string `json:"state"`
-	Error   string `json:"error,omitempty"`
-}
-
-type compositionRollbackReport struct {
-	Attempted []string `json:"attempted"`
-	Succeeded []string `json:"succeeded"`
-	Failed    []string `json:"failed"`
-}
-
-type compositionStatusReport struct {
-	DvaVersion string                    `json:"dva_version"`
-	Plan       string                    `json:"plan"`
-	Kind       string                    `json:"kind"`
-	Outcome    string                    `json:"outcome"`
-	Children   []compositionChildStatus  `json:"children"`
-	Rollback   compositionRollbackReport `json:"rollback"`
-	Error      string                    `json:"error,omitempty"`
-}
-
-// runCompositionStatus queries every composed child and aggregates §5.3's JSON shape for both
-// --json and text output. §4.3 permits concurrent queries here (read-only, no side effects to
-// serialize) but this loops sequentially: the contract is the aggregate shape and the
-// project-labeled report, not a concurrency guarantee, and a sequential loop is the smaller
-// change against the single-plan status path this reuses per child.
+// runCompositionStatus queries every composed child through CompositionOrchestrator.Status,
+// the same orchestrator Up/Down/Stop/Restart already delegate to (TASK-297: this used to be a
+// second, parallel implementation of TASK-260 §5.3/§5.5's report that computed its own
+// out-of-contract "not_started" outcome with exit code 0 for a fully-down composition; now
+// there is exactly one Outcome-computation path, and renderCompositionReport reuses the same
+// Up/Down/Stop rendering and flat exit-code convention for status too).
 func runCompositionStatus(c *config.Config, el *envLoad, planName string) error {
 	comp, err := lifecycle.ResolveCompositionPlan(c, planName)
 	if err != nil {
 		return err
 	}
 
-	report := compositionStatusReport{
-		DvaVersion: config.Version,
-		Plan:       planName,
-		Kind:       "composition",
-		Children:   make([]compositionChildStatus, 0, len(comp.Entries)),
-		Rollback:   compositionRollbackReport{Attempted: []string{}, Succeeded: []string{}, Failed: []string{}},
-	}
-
-	failed := false
-	allUp := true
-	for _, entry := range comp.Entries {
-		childName := entry.ChildPlan.Name
-		cs := compositionChildStatus{
-			Project: compositionChildProject(childName),
-			Plan:    compositionChildPlanPart(childName),
-			Wave:    entry.Wave,
-		}
-
-		childStatus, childErr := queryCompositionChildStatus(c, el, childName)
-		switch {
-		case childErr != nil:
-			cs.State = "failed"
-			cs.Error = childErr.Error()
-			failed = true
-			allUp = false
-		case lifecycle.AnyServiceRunning(childStatus):
-			cs.State = "up"
-		default:
-			cs.State = "not_started"
-			allUp = false
-		}
-		report.Children = append(report.Children, cs)
-	}
-
-	switch {
-	case failed:
-		report.Outcome = "failed"
-		report.Error = fmt.Sprintf("composition plan %q: one or more composed children are unrunnable", planName)
-	case allUp:
-		report.Outcome = "up"
-	default:
-		report.Outcome = "not_started"
-	}
-
-	if jsonOutput {
-		if err := output.PrintJSON(report); err != nil {
-			return err
-		}
-	} else {
-		printCompositionStatusText(report)
-	}
-
-	if failed {
-		return errors.New(report.Error)
-	}
-	return nil
-}
-
-// queryCompositionChildStatus runs one child through the same resolve-runtime + orchestrator
-// Status path runPlanStatus uses for a directly named plan, returning the child's real
-// AggregatedStatus so the caller can classify it (TASK-260 §5.3's "up"/"not_started"/"failed")
-// instead of assuming a clean query means "up". A non-nil error means the child could not be
-// queried at all (unrunnable / incomplete environment) — that is always "failed", and the
-// returned status is nil in that case.
-func queryCompositionChildStatus(c *config.Config, el *envLoad, childName string) (*lifecycle.AggregatedStatus, error) {
-	runtime, err := resolvePlanRuntime(c, el, childName, nil)
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, ""))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if runtime.report.Incomplete() {
-		return nil, fmt.Errorf("environment inputs incomplete for %q", childName)
-	}
-
-	orch, err := lifecycle.NewPlanOrchestrator(runtime.config, runtime.env, runtime.plan)
-	if err != nil {
-		return nil, err
-	}
-	status, err := orch.Status(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	status = filterStatusByNames(status, planEntryNames(runtime.plan))
-	if err := lifecycle.StatusExitError(status); err != nil {
-		return status, err
-	}
-	return status, nil
-}
-
-func printCompositionStatusText(report compositionStatusReport) {
-	fmt.Printf("Composition plan: %s (dva v%s)\n", report.Plan, report.DvaVersion)
-	for _, child := range report.Children {
-		fmt.Printf("\n  [%s] %s (wave %d): %s\n", child.Project, child.Plan, child.Wave, child.State)
-		if child.Error != "" {
-			fmt.Printf("    error: %s\n", child.Error)
-		}
-	}
-	fmt.Printf("\noutcome: %s\n", report.Outcome)
+	report, runErr := orch.Status(context.Background())
+	return renderCompositionReport(report, runErr)
 }
