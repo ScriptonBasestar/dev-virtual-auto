@@ -73,8 +73,8 @@ and should stay):
       `internal/integration/composition_fixture_test.go`'s `TestCompositionFixtureRollbackFailurePreservesError`
       and `TestCompositionFixtureResumesAfterRollbackFailure` fixtures at the real `PlanChildExecutor`
       instead of `realDownExecutor` and confirming they still pass | verify: `go test ./internal/integration -tags=integration -count=1`
-- [x] `dva down <plan>` exits non-zero when a real entry teardown fails, verified against the real
-      binary, not just unit-level | verify: `go test ./internal/cli -run TestPlanDown -count=1 -v`
+- [x] `dva down <plan>` exits non-zero when a real entry teardown fails, verified in-process via
+      `runPlanDown` (not a spawned subprocess against the compiled binary) | verify: `go test ./internal/cli -run TestPlanDown -count=1 -v`
 - [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals

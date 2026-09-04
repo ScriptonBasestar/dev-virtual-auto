@@ -8,7 +8,7 @@ exec-tier: standard
 created-at: 2026-09-04T00:00:00+09:00
 source: "Independent review of TASK-294/295/296 completion criteria (reviewer findings across three closed cards)"
 scope: "tasks/done/294-fix-restart-stale-pid-false-success.md, tasks/done/295-fix-orchestrator-down-swallows-entry-failures.md, tasks/done/296-fix-composition-readiness-gate-rollback-gap.md — the verify: bindings and surrounding prose text only"
-status: todo
+status: done
 depends-on: []
 ---
 
@@ -93,21 +93,42 @@ rather than spawning a subprocess"). That is unit-level, not "against the real b
 
 ## Completion Criteria
 
-- [ ] TASK-294 criterion 3's `verify:` binding is corrected to actually test PID-file preservation
+- [x] TASK-294 criterion 3's `verify:` binding is corrected to actually test PID-file preservation
       after `Stop` (e.g. point it at a test that calls `Stop` on a running process and asserts the
       PID file still exists afterward), or the criterion text is edited to accurately describe what
       `TestProcessPlugin_StopProcess_NoPidFile` covers instead | verify: `grep -Fq 'TestProcessPlugin_StopProcess_NoPidFile' tasks/done/294-fix-restart-stale-pid-false-success.md && ! grep -Fq 'go test ./internal/lifecycle -run TestProcessPlugin_StopProcess_NoPidFile -count=1 -v' tasks/done/294-fix-restart-stale-pid-false-success.md`
-- [ ] TASK-296 criterion 3's `verify:` binding is corrected to reference the actual test that sets
+- [x] TASK-296 criterion 3's `verify:` binding is corrected to reference the actual test that sets
       `readyErr` (`TestCompositionReadinessFailureRollsBackSucceededSiblings` in
       `internal/lifecycle/composition_orchestrator_readiness_test.go`) instead of a grep that only
       matches the fake's own field access | verify: `grep -Fq 'composition_orchestrator_readiness_test.go' tasks/done/296-fix-composition-readiness-gate-rollback-gap.md`
-- [ ] TASK-296 criterion 2's `verify:` `-run` regex is widened to match both pre-existing up-failure
+- [x] TASK-296 criterion 2's `verify:` `-run` regex is widened to match both pre-existing up-failure
       rollback tests by name (`TestCompositionUpRollsBackSucceededChildrenOnFailure` and
       `TestCompositionRollbackFailurePreservesOriginalError`) | verify: `grep -Fq 'TestCompositionUpRollsBackSucceededChildrenOnFailure' tasks/done/296-fix-composition-readiness-gate-rollback-gap.md`
-- [ ] TASK-295 criterion 3's prose is corrected to stop claiming real-binary verification, describing
+- [x] TASK-295 criterion 3's prose is corrected to stop claiming real-binary verification, describing
       it instead as in-process verification via `runPlanDown` (consistent with the card's own
       "Completion evidence" section) | verify: `grep -Fq 'in-process' tasks/done/295-fix-orchestrator-down-swallows-entry-failures.md && ! grep -Fq 'verified against the real binary, not just' tasks/done/295-fix-orchestrator-down-swallows-entry-failures.md`
-- [ ] Repository doc gates pass | verify: `make doc-check`
+- [x] Repository doc gates pass | verify: `make doc-check`
+
+## Completion evidence
+
+All four edits applied directly to the three closed cards (doc-only, no implementation files
+touched, no decided scope reopened):
+
+- TASK-294's closed card, criterion 3: rewrote the criterion text to describe what
+  `TestProcessPlugin_StopProcess_NoPidFile` actually covers (`Down`'s no-PID-file tolerance) and
+  explicitly notes PID-file preservation after `Stop` remains uncovered by an automated test;
+  dropped the old binding's `-count=1 -v` command in favor of a plain existence-check grep.
+- TASK-296's closed card, criterion 3: repointed the binding to
+  `TestCompositionReadinessFailureRollsBackSucceededSiblings` in
+  `composition_orchestrator_readiness_test.go`.
+- TASK-296's closed card, criterion 2: widened `-run` to
+  `'TestCompositionRollback|TestCompositionUpRollsBackSucceededChildrenOnFailure'`.
+- TASK-295's closed card, criterion 3: reworded prose from "verified against the real binary, not
+  just unit-level" to "verified in-process via `runPlanDown` (not a spawned subprocess against the
+  compiled binary)", matching the card's own Completion evidence section.
+
+All four TASK-301 verify: bindings for these criteria confirmed passing before commit. `make
+doc-check` clean.
 
 ## Non-goals
 

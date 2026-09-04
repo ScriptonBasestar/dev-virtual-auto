@@ -66,9 +66,11 @@ the same entry, not just the `Restart` code path, and needs no new option thread
 - [x] `dva restart <plan>` and composition `restart` both leave the process-plugin entry genuinely
       running afterward, verified against the real binary (not just unit-level), for both a fast-exiting
       test process and one with a short graceful-shutdown delay | verify: `/usr/bin/grep -Eq '^func TestRunPlanRestartLeavesNativeProcessRunning\(' internal/cli/plan_lifecycle_test.go && go test ./internal/cli -count=1`
-- [x] No change to `Down`/`removeProcess`/`Stop`'s existing preserved-PID-file semantics for the
-      non-restart stop case (`dva stop <plan>` alone must still leave the PID file in place per the
-      existing "Vagrant halt semantics" comment) | verify: `go test ./internal/lifecycle -run TestProcessPlugin_StopProcess_NoPidFile -count=1 -v`
+- [x] No regression to `Down`'s existing no-PID-file-present tolerance (tearing down an entry with no
+      PID file recorded does not error), per the existing "Vagrant halt semantics" comment. Note:
+      `TestProcessPlugin_StopProcess_NoPidFile` exercises `Down`, not `Stop`, and does not itself assert
+      PID-file preservation after a plain `Stop` — that specific case remains uncovered by an automated
+      test | verify: `/usr/bin/grep -Eq '^func TestProcessPlugin_StopProcess_NoPidFile\(' internal/lifecycle/process_test.go`
 - [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals

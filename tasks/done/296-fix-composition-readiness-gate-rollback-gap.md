@@ -99,9 +99,11 @@ longer needs it to justify anything.
 - [x] The existing `exec.Up`-failure rollback behavior is unchanged — a child whose `up` itself failed is
       still not treated as a rollback target (it was never in `succeeded`), confirmed by the pre-existing
       up-failure rollback tests in `composition_orchestrator_test.go` continuing to pass unmodified |
-      verify: `go test ./internal/lifecycle -run TestCompositionRollback -count=1`
+      verify: `go test ./internal/lifecycle -run 'TestCompositionRollback|TestCompositionUpRollsBackSucceededChildrenOnFailure' -count=1`
 - [x] The `readyErr` hook on `fakeChildExecutor` (composition_orchestrator_test.go:29) is exercised by at
-      least one test, closing the gap noted above | verify: `/usr/bin/grep -Eq 'readyErr\[' internal/lifecycle/composition_orchestrator_test.go`
+      least one test (`TestCompositionReadinessFailureRollsBackSucceededSiblings`,
+      `composition_orchestrator_readiness_test.go`), closing the gap noted above | verify:
+      `/usr/bin/grep -Eq '^func TestCompositionReadinessFailureRollsBackSucceededSiblings\(' internal/lifecycle/composition_orchestrator_readiness_test.go`
 - [x] Repository gates pass | verify: `make lint && make test && make test-integration && make commit-check`
 
 ## Non-goals
