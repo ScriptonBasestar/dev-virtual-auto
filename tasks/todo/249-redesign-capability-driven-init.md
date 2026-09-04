@@ -217,7 +217,8 @@ TASK-250(`tasks/done/250-implement-capability-driven-init.md`, `status: done`, c
 
 Scope: 저장소 전체에서 `local-infra`/`local-dev`/`full-stack` 문자열이 등장하는 모든 위치를
 `grep -rn`으로 수집하고(`agent-mesh-flows/`, `skills/`, `internal/cli/library_reference.txt`,
-`docs/`), 각 위치가 가리키는 실제 canonical source(symlink 포함)까지 추적해 분류했다. 목적은
+`docs/`), 각 위치가 가리키는 실제 canonical source(내용을 그대로 옮겨 유지하는 사본 포함)까지
+추적해 분류했다. 목적은
 Go `dva init` 생성기(`internal/cli/init_scaffold.go`, `internal/cli/init.go`)가 이 세 라벨을
 "이미 어느 투영본에 존재한다"는 이유만으로 생성 증거로 재사용하지 않는지 확인하는 것이다.
 
@@ -239,8 +240,8 @@ Go `dva init` 생성기(`internal/cli/init_scaffold.go`, `internal/cli/init.go`)
 | `agent-mesh-flows/shared/library/reference-examples.md` | "Capability-driven named plans" 예시 블록 + mode 표 `full-stack`/`full-stack-tools` 행 | A | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_examples`), `library_reference.txt` |
 | `agent-mesh-flows/shared/library/shared-checklist.md` | 세 라벨을 이름 댄 self-review 체크리스트 항목 | A | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_checklist`), `library_reference.txt` |
 | `agent-mesh-flows/shared/guardrails/guardrails-rewrite.md` | Mode: Rewrite `full-stack:` YAML 예시 | A | `dva-improve.yaml` (`AUTOGEN:dva_flow_mode_rewrite`) |
-| `skills/dva-config/references/devbox-apply.md` (symlink: `agent-mesh-flows/shared/library/devbox-apply.md`) | "Default names: `local-infra`..., `local-dev`..." 규칙 문장 | A | `dva-improve.yaml`, `dva-improve-guided/00-analyze.yaml` (`AUTOGEN:dva_flow_devbox_apply`); `skills/dva-config` 스킬 자체도 같은 파일을 직접 참조(symlink이므로 사본이 아니라 동일 파일) |
-| `skills/dva-config/references/schema-reference.md` (symlink: `agent-mesh-flows/shared/library/dva-schema.md`) | legacy `modes:`/`default_mode` 기능 문서의 `full-stack`/`full-stack-tools` 예시 | A (별개 기능인 legacy `modes:` 스키마 문서이지 plan preset 정책이 아님) | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_schema`), `library_reference.txt` |
+| `skills/dva-config/references/devbox-apply.md` (content-mirrored copy of `agent-mesh-flows/shared/library/devbox-apply.md` — 별개의 정규 파일이며 심볼릭 링크가 아니다; `readlink`/`file`로 확인, `tools/skillgen`/`tools/flowgen` 어느 쪽도 이 파일 단위로 자동 동기화하지 않음, 현재는 byte-identical이지만 generator가 보장하지 않는 사실상 사본) | "Default names: `local-infra`..., `local-dev`..." 규칙 문장 | A | `dva-improve.yaml`, `dva-improve-guided/00-analyze.yaml` (`AUTOGEN:dva_flow_devbox_apply`); `skills/dva-config` 스킬 자체도 같은 내용을 직접 참조(사본이지만 지금은 원본과 byte-identical) |
+| `skills/dva-config/references/schema-reference.md` (content-mirrored copy of `agent-mesh-flows/shared/library/dva-schema.md` — 위와 동일한 이유로 심볼릭 링크가 아닌 별개 정규 파일) | legacy `modes:`/`default_mode` 기능 문서의 `full-stack`/`full-stack-tools` 예시 | A (별개 기능인 legacy `modes:` 스키마 문서이지 plan preset 정책이 아님) | `dva-improve.yaml`, `dva-improve-guided/30-configure.yaml` (`AUTOGEN:dva_flow_schema`), `library_reference.txt` |
 | `skills/dva/SKILL.md`, `skills/dva/references/commands.md`, `skills/dva/references/advanced.md` | `dva up local-dev` 등 CLI 사용 예시 | B | 없음 — 독립 판, 다른 파일로 투영되지 않음 |
 | `skills/dva/assets/templates/migrate-modes-to-plans.yml`, `skills/dva/assets/templates/root-devbox-plan.yml` | legacy `modes:` → `plans:` 마이그레이션 예시 템플릿 | B | 없음 |
 | `skills/dva/references/patterns.md` | "Use `default_plan: local-infra` only when... Never make `full-stack` the generated default" — `naming-presets.md`의 정책을 독립적으로 재진술 | A (정책 재진술이지만 별도 저작) | 없음 — `skills/dva` 자체 소비만 |
@@ -289,3 +290,15 @@ projection")은 충족된다. Go init 생성기는 위 표의 어떤 파일도 �
 출력에 쓰지 않음이 테스트로 고정돼 있다(`TestInitDoesNotAuthorRejectedPlanLabels`). 인벤토리에서
 발견한 유일한 "새 사실"(`skills/dva/references/patterns.md`의 독립 재진술)은 D8이나 233을
 위반하지 않고 Go 생성기에도 닿지 않으므로 이 completion criterion을 막지 않는다.
+
+### 독립 리뷰 (2026-09-04)
+
+별도 에이전트가 detached-HEAD 리뷰 워크트리에서 인벤토리·grep 재실행·
+`TestInitDoesNotAuthorRejectedPlanLabels` 재실행·TASK-233 스코프 대조·`patterns.md` 삼각검증을
+모두 독립적으로 재확인했다. **APPROVED WITH FINDINGS**(MAJOR 없음): 위 표에서
+`skills/dva-config/references/devbox-apply.md`, `schema-reference.md`를 "symlink"라고 적었던
+것이 사실과 다르다는 MINOR 지적을 받았다 — `readlink`/`file`로 확인한 결과 둘 다 일반 파일이고,
+`tools/skillgen`/`tools/flowgen` 어느 쪽도 이 파일 단위 자동 동기화를 보장하지 않는다(현재는
+byte-identical이지만 강제되는 불변식이 아님). Criterion 3의 실제 verify 조건(생성기 zero-hit)은
+이 지적과 무관하게 이미 독립적으로 재확인됐으므로 논블로킹이며, 위 표의 문구를
+"content-mirrored copy, not generator-enforced"로 정정하는 것으로 반영했다.
