@@ -212,16 +212,21 @@ dogfood-skill-install:
 	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --expected-sha256 "$(DVA_SHA256)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
-# Packages run one by one so a hang names itself. stdin is /dev/null because
-# GitHub Actions leaves the runner pipe open without EOF. -timeout is per
-# package; the job also has a control-plane timeout-minutes.
+# GitHub-hosted Linux: a silent `go test -race ./...` compile can starve the
+# 2-core runner until it loses communication (~45m, no logs). Compile with
+# -race -v first so progress streams; then run tests on the warm cache.
+# stdin is /dev/null because the runner pipe never EOFs.
 test:
 	set -eu; \
-	exec </dev/null; \
-	for pkg in $$(go list ./...); do \
-		printf '\n==> go test %s\n' "$$pkg" >&2; \
-		go test -timeout 3m -race -cover $(GOTESTFLAGS) "$$pkg"; \
-	done
+	if [ -n "$${GITHUB_ACTIONS}" ]; then \
+		exec </dev/null; \
+		printf 'make test: race-compile\n' >&2; \
+		go build -race -v $(GOFLAGS) ./... >&2; \
+		printf 'make test: run\n' >&2; \
+		go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...; \
+	else \
+		go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...; \
+	fi
 
 ## test-skill-dogfood: Run the built executable through a hermetic skill-installer round-trip (CI)
 test-skill-dogfood: build
