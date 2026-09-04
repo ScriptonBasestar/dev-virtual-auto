@@ -239,12 +239,18 @@ func (o *CompositionOrchestrator) Up(ctx context.Context, opts CompositionUpOpti
 		return report, compErr
 	}
 
+	// Rollback outlives the cancellation that may have caused the failure. TASK-260 §4.5
+	// treats cancellation as a form of failure and still requires the already-succeeded
+	// children to be torn down; on the caller's own ctx every rollback `down` would fail
+	// instantly with "context canceled" and leave the whole composition up.
+	rollbackCtx := context.WithoutCancel(ctx)
+
 	for _, idx := range slices.Backward(succeeded) {
 		child := o.plan.Entries[idx].ChildPlan
 		label := child.Name
 		report.Rollback.Attempted = append(report.Rollback.Attempted, label)
 		o.logger.Info("composition rollback", "plan", o.plan.Name, "child", label)
-		if err := o.exec.Down(ctx, child, ChildDownOptions{}); err != nil {
+		if err := o.exec.Down(rollbackCtx, child, ChildDownOptions{}); err != nil {
 			report.Rollback.Failed = append(report.Rollback.Failed, label)
 			report.Children[idx].State = ChildStateRollbackFailed
 			report.Children[idx].Error = err.Error()

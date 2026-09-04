@@ -32,6 +32,10 @@ type fakeChildExecutor struct {
 
 	live    map[string]bool
 	liveErr map[string]error
+
+	// onUp fires inside the named child's Up, before it returns — the seam a signal
+	// arriving mid-run occupies.
+	onUp map[string]func()
 }
 
 func newFakeChildExecutor() *fakeChildExecutor {
@@ -42,6 +46,7 @@ func newFakeChildExecutor() *fakeChildExecutor {
 		stopErr:  map[string]error{},
 		live:     map[string]bool{},
 		liveErr:  map[string]error{},
+		onUp:     map[string]func(){},
 	}
 }
 
@@ -64,6 +69,9 @@ func (f *fakeChildExecutor) leave() {
 func (f *fakeChildExecutor) Up(_ context.Context, child *ExecutionPlan) error {
 	f.enter("up:" + child.Name)
 	defer f.leave()
+	if hook := f.onUp[child.Name]; hook != nil {
+		hook()
+	}
 	if err := f.upErr[child.Name]; err != nil {
 		return err
 	}
@@ -79,7 +87,13 @@ func (f *fakeChildExecutor) WaitReady(_ context.Context, child *ExecutionPlan) e
 	return f.readyErr[child.Name]
 }
 
-func (f *fakeChildExecutor) Down(_ context.Context, child *ExecutionPlan, opts ChildDownOptions) error {
+func (f *fakeChildExecutor) Down(ctx context.Context, child *ExecutionPlan, opts ChildDownOptions) error {
+	// A real child teardown runs through exec.CommandContext: a cancelled context kills
+	// it before it does anything. Honoring it here is what makes the rollback path's
+	// context handling observable.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	label := "down:" + child.Name
 	if opts.Volumes {
 		label += ":volumes"
@@ -287,6 +301,29 @@ func TestCompositionUpRollsBackSucceededChildrenOnFailure(t *testing.T) {
 	}
 	if !errors.Is(err, boom) {
 		t.Fatalf("returned error = %v, want the original child failure", err)
+	}
+
+	// Cancellation is a form of failure (TASK-260 §4.5), so the already-succeeded
+	// children must still come down. The rollback teardown therefore cannot run on the
+	// cancelled context that caused the failure.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cancelled := newFakeChildExecutor()
+	cancelled.onUp["c-plan"] = cancel
+	cancelled.upErr["c-plan"] = context.Canceled
+	cancelledOrch := newTestCompositionOrchestrator(t, plan, cancelled)
+
+	cancelledReport, err := cancelledOrch.Up(ctx, CompositionUpOptions{NoWait: true})
+	if err == nil {
+		t.Fatal("Up succeeded, want the cancellation to surface")
+	}
+	requireCalls(t, cancelled.recorded(), []string{
+		"up:a-plan", "up:b-plan", "up:c-plan",
+		"down:b-plan", "down:a-plan",
+	})
+	requireCalls(t, cancelledReport.Rollback.Succeeded, []string{"b-plan", "a-plan"})
+	if len(cancelledReport.Rollback.Failed) != 0 {
+		t.Fatalf("rollback.failed = %v, want empty — a cancelled run must still tear its succeeded children down", cancelledReport.Rollback.Failed)
 	}
 }
 
