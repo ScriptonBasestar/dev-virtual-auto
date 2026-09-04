@@ -34,13 +34,24 @@ jobs:
       - name: Skill Installer Dogfood
         run: make test-skill-dogfood
 
-      # -v streams per-test names. go test otherwise buffers until a package
-      # finishes, so a hang looks like 45 minutes of silence and Actions
-      # aborts the job with no log (the 46m1s Test step).
+      # Do not run this through `make`. GNU make plus a non-TTY runner buffers
+      # the whole recipe, so a hung package is 45 minutes of silence and
+      # Actions aborts the job with no log. Print each package first, close
+      # stdin (ExecSubprocess used to inherit the runner's never-EOF pipe),
+      # and bound each package so a hang names itself.
       - name: Test
-        run: make test
-        env:
-          GOTESTFLAGS: -v
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          exec </dev/null
+          failed=0
+          while IFS= read -r pkg; do
+            printf '\n==> go test %s\n' "$pkg"
+            if ! go test -timeout 3m -race -cover "$pkg"; then
+              failed=1
+            fi
+          done < <(go list ./...)
+          exit "$failed"
 
       - name: Integration Test
         run: make test-integration

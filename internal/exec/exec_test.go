@@ -3,6 +3,7 @@ package exec
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ScriptonBasestar/dva/internal/config"
 )
@@ -142,6 +143,24 @@ func TestExecSubprocess_Success(t *testing.T) {
 	env := config.NewEnvironment(nil, "/tmp", "/tmp")
 	if err := ExecSubprocess(env, "true", nil, false); err != nil {
 		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestExecSubprocessInDir_DoesNotInheritStdinUnderTest(t *testing.T) {
+	// cat with an inherited never-EOF stdin blocks forever — the GitHub Actions
+	// 46m job abort. Under `go test` stdin must stay closed so the child exits.
+	env := config.NewEnvironment(nil, t.TempDir(), t.TempDir())
+	done := make(chan error, 1)
+	go func() {
+		done <- ExecSubprocessInDir(env, "", "cat", nil, false)
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("cat with closed stdin: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("cat inherited stdin and blocked")
 	}
 }
 

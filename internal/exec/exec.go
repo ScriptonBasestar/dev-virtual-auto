@@ -71,7 +71,13 @@ func ExecSubprocessInDir(env *config.Environment, dir, cmd string, args []string
 
 	c := exec.Command(cmdLine[0], cmdLine[1:]...)
 	c.Dir = dir
-	c.Stdin = os.Stdin
+	// Inherit stdin only outside `go test`. GitHub Actions leaves the runner's
+	// stdin open without EOF, so a child that reads it (`cat`, docker compose
+	// waiting on a compose file, a prompt) blocks until Actions kills the job
+	// at ~45m with no logs. Tests that need stdin use their own fixtures.
+	if !testing.Testing() {
+		c.Stdin = os.Stdin
+	}
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Env = env.EnvSlice()
