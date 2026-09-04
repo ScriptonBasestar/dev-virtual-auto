@@ -34,24 +34,14 @@ jobs:
       - name: Skill Installer Dogfood
         run: make test-skill-dogfood
 
-      # Do not run this through `make`. GNU make plus a non-TTY runner buffers
-      # the whole recipe, so a hung package is 45 minutes of silence and
-      # Actions aborts the job with no log. Print each package first, close
-      # stdin (ExecSubprocess used to inherit the runner's never-EOF pipe),
-      # and bound each package so a hang names itself.
+      # cilabels matches only `run: make <target>` on one line. Keep this form.
+      # stdin is closed in the Makefile recipe; -v streams each test so a hang
+      # names itself instead of looking like a silent 45m runner abort.
       - name: Test
         timeout-minutes: 15
-        run: |
-          set -euo pipefail
-          exec </dev/null
-          failed=0
-          while IFS= read -r pkg; do
-            printf '\n==> go test %s\n' "$pkg"
-            if ! go test -timeout 3m -race -cover "$pkg"; then
-              failed=1
-            fi
-          done < <(go list ./...)
-          exit "$failed"
+        env:
+          GOTESTFLAGS: -v
+        run: make test
 
       - name: Integration Test
         run: make test-integration
