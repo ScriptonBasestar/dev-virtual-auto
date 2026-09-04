@@ -9,6 +9,34 @@ created-at: 2026-09-01T19:20:00+09:00
 source: "PLAN-002 self-contained D6/D7 contract"
 scope: "semantic validation warnings, stable text/JSON output, strict behavior, tests, current reserved-command documentation"
 status: done
+parent: PLAN-002
+completed-at: 2026-09-05T00:52:03+09:00
+completion-summary: "D6/D7 semantic warnings landed in ValidateWarnings(); default validate stays non-fatal and --strict promotes both."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/config -count=1"
+    result: "ok github.com/ScriptonBasestar/dva/internal/config 2.256s"
+  - kind: automated
+    command-or-step: "go test ./internal/cli -count=1"
+    result: "ok github.com/ScriptonBasestar/dva/internal/cli 18.761s"
+  - kind: automated
+    command-or-step: "make generate && make check-generate && make doc-check"
+    result: "exit 0; flowcheck 26 built-in command(s); doc-check OK (710 links, 0 broken)"
+  - kind: automated
+    command-or-step: "make lint && make test && make test-integration && make commit-check"
+    result: "all exit 0; commitcheck OK (historical exceptions skipped)"
+  - kind: manual
+    command-or-step: "read internal/config/validate_warnings.go plansHaveEqualDeclaration and validate_warnings_plan_test.go field matrix"
+    result: "ten compared fields named; pair order pinned; D7 omits compose-split remedy"
+quality-review: pass
+quality-reviewed-at: 2026-09-05T00:52:03+09:00
+quality-review-evidence:
+  - "independent re-run of every mechanical verify binding on master@HEAD; D6/D7 still emit once per unordered pair, stay in the semantic category, and --strict still promotes them"
+  - "AC5's card-time '24-command set' is now 26 (skill + agent-deny + kubectl after the 23-command restructure); reserved.go is SSOT and current-state sources match it; docs/51 still shows a canned 23 in the example line"
+archived-at: 2026-09-05T00:52:03+09:00
+verified-at: 2026-09-05T00:52:03+09:00
+verification-summary: "D6/D7 plan-drift warnings remain in ValidateWarnings() with focused tests and repository gates green; later reserved-command count changes are owned by later cards."
 ---
 
 # Task 244: detect plan declaration drift
