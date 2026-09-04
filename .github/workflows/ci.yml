@@ -34,8 +34,13 @@ jobs:
       - name: Skill Installer Dogfood
         run: make test-skill-dogfood
 
+      # -v streams per-test names. go test otherwise buffers until a package
+      # finishes, so a hang looks like 45 minutes of silence and Actions
+      # aborts the job with no log (the 46m1s Test step).
       - name: Test
         run: make test
+        env:
+          GOTESTFLAGS: -v
 
       - name: Integration Test
         run: make test-integration
