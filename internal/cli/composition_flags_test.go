@@ -737,3 +737,74 @@ plans:
 		}
 	}
 }
+
+// TestCompositionUpDryRunPerformsNoRealExecution closes B1 from review: --dry-run is consumed
+// by parseDvaFlags (compose.go) into the package-level dryRun global before
+// validateCompositionFlagScope ever sees extraArgs, so newCompositionExecutor is the only place
+// left that can honor it — it must thread dryRun into both PlanChildExecutor instances it
+// builds. Uses compositionProcessFixtureConfig so a real up would be observable (a live PID
+// file per child); dry-run must leave neither child started.
+func TestCompositionUpDryRunPerformsNoRealExecution(t *testing.T) {
+	c := loadTestConfig(t, compositionProcessFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+	pidPath := func(name string) string {
+		return filepath.Join(c.FileDir(), config.DotDirName, config.PidsDirName, name+".pid")
+	}
+	t.Cleanup(func() {
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-a")
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-b")
+	})
+
+	oldDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = oldDryRun }()
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp with dryRun=true: %v", err)
+	}
+	for _, name := range []string{"svc-a", "svc-b"} {
+		if _, err := os.Stat(pidPath(name)); !os.IsNotExist(err) {
+			t.Fatalf("expected %s to have no pid file under --dry-run, stat err = %v", name, err)
+		}
+	}
+}
+
+// TestCompositionDownDryRunPerformsNoRealTeardown closes the reviewer's specifically-reproduced
+// dangerous case: `dva down <composition> --project <child> --purge --force --dry-run` must not
+// perform any real teardown. Brings the composition up for real first (dryRun=false), then
+// attempts the destructive down under dryRun=true and asserts both children are still alive
+// (pid files untouched) and no confirmation prompt is reached (--force alone already waives it,
+// but --dry-run must independently waive it too per the runPlanDown precedent this mirrors).
+func TestCompositionDownDryRunPerformsNoRealTeardown(t *testing.T) {
+	c := loadTestConfig(t, compositionProcessFixtureConfig)
+	el := planEnv(config.NewEnvironment(nil, c.FileDir(), c.FileDir()))
+	pidPath := func(name string) string {
+		return filepath.Join(c.FileDir(), config.DotDirName, config.PidsDirName, name+".pid")
+	}
+	t.Cleanup(func() {
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-a")
+		killLeftoverCompositionProcess(t, c.FileDir(), "svc-b")
+	})
+
+	if err := runCompositionUp(c, el, "release", nil); err != nil {
+		t.Fatalf("runCompositionUp: %v", err)
+	}
+	for _, name := range []string{"svc-a", "svc-b"} {
+		if _, err := os.Stat(pidPath(name)); err != nil {
+			t.Fatalf("expected %s to have a pid file after up: %v", name, err)
+		}
+	}
+
+	oldDryRun := dryRun
+	dryRun = true
+	defer func() { dryRun = oldDryRun }()
+
+	if err := runCompositionDown(c, el, "release", []string{"--purge", "--project", "a-plan", "--force"}); err != nil {
+		t.Fatalf("runCompositionDown with dryRun=true: %v", err)
+	}
+	for _, name := range []string{"svc-a", "svc-b"} {
+		if _, err := os.Stat(pidPath(name)); err != nil {
+			t.Fatalf("expected %s's pid file to remain after --dry-run down: %v", name, err)
+		}
+	}
+}

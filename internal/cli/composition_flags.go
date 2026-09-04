@@ -215,14 +215,18 @@ type compositionExecutor struct {
 	forceChild string
 }
 
-// newCompositionExecutor never sets PlanChildExecutor.DryRun: --dry-run has no case in
-// validateCompositionFlagScope's switch, so it is already rejected by the default case before
-// any of these run — composition dry-run is out of TASK-260's frozen scope, not a gap.
+// newCompositionExecutor sets PlanChildExecutor.DryRun from the same package-level dryRun
+// global the single-plan path reads (root.go's --dry-run persistent flag, or compose.go's
+// parseDvaFlags for the DisableFlagParsing commands composition verbs also use). --dry-run
+// never reaches validateCompositionFlagScope's switch at all — parseDvaFlags consumes it into
+// the global and strips it from extraArgs before this file sees anything — so the only place
+// composition dry-run can be honored is here, matching PlanChildExecutor's existing DryRun
+// handling in Up/WaitReady/Down/Stop/IsUp (TASK-291).
 func newCompositionExecutor(c *config.Config, el *envLoad, forceChild string) *compositionExecutor {
 	env := compositionChildEnvironment(c, el)
 	return &compositionExecutor{
-		forced:     &lifecycle.PlanChildExecutor{Environment: env, Force: true},
-		unforced:   &lifecycle.PlanChildExecutor{Environment: env, Force: false},
+		forced:     &lifecycle.PlanChildExecutor{Environment: env, Force: true, DryRun: dryRun},
+		unforced:   &lifecycle.PlanChildExecutor{Environment: env, Force: false, DryRun: dryRun},
 		forceChild: forceChild,
 	}
 }
@@ -355,7 +359,9 @@ func runCompositionDown(c *config.Config, el *envLoad, planName string, extraArg
 	// Mirrors runPlanDown (plan_lifecycle.go): only --purge prompts, matching --force's role
 	// as the single waiver both paths recognize. --volumes alone tears down without a prompt
 	// on the single-plan path today too — this is not a new asymmetry TASK-292 introduces.
-	if flags.purge && !flags.force {
+	// --dry-run also waives it, same as runPlanDown's effectiveDryRun check: nothing destructive
+	// is about to happen, so there is nothing to confirm.
+	if flags.purge && !flags.force && !dryRun {
 		proceed, err := confirmDestruction(fmt.Sprintf("dva down %s --project %s --purge", planName, scopedChildName(flags)), true, true)
 		if err != nil {
 			return err
