@@ -1,0 +1,23 @@
+# Shared infrastructure and the containerised builds of the two apps. The devbox
+# root dva.yml selects subsets of these services per plan.
+name: devbox-native
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports: ["5432:5432"]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]
+  core-api:
+    build: ./services/core
+    ports: ["8080:8080"]
+    depends_on: [postgres, redis]
+  portal-web:
+    build: ./services/portal
+    ports: ["3000:3000"]
+    depends_on: [core-api]

@@ -65,6 +65,15 @@ If you're new to DVA, start with [`basic.yml`](basic.yml) - it contains the esse
   - CI/CD integration patterns
   - Use when: Integrating with AI assistants or building automation
 
+### 🏗️ Devbox (multi-repository root)
+
+- **[devbox-native/](devbox-native/)** - Root owns Compose infrastructure, subprojects own their native apps
+  - `subprojects.*.import` brings `core/dev`, `portal/dev` and their test/lint commands in by name
+  - A `composes:` plan (`dev-all`) sequences infrastructure and both native apps
+  - Child configs validate standalone; nothing is redeclared at the root
+  - Use when: Several service repositories are checked out under one devbox root
+  - Guide: [`../docs/57-devbox-native-lifecycle-guide.md`](../docs/57-devbox-native-lifecycle-guide.md)
+
 ## Examples by Feature
 
 ### 📦 Provision Profiles

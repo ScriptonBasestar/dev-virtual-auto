@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/internal/config/schema.json
+# Subproject: owns the Portal (Vite) native lifecycle. Imported by the devbox
+# root as portal/dev, portal/test, portal/lint.
+
+version: "0.1.48"
+
+stack:
+  portal:
+    description: Portal dev server (Vite) running natively
+    default_runner: native
+    runners:
+      native:
+        run: "pnpm dev --port 3000"
+    health_checks:
+      portal:
+        type: http
+        url: "http://localhost:3000"
+        timeout: 5
+        ready_timeout: 60
+
+plans:
+  dev:
+    description: Portal dev server as a native process
+    entries:
+      - name: portal
+        runner: native
+        order: 20
+
+default_plan: dev
+
+interaction:
+  test:
+    description: Run vitest
+    runner: local
+    command: "pnpm test"
+  lint:
+    description: Run eslint
+    runner: local
+    command: "pnpm lint"

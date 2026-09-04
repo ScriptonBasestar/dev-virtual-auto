@@ -35,3 +35,7 @@ ignore 수단은 침묵 남용으로 이어질 수 있어 설계 검토 필요.
 
 - 의도적 미등록 overlay(test/prod/e2e 픽스처)로 상주 drift warning: flow-knowchain(3), sigdock-idp, familybook(5), db-orchestrator(2). `drift_ignore` 류 선언 필요.
 - suggestion_ignore 규모: gizzahub 184, familybook 194, db-orchestrator ~85(glob), flow-agent-mesh 8패턴으로 정리 사례. 감지 결함은 TASK-316.
+
+## Design record (2026-09-05)
+
+- 문서: `docs/56-suppression-ergonomics-design.md`. 설계 선택지 문서 작성 완료, 결정 대기. 권고: suggestion은 소스 개선(이미 interaction이 감싸는 타겟 제외)+카테고리 opt-out, drift는 루트 자동탐지 규칙에만 적용되는 `drift_ignore` glob, 억제 건수를 validate 요약에 항상 표시.

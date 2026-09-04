@@ -1,0 +1,99 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/internal/config/schema.json
+# Devbox root: Compose owns the shared infrastructure and the containerised
+# services. Native app lifecycles belong to the subprojects that own the code
+# (services/core, services/portal) and are reached through import.
+#
+# Guide: docs/57-devbox-native-lifecycle-guide.md
+#
+#   dva up                 # local-infra (default_plan)
+#   dva up core/dev        # core's own native entry, owned by services/core/dva.yml
+#   dva run core/test      # imported interaction, runs in services/core
+#   dva status core/dev    # lifecycle and health come from the owner, not from here
+
+version: "0.1.48"
+
+env_file:
+  files:
+    - path: .env
+      required: false
+
+stack:
+  compose:
+    description: Shared PostgreSQL, Redis, and the containerised services
+    default_runner: compose
+    runners:
+      compose:
+        files: [compose.yaml]
+        project_name: devbox-native
+        up_options: ["-d", "--wait"]
+        tags: [infra]
+        services:
+          postgres: { tags: [infra, data] }
+          redis: { tags: [infra, data] }
+          core-api: { tags: [app, api] }
+          portal-web: { tags: [app, ui] }
+
+plans:
+  local-infra:
+    description: Shared infrastructure only; run apps from their subprojects
+    entries:
+      - name: compose
+        runner: compose
+        order: 10
+        services: [postgres, redis]
+
+  local-apps:
+    description: Infrastructure plus the containerised builds of both apps
+    entries:
+      - name: compose
+        runner: compose
+        order: 10
+        services: [postgres, redis, core-api, portal-web]
+
+  dev-all:
+    description: Shared infrastructure, then both native apps from their owners
+    composes:
+      - plan: local-infra
+        order: 0
+      - plan: core/dev
+        order: 1
+        depends_on: [local-infra]
+      - plan: portal/dev
+        order: 1
+        depends_on: [local-infra]
+
+default_plan: local-infra
+
+interaction:
+  db-shell:
+    description: Open psql in the shared PostgreSQL service
+    service: postgres
+    command: "psql -U app -d app"
+
+# Each subproject owns its native process (stack entry + dev plan) and its
+# developer commands. The root only imports names; nothing is redeclared here.
+# exclude_tags keeps the child's own infra-tagged entries (if any) out of the
+# root namespace so postgres never has two owners.
+subprojects:
+  core:
+    path: services/core
+    exclude_tags: [infra]
+    import:
+      plans: [dev]
+      interactions: [test, lint, migrate]
+  portal:
+    path: services/portal
+    exclude_tags: [infra]
+    import:
+      plans: [dev]
+      interactions: [test, lint]
+
+endpoints:
+  core-api:
+    source: "core-api:8080"
+    label: Core API
+    tags: [app, api]
+  portal:
+    source: "portal-web:3000"
+    label: Portal
+    tags: [app, ui]

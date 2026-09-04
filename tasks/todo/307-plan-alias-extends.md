@@ -35,3 +35,7 @@ SOUL.md의 선언 단순성 원칙과 대조해 스펙 문서(docs/)부터 작�
   overlay마다 base 서비스/태그를 재선언해야 함 (primeno1 observability/tracing). 후보: 엔트리 `extends:` 또는 PlanEntry `overlays:`.
 - `plans.<name>.composes`(TASK-260)는 composition plan이 자체 entries를 못 가져 "infra + 추가 서비스"에 못 씀 (dns-bridge: postgres/redis가 8개 plan에 반복).
 - plan 경로에서 `--env` 거부 → "같은 plan, 다른 env" 표현 수단 없음 (matdosa).
+
+## Design record (2026-09-05)
+
+- 문서: `docs/55-plan-alias-extends-design.md`. 설계 문서 작성 완료, 승인 대기. 권고: alias만 구현하고 YAML anchor/merge key를 부분 복제 해법으로 문서화, extends는 보류. §5의 결정 항목 4개에 답하면 구현 착수.

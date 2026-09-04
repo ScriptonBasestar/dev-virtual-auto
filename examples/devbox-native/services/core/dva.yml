@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/ScriptonBasestar/dva/master/internal/config/schema.json
+# Subproject: owns the Core API native lifecycle. The devbox root imports
+# `dev` (plan) and test/lint/migrate (interactions); it never redeclares them.
+#
+#   dva up dev            # from this directory
+#   dva up core/dev       # from the devbox root, same owner, same process
+
+version: "0.1.48"
+
+stack:
+  core:
+    description: Core API (Go) running natively against the shared infrastructure
+    default_runner: native
+    runners:
+      native:
+        build: "go build -o bin/core ./cmd/core"
+        run: "./bin/core --port 8080"
+    health_checks:
+      core:
+        type: http
+        url: "http://localhost:8080/health"
+        timeout: 5
+        ready_timeout: 60
+
+plans:
+  dev:
+    description: Core API as a native process (infrastructure comes from the devbox root)
+    entries:
+      - name: core
+        runner: native
+        order: 20
+
+default_plan: dev
+
+interaction:
+  test:
+    description: Run the Go test suite
+    runner: local
+    command: "go test ./..."
+  lint:
+    description: Run golangci-lint
+    runner: local
+    command: "golangci-lint run"
+  migrate:
+    description: Apply database migrations
+    runner: local
+    command: "go run ./cmd/migrate up"
