@@ -212,18 +212,23 @@ dogfood-skill-install:
 	go run ./tools/skilldogfood --dva-bin "$(DVA_BIN)" --expected-sha256 "$(DVA_SHA256)" --flow-root "$(FLOW_ROOT)"
 
 ## test: Run all tests (CI)
-# GitHub-hosted Linux: a silent `go test -race ./...` compile can starve the
-# 2-core runner until it loses communication (~45m, no logs). Compile with
-# -race -v first so progress streams; then run tests on the warm cache.
-# stdin is /dev/null because the runner pipe never EOFs.
+# GitHub-hosted Linux is 2 cores. `go test -race ./...` saturates both, so the
+# runner cannot heartbeat and GitHub reports lost communication (~45m, no
+# logs). Leave one core free (GOMAXPROCS=1, -p 1), stream compile with -v,
+# and print a heartbeat so a hang still produces logs. stdin is /dev/null
+# because the runner pipe never EOFs.
 test:
 	set -eu; \
 	if [ -n "$${GITHUB_ACTIONS}" ]; then \
 		exec </dev/null; \
+		export GOMAXPROCS=1; \
+		( while sleep 20; do printf 'make test: heartbeat %s\n' "$$(date -u +%H:%M:%S)" >&2; done ) & \
+		hb=$$!; \
+		trap 'kill $$hb 2>/dev/null || true' EXIT; \
 		printf 'make test: race-compile\n' >&2; \
-		go build -race -v $(GOFLAGS) ./... >&2; \
+		go build -race -p 1 -v $(GOFLAGS) ./... >&2; \
 		printf 'make test: run\n' >&2; \
-		go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...; \
+		go test -timeout 5m -p 1 -race -cover $(GOTESTFLAGS) ./...; \
 	else \
 		go test -timeout 5m -race -cover $(GOTESTFLAGS) ./...; \
 	fi
