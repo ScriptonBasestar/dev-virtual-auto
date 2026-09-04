@@ -136,6 +136,19 @@ Gates run clean: `make build`, `make lint`, `make test` (race, all packages), `m
 test-integration`, `make doc-check`. `go test ./internal/cli ./internal/lifecycle -count=1`
 individually green.
 
+**Post-review fix (independent reviewer, verified against a real binary before this fix)**:
+`runCompositionStatus` was inheriting `newCompositionExecutor`'s `DryRun` wiring, which exists for
+`up`/`down`/`stop`/`restart`'s teardown gate (TASK-291) but made `--dry-run dva status` on a
+fully-down composition fabricate `"up"` for every child and outcome `"up"` — the exact false-green
+this card exists to eliminate, worse than master's pre-fix `"not_started"`/exit-0 (master at least
+reported the true child state, just the wrong outcome/exit code). Fixed by forcing
+`DryRun: false` on both `compositionExecutor` instances built for the status path only —
+`runPlanStatus`, the single-plan equivalent, never consults dry-run either, so this also removes a
+divergence between the two status paths rather than introducing one. Also cleaned up three stale
+comments left referencing symbols this same commit deleted
+(`compositionStatusReport`/`queryCompositionChildStatus`), in `composition_flags.go` and
+`composition_flags_exec_test.go`. Re-ran the full gate suite after — still clean.
+
 ## Non-goals
 
 - Not touching `tasks/todo/260-freeze-cross-project-plan-composition.md` — that card is being

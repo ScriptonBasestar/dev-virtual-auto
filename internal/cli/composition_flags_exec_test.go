@@ -225,14 +225,14 @@ func TestCompositionUpRollbackAndNoRollback(t *testing.T) {
 }
 
 // TestCompositionStatusReportsFailedChild closes a coverage gap noted in review: the "failed"
-// per-child state and outcome (composition_flags.go's queryCompositionChildStatus/
-// runCompositionStatus, TASK-260 §5.3) had no test, because every prior fixture that made a
-// child unrunnable made the whole root config fail to load first — never reaching status
-// classification at all. A composed child owned by a SEPARATE subproject config can be
-// unrunnable on its own (a required env_file that does not exist) while the root config, the
-// composition resolve, and the sibling local child all load and query cleanly — the one path
-// that reaches queryCompositionChildStatus's `resolvePlanRuntime`-incomplete branch without
-// the fixture ever failing to load.
+// per-child state and outcome (composition_flags.go's runCompositionStatus, delegating to
+// lifecycle.CompositionOrchestrator.Status, TASK-260 §5.3) had no test, because every prior
+// fixture that made a child unrunnable made the whole root config fail to load first — never
+// reaching status classification at all. A composed child owned by a SEPARATE subproject config
+// can be unrunnable on its own (a required env_file that does not exist) while the root config,
+// the composition resolve, and the sibling local child all load and query cleanly — the one path
+// that reaches compositionChildEnvironment's `resolvePlanRuntime`-incomplete branch without the
+// fixture ever failing to load.
 func TestCompositionStatusReportsFailedChild(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, config.FileName), `version: "0.1.0"

@@ -180,9 +180,9 @@ func validateCompositionFlagScope(comp *lifecycle.CompositionPlan, planName, ver
 	return flags, nil
 }
 
-// compositionChildEnvironment resolves each composed child's owning config/environment the same
-// way queryCompositionChildStatus already does, so lifecycle.PlanChildExecutor can build a
-// per-child *lifecycle.Orchestrator without this file re-deriving that resolution logic.
+// compositionChildEnvironment resolves each composed child's owning config/environment so
+// lifecycle.PlanChildExecutor can build a per-child *lifecycle.Orchestrator without this file
+// re-deriving that resolution logic.
 func compositionChildEnvironment(c *config.Config, el *envLoad) func(child *lifecycle.ExecutionPlan) (*config.Config, *config.Environment, error) {
 	return func(child *lifecycle.ExecutionPlan) (*config.Config, *config.Environment, error) {
 		runtime, err := resolvePlanRuntime(c, el, child.Name, nil)
@@ -278,10 +278,10 @@ func compositionDestructiveOptions(flags compositionFlags) map[string]lifecycle.
 	}
 }
 
-// renderCompositionReport prints a *lifecycle.CompositionReport the same way runCompositionStatus
-// renders compositionStatusReport (§5.3's shape, plus dva_version) for --json, or a text summary
-// for the human path. It always returns runErr unchanged — TASK-260 §5.6's flat 0/1 mapping
-// comes from *that* error, not from anything rendering could fail on.
+// renderCompositionReport prints a *lifecycle.CompositionReport in TASK-260 §5.3's shape (plus
+// dva_version) for --json, or a text summary for the human path. It always returns runErr
+// unchanged — TASK-260 §5.6's flat 0/1 mapping comes from *that* error, not from anything
+// rendering could fail on.
 func renderCompositionReport(report *lifecycle.CompositionReport, runErr error) error {
 	if report == nil {
 		return runErr
@@ -500,7 +500,15 @@ func runCompositionStatus(c *config.Config, el *envLoad, planName string) error 
 		return err
 	}
 
-	orch, err := lifecycle.NewCompositionOrchestrator(comp, newCompositionExecutor(c, el, ""))
+	// status is a read-only query, never an execution verb — dry-run has no coherent meaning
+	// here (runPlanStatus, the single-plan equivalent, never consults it either), and honoring
+	// it would fabricate "up" child states on a fully-down composition (found in review of
+	// TASK-297: newCompositionExecutor's DryRun wiring exists for up/down/stop/restart's
+	// teardown gate, not for status). Force it off regardless of the global --dry-run flag.
+	exec := newCompositionExecutor(c, el, "")
+	exec.forced.DryRun = false
+	exec.unforced.DryRun = false
+	orch, err := lifecycle.NewCompositionOrchestrator(comp, exec)
 	if err != nil {
 		return err
 	}
