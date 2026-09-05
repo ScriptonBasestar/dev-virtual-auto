@@ -3,10 +3,10 @@ id: PLAN-006
 title: "Work the devbox dogfood follow-up queue in dependency order"
 type: plan
 scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-human cards that gate the rest"
-progress: 19
-total-tasks: 16
+progress: 18
+total-tasks: 17
 completed-tasks: 3
-children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
+children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-324, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
 target-date: "2026-10-31"
 created: 2026-09-05
 ---
@@ -31,7 +31,8 @@ created: 2026-09-05
 | 1 | ~~TASK-312~~ dry-run up이 native health를 기다림 | 완료 2026-09-05. P1 S. 다른 카드의 dry-run 검증을 막았음 |
 | 2 | ~~TASK-313~~ local 러너 workdir 무시 | 완료 2026-09-05. P1 S. 독립 |
 | 3 | ~~TASK-317~~ migrate 힌트 오류·legacy 누락 | 완료 2026-09-05. P1 M. 306 스캐폴드와 별개 |
-| 4 | TASK-311 down <plan> volume/network 잔존 | P1 M. 1 완료 후 dry-run으로 검증 |
+| 4 | TASK-311 down <plan> volume/network 잔존 | P1 M. 1 완료(primeno1 `--dry-run up dev` exit 0 확인) 후 dry-run으로 검증 |
+| 4a | TASK-324 composition plan 중복 경고 오탐 | P2 S. flow-taskchain `local-dev`/`local-full` 상주 warn. 독립, 311과 병행 가능 |
 | 5 | TASK-314 logs/build plan 범위 | P2 S |
 | 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력 |
 | 7 | TASK-320 suggestion 파서·manifest | P3 S. 309 결정 C의 소스 개선과 겹치므로 309 전에 |
@@ -46,13 +47,17 @@ created: 2026-09-05
 - TASK-319 native entry ergonomics, TASK-321 destructive interaction agent-deny: 설계 결정 기록 필요.
 - TASK-249 capability-driven init: PLAN-002 child. 322와 경계 확인 후.
 
-## Blocked devbox integrations
+## Devbox integration state (2026-09-05 저녁 갱신)
 
-- scripton-dashboard, scripton-db-orchestrator: 브랜치 `dev/claude/mst/chore/dva-yml-migrate` push됨.
-  `make check`가 sibling 저장소(scripton-mfe-protocol, db-orchestrator-rs) 부재로 실행 불가 → 게이트 거부.
-  sibling을 체크아웃한 환경에서 `branch-integrate` 재실행.
-- scripton-dns-bridge: master 통합 완료, 원격 task 브랜치 삭제만 hook이 거부(develop 기준 판정). 수동 삭제.
-- flow-taskchain, primeno1: 다른 세션이 같은 브랜치 이름으로 작업 계속 중. 이 계획 범위 밖.
+- 통합 완료: db-orchestrator 6d0e3e07(master), primeno1 768cbb4(native 6 엔트리), familybook 9d559fb(자식 import,
+  engine-fiber 3d30df87·client-flutter b792a5b9), flow-taskchain 2134c8c + 자식 4개, dns-bridge 원격 브랜치 삭제 완료.
+- 미통합 1건: scripton-dashboard `dev/claude/mst/chore/dva-yml-migrate`(25dd928). 래퍼가 target을 임시 트리에
+  체크아웃해 `make check`를 돌리므로 gitignore된 `scripton-mfe-protocol`이 없어 baseline 측정 불가.
+  `--allow-skipped-checks`로도 우회 안 됨. 해법은 devbox Makefile `check`가 `prepare`를 선행하거나 사람이 통합.
+- 사람 통합 대기: familybook `dev/claude/mst/chore/readiness-dva-yml`(3538cf2) — readiness contract가
+  `dva.yml`/`dva.yaml` 둘 다 허용하도록 수정. 계약 파일은 에이전트 통합 불가. 통합 후 `dva.yaml`→`dva.yml` 개명 재시도.
+- 실기동 검증 미실시: primeno1 native 엔트리(gate 체인 + `exec`)와 familybook/flow-taskchain composition plan은
+  dry-run까지만 확인. TASK-311 완료 후 실기동 회차 필요.
 
 ## Rules
 

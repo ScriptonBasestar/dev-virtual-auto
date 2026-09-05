@@ -110,7 +110,7 @@ flow-station, lottomaster, mansero, gzh-cli, scripton-code, scripton-dashboard
 
 ## 현재 상태 (최종 갱신 2026-09-05 오후, dva ecae43d)
 
-프로젝트 변경은 전부 **커밋하지 않은 working tree**. 각 리포트의 "적용 결과"/"결정 반영" 섹션이 diff 검토 체크리스트.
+devbox 변경은 dashboard 1건을 제외하고 전부 각 저장소 소스 브랜치에 통합됨(2026-09-05 저녁, dva 70b6f6f). 남은 상태와 순서는 `tasks/plan/006-devbox-dogfood-followup.md`가 정본.
 
 validate 결과: 23개 중 exit 0 / warn 0 이 대다수, warn 1~4는 의도적 drift 예외·compose `name:`·범위 밖 Makefile 제안. 미도입 6개는 리포트에 골격만.
 
