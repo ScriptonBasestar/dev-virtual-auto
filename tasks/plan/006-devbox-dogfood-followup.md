@@ -3,9 +3,9 @@ id: PLAN-006
 title: "Work the devbox dogfood follow-up queue in dependency order"
 type: plan
 scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-human cards that gate the rest"
-progress: 18
+progress: 24
 total-tasks: 17
-completed-tasks: 3
+completed-tasks: 4
 children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-324, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
 target-date: "2026-10-31"
 created: 2026-09-05
@@ -31,7 +31,7 @@ created: 2026-09-05
 | 1 | ~~TASK-312~~ dry-run up이 native health를 기다림 | 완료 2026-09-05. P1 S. 다른 카드의 dry-run 검증을 막았음 |
 | 2 | ~~TASK-313~~ local 러너 workdir 무시 | 완료 2026-09-05. P1 S. 독립 |
 | 3 | ~~TASK-317~~ migrate 힌트 오류·legacy 누락 | 완료 2026-09-05. P1 M. 306 스캐폴드와 별개 |
-| 4 | TASK-311 down <plan> volume/network 잔존 | P1 M. 1 완료(primeno1 `--dry-run up dev` exit 0 확인) 후 dry-run으로 검증 |
+| 4 | ~~TASK-311~~ down <plan> volume/network 잔존 | 완료 2026-09-05. P1 M. `--purge`가 프로젝트 전체 down |
 | 4a | TASK-324 composition plan 중복 경고 오탐 | P2 S. flow-taskchain `local-dev`/`local-full` 상주 warn. 독립, 311과 병행 가능 |
 | 5 | TASK-314 logs/build plan 범위 | P2 S |
 | 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력 |

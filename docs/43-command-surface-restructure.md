@@ -72,6 +72,7 @@ build / logs / clean        →  service·compose 기준 (구 모델)
 ```
 dva up   <name>
 dva down <name> [--purge]     # --purge 가 자원까지 파기 (구 clean 흡수)
+                              # services 선택 plan에서도 compose 프로젝트 전체를 down -v --rmi local (TASK-311)
 dva stop <name>
 dva restart <name>
 dva status [name]

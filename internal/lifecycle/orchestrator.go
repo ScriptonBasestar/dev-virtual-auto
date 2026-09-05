@@ -31,6 +31,7 @@ type DownOptions struct {
 	DryRun       bool
 	Volumes      bool     // also remove named volumes
 	RemoveImages bool     // also remove locally built images
+	Purge        bool     // whole compose project, ignoring the plan's service selection (TASK-311)
 	Names        []string // specific stack entry names (empty = all)
 	IncludeTags  []string
 	ExcludeTags  []string
@@ -210,6 +211,7 @@ func (o *Orchestrator) Down(ctx context.Context, opts DownOptions) error {
 			DryRun:          opts.DryRun,
 			Volumes:         opts.Volumes,
 			RemoveImages:    opts.RemoveImages,
+			Purge:           opts.Purge,
 			ComposeServices: entryComposeServices,
 			Logger:          o.logger.With("entry", entry.Name, "plugin", pluginType),
 		}

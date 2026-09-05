@@ -139,7 +139,7 @@ func TestCompositionDestructiveOptionsScopePerChild(t *testing.T) {
 			t.Fatalf("validateCompositionFlagScope: %v", err)
 		}
 		got := compositionDestructiveOptions(flags)
-		want := map[string]lifecycle.ChildDownOptions{"b-plan": {Volumes: true, RemoveImages: true}}
+		want := map[string]lifecycle.ChildDownOptions{"b-plan": {Volumes: true, RemoveImages: true, Purge: true}}
 		if len(got) != len(want) || got["b-plan"] != want["b-plan"] {
 			t.Fatalf("compositionDestructiveOptions = %+v, want %+v", got, want)
 		}

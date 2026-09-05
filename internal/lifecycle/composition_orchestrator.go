@@ -119,6 +119,7 @@ func (e *CompositionError) Unwrap() error { return e.Err }
 type ChildDownOptions struct {
 	Volumes      bool
 	RemoveImages bool
+	Purge        bool
 }
 
 // CompositionChildExecutor runs one lifecycle verb against a single composed child.
@@ -479,6 +480,7 @@ func (e *PlanChildExecutor) Down(ctx context.Context, child *ExecutionPlan, opts
 		DryRun:       e.DryRun,
 		Volumes:      opts.Volumes,
 		RemoveImages: opts.RemoveImages,
+		Purge:        opts.Purge,
 		Names:        executionPlanEntryNames(child),
 		Env:          child.EnvironmentName,
 	})

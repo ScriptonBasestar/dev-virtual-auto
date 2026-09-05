@@ -416,6 +416,7 @@ func runPlanDown(c *config.Config, el *envLoad, planName string, extraArgs []str
 		DryRun:       effectiveDryRun,
 		Volumes:      flags.volumes || flags.purge,
 		RemoveImages: flags.purge,
+		Purge:        flags.purge,
 		Names:        planEntryNames(plan),
 		Env:          plan.EnvironmentName,
 	})

@@ -88,6 +88,9 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	}
 
 	args := composeDownArgs(pctx)
+	if note := composeDownLeftovers(pctx, args); note != "" {
+		fmt.Fprintf(os.Stderr, "[compose] %s: %s\n", pctx.Entry.Name, note)
+	}
 
 	if pctx.DryRun {
 		cmd, cmdArgs, err := p.buildArgs(pctx, args)
@@ -101,24 +104,44 @@ func (p *ComposePlugin) Down(ctx context.Context, pctx *PluginContext) error {
 	return p.runSubprocess(pctx, args)
 }
 
+// composeDownArgs picks between the two teardown shapes compose offers.
+//
+// A plan that selects services gets `rm --force --stop <services>`: `compose down` has no
+// service filter, so it would also remove the services other plans of the same project
+// still run. `rm` only reaches containers (and, with --volumes, their anonymous volumes);
+// named volumes and the project network are project-scoped and stay. Purge is the one
+// request where staying is wrong — it asks for a clean slate — so it widens to the
+// project-wide `down` regardless of the selection (TASK-311).
 func composeDownArgs(pctx *PluginContext) []string {
-	args := []string{"down", "--remove-orphans"}
-	if pctx.ComposeServices != nil && len(*pctx.ComposeServices) > 0 {
-		args = []string{"rm", "--force", "--stop"}
+	selected := pctx.ComposeServices != nil && len(*pctx.ComposeServices) > 0
+	if selected && !pctx.Purge {
+		args := []string{"rm", "--force", "--stop"}
 		if pctx.Volumes {
 			args = append(args, "--volumes")
 		}
-		args = append(args, *pctx.ComposeServices...)
+		return append(args, *pctx.ComposeServices...)
 	}
-	if pctx.Volumes {
-		if len(args) > 0 && args[0] == "down" {
-			args = append(args, "--volumes")
-		}
+	args := []string{"down", "--remove-orphans"}
+	if pctx.Volumes || pctx.Purge {
+		args = append(args, "--volumes")
 	}
-	if pctx.RemoveImages {
+	if pctx.RemoveImages || pctx.Purge {
 		args = append(args, "--rmi", "local")
 	}
 	return args
+}
+
+// composeDownLeftovers names what a service-scoped `rm` cannot remove, so the operator
+// learns it from the command rather than from `docker volume ls` afterwards.
+func composeDownLeftovers(pctx *PluginContext, args []string) string {
+	if len(args) == 0 || args[0] != "rm" {
+		return ""
+	}
+	left := "the project network"
+	if pctx.Volumes {
+		left = "named volumes and the project network"
+	}
+	return fmt.Sprintf("removing selected services only; %s stay — 'dva down <plan> --purge' tears down the whole compose project", left)
 }
 
 func (p *ComposePlugin) Stop(ctx context.Context, pctx *PluginContext) error {

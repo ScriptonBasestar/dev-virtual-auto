@@ -274,6 +274,7 @@ func compositionDestructiveOptions(flags compositionFlags) map[string]lifecycle.
 		flags.scopedChild.ChildPlan.Name: {
 			Volumes:      flags.volumes || flags.purge,
 			RemoveImages: flags.purge,
+			Purge:        flags.purge,
 		},
 	}
 }

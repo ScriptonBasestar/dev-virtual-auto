@@ -27,7 +27,12 @@ type PluginContext struct {
 	Wait         bool
 	Volumes      bool // clean: also remove named volumes
 	RemoveImages bool // clean: also remove locally built images
-	Logger       *slog.Logger
+	// Purge tears down the whole compose project — every service, named volume, network and
+	// local image — even when ComposeServices selects a subset. `compose rm` cannot reach
+	// project-scoped resources, so a plan-scoped down that must leave a clean slate has to
+	// widen to `compose down` (TASK-311).
+	Purge  bool
+	Logger *slog.Logger
 
 	// Mode-derived compose hints (set by orchestrator when a mode is active)
 	ComposeProfiles []string  // --profile flags for docker compose

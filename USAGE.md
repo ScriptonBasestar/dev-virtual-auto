@@ -581,10 +581,21 @@ stack:
 #### 볼륨·이미지·마커까지 제거 (`--purge`)
 
 ```bash
-dva down <PLAN> -v            # + named 볼륨 제거 (데이터 손실 주의)
-dva down <PLAN> --purge       # + 로컬 빌드 이미지 + provision 마커 제거
+dva down <PLAN> -v            # + 볼륨 제거 (데이터 손실 주의)
+dva down <PLAN> --purge       # compose 프로젝트 전체 + 로컬 빌드 이미지 + provision 마커 제거
 dva down <PLAN> --purge --force   # 확인 프롬프트 스킵
 ```
+
+**plan이 services를 고른 경우의 범위** — plan 엔트리에 `services:`가 있으면 `down`과 `-v`는
+`compose rm --force --stop [--volumes] <services>`로 실행됩니다. `compose down`에는 서비스
+필터가 없어서, 같은 프로젝트의 다른 plan이 쓰는 서비스까지 내려버리기 때문입니다. 그 대신
+`rm`은 컨테이너(와 `-v` 시 익명 볼륨)만 지우고 **named 볼륨과 프로젝트 네트워크는 남습니다**.
+명령이 stderr에 무엇이 남는지 알려 줍니다.
+
+`--purge`는 이 범위를 프로젝트 전체로 넓힙니다: services 선택과 무관하게
+`compose down --remove-orphans --volumes --rmi local`을 실행해 named 볼륨·네트워크·로컬
+이미지까지 지웁니다. `docker compose down -v`를 직접 부르는 clean/reset interaction은
+`dva down <PLAN> --purge --force`로 대체할 수 있습니다.
 
 `--purge`는 확인 프롬프트를 띄웁니다. 프롬프트에 답할 수 없는 환경(파이프, CI 러너,
 `</dev/null`)에서는 아무것도 지우지 않고 **실패**합니다 — 조용히 exit 0으로 끝나
