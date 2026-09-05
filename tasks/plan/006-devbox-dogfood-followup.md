@@ -1,0 +1,61 @@
+---
+id: PLAN-006
+title: "Work the devbox dogfood follow-up queue in dependency order"
+type: plan
+scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-human cards that gate the rest"
+progress: 0
+total-tasks: 16
+completed-tasks: 0
+children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
+target-date: "2026-10-31"
+created: 2026-09-05
+---
+
+## Goal
+
+2026-09-05 mydevbox dogfood(23개 devbox 저장소를 dva v0.1.48 plans 스키마로 이전)에서 나온 결함·
+설계 카드를 하나씩 처리한다. `reports/`·`tmp/`는 ignore 대상이라 이 카드가 상태의 정본이다.
+카드는 `tasks/todo/`, 완료는 `tasks/done/`, 이 문서는 순서·의존·상태만 소유한다.
+
+## Starting state (2026-09-05)
+
+- 완료·통합: TASK-303, 304, 305, 306, 308, 310 (dva master d7636a3, e3c562d, 9b74de9, b2c2d13).
+- devbox 이전 커밋 `chore(dva): migrate dva.yml to plans and clear validate warnings`가 19개
+  저장소 trunk에 착지. 미착지 4개는 §Blocked 참조.
+- 설계 대기 문서: docs/55(alias/extends), docs/56(suppression). 결정 항목은 각 문서 §5.
+
+## Order (decision-free first)
+
+| # | Task | Why here |
+|---|---|---|
+| 1 | TASK-312 dry-run up이 native health를 기다림 | P1 S. 재현 확실, 다른 카드의 dry-run 검증을 막음 |
+| 2 | TASK-313 local 러너 workdir 무시 | P1 S. 독립 |
+| 3 | TASK-317 migrate 힌트 오류·legacy 누락 | P1 M. 306 스캐폴드와 별개 |
+| 4 | TASK-311 down <plan> volume/network 잔존 | P1 M. 1 완료 후 dry-run으로 검증 |
+| 5 | TASK-314 logs/build plan 범위 | P2 S |
+| 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력 |
+| 7 | TASK-320 suggestion 파서·manifest | P3 S. 309 결정 C의 소스 개선과 겹치므로 309 전에 |
+| 8 | TASK-322 init 탐지 결함 | P2 M. 249 재설계와 겹치지 않는 탐지 버그만 |
+| 9 | TASK-315 compose profiles | P2 M. 둘째 기준 human |
+| 10 | TASK-318 섹션 순서 자동 정렬 | P3 S |
+| 11 | TASK-323 문서 의미 공백 | P3 S. `--env` 항목은 307 결정에 따라 문구가 달라짐 — 마지막 |
+
+## Needs-human (결정 후 착수)
+
+- TASK-307 → docs/55 §5 (4항목). TASK-309 → docs/56 §5 (5항목). 309는 316·320 뒤.
+- TASK-319 native entry ergonomics, TASK-321 destructive interaction agent-deny: 설계 결정 기록 필요.
+- TASK-249 capability-driven init: PLAN-002 child. 322와 경계 확인 후.
+
+## Blocked devbox integrations
+
+- scripton-dashboard, scripton-db-orchestrator: 브랜치 `dev/claude/mst/chore/dva-yml-migrate` push됨.
+  `make check`가 sibling 저장소(scripton-mfe-protocol, db-orchestrator-rs) 부재로 실행 불가 → 게이트 거부.
+  sibling을 체크아웃한 환경에서 `branch-integrate` 재실행.
+- scripton-dns-bridge: master 통합 완료, 원격 task 브랜치 삭제만 hook이 거부(develop 기준 판정). 수동 삭제.
+- flow-taskchain, primeno1: 다른 세션이 같은 브랜치 이름으로 작업 계속 중. 이 계획 범위 밖.
+
+## Rules
+
+- 카드 하나 = worktree 하나 = 통합 하나. 완료 시 카드를 `tasks/done/`으로 옮기고 이 문서의
+  `completed-tasks`·`progress`를 같은 커밋에서 갱신한다.
+- dry-run 검증이 필요한 카드(311, 315)는 1번 완료 전에는 착수하지 않는다.
