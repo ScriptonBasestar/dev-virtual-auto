@@ -44,7 +44,13 @@ func (r *DockerComposeRunner) runForm(env *config.Environment, form execForm) er
 	case formScriptFile, formScript:
 		// script/script_file in docker context: not supported natively;
 		// fall back to local execution as a convenience.
-		local := &LocalRunner{Cmd: r.Cmd, Opts: r.Opts}
+		//
+		// workdir is dropped for the fallback: on this runner it names a directory inside the
+		// container (`--workdir`), and the local runner would otherwise chdir the host to that
+		// path (TASK-313).
+		hostCmd := *r.Cmd
+		hostCmd.Workdir = ""
+		local := &LocalRunner{Cmd: &hostCmd, Opts: r.Opts}
 		return local.Execute(env)
 
 	case formCommandList:

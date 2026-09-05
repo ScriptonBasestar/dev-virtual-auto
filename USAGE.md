@@ -1374,6 +1374,22 @@ interaction이 **무엇을 대상으로** 실행되는지는 다음 필드로 �
 | `pod:` | kubectl | `kubectl exec` — 값 `name` 또는 `name:container` (`parsePod`) |
 | (둘 다 없음) | local | 호스트에서 직접 실행 |
 
+#### `workdir:` — 러너별 의미
+
+| 러너 | `workdir:`의 기준 |
+|------|-------------------|
+| local | **호스트** 디렉터리. 상대 경로는 `dva.yml`이 있는 디렉터리 기준이며, 어느 하위 폴더에서 `dva run`을 호출해도 같은 곳에서 실행됩니다. 없는 디렉터리면 `workdir "sub": directory not found (resolved to …)` 오류로 실패합니다. |
+| Docker Compose | **컨테이너 안** 경로 (`docker compose exec/run --workdir`). `script:`/`script_file:` 호스트 폴백에서는 무시됩니다. |
+| kubectl | 사용하지 않음 |
+
+```yaml
+interaction:
+  engine-test:
+    runner: local
+    workdir: dripter-engine-ktor   # `cd dripter-engine-ktor && …` 체인 대신
+    command: ./gradlew test
+```
+
 #### `pod:` 와 kubectl 실행 형태
 
 `pod:`가 있으면 kubectl 러너가 쓰입니다. 그 안에서 실제 작업 선언은 다음 중 하나입니다
