@@ -11,6 +11,28 @@ scope: "internal/cli/config_env_safewrite.go newTemp/newSafeWriter/Commit/syncDi
 status: done
 closed-at: 2026-09-03T14:27:42+09:00
 depends-on: []
+parent: PLAN-002
+completed-at: 2026-09-03T14:27:42+09:00
+completion-summary: "Opened a second os.Root on the target's own directory during preflight and held it through the rename, so the temp is created beside the target, Commit renames a bare leaf with no path component left to re-resolve, and syncDir flushes the directory the rename actually touched. The temp now carries the target's leaf so glob ignore rules cover it, TestConfigEnvRejectsPathSwap hard-asserts the rejection code instead of accepting either outcome, and fakeGit records which directory the guard was asked about."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/cli -run PathSwap -count=1 && go test ./internal/cli ./internal/config -count=1"
+    result: "passed; the in-root symlink swap subtest now requires codePathComponentSymlnk and asserts no bytes landed in either the decoy or the moved directory"
+  - kind: automated
+    command-or-step: "make lint && make test && make test-integration && make doc-check && make commit-check"
+    result: "passed; every gate exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-09-05T09:48:35+09:00
+quality-review-evidence:
+  - "independent re-review re-ran every machine binding on master 4d80158: go test ./internal/cli -run PathSwap (12 subtests including target_parent_replaced_by_an_in-root_symlink_mid-run), go test ./internal/cli and ./internal/config, and make lint / test / test-integration / doc-check / commit-check, all exit 0"
+  - "criterion 3 was checked by reading the test rather than by its exit code, since a passing test proves nothing about whether it would fail: the subtest now calls requireCode(t, err, codePathComponentSymlnk) and asserts .env is absent from both the decoy and the moved directory, so the either-outcome acceptance the card indicted is gone"
+  - "criterion 1/2/5 confirmed in source: Commit renames through w.anchor.dir.root with w.anchor.leaf and re-checks stillAnchored() immediately before the rename, and both syncDir calls go through the anchor rather than the config root"
+  - "the three human bindings were verified directly rather than taken on trust. Criterion 9: newTemp's comment states it creates the temp in the anchor, that is the target's own directory, which matches tempName and the call site. Criterion 10: sops receives the temp fd as cmd.Stdout so plaintext never enters a DVA buffer, stderr is capped at 8 KiB by limitedWriter and never echoed, and tempName derives from the target leaf, pid and a random token with no component from file content. Criterion 6: the residue is bounded rather than eliminated, and that limit is stated in three places - a test asserting the temp matches .env*, .env.* and *.tmp, the tempName comment, and USAGE.md, which tells the user to widen an exact-name ignore rule to .env*"
+  - "no blocker. One observation: the temp name shape frozen in TASK-245 sections 7-4 and 8-5 as .dva-env-<pid>-<nanos>.tmp is superseded by <leaf>.dva-env-<pid>-<token>.tmp; the change is deliberate and recorded in the tempName comment and USAGE.md, but PLAN-002 lists TASK-284 by title only and carries no supersession note for it"
+archived-at: 2026-09-05T09:48:35+09:00
+verified-at: 2026-09-05T09:48:35+09:00
+verification-summary: "The implementation now meets the sections 5-3, 5-4 and 8-1 properties below the config root that TASK-246 delivered only at the root; the frozen rulings were not reopened, and the one contract-visible change is the temp name shape from sections 7-4 and 8-5."
 ---
 
 # Task 284: anchor the env-bridge safe write to the target's directory
