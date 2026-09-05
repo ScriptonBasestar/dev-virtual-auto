@@ -135,11 +135,12 @@ flow-station, lottomaster, mansero, gzh-cli, scripton-code, scripton-dashboard
 - docs/57(TASK-310) §4 안티패턴 기준 24개 전수 점검(2026-09-05): §4-2 중복 선언 2건 수정(gitrump `run-app`→`check-config`, dns-bridge `run-api`/`run-worker` 삭제).
   §4-1 primeno1(앱 4종 미선언)·§4-3 familybook/flow-taskchain(자식 Makefile 타겟 참조)은 소유자 결정으로 리포트에 권장안만 기록.
   일회성 명령(migrate, cli, check)과 cargo-watch 변형은 중복으로 보지 않음.
+- 소유자 결정 수용(2026-09-05): primeno1 §4-1, familybook·flow-taskchain §4-3 적용. composition plan 중복 경고 오탐은 TASK-324.
 
 ### 남은 작업
 1. 24개 프로젝트 working tree 리뷰·커밋(사용자). warning 0 → 예외 순.
 2. 실기동 검증: TASK-311/312 수정 후 primeno1, db-orchestrator, dns-bridge, gitrump, signalhub, dashboard(`make prepare` 선행).
-4. 소유자 결정: primeno1 앱 native 엔트리 전환(§4-1, 리포트 권장안), familybook·flow-taskchain 자식 dva.yml + import 전환(§4-3, 자식 저장소 변경).
+4. ~~소유자 결정~~ 완료(2026-09-05): primeno1 native 엔트리 전환(§4-1), familybook·flow-taskchain 자식 dva.yml + subprojects import 전환(§4-3). 발견 → TASK-324.
 3. dva 태스크: P1 312, 313, 317, 311 → P2 314, 316, 315, 307 → needs-human 319, 321 → P3.
 
 ## 이력

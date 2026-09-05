@@ -85,3 +85,10 @@ EXIT=0   (warning 1 — 의도적 예외)
 - 권장안: native 엔트리 `api`/`gateway`/`stream`/`frontend`(dir 루트, `run:`에 gate 스크립트 체인 그대로) + plan `dev`(`full` + api + gateway + frontend, depends_on compose),
   `external-db` plan에 `api`/`stream`의 external-db 변형 엔트리 추가. 기존 `dva api-run*`/`frontend-dev` 문서 참조 8곳(README, CLAUDE.md, INDEX, PLAN, PRDV,
   REQUIREMENTS, GUIDELINES, LOCAL_EXECUTION_GUIDE)은 `dva up dev`로 치환. 참고로 문서의 `dva frontend-dev` 표기는 현행 문법(`dva run frontend-dev`)도 아니다.
+
+### 권장안 적용 (2026-09-05, 소유자 수용)
+
+- native 엔트리 6종 추가: `api`/`gateway`/`stream`/`frontend`(plan `dev`, `dev-stream`) + `api-external-db`/`stream-external-db`(plan `external-db`).
+  `run:`은 gate 스크립트 체인을 그대로 두고 마지막을 `exec`로 넘겨 Gradle/Vite 프로세스가 dva의 추적 대상이 되게 했다(§3 devbox 소유 gate 스크립트 허용).
+- interaction `api-run*`/`frontend-dev`/`dev-up` 삭제, 문서·스크립트 11곳을 `dva up dev`/`dev-stream`/`external-db`로 치환. `dva validate` warning 0.
+- 검증 한계: `dva --dry-run up dev`는 TASK-312로 health 대기에 걸려 멈춤(kill 필요). 실기동 검증은 TASK-311/312 이후.

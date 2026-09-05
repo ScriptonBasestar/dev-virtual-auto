@@ -65,3 +65,12 @@ EXIT=0   (warning 1 — 의도적 예외)
 - §4-3 해당(미적용, 소유자 결정): `backend`(dir familybook-engine-fiber, `make run`)·`frontend`(dir familybook-client-flutter, `make run-web`)가 자식 Makefile 타겟 이름을 루트가 기억한다.
   자식이 타겟을 바꾸면 루트는 validate를 통과한 채 실행에서 깨진다. 해법은 자식 저장소에 `dva.yml`을 두고 §2 `subprojects` import로 전환하는 것인데
   devbox 밖(자식 저장소) 변경이라 이 dogfood 범위에서는 기록만 한다. 루트 Makefile 타겟을 가리키는 경우(flow-knowchain, gorisa, postkit)는 루트가 소유자이므로 해당 없음.
+
+### 권장안 적용 (2026-09-05, 소유자 수용)
+
+- 자식 저장소에 `dva.yml` 추가: familybook-engine-fiber(`backend`, `make run`, http health), familybook-client-flutter(`frontend`, `make run-web`).
+  각각 `plans.dev` + `default_plan: dev`.
+- 루트: `backend`/`frontend` 엔트리 삭제, `subprojects.backend`/`frontend`(`exclude_tags: [infra]`, `import.plans: [dev]`) 추가.
+  `hybrid`는 composition plan으로 전환 — `infra`(0) → `backend/dev`(1) → `frontend/dev`(2). 루트 `dva.yaml`→`dva.yml` 개명 포함.
+- 발견: composition plan에 `environment:`/`site:`를 두면 validate ERROR라 삭제했다(§2 문서에 명시 필요, TASK-323).
+- `dva --dry-run up hybrid`는 wave 순서를 올바르게 출력하고 블록되지 않음(TASK-312는 entries가 있는 plan에서만 재현).

@@ -46,3 +46,12 @@ exit=0   (warning 4 — 모두 사전 존재하던 Makefile suggestion: gap-303-
 - §4-3 해당(미적용, 소유자 결정): `engine-api`/`mcp-server`(`make run`)·`admin-ui`(`make dev`)가 자식 디렉토리 Makefile 타겟을 루트가 기억한다.
   자식이 타겟을 바꾸면 루트는 validate를 통과한 채 실행에서 깨진다. 해법은 자식 저장소에 `dva.yml`을 두고 §2 `subprojects` import로 전환하는 것인데
   devbox 밖(자식 저장소) 변경이라 이 dogfood 범위에서는 기록만 한다. 루트 Makefile 타겟을 가리키는 경우(flow-knowchain, gorisa, postkit)는 루트가 소유자이므로 해당 없음.
+
+### 권장안 적용 (2026-09-05, 소유자 수용)
+
+- 자식 4종에 `dva.yml` 추가: engine(`PORT=10000`), mcp(`PORT=10002`), portal(pnpm), admin — 각 `plans.dev` + `default_plan: dev`.
+- 루트: native 엔트리 4종 삭제, `subprojects.{engine,mcp,portal,admin}` import, `local-infra-full` plan 신설,
+  `local-dev`/`local-full`을 composition plan으로 전환. `docs/40-development/dva-workflow.md`·CLAUDE.md plan 표 갱신.
+- 발견(dva 결함, TASK-324): composes만 있는 두 plan(`local-dev`, `local-full`)이 서로 다른 composes를 가져도
+  "declare equal environment, site, vars, endpoint_tags, and entries" warning이 뜬다 — `plansHaveEqualDeclaration`이 `Composes`를 비교하지 않음.
+- 발견: `subprojects:`를 `endpoints:` 뒤에 두면 canonical section order warning(TASK-318 범위).
