@@ -325,7 +325,7 @@ func (c *Config) warnDuplicatePlanDeclarations() []string {
 				continue
 			}
 			warnings = append(warnings, fmt.Sprintf(
-				"plans %q and %q declare equal environment, site, vars, endpoint_tags, and entries — review whether both are intentional",
+				"plans %q and %q declare equal environment, site, vars, endpoint_tags, entries, and composes — review whether both are intentional",
 				nameA, nameB,
 			))
 		}
@@ -359,7 +359,26 @@ func plansHaveEqualDeclaration(a, b *PlanConfig) bool {
 			return false
 		}
 	}
+	// Composition plans (TASK-260) carry their whole declaration in Composes and have
+	// no Entries, so without this comparison any two of them looked equal (TASK-324).
+	if len(a.Composes) != len(b.Composes) {
+		return false
+	}
+	for i := range a.Composes {
+		if !compositionEntriesEqual(a.Composes[i], b.Composes[i]) {
+			return false
+		}
+	}
 	return true
+}
+
+// compositionEntriesEqual is planEntriesEqual for CompositionEntry: Plan, Order,
+// DependsOn, Vars, compared positionally like Entries.
+func compositionEntriesEqual(a, b CompositionEntry) bool {
+	return a.Plan == b.Plan &&
+		a.Order == b.Order &&
+		slices.Equal(a.DependsOn, b.DependsOn) &&
+		maps.Equal(a.Vars, b.Vars)
 }
 
 // planEntriesEqual compares one PlanEntry pair on the fields D6 freezes: Name,

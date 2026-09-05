@@ -42,7 +42,7 @@ func TestDuplicatePlanDeclarationsEqualDeclarationsWarn(t *testing.T) {
 	}}
 
 	got := c.warnDuplicatePlanDeclarations()
-	want := []string{`plans "alpha" and "beta" declare equal environment, site, vars, endpoint_tags, and entries — review whether both are intentional`}
+	want := []string{`plans "alpha" and "beta" declare equal environment, site, vars, endpoint_tags, entries, and composes — review whether both are intentional`}
 	if !slices.Equal(got, want) {
 		t.Fatalf("warnDuplicatePlanDeclarations() = %v\n  want %v", got, want)
 	}
@@ -66,6 +66,7 @@ func TestDuplicatePlanDeclarationsOneFieldDifferenceIsNotDuplicate(t *testing.T)
 		{"entry.depends_on", func(p *PlanConfig) { p.Entries[0].DependsOn = []string{"dep1", "dep3"} }},
 		{"entry.services", func(p *PlanConfig) { p.Entries[0].Services = []string{"web", "cache"} }},
 		{"entry.vars", func(p *PlanConfig) { p.Entries[0].Vars["x"] = "different" }},
+		{"plan.composes", func(p *PlanConfig) { p.Composes = []CompositionEntry{{Plan: "infra"}} }},
 	}
 
 	for _, tc := range cases {
@@ -351,5 +352,46 @@ func TestMultiplePlansWithoutDefaultAreOrderStable(t *testing.T) {
 		if !slices.Equal(got, first) {
 			t.Fatalf("run %d differs from run 0:\n first: %v\n got:   %v", i+1, first, got)
 		}
+	}
+}
+
+// TestDuplicatePlanDeclarationsCompositionPlans covers TASK-324: two composition
+// plans have no Entries, so before Composes was compared every pair warned. Differing
+// Composes (plan, order, depends_on, vars, or list order) must not warn; equal ones must.
+func TestDuplicatePlanDeclarationsCompositionPlans(t *testing.T) {
+	base := func() *PlanConfig {
+		return &PlanConfig{Composes: []CompositionEntry{
+			{Plan: "infra", Order: 0},
+			{Plan: "backend/dev", Order: 1, DependsOn: []string{"infra"}, Vars: map[string]string{"k": "v"}},
+		}}
+	}
+	cases := []struct {
+		name   string
+		mutate func(*PlanConfig)
+	}{
+		{"composes.plan", func(p *PlanConfig) { p.Composes[1].Plan = "frontend/dev" }},
+		{"composes.order", func(p *PlanConfig) { p.Composes[1].Order = 2 }},
+		{"composes.depends_on", func(p *PlanConfig) { p.Composes[1].DependsOn = nil }},
+		{"composes.vars", func(p *PlanConfig) { p.Composes[1].Vars["k"] = "other" }},
+		{"composes.length", func(p *PlanConfig) { p.Composes = p.Composes[:1] }},
+		{"composes.list-order", func(p *PlanConfig) { p.Composes[0], p.Composes[1] = p.Composes[1], p.Composes[0] }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a, b := base(), base()
+			tc.mutate(b)
+			if plansHaveEqualDeclaration(a, b) {
+				t.Fatalf("plansHaveEqualDeclaration = true after changing %s, want false", tc.name)
+			}
+			c := &Config{Plans: map[string]*PlanConfig{"a": a, "b": b}}
+			if got := c.warnDuplicatePlanDeclarations(); len(got) != 0 {
+				t.Fatalf("warnDuplicatePlanDeclarations() = %v, want none", got)
+			}
+		})
+	}
+
+	c := &Config{Plans: map[string]*PlanConfig{"a": base(), "b": base()}}
+	if got := c.warnDuplicatePlanDeclarations(); len(got) != 1 {
+		t.Fatalf("warnDuplicatePlanDeclarations() = %v, want one warning for equal composition plans", got)
 	}
 }

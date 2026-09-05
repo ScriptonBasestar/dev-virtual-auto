@@ -3,9 +3,9 @@ id: PLAN-006
 title: "Work the devbox dogfood follow-up queue in dependency order"
 type: plan
 scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-human cards that gate the rest"
-progress: 29
+progress: 35
 total-tasks: 17
-completed-tasks: 5
+completed-tasks: 6
 children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-324, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
 target-date: "2026-10-31"
 created: 2026-09-05
@@ -32,13 +32,14 @@ created: 2026-09-05
 | 2 | ~~TASK-313~~ local 러너 workdir 무시 | 완료 2026-09-05. P1 S. 독립 |
 | 3 | ~~TASK-317~~ migrate 힌트 오류·legacy 누락 | 완료 2026-09-05. P1 M. 306 스캐폴드와 별개 |
 | 4 | ~~TASK-311~~ down <plan> volume/network 잔존 | 완료 2026-09-05. P1 M. `--purge`가 프로젝트 전체 down |
-| 4a | TASK-324 composition plan 중복 경고 오탐 | P2 S. flow-taskchain `local-dev`/`local-full` 상주 warn. 독립, 311과 병행 가능 |
+| 4a | ~~TASK-324~~ composition plan 중복 경고 오탐 | 완료 2026-09-05. P2 S. `Composes` 비교 추가 |
 | 5 | ~~TASK-314~~ logs/build plan 범위 | 완료 2026-09-05. P2 S |
 | 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력 |
 | 7 | TASK-320 suggestion 파서·manifest | P3 S. 309 결정 C의 소스 개선과 겹치므로 309 전에 |
 | 8 | TASK-322 init 탐지 결함 | P2 M. 249 재설계와 겹치지 않는 탐지 버그만 |
 | 9 | TASK-315 compose profiles | P2 M. 둘째 기준 human |
 | 10 | TASK-318 섹션 순서 자동 정렬 | P3 S |
+| 10a | 실기동 검증 회차 (카드 없음) | 311 완료로 착수 가능. primeno1 native 6종(gate 체인+`exec`), familybook/flow-taskchain composition plan을 `dva up`/`status`/`down --purge` 실제 실행으로 확인하고 각 리포트에 출력 첨부. 결함이 나오면 카드로 승격 |
 | 11 | TASK-323 문서 의미 공백 | P3 S. `--env` 항목은 307 결정에 따라 문구가 달라짐 — 마지막 |
 
 ## Needs-human (결정 후 착수)

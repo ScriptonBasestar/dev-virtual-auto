@@ -25,3 +25,4 @@ status: todo
 
 - [ ] 각 항목 docs/USAGE 반영, `make generate` 갱신 | verify: `make generate && git diff --stat`
 - (2026-09-05 추가) `endpoints.*.url`/`source`는 `${VAR}`/`${VAR:-default}`를 치환하지 않는다(`dva show`에 원문 출력, internal/cli/endpoints.go는 ep.URL을 그대로 사용). 문서화하거나 치환을 지원해야 한다 — devbox 3곳(sigdock-pass, matdosa, notifire)이 이 때문에 리터럴 포트를 중복 선언 중.
+- (2026-09-05 추가) composition plan(`composes:`)에 `environment:`/`site:`를 두면 validate ERROR — 자식 plan이 각자 갖는다는 규칙이 §2 문서에 없음 (familybook `hybrid` 전환 중 발견).

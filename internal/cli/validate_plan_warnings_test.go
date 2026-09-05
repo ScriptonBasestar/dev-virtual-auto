@@ -63,7 +63,7 @@ plans:
 		if w.Category != "semantic" {
 			continue
 		}
-		if strings.Contains(w.Message, "declare equal environment, site, vars, endpoint_tags, and entries") {
+		if strings.Contains(w.Message, "declare equal environment, site, vars, endpoint_tags, entries, and composes") {
 			sawD6 = true
 		}
 		if strings.Contains(w.Message, "but default_plan is not set") {
