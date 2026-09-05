@@ -132,10 +132,14 @@ flow-station, lottomaster, mansero, gzh-cli, scripton-code, scripton-dashboard
 - postkit `environments.ci` 삭제. notifire `scripts/dva-*.sh` 수용. bare `dva logs/down`은 plan 명시로 통일.
 - endpoints 리터럴 포트 유지(dva가 endpoints url을 치환하지 않음 — TASK-323).
 - 의도적 drift warning 5건은 TASK-309 대기.
+- docs/57(TASK-310) §4 안티패턴 기준 24개 전수 점검(2026-09-05): §4-2 중복 선언 2건 수정(gitrump `run-app`→`check-config`, dns-bridge `run-api`/`run-worker` 삭제).
+  §4-1 primeno1(앱 4종 미선언)·§4-3 familybook/flow-taskchain(자식 Makefile 타겟 참조)은 소유자 결정으로 리포트에 권장안만 기록.
+  일회성 명령(migrate, cli, check)과 cargo-watch 변형은 중복으로 보지 않음.
 
 ### 남은 작업
 1. 24개 프로젝트 working tree 리뷰·커밋(사용자). warning 0 → 예외 순.
 2. 실기동 검증: TASK-311/312 수정 후 primeno1, db-orchestrator, dns-bridge, gitrump, signalhub, dashboard(`make prepare` 선행).
+4. 소유자 결정: primeno1 앱 native 엔트리 전환(§4-1, 리포트 권장안), familybook·flow-taskchain 자식 dva.yml + import 전환(§4-3, 자식 저장소 변경).
 3. dva 태스크: P1 312, 313, 317, 311 → P2 314, 316, 315, 307 → needs-human 319, 321 → P3.
 
 ## 이력

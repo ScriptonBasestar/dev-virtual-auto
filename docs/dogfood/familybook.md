@@ -59,3 +59,9 @@ EXIT=0   (warning 1 — 의도적 예외)
 ## TASK-303 반영 후 재검증 (2026-09-05, dva d7636a3)
 
 - `${REDIS_PASSWORD:-changeme}`: 그대로 유지, 정상.
+
+## docs/57 §4 재점검 (2026-09-05, TASK-310 가이드 기준)
+
+- §4-3 해당(미적용, 소유자 결정): `backend`(dir familybook-engine-fiber, `make run`)·`frontend`(dir familybook-client-flutter, `make run-web`)가 자식 Makefile 타겟 이름을 루트가 기억한다.
+  자식이 타겟을 바꾸면 루트는 validate를 통과한 채 실행에서 깨진다. 해법은 자식 저장소에 `dva.yml`을 두고 §2 `subprojects` import로 전환하는 것인데
+  devbox 밖(자식 저장소) 변경이라 이 dogfood 범위에서는 기록만 한다. 루트 Makefile 타겟을 가리키는 경우(flow-knowchain, gorisa, postkit)는 루트가 소유자이므로 해당 없음.

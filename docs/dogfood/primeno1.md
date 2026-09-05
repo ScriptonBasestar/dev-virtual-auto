@@ -75,3 +75,13 @@ EXIT=0   (warning 1 — 의도적 예외)
 
 - (TASK-308 semantic warning으로 발견) `interaction.dev-up.command`의 `dva up -M full` 잔재 → `dva up full`. 이전 CLI 잔재 정리에서 dva.yml 내부 문자열은 놓쳤음.
 - (결정 반영) bare `dva down` → `dva down full` (CLAUDE.md, docs/LOCAL_EXECUTION_GUIDE.md ×3), sigdock-idp 호출은 `dva down infra`.
+
+## docs/57 §4 재점검 (2026-09-05, TASK-310 가이드 기준)
+
+- §4-1 해당(미적용, 소유자 결정): 앱 프로세스 4종이 stack 엔트리 없이 interaction으로만 기동된다 — `api-run`, `api-run.gateway`,
+  `api-run.external-db`, `api-run.stream.external-db`, `frontend-dev`. `dva status`가 앱을 못 보고 `dva down`이 앱을 남긴다.
+- 미적용 이유: 각 기동이 SigDock contract gate(`scripts/sigdock-local-contract.sh`), TLS 검증 wrapper(`--exec`), external-db credential wrapper와
+  결합돼 있고 health 경로가 확인되지 않아 실기동(TASK-311/312 이후) 없이 옮기면 검증 불가.
+- 권장안: native 엔트리 `api`/`gateway`/`stream`/`frontend`(dir 루트, `run:`에 gate 스크립트 체인 그대로) + plan `dev`(`full` + api + gateway + frontend, depends_on compose),
+  `external-db` plan에 `api`/`stream`의 external-db 변형 엔트리 추가. 기존 `dva api-run*`/`frontend-dev` 문서 참조 8곳(README, CLAUDE.md, INDEX, PLAN, PRDV,
+  REQUIREMENTS, GUIDELINES, LOCAL_EXECUTION_GUIDE)은 `dva up dev`로 치환. 참고로 문서의 `dva frontend-dev` 표기는 현행 문법(`dva run frontend-dev`)도 아니다.

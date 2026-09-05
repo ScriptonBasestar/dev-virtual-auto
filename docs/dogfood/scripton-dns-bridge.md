@@ -56,3 +56,9 @@ warning 0 (기준선: applications 스키마 거부로 validate 실패). 검증�
 - `dva logs <plan>`은 엔트리가 2개 이상이면 `name one: dva logs hybrid <api|compose|worker>`로 거부 — 합리적이나 native 엔트리 로그 경로가 문서화돼 있는지 확인 필요(구 `dva logs`는 compose 전체 tail).
 - (db-orchestrator와 공통) `--dry-run up`이 native health를 대기, `dva down <plan> --volumes`가 프로젝트 전체 down이 아님, `dva build <plan>`이 이미지 전용 compose 서비스를 build 인자로 넘김, `modes.*.provision` 대체물 없음, section-order warning.
 - plan 간 서비스 목록 중복(postgres, redis가 8개 plan에 반복). `plans.<name>.composes`(TASK-260)가 있으나 composition plan은 자체 entries를 가질 수 없어 "infra + 추가 서비스" 패턴에는 쓸 수 없음 — leaf plan 상속/alias(TASK-307)가 해법.
+
+## docs/57 §4 재점검 (2026-09-05, TASK-310 가이드 기준)
+
+- §4-2 해당: `run-api`/`run-worker` interaction이 native 엔트리 `api`/`worker`(`plans.dev`/`hybrid`)와 동일한 `cargo run` 프로세스를 중복 선언. 두 interaction 삭제.
+  `run-api-watch`(cargo-watch)는 native 러너가 auto-reload를 표현할 수 없어 `dva up`의 대체 수단으로 존치(주석 명시).
+  프로젝트 문서는 전부 Makefile 타겟(`make run-api`)을 가리키므로 문서 변경 없음. validate exit 0.

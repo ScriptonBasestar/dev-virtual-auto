@@ -40,3 +40,9 @@ exit=0   (warning 4 — 모두 사전 존재하던 Makefile suggestion: gap-303-
 ## CLI 잔재 정리 (2026-09-05)
 - CLAUDE.md:79 (AGENTS.md 심링크) `dva clean` → `dva run clean` (clean interaction = `make infra-clean`), 금지 문구의 `dva clean -v` → `dva down --volumes`/`--purge`
 - 보류 0.
+
+## docs/57 §4 재점검 (2026-09-05, TASK-310 가이드 기준)
+
+- §4-3 해당(미적용, 소유자 결정): `engine-api`/`mcp-server`(`make run`)·`admin-ui`(`make dev`)가 자식 디렉토리 Makefile 타겟을 루트가 기억한다.
+  자식이 타겟을 바꾸면 루트는 validate를 통과한 채 실행에서 깨진다. 해법은 자식 저장소에 `dva.yml`을 두고 §2 `subprojects` import로 전환하는 것인데
+  devbox 밖(자식 저장소) 변경이라 이 dogfood 범위에서는 기록만 한다. 루트 Makefile 타겟을 가리키는 경우(flow-knowchain, gorisa, postkit)는 루트가 소유자이므로 해당 없음.

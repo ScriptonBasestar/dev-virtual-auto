@@ -77,3 +77,9 @@ validate: **exit 0 / warn 0** (이전 exit 1). 커밋하지 않음. `--dry-run u
 ### 잔여 결정
 - `dva up dev`의 native gitrumpd health ready_timeout 60은 cold `cargo run` 컴파일 시간을 못 넘길 수 있음 → 실기동 후 120~300으로 조정 검토.
 - Makefile `dev`/`dev-full` 타깃은 여전히 compose 직접 호출 — dva plan으로 위임할지는 Makefile 소유자 결정.
+
+## docs/57 §4 재점검 (2026-09-05, TASK-310 가이드 기준)
+
+- §4-2 해당: `run-app` interaction이 native 엔트리 `gitrumpd`와 같은 `cargo run --bin gitrumpd` 프로세스를 두 번째 소유자로 선언했다.
+  `run-app` 본체를 삭제하고 하위 `check`만 `check-config`(`--check`, EE 디렉토리 = Makefile `run-check`와 동일)로 승격. 단독 기동은 `dva up dev`.
+  `build-app`은 `cargo build`가 idempotent라 유지. validate exit 0.
