@@ -144,7 +144,12 @@ func (o *Orchestrator) Up(ctx context.Context, opts UpOptions) error {
 		}
 
 		// Run health checks for this entry and wait if needed
-		if len(entry.HealthChecks) > 0 && opts.Wait {
+		if len(entry.HealthChecks) > 0 && opts.Wait && opts.DryRun {
+			// Nothing was started, so nothing can become ready: report the wait instead of
+			// polling until ctx cancels (TASK-312).
+			fmt.Fprintf(os.Stderr, "[health] (dry-run) would wait for entry %q: %s\n",
+				entry.Name, describeHealthChecks(entry.HealthChecks))
+		} else if len(entry.HealthChecks) > 0 && opts.Wait {
 			results := o.hc.WaitUntilReadyWithContext(ctx, entry.HealthChecks, entryEnv.WorkDir(), entryEnv)
 			allReady := true
 			for _, r := range results {

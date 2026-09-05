@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -161,4 +162,32 @@ func checkCommand(command string, timeout time.Duration, dir string, env *config
 		cmd.Env = env.EnvSlice()
 	}
 	return cmd.Run() == nil
+}
+
+// describeHealthChecks renders a stable, human-readable summary of health checks
+// for dry-run output: "<name>=<type> <target> (ready_timeout=Ns), ...".
+func describeHealthChecks(checks map[string]config.HealthCheckConfig) string {
+	names := make([]string, 0, len(checks))
+	for name := range checks {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		c := checks[name]
+		target := c.URL
+		switch c.Type {
+		case "tcp":
+			target = c.Address
+		case "command":
+			target = c.Command
+		}
+		readyTimeout := c.ReadyTimeout
+		if readyTimeout <= 0 {
+			readyTimeout = 30
+		}
+		parts = append(parts, fmt.Sprintf("%s=%s %s (ready_timeout=%ds)", name, c.Type, target, readyTimeout))
+	}
+	return strings.Join(parts, ", ")
 }

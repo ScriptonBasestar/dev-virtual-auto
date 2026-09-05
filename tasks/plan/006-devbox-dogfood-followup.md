@@ -3,9 +3,9 @@ id: PLAN-006
 title: "Work the devbox dogfood follow-up queue in dependency order"
 type: plan
 scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-human cards that gate the rest"
-progress: 0
+progress: 6
 total-tasks: 16
-completed-tasks: 0
+completed-tasks: 1
 children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
 target-date: "2026-10-31"
 created: 2026-09-05
@@ -28,7 +28,7 @@ created: 2026-09-05
 
 | # | Task | Why here |
 |---|---|---|
-| 1 | TASK-312 dry-run up이 native health를 기다림 | P1 S. 재현 확실, 다른 카드의 dry-run 검증을 막음 |
+| 1 | ~~TASK-312~~ dry-run up이 native health를 기다림 | 완료 2026-09-05. P1 S. 다른 카드의 dry-run 검증을 막았음 |
 | 2 | TASK-313 local 러너 workdir 무시 | P1 S. 독립 |
 | 3 | TASK-317 migrate 힌트 오류·legacy 누락 | P1 M. 306 스캐폴드와 별개 |
 | 4 | TASK-311 down <plan> volume/network 잔존 | P1 M. 1 완료 후 dry-run으로 검증 |
