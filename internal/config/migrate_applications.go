@@ -50,7 +50,7 @@ func MigrateApplications(src []byte) ([]byte, MigrationReport, error) {
 		nameNode, app := apps.Content[i], apps.Content[i+1]
 		name := nameNode.Value
 
-		entry, notes, blockers := migrateApplicationNode(name, app, stack)
+		entry, notes, blockers := migrateApplicationNode(name, app, stack, mapValue(root, "interaction"))
 		blocked = append(blocked, blockers...)
 		if entry == nil {
 			// No honest entry to write, so the application stays where it is. Blockers
@@ -143,7 +143,7 @@ var applicationLeftovers = []struct{ key, why string }{
 // It returns the stack entry, notes about what was deliberately not carried over, and
 // blockers. A non-empty blocker list means there is no honest entry to write at all — not
 // merely that something was left behind — and the caller leaves the application in place.
-func migrateApplicationNode(name string, app, stack *yaml.Node) (*yaml.Node, []string, []string) {
+func migrateApplicationNode(name string, app, stack, interaction *yaml.Node) (*yaml.Node, []string, []string) {
 	var notes, blockers []string
 
 	if app.Kind != yaml.MappingNode {
@@ -156,9 +156,20 @@ func migrateApplicationNode(name string, app, stack *yaml.Node) (*yaml.Node, []s
 	}
 
 	for _, leftover := range applicationLeftovers {
-		if v := mapValue(app, leftover.key); v != nil && (v.Kind != yaml.SequenceNode || len(v.Content) > 0) {
-			blockers = append(blockers, fmt.Sprintf("applications.%s.%s: %s", name, leftover.key, leftover.why))
+		v := mapValue(app, leftover.key)
+		if v == nil || (v.Kind == yaml.SequenceNode && len(v.Content) == 0) {
+			continue
 		}
+		why := leftover.why
+		if leftover.key == "dev" {
+			// A dev command that an interaction already runs verbatim has a home: the
+			// hot-reload entry would be a third copy of it (TASK-317).
+			if dup := interactionRunning(interaction, appDevCommand(v)); dup != "" {
+				why += fmt.Sprintf(". interaction.%s already runs this exact command — keep that "+
+					"and drop the field, or make the entry and delete the interaction", dup)
+			}
+		}
+		blockers = append(blockers, fmt.Sprintf("applications.%s.%s: %s", name, leftover.key, why))
 	}
 
 	native := &yaml.Node{Kind: yaml.MappingNode}
@@ -215,7 +226,9 @@ func migrateApplicationNode(name string, app, stack *yaml.Node) (*yaml.Node, []s
 	if port := mapValue(app, "port"); port != nil {
 		notes = append(notes, fmt.Sprintf(
 			"  applications.%s.port: %s not carried over — it drove the port-reclaim check in "+
-				"'dva app up', which no longer exists", name, port.Value))
+				"'dva app up', which no longer exists. If the port is user-facing, keep it as "+
+				"endpoints.%s: {url: \"http://localhost:%s\"} so 'dva endpoints' still lists it",
+			name, port.Value, name, port.Value))
 	}
 
 	entry := &yaml.Node{Kind: yaml.MappingNode}
@@ -330,4 +343,34 @@ func applyLineEdits(lines []string, edits []lineEdit) []string {
 		out = append(out, lines[pos-1])
 	}
 	return out
+}
+
+// appDevCommand returns the shell line an application's `dev:` ran — the scalar form, or
+// the `native:` member of the object form.
+func appDevCommand(dev *yaml.Node) string {
+	if dev == nil {
+		return ""
+	}
+	if dev.Kind == yaml.ScalarNode {
+		return strings.TrimSpace(dev.Value)
+	}
+	if native := mapValue(dev, "native"); native != nil && native.Kind == yaml.ScalarNode {
+		return strings.TrimSpace(native.Value)
+	}
+	return ""
+}
+
+// interactionRunning returns the name of the first top-level interaction whose scalar
+// `command:` is exactly cmd, or "" when none is.
+func interactionRunning(interaction *yaml.Node, cmd string) string {
+	if cmd == "" || interaction == nil || interaction.Kind != yaml.MappingNode {
+		return ""
+	}
+	for i := 0; i+1 < len(interaction.Content); i += 2 {
+		c := mapValue(interaction.Content[i+1], "command")
+		if c != nil && c.Kind == yaml.ScalarNode && strings.TrimSpace(c.Value) == cmd {
+			return interaction.Content[i].Value
+		}
+	}
+	return ""
 }

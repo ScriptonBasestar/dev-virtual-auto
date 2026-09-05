@@ -59,10 +59,64 @@ func Migrate(src []byte) ([]byte, MigrationReport, error) {
 		report.merge(stepReport)
 	}
 
+	report.Changes = append(report.Changes, noteDuplicatedTags(out, migrated)...)
 	report.Blocked = append(report.Blocked, ReportInteractionEnvFile(out)...)
 	report.Blocked = append(report.Blocked, ScaffoldModes(out)...)
+	report.Blocked = append(report.Blocked, ReportLegacyFields(out)...)
 	report.Blocked = append(report.Blocked, ReportModuleScope(out)...)
 	return out, report, nil
+}
+
+// profileFlags renders a compose_profiles value as the up_options flags it becomes.
+func profileFlags(v *yaml.Node) string {
+	var flags []string
+	switch v.Kind {
+	case yaml.SequenceNode:
+		for _, n := range v.Content {
+			flags = append(flags, "--profile "+n.Value)
+		}
+	case yaml.ScalarNode:
+		flags = append(flags, "--profile "+v.Value)
+	}
+	if len(flags) == 0 {
+		return "--profile <profile>"
+	}
+	return strings.Join(flags, " ")
+}
+
+// scalarOr returns a scalar node's value, or fallback for anything else.
+func scalarOr(v *yaml.Node, fallback string) string {
+	if v != nil && v.Kind == yaml.ScalarNode && v.Value != "" {
+		return v.Value
+	}
+	return fallback
+}
+
+// noteDuplicatedTags explains, per migrated legacy compose entry, why `tags` now appears
+// twice. migrateEntryNode copies it on purpose (entry tags drive --tags filtering, compose
+// tags are the service-filter default), but a preview that shows the same list in two
+// places with no word reads as a defect and gets one copy deleted by hand (TASK-317).
+func noteDuplicatedTags(src []byte, migrated []string) []string {
+	if len(migrated) == 0 {
+		return nil
+	}
+	var doc yaml.Node
+	if err := yaml.Unmarshal(src, &doc); err != nil || len(doc.Content) == 0 {
+		return nil
+	}
+	stack := mapValue(doc.Content[0], "stack")
+	var out []string
+	for _, name := range migrated {
+		entry := mapValue(stack, name)
+		if mapValue(entry, "tags") == nil || mapValue(mapValue(mapValue(entry, "runners"), "compose"), "tags") == nil {
+			continue
+		}
+		out = append(out, fmt.Sprintf(
+			"  stack.%s.tags: kept on the entry and copied to runners.compose.tags on purpose — the "+
+				"entry list answers 'dva up --tags/--exclude-tags', the runner list is the default "+
+				"compose service filter; drop the runner copy only if you never filter services by tag", name))
+	}
+	return out
 }
 
 // modeFieldTargets says where each field of a mode ends up once the mode is split.
@@ -77,14 +131,15 @@ var modeFieldTargets = []struct{ key, target string }{
 	{"description", "plans.<name>.description"},
 	{"stack", "plans.<name>.entries[].name — the declarations this mode selected"},
 	{"compose_services", "plans.<name>.entries[<compose entry>].services"},
-	{"compose_profiles", "stack.<entry>.runners.compose.up_options, as --profile <name>"},
+	{"compose_profiles", "stack.<entry>.runners.compose.up_options, as <profiles>"},
 	{"health_checks", "stack.<entry>.health_checks"},
 	{"endpoint_tags", "plans.<name>.endpoint_tags"},
-	{"environment", "environments.<name>.vars, selected by plans.<name>.environment"},
+	{"environment", "environments.<name>.environment, selected by plans.<name>.environment"},
 	{"build", "the entry's runner: 'docker' means runners.compose, 'native' means runners.native.build"},
 	{"run", "the entry's default_runner"},
 	{"applications", "runners.native on the entry the application became"},
-	{"provision", "no equivalent — a provision profile is chosen explicitly, not by mode"},
+	{"provision", "no equivalent — a plan does not run a provision profile; run 'dva provision <profile>' " +
+		"before 'dva up <name>', or chain both in an interaction command (steps: with two run: lines)"},
 }
 
 // ScaffoldModes describes how each mode still declared splits across the new model.
@@ -112,11 +167,17 @@ func ScaffoldModes(src []byte) []string {
 		name, mode := modes.Content[i].Value, modes.Content[i+1]
 		out = append(out, fmt.Sprintf("modes.%s: split by hand —", name))
 		for _, field := range modeFieldTargets {
-			if mapValue(mode, field.key) == nil {
+			value := mapValue(mode, field.key)
+			if value == nil {
 				continue
 			}
-			out = append(out, fmt.Sprintf("      %-17s → %s",
-				field.key, strings.ReplaceAll(field.target, "<name>", name)))
+			target := strings.ReplaceAll(field.target, "<name>", name)
+			// The hint quotes the author's own values where the destination is a flag: the
+			// old text substituted the mode name for <name> inside "--profile <name>", so
+			// `compose_profiles: [dev-tools]` on modes.full read "--profile full" (TASK-317).
+			target = strings.ReplaceAll(target, "<profiles>", profileFlags(value))
+			target = strings.ReplaceAll(target, "<profile>", scalarOr(value, "<profile>"))
+			out = append(out, fmt.Sprintf("      %-17s → %s", field.key, target))
 		}
 	}
 	return out

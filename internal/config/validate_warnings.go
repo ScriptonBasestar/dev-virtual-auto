@@ -149,7 +149,7 @@ func (c *Config) warnLegacyEnvironmentFields() []string {
 
 	sort.Strings(affected)
 	return []string{
-		fmt.Sprintf("⚠ 'environments.*.stack/stack_overrides' detected — these fields are deprecated\n  Migration guide: %s\n  Affected environments: %s\n  Hint: environments should use 'vars' only; stack selection belongs in plans", migrationGuideURL, strings.Join(affected, ", ")),
+		fmt.Sprintf("⚠ 'environments.*.stack/stack_overrides' detected — these fields are deprecated\n  Migration guide: %s\n  Affected environments: %s\n  Hint: an environment carries 'environment:' (its variables) only; stack selection belongs in plans", migrationGuideURL, strings.Join(affected, ", ")),
 	}
 }
 
