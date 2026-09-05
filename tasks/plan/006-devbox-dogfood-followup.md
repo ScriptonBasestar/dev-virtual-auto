@@ -34,7 +34,7 @@ created: 2026-09-05
 | 4 | ~~TASK-311~~ down <plan> volume/network 잔존 | 완료 2026-09-05. P1 M. `--purge`가 프로젝트 전체 down |
 | 4a | ~~TASK-324~~ composition plan 중복 경고 오탐 | 완료 2026-09-05. P2 S. `Composes` 비교 추가 |
 | 5 | ~~TASK-314~~ logs/build plan 범위 | 완료 2026-09-05. P2 S |
-| 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력 |
+| 6 | TASK-316 drift 감지 결함 | P2 M. docs/56 `drift_ignore`(309)보다 먼저 — 감지 폭이 억제 설계의 입력. 2026-09-05 분석 완료(카드 §Analysis), 코드 미착수 |
 | 7 | TASK-320 suggestion 파서·manifest | P3 S. 309 결정 C의 소스 개선과 겹치므로 309 전에 |
 | 8 | TASK-322 init 탐지 결함 | P2 M. 249 재설계와 겹치지 않는 탐지 버그만 |
 | 9 | TASK-315 compose profiles | P2 M. 둘째 기준 human |
@@ -67,6 +67,12 @@ created: 2026-09-05
   다음 착수 전 `git log origin/master`와 `tasks/todo/` 재확인.
 - 실기동 검증 미실시: primeno1 native 엔트리(gate 체인 + `exec`)와 familybook/flow-taskchain composition plan은
   dry-run까지만 확인. TASK-311 완료 후 실기동 회차 필요.
+
+## Session handoff (2026-09-05 밤)
+
+- 세션 1회차 종료 시점: 1~5·4a 통합 완료(master 2cb184e). 316은 분석만 카드에 기록, worktree 없음.
+- 다음 착수: TASK-316 → 320 → 322 → 315 → 318 → 10a 실기동 → 323. 카드 §Analysis에서 바로 시작.
+- 잔여 사람 결정: 위 §Needs-human, §Devbox integration state의 scripton-dashboard·familybook 2건.
 
 ## Rules
 
