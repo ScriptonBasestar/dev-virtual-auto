@@ -72,5 +72,9 @@ EXIT=0   (warning 1 — 의도적 예외)
   각각 `plans.dev` + `default_plan: dev`.
 - 루트: `backend`/`frontend` 엔트리 삭제, `subprojects.backend`/`frontend`(`exclude_tags: [infra]`, `import.plans: [dev]`) 추가.
   `hybrid`는 composition plan으로 전환 — `infra`(0) → `backend/dev`(1) → `frontend/dev`(2). 루트 `dva.yaml`→`dva.yml` 개명 포함.
+- 통합 결과: 루트 7f1e6e2, engine-fiber 3d30df87, client-flutter b792a5b9 모두 develop에 통합. `dva.yaml`→`dva.yml` 개명은
+  readiness contract(`.gz-git/readiness/check` 필수 파일 목록)가 `dva.yaml`을 요구해 되돌렸고, 계약 수정 브랜치
+  `dev/claude/mst/chore/readiness-dva-yml`(3538cf2)은 사람 통합 대기. client-flutter는 devbox `.gz-git.yaml`에 workspace 항목과
+  빈 `integration: {}`를 추가해야 `--controller-config`로 통합 가능했다(prepareProfile 미지정 시 준비 단계 생략).
 - 발견: composition plan에 `environment:`/`site:`를 두면 validate ERROR라 삭제했다(§2 문서에 명시 필요, TASK-323).
 - `dva --dry-run up hybrid`는 wave 순서를 올바르게 출력하고 블록되지 않음(TASK-312는 entries가 있는 plan에서만 재현).
