@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -62,12 +63,55 @@ func planBuildTargets(plan *lifecycle.ExecutionPlan) []planBuildTarget {
 // as the service list, so the plan's subset and an explicit one cannot both be appended.
 // Building more services than the plan runs is the wider mistake of the two, so an explicit
 // selection replaces the subset rather than adding to it.
-func planComposeBuildArgs(target planBuildTarget, passthrough []string) []string {
+//
+// As for logs, a flag alone (`--no-cache`) keeps the subset: it says how to build, not
+// what. `buildable` narrows the subset to the services the compose files give a `build:`;
+// nil means the files could not be read and the subset goes through as declared (TASK-314).
+func planComposeBuildArgs(target planBuildTarget, passthrough []string, buildable map[string]bool) []string {
 	args := append([]string{"build"}, passthrough...)
-	if len(passthrough) == 0 {
-		args = append(args, target.services...)
+	if !passthroughNamesServices(passthrough, composeBuildValueFlags) {
+		for _, svc := range target.services {
+			if known, ok := buildable[svc]; ok && !known {
+				continue // declared in the compose file, and image-only: `compose build` would refuse it
+			}
+			args = append(args, svc)
+		}
 	}
 	return args
+}
+
+// composeBuildValueFlags are the `compose build` flags that consume the next token.
+var composeBuildValueFlags = map[string]bool{
+	"--build-arg": true, "--builder": true, "--memory": true, "-m": true,
+	"--progress": true, "--ssh": true,
+}
+
+// composeBuildableServices maps every service the entry's compose files declare to whether
+// it carries a `build:`. Files are resolved the way ComposeArgv resolves them, so the map
+// describes the same project the build command will address. Returns nil when no file was
+// readable, so the caller cannot mistake "unknown" for "nothing builds".
+func composeBuildableServices(e *config.Environment, c *config.Config, cc *config.ComposePluginConfig) map[string]bool {
+	if cc == nil {
+		return nil
+	}
+	var out map[string]bool
+	for _, f := range cc.Files {
+		f = e.Interpolate(f)
+		if !filepath.IsAbs(f) {
+			f = filepath.Join(c.FileDir(), f)
+		}
+		services, ok := extractComposeBuildable(f)
+		if !ok {
+			continue
+		}
+		if out == nil {
+			out = map[string]bool{}
+		}
+		for name, hasBuild := range services {
+			out[name] = out[name] || hasBuild
+		}
+	}
+	return out
 }
 
 // buildComposeTarget runs `docker compose build` for one entry of a plan.
@@ -79,7 +123,15 @@ func planComposeBuildArgs(target planBuildTarget, passthrough []string) []string
 // entries would be silently skipped with rc 0 from docker.
 func buildComposeTarget(e *config.Environment, c *config.Config, target planBuildTarget, passthrough []string) error {
 	entry := &config.LifecycleEntry{Name: target.name, Compose: target.compose}
-	composeCmd, composeArgs, err := buildComposeArgsForEntry(e, c, entry, planComposeBuildArgs(target, passthrough))
+	args := planComposeBuildArgs(target, passthrough, composeBuildableServices(e, c, target.compose))
+	if len(target.services) > 0 && len(args) == 1 && !passthroughNamesServices(passthrough, composeBuildValueFlags) {
+		// Every selected service is image-only. A bare `compose build` here would build the
+		// whole file — the services the plan does not run — so say so and do nothing.
+		fmt.Fprintf(os.Stderr, "[build: %s] nothing to build — none of the plan's services (%s) declares build: in its compose file\n",
+			target.name, strings.Join(target.services, ", "))
+		return nil
+	}
+	composeCmd, composeArgs, err := buildComposeArgsForEntry(e, c, entry, args)
 	if err != nil {
 		return err
 	}

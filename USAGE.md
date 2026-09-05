@@ -541,6 +541,12 @@ dva logs db-only
 dva down db-only
 ```
 
+`dva logs <PLAN>`과 `dva build <PLAN>`은 plan 엔트리의 `services:`로 범위를 좁힙니다.
+`-f`, `--tail 50`, `--no-cache`처럼 **플래그만** 덧붙이면 서브셋이 유지되고
+(`compose logs -f postgres redis`), 서비스 이름을 직접 쓰면 그 이름이 서브셋을 대체합니다.
+`build`는 여기서 한 번 더 걸러서, compose 파일에 `build:`가 없는 이미지 전용 서비스는
+인자에서 빼고, 남는 서비스가 없으면 `nothing to build`만 출력합니다 (TASK-314).
+
 > **완전히 인자 없는 `dva up`은 명시된 `default_plan` 또는 유일한 plan을 선택합니다.** 여러
 > plan에 기본값이 없으면 plan 이름을 요구하며, plan이 전혀 없을 때만 선언된 stack 전체를
 > 대상으로 합니다. 이 whole-stack 경로의 Compose 러너는 `--profile` 없는

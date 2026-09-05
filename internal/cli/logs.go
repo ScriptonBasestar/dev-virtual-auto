@@ -100,12 +100,38 @@ func showPlanEntryLogs(e *config.Environment, c *config.Config, target planLogTa
 // positionals as the service list, so appending the subset to a caller's own service name
 // would widen the selection past what was asked for, and appending it to `-f` would name
 // services the caller deliberately left out.
+//
+// Flags are not a selection. `dva logs <plan> -f` asks to follow the plan's services, not
+// every service in the file — and on a compose file that puts services behind `profiles:`,
+// the unscoped form silently omits exactly the services the plan started (TASK-314). So the
+// subset is dropped only when the passthrough names a service itself.
 func planComposeLogArgs(target planLogTarget, passthrough []string) []string {
 	args := append([]string{config.LogsDirName}, passthrough...)
-	if len(passthrough) == 0 {
+	if !passthroughNamesServices(passthrough, composeLogsValueFlags) {
 		args = append(args, target.services...)
 	}
 	return args
+}
+
+// composeLogsValueFlags are the `compose logs` flags that consume the next token, so that
+// token is a value and not a service name.
+var composeLogsValueFlags = map[string]bool{"--tail": true, "-n": true, "--since": true, "--until": true, "--index": true}
+
+// passthroughNamesServices reports whether any passthrough token is a positional — a
+// service name — once flags and the values of value-taking flags are set aside.
+func passthroughNamesServices(passthrough []string, valueFlags map[string]bool) bool {
+	skipValue := false
+	for _, tok := range passthrough {
+		switch {
+		case skipValue:
+			skipValue = false
+		case isFlagToken(tok):
+			skipValue = valueFlags[tok]
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // runPlanLogs shows logs for a plan, or for one named entry of it.

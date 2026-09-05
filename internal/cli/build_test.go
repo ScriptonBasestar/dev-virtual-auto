@@ -229,7 +229,7 @@ func TestRunPlanBuildStopsAtTheFirstFailure(t *testing.T) {
 // the one invocation whose whole purpose is to say what would happen, so it has to name both
 // halves — the docker argv and the native command with its directory — and run neither.
 func TestRunPlanBuildDryRunPreviewsWithoutBuilding(t *testing.T) {
-	setDryRun(t, true)
+	enableDryRun(t)
 	c := buildTestConfig(t)
 
 	var err error
@@ -315,10 +315,11 @@ func TestPlanComposeBuildArgs(t *testing.T) {
 	}{
 		{"no arguments: the plan's subset is built", nil, "build db cache"},
 		{"an explicit service replaces the subset", []string{"db"}, "build db"},
-		{"a flag suppresses the subset too", []string{"--no-cache"}, "build --no-cache"},
+		{"a flag keeps the subset: it says how, not what (TASK-314)", []string{"--no-cache"}, "build --no-cache db cache"},
+		{"a value-taking flag's value is not a service", []string{"--build-arg", "X=1"}, "build --build-arg X=1 db cache"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := strings.Join(planComposeBuildArgs(target, tc.passthrough), " "); got != tc.want {
+			if got := strings.Join(planComposeBuildArgs(target, tc.passthrough, nil), " "); got != tc.want {
 				t.Errorf("argv = %q, want %q", got, tc.want)
 			}
 		})

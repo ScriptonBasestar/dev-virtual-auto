@@ -55,6 +55,20 @@ type composeServiceCollector struct {
 	seen       map[string]bool
 	serviceSet map[string]bool
 	services   []string
+	buildable  map[string]bool // service → declares build: (TASK-314)
+	readAny    bool
+}
+
+// extractComposeBuildable reports, for every service the file (and its includes) declares,
+// whether it carries a `build:` key. ok is false when the file could not be read.
+func extractComposeBuildable(path string) (map[string]bool, bool) {
+	collector := composeServiceCollector{
+		seen:       map[string]bool{},
+		serviceSet: map[string]bool{},
+		buildable:  map[string]bool{},
+	}
+	collector.collect(path)
+	return collector.buildable, collector.readAny
 }
 
 func (collector *composeServiceCollector) collect(path string) {
@@ -68,6 +82,7 @@ func (collector *composeServiceCollector) collect(path string) {
 	if err != nil {
 		return
 	}
+	collector.readAny = true
 
 	var document yaml.Node
 	if err := yaml.Unmarshal(data, &document); err != nil {
@@ -118,7 +133,20 @@ func (collector *composeServiceCollector) appendServiceNames(node *yaml.Node) {
 		}
 		collector.serviceSet[name] = true
 		collector.services = append(collector.services, name)
+		if collector.buildable != nil {
+			svc := node.Content[index+1]
+			collector.buildable[name] = svc.Kind == yaml.MappingNode && mapHasKey(svc, "build")
+		}
 	}
+}
+
+func mapHasKey(m *yaml.Node, key string) bool {
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
 }
 
 func composeIncludePaths(node *yaml.Node) []string {

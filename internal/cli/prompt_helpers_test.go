@@ -95,11 +95,11 @@ func captureBothStreams(t *testing.T, fn func()) (stderr string) {
 	return readErr()
 }
 
-// setDryRun drives the global rather than the flag because RunE is invoked here without
+// enableDryRun drives the global rather than the flag because RunE is invoked here without
 // cobra's Execute, which is what would normally populate the persistent flag.
-func setDryRun(t *testing.T, v bool) {
+func enableDryRun(t *testing.T) {
 	t.Helper()
 	old := dryRun
-	dryRun = v
+	dryRun = true
 	t.Cleanup(func() { dryRun = old })
 }

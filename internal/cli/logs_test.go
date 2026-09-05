@@ -214,7 +214,9 @@ func TestPlanComposeLogArgs(t *testing.T) {
 	}{
 		{"no arguments: the plan's subset filters", nil, "logs db cache"},
 		{"an explicit service replaces the subset", []string{"db"}, "logs db"},
-		{"a flag suppresses the subset too", []string{"-f"}, "logs -f"},
+		{"a flag keeps the subset: -f follows the plan's services (TASK-314)", []string{"-f"}, "logs -f db cache"},
+		{"a value-taking flag's value is not a service", []string{"--tail", "50"}, "logs --tail 50 db cache"},
+		{"an explicit service after a flag still replaces the subset", []string{"-f", "db"}, "logs -f db"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := strings.Join(planComposeLogArgs(target, tc.passthrough), " "); got != tc.want {
