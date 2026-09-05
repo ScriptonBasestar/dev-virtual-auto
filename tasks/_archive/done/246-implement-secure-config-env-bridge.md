@@ -10,6 +10,28 @@ source: "PLAN-002 frozen security boundary and TASK-245 decision"
 scope: "env_file model, Cobra commands, sops runner, safe writer, output fixtures, integration tests, user documentation"
 status: done
 depends-on: [TASK-245, TASK-248]
+parent: PLAN-002
+completed-at: 2026-09-03T10:18:46+09:00
+completion-summary: "Implemented TASK-245 Option A end to end: load-invisible entry-level sops_source with a split schema, exactly two commands (unseal, edit), one os.Root handle carried from preflight through rename with per-component Lstat gating, a 0600 O_EXCL temporary fd handed straight to the sops child so plaintext never enters a DVA buffer, the frozen 12-step check order, and a 19-row fake-sops fault matrix plus a pinned real sops 3.13.1 integration test."
+verification-status: verified
+verification-evidence:
+  - kind: automated
+    command-or-step: "go test ./internal/config -count=1 && go test ./internal/cli -count=1"
+    result: "passed; all seven TASK-245 section 9 fixtures resolve to exactly one function each"
+  - kind: automated
+    command-or-step: "make lint && make test && make test-integration && make check-generate && make release-check && make commit-check && make doc-check"
+    result: "passed; every gate exited zero"
+quality-review: pass
+quality-reviewed-at: 2026-09-05T09:20:44+09:00
+quality-review-evidence:
+  - "independent re-review re-ran all ten acceptance bindings from a clean master (40d76ac): the seven grep bindings each resolve to exactly one function, go test ./internal/config and ./internal/cli exit 0, and make lint / test / test-integration / check-generate / release-check / commit-check / doc-check all exit 0"
+  - "TestConfigEnvRealSOPS is genuinely executed rather than skipped: -run '^TestConfigEnvRealSOPS$' -tags=integration runs four subtests against the .mise.toml-pinned sops 3.13.1 and passes"
+  - "conformance against the frozen contract: TASK-245 section 4-1 is 23 rows of which four (6, 7, 9, 16) are success paths, so the 19-row fake fault matrix is the complete failure set, and all sixteen frozen unseal codes plus path_component_symlink are exercised in internal/cli tests; section 3-1 is 14 argv rows and section 4-2 is 12 check steps, both pinned by config_env_grammar_test.go, and TestConfigEnvCodeSetHasNotDrifted guards the closed code set"
+  - "the card discloses eight of its own deviations, and the two follow-ups it claims to have opened are real: TASK-277 exists for the parseEnvFileStrict ordering flake"
+  - "one major finding, already owned downstream and not a reopen: an independent review of the delivered commit cccb310 found that Commit renamed through the config-root handle with a directory component still in the path, reopening the very preflight-to-replace window criterion 4 claims to close; TASK-284 carded it and bbe3db1 anchored the rename to the target directory handle with a bare leaf plus a stillAnchored recheck, which is the code that passes the binding today"
+archived-at: 2026-09-05T09:20:44+09:00
+verified-at: 2026-09-05T09:20:44+09:00
+verification-summary: "The bridge implements the frozen contract and every acceptance binding passes on current master; the path-anchoring defect that criterion 4 did not actually achieve at close is repaired under TASK-284, and TASK-281/282 own the later gated seal/show surface."
 ---
 
 # Task 246: implement the secure config env bridge

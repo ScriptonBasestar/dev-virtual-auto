@@ -53,7 +53,7 @@ diff와 명령 결과를 다시 확인한다.
 | 1 | [TASK-266](../tasks/todo/266-deprecate-and-reject-interaction-env-file.md) | TASK-265 결정 구현 |
 | 2 | [TASK-248](../tasks/todo/248-enforce-required-env-command-policy.md) | TASK-247·264·265 위에서 loader safety 구현·통합 완료 |
 | 2 | [TASK-250](../tasks/todo/250-implement-capability-driven-init.md) | TASK-244·249 결과 구현·통합 완료 |
-| 3 | [TASK-246](../tasks/todo/246-implement-secure-config-env-bridge.md) | TASK-245 결정·TASK-248 contract 위에서 구현·통합 완료 |
+| 3 | [TASK-246](../tasks/_archive/done/246-implement-secure-config-env-bridge.md) | TASK-245 결정·TASK-248 contract 위에서 구현·통합 완료 |
 | 4 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | 영구 유지 결정 또는 promotion evidence 요청이 기록됨 |
 | 조건부 | [TASK-251](../tasks/todo/251-build-env-migration-evidence-gate.md) | TASK-252가 요청한 경우 gate 통합, 아니면 N/A 종료 |
 | 조건부 재개 | [TASK-252](../tasks/todo/252-decide-top-level-env-promotion.md) | TASK-251 evidence를 사용한 최종 결정 기록 |
