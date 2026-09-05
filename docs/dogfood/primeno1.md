@@ -29,7 +29,7 @@
 - [x] `dva config migrate` 미리보기: "nothing to convert". modes 6개 각각 "description → plans.<m>.description, stack → plans.<m>.entries[].name" 대응표만 출력(1:1 매핑인데 자동 변환 없음). `stack.*.order`(-10 두 곳), clean replace, 최상위 `environment`, `dva up -M` 언급 없음.
 - [x] `interaction.clean` replace(validate 하드 에러) → `steps:` (`docker compose -f … down -v`, DESTRUCTIVE 설명).
 - [x] modes 6개 + `default_mode` → plans: `minimal`, `full`(default_plan), `observability`, `tracing`, `sigdock-local`(sigdock-local-runtime order 10 → compose order 20 depends_on), `external-db`(external-db-contract order 10 → compose-external-db order 20 depends_on). `stack.*.order: -10` 제거 후 plan entry order로 이관(게이트 선행 유지).
-- [x] **entry 조합 시도 → 되돌림**: overlay 엔트리(observability/tracing)가 base 파일을 -f에 포함하되 overlay 서비스만 선언하고 plan에서 `compose` + overlay를 조합하는 형태로 만들었더니 validate가 `stack: compose entries [compose, compose-minimal, observability, tracing] can run in the same invocation set … merge them into one entry whose files: lists the overlays` (internal/config/validate_warnings.go:893, TASK-288)로 경고. dva 설계상 overlay는 한 엔트리에 전체 -f 목록을 가져야 하므로 원래 형태(엔트리당 전체 -f 목록 + 서비스 태그 재선언)로 복귀. 엔트리 이름만 `compose-observability`→`observability`, `compose-tracing`→`tracing`으로 정리하고 `&compose_service_tags` 앵커(미사용) 제거.
+- [x] **entry 조합 시도 → 되돌림**: overlay 엔트리를 base와 plan에서 조합하면 TASK-288 경고(validate_warnings.go:893)로 거부되어 원래 형태(엔트리당 전체 -f 목록)로 복귀. 엔트리 이름을 `observability`/`tracing`으로 정리, 미사용 앵커 제거.
 - [x] `dev-up`: `dva up -M full` → `dva up full`. sigdock-browser-e2e 주석의 `-M sigdock-local`도 갱신.
 - [x] 최상위 `environment:` → `vars:` (loadEnv 순서 vars < environment < env_file이라 interaction에 보이는 값 동일). `environments.dev.environment: {PRIMENO1_ENV: development}`로 환경 축 부여.
 - [x] `env_file` map 형식 → 리스트 형식. `logs` replace 제거(`dva logs full`). provision `docker compose up` → `compose_up: [postgres, redis, zookeeper, broker, schema-registry]` (PrimaryComposeEntry = order 없을 때 이름순 최소 = `compose`이므로 base 파일 사용).
@@ -49,7 +49,7 @@ EXIT=0   (warning 1 — 의도적 예외)
 - `docker-compose.task44.verify.yml` / `task45.verify.yml` 미등록(검증 픽스처). env/docker-compose/ 하위라 drift 감지 대상이 아니어서 경고 없음.
 
 ### 발견된 dva 개선점
-- **overlay 조합 불가 (설계)**: plan에서 base 엔트리 + overlay 엔트리를 조합하면 TASK-288 경고. 결과적으로 overlay 수만큼 base 서비스/태그 선언이 중복된다(observability·tracing 엔트리가 base 5개 서비스 재선언). 엔트리 상속(`extends: compose` 또는 `files: +overlay`) 같은 선언 재사용 수단이 없으면 이 중복은 구조적. 개선 후보: PlanEntry가 여러 stack 엔트리를 한 invocation으로 병합하는 `merge:`/`overlays:` 필드.
+- **overlay 조합 불가 (설계)**: base+overlay 엔트리 조합은 TASK-288 경고라 overlay마다 base 서비스/태그를 재선언해야 한다(구조적 중복). 개선 후보는 TASK-307의 엔트리 `extends:`/PlanEntry `overlays:`.
 - **PrimaryComposeEntry 암묵 선택**: order 제거 후 primary compose 엔트리는 이름순(internal/config/lifecycle_helpers.go:164). compose 엔트리가 여러 개인 config에서 provision compose_up / `dva db`(service 지정 interaction)가 어느 파일 세트로 실행되는지 문서화·명시 수단(`primary: true` 등) 필요.
 - **migrate가 modes.*.stack → plans 자동 변환 안 함**(1:1 매핑), `dva up -M` 잔재(interaction command·스크립트) 탐지 없음. TASK-306.
 - **drift 감지가 서브디렉터리 compose 파일을 보지 않음**(env/docker-compose/*.verify.yml) — sigdock-pass의 `compose-*.yaml` 미감지와 같은 계열.
@@ -82,9 +82,7 @@ EXIT=0   (warning 1 — 의도적 예외)
   `api-run.external-db`, `api-run.stream.external-db`, `frontend-dev`. `dva status`가 앱을 못 보고 `dva down`이 앱을 남긴다.
 - 미적용 이유: 각 기동이 SigDock contract gate(`scripts/sigdock-local-contract.sh`), TLS 검증 wrapper(`--exec`), external-db credential wrapper와
   결합돼 있고 health 경로가 확인되지 않아 실기동(TASK-311/312 이후) 없이 옮기면 검증 불가.
-- 권장안: native 엔트리 `api`/`gateway`/`stream`/`frontend`(dir 루트, `run:`에 gate 스크립트 체인 그대로) + plan `dev`(`full` + api + gateway + frontend, depends_on compose),
-  `external-db` plan에 `api`/`stream`의 external-db 변형 엔트리 추가. 기존 `dva api-run*`/`frontend-dev` 문서 참조 8곳(README, CLAUDE.md, INDEX, PLAN, PRDV,
-  REQUIREMENTS, GUIDELINES, LOCAL_EXECUTION_GUIDE)은 `dva up dev`로 치환. 참고로 문서의 `dva frontend-dev` 표기는 현행 문법(`dva run frontend-dev`)도 아니다.
+- 권장안: native 엔트리 4종 + plan `dev`, 문서 참조 8곳 `dva up dev`로 치환 (아래 적용).
 
 ### 권장안 적용 (2026-09-05, 소유자 수용)
 

@@ -112,54 +112,7 @@ flow-station, lottomaster, mansero, gzh-cli, scripton-code, scripton-dashboard
 
 프로젝트 변경은 전부 **커밋하지 않은 working tree**. 각 리포트의 "적용 결과"/"결정 반영" 섹션이 diff 검토 체크리스트.
 
-| 구분 | 프로젝트 | validate | 비고 |
-|---|---|---|---|
-| Tier 0 | flow-observechain | exit 0 / warn 0 | 무변경 |
-| Tier 1 | cwrapper, dripter, flow-pipechain, funbricks-elemhant, funbricks-notifire, funbricks-postkit, gizzahub, matdosa, sadawiki, scripton-nd-stack | exit 0 / warn 0 | |
-| Tier 1 | flow-knowchain, sigdock-pass | exit 0 / warn 1 | 의도적 drift 예외(TASK-309 대기) |
-| Tier 1 | sigdock-idp | exit 0 / warn 1 | 의도적 drift 예외 |
-| Tier 1 | scripton-signalhub | exit 0 / warn 1 | compose `name:` 누락 (프로젝트 결정) |
-| Tier 1 | flow-taskchain | exit 0 / warn 4 | 사전 존재 Makefile 제안, 범위 밖 |
-| Tier 2 | flow-agent-mesh, gorisa, scripton-gitrump | exit 0 / warn 0 | gitrump 5단계 적용 완료 |
-| Tier 3 | scripton-dns-bridge | exit 0 / warn 0 | |
-| Tier 3 | familybook, scripton-db-orchestrator | exit 0 / warn 1 | 의도적 drift 예외 |
-| Tier 3 | primeno1 | exit 0 / warn 1 | compose `name:` 누락 |
-| 신규 도입 | scripton-dashboard | exit 0 / warn 0 | dva.yml 신규(native-only) |
-| 미도입 | gzh-cli(조건부), flow-station(효용 낮음), mansero(보류), lottomaster·scripton-code(불필요) | — | 리포트만 |
-
-### 확정된 결정 (2026-09-05)
-- reports/ → dva 저장소 `docs/dogfood/`로 이동해 버전 관리(태스크 `source:` 경로 갱신).
-- postkit `environments.ci` 삭제. notifire `scripts/dva-*.sh` 수용. bare `dva logs/down`은 plan 명시로 통일.
-- endpoints 리터럴 포트 유지(dva가 endpoints url을 치환하지 않음 — TASK-323).
-- 의도적 drift warning 5건은 TASK-309 대기.
-- docs/57(TASK-310) §4 안티패턴 기준 24개 전수 점검(2026-09-05): §4-2 중복 선언 2건 수정(gitrump `run-app`→`check-config`, dns-bridge `run-api`/`run-worker` 삭제).
-  §4-1 primeno1(앱 4종 미선언)·§4-3 familybook/flow-taskchain(자식 Makefile 타겟 참조)은 소유자 결정으로 리포트에 권장안만 기록.
-  일회성 명령(migrate, cli, check)과 cargo-watch 변형은 중복으로 보지 않음.
-- 소유자 결정 수용(2026-09-05): primeno1 §4-1, familybook·flow-taskchain §4-3 적용. composition plan 중복 경고 오탐은 TASK-324.
-
-### 남은 작업
-1. 24개 프로젝트 working tree 리뷰·커밋(사용자). warning 0 → 예외 순.
-2. 실기동 검증: TASK-311/312 수정 후 primeno1, db-orchestrator, dns-bridge, gitrump, signalhub, dashboard(`make prepare` 선행).
-4. ~~소유자 결정~~ 완료(2026-09-05): primeno1 native 엔트리 전환(§4-1), familybook·flow-taskchain 자식 dva.yml + subprojects import 전환(§4-3). 발견 → TASK-324.
-3. dva 태스크: P1 312, 313, 317, 311 → P2 314, 316, 315, 307 → needs-human 319, 321 → P3.
-
-## 이력
-
-### 1차 실행 (2026-09-05 오전)
-
-전 Phase를 실행했다. 프로젝트 변경은 **커밋하지 않은 working tree** 상태이며 각 리포트의 "적용 결과" 섹션이 체크리스트다.
-
-| 구분 | 프로젝트 | validate | 비고 |
-|---|---|---|---|
-| Tier 0 | flow-observechain | exit 0 / warn 0 | 무변경 |
-| Tier 1 | cwrapper, dripter, flow-pipechain, funbricks-elemhant, funbricks-notifire, funbricks-postkit, gizzahub, matdosa, sadawiki, scripton-nd-stack, scripton-dns-bridge | exit 0 / warn 0 | |
-| Tier 1 | flow-knowchain, sigdock-idp, sigdock-pass, scripton-signalhub | exit 0 / warn 1 | 의도적 예외(drift 픽스처, compose `name:`) |
-| Tier 1 | flow-taskchain | exit 0 / warn 4 | 사전 존재 Makefile 제안, 범위 밖 |
-| Tier 2 | flow-agent-mesh, gorisa | exit 0 / warn 0 | |
-| Tier 2 | scripton-gitrump | exit 0 / warn 0 | 5단계 마이그레이션 적용 완료(사용자 승인, 2026-09-05) |
-| Tier 3 | familybook, primeno1, scripton-db-orchestrator | exit 0 / warn 1 | 의도적 예외 |
-| Tier 3 | scripton-dns-bridge | exit 0 / warn 0 | |
-| 미도입 | scripton-dashboard(1순위), gzh-cli(조건부), flow-station(효용 낮음), mansero(보류), lottomaster·scripton-code(불필요) | — | 리포트에 골격만, 파일 무생성 |
+validate 결과: 23개 중 exit 0 / warn 0 이 대다수, warn 1~4는 의도적 drift 예외·compose `name:`·범위 밖 Makefile 제안. 미도입 6개는 리포트에 골격만.
 
 부수 작업: 5개 프로젝트 20개 파일의 제거된 CLI 잔재(`-M`, `dva app`, `dva clean`, `dva start`) 치환 (리포트 "CLI 잔재 정리" 섹션).
 `${VAR:-default}` 사용처는 TASK-303 수정(dva d7636a3, 재빌드 후 23개 재검증 결과 동일) 이후 전부 유지 확정. gorisa만 방어 우회를 걷어내고 기본값 형식으로 복원.

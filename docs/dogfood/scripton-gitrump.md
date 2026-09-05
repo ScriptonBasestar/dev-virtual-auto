@@ -41,9 +41,9 @@ exit=1
 
 ### 수동 결정용 마이그레이션 제안 (5단계)
 1. **env_file 정리**: `priority: before_environment`, `interpolate: true` 삭제. 현재 dva는 우선순위 고정(environment < env_file < OS)·항상 보간이므로 동작 동일.
-2. **applications.gitrumpd → stack 엔트리**: migrate preview 결과 그대로 채택 가능 — `stack.gitrumpd: {tags:[app], default_runner: native, runners.native:{dir: gitrump-ce, build: cargo build, run: cargo run --bin gitrumpd -- --config ../config/example.yaml}, health_checks.gitrumpd:{type: http, url: http://localhost:11700/healthz, timeout 5, ready_timeout 60}}`. 잃는 것: `dev:`(cargo watch 변형 — `dev` interaction이 이미 같은 명령을 가짐), `run.docker.service: gitrumpd`(3단계 plan으로 대체). 최상위 `health_checks.gitrump-http`는 중복이므로 삭제.
+2. **applications.gitrumpd → stack 엔트리**: migrate preview 그대로 채택(native, dir gitrump-ce, health http :11700/healthz). 잃는 것: `dev:` cargo watch 변형(interaction이 대체), `run.docker.service`(plan으로 대체). 최상위 `health_checks.gitrump-http` 중복 삭제.
 3. **modes → plans**: `infra`(compose, services [webhook-ok, webhook-fail, mirror-upstream], order 10) / `dev-full`(compose 전체 서비스 — overlay 포함 gitrumpd Docker) / 신규 `dev`(compose infra 3개 + gitrumpd native, order 20, depends_on compose). `default_mode: infra` → `default_plan: infra`. `stack.compose.order` 는 plan entries로 이동 후 삭제. **결정 필요**: `dev-full`의 "빈 선택 = 전체" 의미를 services 명시로 고정할지.
-4. **lifecycle 우회 interaction 정리**: `dev-full`(overlay `docker compose up -d` 직접 호출)과 하위 `rebuild`/`status`는 `dva up dev-full`/`dva build dev-full`/`dva status`로 대체 가능 → 삭제 또는 `provision` note로 이동. `dev` replace 훅(reserved 우회)은 `dva up dev`가 대체하므로 삭제. `clean` replace 훅은 제거된 built-in → `steps:`로 전환. `app:build`/`app:run`/`app:clean` 콜론 이름은 `build-app`/`run-app`/`clean-app` 등으로 개명(build 하위 subcommands는 그대로). **결정 필요**: `app:clean all`의 `docker compose down -v` 파괴 동작을 interaction에 남길지.
+4. **lifecycle 우회 interaction 정리**: `dev-full`(+rebuild/status)·`dev` replace 훅은 `dva up/build/status`가 대체하므로 삭제, `clean` replace 훅은 `steps:`로, `app:*` 콜론 이름은 `build-app`/`run-app`/`clean-app`으로 개명. **결정 필요**: `app:clean all`의 `down -v` 파괴 동작 존치 여부.
 5. **provision/schema 주석 정리**: note의 `dva dev`/`dva up -M dev-full` → `dva up dev`/`dva up dev-full`; provision 스텝의 직접 `docker compose up` 호출을 `dva up infra`/`dva up dev-full`로 교체할지 결정(현재는 provision 안에서 lifecycle 우회). 1행 schema 주석을 `dva/internal/config/schema.json` 경로로 갱신, `version: "0.1.48"`.
 
 ### 보류/예외
@@ -66,7 +66,7 @@ validate: **exit 0 / warn 0** (이전 exit 1). 커밋하지 않음. `--dry-run u
   - `dev-full`: compose 서비스 전체 + overlay의 `gitrumpd` — **"빈 선택=전체"를 services 명시로 고정**(결정 사항 1 → 명시 채택)
   - `postgres`가 compose.yaml에 있으면서 stack 선언에 빠져 있던 것을 추가.
 - [x] 4. interaction: `dev`/`build`/`clean`/`logs` replace 훅 삭제, `dev-full`(+rebuild/status) 삭제(`dva up dev-full`/`dva build dev-full`/`dva status`). `app:build`→`build-app`, `app:run`→`run-app`, `app:clean`→`clean`(command 형식). **`clean all`의 `docker compose down -v`는 존치**(결정 사항 2 → 존치, description에 destructive 표기).
-- [x] 5. provision의 직접 compose 호출 → `dva up infra`/`dva up dev-full`/`dva down dev-full --volumes`(다른 5개 devbox와 같은 nested-dva 관례). note의 `dva dev`/`dva up -M dev-full` 치환. schema 주석 → `dva/internal/config/schema.json`, `version: "0.1.48"`.
+- [x] 5. provision의 직접 compose 호출 → nested `dva up`/`down`(5개 devbox 관례). note 잔재 치환, schema 주석·`version: "0.1.48"` 갱신.
 - [x] 에러에 가려져 있던 Makefile 제안 warning 58건 → `suggestion_ignore` glob 15개로 정리(env-*/release*/k8s-secret-*/validate* 등, 사유 주석). 상위 문서(Makefile, .make/*.mk, CLAUDE.md, README.md, docs/)에 제거된 CLI 잔재 없음.
 
 ### dry-run 확인
