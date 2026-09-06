@@ -5,6 +5,7 @@ type: test
 priority: P2
 effort: M
 exec-tier: standard
+status: todo
 created: 2026-09-06
 ---
 
@@ -16,4 +17,4 @@ All devbox migrations so far were verified only with `dva validate` and `--dry-r
 
 - [ ] primeno1 native entries complete a real dva up / status / down --purge cycle with output attached to the dogfood report | verify: human — docs/dogfood/primeno1.md contains a 실기동 section with exit codes for up, status, down --purge
 - [ ] familybook and flow-taskchain composition plans complete a real up / status / down --purge cycle with output attached | verify: human — docs/dogfood/familybook.md and docs/dogfood/flow-taskchain.md contain a 실기동 section with exit codes
-- [ ] PLAN-006 row 10a references this task | verify: `grep -q "10a" /Users/archmagece/mywork/scripton/dva/tasks/plan/006-devbox-dogfood-followup.md`
+- [ ] PLAN-006 row 10a references this task | verify: `/usr/bin/grep -q "TASK-328" tasks/plan/006-devbox-dogfood-followup.md`

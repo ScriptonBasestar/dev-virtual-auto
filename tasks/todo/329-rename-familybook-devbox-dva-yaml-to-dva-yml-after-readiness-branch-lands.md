@@ -5,6 +5,7 @@ type: chore
 priority: P3
 effort: S
 exec-tier: standard
+status: todo
 created: 2026-09-06
 ---
 
