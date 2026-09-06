@@ -6,7 +6,7 @@ scope: "TASK-311..323 from the 2026-09-05 mydevbox migration, plus the needs-hum
 progress: 35
 total-tasks: 17
 completed-tasks: 6
-children: [TASK-312, TASK-313, TASK-317, TASK-311, TASK-324, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
+children: [TASK-328, TASK-329, TASK-312, TASK-313, TASK-317, TASK-311, TASK-324, TASK-314, TASK-316, TASK-320, TASK-322, TASK-315, TASK-318, TASK-323, TASK-249, TASK-307, TASK-309, TASK-319, TASK-321]
 target-date: "2026-10-31"
 created: 2026-09-05
 ---
@@ -39,7 +39,7 @@ created: 2026-09-05
 | 8 | TASK-322 init 탐지 결함 | P2 M. 249 재설계와 겹치지 않는 탐지 버그만 |
 | 9 | TASK-315 compose profiles | P2 M. 둘째 기준 human |
 | 10 | TASK-318 섹션 순서 자동 정렬 | P3 S |
-| 10a | 실기동 검증 회차 (카드 없음) | 311 완료로 착수 가능. primeno1 native 6종(gate 체인+`exec`), familybook/flow-taskchain composition plan을 `dva up`/`status`/`down --purge` 실제 실행으로 확인하고 각 리포트에 출력 첨부. 결함이 나오면 카드로 승격 |
+| 10a | 실기동 검증 회차 (TASK-328) | 311 완료로 착수 가능. primeno1 native 6종(gate 체인+`exec`), familybook/flow-taskchain composition plan을 `dva up`/`status`/`down --purge` 실제 실행으로 확인하고 각 리포트에 출력 첨부. 결함이 나오면 카드로 승격 |
 | 11 | TASK-323 문서 의미 공백 | P3 S. `--env` 항목은 307 결정에 따라 문구가 달라짐 — 마지막 |
 
 ## Needs-human (결정 후 착수)
@@ -71,7 +71,7 @@ created: 2026-09-05
 ## Session handoff (2026-09-05 밤)
 
 - 세션 1회차 종료 시점: 1~5·4a 통합 완료(master 2cb184e). 316은 분석만 카드에 기록, worktree 없음.
-- 다음 착수: TASK-316 → 320 → 322 → 315 → 318 → 10a 실기동 → 323. 카드 §Analysis에서 바로 시작.
+- 다음 착수: TASK-316 → 320 → 322 → 315 → 318 → 10a 실기동(TASK-328) → 323. 카드 §Analysis에서 바로 시작.
 - 잔여 사람 결정: 위 §Needs-human, §Devbox integration state의 scripton-dashboard·familybook 2건.
 
 ## Rules
