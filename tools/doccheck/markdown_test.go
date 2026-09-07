@@ -54,6 +54,38 @@ func TestExtractLinks_skipsCode(t *testing.T) {
 	}
 }
 
+// Given headings carrying underscores, When inline markup is stripped, Then
+// only paired `_..._` emphasis is removed and intraword identifiers like
+// `sops_source` survive exactly as GitHub renders them (TASK-326).
+func TestStripHeadingInline_keepsIntrawordUnderscore(t *testing.T) {
+	cases := map[string]string{
+		"sops_source":              "sops_source",
+		"snake_case and _italics_": "snake_case and italics",
+		"__init__":                 "init",
+		"_a_b_":                    "a_b",
+		"trailing_":                "trailing_",
+		"env_file Handling":        "env_file Handling",
+	}
+	for in, want := range cases {
+		if got := stripHeadingInline(in); got != want {
+			t.Errorf("stripHeadingInline(%q)=%q want %q", in, got, want)
+		}
+	}
+}
+
+// Given a real heading whose identifier carries an intraword underscore, When
+// anchors are collected, Then the slug equals the anchor GitHub derives from
+// the same heading (`#sops_source-bridge`, `#snake_case`).
+func TestCollectAnchors_githubSlugForUnderscoreHeading(t *testing.T) {
+	a := collectAnchors("## sops_source bridge\n")
+	if _, ok := a["sops_source-bridge"]; !ok {
+		t.Fatalf("expected sops_source-bridge in %v", a)
+	}
+	if _, ok := collectAnchors("## snake_case\n")["snake_case"]; !ok {
+		t.Fatal("expected snake_case anchor")
+	}
+}
+
 // Given a real heading with inline code, When anchors are collected, Then the
 // slug is still present (inline code in headings is legitimate).
 func TestCollectAnchors_keepsInlineCodeInHeading(t *testing.T) {

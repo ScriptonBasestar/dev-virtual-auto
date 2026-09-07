@@ -74,10 +74,70 @@ func stripHeadingInline(s string) string {
 	s = reHeadingLink.ReplaceAllString(s, "$1")
 	s = reHeadingImg.ReplaceAllString(s, "$1")
 	s = strings.ReplaceAll(s, "`", "")
-	for _, ch := range []string{"**", "__", "*", "_"} {
-		s = strings.ReplaceAll(s, ch, "")
-	}
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.ReplaceAll(s, "*", "")
+	s = stripUnderscoreEmphasis(s)
 	return strings.TrimSpace(s)
+}
+
+// stripUnderscoreEmphasis removes `_` delimiters only where GitHub would render
+// emphasis, keeping intraword underscores (`sops_source`, `snake_case`)
+// literal so heading slugs match GitHub anchors. Flanking rules follow
+// CommonMark: `_` opens emphasis only when left-flanking and not intraword,
+// and closes only when right-flanking and not intraword. `__strong__` runs
+// match the same way, delimiter by delimiter.
+func stripUnderscoreEmphasis(s string) string {
+	rs := []rune(s)
+	type delim struct {
+		idx               int
+		canOpen, canClose bool
+	}
+	isPunct := func(r rune) bool { return unicode.IsPunct(r) || unicode.IsSymbol(r) }
+	var delims []delim
+	for i, r := range rs {
+		if r != '_' {
+			continue
+		}
+		prevWS, nextWS := true, true
+		prevPunct, nextPunct := false, false
+		if i > 0 {
+			prevWS = unicode.IsSpace(rs[i-1])
+			prevPunct = isPunct(rs[i-1])
+		}
+		if i+1 < len(rs) {
+			nextWS = unicode.IsSpace(rs[i+1])
+			nextPunct = isPunct(rs[i+1])
+		}
+		leftFlanking := !nextWS && (!nextPunct || prevWS || prevPunct)
+		rightFlanking := !prevWS && (!prevPunct || nextWS || nextPunct)
+		d := delim{idx: i}
+		d.canOpen = leftFlanking && (!rightFlanking || prevPunct)
+		d.canClose = rightFlanking && (!leftFlanking || nextPunct)
+		delims = append(delims, d)
+	}
+	var openers []*delim
+	removed := make(map[int]bool, len(delims))
+	for i := range delims {
+		d := &delims[i]
+		if d.canClose && len(openers) > 0 {
+			o := openers[len(openers)-1]
+			openers = openers[:len(openers)-1]
+			removed[o.idx] = true
+			removed[d.idx] = true
+		}
+		if d.canOpen {
+			openers = append(openers, d)
+		}
+	}
+	var b strings.Builder
+	b.Grow(len(rs))
+	for i, r := range rs {
+		if removed[i] {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }
 
 // githubAnchor approximates GitHub heading anchors for this repo's docs.

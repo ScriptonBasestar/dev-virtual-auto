@@ -35,3 +35,7 @@ TASK-246은 제목에서 `_`를 빼는 우회로 문서를 통과시키고 후�
 ## Non-goals
 
 - 다른 GitHub 앵커 규칙(중복 제목 `-1` 접미, 이모지)은 이 카드 범위 밖.
+
+## Troubleshooting Log
+
+- `__init__`류 뒤집은 듀얼언더스코어가 단순 쌍 매칭에서 뭉개질 뻔함 / 원인: `_`는 위치마다 opener·closer 자격이 달라 문자열 치환으로는 안 됨 / 해결: CommonMark flanking 규칙으로 `_`별 canOpen/canClose를 판정 후 스택으로 최근 opener 매칭 / 약 25분
